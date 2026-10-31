@@ -8,11 +8,14 @@ fn path_segment(first: PointPayload, second: PointPayload) -> LsegValue {
     })
 }
 fn path_min_distance(current: Float8Value, candidate: Float8Value, first: bool) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = current { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = candidate { unresolved_flavor = 1; };
     if let Float8Value::Error(error) = candidate {
         return Float8Value::Error(error);
     };
     if candidate == Float8Value::Unknown {
-        return Float8Value::Unknown;
+        return float8_unresolved(unresolved_flavor);
     };
     if first || sql__pg_catalog__float8lt__vp07(candidate, current) == BoolValue::Value(true) {
         return candidate;
@@ -20,6 +23,9 @@ fn path_min_distance(current: Float8Value, candidate: Float8Value, first: bool) 
     current
 }
 pub fn sql__pg_catalog__dist_ppath__e16q(point: PointValue, input: PathValue) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let PointValue::Unknown = point { unresolved_flavor = 1; };
+    if let PathValue::Unknown = input { unresolved_flavor = 1; };
     if let PointValue::Error(error) = point {
         return Float8Value::Error(error);
     };
@@ -27,10 +33,10 @@ pub fn sql__pg_catalog__dist_ppath__e16q(point: PointValue, input: PathValue) ->
         return Float8Value::Error(error);
     };
     if point == PointValue::Unknown {
-        return Float8Value::Unknown;
+        return float8_unresolved(unresolved_flavor);
     };
     if let PathValue::Unknown = input {
-        return Float8Value::Unknown;
+        return float8_unresolved(unresolved_flavor);
     };
     if point == PointValue::Null {
         return Float8Value::Null;
@@ -57,14 +63,14 @@ pub fn sql__pg_catalog__dist_ppath__e16q(point: PointValue, input: PathValue) ->
                 return Float8Value::Error(error);
             };
             if result == Float8Value::Unknown {
-                return Float8Value::Unknown;
+                return float8_unresolved(unresolved_flavor);
             };
             have_min = true;
             index += 1;
         }
         return box_computed_scalar(result);
     };
-    Float8Value::Unknown
+    float8_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__dist_pathp__9d28(input: PathValue, point: PointValue) -> Float8Value {
     if let PathValue::Error(error) = input {
@@ -73,6 +79,9 @@ pub fn sql__pg_catalog__dist_pathp__9d28(input: PathValue, point: PointValue) ->
     sql__pg_catalog__dist_ppath__e16q(point, input)
 }
 pub fn sql__pg_catalog__path_distance__3309(left: PathValue, right: PathValue) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let PathValue::Unknown = left { unresolved_flavor = 1; };
+    if let PathValue::Unknown = right { unresolved_flavor = 1; };
     if let PathValue::Error(error) = left {
         return Float8Value::Error(error);
     };
@@ -80,10 +89,10 @@ pub fn sql__pg_catalog__path_distance__3309(left: PathValue, right: PathValue) -
         return Float8Value::Error(error);
     };
     if let PathValue::Unknown = left {
-        return Float8Value::Unknown;
+        return float8_unresolved(unresolved_flavor);
     };
     if let PathValue::Unknown = right {
-        return Float8Value::Unknown;
+        return float8_unresolved(unresolved_flavor);
     };
     if let PathValue::Null = left {
         return Float8Value::Null;
@@ -121,7 +130,7 @@ pub fn sql__pg_catalog__path_distance__3309(left: PathValue, right: PathValue) -
                         return Float8Value::Error(error);
                     };
                     if result == Float8Value::Unknown {
-                        return Float8Value::Unknown;
+                        return float8_unresolved(unresolved_flavor);
                     };
                     have_min = true;
                     second += 1;
@@ -134,5 +143,5 @@ pub fn sql__pg_catalog__path_distance__3309(left: PathValue, right: PathValue) -
             return box_computed_scalar(result);
         };
     };
-    Float8Value::Unknown
+    float8_unresolved(unresolved_flavor)
 }

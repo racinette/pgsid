@@ -272,6 +272,7 @@ fn unicode_quick_property(code: i32, form: i32) -> i32 {
 }
 
 pub fn unicode_normalized_text(value: String, form: i32) -> BoolValue {
+    let unresolved_flavor: i32 = 0;
     let characters: Vec<char> = value.chars().collect();
     let length: i32 = characters.len() as i32;
     let size: i64 = length as i64;
@@ -311,7 +312,7 @@ pub fn unicode_normalized_text(value: String, form: i32) -> BoolValue {
     if let TextValue::Value(text) = normalized {
         return BoolValue::Value(text == value);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn unicode_text_assigned(value: String) -> bool {

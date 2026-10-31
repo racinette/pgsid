@@ -288,12 +288,13 @@ fn jsonb_relation_walk_from(
 }
 
 fn jsonb_relation_partial(a: JsonbKnowledge, b: JsonbKnowledge, contains: bool) -> BoolValue {
+    let unresolved_flavor: i32 = 0;
     if a.kind < 0 || b.kind < 0 {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if a.kind != b.kind {
         if contains && a.kind == 5 && b.kind < 5 && a.length != 0 {
-            return BoolValue::Unknown;
+            return bool_unresolved(unresolved_flavor);
         };
         return make_bool_value(false);
     };
@@ -319,7 +320,7 @@ fn jsonb_relation_partial(a: JsonbKnowledge, b: JsonbKnowledge, contains: bool) 
             };
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 // Whether two nodes, either of which may be a hole, can have the same kind.
@@ -470,6 +471,9 @@ fn jsonb_relation_values(
     contains: bool,
     invert: bool,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbValue::Unknown = left { unresolved_flavor = 1; };
+    if let JsonbValue::Unknown = right { unresolved_flavor = 1; };
     if let JsonbValue::Error(error) = left {
         return BoolValue::Error(error);
     };
@@ -483,10 +487,10 @@ fn jsonb_relation_values(
         return BoolValue::Null;
     };
     if let JsonbValue::Unknown = left {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if let JsonbValue::Unknown = right {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     let mut partial = false;
     if let JsonbValue::NonNull(_) = left {
@@ -519,7 +523,7 @@ fn jsonb_relation_values(
             if related >= 0 {
                 return make_bool_value((related == 1) != invert);
             };
-            return BoolValue::Unknown;
+            return bool_unresolved(unresolved_flavor);
         };
         let a = jsonb_root_facts(left, false);
         let b = jsonb_root_facts(right, false);
@@ -535,7 +539,7 @@ fn jsonb_relation_values(
             return BoolValue::Value(result != invert);
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__jsonb_eq__tfah(left: JsonbValue, right: JsonbValue) -> BoolValue {

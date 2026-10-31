@@ -2,11 +2,13 @@ const CHR_INVALID_PARAMETER: u32 = 3452619;
 const CHR_PROGRAM_LIMIT: u32 = 8584704;
 
 pub fn sql__pg_catalog__chr__23bn(input: Int4Value) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = input { unresolved_flavor = 1; };
     if let Int4Value::Error(error) = input {
         return TextValue::Error(error);
     }
     if input == Int4Value::Unknown {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if input == Int4Value::Null {
         return TextValue::Null;
@@ -23,16 +25,18 @@ pub fn sql__pg_catalog__chr__23bn(input: Int4Value) -> TextValue {
         output.push(character);
         return TextValue::Value(output);
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn chr_context(input: Int4Value, utf8: bool) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = input { unresolved_flavor = 1; };
     let value = sql__pg_catalog__chr__23bn(input);
     if utf8 == false {
         if let Int4Value::Value(code) = input {
             if code > 127 {
                 if let TextValue::Value(_) = value {
-                    return TextValue::Unknown;
+                    return text_unresolved(unresolved_flavor);
                 }
             }
         }

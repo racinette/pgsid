@@ -9,6 +9,7 @@ fn jsonb_bulk_key_matches(
     keys: &ArrayPayload,
     object: bool,
 ) -> BoolValue {
+    let unresolved_flavor: i32 = 0;
     if object == false && node.kind != 4 {
         return make_bool_value(false);
     };
@@ -39,12 +40,15 @@ fn jsonb_bulk_key_matches(
         index += 1;
     }
     if uncertain {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     make_bool_value(false)
 }
 
 pub fn sql__pg_catalog__jsonb_delete__11uh(input: JsonbValue, keys: ArrayValue) -> JsonbValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayValue::Unknown = keys { unresolved_flavor = 1; };
     if let JsonbValue::Error(error) = input {
         return JsonbValue::Error(error);
     };
@@ -60,7 +64,7 @@ pub fn sql__pg_catalog__jsonb_delete__11uh(input: JsonbValue, keys: ArrayValue) 
     if let JsonbValue::NonNull(facts) = input {
         if let ArrayValue::Value(queries) = keys {
             if queries.element_type != "pg_catalog.text" || queries.element_kind != 8 {
-                return JsonbValue::Unknown;
+                return jsonb_unresolved(unresolved_flavor);
             };
             if queries.dimensions.len() > 1 {
                 return JsonbValue::Error(make_sql_error(JSONB_PATH_RANK));
@@ -117,12 +121,12 @@ pub fn sql__pg_catalog__jsonb_delete__11uh(input: JsonbValue, keys: ArrayValue) 
                 return jsonb_partial_shape(facts.maximum, facts.kind, length);
             };
         };
-        return JsonbValue::Unknown;
+        return jsonb_unresolved(unresolved_flavor);
     };
     if let JsonbValue::Value(value) = input {
         if let ArrayValue::Value(queries) = keys {
             if queries.element_type != "pg_catalog.text" || queries.element_kind != 8 {
-                return JsonbValue::Unknown;
+                return jsonb_unresolved(unresolved_flavor);
             };
             if queries.dimensions.len() > 1 {
                 return JsonbValue::Error(make_sql_error(JSONB_PATH_RANK));
@@ -141,7 +145,7 @@ pub fn sql__pg_catalog__jsonb_delete__11uh(input: JsonbValue, keys: ArrayValue) 
                     return JsonbValue::Error(error);
                 };
                 if matched == BoolValue::Unknown {
-                    return JsonbValue::Unknown;
+                    return jsonb_unresolved(unresolved_flavor);
                 };
                 if matched == make_bool_value(true) {
                     changed = true;
@@ -178,7 +182,7 @@ pub fn sql__pg_catalog__jsonb_delete__11uh(input: JsonbValue, keys: ArrayValue) 
             );
         };
     };
-    JsonbValue::Unknown
+    jsonb_unresolved(unresolved_flavor)
 }
 
 fn jsonb_path_child(node: JsonbNode, child: usize) -> JsonbNode {
@@ -220,14 +224,16 @@ fn jsonb_path_edit_partial(
     replacement: JsonbValue,
     mode: i32,
 ) -> JsonbValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbValue::Unknown = replacement { unresolved_flavor = 1; };
     if path.element_type != "pg_catalog.text" || path.element_kind != 8 {
-        return JsonbValue::Unknown;
+        return jsonb_unresolved(unresolved_flavor);
     };
     if path.dimensions.len() > 1 {
         return JsonbValue::Error(make_sql_error(JSONB_PATH_RANK));
     };
     if facts.kind < 0 {
-        return JsonbValue::Unknown;
+        return jsonb_unresolved(unresolved_flavor);
     };
     if facts.kind < 5 {
         return JsonbValue::Error(make_sql_error(JSONB_PATH_PARAMETER));
@@ -255,7 +261,7 @@ fn jsonb_path_edit_partial(
             if last && mode < 3 {
                 return jsonb_path_partial_growth(facts, replacement, key.as_str(), -1);
             };
-            return JsonbValue::Unknown;
+            return jsonb_unresolved(unresolved_flavor);
         };
         let parsed = json_array_path_index(key.as_str());
         if let Int4Value::Value(number) = parsed {
@@ -278,7 +284,7 @@ fn jsonb_path_edit_partial(
                         return JsonbValue::Error(make_sql_error(JSONB_PATH_NULL));
                     };
                 };
-                return JsonbValue::Unknown;
+                return jsonb_unresolved(unresolved_flavor);
             };
             if mode == 0 {
                 return sql__pg_catalog__jsonb_delete__btgy(
@@ -294,7 +300,7 @@ fn jsonb_path_edit_partial(
             };
             if length >= 0 && (outside || mode >= 3) {
                 if length == 2147483647 {
-                    return JsonbValue::Unknown;
+                    return jsonb_unresolved(unresolved_flavor);
                 };
                 length = length + 1;
             };
@@ -302,7 +308,7 @@ fn jsonb_path_edit_partial(
         };
         return JsonbValue::Error(make_sql_error(JSONB_PATH_INDEX));
     };
-    JsonbValue::Unknown
+    jsonb_unresolved(unresolved_flavor)
 }
 
 // A partial replacement is spliced as its own shape or a hole, and a partial input stays a
@@ -318,6 +324,8 @@ fn jsonb_path_splice(
     partial: bool,
     maximum: i64,
 ) -> JsonbValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbValue::Unknown = replacement { unresolved_flavor = 1; };
     let mut shaped = partial;
     let mut bound = maximum;
     let mut addition = replacement.clone();
@@ -434,7 +442,7 @@ fn jsonb_path_splice(
             nodes[inserted] = jsonb_build_node(nodes[inserted], next, key_start, key_end);
         };
         if ready == false {
-            return JsonbValue::Unknown;
+            return jsonb_unresolved(unresolved_flavor);
         };
     };
     if previous == 0 {
@@ -470,8 +478,10 @@ fn jsonb_path_edit_known(
     partial: bool,
     maximum: i64,
 ) -> JsonbValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbValue::Unknown = replacement { unresolved_flavor = 1; };
     if path.element_type != "pg_catalog.text" || path.element_kind != 8 {
-        return JsonbValue::Unknown;
+        return jsonb_unresolved(unresolved_flavor);
     };
     if path.dimensions.len() > 1 {
         return JsonbValue::Error(make_sql_error(JSONB_PATH_RANK));
@@ -492,7 +502,7 @@ fn jsonb_path_edit_known(
         };
         let converted = array_element_to_text(element);
         if partial && converted == TextValue::NonNull {
-            return JsonbValue::Unknown;
+            return jsonb_unresolved(unresolved_flavor);
         };
         if converted == TextValue::NonNull {
             let node = input.nodes[parent];
@@ -515,7 +525,7 @@ fn jsonb_path_edit_known(
             let node = input.nodes[parent];
             if node.kind == 7 {
                 if jsonb_hole_allows(&input, parent, 5) || jsonb_hole_allows(&input, parent, 6) {
-                    return JsonbValue::Unknown;
+                    return jsonb_unresolved(unresolved_flavor);
                 };
                 return jsonb_path_same(input, partial, maximum);
             };
@@ -610,7 +620,7 @@ fn jsonb_path_edit_known(
             parent = selected;
         };
         if ready == false {
-            return JsonbValue::Unknown;
+            return jsonb_unresolved(unresolved_flavor);
         };
         position += 1;
     }
@@ -624,6 +634,11 @@ fn jsonb_path_edit(
     flag: BoolValue,
     operation: i32,
 ) -> JsonbValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayValue::Unknown = path { unresolved_flavor = 1; };
+    if let JsonbValue::Unknown = replacement { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = flag { unresolved_flavor = 1; };
     if let JsonbValue::Error(error) = input {
         return JsonbValue::Error(error);
     };
@@ -655,7 +670,7 @@ fn jsonb_path_edit(
             let mut mode: i32 = 0;
             if operation > 0 {
                 if let JsonbValue::Unknown = replacement {
-                    return JsonbValue::Unknown;
+                    return jsonb_unresolved(unresolved_flavor);
                 };
                 mode = 1;
                 if setting {
@@ -691,7 +706,7 @@ fn jsonb_path_edit(
             };
         };
     };
-    JsonbValue::Unknown
+    jsonb_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__jsonb_delete_path__1ziq(input: JsonbValue, path: ArrayValue) -> JsonbValue {
@@ -723,6 +738,12 @@ pub fn sql__pg_catalog__jsonb_set_lax__lecq(
     create: BoolValue,
     treatment: TextValue,
 ) -> JsonbValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayValue::Unknown = path { unresolved_flavor = 1; };
+    if let JsonbValue::Unknown = replacement { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = create { unresolved_flavor = 1; };
+    if let TextValue::Unknown = treatment { unresolved_flavor = 1; };
     if let JsonbValue::Error(error) = input {
         return JsonbValue::Error(error);
     };
@@ -748,22 +769,22 @@ pub fn sql__pg_catalog__jsonb_set_lax__lecq(
         return JsonbValue::Null;
     };
     if let JsonbValue::Unknown = input {
-        return JsonbValue::Unknown;
+        return jsonb_unresolved(unresolved_flavor);
     };
     if let ArrayValue::Unknown = path {
-        return JsonbValue::Unknown;
+        return jsonb_unresolved(unresolved_flavor);
     };
     if create == BoolValue::Unknown {
-        return JsonbValue::Unknown;
+        return jsonb_unresolved(unresolved_flavor);
     };
     if treatment == TextValue::Null {
         return JsonbValue::Error(make_sql_error(JSONB_PATH_PARAMETER));
     };
     if (treatment == TextValue::Unknown || treatment == TextValue::NonNull) {
-        return JsonbValue::Unknown;
+        return jsonb_unresolved(unresolved_flavor);
     };
     if let JsonbValue::Unknown = replacement {
-        return JsonbValue::Unknown;
+        return jsonb_unresolved(unresolved_flavor);
     };
     let mut is_null = false;
     if let JsonbValue::Null = replacement {
@@ -787,5 +808,5 @@ pub fn sql__pg_catalog__jsonb_set_lax__lecq(
         };
         return JsonbValue::Error(make_sql_error(JSONB_PATH_PARAMETER));
     };
-    JsonbValue::Unknown
+    jsonb_unresolved(unresolved_flavor)
 }

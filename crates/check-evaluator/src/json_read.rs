@@ -68,6 +68,7 @@ fn json_read_decode_string_context(
     token: JsonReadToken,
     utf8: bool,
 ) -> TextValue {
+    let unresolved_flavor: i32 = 0;
     let mut position = token.start + 1;
     let mut high: i32 = -1;
     let mut output = String::new();
@@ -122,7 +123,7 @@ fn json_read_decode_string_context(
                         return TextValue::Error(make_sql_error(JSON_READ_ZERO));
                     };
                     if code > 127 && utf8 == false {
-                        return TextValue::Unknown;
+                        return text_unresolved(unresolved_flavor);
                     };
                     output.push(char::from_u32(code as u32).unwrap_or(' '));
                 };
@@ -200,6 +201,7 @@ fn json_read_array_count(source: &JsonSyntaxSource) -> i64 {
 }
 
 fn json_read_select(value: &str, key: &str, index: i32, object: bool, as_text: bool, utf8: bool) -> TextValue {
+    let unresolved_flavor: i32 = 0;
     let source = JsonSyntaxSource {
         characters: value.chars().collect(),
     };
@@ -234,7 +236,7 @@ fn json_read_select(value: &str, key: &str, index: i32, object: bool, as_text: b
                 return TextValue::Error(error);
             };
             if decoded == TextValue::Unknown || decoded == TextValue::NonNull {
-                return TextValue::Unknown;
+                return text_unresolved(unresolved_flavor);
             };
         };
         if depth == 1 {
@@ -298,6 +300,9 @@ pub fn json_read_field(input: JsonValue, key: TextValue, as_text: bool) -> TextV
 }
 
 pub fn json_read_field_context(input: JsonValue, key: TextValue, as_text: bool, utf8: bool) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unknown = key { unresolved_flavor = 1; };
     if let JsonValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -305,10 +310,10 @@ pub fn json_read_field_context(input: JsonValue, key: TextValue, as_text: bool, 
         return TextValue::Error(error);
     };
     if let JsonValue::Unknown = input {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     if key == TextValue::Unknown || key == TextValue::NonNull {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     if let JsonValue::Null = input {
         return TextValue::Null;
@@ -321,7 +326,7 @@ pub fn json_read_field_context(input: JsonValue, key: TextValue, as_text: bool, 
             return json_read_select(value.source.as_str(), name.as_str(), 0, true, as_text,utf8);
         };
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn json_read_element(input: JsonValue, index: Int4Value, as_text: bool) -> TextValue {
@@ -329,6 +334,9 @@ pub fn json_read_element(input: JsonValue, index: Int4Value, as_text: bool) -> T
 }
 
 pub fn json_read_element_context(input: JsonValue, index: Int4Value, as_text: bool, utf8: bool) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = index { unresolved_flavor = 1; };
     if let JsonValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -336,10 +344,10 @@ pub fn json_read_element_context(input: JsonValue, index: Int4Value, as_text: bo
         return TextValue::Error(error);
     };
     if let JsonValue::Unknown = input {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     if let Int4Value::Unknown = index {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     if let JsonValue::Null = input {
         return TextValue::Null;
@@ -352,10 +360,12 @@ pub fn json_read_element_context(input: JsonValue, index: Int4Value, as_text: bo
             return json_read_select(value.source.as_str(), "", number, false, as_text,utf8);
         };
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn json_read_length(input: JsonValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonValue::Unknown = input { unresolved_flavor = 1; };
     if let JsonValue::Error(error) = input {
         return Int4Value::Error(error);
     };
@@ -372,10 +382,12 @@ pub fn json_read_length(input: JsonValue) -> Int4Value {
         let count = json_read_array_count(&source);
         return make_int4_value(count as i32);
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn json_read_input_scalar(input: JsonValue, quoted: bool, utf8: bool) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonValue::Unknown = input { unresolved_flavor = 1; };
     if let JsonValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -400,10 +412,12 @@ pub fn json_read_input_scalar(input: JsonValue, quoted: bool, utf8: bool) -> Tex
         };
         return TextValue::Value(value.source);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn json_read_object_ready(input: JsonValue, utf8: bool) -> CheckOutcome {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonValue::Unknown = input { unresolved_flavor = 1; };
     if let JsonValue::Value(value) = input {
         let kind = value.kind;
         let source = JsonValue::Value(value);
@@ -418,7 +432,7 @@ pub fn json_read_object_ready(input: JsonValue, utf8: bool) -> CheckOutcome {
             return CheckOutcome::Error(error);
         };
         if checked == TextValue::Unknown || checked == TextValue::NonNull {
-            return CheckOutcome::Unknown;
+            return check_unresolved(unresolved_flavor);
         };
         if kind == 6 {
             return CheckOutcome::True;
@@ -428,10 +442,11 @@ pub fn json_read_object_ready(input: JsonValue, utf8: bool) -> CheckOutcome {
     if let JsonValue::Error(error) = input {
         return CheckOutcome::Error(error);
     };
-    CheckOutcome::Unknown
+    check_unresolved(unresolved_flavor)
 }
 
 pub fn json_kind_text(kind: i32) -> TextValue {
+    let unresolved_flavor: i32 = 0;
     if kind == 0 {
         return make_text_value("null");
     };
@@ -450,5 +465,5 @@ pub fn json_kind_text(kind: i32) -> TextValue {
     if kind == 6 {
         return make_text_value("object");
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }

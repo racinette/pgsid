@@ -5,6 +5,11 @@ fn bytea_overlay(
     length: Int4Value,
     has_length: bool,
 ) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let ByteaValue::Unknown = replacement { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = position { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = length { unresolved_flavor = 1; };
     if let ByteaValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
@@ -22,7 +27,7 @@ fn bytea_overlay(
         || position == Int4Value::Unknown
         || length == Int4Value::Unknown
     {
-        return ByteaValue::Unknown;
+        return bytea_unresolved(unresolved_flavor);
     }
     if input == ByteaValue::Null
         || replacement == ByteaValue::Null
@@ -58,7 +63,7 @@ fn bytea_overlay(
             }
         }
     }
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__overlay__9neg(

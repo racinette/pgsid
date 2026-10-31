@@ -7,6 +7,14 @@ fn regex_position_value(
     flags: TextValue,
     subexpression: Int4Value,
 ) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = subject { unresolved_flavor = 1; };
+    if let TextValue::Unknown = pattern { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = starting { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = occurrence { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = end_option { unresolved_flavor = 1; };
+    if let TextValue::Unknown = flags { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = subexpression { unresolved_flavor = 1; };
     if let TextValue::Error(error) = subject {
         return Int4Value::Error(error);
     }
@@ -36,7 +44,7 @@ fn regex_position_value(
         || (flags == TextValue::Unknown || flags == TextValue::NonNull)
         || subexpression == Int4Value::Unknown
     {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if subject == TextValue::Null
         || pattern == TextValue::Null
@@ -108,7 +116,7 @@ fn regex_position_value(
                                         position = span.end;
                                     }
                                     if position >= 2147483647 {
-                                        return Int4Value::Unknown;
+                                        return int4_unresolved(unresolved_flavor);
                                     }
                                     let sql_position: i32 = (position + 1) as i32;
                                     return Int4Value::Value(sql_position);
@@ -120,7 +128,7 @@ fn regex_position_value(
             }
         }
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__regexp_instr__xoyv(subject: TextValue, pattern: TextValue) -> Int4Value {

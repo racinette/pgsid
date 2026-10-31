@@ -21,6 +21,9 @@ fn clock_wrapped_subtract(left: i64, right: i64) -> i64 {
     clock_wrapped_add(left, 0i64 - right)
 }
 fn clock_interval_value(left: TimeValue, right: IntervalValue, subtract: bool) -> TimeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimeValue::Unknown = left { unresolved_flavor = 1; };
+    if let IntervalValue::Unknown = right { unresolved_flavor = 1; };
     if let TimeValue::Error(error) = left {
         return TimeValue::Error(error);
     }
@@ -28,7 +31,7 @@ fn clock_interval_value(left: TimeValue, right: IntervalValue, subtract: bool) -
         return TimeValue::Error(error);
     }
     if left == TimeValue::Unknown || right == IntervalValue::Unknown {
-        return TimeValue::Unknown;
+        return time_unresolved(unresolved_flavor);
     }
     if left == TimeValue::Null || right == IntervalValue::Null {
         return TimeValue::Null;
@@ -49,13 +52,16 @@ fn clock_interval_value(left: TimeValue, right: IntervalValue, subtract: bool) -
             return make_time_value(result);
         };
     };
-    TimeValue::Unknown
+    time_unresolved(unresolved_flavor)
 }
 fn interval_binary_value(
     left: IntervalValue,
     right: IntervalValue,
     subtract: bool,
 ) -> IntervalValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let IntervalValue::Unknown = left { unresolved_flavor = 1; };
+    if let IntervalValue::Unknown = right { unresolved_flavor = 1; };
     if let IntervalValue::Error(error) = left {
         return IntervalValue::Error(error);
     }
@@ -63,7 +69,7 @@ fn interval_binary_value(
         return IntervalValue::Error(error);
     }
     if left == IntervalValue::Unknown || right == IntervalValue::Unknown {
-        return IntervalValue::Unknown;
+        return interval_unresolved(unresolved_flavor);
     }
     if left == IntervalValue::Null || right == IntervalValue::Null {
         return IntervalValue::Null;
@@ -127,7 +133,7 @@ fn interval_binary_value(
             return IntervalValue::Value(result);
         };
     };
-    IntervalValue::Unknown
+    interval_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__time_pl_interval__osxy(left: TimeValue, right: IntervalValue) -> TimeValue {
@@ -142,6 +148,9 @@ pub fn sql__pg_catalog__timetz_pl_interval__wmqy(
     left: TimetzValue,
     right: IntervalValue,
 ) -> TimetzValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimetzValue::Unknown = left { unresolved_flavor = 1; };
+    if let IntervalValue::Unknown = right { unresolved_flavor = 1; };
     if let TimetzValue::Error(error) = left {
         return TimetzValue::Error(error);
     }
@@ -149,7 +158,7 @@ pub fn sql__pg_catalog__timetz_pl_interval__wmqy(
         return TimetzValue::Error(error);
     }
     if left == TimetzValue::Unknown || right == IntervalValue::Unknown {
-        return TimetzValue::Unknown;
+        return timetz_unresolved(unresolved_flavor);
     }
     if left == TimetzValue::Null || right == IntervalValue::Null {
         return TimetzValue::Null;
@@ -163,13 +172,16 @@ pub fn sql__pg_catalog__timetz_pl_interval__wmqy(
             return make_timetz_value(time, clock.zone);
         };
     };
-    TimetzValue::Unknown
+    timetz_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timetz_mi_interval__adb2(
     left: TimetzValue,
     right: IntervalValue,
 ) -> TimetzValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimetzValue::Unknown = left { unresolved_flavor = 1; };
+    if let IntervalValue::Unknown = right { unresolved_flavor = 1; };
     if let TimetzValue::Error(error) = left {
         return TimetzValue::Error(error);
     }
@@ -177,7 +189,7 @@ pub fn sql__pg_catalog__timetz_mi_interval__adb2(
         return TimetzValue::Error(error);
     }
     if left == TimetzValue::Unknown || right == IntervalValue::Unknown {
-        return TimetzValue::Unknown;
+        return timetz_unresolved(unresolved_flavor);
     }
     if left == TimetzValue::Null || right == IntervalValue::Null {
         return TimetzValue::Null;
@@ -191,7 +203,7 @@ pub fn sql__pg_catalog__timetz_mi_interval__adb2(
             return make_timetz_value(time, clock.zone);
         };
     };
-    TimetzValue::Unknown
+    timetz_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__interval_pl__2mgc(
@@ -213,6 +225,9 @@ pub fn sql__pg_catalog__interval_um__k6pj(input: IntervalValue) -> IntervalValue
 }
 
 pub fn sql__pg_catalog__time_mi_time__qauq(left: TimeValue, right: TimeValue) -> IntervalValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimeValue::Unknown = left { unresolved_flavor = 1; };
+    if let TimeValue::Unknown = right { unresolved_flavor = 1; };
     if let TimeValue::Error(error) = left {
         return IntervalValue::Error(error);
     }
@@ -220,7 +235,7 @@ pub fn sql__pg_catalog__time_mi_time__qauq(left: TimeValue, right: TimeValue) ->
         return IntervalValue::Error(error);
     }
     if left == TimeValue::Unknown || right == TimeValue::Unknown {
-        return IntervalValue::Unknown;
+        return interval_unresolved(unresolved_flavor);
     }
     if left == TimeValue::Null || right == TimeValue::Null {
         return IntervalValue::Null;
@@ -230,10 +245,12 @@ pub fn sql__pg_catalog__time_mi_time__qauq(left: TimeValue, right: TimeValue) ->
             return make_interval_value(0, 0, a - b);
         };
     };
-    IntervalValue::Unknown
+    interval_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__interval__39db(input: TimeValue) -> IntervalValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimeValue::Unknown = input { unresolved_flavor = 1; };
     if let TimeValue::Error(error) = input {
         return IntervalValue::Error(error);
     }
@@ -243,10 +260,12 @@ pub fn sql__pg_catalog__interval__39db(input: TimeValue) -> IntervalValue {
     if let TimeValue::Value(clock) = input {
         return make_interval_value(0, 0, clock);
     }
-    IntervalValue::Unknown
+    interval_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__time__3hf3(input: TimetzValue) -> TimeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimetzValue::Unknown = input { unresolved_flavor = 1; };
     if let TimetzValue::Error(error) = input {
         return TimeValue::Error(error);
     }
@@ -256,10 +275,12 @@ pub fn sql__pg_catalog__time__3hf3(input: TimetzValue) -> TimeValue {
     if let TimetzValue::Value(clock) = input {
         return make_time_value(clock.time);
     }
-    TimeValue::Unknown
+    time_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__time__akgc(input: IntervalValue) -> TimeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let IntervalValue::Unknown = input { unresolved_flavor = 1; };
     if let IntervalValue::Error(error) = input {
         return TimeValue::Error(error);
     }
@@ -276,5 +297,5 @@ pub fn sql__pg_catalog__time__akgc(input: IntervalValue) -> TimeValue {
         };
         return make_time_value(clock);
     }
-    TimeValue::Unknown
+    time_unresolved(unresolved_flavor)
 }

@@ -277,6 +277,7 @@ pub(crate) fn json_populate_accept(
 }
 
 pub(crate) fn finish_json_populate(input: JsonPopulateState) -> CompositeValue {
+    let unresolved_flavor: i32 = 0;
     let hard = input.hard;
     if let CheckOutcome::Error(error) = hard {
         return CompositeValue::Error(error);
@@ -286,10 +287,10 @@ pub(crate) fn finish_json_populate(input: JsonPopulateState) -> CompositeValue {
         return CompositeValue::Error(error);
     };
     if input.status != CheckOutcome::True {
-        return CompositeValue::Unknown;
+        return composite_row_unresolved(unresolved_flavor);
     };
     if input.active && input.position != input.count {
-        return CompositeValue::Unknown;
+        return composite_row_unresolved(unresolved_flavor);
     };
     input.output
 }
@@ -328,20 +329,23 @@ pub(crate) fn json_populate_guard(
 }
 
 pub fn sql__pg_catalog__json_populate_record__qo9b(input: JsonPopulatePlan) -> CompositeValue {
+    let unresolved_flavor: i32 = 0;
     if let JsonPopulatePlan::Value(value) = input {
         return finish_json_populate(value);
     };
-    CompositeValue::Unknown
+    composite_row_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__jsonb_populate_record__f6m5(input: JsonPopulatePlan) -> CompositeValue {
+    let unresolved_flavor: i32 = 0;
     if let JsonPopulatePlan::Value(value) = input {
         return finish_json_populate(value);
     };
-    CompositeValue::Unknown
+    composite_row_unresolved(unresolved_flavor)
 }
 
 fn finish_json_populate_valid(input: JsonPopulateState) -> BoolValue {
+    let unresolved_flavor: i32 = 0;
     let hard = input.hard;
     if let CheckOutcome::Error(error) = hard {
         return BoolValue::Error(error);
@@ -351,10 +355,10 @@ fn finish_json_populate_valid(input: JsonPopulateState) -> BoolValue {
         return make_bool_value(false);
     };
     if input.status != CheckOutcome::True {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if input.active && input.position != input.count {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if input.active == false {
         let output = input.output;
@@ -366,8 +370,9 @@ fn finish_json_populate_valid(input: JsonPopulateState) -> BoolValue {
 }
 
 pub fn sql__pg_catalog__jsonb_populate_record_valid__rd7k(input: JsonPopulatePlan) -> BoolValue {
+    let unresolved_flavor: i32 = 0;
     if let JsonPopulatePlan::Value(value) = input {
         return finish_json_populate_valid(value);
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }

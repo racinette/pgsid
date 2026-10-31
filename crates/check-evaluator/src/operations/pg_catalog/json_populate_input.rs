@@ -23,6 +23,8 @@ pub(crate) fn json_populate_record_object(input: JsonbInput) -> bool {
 }
 
 pub(crate) fn json_populate_text(input: JsonbInput, quoted: bool, utf8: bool) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbInput::Unknown = input { unresolved_flavor = 1; };
     if let JsonbInput::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -43,7 +45,7 @@ pub(crate) fn json_populate_text(input: JsonbInput, quoted: bool, utf8: bool) ->
         };
         return jsonb_extract_text(scalar, utf8);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub(crate) fn json_populate_jsonb(input: JsonbInput, utf8: bool) -> JsonbValue {
@@ -64,6 +66,8 @@ pub(crate) fn json_populate_scalar_text(
     calendar: bool,
     utf8: bool,
 ) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbInput::Unknown = input { unresolved_flavor = 1; };
     let kind = json_populate_kind(input.clone());
     if calendar && (kind == 5 || kind == 6) {
         let text = json_populate_text(input, false, utf8);
@@ -77,7 +81,7 @@ pub(crate) fn json_populate_scalar_text(
             };
             return TextValue::Error(make_sql_error(state));
         };
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     json_populate_text(input, quoted, utf8)
 }
@@ -105,6 +109,8 @@ fn json_populate_calendar_alpha(character: char) -> bool {
 }
 
 fn json_populate_calendar_text(input: TextValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Value(text) = input {
         let characters: Vec<char> = text.chars().collect();
         let mut possible = false;
@@ -114,7 +120,7 @@ fn json_populate_calendar_text(input: TextValue) -> TextValue {
         while position < characters.len() {
             let character = characters[position];
             if character == '\\' {
-                return TextValue::Unknown;
+                return text_unresolved(unresolved_flavor);
             };
             if json_populate_calendar_digit(character) >= 0 {
                 let start = position;
@@ -223,9 +229,11 @@ pub(crate) fn json_populate_begin_hard() -> CheckOutcome {
 }
 
 pub(crate) fn json_populate_unavailable(input: JsonbInput, domain: bool) -> ArrayElement {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbInput::Unknown = input { unresolved_flavor = 1; };
     let kind = json_populate_kind(input.clone());
     if domain == false && (kind == 0 || kind == -2) {
         return ArrayElement::Null;
     };
-    ArrayElement::Unknown
+    array_element_unresolved(unresolved_flavor)
 }

@@ -1,4 +1,6 @@
 fn money_units(input: MoneyValue) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let MoneyValue::Unknown = input { unresolved_flavor = 1; };
     if let MoneyValue::Error(error) = input {
         return Int8Value::Error(error);
     };
@@ -8,9 +10,11 @@ fn money_units(input: MoneyValue) -> Int8Value {
     if let MoneyValue::Value(value) = input {
         return Int8Value::Value(value);
     };
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 fn money_from_units(input: Int8Value) -> MoneyValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = input { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = input {
         return MoneyValue::Error(error);
     };
@@ -20,9 +24,12 @@ fn money_from_units(input: Int8Value) -> MoneyValue {
     if let Int8Value::Value(value) = input {
         return make_money_value(value);
     };
-    MoneyValue::Unknown
+    money_unresolved(unresolved_flavor)
 }
 fn money_compare(left: MoneyValue, right: MoneyValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let MoneyValue::Unknown = left { unresolved_flavor = 1; };
+    if let MoneyValue::Unknown = right { unresolved_flavor = 1; };
     if let MoneyValue::Error(error) = left {
         return Int4Value::Error(error);
     };
@@ -30,7 +37,7 @@ fn money_compare(left: MoneyValue, right: MoneyValue) -> Int4Value {
         return Int4Value::Error(error);
     };
     if left == MoneyValue::Unknown || right == MoneyValue::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     };
     if left == MoneyValue::Null || right == MoneyValue::Null {
         return Int4Value::Null;
@@ -46,9 +53,12 @@ fn money_compare(left: MoneyValue, right: MoneyValue) -> Int4Value {
             return Int4Value::Value(0);
         };
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 fn money_relation(left: MoneyValue, right: MoneyValue, mode: i32) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let MoneyValue::Unknown = left { unresolved_flavor = 1; };
+    if let MoneyValue::Unknown = right { unresolved_flavor = 1; };
     let comparison = money_compare(left, right);
     if let Int4Value::Error(error) = comparison {
         return BoolValue::Error(error);
@@ -74,9 +84,12 @@ fn money_relation(left: MoneyValue, right: MoneyValue, mode: i32) -> BoolValue {
         };
         return make_bool_value(order >= 0);
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 fn money_select(left: MoneyValue, right: MoneyValue, larger: bool) -> MoneyValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let MoneyValue::Unknown = left { unresolved_flavor = 1; };
+    if let MoneyValue::Unknown = right { unresolved_flavor = 1; };
     let comparison = money_compare(left, right);
     if let Int4Value::Error(error) = comparison {
         return MoneyValue::Error(error);
@@ -90,7 +103,7 @@ fn money_select(left: MoneyValue, right: MoneyValue, larger: bool) -> MoneyValue
         };
         return right;
     };
-    MoneyValue::Unknown
+    money_unresolved(unresolved_flavor)
 }
 fn money_float_scale(
     input: MoneyValue,
@@ -98,6 +111,9 @@ fn money_float_scale(
     divide: bool,
     reverse: bool,
 ) -> MoneyValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let MoneyValue::Unknown = input { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = factor { unresolved_flavor = 1; };
     if reverse {
         if let Float8Value::Error(error) = factor {
             return MoneyValue::Error(error);
@@ -110,7 +126,7 @@ fn money_float_scale(
         return MoneyValue::Error(error);
     };
     if input == MoneyValue::Unknown || factor == Float8Value::Unknown {
-        return MoneyValue::Unknown;
+        return money_unresolved(unresolved_flavor);
     };
     if input == MoneyValue::Null || factor == Float8Value::Null {
         return MoneyValue::Null;
@@ -125,12 +141,15 @@ fn money_float_scale(
     money_from_units(sql__pg_catalog__int8__kmmw(scaled))
 }
 fn money_ratio(left: MoneyValue, right: MoneyValue) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let MoneyValue::Unknown = left { unresolved_flavor = 1; };
+    if let MoneyValue::Unknown = right { unresolved_flavor = 1; };
     let status = money_compare(left, right);
     if let Int4Value::Error(error) = status {
         return Float8Value::Error(error);
     };
     if status == Int4Value::Unknown {
-        return Float8Value::Unknown;
+        return float8_unresolved(unresolved_flavor);
     };
     if status == Int4Value::Null {
         return Float8Value::Null;

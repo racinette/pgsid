@@ -886,6 +886,9 @@ pub fn sql__pg_catalog__to_date__643t(
     utf8: bool,
     default_profile: bool,
 ) -> DateValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unknown = template { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return DateValue::Error(error);
     };
@@ -893,7 +896,7 @@ pub fn sql__pg_catalog__to_date__643t(
         return DateValue::Error(error);
     };
     if input == TextValue::Unknown || template == TextValue::Unknown {
-        return DateValue::Unknown;
+        return date_unresolved(unresolved_flavor);
     };
     if input == TextValue::Null || template == TextValue::Null {
         return DateValue::Null;
@@ -911,7 +914,7 @@ pub fn sql__pg_catalog__to_date__643t(
         return DateValue::Error(make_sql_error(parsed.error));
     };
     if parsed.unknown {
-        return DateValue::Unknown;
+        return date_unresolved(unresolved_flavor);
     };
     if parsed.day < -2451545i64 || parsed.day >= 2145031949i64 {
         return DateValue::Error(make_sql_error(JSONPATH_TEMPLATE_RANGE));
@@ -920,11 +923,12 @@ pub fn sql__pg_catalog__to_date__643t(
 }
 
 fn datetime_template_instant(parsed: &DatetimeTemplateParsed, session: &str) -> TimestamptzValue {
+    let unresolved_flavor: i32 = 0;
     if parsed.error > 0 {
         return TimestamptzValue::Error(make_sql_error(parsed.error));
     };
     if parsed.unknown {
-        return TimestamptzValue::Unknown;
+        return timestamptz_unresolved(unresolved_flavor);
     };
     if parsed.day < -2451568i64 || parsed.day > 106751991i64 {
         return TimestamptzValue::Error(make_sql_error(JSONPATH_TEMPLATE_RANGE));
@@ -989,7 +993,7 @@ fn datetime_template_instant(parsed: &DatetimeTemplateParsed, session: &str) -> 
             };
         };
     };
-    TimestamptzValue::Unknown
+    timestamptz_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__to_timestamp__xn0m(
@@ -1001,6 +1005,9 @@ pub fn sql__pg_catalog__to_timestamp__xn0m(
     utf8: bool,
     default_profile: bool,
 ) -> TimestamptzValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unknown = template { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return TimestamptzValue::Error(error);
     };
@@ -1008,7 +1015,7 @@ pub fn sql__pg_catalog__to_timestamp__xn0m(
         return TimestamptzValue::Error(error);
     };
     if input == TextValue::Unknown || template == TextValue::Unknown {
-        return TimestamptzValue::Unknown;
+        return timestamptz_unresolved(unresolved_flavor);
     };
     if input == TextValue::Null || template == TextValue::Null {
         return TimestamptzValue::Null;

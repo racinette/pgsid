@@ -1,8 +1,9 @@
 const FLOAT_ARRAY_STATE_ERROR: u32 = 56966976;
 
 fn float_array_state_valid(input: &ArrayPayload, width: usize) -> BoolValue {
+    let unresolved_flavor: i32 = 0;
     if input.element_kind != 20 || input.element_type.as_str() != "pg_catalog.float8" {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if input.dimensions.len() != 1
         || input.elements.len() != width
@@ -16,7 +17,7 @@ fn float_array_state_valid(input: &ArrayPayload, width: usize) -> BoolValue {
     if input.null_bitmap == BoolValue::Value(false) {
         return BoolValue::Value(true);
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 fn float_state_field(input: &ArrayPayload, index: usize) -> Float8Value {
@@ -31,6 +32,9 @@ fn float_state_result(value: f64) -> Float8Value {
 }
 
 fn float_state_arithmetic(left: Float8Value, right: Float8Value, operation: i32) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = left { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = right { unresolved_flavor = 1; };
     if let Float8Value::Error(error) = left {
         return Float8Value::Error(error);
     };
@@ -62,7 +66,7 @@ fn float_state_arithmetic(left: Float8Value, right: Float8Value, operation: i32)
             return float_state_result(result);
         };
     };
-    Float8Value::Unknown
+    float8_unresolved(unresolved_flavor)
 }
 
 fn float_state_is_zero(input: Float8Value) -> bool {
@@ -74,6 +78,8 @@ fn float_state_is_zero(input: Float8Value) -> bool {
 }
 
 fn float_array_final(input: ArrayValue, operation: i32) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
     if let ArrayValue::Error(error) = input {
         return Float8Value::Error(error);
     };
@@ -90,7 +96,7 @@ fn float_array_final(input: ArrayValue, operation: i32) -> Float8Value {
             return Float8Value::Error(error);
         };
         if validity != BoolValue::Value(true) {
-            return Float8Value::Unknown;
+            return float8_unresolved(unresolved_flavor);
         };
         let count = float_state_field(&value, 0);
         let known_count = float8_semantic(count);
@@ -176,7 +182,7 @@ fn float_array_final(input: ArrayValue, operation: i32) -> Float8Value {
                     let denominator = float_state_arithmetic(sxx, syy, 2);
                     return float_state_arithmetic(numerator, denominator, 3);
                 };
-                return Float8Value::Unknown;
+                return float8_unresolved(unresolved_flavor);
             };
             if operation == 14 {
                 return float_state_arithmetic(sxy, sxx, 3);
@@ -189,7 +195,7 @@ fn float_array_final(input: ArrayValue, operation: i32) -> Float8Value {
             return float_state_arithmetic(difference, count, 3);
         };
     };
-    Float8Value::Unknown
+    float8_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__float8_avg__zn36(input: ArrayValue) -> Float8Value {

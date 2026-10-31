@@ -6,6 +6,10 @@ fn bytea_substring(
     length: Int4Value,
     has_length: bool,
 ) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = position { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = length { unresolved_flavor = 1; };
     if let ByteaValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
@@ -19,7 +23,7 @@ fn bytea_substring(
         || position == Int4Value::Unknown
         || length == Int4Value::Unknown
     {
-        return ByteaValue::Unknown;
+        return bytea_unresolved(unresolved_flavor);
     }
     if input == ByteaValue::Null || position == Int4Value::Null || length == Int4Value::Null {
         return ByteaValue::Null;
@@ -61,7 +65,7 @@ fn bytea_substring(
             }
         }
     }
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__substring__2f07(input: ByteaValue, position: Int4Value) -> ByteaValue {

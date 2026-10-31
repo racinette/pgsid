@@ -9,6 +9,8 @@ fn money_text_digit(value: i64, digit: i64) -> Int8Value {
 }
 
 pub fn money_from_text_context(input: TextValue, c_locale: bool) -> MoneyValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if c_locale == false { return money_from_text(input); };
     if let TextValue::Error(error) = input { return MoneyValue::Error(error); };
     if let TextValue::Null = input { return MoneyValue::Null; };
@@ -67,13 +69,15 @@ pub fn money_from_text_context(input: TextValue, c_locale: bool) -> MoneyValue {
         if amount == -9223372036854775808i64 { return MoneyValue::Error(make_sql_error(MONEY_TEXT_RANGE)); };
         return make_money_value(0i64 - amount);
     };
-    MoneyValue::Unknown
+    money_unresolved(unresolved_flavor)
 }
 
 pub fn money_to_text_context(input: MoneyValue, c_locale: bool) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let MoneyValue::Unknown = input { unresolved_flavor = 1; };
     if let MoneyValue::Error(error) = input { return TextValue::Error(error); };
     if let MoneyValue::Null = input { return TextValue::Null; };
-    if c_locale == false { return TextValue::Unknown; };
+    if c_locale == false { return text_unresolved(unresolved_flavor); };
     if let MoneyValue::Value(value) = input {
         let raw = text_signed_number(value);
         let characters: Vec<char> = raw.chars().collect();
@@ -98,5 +102,5 @@ pub fn money_to_text_context(input: MoneyValue, c_locale: bool) -> TextValue {
         output.push(characters[characters.len()-1]);
         return TextValue::Value(output);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }

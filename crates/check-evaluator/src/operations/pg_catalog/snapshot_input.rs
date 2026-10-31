@@ -116,6 +116,8 @@ fn snapshot_parse(value: &str) -> SnapshotValue {
     })
 }
 pub fn snapshot_from_text(input: TextValue) -> SnapshotValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return SnapshotValue::Error(error);
     };
@@ -125,5 +127,5 @@ pub fn snapshot_from_text(input: TextValue) -> SnapshotValue {
     if let TextValue::Value(value) = input {
         return snapshot_parse(value.as_str());
     };
-    SnapshotValue::Unknown
+    snapshot_unresolved(unresolved_flavor)
 }

@@ -1,4 +1,7 @@
 pub fn sql__pg_catalog__booleq__y6qu(left: BoolValue, right: BoolValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoolValue::Unknown = left { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = right { unresolved_flavor = 1; };
     if let BoolValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -6,7 +9,7 @@ pub fn sql__pg_catalog__booleq__y6qu(left: BoolValue, right: BoolValue) -> BoolV
         return BoolValue::Error(error);
     }
     if left == BoolValue::Unknown || right == BoolValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if left == BoolValue::Null || right == BoolValue::Null {
         return BoolValue::Null;
@@ -16,10 +19,13 @@ pub fn sql__pg_catalog__booleq__y6qu(left: BoolValue, right: BoolValue) -> BoolV
             return BoolValue::Value(left_value == right_value);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__boolne__zlce(left: BoolValue, right: BoolValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoolValue::Unknown = left { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = right { unresolved_flavor = 1; };
     if let BoolValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -27,7 +33,7 @@ pub fn sql__pg_catalog__boolne__zlce(left: BoolValue, right: BoolValue) -> BoolV
         return BoolValue::Error(error);
     }
     if left == BoolValue::Unknown || right == BoolValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if left == BoolValue::Null || right == BoolValue::Null {
         return BoolValue::Null;
@@ -37,10 +43,13 @@ pub fn sql__pg_catalog__boolne__zlce(left: BoolValue, right: BoolValue) -> BoolV
             return BoolValue::Value(left_value != right_value);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__boollt__cgkk(left: BoolValue, right: BoolValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoolValue::Unknown = left { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = right { unresolved_flavor = 1; };
     if let BoolValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -48,7 +57,7 @@ pub fn sql__pg_catalog__boollt__cgkk(left: BoolValue, right: BoolValue) -> BoolV
         return BoolValue::Error(error);
     }
     if left == BoolValue::Unknown || right == BoolValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if left == BoolValue::Null || right == BoolValue::Null {
         return BoolValue::Null;
@@ -58,10 +67,13 @@ pub fn sql__pg_catalog__boollt__cgkk(left: BoolValue, right: BoolValue) -> BoolV
             return BoolValue::Value(left_value == false && right_value == true);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__boolle__0cme(left: BoolValue, right: BoolValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoolValue::Unknown = left { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = right { unresolved_flavor = 1; };
     if let BoolValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -69,7 +81,7 @@ pub fn sql__pg_catalog__boolle__0cme(left: BoolValue, right: BoolValue) -> BoolV
         return BoolValue::Error(error);
     }
     if left == BoolValue::Unknown || right == BoolValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if left == BoolValue::Null || right == BoolValue::Null {
         return BoolValue::Null;
@@ -79,10 +91,13 @@ pub fn sql__pg_catalog__boolle__0cme(left: BoolValue, right: BoolValue) -> BoolV
             return BoolValue::Value(left_value == false || right_value == true);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__boolgt__6vb2(left: BoolValue, right: BoolValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoolValue::Unknown = left { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = right { unresolved_flavor = 1; };
     if let BoolValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -90,7 +105,7 @@ pub fn sql__pg_catalog__boolgt__6vb2(left: BoolValue, right: BoolValue) -> BoolV
         return BoolValue::Error(error);
     }
     if left == BoolValue::Unknown || right == BoolValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if left == BoolValue::Null || right == BoolValue::Null {
         return BoolValue::Null;
@@ -100,10 +115,13 @@ pub fn sql__pg_catalog__boolgt__6vb2(left: BoolValue, right: BoolValue) -> BoolV
             return BoolValue::Value(left_value == true && right_value == false);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__boolge__gviq(left: BoolValue, right: BoolValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoolValue::Unknown = left { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = right { unresolved_flavor = 1; };
     if let BoolValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -111,7 +129,7 @@ pub fn sql__pg_catalog__boolge__gviq(left: BoolValue, right: BoolValue) -> BoolV
         return BoolValue::Error(error);
     }
     if left == BoolValue::Unknown || right == BoolValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if left == BoolValue::Null || right == BoolValue::Null {
         return BoolValue::Null;
@@ -121,5 +139,5 @@ pub fn sql__pg_catalog__boolge__gviq(left: BoolValue, right: BoolValue) -> BoolV
             return BoolValue::Value(left_value == true || right_value == false);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }

@@ -70,6 +70,7 @@ fn find_named_zone(name: &str) -> usize {
 }
 
 fn named_zone_abbreviation(zone: usize, microseconds: i64) -> TextValue {
+    let unresolved_flavor: i32 = 0;
     let transition = next_zone_transition(zone, microseconds);
     let next = transition.index;
     let mut label = ZONE_INITIAL_ABBREVIATION_IDS[zone];
@@ -90,7 +91,7 @@ fn named_zone_abbreviation(zone: usize, microseconds: i64) -> TextValue {
             };
             let recurring = next_recurring_boundary(rules, microseconds, cutoff, before);
             if recurring.valid == false {
-                return TextValue::Unknown;
+                return text_unresolved(unresolved_flavor);
             };
             return recurring_zone_abbreviation(ZONE_FUTURE_RULES[zone], recurring.before_daylight);
         };
@@ -157,6 +158,7 @@ fn next_zone_transition(zone: usize, microseconds: i64) -> ZoneTransition {
 }
 
 fn named_zone_offset(zone: usize, microseconds: i64, local: bool) -> Int4Value {
+    let unresolved_flavor: i32 = 0;
     let mut probe = microseconds;
     if local {
         probe = microseconds - 86400000000i64;
@@ -177,7 +179,7 @@ fn named_zone_offset(zone: usize, microseconds: i64, local: bool) -> Int4Value {
             }
             let recurring = next_recurring_boundary(rules, probe, cutoff, before);
             if recurring.valid == false {
-                return Int4Value::Unknown;
+                return int4_unresolved(unresolved_flavor);
             }
             return resolve_zone_boundary(
                 microseconds,

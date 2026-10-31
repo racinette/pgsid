@@ -76,11 +76,13 @@ fn uuid_parse(value: &str) -> UuidValue {
 }
 
 pub fn uuid_from_text(input: TextValue) -> UuidValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return UuidValue::Error(error);
     }
     if (input == TextValue::Unknown || input == TextValue::NonNull) {
-        return UuidValue::Unknown;
+        return uuid_unresolved(unresolved_flavor);
     }
     if input == TextValue::Null {
         return UuidValue::Null;
@@ -88,7 +90,7 @@ pub fn uuid_from_text(input: TextValue) -> UuidValue {
     if let TextValue::Value(value) = input {
         return uuid_parse(value.as_str());
     }
-    UuidValue::Unknown
+    uuid_unresolved(unresolved_flavor)
 }
 
 pub fn uuid_word(value: Uuid, index: i32) -> i32 {

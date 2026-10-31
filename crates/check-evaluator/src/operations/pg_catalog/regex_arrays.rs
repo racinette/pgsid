@@ -19,6 +19,10 @@ fn regex_array_value(
     split: bool,
     c_collation: bool,
 ) -> ArrayValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = subject { unresolved_flavor = 1; };
+    if let TextValue::Unknown = pattern { unresolved_flavor = 1; };
+    if let TextValue::Unknown = flags { unresolved_flavor = 1; };
     if let TextValue::Error(error) = subject {
         return ArrayValue::Error(error);
     };
@@ -39,7 +43,7 @@ fn regex_array_value(
                     return ArrayValue::Error(make_sql_error(REGEX_PARAMETER_ERROR));
                 };
                 if c_collation == false {
-                    return ArrayValue::Unknown;
+                    return array_unresolved(unresolved_flavor);
                 };
                 let characters = RegexArraySource {
                     characters: source.chars().collect(),
@@ -113,7 +117,7 @@ fn regex_array_value(
             };
         };
     };
-    ArrayValue::Unknown
+    array_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__regexp_match__v82p(

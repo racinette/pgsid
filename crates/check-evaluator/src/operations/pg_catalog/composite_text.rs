@@ -65,6 +65,8 @@ fn composite_text_read(input: CompositeTextPayload) -> CompositeTextPlan {
 }
 
 pub fn prepare_composite_text(input: TextValue, expected: i32) -> CompositeTextPlan {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return CompositeTextPlan::Error(error);
     };
@@ -72,14 +74,14 @@ pub fn prepare_composite_text(input: TextValue, expected: i32) -> CompositeTextP
         return CompositeTextPlan::Null;
     };
     if expected < 0 {
-        return CompositeTextPlan::Unknown;
+        return composite_text_plan_unresolved(unresolved_flavor);
     };
     if let TextValue::Value(text) = input {
         let characters: Vec<char> = text.chars().collect();
         let mut position: usize = 0;
         while position < characters.len() {
             if characters[position] == '\0' {
-                return CompositeTextPlan::Unknown;
+                return composite_text_plan_unresolved(unresolved_flavor);
             };
             position += 1;
         }
@@ -108,7 +110,7 @@ pub fn prepare_composite_text(input: TextValue, expected: i32) -> CompositeTextP
         };
         return CompositeTextPlan::Value(payload);
     };
-    CompositeTextPlan::Unknown
+    composite_text_plan_unresolved(unresolved_flavor)
 }
 
 pub fn composite_text_has_field(input: CompositeTextPlan) -> bool {
@@ -119,10 +121,12 @@ pub fn composite_text_has_field(input: CompositeTextPlan) -> bool {
 }
 
 pub fn composite_text_field(input: CompositeTextPlan) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let CompositeTextPlan::Unknown = input { unresolved_flavor = 1; };
     if let CompositeTextPlan::Value(payload) = input {
         return payload.current.clone();
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn append_composite_text(
@@ -130,16 +134,19 @@ pub fn append_composite_text(
     field: ArrayElement,
     stored: bool,
 ) -> CompositeTextPlan {
+    let mut unresolved_flavor: i32 = 0;
+    if let CompositeTextPlan::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unknown = field { unresolved_flavor = 1; };
     if let CompositeTextPlan::Value(payload) = input {
         if payload.fields.len() >= payload.expected {
-            return CompositeTextPlan::Unknown;
+            return composite_text_plan_unresolved(unresolved_flavor);
         };
         if let ArrayElement::Error(error) = field {
             return CompositeTextPlan::Error(error);
         };
         if stored == false {
             if let ArrayElement::Unknown = field {
-                return CompositeTextPlan::Unknown;
+                return composite_text_plan_unresolved(unresolved_flavor);
             };
         };
         let mut fields = payload.fields;
@@ -160,6 +167,8 @@ pub fn append_composite_text(
 }
 
 pub fn finish_composite_text(input: CompositeTextPlan, type_name: &str) -> CompositeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let CompositeTextPlan::Unknown = input { unresolved_flavor = 1; };
     if let CompositeTextPlan::Error(error) = input {
         return CompositeValue::Error(error);
     };
@@ -168,7 +177,7 @@ pub fn finish_composite_text(input: CompositeTextPlan, type_name: &str) -> Compo
     };
     if let CompositeTextPlan::Value(payload) = input {
         if payload.fields.len() != payload.expected {
-            return CompositeValue::Unknown;
+            return composite_row_unresolved(unresolved_flavor);
         };
         let characters = payload.characters;
         let mut position = payload.position;
@@ -190,10 +199,12 @@ pub fn finish_composite_text(input: CompositeTextPlan, type_name: &str) -> Compo
             fields: payload.fields,
         });
     };
-    CompositeValue::Unknown
+    composite_row_unresolved(unresolved_flavor)
 }
 
 pub fn prepare_composite_output(input: CompositeValue, type_name: &str, fields: i32) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let CompositeValue::Unknown = input { unresolved_flavor = 1; };
     if let CompositeValue::Error(error) = input {
         return TextValue::Error(error.clone());
     };
@@ -209,7 +220,7 @@ pub fn prepare_composite_output(input: CompositeValue, type_name: &str, fields: 
             return make_text_value("(");
         };
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn composite_output_has_field(input: TextValue) -> bool {
@@ -226,14 +237,17 @@ pub fn composite_output_matches(input: CompositeValue, type_name: &str, fields: 
 }
 
 pub fn append_composite_output(input: TextValue, field: TextValue, first: bool) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unknown = field { unresolved_flavor = 1; };
     if input == TextValue::NonNull {
         if let TextValue::Error(error) = field { return TextValue::Error(error); };
-        if field == TextValue::Unknown { return TextValue::Unknown; };
+        if field == TextValue::Unknown { return text_unresolved(unresolved_flavor); };
         if let TextValue::Value(text) = field {
             let characters: Vec<char> = text.chars().collect();
             let mut position: usize = 0;
             while position < characters.len() {
-                if characters[position] == '\0' { return TextValue::Unknown; };
+                if characters[position] == '\0' { return text_unresolved(unresolved_flavor); };
                 position += 1;
             }
         };
@@ -244,7 +258,7 @@ pub fn append_composite_output(input: TextValue, field: TextValue, first: bool) 
             return TextValue::Error(error);
         };
         if field == TextValue::NonNull { return TextValue::NonNull; };
-        if field == TextValue::Unknown { return TextValue::Unknown; };
+        if field == TextValue::Unknown { return text_unresolved(unresolved_flavor); };
         let mut result = source;
         if first == false {
             result.push(',');
@@ -256,7 +270,7 @@ pub fn append_composite_output(input: TextValue, field: TextValue, first: bool) 
             while position < characters.len() {
                 let ch = characters[position];
                 if ch == '\0' {
-                    return TextValue::Unknown;
+                    return text_unresolved(unresolved_flavor);
                 };
                 if ch == '"'
                     || ch == '\\'

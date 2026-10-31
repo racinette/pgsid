@@ -7,14 +7,17 @@ fn polygon_path_bounds(bounds: BoxValue, path: &PathPayload) -> BoxValue {
 }
 
 fn polygon_direction(left: PolygonValue, right: PolygonValue, mode: i32) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PolygonValue::Unknown = left { unresolved_flavor = 1; };
+    if let PolygonValue::Unknown = right { unresolved_flavor = 1; };
     if let PolygonValue::Error(error) = left {
         return BoolValue::Error(error);
     };
     if let PolygonValue::Error(error) = right {
         return BoolValue::Error(error);
     };
-    if let PolygonValue::Unknown = left { return BoolValue::Unknown; };
-    if let PolygonValue::Unknown = right { return BoolValue::Unknown; };
+    if let PolygonValue::Unknown = left { return bool_unresolved(unresolved_flavor); };
+    if let PolygonValue::Unknown = right { return bool_unresolved(unresolved_flavor); };
     if let PolygonValue::Null = left { return BoolValue::Null; };
     if let PolygonValue::Null = right { return BoolValue::Null; };
     if let PolygonValue::Value(a) = left {
@@ -41,7 +44,7 @@ fn polygon_direction(left: PolygonValue, right: PolygonValue, mode: i32) -> Bool
             };
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 fn polygon_paths_overlap(
@@ -50,7 +53,10 @@ fn polygon_paths_overlap(
     a_bounds: BoxValue,
     b_bounds: BoxValue,
 ) -> BoolValue {
-    if a.points.len() == 0 || b.points.len() == 0 { return BoolValue::Unknown; };
+    let mut unresolved_flavor: i32 = 0;
+    if let BoxValue::Unknown = a_bounds { unresolved_flavor = 1; };
+    if let BoxValue::Unknown = b_bounds { unresolved_flavor = 1; };
+    if a.points.len() == 0 || b.points.len() == 0 { return bool_unresolved(unresolved_flavor); };
     let bounds = sql__pg_catalog__box_overlap__ke99(
         polygon_path_bounds(a_bounds, a), polygon_path_bounds(b_bounds, b),
     );
@@ -115,6 +121,7 @@ fn polygon_touched_segment(
 }
 
 fn polygon_segment_inside(a: PointPayload, b: PointPayload, polygon: &PathPayload, start: usize) -> BoolValue {
+    let unresolved_flavor: i32 = 0;
     let segment = path_segment(a, b);
     let mut previous = polygon.points.len() - 1;
     if start > 0 { previous = start - 1; };
@@ -137,7 +144,7 @@ fn polygon_segment_inside(a: PointPayload, b: PointPayload, polygon: &PathPayloa
         } else {
             let point = segment_intersection(segment, edge);
             if let PointValue::Error(error) = point { return BoolValue::Error(error); };
-            if point == PointValue::Unknown { return BoolValue::Unknown; };
+            if point == PointValue::Unknown { return bool_unresolved(unresolved_flavor); };
             if let PointValue::Value(crossing) = point {
                 intersection = true;
                 result = polygon_segment_inside(a, crossing, polygon, index + 1);
@@ -154,16 +161,19 @@ fn polygon_segment_inside(a: PointPayload, b: PointPayload, polygon: &PathPayloa
         let center = lseg_midpoint(segment);
         if let PointValue::Error(error) = center { return BoolValue::Error(error); };
         if let PointValue::Value(point) = center { return closed_path_contains(point, polygon); };
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     result
 }
 
 fn polygon_relation(left: PolygonValue, right: PolygonValue, contains: bool) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PolygonValue::Unknown = left { unresolved_flavor = 1; };
+    if let PolygonValue::Unknown = right { unresolved_flavor = 1; };
     if let PolygonValue::Error(error) = left { return BoolValue::Error(error); };
     if let PolygonValue::Error(error) = right { return BoolValue::Error(error); };
-    if let PolygonValue::Unknown = left { return BoolValue::Unknown; };
-    if let PolygonValue::Unknown = right { return BoolValue::Unknown; };
+    if let PolygonValue::Unknown = left { return bool_unresolved(unresolved_flavor); };
+    if let PolygonValue::Unknown = right { return bool_unresolved(unresolved_flavor); };
     if let PolygonValue::Null = left { return BoolValue::Null; };
     if let PolygonValue::Null = right { return BoolValue::Null; };
     if let PolygonValue::Value(a) = left {
@@ -177,7 +187,7 @@ fn polygon_relation(left: PolygonValue, right: PolygonValue, contains: bool) -> 
                 polygon_path_bounds(a_bounds, &a_path), polygon_path_bounds(b_bounds, &b_path),
             );
             if status != BoolValue::Value(true) { return status; };
-            if a_path.points.len() == 0 || b_path.points.len() == 0 { return BoolValue::Unknown; };
+            if a_path.points.len() == 0 || b_path.points.len() == 0 { return bool_unresolved(unresolved_flavor); };
             let mut previous = b_path.points.len() - 1;
             let mut index: usize = 0;
             while index < b_path.points.len() {
@@ -189,7 +199,7 @@ fn polygon_relation(left: PolygonValue, right: PolygonValue, contains: bool) -> 
             return make_bool_value(true);
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__poly_left__edyv(left: PolygonValue, right: PolygonValue) -> BoolValue { polygon_direction(left, right, 0) }

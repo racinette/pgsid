@@ -6,6 +6,10 @@ fn text_substring_value(
     length: Int4Value,
     has_length: bool,
 ) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = position { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = length { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return TextValue::Error(error);
     }
@@ -17,7 +21,7 @@ fn text_substring_value(
     }
     if (input == TextValue::Unknown || input == TextValue::NonNull) || position == Int4Value::Unknown || length == Int4Value::Unknown
     {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if input == TextValue::Null || position == Int4Value::Null || length == Int4Value::Null {
         return TextValue::Null;
@@ -49,10 +53,13 @@ fn text_substring_value(
             }
         }
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 fn text_side_value(input: TextValue, length: Int4Value, from_right: bool) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = length { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return TextValue::Error(error);
     }
@@ -60,7 +67,7 @@ fn text_side_value(input: TextValue, length: Int4Value, from_right: bool) -> Tex
         return TextValue::Error(error);
     }
     if (input == TextValue::Unknown || input == TextValue::NonNull) || length == Int4Value::Unknown {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if input == TextValue::Null || length == Int4Value::Null {
         return TextValue::Null;
@@ -106,7 +113,7 @@ fn text_side_value(input: TextValue, length: Int4Value, from_right: bool) -> Tex
             return TextValue::Value(output);
         }
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__substring__ezt4(input: TextValue, position: Int4Value) -> TextValue {
@@ -142,11 +149,13 @@ pub fn sql__pg_catalog__right__hbgt(input: TextValue, length: Int4Value) -> Text
 }
 
 pub fn sql__pg_catalog__reverse__5pr1(input: TextValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return TextValue::Error(error);
     }
     if (input == TextValue::Unknown || input == TextValue::NonNull) {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if input == TextValue::Null {
         return TextValue::Null;
@@ -161,5 +170,5 @@ pub fn sql__pg_catalog__reverse__5pr1(input: TextValue) -> TextValue {
         }
         return TextValue::Value(output);
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }

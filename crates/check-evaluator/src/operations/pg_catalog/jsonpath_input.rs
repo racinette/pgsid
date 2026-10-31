@@ -1,7 +1,8 @@
 fn jsonpath_regex_literal(pattern: &str, flags: i32, c_collation: bool) -> BoolValue {
+    let unresolved_flavor: i32 = 0;
     let quoted = flags >= 16;
     if quoted == false && c_collation == false {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     let result = compile(pattern, jsonpath_regex_options(flags));
     if let CompileOutcome::InvalidPattern = result {
@@ -10,10 +11,12 @@ fn jsonpath_regex_literal(pattern: &str, flags: i32, c_collation: bool) -> BoolV
     if let CompileOutcome::Compiled(_) = result {
         return BoolValue::Value(true);
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn jsonpath_from_text(input: TextValue, c_collation: bool, utf8: bool) -> JsonpathValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return JsonpathValue::Error(error);
     };
@@ -26,14 +29,14 @@ pub fn jsonpath_from_text(input: TextValue, c_collation: bool, utf8: bool) -> Js
             let mut position: usize = 0;
             while position < tree.source.len() {
                 if tree.source[position] as i32 > 127 {
-                    return JsonpathValue::Unknown;
+                    return jsonpath_unresolved(unresolved_flavor);
                 };
                 position += 1;
             }
             position = 0;
             while position < tree.text.len() {
                 if tree.text[position] as i32 > 127 {
-                    return JsonpathValue::Unknown;
+                    return jsonpath_unresolved(unresolved_flavor);
                 };
                 position += 1;
             }
@@ -57,7 +60,7 @@ pub fn jsonpath_from_text(input: TextValue, c_collation: bool, utf8: bool) -> Js
                     return JsonpathValue::Error(error);
                 };
                 if result == TextValue::Unknown || result == TextValue::NonNull {
-                    return JsonpathValue::Unknown;
+                    return jsonpath_unresolved(unresolved_flavor);
                 };
             } else {
                 let result = jsonpath_regex_literal(literal.as_str(), node.flags, c_collation);
@@ -65,14 +68,14 @@ pub fn jsonpath_from_text(input: TextValue, c_collation: bool, utf8: bool) -> Js
                     return JsonpathValue::Error(error);
                 };
                 if let BoolValue::Unknown = result {
-                    return JsonpathValue::Unknown;
+                    return jsonpath_unresolved(unresolved_flavor);
                 };
             };
             index += 1;
         }
         return jsonpath_value_from_tree(tree);
     };
-    JsonpathValue::Unknown
+    jsonpath_unresolved(unresolved_flavor)
 }
 
 pub fn jsonpath_from_text_utf8(input: TextValue, c_collation: bool) -> JsonpathValue {
@@ -80,6 +83,8 @@ pub fn jsonpath_from_text_utf8(input: TextValue, c_collation: bool) -> JsonpathV
 }
 
 pub fn jsonpath_validate_utf8(input: TextValue, c_collation: bool) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     let result = jsonpath_from_text_utf8(input, c_collation);
     if let JsonpathValue::Error(error) = result {
         return BoolValue::Error(error);
@@ -90,7 +95,7 @@ pub fn jsonpath_validate_utf8(input: TextValue, c_collation: bool) -> BoolValue 
     if let JsonpathValue::Value(_) = result {
         return BoolValue::Value(true);
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 fn jsonpath_regex_options(flags: i32) -> RegexOptions {

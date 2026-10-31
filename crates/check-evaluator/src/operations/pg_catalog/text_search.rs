@@ -31,6 +31,9 @@ fn text_search_range(search: &TextSearchState, from: usize, end: usize) -> Strin
 }
 
 pub fn sql__pg_catalog__textcat__s76e(left: TextValue, right: TextValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = left { unresolved_flavor = 1; };
+    if let TextValue::Unknown = right { unresolved_flavor = 1; };
     if let TextValue::Error(error) = left {
         return TextValue::Error(error);
     }
@@ -38,7 +41,7 @@ pub fn sql__pg_catalog__textcat__s76e(left: TextValue, right: TextValue) -> Text
         return TextValue::Error(error);
     }
     if (left == TextValue::Unknown || left == TextValue::NonNull) || (right == TextValue::Unknown || right == TextValue::NonNull) {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if left == TextValue::Null || right == TextValue::Null {
         return TextValue::Null;
@@ -55,10 +58,13 @@ pub fn sql__pg_catalog__textcat__s76e(left: TextValue, right: TextValue) -> Text
             return TextValue::Value(output);
         }
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__strpos__eb1n(left: TextValue, right: TextValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = left { unresolved_flavor = 1; };
+    if let TextValue::Unknown = right { unresolved_flavor = 1; };
     if let TextValue::Error(error) = left {
         return Int4Value::Error(error);
     }
@@ -66,7 +72,7 @@ pub fn sql__pg_catalog__strpos__eb1n(left: TextValue, right: TextValue) -> Int4V
         return Int4Value::Error(error);
     }
     if (left == TextValue::Unknown || left == TextValue::NonNull) || (right == TextValue::Unknown || right == TextValue::NonNull) {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if left == TextValue::Null || right == TextValue::Null {
         return Int4Value::Null;
@@ -89,7 +95,7 @@ pub fn sql__pg_catalog__strpos__eb1n(left: TextValue, right: TextValue) -> Int4V
             return Int4Value::Value(0);
         }
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__position__lq28(left: TextValue, right: TextValue) -> Int4Value {
@@ -103,6 +109,11 @@ fn text_overlay_value(
     length: Int4Value,
     omitted: bool,
 ) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unknown = replacement { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = position { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = length { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return TextValue::Error(error);
     }
@@ -120,7 +131,7 @@ fn text_overlay_value(
         || position == Int4Value::Unknown
         || length == Int4Value::Unknown
     {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if input == TextValue::Null
         || replacement == TextValue::Null
@@ -166,7 +177,7 @@ fn text_overlay_value(
             }
         }
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__overlay__niqv(
@@ -191,6 +202,10 @@ pub fn sql__pg_catalog__replace__gz9l(
     from: TextValue,
     to: TextValue,
 ) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unknown = from { unresolved_flavor = 1; };
+    if let TextValue::Unknown = to { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return TextValue::Error(error);
     }
@@ -201,7 +216,7 @@ pub fn sql__pg_catalog__replace__gz9l(
         return TextValue::Error(error);
     }
     if (input == TextValue::Unknown || input == TextValue::NonNull) || (from == TextValue::Unknown || from == TextValue::NonNull) || (to == TextValue::Unknown || to == TextValue::NonNull) {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if input == TextValue::Null || from == TextValue::Null || to == TextValue::Null {
         return TextValue::Null;
@@ -249,7 +264,7 @@ pub fn sql__pg_catalog__replace__gz9l(
             }
         }
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__split_part__doxr(
@@ -257,6 +272,10 @@ pub fn sql__pg_catalog__split_part__doxr(
     separator: TextValue,
     field: Int4Value,
 ) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unknown = separator { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = field { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return TextValue::Error(error);
     }
@@ -268,7 +287,7 @@ pub fn sql__pg_catalog__split_part__doxr(
     }
     if (input == TextValue::Unknown || input == TextValue::NonNull) || (separator == TextValue::Unknown || separator == TextValue::NonNull) || field == Int4Value::Unknown
     {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if input == TextValue::Null || separator == TextValue::Null || field == Int4Value::Null {
         return TextValue::Null;
@@ -331,5 +350,5 @@ pub fn sql__pg_catalog__split_part__doxr(
             }
         }
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }

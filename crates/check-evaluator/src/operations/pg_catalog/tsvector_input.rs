@@ -63,6 +63,8 @@ fn tsvector_normalize(lexemes: Vec<TsvectorLexeme>) -> TsvectorValue {
 }
 
 fn tsvector_parse_text(input: TextValue, utf8: bool, stored: bool) -> TsvectorValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input { return TsvectorValue::Error(error); };
     if input == TextValue::Null { return TsvectorValue::Null; };
     if let TextValue::Value(text) = input {
@@ -80,13 +82,13 @@ fn tsvector_parse_text(input: TextValue, utf8: bool, stored: bool) -> TsvectorVa
             let mut first = true;
             while index < chars.len() && reading {
                 let character = chars[index];
-                if character == '\0' { return TsvectorValue::Unknown; };
-                if (character as i32) >= 128 && utf8 == false { return TsvectorValue::Unknown; };
+                if character == '\0' { return tsvector_unresolved(unresolved_flavor); };
+                if (character as i32) >= 128 && utf8 == false { return tsvector_unresolved(unresolved_flavor); };
                 if character == '\\' {
                     index += 1;
                     if index == chars.len() { return TsvectorValue::Error(make_sql_error(TSVECTOR_SYNTAX_ERROR)); };
                     let escaped = chars[index];
-                    if escaped == '\0' || ((escaped as i32) >= 128 && utf8 == false) { return TsvectorValue::Unknown; };
+                    if escaped == '\0' || ((escaped as i32) >= 128 && utf8 == false) { return tsvector_unresolved(unresolved_flavor); };
                     word.push(escaped);
                     index += 1;
                     first = false;
@@ -118,12 +120,12 @@ fn tsvector_parse_text(input: TextValue, utf8: bool, stored: bool) -> TsvectorVa
                     let mut position: i32 = 0;
                     while index < chars.len() && (chars[index] as i32) >= 48 && (chars[index] as i32) <= 57 {
                         let digit = (chars[index] as i32) - 48;
-                        if position > 214748364 || (position == 214748364 && digit > 7) { return TsvectorValue::Unknown; };
+                        if position > 214748364 || (position == 214748364 && digit > 7) { return tsvector_unresolved(unresolved_flavor); };
                         position = position * 10 + digit;
                         index += 1;
                     }
                     if position == 0 && stored == false { return TsvectorValue::Error(make_sql_error(TSVECTOR_SYNTAX_ERROR)); };
-                    if position > 16383 { if stored { return TsvectorValue::Unknown; }; position = 16383; };
+                    if position > 16383 { if stored { return tsvector_unresolved(unresolved_flavor); }; position = 16383; };
                     let mut weight: i32 = 0;
                     let mut modifiers = true;
                     while index < chars.len() && modifiers {
@@ -147,14 +149,14 @@ fn tsvector_parse_text(input: TextValue, utf8: bool, stored: bool) -> TsvectorVa
                 }
             };
             let width = tsvector_lexeme_bytes(word.as_str());
-            if width < 0 { return TsvectorValue::Unknown; };
+            if width < 0 { return tsvector_unresolved(unresolved_flavor); };
             if (width >= 2047 && stored == false) || width > 2047 || raw_bytes > 1048575i64 { return TsvectorValue::Error(make_sql_error(TSVECTOR_PROGRAM_LIMIT)); };
             raw_bytes = raw_bytes + (width as i64);
             lexemes.push(TsvectorLexeme {text:word,positions:positions});
         }
         return tsvector_finish_input(lexemes,stored);
     };
-    TsvectorValue::Unknown
+    tsvector_unresolved(unresolved_flavor)
 }
 
 fn tsvector_finish_input(lexemes: Vec<TsvectorLexeme>, stored: bool) -> TsvectorValue {
@@ -165,19 +167,23 @@ fn tsvector_finish_input(lexemes: Vec<TsvectorLexeme>, stored: bool) -> Tsvector
 pub fn tsvector_from_text_context(input: TextValue, utf8: bool) -> TsvectorValue { tsvector_parse_text(input,utf8,false) }
 
 pub fn tsvector_from_stored_text_context(input: TextValue, utf8: bool) -> TsvectorValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input { return TsvectorValue::Error(error); };
     let value = tsvector_parse_text(input,utf8,true);
     if let TsvectorValue::Value(payload) = value {
         return make_tsvector_value(TsvectorPayload {lexemes:payload.lexemes,native_bytes:-1});
     };
-    if let TsvectorValue::Error(_) = value { return TsvectorValue::Unknown; };
+    if let TsvectorValue::Error(_) = value { return tsvector_unresolved(unresolved_flavor); };
     value
 }
 
 pub fn tsvector_from_stored_text_native_context(input: TextValue, utf8: bool, native_bytes: i32, lexeme_count: i32) -> TsvectorValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     let value = tsvector_from_stored_text_context(input,utf8);
     if let TsvectorValue::Value(payload) = value {
-        if lexeme_count < 0 || (payload.lexemes.len() as i32) != lexeme_count || native_bytes < 8 { return TsvectorValue::Unknown; };
+        if lexeme_count < 0 || (payload.lexemes.len() as i32) != lexeme_count || native_bytes < 8 { return tsvector_unresolved(unresolved_flavor); };
         return make_tsvector_value(TsvectorPayload {lexemes:payload.lexemes,native_bytes:native_bytes});
     };
     value
@@ -186,6 +192,8 @@ pub fn tsvector_from_stored_text_native_context(input: TextValue, utf8: bool, na
 pub fn tsvector_from_text(input: TextValue) -> TsvectorValue { tsvector_from_text_context(input,false) }
 
 pub fn tsvector_to_text(input: TsvectorValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TsvectorValue::Unknown = input { unresolved_flavor = 1; };
     if let TsvectorValue::Error(error) = input { return TextValue::Error(error); };
     if let TsvectorValue::Null = input { return TextValue::Null; };
     if let TsvectorValue::Value(value) = input {
@@ -216,5 +224,5 @@ pub fn tsvector_to_text(input: TsvectorValue) -> TextValue {
         }
         return TextValue::Value(text);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }

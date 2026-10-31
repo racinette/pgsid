@@ -34,9 +34,10 @@ fn jsonpath_method_text(
     context: &JsonpathExecutionContext,
     reference: JsonpathReference,
 ) -> TextValue {
+    let unresolved_flavor: i32 = 0;
     let node = jsonpath_execution_node(context, reference);
     if node.kind != 4 {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     let mut text = String::new();
     let mut position = node.text_start;
@@ -71,6 +72,9 @@ fn jsonpath_method_double_value(
     text: TextValue,
     numeric: bool,
 ) -> NumericValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NumericValue::Unknown = number { unresolved_flavor = 1; };
+    if let TextValue::Unknown = text { unresolved_flavor = 1; };
     let mut input = text;
     if numeric {
         let copied = number.clone();
@@ -99,7 +103,7 @@ fn jsonpath_method_double_value(
         };
         return sql__pg_catalog__numeric__ev2s(Float8Value::Value(bits));
     };
-    NumericValue::Unknown
+    numeric_unresolved(unresolved_flavor)
 }
 
 fn jsonpath_method_numeric(

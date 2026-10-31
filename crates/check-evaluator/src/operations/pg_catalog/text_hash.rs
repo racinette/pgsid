@@ -1,9 +1,11 @@
 fn text_hash_value(input: TextValue, trim_spaces: bool, byte_order: i32, utf8: bool) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return Int4Value::Error(error);
     }
     if (input == TextValue::Unknown || input == TextValue::NonNull) {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if input == TextValue::Null {
         return Int4Value::Null;
@@ -14,7 +16,7 @@ fn text_hash_value(input: TextValue, trim_spaces: bool, byte_order: i32, utf8: b
             let mut index: usize = 0;
             while index < chars.len() {
                 if chars[index] as i32 > 127 {
-                    return Int4Value::Unknown;
+                    return int4_unresolved(unresolved_flavor);
                 };
                 index += 1;
             }
@@ -23,7 +25,7 @@ fn text_hash_value(input: TextValue, trim_spaces: bool, byte_order: i32, utf8: b
         let bytes = bytea_hash_bytes(hex.as_str());
         return hash_native32(bytes, byte_order, 1);
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 fn text_hash_extended(
@@ -33,6 +35,9 @@ fn text_hash_extended(
     byte_order: i32,
     utf8: bool,
 ) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = seed { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return Int8Value::Error(error);
     }
@@ -40,7 +45,7 @@ fn text_hash_extended(
         return Int8Value::Error(error);
     }
     if (input == TextValue::Unknown || input == TextValue::NonNull) || seed == Int8Value::Unknown {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     }
     if input == TextValue::Null || seed == Int8Value::Null {
         return Int8Value::Null;
@@ -52,7 +57,7 @@ fn text_hash_extended(
                 let mut index: usize = 0;
                 while index < chars.len() {
                     if chars[index] as i32 > 127 {
-                        return Int8Value::Unknown;
+                        return int8_unresolved(unresolved_flavor);
                     };
                     index += 1;
                 }
@@ -62,7 +67,7 @@ fn text_hash_extended(
             return hash_native64(bytes, salt, byte_order, 1);
         }
     }
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__hashtext__cnj7(input: TextValue, byte_order: i32, utf8: bool) -> Int4Value {

@@ -9,6 +9,9 @@ pub fn and_stops(left: CheckOutcome) -> bool {
 }
 
 pub fn and_finish(left: CheckOutcome, right: CheckOutcome) -> CheckOutcome {
+    let mut unresolved_flavor: i32 = 0;
+    if let CheckOutcome::Unknown = left { unresolved_flavor = 1; };
+    if let CheckOutcome::Unknown = right { unresolved_flavor = 1; };
     if let CheckOutcome::Error(error) = left {
         return CheckOutcome::Error(error);
     }
@@ -19,7 +22,7 @@ pub fn and_finish(left: CheckOutcome, right: CheckOutcome) -> CheckOutcome {
         return CheckOutcome::False;
     }
     if left == CheckOutcome::Unknown || right == CheckOutcome::Unknown {
-        return CheckOutcome::Unknown;
+        return check_unresolved(unresolved_flavor);
     }
     if left == CheckOutcome::Null || right == CheckOutcome::Null {
         return CheckOutcome::Null;
@@ -38,6 +41,9 @@ pub fn or_stops(left: CheckOutcome) -> bool {
 }
 
 pub fn or_finish(left: CheckOutcome, right: CheckOutcome) -> CheckOutcome {
+    let mut unresolved_flavor: i32 = 0;
+    if let CheckOutcome::Unknown = left { unresolved_flavor = 1; };
+    if let CheckOutcome::Unknown = right { unresolved_flavor = 1; };
     if let CheckOutcome::Error(error) = left {
         return CheckOutcome::Error(error);
     }
@@ -48,7 +54,7 @@ pub fn or_finish(left: CheckOutcome, right: CheckOutcome) -> CheckOutcome {
         return CheckOutcome::True;
     }
     if left == CheckOutcome::Unknown || right == CheckOutcome::Unknown {
-        return CheckOutcome::Unknown;
+        return check_unresolved(unresolved_flavor);
     }
     if left == CheckOutcome::Null || right == CheckOutcome::Null {
         return CheckOutcome::Null;
@@ -93,6 +99,9 @@ pub fn distinct_needs_comparison(left_null: BoolValue, right_null: BoolValue) ->
 }
 
 pub fn distinct_nulls_finish(left_null: BoolValue, right_null: BoolValue) -> CheckOutcome {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoolValue::Unknown = left_null { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = right_null { unresolved_flavor = 1; };
     if let BoolValue::Error(error) = left_null {
         return CheckOutcome::Error(error);
     }
@@ -109,7 +118,7 @@ pub fn distinct_nulls_finish(left_null: BoolValue, right_null: BoolValue) -> Che
             }
         }
     }
-    CheckOutcome::Unknown
+    check_unresolved(unresolved_flavor)
 }
 
 pub fn case_guard_stops(value: CheckOutcome) -> bool {
@@ -123,6 +132,9 @@ pub fn case_guard_stops(value: CheckOutcome) -> bool {
 }
 
 pub fn minmax_nulls_choose_right(left_null: BoolValue, right_null: BoolValue) -> CheckOutcome {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoolValue::Unknown = left_null { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = right_null { unresolved_flavor = 1; };
     if let BoolValue::Error(error) = left_null {
         return CheckOutcome::Error(error);
     }
@@ -137,7 +149,7 @@ pub fn minmax_nulls_choose_right(left_null: BoolValue, right_null: BoolValue) ->
             return CheckOutcome::False;
         }
     }
-    CheckOutcome::Unknown
+    check_unresolved(unresolved_flavor)
 }
 
 pub fn case_guard_takes(value: CheckOutcome) -> bool {
@@ -152,6 +164,8 @@ pub fn row_compare_continues(value: Int4Value) -> bool {
 }
 
 pub fn row_compare_finish(value: Int4Value, strategy: i32) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = value { unresolved_flavor = 1; };
     if let Int4Value::Error(error) = value {
         return BoolValue::Error(error);
     }
@@ -172,5 +186,5 @@ pub fn row_compare_finish(value: Int4Value, strategy: i32) -> BoolValue {
             return BoolValue::Value(ordering > 0);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }

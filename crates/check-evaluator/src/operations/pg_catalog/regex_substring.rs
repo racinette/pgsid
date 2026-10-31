@@ -14,6 +14,10 @@ pub fn sql__pg_catalog__substring__knrk(
     pattern: TextValue,
     escape: TextValue,
 ) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = subject { unresolved_flavor = 1; };
+    if let TextValue::Unknown = pattern { unresolved_flavor = 1; };
+    if let TextValue::Unknown = escape { unresolved_flavor = 1; };
     if let TextValue::Error(error) = subject {
         return TextValue::Error(error);
     }
@@ -32,7 +36,7 @@ pub fn sql__pg_catalog__substring__knrk(
     if (pattern == TextValue::Unknown || pattern == TextValue::NonNull)
         || (escape == TextValue::Unknown || escape == TextValue::NonNull)
     {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     let translated = sql__pg_catalog__similar_to_escape__9vor(pattern, escape);
     if let TextValue::Error(error) = translated {
@@ -42,7 +46,7 @@ pub fn sql__pg_catalog__substring__knrk(
         return TextValue::Null;
     }
     if subject == TextValue::Unknown || subject == TextValue::NonNull {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     sql__pg_catalog__substring__qwhf(subject, translated)
 }

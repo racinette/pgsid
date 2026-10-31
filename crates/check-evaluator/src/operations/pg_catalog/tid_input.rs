@@ -41,32 +41,36 @@ fn tid_parse_word(input: &TidInputText, first: usize) -> TidInputWord {
 }
 
 fn tid_input_block(word: TidInputWord) -> Int8Value {
+    let unresolved_flavor: i32 = 0;
     if word.overflow { return Int8Value::Error(make_sql_error(TID_INPUT_INVALID)); };
-    if word.digits == false { return Int8Value::Unknown; };
+    if word.digits == false { return int8_unresolved(unresolved_flavor); };
     if word.high != 0i64 {
-        if word.high == 4294967295i64 && ((word.negative && word.low != 0i64) || (word.negative == false && word.low >= 2147483648i64)) { return Int8Value::Unknown; };
+        if word.high == 4294967295i64 && ((word.negative && word.low != 0i64) || (word.negative == false && word.low >= 2147483648i64)) { return int8_unresolved(unresolved_flavor); };
         return Int8Value::Error(make_sql_error(TID_INPUT_INVALID));
     };
-    if word.negative && word.low > 2147483648i64 { return Int8Value::Unknown; };
+    if word.negative && word.low > 2147483648i64 { return int8_unresolved(unresolved_flavor); };
     if word.negative && word.low != 0i64 { return make_int8_value(4294967296i64 - word.low); };
     make_int8_value(word.low)
 }
 
 fn tid_input_offset(word: TidInputWord) -> Int4Value {
+    let unresolved_flavor: i32 = 0;
     if word.overflow { return Int4Value::Error(make_sql_error(TID_INPUT_INVALID)); };
-    if word.digits == false { return Int4Value::Unknown; };
-    if word.negative && word.low >= 4294901761i64 && (word.high == 0i64 || word.high == 4294967295i64) { return Int4Value::Unknown; };
+    if word.digits == false { return int4_unresolved(unresolved_flavor); };
+    if word.negative && word.low >= 4294901761i64 && (word.high == 0i64 || word.high == 4294967295i64) { return int4_unresolved(unresolved_flavor); };
     if word.high != 0i64 || word.low > 65535i64 || (word.negative && word.low != 0i64) { return Int4Value::Error(make_sql_error(TID_INPUT_INVALID)); };
     make_int4_value(word.low as i32)
 }
 
 pub fn tid_from_text(input: TextValue) -> TidValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input { return TidValue::Error(error); };
     if input == TextValue::Null { return TidValue::Null; };
     if let TextValue::Value(text) = input {
         let chars: Vec<char> = text.chars().collect();
         let data = TidInputText { chars: chars };
-        if data.chars.len() > 4096 { return TidValue::Unknown; };
+        if data.chars.len() > 4096 { return tid_unresolved(unresolved_flavor); };
         let mut index: usize = 0;
         let mut count = 0;
         let mut first: usize = 0;
@@ -90,5 +94,5 @@ pub fn tid_from_text(input: TextValue) -> TidValue {
             if let Int4Value::Value(low) = offset { return make_tid_parts(high, low); };
         };
     };
-    TidValue::Unknown
+    tid_unresolved(unresolved_flavor)
 }

@@ -1,4 +1,6 @@
 pub fn sql__pg_catalog__poly_npoints__qi4n(input: PolygonValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let PolygonValue::Unknown = input { unresolved_flavor = 1; };
     if let PolygonValue::Error(error) = input {
         return Int4Value::Error(error);
     };
@@ -8,12 +10,14 @@ pub fn sql__pg_catalog__poly_npoints__qi4n(input: PolygonValue) -> Int4Value {
     if let PolygonValue::Value(value) = input {
         return make_int4_value(value.points.len() as i32);
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__npoints__yk02(input: PolygonValue) -> Int4Value {
     sql__pg_catalog__poly_npoints__qi4n(input)
 }
 pub fn sql__pg_catalog__poly_send__38c4(input: PolygonValue) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PolygonValue::Unknown = input { unresolved_flavor = 1; };
     if let PolygonValue::Error(error) = input {
         return ByteaValue::Error(error);
     };
@@ -40,7 +44,7 @@ pub fn sql__pg_catalog__poly_send__38c4(input: PolygonValue) -> ByteaValue {
                 return ByteaValue::Unspecified(4 + (value.points.len() as i32) * 16);
             };
             if encoded == ByteaValue::Unknown || encoded == ByteaValue::Null {
-                return ByteaValue::Unknown;
+                return bytea_unresolved(unresolved_flavor);
             };
             if let ByteaValue::Value(bytes) = encoded {
                 output.push_str(bytes.as_str());
@@ -49,9 +53,12 @@ pub fn sql__pg_catalog__poly_send__38c4(input: PolygonValue) -> ByteaValue {
         }
         return ByteaValue::Value(output);
     };
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__poly_same__7cvi(left: PolygonValue, right: PolygonValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PolygonValue::Unknown = left { unresolved_flavor = 1; };
+    if let PolygonValue::Unknown = right { unresolved_flavor = 1; };
     if let PolygonValue::Error(error) = left {
         return BoolValue::Error(error);
     };
@@ -59,10 +66,10 @@ pub fn sql__pg_catalog__poly_same__7cvi(left: PolygonValue, right: PolygonValue)
         return BoolValue::Error(error);
     };
     if let PolygonValue::Unknown = left {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if let PolygonValue::Unknown = right {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if let PolygonValue::Null = left {
         return BoolValue::Null;
@@ -76,7 +83,7 @@ pub fn sql__pg_catalog__poly_same__7cvi(left: PolygonValue, right: PolygonValue)
                 return make_bool_value(false);
             };
             if a.points.len() == 0 {
-                return BoolValue::Unknown;
+                return bool_unresolved(unresolved_flavor);
             };
             let mut start: usize = 0;
             while start < b.points.len() {
@@ -112,9 +119,11 @@ pub fn sql__pg_catalog__poly_same__7cvi(left: PolygonValue, right: PolygonValue)
             return make_bool_value(false);
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__path__jw9h(input: PolygonValue) -> PathValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PolygonValue::Unknown = input { unresolved_flavor = 1; };
     if let PolygonValue::Error(error) = input {
         return PathValue::Error(error);
     };
@@ -127,9 +136,11 @@ pub fn sql__pg_catalog__path__jw9h(input: PolygonValue) -> PathValue {
             points: value.points,
         });
     };
-    PathValue::Unknown
+    path_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__polygon__ddxi(input: PathValue) -> PolygonValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PathValue::Unknown = input { unresolved_flavor = 1; };
     if let PathValue::Error(error) = input {
         return PolygonValue::Error(error);
     };
@@ -145,9 +156,11 @@ pub fn sql__pg_catalog__polygon__ddxi(input: PathValue) -> PolygonValue {
             bounds: BoxValue::Unknown,
         });
     };
-    PolygonValue::Unknown
+    polygon_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__box__j3b7(input: PolygonValue) -> BoxValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PolygonValue::Unknown = input { unresolved_flavor = 1; };
     if let PolygonValue::Error(error) = input {
         return BoxValue::Error(error);
     };
@@ -157,7 +170,7 @@ pub fn sql__pg_catalog__box__j3b7(input: PolygonValue) -> BoxValue {
     if let PolygonValue::Value(value) = input {
         return value.bounds;
     };
-    BoxValue::Unknown
+    box_unresolved(unresolved_flavor)
 }
 fn polygon_box_corner(value: BoxPayload, high_x: bool, high_y: bool) -> PointPayload {
     let mut x = value.low_x;
@@ -177,6 +190,8 @@ fn polygon_box_corner(value: BoxPayload, high_x: bool, high_y: bool) -> PointPay
     }
 }
 pub fn sql__pg_catalog__polygon__6ij1(input: BoxValue) -> PolygonValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoxValue::Unknown = input { unresolved_flavor = 1; };
     if let BoxValue::Error(error) = input {
         return PolygonValue::Error(error);
     };
@@ -192,7 +207,7 @@ pub fn sql__pg_catalog__polygon__6ij1(input: BoxValue) -> PolygonValue {
         let bounds = box_from_points(box_endpoint(input, false), box_endpoint(input, true), false);
         return make_polygon_value(PolygonPayload { points, bounds });
     };
-    PolygonValue::Unknown
+    polygon_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__pt_contained_poly__c1l4(
     point: PointValue,

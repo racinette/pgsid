@@ -1,4 +1,7 @@
 pub fn sql__pg_catalog__byteaeq__z0yh(left: ByteaValue, right: ByteaValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ByteaValue::Unknown = left { unresolved_flavor = 1; };
+    if let ByteaValue::Unknown = right { unresolved_flavor = 1; };
     if let ByteaValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -6,7 +9,7 @@ pub fn sql__pg_catalog__byteaeq__z0yh(left: ByteaValue, right: ByteaValue) -> Bo
         return BoolValue::Error(error);
     }
     if left == ByteaValue::Unknown || right == ByteaValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if left == ByteaValue::Null || right == ByteaValue::Null {
         return BoolValue::Null;
@@ -24,10 +27,13 @@ pub fn sql__pg_catalog__byteaeq__z0yh(left: ByteaValue, right: ByteaValue) -> Bo
             return BoolValue::Value(a == b);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__byteane__volo(left: ByteaValue, right: ByteaValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ByteaValue::Unknown = left { unresolved_flavor = 1; };
+    if let ByteaValue::Unknown = right { unresolved_flavor = 1; };
     if let ByteaValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -35,7 +41,7 @@ pub fn sql__pg_catalog__byteane__volo(left: ByteaValue, right: ByteaValue) -> Bo
         return BoolValue::Error(error);
     }
     if left == ByteaValue::Unknown || right == ByteaValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if left == ByteaValue::Null || right == ByteaValue::Null {
         return BoolValue::Null;
@@ -53,10 +59,12 @@ pub fn sql__pg_catalog__byteane__volo(left: ByteaValue, right: ByteaValue) -> Bo
             return BoolValue::Value(a != b);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn text_wire_context(input: TextValue, utf8: bool) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input { return ByteaValue::Error(error); };
     if input == TextValue::Null { return ByteaValue::Null; };
     if let TextValue::Value(value) = input {
@@ -64,12 +72,12 @@ pub fn text_wire_context(input: TextValue, utf8: bool) -> ByteaValue {
         let mut index: usize = 0;
         while index < chars.len() {
             let code = chars[index] as i32;
-            if code == 0 || (utf8 == false && code > 127) { return ByteaValue::Unknown; };
+            if code == 0 || (utf8 == false && code > 127) { return bytea_unresolved(unresolved_flavor); };
             index += 1;
         }
         return ByteaValue::Value(text_binary_hex(value.as_str(), false));
     };
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }
 
 fn text_wire_without_context(input: TextValue) -> ByteaValue {

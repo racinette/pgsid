@@ -1,9 +1,11 @@
 fn integer_base_text(input: Int8Value, full_width: bool, radix: i64) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = input { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = input {
         return TextValue::Error(error);
     }
     if input == Int8Value::Unknown {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if input == Int8Value::Null {
         return TextValue::Null;
@@ -40,15 +42,17 @@ fn integer_base_text(input: Int8Value, full_width: bool, radix: i64) -> TextValu
         }
         return TextValue::Value(output);
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn int8_to_text(input: Int8Value) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = input { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = input {
         return TextValue::Error(error);
     }
     if input == Int8Value::Unknown {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if input == Int8Value::Null {
         return TextValue::Null;
@@ -56,7 +60,7 @@ pub fn int8_to_text(input: Int8Value) -> TextValue {
     if let Int8Value::Value(value) = input {
         return TextValue::Value(text_signed_number(value));
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn int4_to_text(input: Int4Value) -> TextValue {
@@ -65,11 +69,13 @@ pub fn int4_to_text(input: Int4Value) -> TextValue {
 }
 
 pub fn int2_to_text(input: Int2Value) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int2Value::Unknown = input { unresolved_flavor = 1; };
     if let Int2Value::Error(error) = input {
         return TextValue::Error(error);
     }
     if input == Int2Value::Unknown {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if input == Int2Value::Null {
         return TextValue::Null;
@@ -78,7 +84,7 @@ pub fn int2_to_text(input: Int2Value) -> TextValue {
         let widened = value as i64;
         return int8_to_text(make_int8_value(widened));
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__to_bin__w0oh(input: Int8Value) -> TextValue {

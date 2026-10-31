@@ -9,11 +9,13 @@ fn quote_literal_capacity(bytes: i64, sql_text: bool) -> bool {
 }
 
 pub(crate) fn quote_literal_output(input: TextValue, sql_text: bool) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return TextValue::Error(error);
     }
     if (input == TextValue::Unknown || input == TextValue::NonNull) {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if input == TextValue::Null {
         return TextValue::Null;
@@ -49,7 +51,7 @@ pub(crate) fn quote_literal_output(input: TextValue, sql_text: bool) -> TextValu
         output.push('\'');
         return TextValue::Value(output);
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__quote_literal__d0rq(input: TextValue) -> TextValue {

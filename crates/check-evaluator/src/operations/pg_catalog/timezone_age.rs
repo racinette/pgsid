@@ -43,6 +43,9 @@ pub fn sql__pg_catalog__age__74kj(
     right: TimestamptzValue,
     session: &str,
 ) -> IntervalValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestamptzValue::Unknown = left { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unknown = right { unresolved_flavor = 1; };
     if let TimestamptzValue::Error(error) = left {
         return IntervalValue::Error(error);
     };
@@ -50,7 +53,7 @@ pub fn sql__pg_catalog__age__74kj(
         return IntervalValue::Error(error);
     };
     if left == TimestamptzValue::Unknown || right == TimestamptzValue::Unknown {
-        return IntervalValue::Unknown;
+        return interval_unresolved(unresolved_flavor);
     };
     if left == TimestamptzValue::Null || right == TimestamptzValue::Null {
         return IntervalValue::Null;
@@ -76,7 +79,7 @@ pub fn sql__pg_catalog__age__74kj(
             let first = session_timezone_profile(session, a, false);
             let second = session_timezone_profile(session, b, false);
             if first.valid == false || second.valid == false {
-                return IntervalValue::Unknown;
+                return interval_unresolved(unresolved_flavor);
             };
             let first_local = a + (first.seconds as i64) * 1000000i64;
             let second_local = b + (second.seconds as i64) * 1000000i64;
@@ -86,5 +89,5 @@ pub fn sql__pg_catalog__age__74kj(
             return timezone_age_local_fields(first_local, second_local, false);
         };
     };
-    IntervalValue::Unknown
+    interval_unresolved(unresolved_flavor)
 }

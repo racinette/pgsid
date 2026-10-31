@@ -1,11 +1,12 @@
 fn timezone_interval_rebuild(zone: &str, day: i64, clock: i64) -> TimestamptzValue {
+    let unresolved_flavor: i32 = 0;
     if day < -2451552i64 || day > 106751989i64 {
         return TimestamptzValue::Error(make_sql_error(CLOCK_RANGE));
     };
     let local = day * 86400000000i64 + clock;
     let profile = session_timezone_profile(zone, local, true);
     if profile.valid == false {
-        return TimestamptzValue::Unknown;
+        return timestamptz_unresolved(unresolved_flavor);
     };
     let adjustment = (profile.seconds as i64) * 1000000i64;
     if adjustment < 0i64 && local > 9223372036854775807i64 + adjustment {
@@ -19,9 +20,10 @@ fn timezone_interval_rebuild(zone: &str, day: i64, clock: i64) -> TimestamptzVal
 }
 
 fn timezone_interval_step(zone: &str, value: i64, months: i32, days: i32) -> TimestamptzValue {
+    let unresolved_flavor: i32 = 0;
     let profile = session_timezone_profile(zone, value, false);
     if profile.valid == false {
-        return TimestamptzValue::Unknown;
+        return timestamptz_unresolved(unresolved_flavor);
     };
     let local = value + (profile.seconds as i64) * 1000000i64;
     let mut day = local / 86400000000i64;
@@ -77,6 +79,9 @@ fn timezone_interval_add(
     zone: &str,
     subtract: bool,
 ) -> TimestamptzValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
+    if let IntervalValue::Unknown = amount { unresolved_flavor = 1; };
     if let TimestamptzValue::Error(error) = input {
         return TimestamptzValue::Error(error);
     };
@@ -84,7 +89,7 @@ fn timezone_interval_add(
         return TimestamptzValue::Error(error);
     };
     if input == TimestamptzValue::Unknown || amount == IntervalValue::Unknown {
-        return TimestamptzValue::Unknown;
+        return timestamptz_unresolved(unresolved_flavor);
     };
     if input == TimestamptzValue::Null || amount == IntervalValue::Null {
         return TimestamptzValue::Null;
@@ -111,7 +116,7 @@ fn timezone_interval_add(
                 if let TimestampValue::Value(time) = result {
                     return TimestamptzValue::Value(time);
                 };
-                return TimestamptzValue::Unknown;
+                return timestamptz_unresolved(unresolved_flavor);
             };
             let mut timestamp = input;
             if span.months != 0 {
@@ -142,7 +147,7 @@ fn timezone_interval_add(
             };
         };
     };
-    TimestamptzValue::Unknown
+    timestamptz_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timestamptz_pl_interval__wpau(

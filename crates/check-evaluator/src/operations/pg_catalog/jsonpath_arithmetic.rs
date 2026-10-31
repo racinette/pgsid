@@ -4,15 +4,16 @@ fn jsonpath_execution_numeric(
     context: &JsonpathExecutionContext,
     reference: JsonpathReference,
 ) -> NumericValue {
+    let unresolved_flavor: i32 = 0;
     if reference.source == 3 {
-        return NumericValue::Unknown;
+        return numeric_unresolved(unresolved_flavor);
     };
     let node = jsonpath_execution_node(context, reference);
     if node.kind != 3 {
         return NumericValue::Null;
     };
     if node.text_start == node.text_end {
-        return NumericValue::Unknown;
+        return numeric_unresolved(unresolved_flavor);
     };
     let mut text = String::new();
     let mut position = node.text_start;

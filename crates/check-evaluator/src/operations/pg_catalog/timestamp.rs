@@ -2,6 +2,9 @@ pub fn sql__pg_catalog__timestamp_eq__jd79(
     left: TimestampValue,
     right: TimestampValue,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestampValue::Unknown = left { unresolved_flavor = 1; };
+    if let TimestampValue::Unknown = right { unresolved_flavor = 1; };
     if let TimestampValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -9,7 +12,7 @@ pub fn sql__pg_catalog__timestamp_eq__jd79(
         return BoolValue::Error(error);
     }
     if left == TimestampValue::Unknown || right == TimestampValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if left == TimestampValue::Null || right == TimestampValue::Null {
         return BoolValue::Null;
@@ -19,13 +22,16 @@ pub fn sql__pg_catalog__timestamp_eq__jd79(
             return BoolValue::Value(left_value == right_value);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timestamp_ge__80hi(
     left: TimestampValue,
     right: TimestampValue,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestampValue::Unknown = left { unresolved_flavor = 1; };
+    if let TimestampValue::Unknown = right { unresolved_flavor = 1; };
     if let TimestampValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -33,7 +39,7 @@ pub fn sql__pg_catalog__timestamp_ge__80hi(
         return BoolValue::Error(error);
     }
     if left == TimestampValue::Unknown || right == TimestampValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if left == TimestampValue::Null || right == TimestampValue::Null {
         return BoolValue::Null;
@@ -43,13 +49,16 @@ pub fn sql__pg_catalog__timestamp_ge__80hi(
             return BoolValue::Value(left_value >= right_value);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timestamp_gt__hxfo(
     left: TimestampValue,
     right: TimestampValue,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestampValue::Unknown = left { unresolved_flavor = 1; };
+    if let TimestampValue::Unknown = right { unresolved_flavor = 1; };
     if let TimestampValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -57,7 +66,7 @@ pub fn sql__pg_catalog__timestamp_gt__hxfo(
         return BoolValue::Error(error);
     }
     if left == TimestampValue::Unknown || right == TimestampValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if left == TimestampValue::Null || right == TimestampValue::Null {
         return BoolValue::Null;
@@ -67,13 +76,16 @@ pub fn sql__pg_catalog__timestamp_gt__hxfo(
             return BoolValue::Value(left_value > right_value);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timestamp_le__1qj4(
     left: TimestampValue,
     right: TimestampValue,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestampValue::Unknown = left { unresolved_flavor = 1; };
+    if let TimestampValue::Unknown = right { unresolved_flavor = 1; };
     if let TimestampValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -81,7 +93,7 @@ pub fn sql__pg_catalog__timestamp_le__1qj4(
         return BoolValue::Error(error);
     }
     if left == TimestampValue::Unknown || right == TimestampValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if left == TimestampValue::Null || right == TimestampValue::Null {
         return BoolValue::Null;
@@ -91,13 +103,16 @@ pub fn sql__pg_catalog__timestamp_le__1qj4(
             return BoolValue::Value(left_value <= right_value);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timestamp_lt__ogss(
     left: TimestampValue,
     right: TimestampValue,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestampValue::Unknown = left { unresolved_flavor = 1; };
+    if let TimestampValue::Unknown = right { unresolved_flavor = 1; };
     if let TimestampValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -105,7 +120,7 @@ pub fn sql__pg_catalog__timestamp_lt__ogss(
         return BoolValue::Error(error);
     }
     if left == TimestampValue::Unknown || right == TimestampValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if left == TimestampValue::Null || right == TimestampValue::Null {
         return BoolValue::Null;
@@ -115,13 +130,16 @@ pub fn sql__pg_catalog__timestamp_lt__ogss(
             return BoolValue::Value(left_value < right_value);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timestamp_ne__qsye(
     left: TimestampValue,
     right: TimestampValue,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestampValue::Unknown = left { unresolved_flavor = 1; };
+    if let TimestampValue::Unknown = right { unresolved_flavor = 1; };
     if let TimestampValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -129,7 +147,7 @@ pub fn sql__pg_catalog__timestamp_ne__qsye(
         return BoolValue::Error(error);
     }
     if left == TimestampValue::Unknown || right == TimestampValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if left == TimestampValue::Null || right == TimestampValue::Null {
         return BoolValue::Null;
@@ -139,5 +157,5 @@ pub fn sql__pg_catalog__timestamp_ne__qsye(
             return BoolValue::Value(left_value != right_value);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }

@@ -429,16 +429,17 @@ fn next_recurring_boundary(
 }
 
 fn recurring_zone_abbreviation(value: &str, daylight: bool) -> TextValue {
+    let unresolved_flavor: i32 = 0;
     let text = ZoneRuleText { chars: value.chars().collect() };
     let mut start: usize = 0;
     let mut end = skip_zone_rule_name(&text, start);
     if daylight {
         let standard = read_zone_rule_clock(&text, end);
-        if standard.valid == false { return TextValue::Unknown; };
+        if standard.valid == false { return text_unresolved(unresolved_flavor); };
         start = standard.next;
         end = skip_zone_rule_name(&text, start);
     };
-    if end > text.chars.len() || end == start { return TextValue::Unknown; };
+    if end > text.chars.len() || end == start { return text_unresolved(unresolved_flavor); };
     if text.chars[start] == '<' { start += 1; end = end - 1; };
     let mut result = String::new();
     while start < end {

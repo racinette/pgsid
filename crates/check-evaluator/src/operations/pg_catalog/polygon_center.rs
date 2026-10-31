@@ -1,4 +1,6 @@
 fn polygon_circle(input: PolygonValue) -> CircleValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PolygonValue::Unknown = input { unresolved_flavor = 1; };
     if let PolygonValue::Error(error) = input {
         return CircleValue::Error(error);
     };
@@ -7,7 +9,7 @@ fn polygon_circle(input: PolygonValue) -> CircleValue {
     };
     if let PolygonValue::Value(value) = input {
         if value.points.len() == 0 {
-            return CircleValue::Unknown;
+            return circle_unresolved(unresolved_flavor);
         };
         let mut center = sql__pg_catalog__point__db27(
             make_float8_value(0.0f64),
@@ -45,7 +47,7 @@ fn polygon_circle(input: PolygonValue) -> CircleValue {
         }
         return circle_from_center_radius(center, sql__pg_catalog__float8div__kumj(radius, count));
     };
-    CircleValue::Unknown
+    circle_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__circle__jtgz(input: PolygonValue) -> CircleValue {

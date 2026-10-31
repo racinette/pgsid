@@ -159,6 +159,9 @@ fn temporal_extract_date(value: i32, code: i32) -> NumericValue {
 }
 
 pub fn sql__pg_catalog__extract__qjml(units: TextValue, input: DateValue) -> NumericValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = units { unresolved_flavor = 1; };
+    if let DateValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = units {
         return NumericValue::Error(error);
     };
@@ -166,7 +169,7 @@ pub fn sql__pg_catalog__extract__qjml(units: TextValue, input: DateValue) -> Num
         return NumericValue::Error(error);
     };
     if (units == TextValue::Unknown || units == TextValue::NonNull) || input == DateValue::Unknown {
-        return NumericValue::Unknown;
+        return numeric_unresolved(unresolved_flavor);
     };
     if units == TextValue::Null || input == DateValue::Null {
         return NumericValue::Null;
@@ -176,5 +179,5 @@ pub fn sql__pg_catalog__extract__qjml(units: TextValue, input: DateValue) -> Num
             return temporal_extract_date(value, temporal_extract_code(unit.as_str()));
         };
     };
-    NumericValue::Unknown
+    numeric_unresolved(unresolved_flavor)
 }

@@ -23,6 +23,9 @@ fn fixed_zone_timestamp(
     input: TimestampValue,
     reverse: bool,
 ) -> TimestampValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let IntervalValue::Unknown = zone { unresolved_flavor = 1; };
+    if let TimestampValue::Unknown = input { unresolved_flavor = 1; };
     if let IntervalValue::Error(error) = zone {
         return TimestampValue::Error(error);
     };
@@ -30,7 +33,7 @@ fn fixed_zone_timestamp(
         return TimestampValue::Error(error);
     };
     if zone == IntervalValue::Unknown || input == TimestampValue::Unknown {
-        return TimestampValue::Unknown;
+        return timestamp_unresolved(unresolved_flavor);
     };
     if zone == IntervalValue::Null || input == TimestampValue::Null {
         return TimestampValue::Null;
@@ -53,12 +56,15 @@ fn fixed_zone_timestamp(
             };
         };
     };
-    TimestampValue::Unknown
+    timestamp_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__timezone__lxij(
     zone: IntervalValue,
     input: TimestampValue,
 ) -> TimestamptzValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let IntervalValue::Unknown = zone { unresolved_flavor = 1; };
+    if let TimestampValue::Unknown = input { unresolved_flavor = 1; };
     let result = fixed_zone_timestamp(zone, input, false);
     if let TimestampValue::Error(error) = result {
         return TimestamptzValue::Error(error);
@@ -69,7 +75,7 @@ pub fn sql__pg_catalog__timezone__lxij(
     if let TimestampValue::Value(time) = result {
         return make_timestamptz_value(time);
     };
-    TimestamptzValue::Unknown
+    timestamptz_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__timezone__n8k4(
     zone: IntervalValue,
@@ -78,6 +84,9 @@ pub fn sql__pg_catalog__timezone__n8k4(
     fixed_zone_timestamp(zone, interval_calendar_local_payload(input), true)
 }
 pub fn sql__pg_catalog__timezone__5q6e(zone: IntervalValue, input: TimetzValue) -> TimetzValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let IntervalValue::Unknown = zone { unresolved_flavor = 1; };
+    if let TimetzValue::Unknown = input { unresolved_flavor = 1; };
     if let IntervalValue::Error(error) = zone {
         return TimetzValue::Error(error);
     };
@@ -85,7 +94,7 @@ pub fn sql__pg_catalog__timezone__5q6e(zone: IntervalValue, input: TimetzValue) 
         return TimetzValue::Error(error);
     };
     if zone == IntervalValue::Unknown || input == TimetzValue::Unknown {
-        return TimetzValue::Unknown;
+        return timetz_unresolved(unresolved_flavor);
     };
     if zone == IntervalValue::Null || input == TimetzValue::Null {
         return TimetzValue::Null;
@@ -109,5 +118,5 @@ pub fn sql__pg_catalog__timezone__5q6e(zone: IntervalValue, input: TimetzValue) 
             };
         };
     };
-    TimetzValue::Unknown
+    timetz_unresolved(unresolved_flavor)
 }

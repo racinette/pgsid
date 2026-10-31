@@ -254,6 +254,7 @@ struct HashBytes {
 }
 
 pub fn hash_native32(bytes: Vec<HashByte>, byte_order: i32, unit: usize) -> Int4Value {
+    let unresolved_flavor: i32 = 0;
     if byte_order == 1 {
         return Int4Value::Value(hash_bytes32(bytes));
     };
@@ -271,10 +272,11 @@ pub fn hash_native32(bytes: Vec<HashByte>, byte_order: i32, unit: usize) -> Int4
     if byte_order == 0 && little == big {
         return Int4Value::Value(little);
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn hash_native64(bytes: Vec<HashByte>, seed: i64, byte_order: i32, unit: usize) -> Int8Value {
+    let unresolved_flavor: i32 = 0;
     if byte_order == 1 {
         return Int8Value::Value(hash_bytes64(bytes, seed));
     };
@@ -292,5 +294,5 @@ pub fn hash_native64(bytes: Vec<HashByte>, seed: i64, byte_order: i32, unit: usi
     if byte_order == 0 && little == big {
         return Int8Value::Value(little);
     };
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }

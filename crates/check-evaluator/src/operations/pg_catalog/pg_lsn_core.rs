@@ -1,6 +1,9 @@
 const PG_LSN_SPECIAL_ERROR: u32 = 466560;
 const PG_LSN_RANGE_ERROR: u32 = 3452619;
 fn pg_lsn_compare(left: PgLsnValue, right: PgLsnValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let PgLsnValue::Unknown = left { unresolved_flavor = 1; };
+    if let PgLsnValue::Unknown = right { unresolved_flavor = 1; };
     if let PgLsnValue::Error(error) = left {
         return Int4Value::Error(error);
     };
@@ -8,7 +11,7 @@ fn pg_lsn_compare(left: PgLsnValue, right: PgLsnValue) -> Int4Value {
         return Int4Value::Error(error);
     };
     if left == PgLsnValue::Unknown || right == PgLsnValue::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     };
     if left == PgLsnValue::Null || right == PgLsnValue::Null {
         return Int4Value::Null;
@@ -26,9 +29,12 @@ fn pg_lsn_compare(left: PgLsnValue, right: PgLsnValue) -> Int4Value {
             return Int4Value::Value(0);
         };
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 fn pg_lsn_relation(left: PgLsnValue, right: PgLsnValue, mode: i32) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PgLsnValue::Unknown = left { unresolved_flavor = 1; };
+    if let PgLsnValue::Unknown = right { unresolved_flavor = 1; };
     let comparison = pg_lsn_compare(left, right);
     if let Int4Value::Error(error) = comparison {
         return BoolValue::Error(error);
@@ -54,9 +60,12 @@ fn pg_lsn_relation(left: PgLsnValue, right: PgLsnValue, mode: i32) -> BoolValue 
         };
         return make_bool_value(order >= 0);
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 fn pg_lsn_select(left: PgLsnValue, right: PgLsnValue, larger: bool) -> PgLsnValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PgLsnValue::Unknown = left { unresolved_flavor = 1; };
+    if let PgLsnValue::Unknown = right { unresolved_flavor = 1; };
     let comparison = pg_lsn_compare(left, right);
     if let Int4Value::Error(error) = comparison {
         return PgLsnValue::Error(error);
@@ -70,18 +79,22 @@ fn pg_lsn_select(left: PgLsnValue, right: PgLsnValue, larger: bool) -> PgLsnValu
         };
         return right;
     };
-    PgLsnValue::Unknown
+    pg_lsn_unresolved(unresolved_flavor)
 }
 
 
 fn pg_lsn_bits(input: PgLsnValue) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let PgLsnValue::Unknown = input { unresolved_flavor = 1; };
     if let PgLsnValue::Error(error) = input { return Int8Value::Error(error); };
     if input == PgLsnValue::Null { return Int8Value::Null; };
     if let PgLsnValue::Value(value) = input { return make_int8_value(value); };
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 pub fn pg_lsn_to_text(input: PgLsnValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PgLsnValue::Unknown = input { unresolved_flavor = 1; };
     if let PgLsnValue::Error(error) = input { return TextValue::Error(error); };
     if input == PgLsnValue::Null { return TextValue::Null; };
     if let PgLsnValue::Value(value) = input {
@@ -112,21 +125,25 @@ pub fn pg_lsn_to_text(input: PgLsnValue) -> TextValue {
             };
         };
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 fn pg_lsn_numeric(input: PgLsnValue) -> NumericValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PgLsnValue::Unknown = input { unresolved_flavor = 1; };
     let text = integer_base_text(pg_lsn_bits(input), true, 10i64);
     if let TextValue::Error(error) = text { return NumericValue::Error(error); };
     if text == TextValue::Null { return NumericValue::Null; };
     if let TextValue::Value(value) = text { return make_numeric_value(value.as_str()); };
-    NumericValue::Unknown
+    numeric_unresolved(unresolved_flavor)
 }
 fn pg_lsn_from_numeric(input: NumericValue) -> PgLsnValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NumericValue::Unknown = input { unresolved_flavor = 1; };
     if let NumericValue::Error(error) = input { return PgLsnValue::Error(error); };
     if input == NumericValue::Null { return PgLsnValue::Null; };
     if let NumericValue::Value(text) = input {
         let work = numeric_work_from_value(text.as_str());
-        if work.valid == false { return PgLsnValue::Unknown; };
+        if work.valid == false { return pg_lsn_unresolved(unresolved_flavor); };
         if work.special != 1 { return PgLsnValue::Error(make_sql_error(PG_LSN_SPECIAL_ERROR)); };
         if work.sign != 0 && work.weight > 19 { return PgLsnValue::Error(make_sql_error(PG_LSN_RANGE_ERROR)); };
         let rounded = numeric_work_round(work, 0, 1);
@@ -152,12 +169,15 @@ fn pg_lsn_from_numeric(input: NumericValue) -> PgLsnValue {
             return make_pg_lsn_bits(integer_bits_value(IntegerBits { high: high, low: low }));
         };
     };
-    PgLsnValue::Unknown
+    pg_lsn_unresolved(unresolved_flavor)
 }
 fn pg_lsn_adjust(left: PgLsnValue, right: NumericValue, subtract: bool) -> PgLsnValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PgLsnValue::Unknown = left { unresolved_flavor = 1; };
+    if let NumericValue::Unknown = right { unresolved_flavor = 1; };
     if let PgLsnValue::Error(error) = left { return PgLsnValue::Error(error); };
     if let NumericValue::Error(error) = right { return PgLsnValue::Error(error); };
-    if left == PgLsnValue::Unknown || right == NumericValue::Unknown { return PgLsnValue::Unknown; };
+    if left == PgLsnValue::Unknown || right == NumericValue::Unknown { return pg_lsn_unresolved(unresolved_flavor); };
     if left == PgLsnValue::Null || right == NumericValue::Null { return PgLsnValue::Null; };
     let numeric = pg_lsn_numeric(left);
     if subtract { return pg_lsn_from_numeric(sql__pg_catalog__numeric_sub__ys09(numeric, right)); };

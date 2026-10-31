@@ -24,6 +24,8 @@ pub(crate) fn array_element_typmod(
     identity: &str,
     modifier: i32,
 ) -> ArrayElement {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
     let width = Int4Value::Value(modifier);
     let explicit = BoolValue::Value(true);
     if identity == "pg_catalog.\"varchar\"" {
@@ -90,10 +92,12 @@ pub(crate) fn array_element_typmod(
             width,
         ));
     };
-    ArrayElement::Unknown
+    array_element_unresolved(unresolved_flavor)
 }
 
 pub fn array_with_typmod(input: ArrayValue, modifier: i32) -> ArrayValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
     if modifier < 0 {
         return input;
     };
@@ -118,7 +122,7 @@ pub fn array_with_typmod(input: ArrayValue, modifier: i32) -> ArrayValue {
             };
             if unknown_valid == false {
                 if let ArrayElement::Unknown = converted {
-                    return ArrayValue::Unknown;
+                    return array_unresolved(unresolved_flavor);
                 };
             };
             elements[position] = converted;

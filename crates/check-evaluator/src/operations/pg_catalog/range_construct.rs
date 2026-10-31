@@ -12,12 +12,15 @@ fn range_profiled_compare(
     other: &RangeBoundContext,
     other_index: usize,
 ) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayElement::Unknown = lower { unresolved_flavor = 1; };
+    if let ArrayElement::Unknown = upper { unresolved_flavor = 1; };
     let pair = array_comparison_pair(lower.clone(), upper.clone(), false);
     if array_pair_requires_scalar(pair) == false {
         return pair;
     };
     if index >= profile.nodes.len() || other_index >= other.nodes.len() {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     };
     let node = profile.nodes[index].clone();
     let peer = other.nodes[other_index].clone();
@@ -25,14 +28,14 @@ fn range_profiled_compare(
         || node.comparison != peer.comparison
         || node.missing_comparison != peer.missing_comparison
     {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     };
     if node.missing_comparison {
         return Int4Value::Error(make_sql_error(RANGE_ARRAY_COMPARISON_UNDEFINED));
     };
     if node.kind == 44 {
         if node.comparison != 44 || node.type_name != peer.type_name {
-            return Int4Value::Unknown;
+            return int4_unresolved(unresolved_flavor);
         };
         let left = array_element_to_composite(lower);
         let right = array_element_to_composite(upper);
@@ -84,7 +87,7 @@ fn range_profiled_compare(
             || node.canonical != peer.canonical
             || node.comparison != node.kind
         {
-            return Int4Value::Unknown;
+            return int4_unresolved(unresolved_flavor);
         };
         if node.kind == 42 {
             return range_order(
@@ -101,7 +104,7 @@ fn range_profiled_compare(
         if node.kind == 6
             && (node.enum_labels != peer.enum_labels || node.enum_count != peer.enum_count)
         {
-            return Int4Value::Unknown;
+            return int4_unresolved(unresolved_flavor);
         };
         return range_builtin_compare(lower, upper, node.comparison);
     };
@@ -110,19 +113,19 @@ fn range_profiled_compare(
         || peer.child >= other.nodes.len()
         || node.element_type != peer.element_type
     {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     };
     if node.comparison == RANGE_COMPARISON_OID_VECTOR {
         if node.type_name.as_str() != "pg_catalog.oidvector"
             || peer.type_name.as_str() != "pg_catalog.oidvector"
         {
-            return Int4Value::Unknown;
+            return int4_unresolved(unresolved_flavor);
         };
         return sql__pg_catalog__btoidvectorcmp__6oyf(
             array_element_to_array(lower), array_element_to_array(upper));
     };
     if profile.nodes[node.child].missing_comparison != other.nodes[peer.child].missing_comparison {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     };
     let left = array_element_to_array(lower);
     let right = array_element_to_array(upper);
@@ -155,6 +158,9 @@ fn range_typed_compare(lower: ArrayElement, upper: ArrayElement, comparison: i32
 }
 
 fn range_builtin_compare(lower: ArrayElement, upper: ArrayElement, kind: i32) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayElement::Unknown = lower { unresolved_flavor = 1; };
+    if let ArrayElement::Unknown = upper { unresolved_flavor = 1; };
     if let ArrayElement::Null = lower {
         return make_int4_value(-1);
     };
@@ -317,7 +323,7 @@ fn range_builtin_compare(lower: ArrayElement, upper: ArrayElement, kind: i32) ->
     if kind == 47 {
         return tsvector_order(array_element_to_tsvector(lower), array_element_to_tsvector(upper));
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 fn range_profile_serialize(
@@ -333,6 +339,9 @@ fn range_profile_serialize(
     enum_count: i32,
     bound_profile: RangeBoundContext,
 ) -> RangeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayElement::Unknown = lower { unresolved_flavor = 1; };
+    if let ArrayElement::Unknown = upper { unresolved_flavor = 1; };
     let comparison = range_typed_compare(lower.clone(), upper.clone(), support.comparison, &bound_profile, &bound_profile);
     if let Int4Value::Error(error) = comparison {
         return RangeValue::Error(error);
@@ -380,16 +389,18 @@ fn range_profile_serialize(
             bound_profile,
         );
     };
-    RangeValue::Unknown
+    range_unresolved(unresolved_flavor)
 }
 
 fn range_builtin_canonical(input: RangeValue) -> RangeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeValue::Unknown = input { unresolved_flavor = 1; };
     if let RangeValue::Value(value) = input {
         if value.empty {
             return RangeValue::Value(value);
         };
         if value.support.canonical == 0 {
-            return RangeValue::Unknown;
+            return range_unresolved(unresolved_flavor);
         };
         if value.support.canonical == 1 {
             return RangeValue::Value(value);
@@ -534,6 +545,10 @@ pub fn range_construct_typed(
     enum_count: i32,
     bound_profile: RangeBoundContext,
 ) -> RangeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayElement::Unknown = lower { unresolved_flavor = 1; };
+    if let ArrayElement::Unknown = upper { unresolved_flavor = 1; };
+    if let TextValue::Unknown = flags { unresolved_flavor = 1; };
     if let ArrayElement::Error(error) = lower {
         return RangeValue::Error(error);
     };
@@ -544,7 +559,7 @@ pub fn range_construct_typed(
         return RangeValue::Error(error);
     };
     if range_support_valid(support, kind) == false {
-        return RangeValue::Unknown;
+        return range_unresolved(unresolved_flavor);
     };
     if let TextValue::Null = flags {
         return RangeValue::Error(make_sql_error(RANGE_CONSTRUCTOR_DATA_ERROR));
@@ -558,26 +573,26 @@ pub fn range_construct_typed(
             return RangeValue::Error(make_sql_error(RANGE_CONSTRUCTOR_FLAGS_ERROR));
         };
         if let ArrayElement::Unknown = lower {
-            return RangeValue::Unknown;
+            return range_unresolved(unresolved_flavor);
         };
         if let ArrayElement::Unknown = upper {
-            return RangeValue::Unknown;
+            return range_unresolved(unresolved_flavor);
         };
         if kind == 6 && (range_enum_definition_valid(enum_labels, enum_count) == false
             || range_enum_bound_valid(lower.clone(), enum_count) == false
             || range_enum_bound_valid(upper.clone(), enum_count) == false) {
-            return RangeValue::Unknown;
+            return range_unresolved(unresolved_flavor);
         };
-        if range_bound_profile_valid(&bound_profile) == false { return RangeValue::Unknown; };
+        if range_bound_profile_valid(&bound_profile) == false { return range_unresolved(unresolved_flavor); };
         let mut lower = lower;
         let mut upper = upper;
         if kind >= 41 && kind <= 44 {
             lower = range_prepare_profiled_bound(lower, &bound_profile);
             if let ArrayElement::Error(error) = lower { return RangeValue::Error(error); };
-            if let ArrayElement::Unknown = lower { return RangeValue::Unknown; };
+            if let ArrayElement::Unknown = lower { return range_unresolved(unresolved_flavor); };
             upper = range_prepare_profiled_bound(upper, &bound_profile);
             if let ArrayElement::Error(error) = upper { return RangeValue::Error(error); };
-            if let ArrayElement::Unknown = upper { return RangeValue::Unknown; };
+            if let ArrayElement::Unknown = upper { return range_unresolved(unresolved_flavor); };
         };
         let lo_inc = text.as_str() == "[]" || text.as_str() == "[)";
         let hi_inc = text.as_str() == "[]" || text.as_str() == "(]";
@@ -596,7 +611,7 @@ pub fn range_construct_typed(
         );
         return range_builtin_canonical(initial);
     };
-    RangeValue::Unknown
+    range_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__daterange__xa2w(lower: DateValue, upper: DateValue) -> RangeValue {

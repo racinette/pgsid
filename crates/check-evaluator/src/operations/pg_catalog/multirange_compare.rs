@@ -39,6 +39,9 @@ fn multirange_endpoint_order(
     right: RangeValue,
     right_upper: bool,
 ) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeValue::Unknown = left { unresolved_flavor = 1; };
+    if let RangeValue::Unknown = right { unresolved_flavor = 1; };
     if let RangeValue::Error(error) = left {
         return Int4Value::Error(error);
     };
@@ -50,10 +53,13 @@ fn multirange_endpoint_order(
             return range_endpoint_compare(&a, left_upper, &b, right_upper);
         };
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 fn multirange_directional_adjacent(left: RangeValue, right: RangeValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeValue::Unknown = left { unresolved_flavor = 1; };
+    if let RangeValue::Unknown = right { unresolved_flavor = 1; };
     if let RangeValue::Error(error) = left {
         return BoolValue::Error(error);
     };
@@ -65,7 +71,7 @@ fn multirange_directional_adjacent(left: RangeValue, right: RangeValue) -> BoolV
             return range_bounds_adjacent(&a, &b);
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 fn multirange_payload_compare(left: &MultirangePayload, right: &MultirangePayload, exact: bool) -> Int4Value {
@@ -89,6 +95,9 @@ fn multirange_payload_compare(left: &MultirangePayload, right: &MultirangePayloa
 }
 
 fn multirange_compare_mode(left: MultirangeValue, right: MultirangeValue, exact: bool) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let MultirangeValue::Unknown = left { unresolved_flavor = 1; };
+    if let MultirangeValue::Unknown = right { unresolved_flavor = 1; };
     if let MultirangeValue::Error(error) = left {
         return Int4Value::Error(error);
     };
@@ -108,7 +117,7 @@ fn multirange_compare_mode(left: MultirangeValue, right: MultirangeValue, exact:
             };
         };
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 fn multirange_compare(left: MultirangeValue, right: MultirangeValue) -> Int4Value {
@@ -120,6 +129,9 @@ pub fn multirange_order(left: MultirangeValue, right: MultirangeValue) -> Int4Va
 }
 
 fn multirange_equal(left: MultirangeValue, right: MultirangeValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let MultirangeValue::Unknown = left { unresolved_flavor = 1; };
+    if let MultirangeValue::Unknown = right { unresolved_flavor = 1; };
     if let MultirangeValue::Error(error) = left {
         return BoolValue::Error(error);
     };
@@ -135,7 +147,7 @@ fn multirange_equal(left: MultirangeValue, right: MultirangeValue) -> BoolValue 
     if let MultirangeValue::Value(a) = left {
         if let MultirangeValue::Value(b) = right {
             if multirange_same_family(&a, &b) == false {
-                return BoolValue::Unknown;
+                return bool_unresolved(unresolved_flavor);
             };
             if a.ranges.len() != b.ranges.len() {
                 return BoolValue::Value(false);
@@ -153,7 +165,7 @@ fn multirange_equal(left: MultirangeValue, right: MultirangeValue) -> BoolValue 
             return BoolValue::Value(true);
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 fn multirange_payload_relation(
@@ -232,6 +244,9 @@ fn multirange_payload_relation(
 }
 
 fn multirange_relation(left: MultirangeValue, right: MultirangeValue, strategy: i32) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let MultirangeValue::Unknown = left { unresolved_flavor = 1; };
+    if let MultirangeValue::Unknown = right { unresolved_flavor = 1; };
     if let MultirangeValue::Error(error) = left {
         return BoolValue::Error(error);
     };
@@ -251,7 +266,7 @@ fn multirange_relation(left: MultirangeValue, right: MultirangeValue, strategy: 
             };
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 fn multirange_search_span(
@@ -259,6 +274,7 @@ fn multirange_search_span(
     span: &RangePayload,
     contains: bool,
 ) -> BoolValue {
+    let unresolved_flavor: i32 = 0;
     if span.empty {
         return BoolValue::Value(contains);
     };
@@ -272,10 +288,10 @@ fn multirange_search_span(
             return BoolValue::Error(error);
         };
         if let RangeValue::Null = member {
-            return BoolValue::Unknown;
+            return bool_unresolved(unresolved_flavor);
         };
         if let RangeValue::Unknown = member {
-            return BoolValue::Unknown;
+            return bool_unresolved(unresolved_flavor);
         };
         if let RangeValue::Value(candidate) = member {
             let before = range_endpoint_compare(span, true, &candidate, false);
@@ -305,12 +321,12 @@ fn multirange_search_span(
                         };
                     };
                     if decided == false {
-                        return BoolValue::Unknown;
+                        return bool_unresolved(unresolved_flavor);
                     };
                 };
             };
             if known == false {
-                return BoolValue::Unknown;
+                return bool_unresolved(unresolved_flavor);
             };
         };
     }
@@ -318,6 +334,7 @@ fn multirange_search_span(
 }
 
 fn multirange_span_contains(input: &MultirangePayload, span: &RangePayload) -> BoolValue {
+    let unresolved_flavor: i32 = 0;
     if input.ranges.len() == 0 {
         return BoolValue::Value(true);
     };
@@ -337,7 +354,7 @@ fn multirange_span_contains(input: &MultirangePayload, span: &RangePayload) -> B
         let hi = multirange_endpoint_order(range_copy_payload(span), true, last, true);
         return range_order_boolean(hi, 4);
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 fn multirange_span_relation(
@@ -346,6 +363,9 @@ fn multirange_span_relation(
     strategy: i32,
     multi_first: bool,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let MultirangeValue::Unknown = input { unresolved_flavor = 1; };
+    if let RangeValue::Unknown = span { unresolved_flavor = 1; };
     if multi_first == false {
         if let RangeValue::Error(error) = span {
             return BoolValue::Error(error);
@@ -366,7 +386,7 @@ fn multirange_span_relation(
     if let MultirangeValue::Value(a) = input {
         if let RangeValue::Value(b) = span {
             if multirange_span_family(&a, &b) == false {
-                return BoolValue::Unknown;
+                return bool_unresolved(unresolved_flavor);
             };
             if strategy == 5 || strategy == 6 {
                 if (multi_first && strategy == 5) || (multi_first == false && strategy == 6) {
@@ -424,16 +444,18 @@ fn multirange_span_relation(
             return range_order_boolean(compared, 4);
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 fn multirange_element_direction(span: &RangePayload, element: ArrayElement) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayElement::Unknown = element { unresolved_flavor = 1; };
     let profile = span.bound_profile.clone();
     let mut prepared_element = element;
     if span.element_kind >= 41 && span.element_kind <= 44 {
         prepared_element = range_prepare_profiled_bound(prepared_element, &profile);
         if let ArrayElement::Error(error) = prepared_element { return Int4Value::Error(error); };
-        if let ArrayElement::Unknown = prepared_element { return Int4Value::Unknown; };
+        if let ArrayElement::Unknown = prepared_element { return int4_unresolved(unresolved_flavor); };
     };
     let lower = span.bounds[0].clone();
     let upper = span.bounds[1].clone();
@@ -475,6 +497,9 @@ fn multirange_contains_element(
     element: ArrayElement,
     element_first: bool,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let MultirangeValue::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unknown = element { unresolved_flavor = 1; };
     if element_first {
         if let ArrayElement::Error(error) = element {
             return BoolValue::Error(error);
@@ -493,11 +518,11 @@ fn multirange_contains_element(
         return BoolValue::Null;
     };
     if let ArrayElement::Unknown = element {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if let MultirangeValue::Value(payload) = input {
         if array_element_family(element.clone()) != payload.element_kind {
-            return BoolValue::Unknown;
+            return bool_unresolved(unresolved_flavor);
         };
         let mut lower: i32 = 0;
         let mut upper = payload.ranges.len() as i32;
@@ -509,10 +534,10 @@ fn multirange_contains_element(
                 return BoolValue::Error(error);
             };
             if let RangeValue::Null = member {
-                return BoolValue::Unknown;
+                return bool_unresolved(unresolved_flavor);
             };
             if let RangeValue::Unknown = member {
-                return BoolValue::Unknown;
+                return bool_unresolved(unresolved_flavor);
             };
             if let RangeValue::Value(span) = member {
                 let compared = multirange_element_direction(&span, element.clone());
@@ -532,13 +557,13 @@ fn multirange_contains_element(
                     };
                 };
                 if known == false {
-                    return BoolValue::Unknown;
+                    return bool_unresolved(unresolved_flavor);
                 };
             };
         }
         return BoolValue::Value(false);
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__elem_contained_by_multirange__1fqy(

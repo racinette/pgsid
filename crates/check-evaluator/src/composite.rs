@@ -12,20 +12,24 @@ pub enum CompositeValue {
     Value(CompositePayload),
 }
 
-pub fn composite_unknown() -> CompositeValue { CompositeValue::Unknown }
+pub fn composite_unknown() -> CompositeValue {
+    let unresolved_flavor: i32 = 0; composite_row_unresolved(unresolved_flavor) }
 pub fn composite_null() -> CompositeValue { CompositeValue::Null }
 
 pub fn composite_from_case_guard(input: CheckOutcome) -> CompositeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let CheckOutcome::Unknown = input { unresolved_flavor = 1; };
     if let CheckOutcome::Error(error) = input { return CompositeValue::Error(error); };
-    CompositeValue::Unknown
+    composite_row_unresolved(unresolved_flavor)
 }
 
 pub fn make_composite_value(input: CompositePayload) -> CompositeValue {
+    let unresolved_flavor: i32 = 0;
     let identity: Vec<char> = input.type_name.chars().collect();
-    if identity.len() == 0 || input.fields.len() > 2147483647 { return CompositeValue::Unknown; };
+    if identity.len() == 0 || input.fields.len() > 2147483647 { return composite_row_unresolved(unresolved_flavor); };
     let mut index: usize = 0;
     while index < identity.len() {
-        if identity[index] == '\0' { return CompositeValue::Unknown; };
+        if identity[index] == '\0' { return composite_row_unresolved(unresolved_flavor); };
         index += 1;
     }
     let mut fields = input.fields;
@@ -36,7 +40,7 @@ pub fn make_composite_value(input: CompositePayload) -> CompositeValue {
         if let ArrayElement::Error(error) = checked { return CompositeValue::Error(error); };
         if let ArrayElement::Unknown = checked {
             let family = array_element_family(source);
-            if family >= 41 && family <= 44 { return CompositeValue::Unknown; };
+            if family >= 41 && family <= 44 { return composite_row_unresolved(unresolved_flavor); };
         };
         fields[index] = checked;
         index += 1;
@@ -76,14 +80,19 @@ pub fn invalid_composite_row_coercion(input: CompositeValue) -> CompositeValue {
 }
 
 pub fn composite_field_count(input: CompositeValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let CompositeValue::Unknown = input { unresolved_flavor = 1; };
     let checked = composite_from_coerced_value(input);
     if let CompositeValue::Error(error) = checked { return Int4Value::Error(error); };
     if let CompositeValue::Null = checked { return Int4Value::Null; };
     if let CompositeValue::Value(value) = checked { return make_int4_value(value.fields.len() as i32); };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn composite_field_at(input: CompositeValue, index: Int4Value) -> ArrayElement {
+    let mut unresolved_flavor: i32 = 0;
+    if let CompositeValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = index { unresolved_flavor = 1; };
     let checked = composite_from_coerced_value(input);
     if let CompositeValue::Error(error) = checked { return ArrayElement::Error(error); };
     if let Int4Value::Error(error) = index { return ArrayElement::Error(error); };
@@ -94,18 +103,22 @@ pub fn composite_field_at(input: CompositeValue, index: Int4Value) -> ArrayEleme
             if offset >= 0 && position < value.fields.len() { return value.fields[position].clone(); };
         };
     };
-    ArrayElement::Unknown
+    array_element_unresolved(unresolved_flavor)
 }
 
 pub fn composite_datum_is_null(input: CompositeValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let CompositeValue::Unknown = input { unresolved_flavor = 1; };
     let checked = composite_from_coerced_value(input);
     if let CompositeValue::Error(error) = checked { return BoolValue::Error(error); };
-    if let CompositeValue::Unknown = checked { return BoolValue::Unknown; };
+    if let CompositeValue::Unknown = checked { return bool_unresolved(unresolved_flavor); };
     if let CompositeValue::Null = checked { return make_bool_value(true); };
     make_bool_value(false)
 }
 
 fn composite_row_null_test(input: CompositeValue, negated: bool) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let CompositeValue::Unknown = input { unresolved_flavor = 1; };
     let checked = composite_from_coerced_value(input);
     if let CompositeValue::Error(error) = checked { return BoolValue::Error(error); };
     if let CompositeValue::Null = checked { return make_bool_value(negated == false); };
@@ -126,10 +139,10 @@ fn composite_row_null_test(input: CompositeValue, negated: bool) -> BoolValue {
             };
             index += 1;
         }
-        if unknown { return BoolValue::Unknown; };
+        if unknown { return bool_unresolved(unresolved_flavor); };
         return make_bool_value(true);
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn composite_row_is_null(input: CompositeValue) -> BoolValue { composite_row_null_test(input, false) }
@@ -138,17 +151,21 @@ pub fn composite_is_null(input:CompositeValue)->BoolValue { composite_datum_is_n
 pub fn composite_row_is_not_null(input: CompositeValue) -> BoolValue { composite_row_null_test(input, true) }
 
 pub fn array_element_from_composite(input: CompositeValue) -> ArrayElement {
+    let mut unresolved_flavor: i32 = 0;
+    if let CompositeValue::Unknown = input { unresolved_flavor = 1; };
     if let CompositeValue::Error(error) = input { return ArrayElement::Error(error); };
     if let CompositeValue::Null = input { return ArrayElement::Null; };
     if let CompositeValue::Value(value) = input { return ArrayElement::Composite(value); };
-    ArrayElement::Unknown
+    array_element_unresolved(unresolved_flavor)
 }
 
 pub fn array_element_to_composite(input: ArrayElement) -> CompositeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
     if let ArrayElement::Error(error) = input { return CompositeValue::Error(error); };
     if let ArrayElement::Null = input { return CompositeValue::Null; };
     if let ArrayElement::Composite(value) = input { return CompositeValue::Value(value); };
-    CompositeValue::Unknown
+    composite_row_unresolved(unresolved_flavor)
 }
 
 #[derive(Clone)]
@@ -222,14 +239,16 @@ fn composite_type_context_valid(context: &CompositeTypeContext) -> bool {
 }
 
 fn composite_prepare_cell(input: ArrayElement, context: &CompositeTypeContext, index: usize) -> ArrayElement {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
     if let ArrayElement::Null = input {return input;};
     if let ArrayElement::Unknown = input {return input;};
     if let ArrayElement::Error(_) = input {return input;};
-    if index >= context.nodes.len() {return ArrayElement::Unknown;};
+    if index >= context.nodes.len() {return array_element_unresolved(unresolved_flavor);};
     let node = context.nodes[index].clone();
-    if array_element_family(input.clone()) != node.kind {return ArrayElement::Unknown;};
+    if array_element_family(input.clone()) != node.kind {return array_element_unresolved(unresolved_flavor);};
     if let ArrayElement::Composite(payload) = input {
-        if node.kind != 44 || payload.type_name != node.type_name || payload.fields.len() != node.fields.len() {return ArrayElement::Unknown;};
+        if node.kind != 44 || payload.type_name != node.type_name || payload.fields.len() != node.fields.len() {return array_element_unresolved(unresolved_flavor);};
         let mut fields: Vec<ArrayElement> = Vec::new();
         let mut position: usize = 0;
         while position < payload.fields.len() {
@@ -239,7 +258,7 @@ fn composite_prepare_cell(input: ArrayElement, context: &CompositeTypeContext, i
             if let ArrayElement::Unknown = checked {
                 let mut partial = false;
                 if let ArrayElement::Unknown = original {partial=true;};
-                if partial == false {return ArrayElement::Unknown;};
+                if partial == false {return array_element_unresolved(unresolved_flavor);};
             };
             fields.push(checked);
             position += 1;
@@ -247,7 +266,7 @@ fn composite_prepare_cell(input: ArrayElement, context: &CompositeTypeContext, i
         return array_element_from_composite(make_composite_value(CompositePayload {type_name:payload.type_name,fields:fields}));
     };
     if let ArrayElement::Array(payload) = input {
-        if node.kind != 41 || payload.element_type != node.element_type || payload.element_kind != context.nodes[node.child].kind {return ArrayElement::Unknown;};
+        if node.kind != 41 || payload.element_type != node.element_type || payload.element_kind != context.nodes[node.child].kind {return array_element_unresolved(unresolved_flavor);};
         let mut elements: Vec<ArrayElement> = Vec::new();
         let mut position: usize = 0;
         while position < payload.elements.len() {
@@ -256,7 +275,7 @@ fn composite_prepare_cell(input: ArrayElement, context: &CompositeTypeContext, i
             if let ArrayElement::Unknown = checked {
                 let mut partial = false;
                 if let ArrayElement::Unknown = original {partial=true;};
-                if partial == false {return ArrayElement::Unknown;};
+                if partial == false {return array_element_unresolved(unresolved_flavor);};
             };
             elements.push(checked);
             position += 1;
@@ -269,6 +288,8 @@ fn composite_prepare_cell(input: ArrayElement, context: &CompositeTypeContext, i
 }
 
 pub(crate) fn composite_prepare_scalar_cell(checked: ArrayElement) -> ArrayElement {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayElement::Unknown = checked { unresolved_flavor = 1; };
     if let ArrayElement::Tsquery(payload) = checked {
         return array_element_from_tsquery(make_tsquery_value(payload));
     };
@@ -305,7 +326,7 @@ pub(crate) fn composite_prepare_scalar_cell(checked: ArrayElement) -> ArrayEleme
         let mut position: usize = 0;
         while position < characters.len() {
             if characters[position] == '\0' {
-                return ArrayElement::Unknown;
+                return array_element_unresolved(unresolved_flavor);
             };
             position += 1;
         }
@@ -313,7 +334,7 @@ pub(crate) fn composite_prepare_scalar_cell(checked: ArrayElement) -> ArrayEleme
     };
     if let ArrayElement::ByteaUnspecified(length) = checked {
         if length < 0 {
-            return ArrayElement::Unknown;
+            return array_element_unresolved(unresolved_flavor);
         };
     };
     if let ArrayElement::Numeric(text) = checked {
@@ -326,7 +347,7 @@ pub(crate) fn composite_prepare_scalar_cell(checked: ArrayElement) -> ArrayEleme
                 return ArrayElement::Json(actual);
             };
         };
-        return ArrayElement::Unknown;
+        return array_element_unresolved(unresolved_flavor);
     };
     if let ArrayElement::Jsonb(payload) = checked {
         return array_element_from_jsonb(jsonb_from_coerced_value(JsonbValue::Value(payload)));
@@ -357,13 +378,15 @@ pub(crate) fn composite_prepare_scalar_cell(checked: ArrayElement) -> ArrayEleme
 }
 
 pub fn composite_from_coerced_plan(input: CompositeValue, plan: CompositeTypePlan) -> CompositeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let CompositeValue::Unknown = input { unresolved_flavor = 1; };
     if let CompositeValue::Value(payload) = input {
         if let CompositeTypePlan::Value(context) = plan {
-            if composite_type_context_valid(&context) == false {return CompositeValue::Unknown;};
-            if context.nodes[0].kind != 44 {return CompositeValue::Unknown;};
+            if composite_type_context_valid(&context) == false {return composite_row_unresolved(unresolved_flavor);};
+            if context.nodes[0].kind != 44 {return composite_row_unresolved(unresolved_flavor);};
             return array_element_to_composite(composite_prepare_cell(ArrayElement::Composite(payload),&context,0));
         };
-        return CompositeValue::Unknown;
+        return composite_row_unresolved(unresolved_flavor);
     };
     input
 }
@@ -373,16 +396,18 @@ pub fn array_from_coerced_composite_plan(
     element_type: &str,
     plan: CompositeTypePlan,
 ) -> ArrayValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
     if let ArrayValue::Value(payload) = input {
         if let CompositeTypePlan::Value(context) = plan {
             if composite_type_context_valid(&context) == false {
-                return ArrayValue::Unknown;
+                return array_unresolved(unresolved_flavor);
             };
             if (context.nodes[0].kind != 41 && context.nodes[0].kind != 44)
                 || payload.element_kind != context.nodes[0].kind
                 || payload.element_type.as_str() != element_type
             {
-                return ArrayValue::Unknown;
+                return array_unresolved(unresolved_flavor);
             };
             let mut elements: Vec<ArrayElement> = Vec::new();
             let mut position: usize = 0;
@@ -395,7 +420,7 @@ pub fn array_from_coerced_composite_plan(
                         partial = true;
                     };
                     if partial == false {
-                        return ArrayValue::Unknown;
+                        return array_unresolved(unresolved_flavor);
                     };
                 };
                 elements.push(checked);
@@ -409,7 +434,7 @@ pub fn array_from_coerced_composite_plan(
                 elements: elements,
             });
         };
-        return ArrayValue::Unknown;
+        return array_unresolved(unresolved_flavor);
     };
     input
 }

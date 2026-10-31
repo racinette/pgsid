@@ -5,6 +5,7 @@ const ARRAY_FILL_PORTABLE_ITEMS: i64 = 134217727i64;
 const ARRAY_FILL_MAX_ITEMS: i64 = 268435455i64;
 
 fn array_fill_nulls(input: &ArrayPayload) -> Int4Value {
+    let unresolved_flavor: i32 = 0;
     let mut unknown = false;
     let mut position: usize = 0;
     while position < input.elements.len() {
@@ -18,7 +19,7 @@ fn array_fill_nulls(input: &ArrayPayload) -> Int4Value {
         position += 1;
     }
     if unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     };
     Int4Value::Value(0)
 }
@@ -30,6 +31,8 @@ fn array_fill_payload(
     element_type: &str,
     element_kind: i32,
 ) -> ArrayValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayElement::Unknown = element { unresolved_flavor = 1; };
     if bounds.dimensions.len() > 1 {
         return ArrayValue::Error(make_sql_error(ARRAY_FILL_SHAPE));
     };
@@ -38,7 +41,7 @@ fn array_fill_payload(
         return ArrayValue::Error(error);
     };
     if bound_nulls == Int4Value::Unknown {
-        return ArrayValue::Unknown;
+        return array_unresolved(unresolved_flavor);
     };
     if bounds.elements.len() != lengths.elements.len() {
         return ArrayValue::Error(make_sql_error(ARRAY_FILL_SHAPE));
@@ -71,7 +74,7 @@ fn array_fill_payload(
         position += 1;
     }
     if dimensions.len() != lengths.elements.len() {
-        return ArrayValue::Unknown;
+        return array_unresolved(unresolved_flavor);
     };
     if count > ARRAY_FILL_MAX_ITEMS {
         return ArrayValue::Error(make_sql_error(ARRAY_FILL_LIMIT));
@@ -89,7 +92,7 @@ fn array_fill_payload(
         return finish_array_arguments(empty);
     };
     if count > ARRAY_FILL_PORTABLE_ITEMS {
-        return ArrayValue::Unknown;
+        return array_unresolved(unresolved_flavor);
     };
     let mut elements: Vec<ArrayElement> = Vec::new();
     let mut filled: i64 = 0i64;
@@ -114,6 +117,10 @@ fn array_fill_value(
     element_type: &str,
     element_kind: i32,
 ) -> ArrayValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayElement::Unknown = element { unresolved_flavor = 1; };
+    if let ArrayValue::Unknown = lengths { unresolved_flavor = 1; };
+    if let ArrayValue::Unknown = bounds { unresolved_flavor = 1; };
     if let ArrayElement::Error(error) = element {
         return ArrayValue::Error(error);
     };
@@ -140,7 +147,7 @@ fn array_fill_value(
             return ArrayValue::Error(error);
         };
         if nulls == Int4Value::Unknown {
-            return ArrayValue::Unknown;
+            return array_unresolved(unresolved_flavor);
         };
         if shape.elements.len() > 6 {
             return ArrayValue::Error(make_sql_error(ARRAY_FILL_LIMIT));
@@ -163,7 +170,7 @@ fn array_fill_value(
             };
         };
     };
-    ArrayValue::Unknown
+    array_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__array_fill__8l6w(
@@ -193,6 +200,9 @@ pub fn sql__pg_catalog__array_fill__3xoe(
 }
 
 pub fn sql__pg_catalog__trim_array__uzie(input: ArrayValue, count: Int4Value) -> ArrayValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = count { unresolved_flavor = 1; };
     if let ArrayValue::Error(error) = input {
         return ArrayValue::Error(error);
     };
@@ -226,5 +236,5 @@ pub fn sql__pg_catalog__trim_array__uzie(input: ArrayValue, count: Int4Value) ->
             return array_slice_subscript(ArrayValue::Value(payload), bounds);
         };
     };
-    ArrayValue::Unknown
+    array_unresolved(unresolved_flavor)
 }

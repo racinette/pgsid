@@ -1,4 +1,6 @@
 pub fn sql__pg_catalog__cardinality__m1rn(input: ArrayValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
     if let ArrayValue::Error(error) = input {
         return Int4Value::Error(error);
     };
@@ -8,10 +10,12 @@ pub fn sql__pg_catalog__cardinality__m1rn(input: ArrayValue) -> Int4Value {
     if let ArrayValue::Value(value) = input {
         return Int4Value::Value(value.elements.len() as i32);
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__array_ndims__8wu3(input: ArrayValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
     if let ArrayValue::Error(error) = input {
         return Int4Value::Error(error);
     };
@@ -24,10 +28,13 @@ pub fn sql__pg_catalog__array_ndims__8wu3(input: ArrayValue) -> Int4Value {
         };
         return Int4Value::Value(value.dimensions.len() as i32);
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 fn array_dimension_value(input: ArrayValue, dimension: Int4Value, mode: i32) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = dimension { unresolved_flavor = 1; };
     if let ArrayValue::Error(error) = input {
         return Int4Value::Error(error);
     };
@@ -59,7 +66,7 @@ fn array_dimension_value(input: ArrayValue, dimension: Int4Value, mode: i32) -> 
             return Int4Value::Value(selected.lower + (selected.length - 1));
         };
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__array_length__pebh(input: ArrayValue, dimension: Int4Value) -> Int4Value {
@@ -75,6 +82,8 @@ pub fn sql__pg_catalog__array_upper__lnz3(input: ArrayValue, dimension: Int4Valu
 }
 
 pub fn sql__pg_catalog__array_dims__01ex(input: ArrayValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
     if let ArrayValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -104,5 +113,5 @@ pub fn sql__pg_catalog__array_dims__01ex(input: ArrayValue) -> TextValue {
         }
         return TextValue::Value(text);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }

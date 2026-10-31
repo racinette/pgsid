@@ -32,11 +32,12 @@ pub fn prepare_array_quantifier(
 }
 
 pub(crate) fn array_quantifier_initial(input: &ArrayComparisonPayload, any: bool) -> CheckOutcome {
+    let unresolved_flavor: i32 = 0;
     if input.state == -2 {
         return CheckOutcome::Error(input.error);
     };
     if input.state == -1 {
-        return CheckOutcome::Unknown;
+        return check_unresolved(unresolved_flavor);
     };
     if input.state == 0 {
         return CheckOutcome::Null;
@@ -95,11 +96,14 @@ pub fn array_quantifier_step(left: CheckOutcome, right: BoolValue, any: bool) ->
 }
 
 pub fn array_quantifier_finish(input: CheckOutcome, validity: CheckOutcome) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let CheckOutcome::Unknown = input { unresolved_flavor = 1; };
+    if let CheckOutcome::Unknown = validity { unresolved_flavor = 1; };
     if let CheckOutcome::Error(error) = validity {
         return BoolValue::Error(error);
     };
     if validity == CheckOutcome::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     bool_from_check(input)
 }

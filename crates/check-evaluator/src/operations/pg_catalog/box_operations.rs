@@ -11,6 +11,9 @@ fn box_coordinate_relation(a: f64, b: f64, mode: i32) -> bool {
     a + 0.000001f64 >= b
 }
 fn box_spatial_relation(left: BoxValue, right: BoxValue, mode: i32) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoxValue::Unknown = left { unresolved_flavor = 1; };
+    if let BoxValue::Unknown = right { unresolved_flavor = 1; };
     let status = box_pair_status(left, right);
     if status != BoolValue::Value(true) {
         return status;
@@ -71,7 +74,7 @@ fn box_spatial_relation(left: BoxValue, right: BoxValue, mode: i32) -> BoolValue
             return make_bool_value(box_coordinate_relation(aly, bhy, 3));
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 fn box_from_scalars(
     high_x: Float8Value,
@@ -79,6 +82,11 @@ fn box_from_scalars(
     low_x: Float8Value,
     low_y: Float8Value,
 ) -> BoxValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = high_x { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = high_y { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = low_x { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = low_y { unresolved_flavor = 1; };
     if let Float8Value::Error(error) = high_x {
         return BoxValue::Error(error);
     };
@@ -96,7 +104,7 @@ fn box_from_scalars(
         || low_x == Float8Value::Unknown
         || low_y == Float8Value::Unknown
     {
-        return BoxValue::Unknown;
+        return box_unresolved(unresolved_flavor);
     };
     if high_x == Float8Value::Null
         || high_y == Float8Value::Null
@@ -127,15 +135,18 @@ fn box_from_scalars(
             };
         };
     };
-    BoxValue::Unknown
+    box_unresolved(unresolved_flavor)
 }
 fn box_merge(left: BoxValue, right: BoxValue, intersection: bool) -> BoxValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoxValue::Unknown = left { unresolved_flavor = 1; };
+    if let BoxValue::Unknown = right { unresolved_flavor = 1; };
     let status = box_pair_status(left, right);
     if let BoolValue::Error(error) = status {
         return BoxValue::Error(error);
     };
     if status == BoolValue::Unknown {
-        return BoxValue::Unknown;
+        return box_unresolved(unresolved_flavor);
     };
     if status == BoolValue::Null {
         return BoxValue::Null;
@@ -161,9 +172,12 @@ fn box_merge(left: BoxValue, right: BoxValue, intersection: bool) -> BoxValue {
             );
         };
     };
-    BoxValue::Unknown
+    box_unresolved(unresolved_flavor)
 }
 fn box_point_status(input: BoxValue, point: PointValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoxValue::Unknown = input { unresolved_flavor = 1; };
+    if let PointValue::Unknown = point { unresolved_flavor = 1; };
     if let BoxValue::Error(error) = input {
         return BoolValue::Error(error);
     };
@@ -171,7 +185,7 @@ fn box_point_status(input: BoxValue, point: PointValue) -> BoolValue {
         return BoolValue::Error(error);
     };
     if input == BoxValue::Unknown || point == PointValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if input == BoxValue::Null || point == PointValue::Null {
         return BoolValue::Null;
@@ -179,6 +193,9 @@ fn box_point_status(input: BoxValue, point: PointValue) -> BoolValue {
     make_bool_value(true)
 }
 fn box_segment_status(input: BoxValue, segment: LsegValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoxValue::Unknown = input { unresolved_flavor = 1; };
+    if let LsegValue::Unknown = segment { unresolved_flavor = 1; };
     if let BoxValue::Error(error) = input {
         return BoolValue::Error(error);
     };
@@ -186,7 +203,7 @@ fn box_segment_status(input: BoxValue, segment: LsegValue) -> BoolValue {
         return BoolValue::Error(error);
     };
     if input == BoxValue::Unknown || segment == LsegValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if input == BoxValue::Null || segment == LsegValue::Null {
         return BoolValue::Null;
@@ -194,12 +211,15 @@ fn box_segment_status(input: BoxValue, segment: LsegValue) -> BoolValue {
     make_bool_value(true)
 }
 fn box_arithmetic(input: BoxValue, point: PointValue, mode: i32) -> BoxValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoxValue::Unknown = input { unresolved_flavor = 1; };
+    if let PointValue::Unknown = point { unresolved_flavor = 1; };
     let status = box_point_status(input, point);
     if let BoolValue::Error(error) = status {
         return BoxValue::Error(error);
     };
     if status == BoolValue::Unknown {
-        return BoxValue::Unknown;
+        return box_unresolved(unresolved_flavor);
     };
     if status == BoolValue::Null {
         return BoxValue::Null;
@@ -232,7 +252,7 @@ fn box_arithmetic(input: BoxValue, point: PointValue, mode: i32) -> BoxValue {
         return BoxValue::Error(error);
     };
     if high == PointValue::Unknown || low == PointValue::Unknown {
-        return BoxValue::Unknown;
+        return box_unresolved(unresolved_flavor);
     };
     if let PointValue::Value(a) = high {
         if let PointValue::Value(b) = low {
@@ -245,9 +265,12 @@ fn box_arithmetic(input: BoxValue, point: PointValue, mode: i32) -> BoxValue {
             });
         };
     };
-    BoxValue::Unknown
+    box_unresolved(unresolved_flavor)
 }
 fn box_contains_point(input: BoxValue, point: PointValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoxValue::Unknown = input { unresolved_flavor = 1; };
+    if let PointValue::Unknown = point { unresolved_flavor = 1; };
     let status = box_point_status(input, point);
     if status != BoolValue::Value(true) {
         return status;
@@ -264,7 +287,7 @@ fn box_contains_point(input: BoxValue, point: PointValue) -> BoolValue {
             );
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 fn box_contains_segment(input: BoxValue, segment: LsegValue) -> BoolValue {
     let status = box_segment_status(input, segment);
@@ -278,6 +301,8 @@ fn box_contains_segment(input: BoxValue, segment: LsegValue) -> BoolValue {
     box_contains_point(input, lseg_endpoint(segment, true))
 }
 fn box_corner(input: BoxValue, high_x: bool, high_y: bool) -> PointValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoxValue::Unknown = input { unresolved_flavor = 1; };
     if let BoxValue::Error(error) = input {
         return PointValue::Error(error);
     };
@@ -295,7 +320,7 @@ fn box_corner(input: BoxValue, high_x: bool, high_y: bool) -> PointValue {
         };
         return sql__pg_catalog__point__db27(x, y);
     };
-    PointValue::Unknown
+    point_unresolved(unresolved_flavor)
 }
 fn box_boundary_segment(input: BoxValue, index: i32) -> LsegValue {
     let mut first = box_endpoint(input, true);
@@ -312,6 +337,8 @@ fn box_boundary_segment(input: BoxValue, index: i32) -> LsegValue {
     sql__pg_catalog__lseg__l9bc(first, second)
 }
 fn box_segment_bounds(segment: LsegValue) -> BoxValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let LsegValue::Unknown = segment { unresolved_flavor = 1; };
     let first = lseg_endpoint(segment, false);
     let second = lseg_endpoint(segment, true);
     if let PointValue::Value(a) = first {
@@ -328,7 +355,7 @@ fn box_segment_bounds(segment: LsegValue) -> BoxValue {
             );
         };
     };
-    BoxValue::Unknown
+    box_unresolved(unresolved_flavor)
 }
 #[derive(Clone, Copy)]
 struct BoxSegmentIntersection {
@@ -462,6 +489,9 @@ fn box_nearest_segment(input: BoxValue, segment: LsegValue, with_point: bool) ->
     closest
 }
 fn box_cross_line(input: BoxValue, line: LineValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoxValue::Unknown = input { unresolved_flavor = 1; };
+    if let LineValue::Unknown = line { unresolved_flavor = 1; };
     if let BoxValue::Error(error) = input {
         return BoolValue::Error(error);
     };
@@ -469,7 +499,7 @@ fn box_cross_line(input: BoxValue, line: LineValue) -> BoolValue {
         return BoolValue::Error(error);
     };
     if input == BoxValue::Unknown || line == LineValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if input == BoxValue::Null || line == LineValue::Null {
         return BoolValue::Null;
@@ -488,7 +518,7 @@ fn box_cross_line(input: BoxValue, line: LineValue) -> BoolValue {
             return BoolValue::Error(error);
         };
         if result == PointValue::Unknown {
-            return BoolValue::Unknown;
+            return bool_unresolved(unresolved_flavor);
         };
         if result != PointValue::Null {
             return make_bool_value(true);

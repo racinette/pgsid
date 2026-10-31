@@ -7,6 +7,9 @@ fn similar_pattern_capacity_fits(bytes: i64) -> bool {
 }
 
 fn similar_pattern_value(pattern: TextValue, escape: TextValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = pattern { unresolved_flavor = 1; };
+    if let TextValue::Unknown = escape { unresolved_flavor = 1; };
     if let TextValue::Error(error) = pattern {
         return TextValue::Error(error);
     }
@@ -14,7 +17,7 @@ fn similar_pattern_value(pattern: TextValue, escape: TextValue) -> TextValue {
         return TextValue::Error(error);
     }
     if (pattern == TextValue::Unknown || pattern == TextValue::NonNull) || (escape == TextValue::Unknown || escape == TextValue::NonNull) {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if pattern == TextValue::Null || escape == TextValue::Null {
         return TextValue::Null;
@@ -115,7 +118,7 @@ fn similar_pattern_value(pattern: TextValue, escape: TextValue) -> TextValue {
             return TextValue::Value(output);
         }
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__similar_to_escape__7txt(pattern: TextValue) -> TextValue {

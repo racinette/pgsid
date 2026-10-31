@@ -105,9 +105,10 @@ fn geometry_read_number(source: &GeometryInputText, begin: usize) -> GeometryInp
     }
 }
 fn point_parse(value: &str) -> PointValue {
+    let unresolved_flavor: i32 = 0;
     let chars: Vec<char> = value.chars().collect();
     if chars.len() > 4096 {
-        return PointValue::Unknown;
+        return point_unresolved(unresolved_flavor);
     };
     let source = GeometryInputText { chars: chars };
     let mut index = geometry_input_space(&source, 0);
@@ -122,7 +123,7 @@ fn point_parse(value: &str) -> PointValue {
         return PointValue::Error(error);
     };
     if first_value == Float8Value::Unknown {
-        return PointValue::Unknown;
+        return point_unresolved(unresolved_flavor);
     };
     index = first.end;
     if index >= source.chars.len() || source.chars[index] != ',' {
@@ -135,7 +136,7 @@ fn point_parse(value: &str) -> PointValue {
         return PointValue::Error(error);
     };
     if second_value == Float8Value::Unknown {
-        return PointValue::Unknown;
+        return point_unresolved(unresolved_flavor);
     };
     index = second.end;
     if parenthesized {
@@ -150,6 +151,8 @@ fn point_parse(value: &str) -> PointValue {
     sql__pg_catalog__point__db27(first_value, second_value)
 }
 pub fn point_from_text(input: TextValue) -> PointValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return PointValue::Error(error);
     };
@@ -159,5 +162,5 @@ pub fn point_from_text(input: TextValue) -> PointValue {
     if let TextValue::Value(value) = input {
         return point_parse(value.as_str());
     };
-    PointValue::Unknown
+    point_unresolved(unresolved_flavor)
 }

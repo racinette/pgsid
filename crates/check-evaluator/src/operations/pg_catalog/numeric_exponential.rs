@@ -100,11 +100,13 @@ fn numeric_exponential_work(input: NumericWork, scale: i32) -> NumericWork {
 }
 
 pub fn sql__pg_catalog__numeric_exp__fi9j(input: NumericValue) -> NumericValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NumericValue::Unknown = input { unresolved_flavor = 1; };
     if let NumericValue::Error(error) = input {
         return NumericValue::Error(error);
     }
     if input == NumericValue::Unknown {
-        return NumericValue::Unknown;
+        return numeric_unresolved(unresolved_flavor);
     }
     if input == NumericValue::Null {
         return NumericValue::Null;
@@ -112,7 +114,7 @@ pub fn sql__pg_catalog__numeric_exp__fi9j(input: NumericValue) -> NumericValue {
     if let NumericValue::Value(value) = input {
         let work = numeric_work_from_value(value.as_str());
         if work.valid == false {
-            return NumericValue::Unknown;
+            return numeric_unresolved(unresolved_flavor);
         }
         if work.special == 0 {
             return NumericValue::Value("0".to_owned());
@@ -127,7 +129,7 @@ pub fn sql__pg_catalog__numeric_exp__fi9j(input: NumericValue) -> NumericValue {
         }
         return numeric_work_round(result, scale, 1);
     }
-    NumericValue::Unknown
+    numeric_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__exp__ao9b(input: NumericValue) -> NumericValue {

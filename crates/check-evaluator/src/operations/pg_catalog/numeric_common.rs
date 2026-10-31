@@ -14,6 +14,9 @@ fn numeric_common_work(work: NumericWork, scale: i32) -> NumericWork {
 }
 
 fn numeric_common(left: NumericValue, right: NumericValue, multiple: bool) -> NumericValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NumericValue::Unknown = left { unresolved_flavor = 1; };
+    if let NumericValue::Unknown = right { unresolved_flavor = 1; };
     if let NumericValue::Error(error) = left {
         return NumericValue::Error(error);
     }
@@ -21,7 +24,7 @@ fn numeric_common(left: NumericValue, right: NumericValue, multiple: bool) -> Nu
         return NumericValue::Error(error);
     }
     if left == NumericValue::Unknown || right == NumericValue::Unknown {
-        return NumericValue::Unknown;
+        return numeric_unresolved(unresolved_flavor);
     }
     if left == NumericValue::Null || right == NumericValue::Null {
         return NumericValue::Null;
@@ -31,7 +34,7 @@ fn numeric_common(left: NumericValue, right: NumericValue, multiple: bool) -> Nu
             let a = numeric_work_from_value(first.as_str());
             let b = numeric_work_from_value(second.as_str());
             if a.valid == false || b.valid == false {
-                return NumericValue::Unknown;
+                return numeric_unresolved(unresolved_flavor);
             }
             if a.special != 1 || b.special != 1 {
                 return NumericValue::Value("NaN".to_owned());
@@ -59,7 +62,7 @@ fn numeric_common(left: NumericValue, right: NumericValue, multiple: bool) -> Nu
                     return NumericValue::Error(error);
                 }
                 if remainder == NumericValue::Unknown {
-                    return NumericValue::Unknown;
+                    return numeric_unresolved(unresolved_flavor);
                 }
                 dividend = divisor.clone();
                 if let NumericValue::Value(value) = remainder {
@@ -86,7 +89,7 @@ fn numeric_common(left: NumericValue, right: NumericValue, multiple: bool) -> Nu
             )));
         }
     }
-    NumericValue::Unknown
+    numeric_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__gcd__bke6(left: NumericValue, right: NumericValue) -> NumericValue {

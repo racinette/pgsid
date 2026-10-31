@@ -21,11 +21,12 @@ fn numeric_bucket_order(left: NumericWork, right: NumericWork) -> i32 {
 }
 
 fn numeric_bucket(value: &str, lower: &str, upper: &str, count: i32) -> Int4Value {
+    let unresolved_flavor: i32 = 0;
     let operand = numeric_work_from_value(value);
     let first = numeric_work_from_value(lower);
     let last = numeric_work_from_value(upper);
     if operand.valid == false || first.valid == false || last.valid == false {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if count <= 0 || operand.special == 3 || first.special != 1 || last.special != 1 {
         return Int4Value::Error(make_sql_error(NUMERIC_BUCKET_INVALID_ARGUMENT));
@@ -61,7 +62,7 @@ fn numeric_bucket(value: &str, lower: &str, upper: &str, count: i32) -> Int4Valu
         let bucket = number as i32;
         return Int4Value::Value(bucket + 1);
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__width_bucket__mx75(
@@ -70,6 +71,11 @@ pub fn sql__pg_catalog__width_bucket__mx75(
     upper: NumericValue,
     count: Int4Value,
 ) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let NumericValue::Unknown = value { unresolved_flavor = 1; };
+    if let NumericValue::Unknown = lower { unresolved_flavor = 1; };
+    if let NumericValue::Unknown = upper { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = count { unresolved_flavor = 1; };
     if let NumericValue::Error(error) = value {
         return Int4Value::Error(error);
     }
@@ -87,7 +93,7 @@ pub fn sql__pg_catalog__width_bucket__mx75(
         || upper == NumericValue::Unknown
         || count == Int4Value::Unknown
     {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if value == NumericValue::Null
         || lower == NumericValue::Null
@@ -105,5 +111,5 @@ pub fn sql__pg_catalog__width_bucket__mx75(
             }
         }
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }

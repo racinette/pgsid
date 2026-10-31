@@ -269,7 +269,8 @@ pub enum RangeValue {
 }
 
 pub fn range_unknown() -> RangeValue {
-    RangeValue::Unknown
+    let unresolved_flavor: i32 = 0;
+    range_unresolved(unresolved_flavor)
 }
 
 pub fn range_null() -> RangeValue {
@@ -586,6 +587,8 @@ fn range_profiled_value_at(
     profile: &RangeBoundContext,
     index: usize,
 ) -> ArrayElement {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
     if let ArrayElement::Null = input {
         return input;
     };
@@ -596,18 +599,18 @@ fn range_profiled_value_at(
         return input;
     };
     if index >= profile.nodes.len() {
-        return ArrayElement::Unknown;
+        return array_element_unresolved(unresolved_flavor);
     };
     let node = profile.nodes[index].clone();
     if array_element_family(input.clone()) != node.kind {
-        return ArrayElement::Unknown;
+        return array_element_unresolved(unresolved_flavor);
     };
     if let ArrayElement::Composite(payload) = input {
         if node.kind != 44
             || payload.type_name != node.type_name
             || payload.fields.len() != node.fields.len()
         {
-            return ArrayElement::Unknown;
+            return array_element_unresolved(unresolved_flavor);
         };
         let mut fields: Vec<ArrayElement> = Vec::new();
         let mut position: usize = 0;
@@ -624,7 +627,7 @@ fn range_profiled_value_at(
                     partial = true;
                 };
                 if partial == false {
-                    return ArrayElement::Unknown;
+                    return array_element_unresolved(unresolved_flavor);
                 };
             };
             fields.push(checked);
@@ -639,7 +642,7 @@ fn range_profiled_value_at(
         if payload.element_type != node.element_type
             || payload.element_kind != profile.nodes[node.child].kind
         {
-            return ArrayElement::Unknown;
+            return array_element_unresolved(unresolved_flavor);
         };
         let mut elements: Vec<ArrayElement> = Vec::new();
         let mut position: usize = 0;
@@ -652,7 +655,7 @@ fn range_profiled_value_at(
                     partial = true;
                 };
                 if partial == false {
-                    return ArrayElement::Unknown;
+                    return array_element_unresolved(unresolved_flavor);
                 };
             };
             elements.push(prepared);
@@ -672,7 +675,7 @@ fn range_profiled_value_at(
             || payload.element_type != node.element_type
             || payload.element_kind != child.kind
         {
-            return ArrayElement::Unknown;
+            return array_element_unresolved(unresolved_flavor);
         };
         let mut labels = String::new();
         let mut count = -1;
@@ -704,7 +707,7 @@ fn range_profiled_value_at(
             || payload.element_type != member.element_type
             || payload.element_kind != child.kind
         {
-            return ArrayElement::Unknown;
+            return array_element_unresolved(unresolved_flavor);
         };
         let mut ranges: Vec<RangeValue> = Vec::new();
         let mut position: usize = 0;
@@ -728,11 +731,13 @@ fn range_profiled_value_at(
     {
         return composite_prepare_scalar_cell(input);
     };
-    ArrayElement::Unknown
+    array_element_unresolved(unresolved_flavor)
 }
 
 pub fn range_prepare_profiled_bound(input: ArrayElement, profile: &RangeBoundContext) -> ArrayElement {
-    if range_bound_profile_valid(profile) == false { return ArrayElement::Unknown; };
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if range_bound_profile_valid(profile) == false { return array_element_unresolved(unresolved_flavor); };
     let mut nested = false;
     let mut index:usize = 0;
     while index < profile.nodes.len() {
@@ -830,24 +835,25 @@ fn range_bound_value_valid(input: ArrayElement, cidr: bool) -> bool {
 }
 
 pub fn make_coerced_range_value(input: RangePayload) -> RangeValue {
+    let unresolved_flavor: i32 = 0;
     let mut value = input;
     if value.element_kind != 6 {
         value = range_payload_with_definition(value, "", -1);
     };
     if range_enum_definition_valid(value.enum_labels.as_str(), value.enum_count) == false {
-        return RangeValue::Unknown;
+        return range_unresolved(unresolved_flavor);
     };
     if value.element_kind < 41 || value.element_kind >= 45 {
         let empty_profile = empty_range_bound_context();
         value = range_payload_with_bound_profile(value, empty_profile);
     };
     let bound_profile = value.bound_profile.clone();
-    if range_bound_profile_valid(&bound_profile) == false { return RangeValue::Unknown; };
-    if value.bound_profile.nodes.len() > 0 && value.bound_profile.nodes[0].kind != value.element_kind { return RangeValue::Unknown; };
+    if range_bound_profile_valid(&bound_profile) == false { return range_unresolved(unresolved_flavor); };
+    if value.bound_profile.nodes.len() > 0 && value.bound_profile.nodes[0].kind != value.element_kind { return range_unresolved(unresolved_flavor); };
     let mut support = value.support;
     if value.type_name.as_str() == "" || value.element_type.as_str() == "" || value.element_kind < 1
     {
-        return RangeValue::Unknown;
+        return range_unresolved(unresolved_flavor);
     };
     if range_support_equal(support, range_unknown_support()) {
         support = range_builtin_support(
@@ -857,7 +863,7 @@ pub fn make_coerced_range_value(input: RangePayload) -> RangeValue {
         );
     };
     if range_support_valid(support, value.element_kind) == false {
-        return RangeValue::Unknown;
+        return range_unresolved(unresolved_flavor);
     };
     let expected = range_builtin_support(
         value.type_name.as_str(),
@@ -867,16 +873,16 @@ pub fn make_coerced_range_value(input: RangePayload) -> RangeValue {
     if range_support_equal(expected, range_unknown_support()) == false
         && range_support_equal(support, expected) == false
     {
-        return RangeValue::Unknown;
+        return range_unresolved(unresolved_flavor);
     };
     if value.empty {
         if value.bounds.len() != 0 || value.lower_inclusive || value.upper_inclusive {
-            return RangeValue::Unknown;
+            return range_unresolved(unresolved_flavor);
         };
         return RangeValue::Value(range_payload_with_support(value, support));
     };
     if value.bounds.len() != 2 {
-        return RangeValue::Unknown;
+        return range_unresolved(unresolved_flavor);
     };
     let mut index: usize = 0;
     while index < value.bounds.len() {
@@ -886,23 +892,23 @@ pub fn make_coerced_range_value(input: RangePayload) -> RangeValue {
         };
         let kind = array_element_family(bound.clone());
         if kind != 0 && kind != value.element_kind {
-            return RangeValue::Unknown;
+            return range_unresolved(unresolved_flavor);
         };
         if range_bound_value_valid(bound.clone(), range_support_is_cidr(support) || value.element_type.as_str() == "pg_catalog.cidr") == false {
-            return RangeValue::Unknown;
+            return range_unresolved(unresolved_flavor);
         };
         if range_enum_bound_valid(bound.clone(), value.enum_count) == false {
-            return RangeValue::Unknown;
+            return range_unresolved(unresolved_flavor);
         };
         if let ArrayElement::Null = bound {
             if (index == 0 && value.lower_inclusive) || (index == 1 && value.upper_inclusive) {
-                return RangeValue::Unknown;
+                return range_unresolved(unresolved_flavor);
             };
         };
         if value.element_kind >= 41 && value.element_kind <= 44 && kind != 0 {
             let normalized = range_prepare_profiled_bound(bound.clone(), &bound_profile);
             if let ArrayElement::Error(error) = normalized { return RangeValue::Error(error); };
-            if let ArrayElement::Unknown = normalized { return RangeValue::Unknown; };
+            if let ArrayElement::Unknown = normalized { return range_unresolved(unresolved_flavor); };
             value.bounds[index] = normalized;
         };
         if let ArrayElement::Jsonb(payload) = bound {
@@ -913,7 +919,7 @@ pub fn make_coerced_range_value(input: RangePayload) -> RangeValue {
                 known = true;
             };
             if known == false {
-                return RangeValue::Unknown;
+                return range_unresolved(unresolved_flavor);
             };
         };
         index += 1;
@@ -1016,18 +1022,20 @@ pub fn range_require_type(
     element_type: &str,
     element_kind: i32,
 ) -> RangeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeValue::Unknown = input { unresolved_flavor = 1; };
     if let RangeValue::Value(value) = input {
         if value.type_name.as_str() != type_name
             || value.element_type.as_str() != element_type
             || value.element_kind != element_kind
         {
-            return RangeValue::Unknown;
+            return range_unresolved(unresolved_flavor);
         };
         let expected = range_builtin_support(type_name, element_type, element_kind);
         if range_support_equal(expected, range_unknown_support()) == false
             && range_support_equal(value.support, expected) == false
         {
-            return RangeValue::Unknown;
+            return range_unresolved(unresolved_flavor);
         };
         return RangeValue::Value(value);
     };
@@ -1042,12 +1050,14 @@ pub fn range_from_coerced_profile(
     comparison: i32,
     canonical: i32,
 ) -> RangeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeValue::Unknown = input { unresolved_flavor = 1; };
     if let RangeValue::Value(payload) = input {
         if payload.type_name.as_str() != type_name
             || payload.element_type.as_str() != element_type
             || payload.element_kind != element_kind
         {
-            return RangeValue::Unknown;
+            return range_unresolved(unresolved_flavor);
         };
         let support = RangeSupport {
             comparison,
@@ -1068,10 +1078,12 @@ pub fn range_from_coerced_defined_profile(
     labels: &str,
     count: i32,
 ) -> RangeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeValue::Unknown = input { unresolved_flavor = 1; };
     if let RangeValue::Value(payload) = input {
         if payload.type_name.as_str() != type_name || payload.element_type.as_str() != element_type
             || payload.element_kind != element_kind {
-            return RangeValue::Unknown;
+            return range_unresolved(unresolved_flavor);
         };
         let defined = range_payload_with_definition(payload, labels, count);
         return make_coerced_range_value(range_payload_with_support(defined, make_range_support(comparison, canonical)));
@@ -1082,9 +1094,11 @@ pub fn range_from_coerced_defined_profile(
 pub fn range_from_coerced_typed_profile(input: RangeValue, type_name: &str,
     element_type: &str, element_kind: i32, comparison: i32, canonical: i32,
     bound_profile: RangeBoundContext) -> RangeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeValue::Unknown = input { unresolved_flavor = 1; };
     if let RangeValue::Value(payload) = input {
         if payload.type_name.as_str() != type_name || payload.element_type.as_str() != element_type
-            || payload.element_kind != element_kind { return RangeValue::Unknown; };
+            || payload.element_kind != element_kind { return range_unresolved(unresolved_flavor); };
         let typed = range_payload_with_bound_profile(payload, bound_profile);
         return make_coerced_range_value(range_payload_with_support(typed,make_range_support(comparison,canonical)));
     };
@@ -1092,9 +1106,11 @@ pub fn range_from_coerced_typed_profile(input: RangeValue, type_name: &str,
 }
 
 pub fn range_require_support(input: RangeValue, expected: RangeSupport) -> RangeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeValue::Unknown = input { unresolved_flavor = 1; };
     if let RangeValue::Value(value) = input {
         if range_support_equal(value.support, expected) == false {
-            return RangeValue::Unknown;
+            return range_unresolved(unresolved_flavor);
         };
         return RangeValue::Value(value);
     };
@@ -1102,11 +1118,13 @@ pub fn range_require_support(input: RangeValue, expected: RangeSupport) -> Range
 }
 
 pub fn range_is_null(input: RangeValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeValue::Unknown = input { unresolved_flavor = 1; };
     if let RangeValue::Error(error) = input {
         return BoolValue::Error(error);
     };
     if let RangeValue::Unknown = input {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if let RangeValue::Null = input {
         return BoolValue::Value(true);
@@ -1115,13 +1133,17 @@ pub fn range_is_null(input: RangeValue) -> BoolValue {
 }
 
 pub fn range_from_case_guard(input: CheckOutcome) -> RangeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let CheckOutcome::Unknown = input { unresolved_flavor = 1; };
     if let CheckOutcome::Error(error) = input {
         return RangeValue::Error(error);
     };
-    RangeValue::Unknown
+    range_unresolved(unresolved_flavor)
 }
 
 pub fn range_empty_state(input: RangeValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeValue::Unknown = input { unresolved_flavor = 1; };
     if let RangeValue::Error(error) = input {
         return BoolValue::Error(error);
     };
@@ -1131,10 +1153,12 @@ pub fn range_empty_state(input: RangeValue) -> BoolValue {
     if let RangeValue::Value(value) = input {
         return BoolValue::Value(value.empty);
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn range_bound(input: RangeValue, upper: bool) -> ArrayElement {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeValue::Unknown = input { unresolved_flavor = 1; };
     if let RangeValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -1151,10 +1175,12 @@ pub fn range_bound(input: RangeValue, upper: bool) -> ArrayElement {
         };
         return value.bounds[index].clone();
     };
-    ArrayElement::Unknown
+    array_element_unresolved(unresolved_flavor)
 }
 
 pub fn range_bound_flag(input: RangeValue, upper: bool, infinite: bool) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeValue::Unknown = input { unresolved_flavor = 1; };
     if let RangeValue::Error(error) = input {
         return BoolValue::Error(error);
     };
@@ -1181,5 +1207,5 @@ pub fn range_bound_flag(input: RangeValue, upper: bool, infinite: bool) -> BoolV
         };
         return BoolValue::Value(value.lower_inclusive);
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }

@@ -125,8 +125,10 @@ fn jsonpath_keyvalue_next_identity(identity: i64) -> i64 {
 }
 
 fn jsonpath_keyvalue_add_base(offset: NumericValue, identity: i64) -> NumericValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NumericValue::Unknown = offset { unresolved_flavor = 1; };
     if identity < -2147483648i64 || identity > 2147483647i64 {
-        return NumericValue::Unknown;
+        return numeric_unresolved(unresolved_flavor);
     };
     let converted = sql__pg_catalog__int8__xy54(offset);
     if let Int8Value::Error(error) = converted {
@@ -137,7 +139,7 @@ fn jsonpath_keyvalue_add_base(offset: NumericValue, identity: i64) -> NumericVal
     };
     if let Int8Value::Value(number) = converted {
         if number < 0i64 || number > 4294967295i64 {
-            return NumericValue::Unknown;
+            return numeric_unresolved(unresolved_flavor);
         };
         let mut word = identity;
         if word < 0i64 {
@@ -158,13 +160,14 @@ fn jsonpath_keyvalue_add_base(offset: NumericValue, identity: i64) -> NumericVal
         };
         return NumericValue::Value(text_signed_number(high * 4294967296i64 + low));
     };
-    NumericValue::Unknown
+    numeric_unresolved(unresolved_flavor)
 }
 
 fn jsonpath_keyvalue_identity(
     context: &JsonpathExecutionContext,
     reference: JsonpathReference,
 ) -> NumericValue {
+    let unresolved_flavor: i32 = 0;
     if reference.source == 0 {
         return context.document_ids[reference.node].clone();
     };
@@ -174,7 +177,7 @@ fn jsonpath_keyvalue_identity(
     if reference.source == 6 {
         return context.generated_ids[reference.node].clone();
     };
-    NumericValue::Unknown
+    numeric_unresolved(unresolved_flavor)
 }
 
 fn jsonpath_keyvalue_task(

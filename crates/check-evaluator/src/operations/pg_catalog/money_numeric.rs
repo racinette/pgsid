@@ -8,15 +8,17 @@ fn money_scale_factor(digits: i32) -> i64 {
 }
 
 pub fn sql__pg_catalog__money__u7ss(input: Int8Value, digits: i32) -> MoneyValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = input { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = input { return MoneyValue::Error(error); };
     if let Int8Value::Null = input { return MoneyValue::Null; };
     if let Int8Value::Value(value) = input {
         if value == 0i64 { return make_money_value(0i64); };
-        if money_scale_available(digits) == false { return MoneyValue::Unknown; };
+        if money_scale_available(digits) == false { return money_unresolved(unresolved_flavor); };
         let factor = Int8Value::Value(money_scale_factor(digits));
         return money_from_units(sql__pg_catalog__int8mul__6t1m(input,factor));
     };
-    MoneyValue::Unknown
+    money_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__money__2ie3(input: Int4Value, digits: i32) -> MoneyValue {
@@ -24,27 +26,31 @@ pub fn sql__pg_catalog__money__2ie3(input: Int4Value, digits: i32) -> MoneyValue
 }
 
 pub fn sql__pg_catalog__money__z8lp(input: NumericValue, digits: i32) -> MoneyValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NumericValue::Unknown = input { unresolved_flavor = 1; };
     if let NumericValue::Error(error) = input { return MoneyValue::Error(error); };
     if let NumericValue::Null = input { return MoneyValue::Null; };
     if let NumericValue::Value(value) = input {
         let work = numeric_work_from_value(value.as_str());
-        if work.valid == false { return MoneyValue::Unknown; };
+        if work.valid == false { return money_unresolved(unresolved_flavor); };
         let amount = NumericValue::Value(value);
         if work.special != 1 { return money_from_units(sql__pg_catalog__int8__xy54(amount)); };
         if work.sign == 0 { return make_money_value(0i64); };
-        if money_scale_available(digits) == false { return MoneyValue::Unknown; };
+        if money_scale_available(digits) == false { return money_unresolved(unresolved_flavor); };
         let factor = sql__pg_catalog__numeric__11bc(Int8Value::Value(money_scale_factor(digits)));
         let scaled = sql__pg_catalog__numeric_mul__bj4l(amount,factor);
         return money_from_units(sql__pg_catalog__int8__xy54(scaled));
     };
-    MoneyValue::Unknown
+    money_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__numeric__khij(input: MoneyValue, digits: i32) -> NumericValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let MoneyValue::Unknown = input { unresolved_flavor = 1; };
     if let MoneyValue::Error(error) = input { return NumericValue::Error(error); };
     if let MoneyValue::Null = input { return NumericValue::Null; };
     if let MoneyValue::Value(value) = input {
-        if money_scale_available(digits) == false { return NumericValue::Unknown; };
+        if money_scale_available(digits) == false { return numeric_unresolved(unresolved_flavor); };
         let amount = sql__pg_catalog__numeric__11bc(Int8Value::Value(value));
         if digits == 0 { return amount; };
         let scale = Int4Value::Value(digits);
@@ -53,5 +59,5 @@ pub fn sql__pg_catalog__numeric__khij(input: MoneyValue, digits: i32) -> Numeric
         let quotient = sql__pg_catalog__numeric_div__pnzm(amount,denominator);
         return sql__pg_catalog__round__otcq(quotient,scale);
     };
-    NumericValue::Unknown
+    numeric_unresolved(unresolved_flavor)
 }

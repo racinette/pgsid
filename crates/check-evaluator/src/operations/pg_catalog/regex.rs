@@ -1,6 +1,9 @@
 const SQLSTATE_INVALID_REGEX: u32 = 3452591;
 
 pub fn eval_regex(subject: TextValue, pattern: TextValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = subject { unresolved_flavor = 1; };
+    if let TextValue::Unknown = pattern { unresolved_flavor = 1; };
     if let TextValue::Error(error) = subject {
         return BoolValue::Error(error);
     }
@@ -8,7 +11,7 @@ pub fn eval_regex(subject: TextValue, pattern: TextValue) -> BoolValue {
         return BoolValue::Error(error);
     }
     if (subject == TextValue::Unknown || subject == TextValue::NonNull) || (pattern == TextValue::Unknown || pattern == TextValue::NonNull) {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if subject == TextValue::Null || pattern == TextValue::Null {
         return BoolValue::Null;
@@ -31,7 +34,7 @@ pub fn eval_regex(subject: TextValue, pattern: TextValue) -> BoolValue {
                 return BoolValue::Error(error);
             }
             if result == MatchOutcome::Uncertain {
-                return BoolValue::Unknown;
+                return bool_unresolved(unresolved_flavor);
             }
             if result == MatchOutcome::NoMatch {
                 return BoolValue::Value(false);
@@ -39,5 +42,5 @@ pub fn eval_regex(subject: TextValue, pattern: TextValue) -> BoolValue {
             return BoolValue::Value(true);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }

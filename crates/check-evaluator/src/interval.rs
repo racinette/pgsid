@@ -105,6 +105,7 @@ fn interval_input_unit(text: &str) -> i32 {
     -1
 }
 fn interval_input_whole(text: &str) -> Int8Value {
+    let unresolved_flavor: i32 = 0;
     let chars: Vec<char> = text.chars().collect();
     let mut index: usize = 0;
     let mut negative = false;
@@ -136,7 +137,7 @@ fn interval_input_whole(text: &str) -> Int8Value {
         fraction_digits = index - fraction_start;
     };
     if index != chars.len() || integer_digits + fraction_digits == 0 {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     };
     if negative {
         return Int8Value::Value(whole);
@@ -324,6 +325,8 @@ fn interval_input_add(
     };
 }
 fn interval_units_from_text(input: TextValue, field_mask: i32, style: i32) -> IntervalValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return IntervalValue::Error(error);
     };
@@ -336,7 +339,7 @@ fn interval_units_from_text(input: TextValue, field_mask: i32, style: i32) -> In
             chars: normalized.chars().collect(),
         };
         if buffer.chars.len() > 255 {
-            return IntervalValue::Unknown;
+            return interval_unresolved(unresolved_flavor);
         };
         let mut tokens: Vec<IntervalInputToken> = Vec::new();
         let mut token_start: usize = 0;
@@ -495,7 +498,7 @@ fn interval_units_from_text(input: TextValue, field_mask: i32, style: i32) -> In
                     if ascii_field == false {
                         return IntervalValue::Error(make_sql_error(INTERVAL_INPUT_SYNTAX));
                     };
-                    return IntervalValue::Unknown;
+                    return interval_unresolved(unresolved_flavor);
                 };
                 if let Int8Value::Value(number) = whole {
                     let mut value = number;
@@ -543,7 +546,7 @@ fn interval_units_from_text(input: TextValue, field_mask: i32, style: i32) -> In
         };
         return make_interval_value(months as i32, acc.days, acc.time);
     };
-    IntervalValue::Unknown
+    interval_unresolved(unresolved_flavor)
 }
 
 fn interval_clock_error_state(error: SqlError, fallback: u32) -> u32 {
@@ -937,6 +940,7 @@ fn interval_iso_finish(acc: IntervalInputAcc) -> IntervalValue {
     make_interval_value(months as i32, acc.days, acc.time)
 }
 fn interval_input_iso(text: &str) -> IntervalValue {
+    let unresolved_flavor: i32 = 0;
     let input = IntervalInputText {
         chars: text.chars().collect(),
     };
@@ -1024,7 +1028,7 @@ fn interval_input_iso(text: &str) -> IntervalValue {
                     havefield = false;
                 } else {
                     if designator == 'x' || designator == 'X' {
-                        return IntervalValue::Unknown;
+                        return interval_unresolved(unresolved_flavor);
                     };
                     return IntervalValue::Error(make_sql_error(INTERVAL_INPUT_SYNTAX));
                 };
@@ -1041,6 +1045,9 @@ pub fn interval_from_text_fields_context(
     fields: Int4Value,
     style: i32,
 ) -> IntervalValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = fields { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return IntervalValue::Error(error);
     };
@@ -1048,7 +1055,7 @@ pub fn interval_from_text_fields_context(
         return IntervalValue::Error(error);
     };
     if (input == TextValue::Unknown || input == TextValue::NonNull) || fields == Int4Value::Unknown {
-        return IntervalValue::Unknown;
+        return interval_unresolved(unresolved_flavor);
     };
     if input == TextValue::Null || fields == Int4Value::Null {
         return IntervalValue::Null;
@@ -1065,7 +1072,7 @@ pub fn interval_from_text_fields_context(
         }
         if start < chars.len() && chars[start] == 'P' {
             if chars.len() > 255 {
-                return IntervalValue::Unknown;
+                return interval_unresolved(unresolved_flavor);
             };
             return interval_input_iso(text.as_str());
         };
@@ -1080,10 +1087,13 @@ pub fn interval_from_text_fields_context(
 }
 
 pub fn interval_input_agreement(left: IntervalValue, right: IntervalValue) -> IntervalValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let IntervalValue::Unknown = left { unresolved_flavor = 1; };
+    if let IntervalValue::Unknown = right { unresolved_flavor = 1; };
     if left == right {
         return left;
     };
-    IntervalValue::Unknown
+    interval_unresolved(unresolved_flavor)
 }
 
 pub fn interval_from_text_fields(input: TextValue, fields: Int4Value) -> IntervalValue {
@@ -1153,6 +1163,7 @@ fn interval_input_normalized(text: &str) -> String {
 }
 
 fn interval_input_year_month(text: &str) -> Int8Value {
+    let unresolved_flavor: i32 = 0;
     let chars: Vec<char> = text.chars().collect();
     let mut index: usize = 0;
     let mut negative = false;
@@ -1165,7 +1176,7 @@ fn interval_input_year_month(text: &str) -> Int8Value {
         index += 1;
     }
     if index == start || index == chars.len() || chars[index] != '-' {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     };
     let separator = index;
     let mut first = String::new();

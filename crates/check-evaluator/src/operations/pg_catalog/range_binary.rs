@@ -21,6 +21,8 @@ fn range_storage_flags(input: &RangePayload) -> i32 {
 }
 
 pub fn range_hash_flags(input: RangeValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeValue::Unknown = input { unresolved_flavor = 1; };
     if let RangeValue::Error(error) = input {
         return Int4Value::Error(error);
     };
@@ -30,18 +32,21 @@ pub fn range_hash_flags(input: RangeValue) -> Int4Value {
     if let RangeValue::Value(value) = input {
         return make_int4_value(range_storage_flags(&value));
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 fn range_binary_append(output: ByteaValue, bound: ByteaValue) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ByteaValue::Unknown = output { unresolved_flavor = 1; };
+    if let ByteaValue::Unknown = bound { unresolved_flavor = 1; };
     if let ByteaValue::Error(error) = bound {
         return ByteaValue::Error(error);
     };
     if let ByteaValue::Unknown = bound {
-        return ByteaValue::Unknown;
+        return bytea_unresolved(unresolved_flavor);
     };
     if let ByteaValue::Null = bound {
-        return ByteaValue::Unknown;
+        return bytea_unresolved(unresolved_flavor);
     };
     let length = bytea_length(bound.clone());
     let prefix = sql__pg_catalog__int4send__fjzt(length);
@@ -54,6 +59,10 @@ pub fn sql__pg_catalog__range_send__b1w5(
     lower: ByteaValue,
     upper: ByteaValue,
 ) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeValue::Unknown = input { unresolved_flavor = 1; };
+    if let ByteaValue::Unknown = lower { unresolved_flavor = 1; };
+    if let ByteaValue::Unknown = upper { unresolved_flavor = 1; };
     if let RangeValue::Error(error) = input {
         return ByteaValue::Error(error);
     };
@@ -91,5 +100,5 @@ pub fn sql__pg_catalog__range_send__b1w5(
         };
         return result;
     };
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }

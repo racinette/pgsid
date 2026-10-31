@@ -61,6 +61,7 @@ fn range_rebuild(
 }
 
 fn range_payload_difference(left: &RangePayload, right: &RangePayload) -> RangeValue {
+    let unresolved_flavor: i32 = 0;
     if left.empty || right.empty {
         return range_copy_payload(left);
     };
@@ -119,10 +120,11 @@ fn range_payload_difference(left: &RangePayload, right: &RangePayload) -> RangeV
             };
         };
     };
-    RangeValue::Unknown
+    range_unresolved(unresolved_flavor)
 }
 
 fn range_payload_set(left: &RangePayload, right: &RangePayload, strategy: i32) -> RangeValue {
+    let unresolved_flavor: i32 = 0;
     if strategy == 4 {
         return range_payload_difference(left, right);
     };
@@ -152,7 +154,7 @@ fn range_payload_set(left: &RangePayload, right: &RangePayload, strategy: i32) -
                     return RangeValue::Error(error);
                 };
                 if let BoolValue::Unknown = adjacent {
-                    return RangeValue::Unknown;
+                    return range_unresolved(unresolved_flavor);
                 };
                 if let BoolValue::Value(connected) = adjacent {
                     if connected == false {
@@ -162,7 +164,7 @@ fn range_payload_set(left: &RangePayload, right: &RangePayload, strategy: i32) -
             };
         };
         if known == false {
-            return RangeValue::Unknown;
+            return range_unresolved(unresolved_flavor);
         };
     };
     let lo = range_endpoint_compare(left, false, right, false);
@@ -190,10 +192,13 @@ fn range_payload_set(left: &RangePayload, right: &RangePayload, strategy: i32) -
             return range_rebuild(left, lower, upper, lower_inc, upper_inc);
         };
     };
-    RangeValue::Unknown
+    range_unresolved(unresolved_flavor)
 }
 
 fn range_set(left: RangeValue, right: RangeValue, strategy: i32) -> RangeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeValue::Unknown = left { unresolved_flavor = 1; };
+    if let RangeValue::Unknown = right { unresolved_flavor = 1; };
     if let RangeValue::Error(error) = left {
         return RangeValue::Error(error);
     };
@@ -213,7 +218,7 @@ fn range_set(left: RangeValue, right: RangeValue, strategy: i32) -> RangeValue {
             };
         };
     };
-    RangeValue::Unknown
+    range_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__range_union__8koj(left: RangeValue, right: RangeValue) -> RangeValue {

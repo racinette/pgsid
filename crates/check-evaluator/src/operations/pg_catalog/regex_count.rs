@@ -4,6 +4,11 @@ fn regex_count_value(
     starting: Int4Value,
     flags: TextValue,
 ) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = subject { unresolved_flavor = 1; };
+    if let TextValue::Unknown = pattern { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = starting { unresolved_flavor = 1; };
+    if let TextValue::Unknown = flags { unresolved_flavor = 1; };
     if let TextValue::Error(error) = subject {
         return Int4Value::Error(error);
     }
@@ -21,7 +26,7 @@ fn regex_count_value(
         || starting == Int4Value::Unknown
         || (flags == TextValue::Unknown || flags == TextValue::NonNull)
     {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if subject == TextValue::Null
         || pattern == TextValue::Null
@@ -53,7 +58,7 @@ fn regex_count_value(
                     }
                     if let CountOutcome::Count(value) = result {
                         if value > 2147483647 {
-                            return Int4Value::Unknown;
+                            return int4_unresolved(unresolved_flavor);
                         }
                         let matches: i32 = value as i32;
                         return Int4Value::Value(matches);
@@ -62,7 +67,7 @@ fn regex_count_value(
             }
         }
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__regexp_count__qve5(subject: TextValue, pattern: TextValue) -> Int4Value {

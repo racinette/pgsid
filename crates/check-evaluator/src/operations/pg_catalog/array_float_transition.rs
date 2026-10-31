@@ -1,4 +1,6 @@
 fn float_transition_test(input: Float8Value, operation: i32) -> CheckOutcome {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = input { unresolved_flavor = 1; };
     let value = float8_semantic(input);
     if let Float8Value::Value(bits) = value {
         let number = float8_number(bits);
@@ -16,10 +18,13 @@ fn float_transition_test(input: Float8Value, operation: i32) -> CheckOutcome {
             number != number || number.abs() == infinity,
         ));
     };
-    CheckOutcome::Unknown
+    check_unresolved(unresolved_flavor)
 }
 
 fn float_transition_nan(input: Float8Value, condition: CheckOutcome) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = input { unresolved_flavor = 1; };
+    if let CheckOutcome::Unknown = condition { unresolved_flavor = 1; };
     if condition == CheckOutcome::True {
         return Float8Value::UnspecifiedNan;
     };
@@ -33,7 +38,7 @@ fn float_transition_nan(input: Float8Value, condition: CheckOutcome) -> Float8Va
             return Float8Value::UnspecifiedNan;
         };
     };
-    Float8Value::Unknown
+    float8_unresolved(unresolved_flavor)
 }
 
 fn float_transition_output(
@@ -86,6 +91,10 @@ fn float_array_accumulate(
     x: Float8Value,
     regression: bool,
 ) -> ArrayValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = y { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = x { unresolved_flavor = 1; };
     if let ArrayValue::Error(error) = input {
         return ArrayValue::Error(error);
     };
@@ -102,7 +111,7 @@ fn float_array_accumulate(
         return ArrayValue::Null;
     };
     if x == Float8Value::Unknown || y == Float8Value::Unknown {
-        return ArrayValue::Unknown;
+        return array_unresolved(unresolved_flavor);
     };
     if let ArrayValue::Value(value) = input {
         let mut width: usize = 3;
@@ -114,12 +123,12 @@ fn float_array_accumulate(
             return ArrayValue::Error(error);
         };
         if validity != BoolValue::Value(true) {
-            return ArrayValue::Unknown;
+            return array_unresolved(unresolved_flavor);
         };
         let old_n = float_state_field(&value, 0);
         let positive = float_transition_test(old_n, 0);
         if positive == CheckOutcome::Unknown {
-            return ArrayValue::Unknown;
+            return array_unresolved(unresolved_flavor);
         };
         let old_sx = float_state_field(&value, 1);
         let n = float_state_arithmetic(old_n, make_float8_value(1.0f64), 0);
@@ -170,7 +179,7 @@ fn float_array_accumulate(
                 return ArrayValue::Error(make_sql_error(FLOAT_CORE_RANGE));
             };
             if overflow != CheckOutcome::False {
-                return ArrayValue::Unknown;
+                return array_unresolved(unresolved_flavor);
             };
         } else {
             let special_x = float_transition_test(x, 3);
@@ -183,7 +192,7 @@ fn float_array_accumulate(
         };
         return float_transition_output(n, sx, sxx, sy, syy, sxy, regression);
     };
-    ArrayValue::Unknown
+    array_unresolved(unresolved_flavor)
 }
 
 fn float_transition_copy(input: &ArrayPayload, regression: bool) -> ArrayValue {
@@ -214,6 +223,13 @@ fn float_combine_variance(
     ty: Float8Value,
     n: Float8Value,
 ) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = first { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = second { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = counts { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = tx { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = ty { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = n { unresolved_flavor = 1; };
     let product = float_state_arithmetic(float_state_arithmetic(counts, tx, 2), ty, 2);
     let correction = float_state_arithmetic(product, n, 3);
     let sum = float_state_arithmetic(first, second, 0);
@@ -223,12 +239,15 @@ fn float_combine_variance(
         return Float8Value::Error(make_sql_error(FLOAT_CORE_RANGE));
     };
     if overflow != CheckOutcome::False {
-        return Float8Value::Unknown;
+        return float8_unresolved(unresolved_flavor);
     };
     result
 }
 
 fn float_array_combine(left: ArrayValue, right: ArrayValue, regression: bool) -> ArrayValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayValue::Unknown = left { unresolved_flavor = 1; };
+    if let ArrayValue::Unknown = right { unresolved_flavor = 1; };
     if let ArrayValue::Error(error) = left {
         return ArrayValue::Error(error);
     };
@@ -256,7 +275,7 @@ fn float_array_combine(left: ArrayValue, right: ArrayValue, regression: bool) ->
                 return ArrayValue::Error(error);
             };
             if first_valid != BoolValue::Value(true) || second_valid != BoolValue::Value(true) {
-                return ArrayValue::Unknown;
+                return array_unresolved(unresolved_flavor);
             };
             let n1 = float_state_field(&first, 0);
             let n2 = float_state_field(&second, 0);
@@ -265,14 +284,14 @@ fn float_array_combine(left: ArrayValue, right: ArrayValue, regression: bool) ->
                 return float_transition_copy(&second, regression);
             };
             if first_empty != CheckOutcome::False {
-                return ArrayValue::Unknown;
+                return array_unresolved(unresolved_flavor);
             };
             let second_empty = float_transition_test(n2, 1);
             if second_empty == CheckOutcome::True {
                 return float_transition_copy(&first, regression);
             };
             if second_empty != CheckOutcome::False {
-                return ArrayValue::Unknown;
+                return array_unresolved(unresolved_flavor);
             };
             let n = float_state_arithmetic(n1, n2, 0);
             let counts = float_state_arithmetic(n1, n2, 2);
@@ -312,7 +331,7 @@ fn float_array_combine(left: ArrayValue, right: ArrayValue, regression: bool) ->
                     return ArrayValue::Error(error);
                 };
                 if result == Float8Value::Unknown {
-                    return ArrayValue::Unknown;
+                    return array_unresolved(unresolved_flavor);
                 };
                 results.push(result);
                 index += 1;
@@ -328,7 +347,7 @@ fn float_array_combine(left: ArrayValue, right: ArrayValue, regression: bool) ->
             return float_transition_output(n, results[0], results[1], sy, syy, sxy, regression);
         };
     };
-    ArrayValue::Unknown
+    array_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__float4_accum__nnxi(input: ArrayValue, amount: Float4Value) -> ArrayValue {

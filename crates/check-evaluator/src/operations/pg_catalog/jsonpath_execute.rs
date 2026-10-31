@@ -285,6 +285,8 @@ fn jsonpath_execution_make_task(
 }
 
 fn jsonpath_execution_stored(input: JsonpathValue) -> JsonpathValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonpathValue::Unknown = input { unresolved_flavor = 1; };
     if let JsonpathValue::StoredText(text) = input {
         let parsed = jsonpath_from_coerced_source_utf8(TextValue::Value(text));
         if let JsonpathValue::Value(path) = parsed {
@@ -316,24 +318,24 @@ fn jsonpath_execution_stored(input: JsonpathValue) -> JsonpathValue {
                     && jsonpath_temporal_method(node.kind) == false
                     && node.kind != JSONPATH_METHOD_KEYVALUE
                 {
-                    return JsonpathValue::Unknown;
+                    return jsonpath_unresolved(unresolved_flavor);
                 };
                 if jsonpath_predicate_kind(node.kind) && node.next > 0 {
-                    return JsonpathValue::Unknown;
+                    return jsonpath_unresolved(unresolved_flavor);
                 };
                 if node.kind >= JSONPATH_NODE_PLUS && node.kind <= JSONPATH_NODE_MOD {
                     if node.next > 0 || path.nodes[node.left].next > 0 {
-                        return JsonpathValue::Unknown;
+                        return jsonpath_unresolved(unresolved_flavor);
                     };
                     if node.right > 0 && path.nodes[node.right].next > 0 {
-                        return JsonpathValue::Unknown;
+                        return jsonpath_unresolved(unresolved_flavor);
                     };
                 };
                 index += 1;
             }
             return JsonpathValue::Value(path);
         };
-        return JsonpathValue::Unknown;
+        return jsonpath_unresolved(unresolved_flavor);
     };
     input
 }
@@ -1925,6 +1927,7 @@ fn jsonpath_execution_output(
     sequence: &JsonpathSequence,
     array: bool,
 ) -> JsonbValue {
+    let unresolved_flavor: i32 = 0;
     if array == false && sequence.items.len() == 0 {
         return JsonbValue::Null;
     };
@@ -1972,7 +1975,7 @@ fn jsonpath_execution_output(
             let task = tasks[count];
             let node = jsonpath_execution_result_node(context, sequence, task.reference);
             if node.kind == 3 && task.reference.source == 6 && node.text_start == node.text_end {
-                return JsonbValue::Unknown;
+                return jsonb_unresolved(unresolved_flavor);
             };
             let key_start = characters.len();
             if task.parent > 0 && nodes[task.parent].kind == 6 {
@@ -2017,7 +2020,7 @@ fn jsonpath_execution_output(
                     return JsonbValue::Error(failure);
                 };
                 if rendered == TextValue::Unknown || rendered == TextValue::NonNull {
-                    return JsonbValue::Unknown;
+                    return jsonb_unresolved(unresolved_flavor);
                 };
                 if let TextValue::Value(text) = rendered {
                     let content: Vec<char> = text.chars().collect();
@@ -2171,6 +2174,11 @@ fn jsonpath_evaluate_session(
     profile_ranges: Vec<usize>,
     profile_cases: Vec<usize>,
 ) -> JsonbValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbValue::Unknown = document { unresolved_flavor = 1; };
+    if let JsonpathValue::Unknown = path { unresolved_flavor = 1; };
+    if let JsonbValue::Unknown = variables { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = silent { unresolved_flavor = 1; };
     if let JsonbValue::Error(error) = document {
         return JsonbValue::Error(error);
     };
@@ -2199,7 +2207,7 @@ fn jsonpath_evaluate_session(
         if let JsonbValue::Value(vars) = variables {
             if let BoolValue::Value(suppress) = silent {
                 if let JsonpathValue::Unknown = path {
-                    return JsonbValue::Unknown;
+                    return jsonb_unresolved(unresolved_flavor);
                 };
                 if vars.nodes[vars.root].kind != 6 {
                     return JsonbValue::Error(make_sql_error(JSONPATH_EXEC_PARAMETER));
@@ -2225,7 +2233,7 @@ fn jsonpath_evaluate_session(
                     );
                     let sequence = jsonpath_execution_walk(context.clone(), mode == 0);
                     if sequence.unknown {
-                        return JsonbValue::Unknown;
+                        return jsonb_unresolved(unresolved_flavor);
                     };
                     if sequence.error > 0
                         && (suppress == false
@@ -2265,10 +2273,12 @@ fn jsonpath_evaluate_session(
             };
         };
     };
-    JsonbValue::Unknown
+    jsonb_unresolved(unresolved_flavor)
 }
 
 fn jsonpath_execution_bool_result(input: JsonbValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
     if let JsonbValue::Error(error) = input {
         return BoolValue::Error(error);
     };
@@ -2278,7 +2288,7 @@ fn jsonpath_execution_bool_result(input: JsonbValue) -> BoolValue {
     if let JsonbValue::Value(value) = input {
         return BoolValue::Value(value.nodes[value.root].kind == 2);
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn jsonpath_exists_utf8(

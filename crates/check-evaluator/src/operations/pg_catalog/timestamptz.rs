@@ -2,6 +2,9 @@ pub fn sql__pg_catalog__timestamptz_eq__k4n3(
     left: TimestamptzValue,
     right: TimestamptzValue,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestamptzValue::Unknown = left { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unknown = right { unresolved_flavor = 1; };
     if let TimestamptzValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -9,7 +12,7 @@ pub fn sql__pg_catalog__timestamptz_eq__k4n3(
         return BoolValue::Error(error);
     }
     if left == TimestamptzValue::Unknown || right == TimestamptzValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if left == TimestamptzValue::Null || right == TimestamptzValue::Null {
         return BoolValue::Null;
@@ -19,13 +22,16 @@ pub fn sql__pg_catalog__timestamptz_eq__k4n3(
             return BoolValue::Value(left_value == right_value);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timestamptz_ge__p2rz(
     left: TimestamptzValue,
     right: TimestamptzValue,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestamptzValue::Unknown = left { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unknown = right { unresolved_flavor = 1; };
     if let TimestamptzValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -33,7 +39,7 @@ pub fn sql__pg_catalog__timestamptz_ge__p2rz(
         return BoolValue::Error(error);
     }
     if left == TimestamptzValue::Unknown || right == TimestamptzValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if left == TimestamptzValue::Null || right == TimestamptzValue::Null {
         return BoolValue::Null;
@@ -43,13 +49,16 @@ pub fn sql__pg_catalog__timestamptz_ge__p2rz(
             return BoolValue::Value(left_value >= right_value);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timestamptz_gt__89jo(
     left: TimestamptzValue,
     right: TimestamptzValue,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestamptzValue::Unknown = left { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unknown = right { unresolved_flavor = 1; };
     if let TimestamptzValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -57,7 +66,7 @@ pub fn sql__pg_catalog__timestamptz_gt__89jo(
         return BoolValue::Error(error);
     }
     if left == TimestamptzValue::Unknown || right == TimestamptzValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if left == TimestamptzValue::Null || right == TimestamptzValue::Null {
         return BoolValue::Null;
@@ -67,13 +76,16 @@ pub fn sql__pg_catalog__timestamptz_gt__89jo(
             return BoolValue::Value(left_value > right_value);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timestamptz_le__0urp(
     left: TimestamptzValue,
     right: TimestamptzValue,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestamptzValue::Unknown = left { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unknown = right { unresolved_flavor = 1; };
     if let TimestamptzValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -81,7 +93,7 @@ pub fn sql__pg_catalog__timestamptz_le__0urp(
         return BoolValue::Error(error);
     }
     if left == TimestamptzValue::Unknown || right == TimestamptzValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if left == TimestamptzValue::Null || right == TimestamptzValue::Null {
         return BoolValue::Null;
@@ -91,13 +103,16 @@ pub fn sql__pg_catalog__timestamptz_le__0urp(
             return BoolValue::Value(left_value <= right_value);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timestamptz_lt__b2w5(
     left: TimestamptzValue,
     right: TimestamptzValue,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestamptzValue::Unknown = left { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unknown = right { unresolved_flavor = 1; };
     if let TimestamptzValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -105,7 +120,7 @@ pub fn sql__pg_catalog__timestamptz_lt__b2w5(
         return BoolValue::Error(error);
     }
     if left == TimestamptzValue::Unknown || right == TimestamptzValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if left == TimestamptzValue::Null || right == TimestamptzValue::Null {
         return BoolValue::Null;
@@ -115,13 +130,16 @@ pub fn sql__pg_catalog__timestamptz_lt__b2w5(
             return BoolValue::Value(left_value < right_value);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timestamptz_ne__4iy1(
     left: TimestamptzValue,
     right: TimestamptzValue,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestamptzValue::Unknown = left { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unknown = right { unresolved_flavor = 1; };
     if let TimestamptzValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -129,7 +147,7 @@ pub fn sql__pg_catalog__timestamptz_ne__4iy1(
         return BoolValue::Error(error);
     }
     if left == TimestamptzValue::Unknown || right == TimestamptzValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if left == TimestamptzValue::Null || right == TimestamptzValue::Null {
         return BoolValue::Null;
@@ -139,5 +157,5 @@ pub fn sql__pg_catalog__timestamptz_ne__4iy1(
             return BoolValue::Value(left_value != right_value);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }

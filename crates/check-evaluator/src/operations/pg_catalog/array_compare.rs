@@ -1,9 +1,11 @@
 fn array_comparison_boolean(input: Int4Value, strategy: i32) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = input { unresolved_flavor = 1; };
     if let Int4Value::Error(error) = input {
         return BoolValue::Error(error);
     };
     if let Int4Value::Unknown = input {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if let Int4Value::Null = input {
         return BoolValue::Null;
@@ -26,7 +28,7 @@ fn array_comparison_boolean(input: Int4Value, strategy: i32) -> BoolValue {
         };
         return BoolValue::Value(value != 0);
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__array_eq__3awo(input: Int4Value) -> BoolValue {
     array_comparison_boolean(input, 3)
@@ -70,6 +72,10 @@ fn array_select_extreme(
     ordering: Int4Value,
     larger: bool,
 ) -> ArrayValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayValue::Unknown = left { unresolved_flavor = 1; };
+    if let ArrayValue::Unknown = right { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = ordering { unresolved_flavor = 1; };
     if let ArrayValue::Error(error) = left {
         return ArrayValue::Error(error);
     };
@@ -88,7 +94,7 @@ fn array_select_extreme(
         };
         return right;
     };
-    ArrayValue::Unknown
+    array_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__array_larger__9l3m(

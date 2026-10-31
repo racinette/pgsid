@@ -34,6 +34,9 @@ fn interval_math_tsround(value: f64) -> f64 {
     interval_math_round(value * 1000000.0f64) / 1000000.0f64
 }
 fn interval_scaled(input: IntervalValue, factor: Float8Value, divide: bool) -> IntervalValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let IntervalValue::Unknown = input { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = factor { unresolved_flavor = 1; };
     if let IntervalValue::Error(error) = input {
         return IntervalValue::Error(error);
     };
@@ -41,7 +44,7 @@ fn interval_scaled(input: IntervalValue, factor: Float8Value, divide: bool) -> I
         return IntervalValue::Error(error);
     };
     if input == IntervalValue::Unknown || factor == Float8Value::Unknown {
-        return IntervalValue::Unknown;
+        return interval_unresolved(unresolved_flavor);
     };
     if input == IntervalValue::Null || factor == Float8Value::Null {
         return IntervalValue::Null;
@@ -120,7 +123,7 @@ fn interval_scaled(input: IntervalValue, factor: Float8Value, divide: bool) -> I
             return IntervalValue::Error(make_sql_error(CLOCK_RANGE));
         };
     };
-    IntervalValue::Unknown
+    interval_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__interval_mul__3jtg(input: IntervalValue, factor: Float8Value) -> IntervalValue {
     interval_scaled(input, factor, false)
@@ -198,6 +201,9 @@ pub fn sql__pg_catalog__justify_interval__0aek(input: IntervalValue) -> Interval
 const INTERVAL_MATH_PARAMETER: u32 = 3452619;
 const INTERVAL_MATH_INTERNAL: u32 = 56966976;
 pub fn sql__pg_catalog__interval__drcl(input: IntervalValue, modifier: Int4Value) -> IntervalValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let IntervalValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = modifier { unresolved_flavor = 1; };
     if let IntervalValue::Error(error) = input {
         return IntervalValue::Error(error);
     };
@@ -205,7 +211,7 @@ pub fn sql__pg_catalog__interval__drcl(input: IntervalValue, modifier: Int4Value
         return IntervalValue::Error(error);
     };
     if input == IntervalValue::Unknown || modifier == Int4Value::Unknown {
-        return IntervalValue::Unknown;
+        return interval_unresolved(unresolved_flavor);
     };
     if input == IntervalValue::Null || modifier == Int4Value::Null {
         return IntervalValue::Null;
@@ -273,12 +279,20 @@ pub fn sql__pg_catalog__interval__drcl(input: IntervalValue, modifier: Int4Value
             return make_interval_value(months, days, time);
         };
     };
-    IntervalValue::Unknown
+    interval_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__make_interval__nlc1(
     years: Int4Value, months: Int4Value, weeks: Int4Value, days: Int4Value,
     hours: Int4Value, minutes: Int4Value, seconds: Float8Value,
 ) -> IntervalValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = years { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = months { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = weeks { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = days { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = hours { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = minutes { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = seconds { unresolved_flavor = 1; };
     if let Int4Value::Error(error) = years { return IntervalValue::Error(error); }
     if let Int4Value::Error(error) = months { return IntervalValue::Error(error); }
     if let Int4Value::Error(error) = weeks { return IntervalValue::Error(error); }
@@ -288,7 +302,7 @@ pub fn sql__pg_catalog__make_interval__nlc1(
     if let Float8Value::Error(error) = seconds { return IntervalValue::Error(error); }
     if years == Int4Value::Unknown || months == Int4Value::Unknown || weeks == Int4Value::Unknown
         || days == Int4Value::Unknown || hours == Int4Value::Unknown || minutes == Int4Value::Unknown
-        || seconds == Float8Value::Unknown { return IntervalValue::Unknown; }
+        || seconds == Float8Value::Unknown { return interval_unresolved(unresolved_flavor); }
     if years == Int4Value::Null || months == Int4Value::Null || weeks == Int4Value::Null
         || days == Int4Value::Null || hours == Int4Value::Null || minutes == Int4Value::Null
         || seconds == Float8Value::Null { return IntervalValue::Null; }

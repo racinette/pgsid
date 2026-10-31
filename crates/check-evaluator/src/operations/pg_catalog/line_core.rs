@@ -1,4 +1,6 @@
 fn line_equal_product(left: i64, right: i64, ratio: Float8Value) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = ratio { unresolved_flavor = 1; };
     let product = sql__pg_catalog__float8mul__d3nd(ratio, make_float8_bits(right));
     if let Float8Value::Error(error) = product {
         return BoolValue::Error(error);
@@ -7,9 +9,12 @@ fn line_equal_product(left: i64, right: i64, ratio: Float8Value) -> BoolValue {
     if let Float8Value::Value(bits) = known_product {
         return make_bool_value(geometric_coordinate_equal(float8_number(left), float8_number(bits)));
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__line_eq__k687(left: LineValue, right: LineValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let LineValue::Unknown = left { unresolved_flavor = 1; };
+    if let LineValue::Unknown = right { unresolved_flavor = 1; };
     if let LineValue::Error(error) = left {
         return BoolValue::Error(error);
     };
@@ -17,7 +22,7 @@ pub fn sql__pg_catalog__line_eq__k687(left: LineValue, right: LineValue) -> Bool
         return BoolValue::Error(error);
     };
     if left == LineValue::Unknown || right == LineValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if left == LineValue::Null || right == LineValue::Null {
         return BoolValue::Null;
@@ -59,9 +64,11 @@ pub fn sql__pg_catalog__line_eq__k687(left: LineValue, right: LineValue) -> Bool
             return line_equal_product(a.c, b.c, ratio);
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 fn line_orientation(input: LineValue, vertical: bool) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let LineValue::Unknown = input { unresolved_flavor = 1; };
     if let LineValue::Error(error) = input {
         return BoolValue::Error(error);
     };
@@ -75,7 +82,7 @@ fn line_orientation(input: LineValue, vertical: bool) -> BoolValue {
         };
         return make_bool_value(geometric_coordinate_equal(float8_number(coefficient), 0.0f64));
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__line_horizontal__swlw(input: LineValue) -> BoolValue {
     line_orientation(input, false)
@@ -90,6 +97,8 @@ pub fn sql__pg_catalog__isvertical__x62g(input: LineValue) -> BoolValue {
     line_orientation(input, true)
 }
 pub fn sql__pg_catalog__line_send__b5ct(input: LineValue) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let LineValue::Unknown = input { unresolved_flavor = 1; };
     if let LineValue::Error(error) = input {
         return ByteaValue::Error(error);
     };
@@ -105,5 +114,5 @@ pub fn sql__pg_catalog__line_send__b5ct(input: LineValue) -> ByteaValue {
         let third = binary_send_bits(Int8Value::Value(value.c), 8);
         return sql__pg_catalog__byteacat__zitv(sql__pg_catalog__byteacat__zitv(first, second), third);
     };
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }

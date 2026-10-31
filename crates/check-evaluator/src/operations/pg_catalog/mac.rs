@@ -1,6 +1,9 @@
 const MAC_CONVERSION_OUT_OF_RANGE: u32 = 3452547;
 
 fn macaddr_compare(left: MacaddrValue, right: MacaddrValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let MacaddrValue::Unknown = left { unresolved_flavor = 1; };
+    if let MacaddrValue::Unknown = right { unresolved_flavor = 1; };
     if let MacaddrValue::Error(error) = left {
         return Int4Value::Error(error);
     }
@@ -8,7 +11,7 @@ fn macaddr_compare(left: MacaddrValue, right: MacaddrValue) -> Int4Value {
         return Int4Value::Error(error);
     }
     if left == MacaddrValue::Unknown || right == MacaddrValue::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if left == MacaddrValue::Null || right == MacaddrValue::Null {
         return Int4Value::Null;
@@ -18,16 +21,19 @@ fn macaddr_compare(left: MacaddrValue, right: MacaddrValue) -> Int4Value {
             return Int4Value::Value(mac_address_compare(a, b));
         }
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__macaddr_eq__uthl(left: MacaddrValue, right: MacaddrValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let MacaddrValue::Unknown = left { unresolved_flavor = 1; };
+    if let MacaddrValue::Unknown = right { unresolved_flavor = 1; };
     let result = macaddr_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
     if result == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -35,16 +41,19 @@ pub fn sql__pg_catalog__macaddr_eq__uthl(left: MacaddrValue, right: MacaddrValue
     if let Int4Value::Value(order) = result {
         return BoolValue::Value(order == 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__macaddr_ne__etmb(left: MacaddrValue, right: MacaddrValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let MacaddrValue::Unknown = left { unresolved_flavor = 1; };
+    if let MacaddrValue::Unknown = right { unresolved_flavor = 1; };
     let result = macaddr_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
     if result == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -52,16 +61,19 @@ pub fn sql__pg_catalog__macaddr_ne__etmb(left: MacaddrValue, right: MacaddrValue
     if let Int4Value::Value(order) = result {
         return BoolValue::Value(order != 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__macaddr_lt__8vk5(left: MacaddrValue, right: MacaddrValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let MacaddrValue::Unknown = left { unresolved_flavor = 1; };
+    if let MacaddrValue::Unknown = right { unresolved_flavor = 1; };
     let result = macaddr_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
     if result == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -69,16 +81,19 @@ pub fn sql__pg_catalog__macaddr_lt__8vk5(left: MacaddrValue, right: MacaddrValue
     if let Int4Value::Value(order) = result {
         return BoolValue::Value(order < 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__macaddr_le__6qq0(left: MacaddrValue, right: MacaddrValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let MacaddrValue::Unknown = left { unresolved_flavor = 1; };
+    if let MacaddrValue::Unknown = right { unresolved_flavor = 1; };
     let result = macaddr_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
     if result == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -86,16 +101,19 @@ pub fn sql__pg_catalog__macaddr_le__6qq0(left: MacaddrValue, right: MacaddrValue
     if let Int4Value::Value(order) = result {
         return BoolValue::Value(order <= 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__macaddr_gt__4kss(left: MacaddrValue, right: MacaddrValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let MacaddrValue::Unknown = left { unresolved_flavor = 1; };
+    if let MacaddrValue::Unknown = right { unresolved_flavor = 1; };
     let result = macaddr_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
     if result == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -103,16 +121,19 @@ pub fn sql__pg_catalog__macaddr_gt__4kss(left: MacaddrValue, right: MacaddrValue
     if let Int4Value::Value(order) = result {
         return BoolValue::Value(order > 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__macaddr_ge__iuvk(left: MacaddrValue, right: MacaddrValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let MacaddrValue::Unknown = left { unresolved_flavor = 1; };
+    if let MacaddrValue::Unknown = right { unresolved_flavor = 1; };
     let result = macaddr_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
     if result == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -120,13 +141,16 @@ pub fn sql__pg_catalog__macaddr_ge__iuvk(left: MacaddrValue, right: MacaddrValue
     if let Int4Value::Value(order) = result {
         return BoolValue::Value(order >= 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__macaddr_cmp__jv7y(left: MacaddrValue, right: MacaddrValue) -> Int4Value {
     macaddr_compare(left, right)
 }
 fn macaddr8_compare(left: Macaddr8Value, right: Macaddr8Value) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Macaddr8Value::Unknown = left { unresolved_flavor = 1; };
+    if let Macaddr8Value::Unknown = right { unresolved_flavor = 1; };
     if let Macaddr8Value::Error(error) = left {
         return Int4Value::Error(error);
     }
@@ -134,7 +158,7 @@ fn macaddr8_compare(left: Macaddr8Value, right: Macaddr8Value) -> Int4Value {
         return Int4Value::Error(error);
     }
     if left == Macaddr8Value::Unknown || right == Macaddr8Value::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if left == Macaddr8Value::Null || right == Macaddr8Value::Null {
         return Int4Value::Null;
@@ -144,16 +168,19 @@ fn macaddr8_compare(left: Macaddr8Value, right: Macaddr8Value) -> Int4Value {
             return Int4Value::Value(mac_address_compare(a, b));
         }
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__macaddr8_eq__wy3p(left: Macaddr8Value, right: Macaddr8Value) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Macaddr8Value::Unknown = left { unresolved_flavor = 1; };
+    if let Macaddr8Value::Unknown = right { unresolved_flavor = 1; };
     let result = macaddr8_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
     if result == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -161,16 +188,19 @@ pub fn sql__pg_catalog__macaddr8_eq__wy3p(left: Macaddr8Value, right: Macaddr8Va
     if let Int4Value::Value(order) = result {
         return BoolValue::Value(order == 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__macaddr8_ne__j20a(left: Macaddr8Value, right: Macaddr8Value) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Macaddr8Value::Unknown = left { unresolved_flavor = 1; };
+    if let Macaddr8Value::Unknown = right { unresolved_flavor = 1; };
     let result = macaddr8_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
     if result == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -178,16 +208,19 @@ pub fn sql__pg_catalog__macaddr8_ne__j20a(left: Macaddr8Value, right: Macaddr8Va
     if let Int4Value::Value(order) = result {
         return BoolValue::Value(order != 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__macaddr8_lt__5tsr(left: Macaddr8Value, right: Macaddr8Value) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Macaddr8Value::Unknown = left { unresolved_flavor = 1; };
+    if let Macaddr8Value::Unknown = right { unresolved_flavor = 1; };
     let result = macaddr8_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
     if result == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -195,16 +228,19 @@ pub fn sql__pg_catalog__macaddr8_lt__5tsr(left: Macaddr8Value, right: Macaddr8Va
     if let Int4Value::Value(order) = result {
         return BoolValue::Value(order < 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__macaddr8_le__dmol(left: Macaddr8Value, right: Macaddr8Value) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Macaddr8Value::Unknown = left { unresolved_flavor = 1; };
+    if let Macaddr8Value::Unknown = right { unresolved_flavor = 1; };
     let result = macaddr8_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
     if result == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -212,16 +248,19 @@ pub fn sql__pg_catalog__macaddr8_le__dmol(left: Macaddr8Value, right: Macaddr8Va
     if let Int4Value::Value(order) = result {
         return BoolValue::Value(order <= 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__macaddr8_gt__o95h(left: Macaddr8Value, right: Macaddr8Value) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Macaddr8Value::Unknown = left { unresolved_flavor = 1; };
+    if let Macaddr8Value::Unknown = right { unresolved_flavor = 1; };
     let result = macaddr8_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
     if result == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -229,16 +268,19 @@ pub fn sql__pg_catalog__macaddr8_gt__o95h(left: Macaddr8Value, right: Macaddr8Va
     if let Int4Value::Value(order) = result {
         return BoolValue::Value(order > 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__macaddr8_ge__054u(left: Macaddr8Value, right: Macaddr8Value) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Macaddr8Value::Unknown = left { unresolved_flavor = 1; };
+    if let Macaddr8Value::Unknown = right { unresolved_flavor = 1; };
     let result = macaddr8_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
     if result == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -246,7 +288,7 @@ pub fn sql__pg_catalog__macaddr8_ge__054u(left: Macaddr8Value, right: Macaddr8Va
     if let Int4Value::Value(order) = result {
         return BoolValue::Value(order >= 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__macaddr8_cmp__id7f(left: Macaddr8Value, right: Macaddr8Value) -> Int4Value {
@@ -278,6 +320,9 @@ pub fn sql__pg_catalog__trunc__bgg8(input: MacaddrValue) -> MacaddrValue {
 }
 
 fn macaddr_bitwise(left: MacaddrValue, right: MacaddrValue, union: bool) -> MacaddrValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let MacaddrValue::Unknown = left { unresolved_flavor = 1; };
+    if let MacaddrValue::Unknown = right { unresolved_flavor = 1; };
     if let MacaddrValue::Error(error) = left {
         return MacaddrValue::Error(error);
     }
@@ -285,7 +330,7 @@ fn macaddr_bitwise(left: MacaddrValue, right: MacaddrValue, union: bool) -> Maca
         return MacaddrValue::Error(error);
     }
     if left == MacaddrValue::Unknown || right == MacaddrValue::Unknown {
-        return MacaddrValue::Unknown;
+        return macaddr_unresolved(unresolved_flavor);
     }
     if left == MacaddrValue::Null || right == MacaddrValue::Null {
         return MacaddrValue::Null;
@@ -316,7 +361,7 @@ fn macaddr_bitwise(left: MacaddrValue, right: MacaddrValue, union: bool) -> Maca
             });
         }
     }
-    MacaddrValue::Unknown
+    macaddr_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__macaddr_and__ky45(left: MacaddrValue, right: MacaddrValue) -> MacaddrValue {
@@ -352,6 +397,9 @@ pub fn sql__pg_catalog__trunc__y4rb(input: Macaddr8Value) -> Macaddr8Value {
 }
 
 fn macaddr8_bitwise(left: Macaddr8Value, right: Macaddr8Value, union: bool) -> Macaddr8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Macaddr8Value::Unknown = left { unresolved_flavor = 1; };
+    if let Macaddr8Value::Unknown = right { unresolved_flavor = 1; };
     if let Macaddr8Value::Error(error) = left {
         return Macaddr8Value::Error(error);
     }
@@ -359,7 +407,7 @@ fn macaddr8_bitwise(left: Macaddr8Value, right: Macaddr8Value, union: bool) -> M
         return Macaddr8Value::Error(error);
     }
     if left == Macaddr8Value::Unknown || right == Macaddr8Value::Unknown {
-        return Macaddr8Value::Unknown;
+        return macaddr8_unresolved(unresolved_flavor);
     }
     if left == Macaddr8Value::Null || right == Macaddr8Value::Null {
         return Macaddr8Value::Null;
@@ -390,7 +438,7 @@ fn macaddr8_bitwise(left: Macaddr8Value, right: Macaddr8Value, union: bool) -> M
             });
         }
     }
-    Macaddr8Value::Unknown
+    macaddr8_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__macaddr8_and__ceah(
@@ -421,11 +469,13 @@ pub fn sql__pg_catalog__macaddr8_set7bit__2kgh(input: Macaddr8Value) -> Macaddr8
 }
 
 pub fn sql__pg_catalog__macaddr8__ta7j(input: MacaddrValue) -> Macaddr8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let MacaddrValue::Unknown = input { unresolved_flavor = 1; };
     if let MacaddrValue::Error(error) = input {
         return Macaddr8Value::Error(error);
     }
     if input == MacaddrValue::Unknown {
-        return Macaddr8Value::Unknown;
+        return macaddr8_unresolved(unresolved_flavor);
     }
     if input == MacaddrValue::Null {
         return Macaddr8Value::Null;
@@ -439,15 +489,17 @@ pub fn sql__pg_catalog__macaddr8__ta7j(input: MacaddrValue) -> Macaddr8Value {
             word3: a.word2,
         });
     }
-    Macaddr8Value::Unknown
+    macaddr8_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__macaddr__xnt6(input: Macaddr8Value) -> MacaddrValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Macaddr8Value::Unknown = input { unresolved_flavor = 1; };
     if let Macaddr8Value::Error(error) = input {
         return MacaddrValue::Error(error);
     }
     if input == Macaddr8Value::Unknown {
-        return MacaddrValue::Unknown;
+        return macaddr_unresolved(unresolved_flavor);
     }
     if input == Macaddr8Value::Null {
         return MacaddrValue::Null;
@@ -463,5 +515,5 @@ pub fn sql__pg_catalog__macaddr__xnt6(input: Macaddr8Value) -> MacaddrValue {
             word3: 0,
         });
     }
-    MacaddrValue::Unknown
+    macaddr_unresolved(unresolved_flavor)
 }

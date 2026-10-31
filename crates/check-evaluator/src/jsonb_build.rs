@@ -77,6 +77,8 @@ fn jsonb_preorder(input: JsonbPayload) -> JsonbPayload {
 }
 
 pub fn jsonb_rebuild(input: JsonbValue, admission: bool) -> JsonbValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
     if let JsonbValue::Value(value) = input {
         let normalized = jsonb_normalize_objects(jsonb_preorder(value));
         if admission {
@@ -85,7 +87,7 @@ pub fn jsonb_rebuild(input: JsonbValue, admission: bool) -> JsonbValue {
                 return JsonbValue::Error(error);
             };
             if let BoolValue::Unknown = admitted {
-                return JsonbValue::Unknown;
+                return jsonb_unresolved(unresolved_flavor);
             };
         };
         return JsonbValue::Value(normalized);
@@ -109,6 +111,8 @@ pub fn jsonb_shape_value(maximum: i64, shape: JsonbPayload) -> JsonbValue {
 }
 
 pub fn jsonb_from_string(input: TextValue) -> JsonbValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return JsonbValue::Error(error);
     };
@@ -120,7 +124,7 @@ pub fn jsonb_from_string(input: TextValue) -> JsonbValue {
         let mut position: usize = 0;
         while position < characters.len() {
             if characters[position] == '\0' {
-                return JsonbValue::Unknown;
+                return jsonb_unresolved(unresolved_flavor);
             };
             position += 1;
         }
@@ -150,7 +154,7 @@ pub fn jsonb_from_string(input: TextValue) -> JsonbValue {
         });
         return jsonb_rebuild(result, true);
     };
-    JsonbValue::Unknown
+    jsonb_unresolved(unresolved_flavor)
 }
 
 pub fn jsonb_detach_subtree(input: JsonbPayload) -> JsonbPayload {

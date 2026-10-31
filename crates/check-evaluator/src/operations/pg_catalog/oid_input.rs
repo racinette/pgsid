@@ -1,10 +1,12 @@
 const OID_INPUT_INVALID: u32 = 3484946;
 pub fn oid_from_text(input: TextValue) -> OidValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input { return OidValue::Error(error); };
     if input == TextValue::Null { return OidValue::Null; };
     if let TextValue::Value(text) = input {
         let chars: Vec<char> = text.chars().collect();
-        if chars.len() > 4096 { return OidValue::Unknown; };
+        if chars.len() > 4096 { return oid_unresolved(unresolved_flavor); };
         let mut start: usize = 0;
         let mut end = chars.len();
         while start < end && oid_input_space(chars[start]) { start += 1; };
@@ -16,7 +18,7 @@ pub fn oid_from_text(input: TextValue) -> OidValue {
         let mut radix = 10i64;
         if start + 1 < end && chars[start] == '0' {
             if chars[start + 1] == 'x' || chars[start + 1] == 'X' { radix = 16i64; start += 2; }
-            else if chars[start + 1] == 'b' || chars[start + 1] == 'B' { return OidValue::Unknown; }
+            else if chars[start + 1] == 'b' || chars[start + 1] == 'B' { return oid_unresolved(unresolved_flavor); }
             else { radix = 8i64; };
         };
         let mut units = 0i64;
@@ -36,20 +38,20 @@ pub fn oid_from_text(input: TextValue) -> OidValue {
             start += 1;
         };
         if digits == false {
-            if radix == 16i64 && start == end { return OidValue::Unknown; };
+            if radix == 16i64 && start == end { return oid_unresolved(unresolved_flavor); };
             return OidValue::Error(SqlError { state: OID_INPUT_INVALID });
         };
         if overflow { return OidValue::Error(SqlError { state: SQLSTATE_NUMERIC_VALUE_OUT_OF_RANGE }); };
         if high != 0i64 {
-            if start != end || (negative && high == 4294967295i64 && units != 0i64) || (negative == false && high == 4294967295i64 && units >= 2147483648i64) { return OidValue::Unknown; };
+            if start != end || (negative && high == 4294967295i64 && units != 0i64) || (negative == false && high == 4294967295i64 && units >= 2147483648i64) { return oid_unresolved(unresolved_flavor); };
             return OidValue::Error(SqlError { state: SQLSTATE_NUMERIC_VALUE_OUT_OF_RANGE });
         };
         if start != end { return OidValue::Error(SqlError { state: OID_INPUT_INVALID }); };
-        if negative && units > 2147483648i64 { return OidValue::Unknown; };
+        if negative && units > 2147483648i64 { return oid_unresolved(unresolved_flavor); };
         if negative && units != 0i64 { units = 4294967296i64 - units; };
         return make_oid_value(units);
     };
-    OidValue::Unknown
+    oid_unresolved(unresolved_flavor)
 }
 fn oid_input_space(ch: char) -> bool { ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' || ch == '\x0b' || ch == '\x0c' }
 fn oid_input_digit(ch: char) -> i64 {

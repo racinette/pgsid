@@ -32,6 +32,8 @@ fn clock_output_time(time: i64) -> String {
     output
 }
 pub fn clock_time_to_text(input: TimeValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimeValue::Unknown = input { unresolved_flavor = 1; };
     if let TimeValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -41,7 +43,7 @@ pub fn clock_time_to_text(input: TimeValue) -> TextValue {
     if let TimeValue::Value(time) = input {
         return TextValue::Value(clock_output_time(time));
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 fn clock_output_offset_pair(value: i32) -> String {
     let mut number = value as i64;
@@ -57,6 +59,8 @@ fn clock_output_offset_pair(value: i32) -> String {
     output
 }
 pub fn clock_timetz_to_text(input: TimetzValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimetzValue::Unknown = input { unresolved_flavor = 1; };
     if let TimetzValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -90,5 +94,5 @@ pub fn clock_timetz_to_text(input: TimetzValue) -> TextValue {
         };
         return TextValue::Value(output);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }

@@ -17,6 +17,9 @@ fn geometric_coordinate_equal(a: f64, b: f64) -> bool {
     a == b || (a - b).abs() <= 0.000001f64
 }
 fn point_coordinate_relation(left: PointValue, right: PointValue, mode: i32) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PointValue::Unknown = left { unresolved_flavor = 1; };
+    if let PointValue::Unknown = right { unresolved_flavor = 1; };
     if let PointValue::Error(error) = left {
         return BoolValue::Error(error);
     };
@@ -24,7 +27,7 @@ fn point_coordinate_relation(left: PointValue, right: PointValue, mode: i32) -> 
         return BoolValue::Error(error);
     };
     if left == PointValue::Unknown || right == PointValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if left == PointValue::Null || right == PointValue::Null {
         return BoolValue::Null;
@@ -46,7 +49,7 @@ fn point_coordinate_relation(left: PointValue, right: PointValue, mode: i32) -> 
             return make_bool_value(geometric_coordinate_equal(first, second));
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__point_left__ipjy(left: PointValue, right: PointValue) -> BoolValue {
     point_coordinate_relation(left, right, 0)
@@ -74,6 +77,9 @@ pub fn sql__pg_catalog__ishorizontal__kubm(left: PointValue, right: PointValue) 
 }
 
 fn point_arithmetic(left: PointValue, right: PointValue, mode: i32) -> PointValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PointValue::Unknown = left { unresolved_flavor = 1; };
+    if let PointValue::Unknown = right { unresolved_flavor = 1; };
     if let PointValue::Error(error) = left {
         return PointValue::Error(error);
     };
@@ -81,7 +87,7 @@ fn point_arithmetic(left: PointValue, right: PointValue, mode: i32) -> PointValu
         return PointValue::Error(error);
     };
     if left == PointValue::Unknown || right == PointValue::Unknown {
-        return PointValue::Unknown;
+        return point_unresolved(unresolved_flavor);
     };
     if left == PointValue::Null || right == PointValue::Null {
         return PointValue::Null;
@@ -132,7 +138,7 @@ fn point_arithmetic(left: PointValue, right: PointValue, mode: i32) -> PointValu
             return point_arithmetic_result(real, imaginary);
         };
     };
-    PointValue::Unknown
+    point_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__point_add__gn1v(left: PointValue, right: PointValue) -> PointValue {
     point_arithmetic(left, right, 0)
@@ -148,6 +154,9 @@ pub fn sql__pg_catalog__point_div__btbo(left: PointValue, right: PointValue) -> 
 }
 
 fn geometric_hypot(first: Float8Value, second: Float8Value) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = first { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = second { unresolved_flavor = 1; };
     if let Float8Value::Error(error) = first {
         return Float8Value::Error(error);
     };
@@ -155,7 +164,7 @@ fn geometric_hypot(first: Float8Value, second: Float8Value) -> Float8Value {
         return Float8Value::Error(error);
     };
     if first == Float8Value::Unknown || second == Float8Value::Unknown {
-        return Float8Value::Unknown;
+        return float8_unresolved(unresolved_flavor);
     };
     if first == Float8Value::Null || second == Float8Value::Null {
         return Float8Value::Null;
@@ -191,9 +200,12 @@ fn geometric_hypot(first: Float8Value, second: Float8Value) -> Float8Value {
             return make_float8_value(result);
         };
     };
-    Float8Value::Unknown
+    float8_unresolved(unresolved_flavor)
 }
 fn point_measurement(left: PointValue, right: PointValue, slope: bool) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let PointValue::Unknown = left { unresolved_flavor = 1; };
+    if let PointValue::Unknown = right { unresolved_flavor = 1; };
     if let PointValue::Error(error) = left {
         return Float8Value::Error(error);
     };
@@ -201,7 +213,7 @@ fn point_measurement(left: PointValue, right: PointValue, slope: bool) -> Float8
         return Float8Value::Error(error);
     };
     if left == PointValue::Unknown || right == PointValue::Unknown {
-        return Float8Value::Unknown;
+        return float8_unresolved(unresolved_flavor);
     };
     if left == PointValue::Null || right == PointValue::Null {
         return Float8Value::Null;
@@ -231,7 +243,7 @@ fn point_measurement(left: PointValue, right: PointValue, slope: bool) -> Float8
             return geometric_hypot(x, y);
         };
     };
-    Float8Value::Unknown
+    float8_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__point_distance__2haq(left: PointValue, right: PointValue) -> Float8Value {
     point_measurement(left, right, false)

@@ -2,32 +2,37 @@ const VECTOR_DATATYPE_MISMATCH: u32 = 6822148;
 
 
 fn catalog_vector_status(value: &ArrayPayload, oid: bool) -> BoolValue {
+    let unresolved_flavor: i32 = 0;
     let mut identity = "pg_catalog.int2".to_owned();
     let mut kind: i32 = 1;
     if oid { identity = "pg_catalog.oid".to_owned(); kind = 33; };
-    if value.element_type != identity || value.element_kind != kind { return BoolValue::Unknown; };
+    if value.element_type != identity || value.element_kind != kind { return bool_unresolved(unresolved_flavor); };
     if value.dimensions.len() != 1 || value.null_bitmap == BoolValue::Value(true) {
         return BoolValue::Error(make_sql_error(VECTOR_DATATYPE_MISMATCH));
     };
-    if value.null_bitmap != BoolValue::Value(false) { return BoolValue::Unknown; };
+    if value.null_bitmap != BoolValue::Value(false) { return bool_unresolved(unresolved_flavor); };
     make_bool_value(true)
 }
 
 fn catalog_vector_units(input: ArrayElement, oid: bool) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
     if let ArrayElement::Error(error) = input { return Int8Value::Error(error); };
     if let ArrayElement::Null = input { return Int8Value::Null; };
     if oid { return oid_units(array_element_to_oid(input)); };
     if let ArrayElement::Int2(value) = input { return make_int8_value(value as i64); };
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 pub fn catalog_vector_to_text(input: ArrayValue, oid: bool) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
     if let ArrayValue::Error(error) = input { return TextValue::Error(error); };
     if let ArrayValue::Null = input { return TextValue::Null; };
     if let ArrayValue::Value(value) = input {
         let status = catalog_vector_status(&value, oid);
         if let BoolValue::Error(error) = status { return TextValue::Error(error); };
-        if status != BoolValue::Value(true) { return TextValue::Unknown; };
+        if status != BoolValue::Value(true) { return text_unresolved(unresolved_flavor); };
         let mut output = String::new();
         let mut index: usize = 0;
         while index < value.elements.len() {
@@ -39,15 +44,17 @@ pub fn catalog_vector_to_text(input: ArrayValue, oid: bool) -> TextValue {
                 output.push_str(part.as_str());
                 appended = true;
             };
-            if appended == false { return TextValue::Unknown; };
+            if appended == false { return text_unresolved(unresolved_flavor); };
             index += 1;
         }
         return make_text_value(output.as_str());
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn catalog_vector_from_text(input: TextValue, oid: bool) -> ArrayValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input { return ArrayValue::Error(error); };
     if let TextValue::Null = input { return ArrayValue::Null; };
     if let TextValue::Value(text) = input {
@@ -66,9 +73,9 @@ pub fn catalog_vector_from_text(input: TextValue, oid: bool) -> ArrayValue {
             if oid && position < chars.len() && chars[position] == '0' {
                 radix = 8i64;
                 if position + 1 < chars.len() && (chars[position + 1] == 'x' || chars[position + 1] == 'X') {
-                    if position + 2 == chars.len() { return ArrayValue::Unknown; };
+                    if position + 2 == chars.len() { return array_unresolved(unresolved_flavor); };
                     let next = chars[position + 2];
-                    if oid_input_space(next) || next == '+' || next == '-' { return ArrayValue::Unknown; };
+                    if oid_input_space(next) || next == '+' || next == '-' { return array_unresolved(unresolved_flavor); };
                 };
                 if position + 2 < chars.len() {
                     let next = chars[position + 1];
@@ -77,7 +84,7 @@ pub fn catalog_vector_from_text(input: TextValue, oid: bool) -> ArrayValue {
                         radix = 16i64; position += 2;
                     };
                     if (next == 'b' || next == 'B') && (digit == 0i64 || digit == 1i64) {
-                        return ArrayValue::Unknown;
+                        return array_unresolved(unresolved_flavor);
                     };
                 };
             };
@@ -99,7 +106,7 @@ pub fn catalog_vector_from_text(input: TextValue, oid: bool) -> ArrayValue {
                 if let OidValue::Value(units) = value {
                     elements.push(ArrayElement::Oid(units));
                 };
-                if value == OidValue::Unknown { return ArrayValue::Unknown; };
+                if value == OidValue::Unknown { return array_unresolved(unresolved_flavor); };
             } else {
                 if small > 32768i64 || (negative == false && small > 32767i64) {
                     return ArrayValue::Error(make_sql_error(SQLSTATE_NUMERIC_VALUE_OUT_OF_RANGE));
@@ -121,24 +128,27 @@ pub fn catalog_vector_from_text(input: TextValue, oid: bool) -> ArrayValue {
             dimensions, elements,
         });
     };
-    ArrayValue::Unknown
+    array_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__btoidvectorcmp__6oyf(left: ArrayValue, right: ArrayValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayValue::Unknown = left { unresolved_flavor = 1; };
+    if let ArrayValue::Unknown = right { unresolved_flavor = 1; };
     if let ArrayValue::Error(error) = left { return Int4Value::Error(error); };
     if let ArrayValue::Error(error) = right { return Int4Value::Error(error); };
-    if let ArrayValue::Unknown = left { return Int4Value::Unknown; };
-    if let ArrayValue::Unknown = right { return Int4Value::Unknown; };
+    if let ArrayValue::Unknown = left { return int4_unresolved(unresolved_flavor); };
+    if let ArrayValue::Unknown = right { return int4_unresolved(unresolved_flavor); };
     if let ArrayValue::Null = left { return Int4Value::Null; };
     if let ArrayValue::Null = right { return Int4Value::Null; };
     if let ArrayValue::Value(a) = left {
         if let ArrayValue::Value(b) = right {
             let first = catalog_vector_status(&a, true);
             if let BoolValue::Error(error) = first { return Int4Value::Error(error); };
-            if first != BoolValue::Value(true) { return Int4Value::Unknown; };
+            if first != BoolValue::Value(true) { return int4_unresolved(unresolved_flavor); };
             let second = catalog_vector_status(&b, true);
             if let BoolValue::Error(error) = second { return Int4Value::Error(error); };
-            if second != BoolValue::Value(true) { return Int4Value::Unknown; };
+            if second != BoolValue::Value(true) { return int4_unresolved(unresolved_flavor); };
             if a.elements.len() != b.elements.len() {
                 return make_int4_value((a.elements.len() as i32) - (b.elements.len() as i32));
             };
@@ -151,7 +161,7 @@ pub fn sql__pg_catalog__btoidvectorcmp__6oyf(left: ArrayValue, right: ArrayValue
             return make_int4_value(0);
         };
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__oidvectoreq__bpvf(left: ArrayValue, right: ArrayValue) -> BoolValue { array_comparison_boolean(sql__pg_catalog__btoidvectorcmp__6oyf(left, right), 3) }
 pub fn sql__pg_catalog__oidvectorne__5v7o(left: ArrayValue, right: ArrayValue) -> BoolValue { array_comparison_boolean(sql__pg_catalog__btoidvectorcmp__6oyf(left, right), 6) }
@@ -161,25 +171,27 @@ pub fn sql__pg_catalog__oidvectorgt__kevo(left: ArrayValue, right: ArrayValue) -
 pub fn sql__pg_catalog__oidvectorge__bgvu(left: ArrayValue, right: ArrayValue) -> BoolValue { array_comparison_boolean(sql__pg_catalog__btoidvectorcmp__6oyf(left, right), 4) }
 
 pub fn sql__pg_catalog__oidvectortypes__w22j(input: ArrayValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
     if let ArrayValue::Error(error) = input { return TextValue::Error(error); };
     if let ArrayValue::Null = input { return TextValue::Null; };
     if let ArrayValue::Value(value) = input {
         let status = catalog_vector_status(&value, true);
         if let BoolValue::Error(error) = status { return TextValue::Error(error); };
-        if status != BoolValue::Value(true) { return TextValue::Unknown; };
+        if status != BoolValue::Value(true) { return text_unresolved(unresolved_flavor); };
         let mut output = String::new();
         let mut index: usize = 0;
         while index < value.elements.len() {
             let name = oid_alias_to_text(array_element_to_oid(value.elements[index].clone()), true);
             if let TextValue::Error(error) = name { return TextValue::Error(error); };
-            if name != make_text_value("-") { return TextValue::Unknown; };
+            if name != make_text_value("-") { return text_unresolved(unresolved_flavor); };
             if index > 0 { output.push_str(", "); };
             output.push('-');
             index += 1;
         }
         return make_text_value(output.as_str());
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 #[derive(Clone)]
@@ -213,36 +225,43 @@ fn catalog_vector_hash_bytes(input: ArrayValue) -> VectorHashBytes {
     VectorHashBytes { bytes, state: CheckOutcome::Unknown }
 }
 pub fn sql__pg_catalog__hashoidvector__hb8d(input: ArrayValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
     let plan = catalog_vector_hash_bytes(input);
     let state = plan.state;
     if let CheckOutcome::Error(error) = state { return Int4Value::Error(error); };
     if plan.state == CheckOutcome::Null { return Int4Value::Null; };
-    if plan.state != CheckOutcome::True { return Int4Value::Unknown; };
+    if plan.state != CheckOutcome::True { return int4_unresolved(unresolved_flavor); };
     // Complete OID words contribute the same hash words in either byte order.
     make_int4_value(hash_bytes32(plan.bytes))
 }
 pub fn sql__pg_catalog__hashoidvectorextended__hlbf(input: ArrayValue, seed: Int8Value) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = seed { unresolved_flavor = 1; };
     if let ArrayValue::Error(error) = input { return Int8Value::Error(error); };
     if let Int8Value::Error(error) = seed { return Int8Value::Error(error); };
-    if let ArrayValue::Unknown = input { return Int8Value::Unknown; };
-    if seed == Int8Value::Unknown { return Int8Value::Unknown; };
+    if let ArrayValue::Unknown = input { return int8_unresolved(unresolved_flavor); };
+    if seed == Int8Value::Unknown { return int8_unresolved(unresolved_flavor); };
     if let ArrayValue::Null = input { return Int8Value::Null; };
     if seed == Int8Value::Null { return Int8Value::Null; };
     let plan = catalog_vector_hash_bytes(input);
     let state = plan.state;
     if let CheckOutcome::Error(error) = state { return Int8Value::Error(error); };
-    if plan.state != CheckOutcome::True { return Int8Value::Unknown; };
+    if plan.state != CheckOutcome::True { return int8_unresolved(unresolved_flavor); };
     if let Int8Value::Value(value) = seed { return make_int8_value(hash_bytes64(plan.bytes, value)); };
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 fn catalog_vector_send(input: ArrayValue, oid: bool) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
     if let ArrayValue::Error(error) = input { return ByteaValue::Error(error); };
     if let ArrayValue::Null = input { return ByteaValue::Null; };
     if let ArrayValue::Value(value) = input {
         let mut kind: i32 = 1;
         let mut width = 2i64;
         if oid { kind = 33; width = 4i64; };
-        if value.element_kind != kind { return ByteaValue::Unknown; };
+        if value.element_kind != kind { return bytea_unresolved(unresolved_flavor); };
         let mut length = 12i64 + (value.dimensions.len() as i32) as i64 * 8i64;
         let mut index: usize = 0;
         while index < value.elements.len() {
@@ -251,16 +270,16 @@ fn catalog_vector_send(input: ArrayValue, oid: bool) -> ByteaValue {
             let mut null_cell = false;
             if let ArrayElement::Null = cell { null_cell = true; };
             if let ArrayElement::Unknown = cell {
-                if value.null_bitmap != BoolValue::Value(false) { return ByteaValue::Unknown; };
+                if value.null_bitmap != BoolValue::Value(false) { return bytea_unresolved(unresolved_flavor); };
             };
             length = length + 4i64;
             if null_cell == false { length = length + width; };
             index += 1;
         }
-        if length > 2147483647i64 { return ByteaValue::Unknown; };
+        if length > 2147483647i64 { return bytea_unresolved(unresolved_flavor); };
         return ByteaValue::Unspecified(length as i32);
     };
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__int2vectorsend__4kiy(input: ArrayValue) -> ByteaValue { catalog_vector_send(input, false) }
 pub fn sql__pg_catalog__oidvectorsend__l5tl(input: ArrayValue) -> ByteaValue { catalog_vector_send(input, true) }

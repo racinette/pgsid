@@ -205,6 +205,7 @@ fn timezone_comparison_boolean(
     equal: bool,
     greater: bool,
 ) -> BoolValue {
+    let unresolved_flavor: i32 = 0;
     let value = input.value;
     if let Int4Value::Error(error) = value {
         return BoolValue::Error(error);
@@ -216,14 +217,14 @@ fn timezone_comparison_boolean(
         if input.unequal && less == greater && equal != less {
             return BoolValue::Value(less);
         };
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if let Int4Value::Value(order) = value {
         return BoolValue::Value(
             (order < 0 && less) || (order == 0 && equal) || (order > 0 && greater),
         );
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__date_cmp_timestamptz__k3m9(

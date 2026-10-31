@@ -52,6 +52,8 @@ fn jsonpath_regex_predicate(
     reference: JsonpathReference,
     input: TextValue,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     let node = jsonpath_execution_node(context, reference);
     if node.kind != 4 {
         return BoolValue::Null;
@@ -59,7 +61,7 @@ fn jsonpath_regex_predicate(
     let insensitive = step.flags % 2 == 1;
     let quoted = step.flags >= 16;
     if context.c_collation == false && (quoted == false || insensitive) {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if let TextValue::Value(subject) = input {
         let mut pattern = String::new();
@@ -79,14 +81,14 @@ fn jsonpath_regex_predicate(
         }
         let ascii_pattern = jsonpath_regex_ascii_pattern(pattern.as_str(), quoted);
         if context.utf8 == false && (ascii_subject == false || ascii_pattern == false) {
-            return BoolValue::Unknown;
+            return bool_unresolved(unresolved_flavor);
         };
         let sensitive = jsonpath_regex_locale_neutral(pattern.as_str(), step.flags) == false;
         let use_profile = sensitive && context.ctype != 1 && context.regex_profile_supplied;
         if sensitive && use_profile == false {
             if context.ctype != 1 && (context.ctype == 2 && ascii_subject && ascii_pattern) == false
             {
-                return BoolValue::Unknown;
+                return bool_unresolved(unresolved_flavor);
             };
         };
         let mut result = MatchOutcome::Uncertain;
@@ -123,9 +125,9 @@ fn jsonpath_regex_predicate(
             return BoolValue::Error(make_sql_error(SQLSTATE_INVALID_REGEX));
         };
         if result == MatchOutcome::Uncertain {
-            return BoolValue::Unknown;
+            return bool_unresolved(unresolved_flavor);
         };
         return BoolValue::Value(result != MatchOutcome::NoMatch);
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }

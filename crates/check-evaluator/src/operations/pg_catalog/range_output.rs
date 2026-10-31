@@ -37,6 +37,10 @@ fn range_output_quote(input: &str) -> String {
 }
 
 pub fn range_format_text(input: RangeValue, lower: TextValue, upper: TextValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unknown = lower { unresolved_flavor = 1; };
+    if let TextValue::Unknown = upper { unresolved_flavor = 1; };
     if let RangeValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -69,7 +73,7 @@ pub fn range_format_text(input: RangeValue, lower: TextValue, upper: TextValue) 
                 lower_known = true;
             };
             if lower_known == false {
-                return TextValue::Unknown;
+                return text_unresolved(unresolved_flavor);
             };
         };
         output.push(',');
@@ -89,7 +93,7 @@ pub fn range_format_text(input: RangeValue, lower: TextValue, upper: TextValue) 
                 upper_known = true;
             };
             if upper_known == false {
-                return TextValue::Unknown;
+                return text_unresolved(unresolved_flavor);
             };
         };
         if value.upper_inclusive {
@@ -99,10 +103,12 @@ pub fn range_format_text(input: RangeValue, lower: TextValue, upper: TextValue) 
         };
         return TextValue::Value(output);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 fn range_output_bound(input: ArrayElement, kind: i32, cidr: bool, alias_mode: i32, utf8: bool, enum_labels: &str, enum_count: i32) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
     if let ArrayElement::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -218,11 +224,13 @@ fn range_output_bound(input: ArrayElement, kind: i32, cidr: bool, alias_mode: i3
             };
         };
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 fn range_profiled_bound_output(input: ArrayElement, profile: &RangeBoundContext, index: usize) -> TextValue {
-    if index >= profile.nodes.len() { return TextValue::Unknown; };
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if index >= profile.nodes.len() { return text_unresolved(unresolved_flavor); };
     let node = profile.nodes[index].clone();
     if node.kind == 41 && (node.type_name.as_str() == "pg_catalog.int2vector"
         || node.type_name.as_str() == "pg_catalog.oidvector")
@@ -245,7 +253,7 @@ fn range_profiled_bound_output(input: ArrayElement, profile: &RangeBoundContext,
         let cell = array_output_element_at(&plan, position);
         let text = range_profiled_bound_output(cell, profile, node.child);
         if let TextValue::Error(error) = text { return TextValue::Error(error); };
-        if text == TextValue::Unknown || text == TextValue::NonNull { return TextValue::Unknown; };
+        if text == TextValue::Unknown || text == TextValue::NonNull { return text_unresolved(unresolved_flavor); };
         rendered = append_array_argument(rendered, array_element_from_text(text));
         position = array_text_next_index(position);
     }
@@ -253,6 +261,8 @@ fn range_profiled_bound_output(input: ArrayElement, profile: &RangeBoundContext,
 }
 
 pub fn range_to_text(input: RangeValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeValue::Unknown = input { unresolved_flavor = 1; };
     if let RangeValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -273,7 +283,7 @@ pub fn range_to_text(input: RangeValue) -> TextValue {
             return TextValue::Error(error);
         };
         if lower == TextValue::Unknown || lower == TextValue::NonNull {
-            return TextValue::Unknown;
+            return text_unresolved(unresolved_flavor);
         };
         let mut upper = range_output_bound(value.bounds[1].clone(), value.element_kind, cidr, alias_mode, utf8, value.enum_labels.as_str(), value.enum_count);
         if value.element_kind >= 41 && value.element_kind <= 43 { upper = range_profiled_bound_output(value.bounds[1].clone(), &profile, 0); };
@@ -281,9 +291,9 @@ pub fn range_to_text(input: RangeValue) -> TextValue {
             return TextValue::Error(error);
         };
         if upper == TextValue::Unknown || upper == TextValue::NonNull {
-            return TextValue::Unknown;
+            return text_unresolved(unresolved_flavor);
         };
         return range_format_text(RangeValue::Value(value), lower, upper);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }

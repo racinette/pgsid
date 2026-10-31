@@ -1,6 +1,8 @@
 pub fn bytea_from_text(input: TextValue) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input { return ByteaValue::Error(error); }
-    if (input == TextValue::Unknown || input == TextValue::NonNull) { return ByteaValue::Unknown; }
+    if (input == TextValue::Unknown || input == TextValue::NonNull) { return bytea_unresolved(unresolved_flavor); }
     if input == TextValue::Null { return ByteaValue::Null; }
     if let TextValue::Value(value) = input {
         let chars: Vec<char> = value.chars().collect();
@@ -26,5 +28,5 @@ pub fn bytea_from_text(input: TextValue) -> ByteaValue {
         }
         return bytea_escape_decode(value.as_str());
     }
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }

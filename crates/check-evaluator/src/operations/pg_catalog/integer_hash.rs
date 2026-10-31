@@ -18,6 +18,9 @@ fn integer_hash_fold(value: i64) -> i64 {
 }
 
 fn integer_hash_extended(input: Int8Value, seed: Int8Value) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = seed { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = input {
         return Int8Value::Error(error);
     }
@@ -28,7 +31,7 @@ fn integer_hash_extended(input: Int8Value, seed: Int8Value) -> Int8Value {
         return Int8Value::Null;
     }
     if input == Int8Value::Unknown || seed == Int8Value::Unknown {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     }
     if let Int8Value::Value(value) = input {
         if let Int8Value::Value(initial) = seed {
@@ -44,16 +47,18 @@ fn integer_hash_extended(input: Int8Value, seed: Int8Value) -> Int8Value {
             return Int8Value::Value(hash_bytes64(bytes, initial));
         }
     }
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 fn integer_hash(input: Int8Value) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = input { unresolved_flavor = 1; };
     let result = integer_hash_extended(input, Int8Value::Value(0i64));
     if let Int8Value::Error(error) = result {
         return Int4Value::Error(error);
     }
     if result == Int8Value::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if result == Int8Value::Null {
         return Int4Value::Null;
@@ -61,7 +66,7 @@ fn integer_hash(input: Int8Value) -> Int4Value {
     if let Int8Value::Value(value) = result {
         return Int4Value::Value(value as i32);
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__hashint2__076p(input: Int2Value) -> Int4Value {

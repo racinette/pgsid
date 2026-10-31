@@ -248,16 +248,19 @@ fn tsquery_match_evaluate(document: &TsvectorPayload, query: &TsqueryPayload) ->
 }
 
 pub fn sql__pg_catalog__ts_match_vq__53kf(document: TsvectorValue, query: TsqueryValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TsvectorValue::Unknown = document { unresolved_flavor = 1; };
+    if let TsqueryValue::Unknown = query { unresolved_flavor = 1; };
     if let TsvectorValue::Error(error) = document { return BoolValue::Error(error); };
     if let TsqueryValue::Error(error) = query { return BoolValue::Error(error); };
-    if let TsvectorValue::Unknown = document { return BoolValue::Unknown; };
-    if let TsqueryValue::Unknown = query { return BoolValue::Unknown; };
+    if let TsvectorValue::Unknown = document { return bool_unresolved(unresolved_flavor); };
+    if let TsqueryValue::Unknown = query { return bool_unresolved(unresolved_flavor); };
     if let TsvectorValue::Null = document { return BoolValue::Null; };
     if let TsqueryValue::Null = query { return BoolValue::Null; };
     if let TsvectorValue::Value(value) = document {
         if let TsqueryValue::Value(pattern) = query { return tsquery_match_evaluate(&value,&pattern); };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__ts_match_qv__ib1m(query: TsqueryValue, document: TsvectorValue) -> BoolValue {

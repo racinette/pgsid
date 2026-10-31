@@ -24,12 +24,16 @@ fn tsquery_rebuild(input: TsqueryPayload) -> TsqueryValue {
 }
 
 fn tsquery_join(left: TsqueryValue, right: TsqueryValue, distance: Int4Value, kind: i32) -> TsqueryValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TsqueryValue::Unknown = left { unresolved_flavor = 1; };
+    if let TsqueryValue::Unknown = right { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = distance { unresolved_flavor = 1; };
     if let TsqueryValue::Error(error) = left { return TsqueryValue::Error(error); };
     if let TsqueryValue::Error(error) = right { return TsqueryValue::Error(error); };
     if let Int4Value::Error(error) = distance { return TsqueryValue::Error(error); };
-    if let TsqueryValue::Unknown = left { return TsqueryValue::Unknown; };
-    if let TsqueryValue::Unknown = right { return TsqueryValue::Unknown; };
-    if distance == Int4Value::Unknown { return TsqueryValue::Unknown; };
+    if let TsqueryValue::Unknown = left { return tsquery_unresolved(unresolved_flavor); };
+    if let TsqueryValue::Unknown = right { return tsquery_unresolved(unresolved_flavor); };
+    if distance == Int4Value::Unknown { return tsquery_unresolved(unresolved_flavor); };
     if let TsqueryValue::Null = left { return TsqueryValue::Null; };
     if let TsqueryValue::Null = right { return TsqueryValue::Null; };
     if distance == Int4Value::Null { return TsqueryValue::Null; };
@@ -62,7 +66,7 @@ fn tsquery_join(left: TsqueryValue, right: TsqueryValue, distance: Int4Value, ki
             };
         };
     };
-    TsqueryValue::Unknown
+    tsquery_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__tsquery_and__zwff(a: TsqueryValue,b: TsqueryValue)->TsqueryValue { tsquery_join(a,b,make_int4_value(0),2) }

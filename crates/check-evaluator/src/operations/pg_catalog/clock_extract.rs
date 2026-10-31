@@ -136,6 +136,7 @@ fn clock_fields_numeric_value(
     family: i32,
     code: i32,
 ) -> NumericValue {
+    let unresolved_flavor: i32 = 0;
     if code <= 0 {
         return NumericValue::Error(make_sql_error(TEMPORAL_FIELD_UNIT_ERROR));
     };
@@ -196,9 +197,11 @@ fn clock_fields_numeric_value(
         };
         return temporal_scaled_number(number, scale);
     };
-    NumericValue::Unknown
+    numeric_unresolved(unresolved_flavor)
 }
 fn clock_fields_numeric(units: TextValue, input: ClockFieldInput) -> NumericValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = units { unresolved_flavor = 1; };
     if let TextValue::Error(error) = units {
         return NumericValue::Error(error);
     };
@@ -207,7 +210,7 @@ fn clock_fields_numeric(units: TextValue, input: ClockFieldInput) -> NumericValu
         return NumericValue::Error(error);
     };
     if (units == TextValue::Unknown || units == TextValue::NonNull) || input.value == IntervalValue::Unknown {
-        return NumericValue::Unknown;
+        return numeric_unresolved(unresolved_flavor);
     };
     if units == TextValue::Null || input.value == IntervalValue::Null {
         return NumericValue::Null;
@@ -222,16 +225,18 @@ fn clock_fields_numeric(units: TextValue, input: ClockFieldInput) -> NumericValu
             );
         };
     };
-    NumericValue::Unknown
+    numeric_unresolved(unresolved_flavor)
 }
 fn clock_fields_legacy(units: TextValue, input: ClockFieldInput) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = units { unresolved_flavor = 1; };
     let interval_value = input.value;
     let number = clock_fields_numeric(units.clone(), input);
     if let NumericValue::Error(error) = number {
         return Float8Value::Error(error);
     };
     if number == NumericValue::Unknown {
-        return Float8Value::Unknown;
+        return float8_unresolved(unresolved_flavor);
     };
     if number == NumericValue::Null {
         return Float8Value::Null;

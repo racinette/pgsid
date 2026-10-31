@@ -15,6 +15,8 @@ fn json_build_layout(
     record: bool,
     pretty: bool,
 ) -> JsonValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbArguments::Unknown = input { unresolved_flavor = 1; };
     if let JsonbArguments::Error(error) = input {
         return JsonValue::Error(error);
     };
@@ -72,7 +74,7 @@ fn json_build_layout(
                     ready = true;
                 };
                 if ready == false {
-                    return JsonValue::Unknown;
+                    return json_unresolved(unresolved_flavor);
                 };
                 index += 1;
             };
@@ -95,7 +97,7 @@ fn json_build_layout(
                 return JsonValue::Error(error);
             };
             if let JsonValue::Unknown = converted {
-                return JsonValue::Unknown;
+                return json_unresolved(unresolved_flavor);
             };
             if let JsonValue::Null = converted {
                 output.push_str("null");
@@ -115,7 +117,7 @@ fn json_build_layout(
         };
         return make_json_value(output.as_str());
     };
-    JsonValue::Unknown
+    json_unresolved(unresolved_flavor)
 }
 
 fn json_build(input: JsonbArguments, object: bool, utf8: bool) -> JsonValue {
@@ -257,10 +259,11 @@ pub(crate) fn json_record_has_field(input: &JsonRecordInputPayload) -> bool {
 }
 
 pub(crate) fn json_record_field(input: &JsonRecordInputPayload) -> ArrayElement {
+    let unresolved_flavor: i32 = 0;
     if json_record_has_field(input) {
         return input.fields[input.position].clone();
     };
-    ArrayElement::Unknown
+    array_element_unresolved(unresolved_flavor)
 }
 
 pub(crate) fn append_json_record(
@@ -286,6 +289,7 @@ pub(crate) fn append_json_record(
 }
 
 fn json_record_arguments(input: JsonRecordInputPayload) -> JsonbArguments {
+    let unresolved_flavor: i32 = 0;
     if input.state == -2 {
         return JsonbArguments::Error(input.error);
     };
@@ -293,7 +297,7 @@ fn json_record_arguments(input: JsonRecordInputPayload) -> JsonbArguments {
         return JsonbArguments::Null;
     };
     if input.values.len() > 2147483647 || input.position > 2147483647 {
-        return JsonbArguments::Unknown;
+        return jsonb_arguments_unresolved(unresolved_flavor);
     };
     let count = input.values.len() as i32;
     let position = input.position as i32;
@@ -302,7 +306,7 @@ fn json_record_arguments(input: JsonRecordInputPayload) -> JsonbArguments {
         || count % 2 != 0
         || count / 2 != position
     {
-        return JsonbArguments::Unknown;
+        return jsonb_arguments_unresolved(unresolved_flavor);
     };
     JsonbArguments::Values(JsonbArgumentPayload {
         values: input.values,
@@ -343,16 +347,20 @@ pub(crate) fn jsonb_record_input(input: JsonRecordInputPayload) -> JsonbInput {
 }
 
 pub(crate) fn json_record_opaque_input(input: ArrayElement) -> JsonbInput {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
     if let ArrayElement::Null = input {
         return JsonbInput::Null;
     };
     if let ArrayElement::Error(error) = input {
         return JsonbInput::Error(error);
     };
-    JsonbInput::Unknown
+    jsonb_input_unresolved(unresolved_flavor)
 }
 
 pub(crate) fn json_record_key_input(input: CompositeValue) -> JsonbInput {
+    let mut unresolved_flavor: i32 = 0;
+    if let CompositeValue::Unknown = input { unresolved_flavor = 1; };
     if let CompositeValue::Error(error) = input {
         return JsonbInput::Error(error);
     };
@@ -360,7 +368,7 @@ pub(crate) fn json_record_key_input(input: CompositeValue) -> JsonbInput {
         return JsonbInput::Null;
     };
     if let CompositeValue::Unknown = input {
-        return JsonbInput::Unknown;
+        return jsonb_input_unresolved(unresolved_flavor);
     };
     let marker = make_jsonb_value("{}");
     jsonb_input_from_jsonb(marker)
@@ -371,10 +379,12 @@ pub(crate) fn finish_json_record_plan(input: JsonRecordInputPayload) -> JsonReco
 }
 
 fn json_record_plan_value(input: JsonRecordInputPlan, pretty: BoolValue, utf8: bool) -> JsonValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoolValue::Unknown = pretty { unresolved_flavor = 1; };
     if let JsonRecordInputPlan::Value(value) = input {
         return json_record_value(value, pretty, utf8);
     };
-    JsonValue::Unknown
+    json_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__row_to_json__99i2(input: JsonRecordInputPlan, utf8: bool) -> JsonValue {

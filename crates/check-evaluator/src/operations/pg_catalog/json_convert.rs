@@ -49,6 +49,8 @@ fn jsonb_pretty_context(input: JsonbValue, utf8: bool) -> TextValue {
 }
 
 pub fn json_input_from_numeric(input: NumericValue) -> JsonbInput {
+    let mut unresolved_flavor: i32 = 0;
+    if let NumericValue::Unknown = input { unresolved_flavor = 1; };
     if let NumericValue::Unknown = input {
         return JsonbInput::ScalarUnknown("1001000".to_owned());
     };
@@ -62,10 +64,12 @@ pub fn json_input_from_numeric(input: NumericValue) -> JsonbInput {
     if let TextValue::Value(value) = output {
         return JsonbInput::Number(value);
     };
-    JsonbInput::Unknown
+    jsonb_input_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__to_json__25lg(input: JsonbInput, utf8: bool) -> JsonValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbInput::Unknown = input { unresolved_flavor = 1; };
     if let JsonbInput::JsonbNonNull(_maximum) = input {
         return JsonValue::NonNull;
     };
@@ -105,7 +109,7 @@ pub fn sql__pg_catalog__to_json__25lg(input: JsonbInput, utf8: bool) -> JsonValu
         let output = jsonb_text_context(JsonbValue::Value(value), utf8);
         return json_from_coerced_text(output);
     };
-    JsonValue::Unknown
+    json_unresolved(unresolved_flavor)
 }
 
 #[derive(Clone, Copy)]
@@ -119,6 +123,8 @@ pub(crate) fn json_array_input_value(
     pretty: BoolValue,
     utf8: bool,
 ) -> JsonValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoolValue::Unknown = pretty { unresolved_flavor = 1; };
     if input.state == -2 {
         return JsonValue::Error(input.error);
     };
@@ -129,10 +135,10 @@ pub(crate) fn json_array_input_value(
         return JsonValue::Null;
     };
     if input.state != 1 || pretty == BoolValue::Unknown {
-        return JsonValue::Unknown;
+        return json_unresolved(unresolved_flavor);
     };
     if input.values.len() != input.elements.len() {
-        return JsonValue::Unknown;
+        return json_unresolved(unresolved_flavor);
     };
     if input.values.len() == 0 {
         return make_json_value("[]");
@@ -199,7 +205,7 @@ pub(crate) fn json_array_input_value(
                     return JsonValue::Error(error);
                 };
                 if let JsonValue::Unknown = converted {
-                    return JsonValue::Unknown;
+                    return json_unresolved(unresolved_flavor);
                 };
                 if let JsonValue::Null = converted {
                     output.push_str("null");
@@ -222,10 +228,11 @@ pub(crate) fn json_array_input_plan(input: JsonbArrayInputPayload) -> JsonbArray
 }
 
 pub fn sql__pg_catalog__array_to_json__sjq7(input: JsonbArrayInputPlan, utf8: bool) -> JsonValue {
+    let unresolved_flavor: i32 = 0;
     if let JsonbArrayInputPlan::Value(value) = input {
         return json_array_input_value(value, make_bool_value(false), utf8);
     };
-    JsonValue::Unknown
+    json_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__array_to_json__fydb(
@@ -233,10 +240,12 @@ pub fn sql__pg_catalog__array_to_json__fydb(
     pretty: BoolValue,
     utf8: bool,
 ) -> JsonValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoolValue::Unknown = pretty { unresolved_flavor = 1; };
     if let JsonbArrayInputPlan::Value(value) = input {
         return json_array_input_value(value, pretty, utf8);
     };
-    JsonValue::Unknown
+    json_unresolved(unresolved_flavor)
 }
 
 pub fn jsonb_to_json_context(input: JsonbValue, utf8: bool) -> JsonValue {

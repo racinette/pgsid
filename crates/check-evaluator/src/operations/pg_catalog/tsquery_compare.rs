@@ -37,17 +37,20 @@ fn tsquery_legacy_crc(text: &str) -> i32 {
 }
 
 fn tsquery_compare(left: TsqueryValue, right: TsqueryValue, utf8: bool, exact: bool) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TsqueryValue::Unknown = left { unresolved_flavor = 1; };
+    if let TsqueryValue::Unknown = right { unresolved_flavor = 1; };
     if let TsqueryValue::Error(error) = left { return Int4Value::Error(error); };
     if let TsqueryValue::Error(error) = right { return Int4Value::Error(error); };
-    if let TsqueryValue::Unknown = left { return Int4Value::Unknown; };
-    if let TsqueryValue::Unknown = right { return Int4Value::Unknown; };
+    if let TsqueryValue::Unknown = left { return int4_unresolved(unresolved_flavor); };
+    if let TsqueryValue::Unknown = right { return int4_unresolved(unresolved_flavor); };
     if let TsqueryValue::Null = left { return Int4Value::Null; };
     if let TsqueryValue::Null = right { return Int4Value::Null; };
     if let TsqueryValue::Value(a) = left {
         if let TsqueryValue::Value(b) = right {
             if a.nodes.len() < b.nodes.len() { return make_int4_value(-1); };
             if a.nodes.len() > b.nodes.len() { return make_int4_value(1); };
-            if a.native_bytes < 0 || b.native_bytes < 0 { return Int4Value::Unknown; };
+            if a.native_bytes < 0 || b.native_bytes < 0 { return int4_unresolved(unresolved_flavor); };
             if a.native_bytes < b.native_bytes { return make_int4_value(-1); };
             if a.native_bytes > b.native_bytes { return make_int4_value(1); };
             if a.nodes.len() == 0 { return make_int4_value(0); };
@@ -67,13 +70,13 @@ fn tsquery_compare(left: TsqueryValue, right: TsqueryValue, utf8: bool, exact: b
                     if an.kind < bn.kind { return make_int4_value(1); };
                     if an.kind == 0 {
                         if an.text != bn.text {
-                            if utf8 == false && (tsquery_ascii(an.text.as_str()) == false || tsquery_ascii(bn.text.as_str()) == false) { return Int4Value::Unknown; };
+                            if utf8 == false && (tsquery_ascii(an.text.as_str()) == false || tsquery_ascii(bn.text.as_str()) == false) { return int4_unresolved(unresolved_flavor); };
                             let ac = tsquery_legacy_crc(an.text.as_str());
                             let bc = tsquery_legacy_crc(bn.text.as_str());
                             if ac > bc { return make_int4_value(-1); };
                             if ac < bc { return make_int4_value(1); };
                             let order = tsvector_lexeme_order(an.text.as_str(),bn.text.as_str());
-                            if exact && order != 0 && text_has_prefix(an.text.as_str(),bn.text.as_str()) == false && text_has_prefix(bn.text.as_str(),an.text.as_str()) == false { return Int4Value::Unknown; };
+                            if exact && order != 0 && text_has_prefix(an.text.as_str(),bn.text.as_str()) == false && text_has_prefix(bn.text.as_str(),an.text.as_str()) == false { return int4_unresolved(unresolved_flavor); };
                             return make_int4_value(order);
                         };
                     } else {
@@ -96,13 +99,16 @@ fn tsquery_compare(left: TsqueryValue, right: TsqueryValue, utf8: bool, exact: b
             return make_int4_value(0);
         };
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn tsquery_order(left: TsqueryValue, right: TsqueryValue, utf8: bool) -> Int4Value { tsquery_compare(left,right,utf8,false) }
 pub fn sql__pg_catalog__tsquery_cmp__1oet(left: TsqueryValue, right: TsqueryValue, utf8: bool) -> Int4Value { tsquery_compare(left,right,utf8,true) }
 
 fn tsquery_relation(left: TsqueryValue, right: TsqueryValue, utf8: bool, mode: i32) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TsqueryValue::Unknown = left { unresolved_flavor = 1; };
+    if let TsqueryValue::Unknown = right { unresolved_flavor = 1; };
     let order = tsquery_compare(left,right,utf8,false);
     if let Int4Value::Error(error) = order { return BoolValue::Error(error); };
     if let Int4Value::Null = order { return BoolValue::Null; };
@@ -114,7 +120,7 @@ fn tsquery_relation(left: TsqueryValue, right: TsqueryValue, utf8: bool, mode: i
         if mode == 4 { return make_bool_value(value > 0); };
         return make_bool_value(value >= 0);
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__tsquery_eq__d4ao(a: TsqueryValue,b: TsqueryValue,utf8: bool)->BoolValue { tsquery_relation(a,b,utf8,0) }
 pub fn sql__pg_catalog__tsquery_ne__2lq4(a: TsqueryValue,b: TsqueryValue,utf8: bool)->BoolValue { tsquery_relation(a,b,utf8,1) }
@@ -124,10 +130,13 @@ pub fn sql__pg_catalog__tsquery_gt__6cq7(a: TsqueryValue,b: TsqueryValue,utf8: b
 pub fn sql__pg_catalog__tsquery_ge__0jdt(a: TsqueryValue,b: TsqueryValue,utf8: bool)->BoolValue { tsquery_relation(a,b,utf8,5) }
 
 fn tsquery_contains(left: TsqueryValue,right: TsqueryValue,reverse: bool)->BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TsqueryValue::Unknown = left { unresolved_flavor = 1; };
+    if let TsqueryValue::Unknown = right { unresolved_flavor = 1; };
     if let TsqueryValue::Error(error) = left { return BoolValue::Error(error); };
     if let TsqueryValue::Error(error) = right { return BoolValue::Error(error); };
-    if let TsqueryValue::Unknown = left { return BoolValue::Unknown; };
-    if let TsqueryValue::Unknown = right { return BoolValue::Unknown; };
+    if let TsqueryValue::Unknown = left { return bool_unresolved(unresolved_flavor); };
+    if let TsqueryValue::Unknown = right { return bool_unresolved(unresolved_flavor); };
     if let TsqueryValue::Null = left { return BoolValue::Null; };
     if let TsqueryValue::Null = right { return BoolValue::Null; };
     if let TsqueryValue::Value(a) = left {
@@ -151,7 +160,7 @@ fn tsquery_contains(left: TsqueryValue,right: TsqueryValue,reverse: bool)->BoolV
             return make_bool_value(true);
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__tsq_mcontains__d21x(a: TsqueryValue,b: TsqueryValue)->BoolValue { tsquery_contains(a,b,false) }
 pub fn sql__pg_catalog__tsq_mcontained__4g5m(a: TsqueryValue,b: TsqueryValue)->BoolValue { tsquery_contains(a,b,true) }

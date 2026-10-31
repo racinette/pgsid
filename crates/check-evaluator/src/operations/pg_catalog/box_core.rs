@@ -1,4 +1,7 @@
 fn box_from_points(left: PointValue, right: PointValue, keep_ties: bool) -> BoxValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PointValue::Unknown = left { unresolved_flavor = 1; };
+    if let PointValue::Unknown = right { unresolved_flavor = 1; };
     if let PointValue::Error(error) = left {
         return BoxValue::Error(error);
     };
@@ -6,7 +9,7 @@ fn box_from_points(left: PointValue, right: PointValue, keep_ties: bool) -> BoxV
         return BoxValue::Error(error);
     };
     if left == PointValue::Unknown || right == PointValue::Unknown {
-        return BoxValue::Unknown;
+        return box_unresolved(unresolved_flavor);
     };
     if left == PointValue::Null || right == PointValue::Null {
         return BoxValue::Null;
@@ -36,9 +39,11 @@ fn box_from_points(left: PointValue, right: PointValue, keep_ties: bool) -> BoxV
             });
         };
     };
-    BoxValue::Unknown
+    box_unresolved(unresolved_flavor)
 }
 fn box_endpoint(input: BoxValue, low: bool) -> PointValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoxValue::Unknown = input { unresolved_flavor = 1; };
     if let BoxValue::Error(error) = input {
         return PointValue::Error(error);
     };
@@ -59,7 +64,7 @@ fn box_endpoint(input: BoxValue, low: bool) -> PointValue {
                 || (float8_number(x) == float8_number(x) && float8_number(y) == float8_number(y)),
         });
     };
-    PointValue::Unknown
+    point_unresolved(unresolved_flavor)
 }
 fn box_scalar(value: BoxPayload, slot: i32) -> Float8Value {
     let mut bits = value.high_x;
@@ -88,6 +93,8 @@ fn box_computed_scalar(input: Float8Value) -> Float8Value {
     input
 }
 fn box_dimension(input: BoxValue, vertical: bool) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoxValue::Unknown = input { unresolved_flavor = 1; };
     if let BoxValue::Error(error) = input {
         return Float8Value::Error(error);
     };
@@ -103,7 +110,7 @@ fn box_dimension(input: BoxValue, vertical: bool) -> Float8Value {
         };
         return box_computed_scalar(sql__pg_catalog__float8mi__r1nu(high, low));
     };
-    Float8Value::Unknown
+    float8_unresolved(unresolved_flavor)
 }
 fn box_area_value(input: BoxValue) -> Float8Value {
     box_computed_scalar(sql__pg_catalog__float8mul__d3nd(
@@ -112,6 +119,8 @@ fn box_area_value(input: BoxValue) -> Float8Value {
     ))
 }
 fn box_midpoint(input: BoxValue) -> PointValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoxValue::Unknown = input { unresolved_flavor = 1; };
     if let BoxValue::Error(error) = input {
         return PointValue::Error(error);
     };
@@ -130,9 +139,12 @@ fn box_midpoint(input: BoxValue) -> PointValue {
         );
         return point_arithmetic_result(x, y);
     };
-    PointValue::Unknown
+    point_unresolved(unresolved_flavor)
 }
 fn box_pair_status(left: BoxValue, right: BoxValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoxValue::Unknown = left { unresolved_flavor = 1; };
+    if let BoxValue::Unknown = right { unresolved_flavor = 1; };
     if let BoxValue::Error(error) = left {
         return BoolValue::Error(error);
     };
@@ -140,7 +152,7 @@ fn box_pair_status(left: BoxValue, right: BoxValue) -> BoolValue {
         return BoolValue::Error(error);
     };
     if left == BoxValue::Unknown || right == BoxValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if left == BoxValue::Null || right == BoxValue::Null {
         return BoolValue::Null;
@@ -160,6 +172,9 @@ fn box_same_corners(left: BoxValue, right: BoxValue) -> BoolValue {
     sql__pg_catalog__point_eq__5be0(box_endpoint(left, true), box_endpoint(right, true))
 }
 fn box_area_relation(left: BoxValue, right: BoxValue, mode: i32) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoxValue::Unknown = left { unresolved_flavor = 1; };
+    if let BoxValue::Unknown = right { unresolved_flavor = 1; };
     let status = box_pair_status(left, right);
     if status != BoolValue::Value(true) {
         return status;
@@ -193,9 +208,11 @@ fn box_area_relation(left: BoxValue, right: BoxValue, mode: i32) -> BoolValue {
             return make_bool_value(x + 0.000001f64 >= y);
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 fn box_binary(input: BoxValue) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoxValue::Unknown = input { unresolved_flavor = 1; };
     if let BoxValue::Error(error) = input {
         return ByteaValue::Error(error);
     };
@@ -214,12 +231,15 @@ fn box_binary(input: BoxValue) -> ByteaValue {
             sql__pg_catalog__point_send__kuoa(box_endpoint(input, true)),
         );
     };
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }
 fn box_diagonal_value(input: BoxValue) -> LsegValue {
     sql__pg_catalog__lseg__l9bc(box_endpoint(input, false), box_endpoint(input, true))
 }
 fn box_centers_distance(left: BoxValue, right: BoxValue) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoxValue::Unknown = left { unresolved_flavor = 1; };
+    if let BoxValue::Unknown = right { unresolved_flavor = 1; };
     let status = box_pair_status(left, right);
     if status != BoolValue::Value(true) {
         if let BoolValue::Error(error) = status {
@@ -228,7 +248,7 @@ fn box_centers_distance(left: BoxValue, right: BoxValue) -> Float8Value {
         if status == BoolValue::Null {
             return Float8Value::Null;
         };
-        return Float8Value::Unknown;
+        return float8_unresolved(unresolved_flavor);
     };
     sql__pg_catalog__point_distance__2haq(box_midpoint(left), box_midpoint(right))
 }

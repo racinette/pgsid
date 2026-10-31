@@ -85,6 +85,9 @@ pub fn record_comparison_pair(
     available: i32,
     equality: bool,
 ) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayElement::Unknown = left { unresolved_flavor = 1; };
+    if let ArrayElement::Unknown = right { unresolved_flavor = 1; };
     if same_type == false {
         return Int4Value::Error(make_sql_error(RECORD_COMPARISON_TYPE_MISMATCH));
     };
@@ -92,7 +95,7 @@ pub fn record_comparison_pair(
         return Int4Value::Error(make_sql_error(RECORD_COMPARISON_UNDEFINED));
     };
     if available != 1 {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     };
     array_comparison_pair(left, right, equality)
 }
@@ -120,6 +123,8 @@ pub(crate) fn finish_record_comparison(
 }
 
 pub fn record_anonymous_input(input: TextValue) -> CompositeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return CompositeValue::Error(error);
     };
@@ -129,7 +134,7 @@ pub fn record_anonymous_input(input: TextValue) -> CompositeValue {
     if let TextValue::Value(_) = input {
         return CompositeValue::Error(make_sql_error(RECORD_INPUT_ANONYMOUS));
     };
-    CompositeValue::Unknown
+    composite_row_unresolved(unresolved_flavor)
 }
 
 fn record_array_input_with_nulls(input: TextValue, nulls: i32) -> ArrayValue {
@@ -148,6 +153,8 @@ fn record_array_input_with_nulls(input: TextValue, nulls: i32) -> ArrayValue {
 }
 
 pub fn record_array_from_text(input: TextValue, nulls: i32) -> ArrayValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if nulls == 0 || nulls == 1 {
         return record_array_input_with_nulls(input, nulls);
     };
@@ -159,13 +166,13 @@ pub fn record_array_from_text(input: TextValue, nulls: i32) -> ArrayValue {
                 return ArrayValue::Error(left);
             };
         };
-        return ArrayValue::Unknown;
+        return array_unresolved(unresolved_flavor);
     };
     if let ArrayValue::Null = first {
         if let ArrayValue::Null = second {
             return ArrayValue::Null;
         };
-        return ArrayValue::Unknown;
+        return array_unresolved(unresolved_flavor);
     };
     if let ArrayValue::Value(left) = first {
         if let ArrayValue::Value(right) = second {
@@ -174,7 +181,7 @@ pub fn record_array_from_text(input: TextValue, nulls: i32) -> ArrayValue {
             };
         };
     };
-    ArrayValue::Unknown
+    array_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__record_eq__rc7m(input: Int4Value) -> BoolValue {

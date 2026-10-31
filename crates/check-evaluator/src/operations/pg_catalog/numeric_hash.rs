@@ -39,11 +39,13 @@ fn numeric_hash_digits(value: &str) -> Vec<HashByte> {
 }
 
 pub fn sql__pg_catalog__hash_numeric__0e7w(input: NumericValue, byte_order: i32) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let NumericValue::Unknown = input { unresolved_flavor = 1; };
     if let NumericValue::Error(error) = input {
         return Int4Value::Error(error);
     }
     if input == NumericValue::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if input == NumericValue::Null {
         return Int4Value::Null;
@@ -51,7 +53,7 @@ pub fn sql__pg_catalog__hash_numeric__0e7w(input: NumericValue, byte_order: i32)
     if let NumericValue::Value(value) = input {
         let layout = numeric_parts(value.as_str());
         if layout.valid == false {
-            return Int4Value::Unknown;
+            return int4_unresolved(unresolved_flavor);
         }
         if layout.special != 1 {
             return Int4Value::Value(0);
@@ -67,7 +69,7 @@ pub fn sql__pg_catalog__hash_numeric__0e7w(input: NumericValue, byte_order: i32)
         let hash = hash_native32(bytes, byte_order, 2);
         return sql__pg_catalog__int4xor__6j8h(hash, Int4Value::Value(weight));
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__hash_numeric_extended__oglu(
@@ -75,6 +77,9 @@ pub fn sql__pg_catalog__hash_numeric_extended__oglu(
     seed: Int8Value,
     byte_order: i32,
 ) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let NumericValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = seed { unresolved_flavor = 1; };
     if let NumericValue::Error(error) = input {
         return Int8Value::Error(error);
     }
@@ -82,7 +87,7 @@ pub fn sql__pg_catalog__hash_numeric_extended__oglu(
         return Int8Value::Error(error);
     }
     if input == NumericValue::Unknown || seed == Int8Value::Unknown {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     }
     if input == NumericValue::Null || seed == Int8Value::Null {
         return Int8Value::Null;
@@ -91,7 +96,7 @@ pub fn sql__pg_catalog__hash_numeric_extended__oglu(
         if let Int8Value::Value(salt) = seed {
             let layout = numeric_parts(value.as_str());
             if layout.valid == false {
-                return Int8Value::Unknown;
+                return int8_unresolved(unresolved_flavor);
             }
             if layout.special != 1 {
                 return Int8Value::Value(salt);
@@ -112,5 +117,5 @@ pub fn sql__pg_catalog__hash_numeric_extended__oglu(
             return sql__pg_catalog__int8xor__4v56(hash, Int8Value::Value(wide_weight));
         }
     }
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }

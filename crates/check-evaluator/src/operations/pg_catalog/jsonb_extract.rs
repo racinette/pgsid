@@ -93,6 +93,8 @@ fn jsonb_shape_has_key(shape: &JsonbPayload, key: &JsonbExtractKey) -> i32 {
 }
 
 fn jsonb_extract_text(input: JsonbValue, utf8: bool) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
     if let JsonbValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -106,7 +108,7 @@ fn jsonb_extract_text(input: JsonbValue, utf8: bool) -> TextValue {
         if facts.kind > 0 {
             return TextValue::NonNull;
         };
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     if let JsonbValue::Value(value) = input {
         let node = value.nodes[value.root];
@@ -124,10 +126,13 @@ fn jsonb_extract_text(input: JsonbValue, utf8: bool) -> TextValue {
         };
         return jsonb_text_context(JsonbValue::Value(value), utf8);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__jsonb_object_field__4uf3(input: JsonbValue, key: TextValue) -> JsonbValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unknown = key { unresolved_flavor = 1; };
     if let JsonbValue::Error(error) = input {
         return JsonbValue::Error(error);
     };
@@ -135,10 +140,10 @@ pub fn sql__pg_catalog__jsonb_object_field__4uf3(input: JsonbValue, key: TextVal
         return JsonbValue::Error(error);
     };
     if let JsonbValue::Unknown = input {
-        return JsonbValue::Unknown;
+        return jsonb_unresolved(unresolved_flavor);
     };
     if key == TextValue::Unknown || key == TextValue::NonNull {
-        return JsonbValue::Unknown;
+        return jsonb_unresolved(unresolved_flavor);
     };
     if let JsonbValue::NonNull(facts) = input {
         if key == TextValue::Null || (facts.kind >= 0 && facts.kind != 6) {
@@ -163,7 +168,7 @@ pub fn sql__pg_catalog__jsonb_object_field__4uf3(input: JsonbValue, key: TextVal
                 return JsonbValue::Null;
             };
         };
-        return JsonbValue::Unknown;
+        return jsonb_unresolved(unresolved_flavor);
     };
     if let JsonbValue::Value(value) = input {
         if let TextValue::Value(text) = key {
@@ -196,6 +201,9 @@ pub fn sql__pg_catalog__jsonb_array_element__08oi(
     input: JsonbValue,
     index: Int4Value,
 ) -> JsonbValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = index { unresolved_flavor = 1; };
     if let JsonbValue::Error(error) = input {
         return JsonbValue::Error(error);
     };
@@ -203,10 +211,10 @@ pub fn sql__pg_catalog__jsonb_array_element__08oi(
         return JsonbValue::Error(error);
     };
     if let JsonbValue::Unknown = input {
-        return JsonbValue::Unknown;
+        return jsonb_unresolved(unresolved_flavor);
     };
     if let Int4Value::Unknown = index {
-        return JsonbValue::Unknown;
+        return jsonb_unresolved(unresolved_flavor);
     };
     if let JsonbValue::NonNull(facts) = input {
         if index == Int4Value::Null {
@@ -246,7 +254,7 @@ pub fn sql__pg_catalog__jsonb_array_element__08oi(
                 };
             };
         };
-        return JsonbValue::Unknown;
+        return jsonb_unresolved(unresolved_flavor);
     };
     if let JsonbValue::Value(value) = input {
         if let Int4Value::Value(position) = index {
@@ -300,6 +308,8 @@ pub fn sql__pg_catalog__jsonb_array_element_text__83ql(
 }
 
 pub fn sql__pg_catalog__jsonb_array_length__1gng(input: JsonbValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
     if let JsonbValue::Error(error) = input {
         return Int4Value::Error(error);
     };
@@ -316,7 +326,7 @@ pub fn sql__pg_catalog__jsonb_array_length__1gng(input: JsonbValue) -> Int4Value
         if jsonb_has_shape(&facts) && jsonb_root_allows(&facts, 5) == false {
             return Int4Value::Error(make_sql_error(JSONB_EXTRACT_PARAMETER));
         };
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     };
     if let JsonbValue::Value(value) = input {
         let root = value.nodes[value.root];
@@ -331,10 +341,13 @@ pub fn sql__pg_catalog__jsonb_array_length__1gng(input: JsonbValue) -> Int4Value
         }
         return Int4Value::Value(count);
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__jsonb_exists__f8f8(input: JsonbValue, key: TextValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unknown = key { unresolved_flavor = 1; };
     if let JsonbValue::Error(error) = input {
         return BoolValue::Error(error);
     };
@@ -342,10 +355,10 @@ pub fn sql__pg_catalog__jsonb_exists__f8f8(input: JsonbValue, key: TextValue) ->
         return BoolValue::Error(error);
     };
     if let JsonbValue::Unknown = input {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if key == TextValue::Unknown || key == TextValue::NonNull {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if let JsonbValue::NonNull(facts) = input {
         if key == TextValue::Null {
@@ -363,7 +376,7 @@ pub fn sql__pg_catalog__jsonb_exists__f8f8(input: JsonbValue, key: TextValue) ->
                 };
             };
         };
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if let JsonbValue::Value(value) = input {
         if let TextValue::Value(text) = key {

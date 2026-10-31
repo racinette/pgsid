@@ -3,11 +3,13 @@ const OID_ALIAS_INVALID_SIGNATURE: u32 = 3484946;
 const OID_ALIAS_INVALID_TYPE: u32 = 6819553;
 
 pub fn oid_alias_from_text(input: TextValue, dash: bool, grammar: i32) -> OidValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input { return OidValue::Error(error); };
     if input == TextValue::Null { return OidValue::Null; };
     if let TextValue::Value(text) = input {
         let chars: Vec<char> = text.chars().collect();
-        if chars.len() > 4096 { return OidValue::Unknown; };
+        if chars.len() > 4096 { return oid_unresolved(unresolved_flavor); };
         if dash && chars.len() == 1 && chars[0] == '-' { return make_oid_value(0i64); };
         let mut numeric = chars.len() != 0;
         let mut whitespace = true;
@@ -30,10 +32,12 @@ pub fn oid_alias_from_text(input: TextValue, dash: bool, grammar: i32) -> OidVal
             return OidValue::Error(make_sql_error(OID_ALIAS_INVALID_NAME));
         };
     };
-    OidValue::Unknown
+    oid_unresolved(unresolved_flavor)
 }
 
 pub fn oid_alias_to_text(input: OidValue, dash: bool) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let OidValue::Unknown = input { unresolved_flavor = 1; };
     if let OidValue::Error(error) = input { return TextValue::Error(error); };
     if input == OidValue::Null { return TextValue::Null; };
     if let OidValue::Value(value) = input {
@@ -42,7 +46,7 @@ pub fn oid_alias_to_text(input: OidValue, dash: bool) -> TextValue {
             return TextValue::Value("0".to_owned());
         };
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 fn oid_alias_lookup(input: TextValue, dash: bool, grammar: i32) -> OidValue {
@@ -85,11 +89,13 @@ pub fn sql__pg_catalog__to_regtype__t5ks(input: TextValue) -> OidValue { oid_ali
 
 
 pub fn sql__pg_catalog__regclass__wqix(input: TextValue) -> OidValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input { return OidValue::Error(error); };
     if input == TextValue::Null { return OidValue::Null; };
     if let TextValue::Value(text) = input {
         let chars: Vec<char> = text.chars().collect();
-        if chars.len() > 4096 { return OidValue::Unknown; };
+        if chars.len() > 4096 { return oid_unresolved(unresolved_flavor); };
         let mut whitespace = true;
         let mut index: usize = 0;
         while index < chars.len() {
@@ -98,5 +104,5 @@ pub fn sql__pg_catalog__regclass__wqix(input: TextValue) -> OidValue {
         };
         if whitespace { return OidValue::Error(make_sql_error(OID_ALIAS_INVALID_NAME)); };
     };
-    OidValue::Unknown
+    oid_unresolved(unresolved_flavor)
 }

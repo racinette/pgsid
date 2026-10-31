@@ -1,4 +1,7 @@
 fn circle_from_center_radius(center: PointValue, radius: Float8Value) -> CircleValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PointValue::Unknown = center { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = radius { unresolved_flavor = 1; };
     if let PointValue::Error(error) = center {
         return CircleValue::Error(error);
     };
@@ -6,7 +9,7 @@ fn circle_from_center_radius(center: PointValue, radius: Float8Value) -> CircleV
         return CircleValue::Error(error);
     };
     if center == PointValue::Unknown || radius == Float8Value::Unknown {
-        return CircleValue::Unknown;
+        return circle_unresolved(unresolved_flavor);
     };
     if center == PointValue::Null || radius == Float8Value::Null {
         return CircleValue::Null;
@@ -22,9 +25,11 @@ fn circle_from_center_radius(center: PointValue, radius: Float8Value) -> CircleV
             });
         };
     };
-    CircleValue::Unknown
+    circle_unresolved(unresolved_flavor)
 }
 fn circle_center_value(input: CircleValue) -> PointValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let CircleValue::Unknown = input { unresolved_flavor = 1; };
     if let CircleValue::Error(error) = input {
         return PointValue::Error(error);
     };
@@ -40,9 +45,11 @@ fn circle_center_value(input: CircleValue) -> PointValue {
                     && float8_number(value.y) == float8_number(value.y)),
         });
     };
-    PointValue::Unknown
+    point_unresolved(unresolved_flavor)
 }
 fn circle_radius_value(input: CircleValue) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let CircleValue::Unknown = input { unresolved_flavor = 1; };
     if let CircleValue::Error(error) = input {
         return Float8Value::Error(error);
     };
@@ -56,7 +63,7 @@ fn circle_radius_value(input: CircleValue) -> Float8Value {
         };
         return make_float8_bits(value.radius);
     };
-    Float8Value::Unknown
+    float8_unresolved(unresolved_flavor)
 }
 fn circle_area_value(input: CircleValue) -> Float8Value {
     let radius = circle_radius_value(input);
@@ -66,6 +73,9 @@ fn circle_area_value(input: CircleValue) -> Float8Value {
     ))
 }
 fn circle_pair_status(left: CircleValue, right: CircleValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let CircleValue::Unknown = left { unresolved_flavor = 1; };
+    if let CircleValue::Unknown = right { unresolved_flavor = 1; };
     if let CircleValue::Error(error) = left {
         return BoolValue::Error(error);
     };
@@ -73,7 +83,7 @@ fn circle_pair_status(left: CircleValue, right: CircleValue) -> BoolValue {
         return BoolValue::Error(error);
     };
     if left == CircleValue::Unknown || right == CircleValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if left == CircleValue::Null || right == CircleValue::Null {
         return BoolValue::Null;
@@ -81,6 +91,9 @@ fn circle_pair_status(left: CircleValue, right: CircleValue) -> BoolValue {
     make_bool_value(true)
 }
 fn circle_area_relation(left: CircleValue, right: CircleValue, mode: i32) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let CircleValue::Unknown = left { unresolved_flavor = 1; };
+    if let CircleValue::Unknown = right { unresolved_flavor = 1; };
     let status = circle_pair_status(left, right);
     if status != BoolValue::Value(true) {
         return status;
@@ -117,9 +130,12 @@ fn circle_area_relation(left: CircleValue, right: CircleValue, mode: i32) -> Boo
             return make_bool_value(x != y && (x - y).abs() > 0.000001f64);
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 fn circle_same_value(left: CircleValue, right: CircleValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let CircleValue::Unknown = left { unresolved_flavor = 1; };
+    if let CircleValue::Unknown = right { unresolved_flavor = 1; };
     let status = circle_pair_status(left, right);
     if status != BoolValue::Value(true) {
         return status;
@@ -139,9 +155,11 @@ fn circle_same_value(left: CircleValue, right: CircleValue) -> BoolValue {
             return make_bool_value(false);
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 fn circle_binary(input: CircleValue) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let CircleValue::Unknown = input { unresolved_flavor = 1; };
     if let CircleValue::Error(error) = input {
         return ByteaValue::Error(error);
     };
@@ -157,9 +175,11 @@ fn circle_binary(input: CircleValue) -> ByteaValue {
             sql__pg_catalog__float8send__3bqt(circle_radius_value(input)),
         );
     };
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }
 fn circle_inscribed_box(input: CircleValue) -> BoxValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let CircleValue::Unknown = input { unresolved_flavor = 1; };
     if let CircleValue::Error(error) = input {
         return BoxValue::Error(error);
     };
@@ -183,7 +203,7 @@ fn circle_inscribed_box(input: CircleValue) -> BoxValue {
             );
         };
     };
-    BoxValue::Unknown
+    box_unresolved(unresolved_flavor)
 }
 fn circle_from_box(input: BoxValue) -> CircleValue {
     let center = box_midpoint(input);

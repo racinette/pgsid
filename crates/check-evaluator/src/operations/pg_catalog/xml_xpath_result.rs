@@ -26,18 +26,20 @@ pub(crate) fn xpath_xml_result_push(input: XPathXmlResult, value: XmlValue, stat
 }
 
 fn xpath_result_count(input: &XPathValue) -> Int4Value {
+    let unresolved_flavor: i32 = 0;
     if input.state < 0 { return Int4Value::Error(make_sql_error(SQLSTATE_INVALID_XPATH)); };
-    if input.state != 0 { return Int4Value::Unknown; };
+    if input.state != 0 { return int4_unresolved(unresolved_flavor); };
     if input.kind == XPATH_KIND_NODES { return Int4Value::Value(input.nodes.values.len() as i32); };
     if input.kind == XPATH_KIND_BOOLEAN || input.kind == XPATH_KIND_NUMBER || input.kind == XPATH_KIND_STRING { return Int4Value::Value(1); };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 fn xpath_result_exists(input: &XPathValue) -> BoolValue {
+    let unresolved_flavor: i32 = 0;
     let count = xpath_result_count(input);
     if let Int4Value::Error(error) = count { return BoolValue::Error(error); };
     if let Int4Value::Value(value) = count { return BoolValue::Value(value > 0); };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub(crate) fn xpath_result_to_xml(input: XPathValue, tree: &XmlTree, graph: &XPathGraph, extra: i32, known: bool) -> XPathXmlResult {
@@ -264,11 +266,12 @@ fn xpath_copy_doctype(tree: &XmlTree, node: XmlTreeNode) -> String {
 }
 
 fn xpath_node_to_xml(tree: &XmlTree, graph: &XPathGraph, value: XPathReference) -> XmlValue {
+    let unresolved_flavor: i32 = 0;
     if value.kind != 0 || tree.nodes[value.node].kind == 2 {
         let text = xpath_reference_string(tree,graph,value);
         let escaped = xml_element_value_escape(TextValue::Value(text),true);
         if let TextValue::Value(output) = escaped { return XmlValue::Value(output); };
-        return XmlValue::Unknown;
+        return xml_unresolved(unresolved_flavor);
     };
     let namespaces = xpath_copy_namespaces(tree,value.node);
     let mut stack: Vec<XPathCopyWrite> = Vec::new();
@@ -345,7 +348,7 @@ fn xpath_node_to_xml(tree: &XmlTree, graph: &XPathGraph, value: XPathReference) 
         };
     }
     if complete == false {
-        if tree.serialization_gap { return XmlValue::Unknown; };
+        if tree.serialization_gap { return xml_unresolved(unresolved_flavor); };
         return make_xml_non_null(BoolValue::Value(true));
     };
     XmlValue::Value(output)

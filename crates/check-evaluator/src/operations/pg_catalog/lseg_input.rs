@@ -1,4 +1,6 @@
 pub fn lseg_from_text(input: TextValue) -> LsegValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return LsegValue::Error(error);
     };
@@ -8,12 +10,12 @@ pub fn lseg_from_text(input: TextValue) -> LsegValue {
     if let TextValue::Value(value) = input {
         let chars: Vec<char> = value.chars().collect();
         if chars.len() > 4096 {
-            return LsegValue::Unknown;
+            return lseg_unresolved(unresolved_flavor);
         };
         let source = GeometryInputText { chars };
         let index = geometry_input_space(&source, 0);
         let pair = geometry_read_pair(&source, index);
         return sql__pg_catalog__lseg__l9bc(pair.first, pair.second);
     };
-    LsegValue::Unknown
+    lseg_unresolved(unresolved_flavor)
 }

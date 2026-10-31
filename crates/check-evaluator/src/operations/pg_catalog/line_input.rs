@@ -1,6 +1,10 @@
 const LINE_POINTS_ARGUMENT: u32 = 3452619;
 
 fn line_from_scalars(first: Float8Value, second: Float8Value, third: Float8Value) -> LineValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = first { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = second { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = third { unresolved_flavor = 1; };
     if let Float8Value::Error(error) = first {
         return LineValue::Error(error);
     };
@@ -14,7 +18,7 @@ fn line_from_scalars(first: Float8Value, second: Float8Value, third: Float8Value
         || second == Float8Value::Unknown
         || third == Float8Value::Unknown
     {
-        return LineValue::Unknown;
+        return line_unresolved(unresolved_flavor);
     };
     if first == Float8Value::Null || second == Float8Value::Null || third == Float8Value::Null {
         return LineValue::Null;
@@ -40,7 +44,7 @@ fn line_from_scalars(first: Float8Value, second: Float8Value, third: Float8Value
             };
         };
     };
-    LineValue::Unknown
+    line_unresolved(unresolved_flavor)
 }
 fn line_origin_coordinate(point: PointPayload, horizontal: bool) -> Float8Value {
     let mut bits = point.x;
@@ -54,6 +58,8 @@ fn line_origin_coordinate(point: PointPayload, horizontal: bool) -> Float8Value 
     make_float8_bits(bits)
 }
 fn line_from_origin_slope(origin: PointPayload, gradient: Float8Value) -> LineValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = gradient { unresolved_flavor = 1; };
     if let Float8Value::Error(error) = gradient {
         return LineValue::Error(error);
     };
@@ -86,9 +92,12 @@ fn line_from_origin_slope(origin: PointPayload, gradient: Float8Value) -> LineVa
         };
         return line_from_scalars(gradient, make_float8_value(-1.0f64), intercept);
     };
-    LineValue::Unknown
+    line_unresolved(unresolved_flavor)
 }
 fn line_from_points(left: PointValue, right: PointValue, invalid: u32) -> LineValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PointValue::Unknown = left { unresolved_flavor = 1; };
+    if let PointValue::Unknown = right { unresolved_flavor = 1; };
     if let PointValue::Error(error) = left {
         return LineValue::Error(error);
     };
@@ -96,7 +105,7 @@ fn line_from_points(left: PointValue, right: PointValue, invalid: u32) -> LineVa
         return LineValue::Error(error);
     };
     if left == PointValue::Unknown || right == PointValue::Unknown {
-        return LineValue::Unknown;
+        return line_unresolved(unresolved_flavor);
     };
     if left == PointValue::Null || right == PointValue::Null {
         return LineValue::Null;
@@ -109,7 +118,7 @@ fn line_from_points(left: PointValue, right: PointValue, invalid: u32) -> LineVa
             return line_from_origin_slope(first, sql__pg_catalog__slope__xxph(left, right));
         };
     };
-    LineValue::Unknown
+    line_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__line__qygi(left: PointValue, right: PointValue) -> LineValue {
     line_from_points(left, right, LINE_POINTS_ARGUMENT)
@@ -178,6 +187,7 @@ fn geometry_read_point(source: &GeometryInputText, begin: usize) -> GeometryInpu
     }
 }
 fn line_parse_coefficients(source: &GeometryInputText, begin: usize) -> LineValue {
+    let unresolved_flavor: i32 = 0;
     let mut index = begin;
     let mut first = Float8Value::Unknown;
     let mut second = Float8Value::Unknown;
@@ -190,7 +200,7 @@ fn line_parse_coefficients(source: &GeometryInputText, begin: usize) -> LineValu
             return LineValue::Error(error);
         };
         if number_value == Float8Value::Unknown {
-            return LineValue::Unknown;
+            return line_unresolved(unresolved_flavor);
         };
         if count == 0 {
             first = number_value;
@@ -221,9 +231,10 @@ fn line_parse_coefficients(source: &GeometryInputText, begin: usize) -> LineValu
     result
 }
 fn line_parse(value: &str) -> LineValue {
+    let unresolved_flavor: i32 = 0;
     let chars: Vec<char> = value.chars().collect();
     if chars.len() > 4096 {
-        return LineValue::Unknown;
+        return line_unresolved(unresolved_flavor);
     };
     let source = GeometryInputText { chars: chars };
     let mut index = geometry_input_space(&source, 0);
@@ -308,6 +319,8 @@ fn geometry_read_pair(source: &GeometryInputText, begin: usize) -> GeometryInput
     }
 }
 pub fn line_from_text(input: TextValue) -> LineValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return LineValue::Error(error);
     };
@@ -317,5 +330,5 @@ pub fn line_from_text(input: TextValue) -> LineValue {
     if let TextValue::Value(value) = input {
         return line_parse(value.as_str());
     };
-    LineValue::Unknown
+    line_unresolved(unresolved_flavor)
 }

@@ -1,6 +1,8 @@
 const FLOAT_CORE_RANGE: u32 = 3452547;
 
 fn float4_widen(input: Float4Value) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float4Value::Unknown = input { unresolved_flavor = 1; };
     if input == Float4Value::UnspecifiedNan { return Float8Value::UnspecifiedNan; };
     if let Float4Value::Error(error) = input {
         return Float8Value::Error(error);
@@ -13,10 +15,12 @@ fn float4_widen(input: Float4Value) -> Float8Value {
         if number != number { return Float8Value::UnspecifiedNan; };
         return make_float8_value(number);
     };
-    Float8Value::Unknown
+    float8_unresolved(unresolved_flavor)
 }
 
 fn float8_narrow(input: Float8Value) -> Float4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = input { unresolved_flavor = 1; };
     if input == Float8Value::UnspecifiedNan { return Float4Value::UnspecifiedNan; };
     if let Float8Value::Error(error) = input {
         return Float4Value::Error(error);
@@ -37,10 +41,13 @@ fn float8_narrow(input: Float8Value) -> Float4Value {
         };
         return make_float4_bits(rounded_bits);
     };
-    Float4Value::Unknown
+    float4_unresolved(unresolved_flavor)
 }
 
 fn float8_compare(left: Float8Value, right: Float8Value) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = left { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = right { unresolved_flavor = 1; };
     if let Float8Value::Error(error) = left {
         return Int4Value::Error(error);
     }
@@ -48,7 +55,7 @@ fn float8_compare(left: Float8Value, right: Float8Value) -> Int4Value {
         return Int4Value::Error(error);
     }
     if left == Float8Value::Unknown || right == Float8Value::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if left == Float8Value::Null || right == Float8Value::Null {
         return Int4Value::Null;
@@ -77,11 +84,13 @@ fn float8_compare(left: Float8Value, right: Float8Value) -> Int4Value {
             return Int4Value::Value(0);
         };
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 
 fn float8_integer(input: Float8Value) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = input { unresolved_flavor = 1; };
     if let Float8Value::Error(error) = input {
         return Int8Value::Error(error);
     }
@@ -131,10 +140,12 @@ fn float8_integer(input: Float8Value) -> Int8Value {
         }
         return Int8Value::Value(coefficient);
     };
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 fn integer_float4(input: Int8Value) -> Float4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = input { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = input {
         return Float4Value::Error(error);
     }
@@ -171,10 +182,12 @@ fn integer_float4(input: Int8Value) -> Float4Value {
         }
         return make_float4_value(result);
     };
-    Float4Value::Unknown
+    float4_unresolved(unresolved_flavor)
 }
 
 fn integer_float8(input: Int8Value) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = input { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = input {
         return Float8Value::Error(error);
     }
@@ -186,7 +199,7 @@ fn integer_float8(input: Int8Value) -> Float8Value {
         let value = text.as_str().parse::<f64>().unwrap_or(0.0f64);
         return make_float8_value(value);
     };
-    Float8Value::Unknown
+    float8_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__btfloat48cmp__r29z(left: Float4Value, right: Float8Value) -> Int4Value {
@@ -326,6 +339,8 @@ pub fn sql__pg_catalog__float8__1dvp(input: Int8Value) -> Float8Value {
 }
 
 pub fn sql__pg_catalog__int2__pv8l(input: Float4Value) -> Int2Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float4Value::Unknown = input { unresolved_flavor = 1; };
     let result = float8_integer(float4_widen(input));
     if let Int8Value::Error(error) = result {
         return Int2Value::Error(error);
@@ -339,10 +354,12 @@ pub fn sql__pg_catalog__int2__pv8l(input: Float4Value) -> Int2Value {
         }
         return Int2Value::Value(number as i32);
     };
-    Int2Value::Unknown
+    int2_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__int4__tbuy(input: Float4Value) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float4Value::Unknown = input { unresolved_flavor = 1; };
     let result = float8_integer(float4_widen(input));
     if let Int8Value::Error(error) = result {
         return Int4Value::Error(error);
@@ -356,7 +373,7 @@ pub fn sql__pg_catalog__int4__tbuy(input: Float4Value) -> Int4Value {
         }
         return Int4Value::Value(number as i32);
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__int8__85by(input: Float4Value) -> Int8Value {
@@ -368,6 +385,8 @@ pub fn sql__pg_catalog__float8__qcwm(input: Float4Value) -> Float8Value {
 }
 
 pub fn sql__pg_catalog__int2__68cf(input: Float8Value) -> Int2Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = input { unresolved_flavor = 1; };
     let result = float8_integer(input);
     if let Int8Value::Error(error) = result {
         return Int2Value::Error(error);
@@ -381,10 +400,12 @@ pub fn sql__pg_catalog__int2__68cf(input: Float8Value) -> Int2Value {
         }
         return Int2Value::Value(number as i32);
     };
-    Int2Value::Unknown
+    int2_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__int4__nc79(input: Float8Value) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = input { unresolved_flavor = 1; };
     let result = float8_integer(input);
     if let Int8Value::Error(error) = result {
         return Int4Value::Error(error);
@@ -398,7 +419,7 @@ pub fn sql__pg_catalog__int4__nc79(input: Float8Value) -> Int4Value {
         }
         return Int4Value::Value(number as i32);
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__int8__kmmw(input: Float8Value) -> Int8Value {

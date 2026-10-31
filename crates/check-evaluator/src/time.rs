@@ -46,6 +46,8 @@ fn clock_input_complete(text: &str) -> String {
 }
 
 fn clock_grammar_normalized(input: TextValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Value(value) = input {
         let chars: Vec<char> = value.chars().collect();
         let mut start: usize = 0;
@@ -89,7 +91,7 @@ fn clock_grammar_normalized(input: TextValue) -> TextValue {
                         return TextValue::Error(error);
                     };
                     if parsed == DateValue::Unknown {
-                        return TextValue::Unknown;
+                        return text_unresolved(unresolved_flavor);
                     };
                     start = position + 1;
                     while start < end && date_text_space(chars[start]) {
@@ -199,6 +201,8 @@ fn clock_grammar_normalized(input: TextValue) -> TextValue {
 }
 
 fn clock_input_text(raw_input: TextValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = raw_input { unresolved_flavor = 1; };
     let input = clock_grammar_normalized(raw_input);
     if let TextValue::Value(value) = input {
         let text = TimestampText {
@@ -235,7 +239,7 @@ fn clock_input_text(raw_input: TextValue) -> TextValue {
         }
         if digit_count == 0 {
             if keyword == "now" {
-                return TextValue::Unknown;
+                return text_unresolved(unresolved_flavor);
             };
             if keyword == "allballs" {
                 return make_text_value("2000-01-01 00:00:00+00");
@@ -283,7 +287,7 @@ fn clock_input_text(raw_input: TextValue) -> TextValue {
         if meridian != 0 {
             let hours = read_timestamp_number(&text, start, end);
             if hours.digits == 0 || hours.next == end || text.chars[hours.next] != ':' {
-                return TextValue::Unknown;
+                return text_unresolved(unresolved_flavor);
             };
             if hours.overflow || hours.value > 12 {
                 return TextValue::Error(make_sql_error(CLOCK_INPUT_RANGE));
@@ -312,6 +316,8 @@ fn clock_input_text(raw_input: TextValue) -> TextValue {
 }
 
 pub fn time_from_text(input: TextValue) -> TimeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     let parsed = parse_timestamp_text(clock_input_text(input), false);
     if let Int8Value::Error(error) = parsed {
         return TimeValue::Error(error);
@@ -322,10 +328,12 @@ pub fn time_from_text(input: TextValue) -> TimeValue {
     if let Int8Value::Value(time) = parsed {
         return make_time_value(time);
     };
-    TimeValue::Unknown
+    time_unresolved(unresolved_flavor)
 }
 
 pub fn timetz_from_text(input: TextValue) -> TimetzValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     let normalized = clock_input_text(input);
     let local = parse_timestamp_text(normalized.clone(), false);
     let utc = parse_timestamp_text(normalized, true);
@@ -344,5 +352,5 @@ pub fn timetz_from_text(input: TextValue) -> TimetzValue {
             return make_timetz_value(time, zone as i32);
         };
     };
-    TimetzValue::Unknown
+    timetz_unresolved(unresolved_flavor)
 }

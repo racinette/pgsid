@@ -1,4 +1,7 @@
 pub fn sql__pg_catalog__int4gt__5vlv(left: Int4Value, right: Int4Value) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = left { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = right { unresolved_flavor = 1; };
     if let Int4Value::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -9,17 +12,20 @@ pub fn sql__pg_catalog__int4gt__5vlv(left: Int4Value, right: Int4Value) -> BoolV
         return BoolValue::Null;
     }
     if left == Int4Value::Unknown || right == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if let Int4Value::Value(left_value) = left {
         if let Int4Value::Value(right_value) = right {
             return BoolValue::Value(left_value > right_value);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__int4eq__lrxe(left: Int4Value, right: Int4Value) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = left { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = right { unresolved_flavor = 1; };
     if let Int4Value::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -30,17 +36,20 @@ pub fn sql__pg_catalog__int4eq__lrxe(left: Int4Value, right: Int4Value) -> BoolV
         return BoolValue::Null;
     }
     if left == Int4Value::Unknown || right == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if let Int4Value::Value(left_value) = left {
         if let Int4Value::Value(right_value) = right {
             return BoolValue::Value(left_value == right_value);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__int4ge__2xvk(left: Int4Value, right: Int4Value) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = left { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = right { unresolved_flavor = 1; };
     if let Int4Value::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -51,17 +60,20 @@ pub fn sql__pg_catalog__int4ge__2xvk(left: Int4Value, right: Int4Value) -> BoolV
         return BoolValue::Null;
     }
     if left == Int4Value::Unknown || right == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if let Int4Value::Value(left_value) = left {
         if let Int4Value::Value(right_value) = right {
             return BoolValue::Value(left_value >= right_value);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__int4le__9wb6(left: Int4Value, right: Int4Value) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = left { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = right { unresolved_flavor = 1; };
     if let Int4Value::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -72,17 +84,20 @@ pub fn sql__pg_catalog__int4le__9wb6(left: Int4Value, right: Int4Value) -> BoolV
         return BoolValue::Null;
     }
     if left == Int4Value::Unknown || right == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if let Int4Value::Value(left_value) = left {
         if let Int4Value::Value(right_value) = right {
             return BoolValue::Value(left_value <= right_value);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__int4lt__9gej(left: Int4Value, right: Int4Value) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = left { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = right { unresolved_flavor = 1; };
     if let Int4Value::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -93,17 +108,20 @@ pub fn sql__pg_catalog__int4lt__9gej(left: Int4Value, right: Int4Value) -> BoolV
         return BoolValue::Null;
     }
     if left == Int4Value::Unknown || right == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if let Int4Value::Value(left_value) = left {
         if let Int4Value::Value(right_value) = right {
             return BoolValue::Value(left_value < right_value);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__int4ne__qhun(left: Int4Value, right: Int4Value) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = left { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = right { unresolved_flavor = 1; };
     if let Int4Value::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -114,19 +132,22 @@ pub fn sql__pg_catalog__int4ne__qhun(left: Int4Value, right: Int4Value) -> BoolV
         return BoolValue::Null;
     }
     if left == Int4Value::Unknown || right == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if let Int4Value::Value(left_value) = left {
         if let Int4Value::Value(right_value) = right {
             return BoolValue::Value(left_value != right_value);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 const SQLSTATE_NUMERIC_VALUE_OUT_OF_RANGE: u32 = 3452547;
 
 pub fn sql__pg_catalog__int4pl__sj3s(left: Int4Value, right: Int4Value) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = left { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = right { unresolved_flavor = 1; };
     if let Int4Value::Error(error) = left {
         return Int4Value::Error(error);
     }
@@ -137,7 +158,7 @@ pub fn sql__pg_catalog__int4pl__sj3s(left: Int4Value, right: Int4Value) -> Int4V
         return Int4Value::Null;
     }
     if left == Int4Value::Unknown || right == Int4Value::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if let Int4Value::Value(left_value) = left {
         if let Int4Value::Value(right_value) = right {
@@ -151,10 +172,13 @@ pub fn sql__pg_catalog__int4pl__sj3s(left: Int4Value, right: Int4Value) -> Int4V
             return Int4Value::Value(left_value + right_value);
         }
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__int4mi__dtqk(left: Int4Value, right: Int4Value) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = left { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = right { unresolved_flavor = 1; };
     if let Int4Value::Error(error) = left {
         return Int4Value::Error(error);
     }
@@ -165,7 +189,7 @@ pub fn sql__pg_catalog__int4mi__dtqk(left: Int4Value, right: Int4Value) -> Int4V
         return Int4Value::Null;
     }
     if left == Int4Value::Unknown || right == Int4Value::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if let Int4Value::Value(left_value) = left {
         if let Int4Value::Value(right_value) = right {
@@ -179,12 +203,15 @@ pub fn sql__pg_catalog__int4mi__dtqk(left: Int4Value, right: Int4Value) -> Int4V
             return Int4Value::Value(left_value - right_value);
         }
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 const SQLSTATE_DIVISION_BY_ZERO: u32 = 3452582;
 
 pub fn sql__pg_catalog__int4mul__284v(left: Int4Value, right: Int4Value) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = left { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = right { unresolved_flavor = 1; };
     if let Int4Value::Error(error) = left {
         return Int4Value::Error(error);
     }
@@ -195,7 +222,7 @@ pub fn sql__pg_catalog__int4mul__284v(left: Int4Value, right: Int4Value) -> Int4
         return Int4Value::Null;
     }
     if left == Int4Value::Unknown || right == Int4Value::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if let Int4Value::Value(left_value) = left {
         if let Int4Value::Value(right_value) = right {
@@ -215,10 +242,13 @@ pub fn sql__pg_catalog__int4mul__284v(left: Int4Value, right: Int4Value) -> Int4
             return Int4Value::Value(left_value * right_value);
         }
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__int4div__8ogr(left: Int4Value, right: Int4Value) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = left { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = right { unresolved_flavor = 1; };
     if let Int4Value::Error(error) = left {
         return Int4Value::Error(error);
     }
@@ -229,7 +259,7 @@ pub fn sql__pg_catalog__int4div__8ogr(left: Int4Value, right: Int4Value) -> Int4
         return Int4Value::Null;
     }
     if left == Int4Value::Unknown || right == Int4Value::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if let Int4Value::Value(left_value) = left {
         if let Int4Value::Value(right_value) = right {
@@ -242,10 +272,13 @@ pub fn sql__pg_catalog__int4div__8ogr(left: Int4Value, right: Int4Value) -> Int4
             return Int4Value::Value(left_value / right_value);
         }
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__int4mod__j4pe(left: Int4Value, right: Int4Value) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = left { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = right { unresolved_flavor = 1; };
     if let Int4Value::Error(error) = left {
         return Int4Value::Error(error);
     }
@@ -256,7 +289,7 @@ pub fn sql__pg_catalog__int4mod__j4pe(left: Int4Value, right: Int4Value) -> Int4
         return Int4Value::Null;
     }
     if left == Int4Value::Unknown || right == Int4Value::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if let Int4Value::Value(left_value) = left {
         if let Int4Value::Value(right_value) = right {
@@ -269,7 +302,7 @@ pub fn sql__pg_catalog__int4mod__j4pe(left: Int4Value, right: Int4Value) -> Int4
             return Int4Value::Value(left_value % right_value);
         }
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__abs__5ajw(input: Int4Value) -> Int4Value {

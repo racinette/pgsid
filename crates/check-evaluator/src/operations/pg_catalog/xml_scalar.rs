@@ -4,10 +4,12 @@ const SQLSTATE_INVALID_XML_COMMENT: u32 = 3452572;
 const SQLSTATE_NOT_XML_DOCUMENT: u32 = 3452565;
 
 pub fn xml_from_storage_text(input: TextValue) -> XmlValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input { return XmlValue::Error(error); };
     if let TextValue::Null = input { return XmlValue::Null; };
     if let TextValue::Value(value) = input { return make_xml_value(value.as_str()); };
-    XmlValue::Unknown
+    xml_unresolved(unresolved_flavor)
 }
 
 fn xml_text_encoding_available(input: &str, utf8: bool) -> bool {
@@ -22,22 +24,24 @@ fn xml_text_encoding_available(input: &str, utf8: bool) -> bool {
 }
 
 pub fn xml_from_text_context(input: TextValue, mode: i32, utf8: bool) -> XmlValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input { return XmlValue::Error(error); };
     if let TextValue::Null = input { return XmlValue::Null; };
     if let TextValue::Value(value) = input {
-        if xml_text_encoding_available(value.as_str(),utf8) == false { return XmlValue::Unknown; };
+        if xml_text_encoding_available(value.as_str(),utf8) == false { return xml_unresolved(unresolved_flavor); };
         if mode == 0 {
             if xml_well_formed(value.as_str(),true) && xml_well_formed(value.as_str(),false) {
                 return make_xml_value(value.as_str());
             };
-            return XmlValue::Unknown;
+            return xml_unresolved(unresolved_flavor);
         };
-        if mode != 1 && mode != 2 { return XmlValue::Unknown; };
+        if mode != 1 && mode != 2 { return xml_unresolved(unresolved_flavor); };
         let text = TextValue::Value(value);
         let document = mode == 1;
         return xml_from_text_utf8(text,document);
     };
-    XmlValue::Unknown
+    xml_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__xml__8nn5(input: TextValue, mode: i32, utf8: bool) -> XmlValue {
@@ -45,19 +49,23 @@ pub fn sql__pg_catalog__xml__8nn5(input: TextValue, mode: i32, utf8: bool) -> Xm
 }
 
 pub fn xml_is_document_context(input: XmlValue, utf8: bool) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let XmlValue::Unknown = input { unresolved_flavor = 1; };
     if utf8 { return xml_is_document_utf8(input); };
     let stored = input.clone();
     if let XmlValue::Value(value) = stored {
-        if xml_text_encoding_available(value.as_str(),utf8) == false { return BoolValue::Unknown; };
+        if xml_text_encoding_available(value.as_str(),utf8) == false { return bool_unresolved(unresolved_flavor); };
     };
     let rendered = input.clone();
     if let XmlValue::RenderedText(value) = rendered {
-        if xml_text_encoding_available(value.as_str(),utf8) == false { return BoolValue::Unknown; };
+        if xml_text_encoding_available(value.as_str(),utf8) == false { return bool_unresolved(unresolved_flavor); };
     };
     xml_is_document_utf8(input)
 }
 
 pub fn xml_serialize_context(input: XmlValue, mode: i32, indent: bool, utf8: bool) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let XmlValue::Unknown = input { unresolved_flavor = 1; };
     if let XmlValue::Error(error) = input { return TextValue::Error(error); };
     if let XmlValue::Null = input { return TextValue::Null; };
     if indent { return xml_indent_utf8(input,mode == 1,utf8); };
@@ -68,19 +76,23 @@ pub fn xml_serialize_context(input: XmlValue, mode: i32, indent: bool, utf8: boo
             if value == false { return TextValue::Error(make_sql_error(SQLSTATE_NOT_XML_DOCUMENT)); };
             valid = true;
         };
-        if valid == false { return TextValue::Unknown; };
+        if valid == false { return text_unresolved(unresolved_flavor); };
     };
     xml_to_text(input)
 }
 
 pub fn sql__pg_catalog__xml_send__uur7(input: XmlValue, client_utf8: bool) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let XmlValue::Unknown = input { unresolved_flavor = 1; };
     if let XmlValue::Error(error) = input { return ByteaValue::Error(error); };
     if let XmlValue::Null = input { return ByteaValue::Null; };
-    if client_utf8 == false { return ByteaValue::Unknown; };
+    if client_utf8 == false { return bytea_unresolved(unresolved_flavor); };
     xml_to_bytea_utf8(input)
 }
 
 pub fn xml_from_text_utf8(input: TextValue, document: bool) -> XmlValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input { return XmlValue::Error(error); };
     if let TextValue::Null = input { return XmlValue::Null; };
     if let TextValue::Value(value) = input {
@@ -91,20 +103,22 @@ pub fn xml_from_text_utf8(input: TextValue, document: bool) -> XmlValue {
         };
         return make_xml_value(value.as_str());
     };
-    XmlValue::Unknown
+    xml_unresolved(unresolved_flavor)
 }
 
 pub fn xml_to_text(input: XmlValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let XmlValue::Unknown = input { unresolved_flavor = 1; };
     if let XmlValue::NonNull(knowledge) = input {
         let checked = make_xml_knowledge(knowledge.document,knowledge.content);
         if let XmlValue::NonNull(_) = checked { return TextValue::NonNull; };
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     if let XmlValue::RenderedText(_) = input { return TextValue::NonNull; };
     if let XmlValue::Error(error) = input { return TextValue::Error(error); };
     if let XmlValue::Null = input { return TextValue::Null; };
     if let XmlValue::Value(value) = input { return TextValue::Value(value); };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__text__03xf(input: XmlValue) -> TextValue {
@@ -112,6 +126,8 @@ pub fn sql__pg_catalog__text__03xf(input: XmlValue) -> TextValue {
 }
 
 pub fn xml_to_output_text(input: XmlValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let XmlValue::Unknown = input { unresolved_flavor = 1; };
     if let XmlValue::NonNull(knowledge) = input { return xml_to_text(make_xml_knowledge(knowledge.document,knowledge.content)); };
     if let XmlValue::Error(error) = input { return TextValue::Error(error); };
     if let XmlValue::Null = input { return TextValue::Null; };
@@ -154,10 +170,12 @@ pub fn xml_to_output_text(input: XmlValue) -> TextValue {
         }
         return TextValue::Value(output);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn xml_to_bytea_utf8(input: XmlValue) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let XmlValue::Unknown = input { unresolved_flavor = 1; };
     let output = xml_to_output_text(input);
     if let TextValue::Error(error) = output { return ByteaValue::Error(error); };
     if let TextValue::Null = output { return ByteaValue::Null; };
@@ -172,14 +190,16 @@ pub fn xml_to_bytea_utf8(input: XmlValue) -> ByteaValue {
         }
         return ByteaValue::Value(bytes);
     };
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }
 
 pub fn xml_is_document_utf8(input: XmlValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let XmlValue::Unknown = input { unresolved_flavor = 1; };
     if let XmlValue::NonNull(knowledge) = input {
         let checked = make_xml_knowledge(knowledge.document,knowledge.content);
         if let XmlValue::NonNull(actual) = checked { return actual.document; };
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if let XmlValue::Error(error) = input { return BoolValue::Error(error); };
     if let XmlValue::Null = input { return BoolValue::Null; };
@@ -190,12 +210,14 @@ pub fn xml_is_document_utf8(input: XmlValue) -> BoolValue {
         if xml_well_formed(value.as_str(), true) == false {
             return BoolValue::Value(false);
         };
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__xmltext__a36t(input: TextValue) -> XmlValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input { return XmlValue::Error(error); };
     if let TextValue::Null = input { return XmlValue::Null; };
     if let TextValue::Value(value) = input {
@@ -214,10 +236,12 @@ pub fn sql__pg_catalog__xmltext__a36t(input: TextValue) -> XmlValue {
         }
         return make_xml_value(output.as_str());
     };
-    XmlValue::Unknown
+    xml_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__xmlcomment__8j57(input: TextValue) -> XmlValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input { return XmlValue::Error(error); };
     if let TextValue::Null = input { return XmlValue::Null; };
     if let TextValue::Value(value) = input {
@@ -234,32 +258,37 @@ pub fn sql__pg_catalog__xmlcomment__8j57(input: TextValue) -> XmlValue {
         output.push_str("-->");
         return make_xml_value(output.as_str());
     };
-    XmlValue::Unknown
+    xml_unresolved(unresolved_flavor)
 }
 
 const SQLSTATE_XML_VALIDATION_UNSUPPORTED: u32 = 466560;
 
 pub fn sql__pg_catalog__xmlvalidate__bvje(input: XmlValue, schema: TextValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let XmlValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unknown = schema { unresolved_flavor = 1; };
     if let XmlValue::Error(error) = input { return BoolValue::Error(error); };
     if let TextValue::Error(error) = schema { return BoolValue::Error(error); };
     let input_null = xml_is_null(input);
     let schema_null = text_is_null(schema);
-    if input_null == BoolValue::Unknown || schema_null == BoolValue::Unknown { return BoolValue::Unknown; };
+    if input_null == BoolValue::Unknown || schema_null == BoolValue::Unknown { return bool_unresolved(unresolved_flavor); };
     if input_null == BoolValue::Value(true) || schema_null == BoolValue::Value(true) { return BoolValue::Null; };
     BoolValue::Error(make_sql_error(SQLSTATE_XML_VALIDATION_UNSUPPORTED))
 }
 
 
 pub fn sql__pg_catalog__xml_is_well_formed__wikq(input: TextValue, mode: i32) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input { return BoolValue::Error(error); };
     if let TextValue::Null = input { return BoolValue::Null; };
     if mode == 1 { return xml_well_formed_value(input,true); };
     if mode == 2 { return xml_well_formed_value(input,false); };
-    if mode != 0 { return BoolValue::Unknown; };
+    if mode != 0 { return bool_unresolved(unresolved_flavor); };
     if let TextValue::Value(value) = input {
         let document = xml_well_formed(value.as_str(),true);
         let content = xml_well_formed(value.as_str(),false);
         if document == content { return BoolValue::Value(document); };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }

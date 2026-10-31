@@ -32,6 +32,8 @@ struct JsonArrayPathCandidates {
 }
 
 pub(crate) fn json_array_path_state(input: ArrayValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
     if let ArrayValue::Error(error) = input {
         return Int4Value::Error(error);
     };
@@ -40,7 +42,7 @@ pub(crate) fn json_array_path_state(input: ArrayValue) -> Int4Value {
     };
     if let ArrayValue::Value(value) = input {
         if value.element_type != "pg_catalog.text" || value.element_kind != 8 {
-            return Int4Value::Unknown;
+            return int4_unresolved(unresolved_flavor);
         };
         let mut position: usize = 0;
         while position < value.elements.len() {
@@ -52,7 +54,7 @@ pub(crate) fn json_array_path_state(input: ArrayValue) -> Int4Value {
         }
         return make_int4_value(value.elements.len() as i32);
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub(crate) fn json_array_path_index(input: &str) -> Int4Value {
@@ -404,6 +406,9 @@ pub(crate) fn json_read_array_path(
     as_text: bool,
     utf8: bool,
 ) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonValue::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayValue::Unknown = path { unresolved_flavor = 1; };
     if let JsonValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -418,7 +423,7 @@ pub(crate) fn json_read_array_path(
         return TextValue::Null;
     };
     if path_state == Int4Value::Unknown {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     if let JsonValue::Value(value) = input {
         if let ArrayValue::Value(keys) = path {
@@ -434,12 +439,12 @@ pub(crate) fn json_read_array_path(
             let document = parse_json_array_path_document(value.source.as_str(), utf8);
             if document.state == -2 {
                 if uncertain {
-                    return TextValue::Unknown;
+                    return text_unresolved(unresolved_flavor);
                 };
                 return TextValue::Error(document.error);
             };
             if document.state != 1 || document.root == 0 {
-                return TextValue::Unknown;
+                return text_unresolved(unresolved_flavor);
             };
             let mut initial: Vec<usize> = Vec::new();
             initial.push(document.root);
@@ -452,7 +457,7 @@ pub(crate) fn json_read_array_path(
                 let key = array_element_to_text(keys.elements[index].clone());
                 candidates = json_array_path_next(&document, candidates, key);
                 if candidates.state != 1 {
-                    return TextValue::Unknown;
+                    return text_unresolved(unresolved_flavor);
                 };
                 if candidates.nodes.len() == 0 {
                     return TextValue::Null;
@@ -477,5 +482,5 @@ pub(crate) fn json_read_array_path(
             return json_read_slice(&source, node.start, node.end);
         };
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }

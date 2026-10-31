@@ -21,6 +21,8 @@ fn quote_identifier_capacity(bytes: i64, quotes: i64, sql_text: bool) -> bool {
 }
 
 pub(crate) fn quote_ident_output_context(input: TextValue, quote_all: i32, sql_text: bool) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input { return TextValue::Error(error); };
     if input == TextValue::Null { return TextValue::Null; };
     if let TextValue::Value(text) = input {
@@ -41,7 +43,7 @@ pub(crate) fn quote_ident_output_context(input: TextValue, quote_all: i32, sql_t
             if quote_all != 0 {
                 let bytes = text_build_octets(text.as_str());
                 if quote_identifier_capacity(bytes, 0i64, sql_text) { return TextValue::NonNull; };
-                return TextValue::Unknown;
+                return text_unresolved(unresolved_flavor);
             };
             return TextValue::Value(text);
         };
@@ -61,7 +63,7 @@ pub(crate) fn quote_ident_output_context(input: TextValue, quote_all: i32, sql_t
         output.push('"');
         return TextValue::Value(output);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__quote_ident__dyzt(input: TextValue) -> TextValue {

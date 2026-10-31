@@ -25,6 +25,9 @@ fn temporal_adjust_precision(value: i64, precision: i32) -> Int8Value {
 }
 
 pub fn sql__pg_catalog__timestamp__akly(left: TimestampValue, right: Int4Value) -> TimestampValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestampValue::Unknown = left { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = right { unresolved_flavor = 1; };
     if let TimestampValue::Error(error) = left {
         return TimestampValue::Error(error);
     }
@@ -32,7 +35,7 @@ pub fn sql__pg_catalog__timestamp__akly(left: TimestampValue, right: Int4Value) 
         return TimestampValue::Error(error);
     }
     if left == TimestampValue::Unknown || right == Int4Value::Unknown {
-        return TimestampValue::Unknown;
+        return timestamp_unresolved(unresolved_flavor);
     }
     if left == TimestampValue::Null || right == Int4Value::Null {
         return TimestampValue::Null;
@@ -48,13 +51,16 @@ pub fn sql__pg_catalog__timestamp__akly(left: TimestampValue, right: Int4Value) 
             }
         }
     }
-    TimestampValue::Unknown
+    timestamp_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timestamptz__uwsx(
     left: TimestamptzValue,
     right: Int4Value,
 ) -> TimestamptzValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestamptzValue::Unknown = left { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = right { unresolved_flavor = 1; };
     if let TimestamptzValue::Error(error) = left {
         return TimestamptzValue::Error(error);
     }
@@ -62,7 +68,7 @@ pub fn sql__pg_catalog__timestamptz__uwsx(
         return TimestamptzValue::Error(error);
     }
     if left == TimestamptzValue::Unknown || right == Int4Value::Unknown {
-        return TimestamptzValue::Unknown;
+        return timestamptz_unresolved(unresolved_flavor);
     }
     if left == TimestamptzValue::Null || right == Int4Value::Null {
         return TimestamptzValue::Null;
@@ -78,6 +84,6 @@ pub fn sql__pg_catalog__timestamptz__uwsx(
             }
         }
     }
-    TimestamptzValue::Unknown
+    timestamptz_unresolved(unresolved_flavor)
 }
 

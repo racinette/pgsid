@@ -251,6 +251,8 @@ fn float_input_single(layout: FloatInputLayout) -> Float4Value {
 }
 
 pub fn float4_from_text(input: TextValue) -> Float4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return Float4Value::Error(error);
     }
@@ -275,10 +277,12 @@ pub fn float4_from_text(input: TextValue) -> Float4Value {
             return float_input_single(layout);
         }
     };
-    Float4Value::Unknown
+    float4_unresolved(unresolved_flavor)
 }
 
 pub fn float8_from_text(input: TextValue) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return Float8Value::Error(error);
     }
@@ -315,5 +319,5 @@ pub fn float8_from_text(input: TextValue) -> Float8Value {
             return make_float8_value(value);
         }
     };
-    Float8Value::Unknown
+    float8_unresolved(unresolved_flavor)
 }

@@ -1,4 +1,6 @@
 fn array_string_field(input: &str, marker: TextValue, deterministic: bool) -> ArrayElement {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = marker { unresolved_flavor = 1; };
     if marker == TextValue::Null {
         return array_element_from_text(make_text_value(input));
     };
@@ -10,7 +12,7 @@ fn array_string_field(input: &str, marker: TextValue, deterministic: bool) -> Ar
             return array_element_from_text(make_text_value(input));
         };
     };
-    ArrayElement::Unknown
+    array_element_unresolved(unresolved_flavor)
 }
 
 fn array_string_finish(input: ArrayArguments, count: i32) -> ArrayValue {
@@ -28,6 +30,10 @@ fn array_string_split(
     deterministic: bool,
     utf8: bool,
 ) -> ArrayValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unknown = delimiter { unresolved_flavor = 1; };
+    if let TextValue::Unknown = marker { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return ArrayValue::Error(error);
     };
@@ -52,7 +58,7 @@ fn array_string_split(
             while position < characters.len() {
                 let ch = characters[position];
                 if utf8 == false && (ch as i32) > 127 {
-                    return ArrayValue::Unknown;
+                    return array_unresolved(unresolved_flavor);
                 };
                 let mut field = String::new();
                 field.push(ch);
@@ -71,7 +77,7 @@ fn array_string_split(
                 return array_string_finish(builder, 1);
             };
             if deterministic == false {
-                return ArrayValue::Unknown;
+                return array_unresolved(unresolved_flavor);
             };
             let mut field = String::new();
             while position < characters.len() {
@@ -99,7 +105,7 @@ fn array_string_split(
             return array_string_finish(builder, count + 1);
         };
     };
-    ArrayValue::Unknown
+    array_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__string_to_array__yhwp(
@@ -150,6 +156,10 @@ fn array_string_join(
     delimiter: TextValue,
     marker: TextValue,
 ) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayArguments::Unknown = rendered { unresolved_flavor = 1; };
+    if let TextValue::Unknown = delimiter { unresolved_flavor = 1; };
+    if let TextValue::Unknown = marker { unresolved_flavor = 1; };
     if input.state == -2 {
         return TextValue::Error(input.error);
     };
@@ -157,14 +167,14 @@ fn array_string_join(
         return TextValue::Null;
     };
     if input.state != 1 {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     if let ArrayArguments::Error(error) = rendered {
         return TextValue::Error(error);
     };
     if let ArrayArguments::Value(values) = rendered {
         if values.elements.len() != input.elements.len() {
-            return TextValue::Unknown;
+            return text_unresolved(unresolved_flavor);
         };
         let mut output = String::new();
         let mut printed = false;
@@ -208,7 +218,7 @@ fn array_string_join(
             return TextValue::Value(output);
         };
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__array_to_string__jpbb(

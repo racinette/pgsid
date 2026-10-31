@@ -1,4 +1,7 @@
 fn path_cardinality_relation(left: PathValue, right: PathValue, mode: i32) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PathValue::Unknown = left { unresolved_flavor = 1; };
+    if let PathValue::Unknown = right { unresolved_flavor = 1; };
     if let PathValue::Error(error) = left {
         return BoolValue::Error(error);
     };
@@ -6,10 +9,10 @@ fn path_cardinality_relation(left: PathValue, right: PathValue, mode: i32) -> Bo
         return BoolValue::Error(error);
     };
     if let PathValue::Unknown = left {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if let PathValue::Unknown = right {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if let PathValue::Null = left {
         return BoolValue::Null;
@@ -36,7 +39,7 @@ fn path_cardinality_relation(left: PathValue, right: PathValue, mode: i32) -> Bo
             return make_bool_value(x >= y);
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__path_n_eq__5m92(left: PathValue, right: PathValue) -> BoolValue {
     path_cardinality_relation(left, right, 0)
@@ -54,6 +57,8 @@ pub fn sql__pg_catalog__path_n_ge__tah4(left: PathValue, right: PathValue) -> Bo
     path_cardinality_relation(left, right, 4)
 }
 pub fn sql__pg_catalog__isclosed__j43z(input: PathValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PathValue::Unknown = input { unresolved_flavor = 1; };
     if let PathValue::Error(error) = input {
         return BoolValue::Error(error);
     };
@@ -63,7 +68,7 @@ pub fn sql__pg_catalog__isclosed__j43z(input: PathValue) -> BoolValue {
     if let PathValue::Value(path) = input {
         return make_bool_value(path.closed);
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__isopen__kqm6(input: PathValue) -> BoolValue {
     sql__pg_catalog__boolne__zlce(
@@ -72,6 +77,8 @@ pub fn sql__pg_catalog__isopen__kqm6(input: PathValue) -> BoolValue {
     )
 }
 pub fn sql__pg_catalog__npoints__0pt7(input: PathValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let PathValue::Unknown = input { unresolved_flavor = 1; };
     if let PathValue::Error(error) = input {
         return Int4Value::Error(error);
     };
@@ -81,7 +88,7 @@ pub fn sql__pg_catalog__npoints__0pt7(input: PathValue) -> Int4Value {
     if let PathValue::Value(path) = input {
         return make_int4_value(path.points.len() as i32);
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__path_npoints__pyxd(input: PathValue) -> Int4Value {
     sql__pg_catalog__npoints__0pt7(input)
@@ -102,6 +109,8 @@ pub fn sql__pg_catalog__pclose__17wh(input: PathValue) -> PathValue {
     path_set_closed(input, true)
 }
 pub fn sql__pg_catalog__path_send__tszn(input: PathValue) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PathValue::Unknown = input { unresolved_flavor = 1; };
     if let PathValue::Error(error) = input {
         return ByteaValue::Error(error);
     };
@@ -135,7 +144,7 @@ pub fn sql__pg_catalog__path_send__tszn(input: PathValue) -> ByteaValue {
                 return ByteaValue::Unspecified(length);
             };
             if encoded == ByteaValue::Unknown || encoded == ByteaValue::Null {
-                return ByteaValue::Unknown;
+                return bytea_unresolved(unresolved_flavor);
             };
             if let ByteaValue::Value(bytes) = encoded {
                 output.push_str(bytes.as_str());
@@ -144,9 +153,11 @@ pub fn sql__pg_catalog__path_send__tszn(input: PathValue) -> ByteaValue {
         }
         return ByteaValue::Value(output);
     };
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__path_length__fjk7(input: PathValue) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let PathValue::Unknown = input { unresolved_flavor = 1; };
     if let PathValue::Error(error) = input {
         return Float8Value::Error(error);
     };
@@ -176,12 +187,14 @@ pub fn sql__pg_catalog__path_length__fjk7(input: PathValue) -> Float8Value {
         }
         return box_computed_scalar(result);
     };
-    Float8Value::Unknown
+    float8_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__length__jatg(input: PathValue) -> Float8Value {
     sql__pg_catalog__path_length__fjk7(input)
 }
 pub fn sql__pg_catalog__area__ph6t(input: PathValue) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let PathValue::Unknown = input { unresolved_flavor = 1; };
     if let PathValue::Error(error) = input {
         return Float8Value::Error(error);
     };
@@ -223,5 +236,5 @@ pub fn sql__pg_catalog__area__ph6t(input: PathValue) -> Float8Value {
             make_float8_value(2.0f64),
         ));
     };
-    Float8Value::Unknown
+    float8_unresolved(unresolved_flavor)
 }

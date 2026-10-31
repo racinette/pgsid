@@ -26,11 +26,12 @@ fn jsonb_storage_bounds(low: i64, high: i64) -> JsonbStorageSize {
 }
 
 fn jsonb_storage_decision(size: JsonbStorageSize) -> BoolValue {
+    let unresolved_flavor: i32 = 0;
     if size.low > JSONB_STORAGE_LIMIT {
         return BoolValue::Error(make_sql_error(JSONB_STORAGE_ERROR));
     };
     if size.high > JSONB_STORAGE_LIMIT {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     BoolValue::Value(true)
 }
@@ -421,8 +422,9 @@ pub fn jsonb_partial_value(maximum: i64) -> JsonbValue {
 }
 
 pub fn jsonb_partial_shape(maximum: i64, kind: i32, length: i32) -> JsonbValue {
+    let unresolved_flavor: i32 = 0;
     if maximum < 0i64 || maximum > JSONB_STORAGE_LIMIT {
-        return JsonbValue::Unknown;
+        return jsonb_unresolved(unresolved_flavor);
     };
     JsonbValue::NonNull(JsonbKnowledge {
         maximum: maximum,
@@ -444,8 +446,9 @@ pub fn jsonb_empty_shape() -> JsonbPayload {
 
 // Shapes are kept only below the storage limit, like every other partial fact.
 pub fn jsonb_partial_tree(maximum: i64, shape: JsonbPayload) -> JsonbValue {
+    let unresolved_flavor: i32 = 0;
     if maximum < 0i64 || maximum > JSONB_STORAGE_LIMIT {
-        return JsonbValue::Unknown;
+        return jsonb_unresolved(unresolved_flavor);
     };
     let root = shape.nodes[shape.root];
     let mut length: i32 = -1;

@@ -18,6 +18,9 @@ fn text_binary_hex(value: &str, trim_spaces: bool) -> String {
 }
 
 fn text_binary_compare(left: TextValue, right: TextValue, trim_spaces: bool) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = left { unresolved_flavor = 1; };
+    if let TextValue::Unknown = right { unresolved_flavor = 1; };
     if let TextValue::Error(error) = left {
         return Int4Value::Error(error);
     }
@@ -25,7 +28,7 @@ fn text_binary_compare(left: TextValue, right: TextValue, trim_spaces: bool) -> 
         return Int4Value::Error(error);
     }
     if (left == TextValue::Unknown || left == TextValue::NonNull) || (right == TextValue::Unknown || right == TextValue::NonNull) {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if left == TextValue::Null || right == TextValue::Null {
         return Int4Value::Null;
@@ -37,15 +40,17 @@ fn text_binary_compare(left: TextValue, right: TextValue, trim_spaces: bool) -> 
             return bytea_compare(ByteaValue::Value(first), ByteaValue::Value(second));
         };
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 fn text_measure_value(value: TextValue, trim_spaces: bool, mode: i32) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = value { unresolved_flavor = 1; };
     if let TextValue::Error(error) = value {
         return Int4Value::Error(error);
     }
     if (value == TextValue::Unknown || value == TextValue::NonNull) {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if value == TextValue::Null {
         return Int4Value::Null;
@@ -85,7 +90,7 @@ fn text_measure_value(value: TextValue, trim_spaces: bool, mode: i32) -> Int4Val
         }
         return Int4Value::Value(length as i32);
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 fn text_trim_value(
@@ -94,6 +99,9 @@ fn text_trim_value(
     trim_left: bool,
     trim_right: bool,
 ) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = value { unresolved_flavor = 1; };
+    if let TextValue::Unknown = set { unresolved_flavor = 1; };
     if let TextValue::Error(error) = value {
         return TextValue::Error(error);
     }
@@ -101,7 +109,7 @@ fn text_trim_value(
         return TextValue::Error(error);
     }
     if (value == TextValue::Unknown || value == TextValue::NonNull) || (set == TextValue::Unknown || set == TextValue::NonNull) {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if value == TextValue::Null || set == TextValue::Null {
         return TextValue::Null;
@@ -153,5 +161,5 @@ fn text_trim_value(
             return TextValue::Value(output);
         };
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }

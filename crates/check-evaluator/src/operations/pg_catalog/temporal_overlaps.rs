@@ -191,6 +191,11 @@ pub fn sql__pg_catalog__overlaps__4anj(
     c: TimeValue,
     d: TimeValue,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimeValue::Unknown = a { unresolved_flavor = 1; };
+    if let TimeValue::Unknown = b { unresolved_flavor = 1; };
+    if let TimeValue::Unknown = c { unresolved_flavor = 1; };
+    if let TimeValue::Unknown = d { unresolved_flavor = 1; };
     if let TimeValue::Error(error) = a {
         return BoolValue::Error(error);
     };
@@ -208,7 +213,7 @@ pub fn sql__pg_catalog__overlaps__4anj(
         || c == TimeValue::Unknown
         || d == TimeValue::Unknown
     {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     let point_a = overlap_time_point(a);
     let point_b = overlap_time_point(b);
@@ -286,6 +291,11 @@ pub fn sql__pg_catalog__overlaps__cdbz(
     c: TimestampValue,
     d: TimestampValue,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestampValue::Unknown = a { unresolved_flavor = 1; };
+    if let TimestampValue::Unknown = b { unresolved_flavor = 1; };
+    if let TimestampValue::Unknown = c { unresolved_flavor = 1; };
+    if let TimestampValue::Unknown = d { unresolved_flavor = 1; };
     if let TimestampValue::Error(error) = a {
         return BoolValue::Error(error);
     };
@@ -303,7 +313,7 @@ pub fn sql__pg_catalog__overlaps__cdbz(
         || c == TimestampValue::Unknown
         || d == TimestampValue::Unknown
     {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     let point_a = overlap_timestamp_point(a);
     let point_b = overlap_timestamp_point(b);
@@ -317,6 +327,11 @@ pub fn sql__pg_catalog__overlaps__xg7p(
     c: TimestamptzValue,
     d: TimestamptzValue,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestamptzValue::Unknown = a { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unknown = b { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unknown = c { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unknown = d { unresolved_flavor = 1; };
     if let TimestamptzValue::Error(error) = a {
         return BoolValue::Error(error);
     };
@@ -334,7 +349,7 @@ pub fn sql__pg_catalog__overlaps__xg7p(
         || c == TimestamptzValue::Unknown
         || d == TimestamptzValue::Unknown
     {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     let point_a = overlap_timestamptz_point(a);
     let point_b = overlap_timestamptz_point(b);
@@ -348,6 +363,11 @@ pub fn sql__pg_catalog__overlaps__o9q5(
     c: TimetzValue,
     d: TimetzValue,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimetzValue::Unknown = a { unresolved_flavor = 1; };
+    if let TimetzValue::Unknown = b { unresolved_flavor = 1; };
+    if let TimetzValue::Unknown = c { unresolved_flavor = 1; };
+    if let TimetzValue::Unknown = d { unresolved_flavor = 1; };
     if let TimetzValue::Error(error) = a {
         return BoolValue::Error(error);
     };
@@ -365,7 +385,7 @@ pub fn sql__pg_catalog__overlaps__o9q5(
         || c == TimetzValue::Unknown
         || d == TimetzValue::Unknown
     {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     let point_a = overlap_timetz_point(a);
     let point_b = overlap_timetz_point(b);

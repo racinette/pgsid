@@ -191,6 +191,7 @@ pub(crate) fn concat_array_element_nullness(
 }
 
 fn concat_finish(input: TextConcatState) -> TextValue {
+    let unresolved_flavor: i32 = 0;
     if input.status == CheckOutcome::True {
         if input.length > 1073741819i64 {
             let error = make_sql_error(TEXT_CONCAT_ALLOCATION_ERROR);
@@ -205,7 +206,7 @@ fn concat_finish(input: TextConcatState) -> TextValue {
     if let CheckOutcome::Error(error) = status {
         return TextValue::Error(error);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__concat__ca4i(input: TextConcatState) -> TextValue {

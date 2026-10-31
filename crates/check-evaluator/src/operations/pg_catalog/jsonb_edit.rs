@@ -207,6 +207,9 @@ fn jsonb_edit_partial_concat(left: JsonbValue, right: JsonbValue) -> JsonbValue 
 }
 
 pub fn sql__pg_catalog__jsonb_concat__j7e0(left: JsonbValue, right: JsonbValue) -> JsonbValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbValue::Unknown = left { unresolved_flavor = 1; };
+    if let JsonbValue::Unknown = right { unresolved_flavor = 1; };
     if let JsonbValue::Error(error) = left {
         return JsonbValue::Error(error);
     };
@@ -214,10 +217,10 @@ pub fn sql__pg_catalog__jsonb_concat__j7e0(left: JsonbValue, right: JsonbValue) 
         return JsonbValue::Error(error);
     };
     if let JsonbValue::Unknown = left {
-        return JsonbValue::Unknown;
+        return jsonb_unresolved(unresolved_flavor);
     };
     if let JsonbValue::Unknown = right {
-        return JsonbValue::Unknown;
+        return jsonb_unresolved(unresolved_flavor);
     };
     if let JsonbValue::Null = left {
         return JsonbValue::Null;
@@ -240,7 +243,7 @@ pub fn sql__pg_catalog__jsonb_concat__j7e0(left: JsonbValue, right: JsonbValue) 
             return jsonb_edit_concat(a, b);
         };
     };
-    JsonbValue::Unknown
+    jsonb_unresolved(unresolved_flavor)
 }
 
 fn jsonb_edit_remove(
@@ -325,6 +328,9 @@ fn jsonb_edit_remove_shape(
 }
 
 pub fn sql__pg_catalog__jsonb_delete__cow2(input: JsonbValue, key: TextValue) -> JsonbValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unknown = key { unresolved_flavor = 1; };
     if let JsonbValue::Error(error) = input {
         return JsonbValue::Error(error);
     };
@@ -332,10 +338,10 @@ pub fn sql__pg_catalog__jsonb_delete__cow2(input: JsonbValue, key: TextValue) ->
         return JsonbValue::Error(error);
     };
     if let JsonbValue::Unknown = input {
-        return JsonbValue::Unknown;
+        return jsonb_unresolved(unresolved_flavor);
     };
     if key == TextValue::Unknown {
-        return JsonbValue::Unknown;
+        return jsonb_unresolved(unresolved_flavor);
     };
     if let JsonbValue::Null = input {
         return JsonbValue::Null;
@@ -371,7 +377,7 @@ pub fn sql__pg_catalog__jsonb_delete__cow2(input: JsonbValue, key: TextValue) ->
         if facts.kind == 5 || facts.kind == 6 {
             return jsonb_partial_shape(facts.maximum, facts.kind, -1);
         };
-        return JsonbValue::Unknown;
+        return jsonb_unresolved(unresolved_flavor);
     };
     if let JsonbValue::Value(value) = input {
         if value.nodes[value.root].kind < 5 {
@@ -391,10 +397,13 @@ pub fn sql__pg_catalog__jsonb_delete__cow2(input: JsonbValue, key: TextValue) ->
             return jsonb_edit_remove(value, &characters, 0i64, false);
         };
     };
-    JsonbValue::Unknown
+    jsonb_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__jsonb_delete__btgy(input: JsonbValue, index: Int4Value) -> JsonbValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = index { unresolved_flavor = 1; };
     if let JsonbValue::Error(error) = input {
         return JsonbValue::Error(error);
     };
@@ -402,10 +411,10 @@ pub fn sql__pg_catalog__jsonb_delete__btgy(input: JsonbValue, index: Int4Value) 
         return JsonbValue::Error(error);
     };
     if let JsonbValue::Unknown = input {
-        return JsonbValue::Unknown;
+        return jsonb_unresolved(unresolved_flavor);
     };
     if let Int4Value::Unknown = index {
-        return JsonbValue::Unknown;
+        return jsonb_unresolved(unresolved_flavor);
     };
     if let JsonbValue::Null = input {
         return JsonbValue::Null;
@@ -450,7 +459,7 @@ pub fn sql__pg_catalog__jsonb_delete__btgy(input: JsonbValue, index: Int4Value) 
                 return jsonb_partial_shape(facts.maximum, 5, length);
             };
         };
-        return JsonbValue::Unknown;
+        return jsonb_unresolved(unresolved_flavor);
     };
     if let JsonbValue::Value(value) = input {
         let root = value.nodes[value.root];
@@ -469,5 +478,5 @@ pub fn sql__pg_catalog__jsonb_delete__btgy(input: JsonbValue, index: Int4Value) 
             return jsonb_edit_remove(value, &key, selected, true);
         };
     };
-    JsonbValue::Unknown
+    jsonb_unresolved(unresolved_flavor)
 }

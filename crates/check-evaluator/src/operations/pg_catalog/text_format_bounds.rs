@@ -222,13 +222,14 @@ fn format_append_output(
 }
 
 fn format_finish_output(input: TextFormatOutput) -> TextValue {
+    let unresolved_flavor: i32 = 0;
     if input.status == CheckOutcome::True {
         if input.minimum > 1073741819i64 {
             let error = make_sql_error(TEXT_CONCAT_ALLOCATION_ERROR);
             return TextValue::Error(error);
         };
         if input.maximum > 1073741819i64 {
-            return TextValue::Unknown;
+            return text_unresolved(unresolved_flavor);
         };
         if input.known {
             return concat_finish(input.buffer);
@@ -242,5 +243,5 @@ fn format_finish_output(input: TextFormatOutput) -> TextValue {
     if let CheckOutcome::Error(error) = status {
         return TextValue::Error(error);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }

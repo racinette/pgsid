@@ -29,6 +29,9 @@ pub fn sql__pg_catalog__polygon__9juc(
     input: CircleValue,
     fdlibm: bool,
 ) -> PolygonValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = count { unresolved_flavor = 1; };
+    if let CircleValue::Unknown = input { unresolved_flavor = 1; };
     if let Int4Value::Error(error) = count {
         return PolygonValue::Error(error);
     };
@@ -36,7 +39,7 @@ pub fn sql__pg_catalog__polygon__9juc(
         return PolygonValue::Error(error);
     };
     if count == Int4Value::Unknown || input == CircleValue::Unknown {
-        return PolygonValue::Unknown;
+        return polygon_unresolved(unresolved_flavor);
     };
     if count == Int4Value::Null || input == CircleValue::Null {
         return PolygonValue::Null;
@@ -58,10 +61,10 @@ pub fn sql__pg_catalog__polygon__9juc(
                 return PolygonValue::Error(error);
             };
             if first == PointValue::Unknown || first == PointValue::Null {
-                return PolygonValue::Unknown;
+                return polygon_unresolved(unresolved_flavor);
             };
             if fdlibm == false {
-                return PolygonValue::Unknown;
+                return polygon_unresolved(unresolved_flavor);
             };
             let mut points: Vec<PointPayload> = Vec::new();
             if let PointValue::Value(point) = first {
@@ -81,7 +84,7 @@ pub fn sql__pg_catalog__polygon__9juc(
                     return PolygonValue::Error(error);
                 };
                 if point == PointValue::Unknown || point == PointValue::Null {
-                    return PolygonValue::Unknown;
+                    return polygon_unresolved(unresolved_flavor);
                 };
                 if let PointValue::Value(payload) = point {
                     points.push(payload);
@@ -94,7 +97,7 @@ pub fn sql__pg_catalog__polygon__9juc(
             });
         };
     };
-    PolygonValue::Unknown
+    polygon_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__polygon__h16h(input: CircleValue, fdlibm: bool) -> PolygonValue {

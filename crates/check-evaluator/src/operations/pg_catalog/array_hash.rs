@@ -7,6 +7,8 @@ fn array_hash_word_low(value: i64) -> i64 {
 }
 
 pub fn array_hash_cell32(nullness: BoolValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoolValue::Unknown = nullness { unresolved_flavor = 1; };
     if let BoolValue::Error(error) = nullness {
         return Int4Value::Error(error);
     };
@@ -16,10 +18,12 @@ pub fn array_hash_cell32(nullness: BoolValue) -> Int4Value {
         };
         return Int4Value::Value(1);
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn array_hash_cell64(nullness: BoolValue) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoolValue::Unknown = nullness { unresolved_flavor = 1; };
     let state = array_hash_cell32(nullness);
     if let Int4Value::Error(error) = state {
         return Int8Value::Error(error);
@@ -27,7 +31,7 @@ pub fn array_hash_cell64(nullness: BoolValue) -> Int8Value {
     if let Int4Value::Value(value) = state {
         return Int8Value::Value(value as i64);
     };
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 pub fn array_hash_requires_scalar32(input: Int4Value) -> bool {
@@ -38,6 +42,9 @@ pub fn array_hash_requires_scalar64(input: Int8Value) -> bool {
 }
 
 pub fn array_hash_step32(left: Int4Value, right: Int4Value) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = left { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = right { unresolved_flavor = 1; };
     if let Int4Value::Error(error) = left {
         return Int4Value::Error(error);
     };
@@ -52,10 +59,13 @@ pub fn array_hash_step32(left: Int4Value, right: Int4Value) -> Int4Value {
             return Int4Value::Value(value as i32);
         };
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn array_hash_step64(left: Int8Value, right: Int8Value) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = left { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = right { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = left {
         return Int8Value::Error(error);
     };
@@ -77,10 +87,13 @@ pub fn array_hash_step64(left: Int8Value, right: Int8Value) -> Int8Value {
             return Int8Value::Value(value);
         };
     };
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 pub fn array_hash_finish32(first: Int4Value, second: Int4Value) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = first { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = second { unresolved_flavor = 1; };
     if let Int4Value::Error(error) = first {
         return Int4Value::Error(error);
     };
@@ -90,10 +103,13 @@ pub fn array_hash_finish32(first: Int4Value, second: Int4Value) -> Int4Value {
     if first == second {
         return first;
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn array_hash_finish64(first: Int8Value, second: Int8Value) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = first { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = second { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = first {
         return Int8Value::Error(error);
     };
@@ -103,7 +119,7 @@ pub fn array_hash_finish64(first: Int8Value, second: Int8Value) -> Int8Value {
     if first == second {
         return first;
     };
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__hash_array__bk1m(input: Int4Value) -> Int4Value {

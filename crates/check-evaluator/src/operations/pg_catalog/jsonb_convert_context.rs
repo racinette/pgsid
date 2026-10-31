@@ -38,13 +38,15 @@ pub fn jsonb_input_from_money_context(input: MoneyValue, c_locale: bool) -> Json
 }
 
 pub fn jsonb_input_from_money(input: MoneyValue) -> JsonbInput {
+    let mut unresolved_flavor: i32 = 0;
+    if let MoneyValue::Unknown = input { unresolved_flavor = 1; };
     if let MoneyValue::Error(error) = input {
         return JsonbInput::Error(error);
     };
     if let MoneyValue::Null = input {
         return JsonbInput::Null;
     };
-    JsonbInput::Unknown
+    jsonb_input_unresolved(unresolved_flavor)
 }
 
 pub fn jsonb_input_from_interval(input: IntervalValue) -> JsonbInput {
@@ -56,13 +58,16 @@ pub fn jsonb_input_from_interval_context(input: IntervalValue, style: i32) -> Js
 }
 
 fn jsonb_float_output_input(input: TextValue) -> JsonbInput {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input { return JsonbInput::Error(error); };
     if let TextValue::Null = input { return JsonbInput::Null; };
     if let TextValue::Value(text) = input { return JsonbInput::Number(text); };
-    JsonbInput::Unknown
+    jsonb_input_unresolved(unresolved_flavor)
 }
 
 fn jsonb_float_invariant(bits: i64, single: bool) -> JsonbInput {
+    let unresolved_flavor: i32 = 0;
     let mut extra: i32 = -15;
     let mut previous = String::new();
     while extra <= 3 {
@@ -73,10 +78,10 @@ fn jsonb_float_invariant(bits: i64, single: bool) -> JsonbInput {
         let mut ready = false;
         if let TextValue::Value(text) = normalized {
             ready = true;
-            if extra > -15 && previous != text { return JsonbInput::Unknown; };
+            if extra > -15 && previous != text { return jsonb_input_unresolved(unresolved_flavor); };
             previous = text;
         };
-        if ready == false { return JsonbInput::Unknown; };
+        if ready == false { return jsonb_input_unresolved(unresolved_flavor); };
         extra = extra + 1;
     }
     JsonbInput::Number(previous)
@@ -113,6 +118,7 @@ fn jsonb_geometry_values(
     extra: i32,
     known: bool,
 ) -> TextValue {
+    let unresolved_flavor: i32 = 0;
     let mut output = opening.to_owned();
     let mut index: usize = 0;
     while index < values.len() {
@@ -126,7 +132,7 @@ fn jsonb_geometry_values(
             output.push_str(text.as_str());
         };
         if ready == false {
-            return TextValue::Unknown;
+            return text_unresolved(unresolved_flavor);
         };
         index += 1;
     }
@@ -142,6 +148,7 @@ fn jsonb_geometry_pair(x: i64, y: i64, extra: i32, known: bool) -> TextValue {
 }
 
 fn jsonb_geometry_points(points: Vec<PointPayload>, opening: &str, ending: &str, extra: i32, known: bool) -> TextValue {
+    let unresolved_flavor: i32 = 0;
     let mut output = opening.to_owned();
     let mut index: usize = 0;
     while index < points.len() {
@@ -156,7 +163,7 @@ fn jsonb_geometry_points(points: Vec<PointPayload>, opening: &str, ending: &str,
             output.push_str(text.as_str());
         };
         if ready == false {
-            return TextValue::Unknown;
+            return text_unresolved(unresolved_flavor);
         };
         index += 1;
     }
@@ -165,6 +172,8 @@ fn jsonb_geometry_points(points: Vec<PointPayload>, opening: &str, ending: &str,
 }
 
 pub fn geometry_point_output_context(input: PointValue, extra: i32, known: bool) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PointValue::Unknown = input { unresolved_flavor = 1; };
     if let PointValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -175,10 +184,12 @@ pub fn geometry_point_output_context(input: PointValue, extra: i32, known: bool)
         let text = jsonb_geometry_pair(value.x, value.y, extra, known);
         return text;
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn geometry_line_output_context(input: LineValue, extra: i32, known: bool) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let LineValue::Unknown = input { unresolved_flavor = 1; };
     if let LineValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -193,10 +204,12 @@ pub fn geometry_line_output_context(input: LineValue, extra: i32, known: bool) -
         let text = jsonb_geometry_values(values, "{", "}", extra, known);
         return text;
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn geometry_lseg_output_context(input: LsegValue, extra: i32, known: bool) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let LsegValue::Unknown = input { unresolved_flavor = 1; };
     if let LsegValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -218,10 +231,12 @@ pub fn geometry_lseg_output_context(input: LsegValue, extra: i32, known: bool) -
         let text = jsonb_geometry_points(points, "[", "]", extra, known);
         return text;
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn geometry_box_output_context(input: BoxValue, extra: i32, known: bool) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoxValue::Unknown = input { unresolved_flavor = 1; };
     if let BoxValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -243,10 +258,12 @@ pub fn geometry_box_output_context(input: BoxValue, extra: i32, known: bool) -> 
         let text = jsonb_geometry_points(points, "", "", extra, known);
         return text;
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn geometry_circle_output_context(input: CircleValue, extra: i32, known: bool) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let CircleValue::Unknown = input { unresolved_flavor = 1; };
     if let CircleValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -267,10 +284,12 @@ pub fn geometry_circle_output_context(input: CircleValue, extra: i32, known: boo
             };
         };
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn geometry_path_output_context(input: PathValue, extra: i32, known: bool) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PathValue::Unknown = input { unresolved_flavor = 1; };
     if let PathValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -285,10 +304,12 @@ pub fn geometry_path_output_context(input: PathValue, extra: i32, known: bool) -
         let text = jsonb_geometry_points(value.points, "[", "]", extra, known);
         return text;
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn geometry_polygon_output_context(input: PolygonValue, extra: i32, known: bool) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PolygonValue::Unknown = input { unresolved_flavor = 1; };
     if let PolygonValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -299,7 +320,7 @@ pub fn geometry_polygon_output_context(input: PolygonValue, extra: i32, known: b
         let text = jsonb_geometry_points(value.points, "(", ")", extra, known);
         return text;
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn jsonb_input_from_point_context(input: PointValue, extra: i32, known: bool) -> JsonbInput {
@@ -366,11 +387,13 @@ pub fn jsonb_input_from_polygon(input: PolygonValue) -> JsonbInput {
 }
 
 pub fn jsonb_input_from_enum(input: EnumValue) -> JsonbInput {
+    let mut unresolved_flavor: i32 = 0;
+    if let EnumValue::Unknown = input { unresolved_flavor = 1; };
     if let EnumValue::Error(error) = input {
         return JsonbInput::Error(error);
     };
     if input == EnumValue::Null {
         return JsonbInput::Null;
     };
-    JsonbInput::Unknown
+    jsonb_input_unresolved(unresolved_flavor)
 }

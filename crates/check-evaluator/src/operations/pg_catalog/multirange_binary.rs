@@ -14,20 +14,23 @@ pub(crate) fn multirange_binary_payload(input: MultirangeValue) -> MultirangePay
 }
 
 pub(crate) fn multirange_binary_count(input: &MultirangePayload) -> Int4Value {
+    let unresolved_flavor: i32 = 0;
     if input.type_name.as_str() == "" || input.ranges.len() > 2147483647 {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     };
     Int4Value::Value(input.ranges.len() as i32)
 }
 
 pub(crate) fn multirange_binary_member(input: &MultirangePayload, index: Int4Value) -> RangeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = index { unresolved_flavor = 1; };
     if let Int4Value::Value(offset) = index {
         let position = usize::try_from(offset).unwrap_or(input.ranges.len());
         if position < input.ranges.len() {
             return input.ranges[position].clone();
         };
     };
-    RangeValue::Unknown
+    range_unresolved(unresolved_flavor)
 }
 
 pub(crate) fn multirange_binary_initial32(
@@ -35,6 +38,10 @@ pub(crate) fn multirange_binary_initial32(
     count: Int4Value,
     seed: Int8Value,
 ) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoolValue::Unknown = state { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = count { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = seed { unresolved_flavor = 1; };
     if let BoolValue::Error(error) = state {
         return Int4Value::Error(error);
     };
@@ -51,7 +58,7 @@ pub(crate) fn multirange_binary_initial32(
             };
         };
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub(crate) fn multirange_binary_initial64(

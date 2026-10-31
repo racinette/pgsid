@@ -1,4 +1,6 @@
 pub fn money_from_text(input: TextValue) -> MoneyValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return MoneyValue::Error(error);
     };
@@ -21,5 +23,5 @@ pub fn money_from_text(input: TextValue) -> MoneyValue {
             return make_money_value(0i64);
         };
     };
-    MoneyValue::Unknown
+    money_unresolved(unresolved_flavor)
 }

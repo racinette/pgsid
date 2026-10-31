@@ -13,6 +13,7 @@ fn jsonb_hash_scalar(
     utf8: bool,
     extended: bool,
 ) -> Int8Value {
+    let unresolved_flavor: i32 = 0;
     if key || node.kind == 4 {
         let mut text = String::new();
         let mut start = node.text_start;
@@ -69,7 +70,7 @@ fn jsonb_hash_scalar(
         };
         return Int8Value::Value(4i64);
     };
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 fn jsonb_hash_payload(
@@ -79,6 +80,7 @@ fn jsonb_hash_payload(
     utf8: bool,
     extended: bool,
 ) -> Int8Value {
+    let unresolved_flavor: i32 = 0;
     let root = source.nodes[source.root];
     if root.kind >= 5 && root.child == 0 {
         if extended {
@@ -147,7 +149,7 @@ fn jsonb_hash_payload(
                 return Int8Value::Error(error);
             };
             if scalar == Int8Value::Unknown || scalar == Int8Value::Null {
-                return Int8Value::Unknown;
+                return int8_unresolved(unresolved_flavor);
             };
             if let Int8Value::Value(bits) = scalar {
                 let mut scalar_low = bits % 4294967296i64;
@@ -180,6 +182,9 @@ fn jsonb_hash_context(
     utf8: bool,
     extended: bool,
 ) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = seed { unresolved_flavor = 1; };
     if let JsonbValue::Error(error) = input {
         return Int8Value::Error(error);
     };
@@ -187,10 +192,10 @@ fn jsonb_hash_context(
         return Int8Value::Error(error);
     };
     if let JsonbValue::Unknown = input {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     };
     if seed == Int8Value::Unknown {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     };
     if let JsonbValue::Null = input {
         return Int8Value::Null;
@@ -213,7 +218,7 @@ fn jsonb_hash_context(
             };
         };
     };
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__jsonb_hash__qo2a(
@@ -221,6 +226,8 @@ pub fn sql__pg_catalog__jsonb_hash__qo2a(
     byte_order: i32,
     utf8: bool,
 ) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
     let result = jsonb_hash_context(input, Int8Value::Value(0i64), byte_order, utf8, false);
     if let Int8Value::Error(error) = result {
         return Int4Value::Error(error);
@@ -231,7 +238,7 @@ pub fn sql__pg_catalog__jsonb_hash__qo2a(
     if let Int8Value::Value(value) = result {
         return Int4Value::Value(value as i32);
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__jsonb_hash_extended__h75l(

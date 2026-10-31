@@ -1,4 +1,7 @@
 pub fn sql__pg_catalog__position__93b9(input: BitValue, pattern: BitValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let BitValue::Unknown = input { unresolved_flavor = 1; };
+    if let BitValue::Unknown = pattern { unresolved_flavor = 1; };
     if let BitValue::Error(error) = input {
         return Int4Value::Error(error);
     }
@@ -6,7 +9,7 @@ pub fn sql__pg_catalog__position__93b9(input: BitValue, pattern: BitValue) -> In
         return Int4Value::Error(error);
     }
     if input == BitValue::Unknown || pattern == BitValue::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if input == BitValue::Null || pattern == BitValue::Null {
         return Int4Value::Null;
@@ -44,5 +47,5 @@ pub fn sql__pg_catalog__position__93b9(input: BitValue, pattern: BitValue) -> In
             return Int4Value::Value(0);
         }
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }

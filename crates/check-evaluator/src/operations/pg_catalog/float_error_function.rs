@@ -149,6 +149,8 @@ fn musl_erfc(x: f64) -> f64 {
 }
 
 fn float8_error_function(input: Float8Value, musl: bool, complement: bool) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = input { unresolved_flavor = 1; };
     if input == Float8Value::UnspecifiedNan {
         return Float8Value::UnspecifiedNan;
     };
@@ -158,7 +160,7 @@ fn float8_error_function(input: Float8Value, musl: bool, complement: bool) -> Fl
             return Float8Value::UnspecifiedNan;
         };
         if musl == false {
-            return Float8Value::Unknown;
+            return float8_unresolved(unresolved_flavor);
         };
         if complement {
             return make_float8_value(musl_erfc(number));
@@ -336,6 +338,8 @@ fn musl_tgamma(input: f64) -> f64 {
 // dgamma: NaN passes through, positive infinity is itself, and negative infinity or a result
 // that is infinite, NaN or zero is out of range.
 pub fn sql__pg_catalog__gamma__t3sa(input: Float8Value, musl: bool) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = input { unresolved_flavor = 1; };
     if input == Float8Value::UnspecifiedNan {
         return Float8Value::UnspecifiedNan;
     };
@@ -351,7 +355,7 @@ pub fn sql__pg_catalog__gamma__t3sa(input: Float8Value, musl: bool) -> Float8Val
             return Float8Value::Error(make_sql_error(FLOAT_CORE_RANGE));
         };
         if musl == false {
-            return Float8Value::Unknown;
+            return float8_unresolved(unresolved_flavor);
         };
         let result = musl_tgamma(number);
         if result != result || result.abs() == 1.0f64 / 0.0f64 || result == 0.0f64 {
@@ -564,6 +568,8 @@ fn musl_sinpi_lgamma(input: f64) -> f64 {
 
 // dlgamma: an infinite result from a finite argument is out of range.
 pub fn sql__pg_catalog__lgamma__rpzb(input: Float8Value, musl: bool) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = input { unresolved_flavor = 1; };
     if input == Float8Value::UnspecifiedNan {
         return Float8Value::UnspecifiedNan;
     };
@@ -576,7 +582,7 @@ pub fn sql__pg_catalog__lgamma__rpzb(input: Float8Value, musl: bool) -> Float8Va
             return make_float8_value(1.0f64 / 0.0f64);
         };
         if musl == false {
-            return Float8Value::Unknown;
+            return float8_unresolved(unresolved_flavor);
         };
         let result = musl_lgamma(number);
         if result.abs() == 1.0f64 / 0.0f64 {

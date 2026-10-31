@@ -53,11 +53,13 @@ fn numeric_wire_word(output: String, word: i32) -> String {
 }
 
 pub fn sql__pg_catalog__numeric_send__3mnb(input: NumericValue) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NumericValue::Unknown = input { unresolved_flavor = 1; };
     if let NumericValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
     if input == NumericValue::Unknown {
-        return ByteaValue::Unknown;
+        return bytea_unresolved(unresolved_flavor);
     }
     if input == NumericValue::Null {
         return ByteaValue::Null;
@@ -65,7 +67,7 @@ pub fn sql__pg_catalog__numeric_send__3mnb(input: NumericValue) -> ByteaValue {
     if let NumericValue::Value(value) = input {
         let layout = numeric_parts(value.as_str());
         if layout.valid == false {
-            return ByteaValue::Unknown;
+            return bytea_unresolved(unresolved_flavor);
         }
         let mut sign: i32 = 0;
         if layout.special == 0 {
@@ -133,5 +135,5 @@ pub fn sql__pg_catalog__numeric_send__3mnb(input: NumericValue) -> ByteaValue {
         }
         return ByteaValue::Value(output);
     }
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }

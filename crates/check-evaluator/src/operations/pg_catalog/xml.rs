@@ -1,4 +1,6 @@
 fn xml_well_formed_value(input: TextValue, document: bool) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return BoolValue::Error(error);
     }
@@ -8,7 +10,7 @@ fn xml_well_formed_value(input: TextValue, document: bool) -> BoolValue {
     if input == TextValue::Null {
         return BoolValue::Null;
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__xml_is_well_formed_content__94vi(input: TextValue) -> BoolValue {

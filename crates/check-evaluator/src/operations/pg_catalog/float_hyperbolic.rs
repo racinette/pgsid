@@ -305,6 +305,8 @@ fn musl_atanh(input: f64) -> f64 {
 }
 
 fn float8_hyperbolic(input: Float8Value, musl: bool, operation: i32) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = input { unresolved_flavor = 1; };
     if input == Float8Value::UnspecifiedNan {
         return Float8Value::UnspecifiedNan;
     };
@@ -328,7 +330,7 @@ fn float8_hyperbolic(input: Float8Value, musl: bool, operation: i32) -> Float8Va
             };
         };
         if musl == false {
-            return Float8Value::Unknown;
+            return float8_unresolved(unresolved_flavor);
         };
         let mut result = 0.0f64;
         if operation == 0 {

@@ -57,6 +57,9 @@ fn line_nonvertical_intersection(first: LinePayload, second: LinePayload) -> Poi
     point_arithmetic_result(line_normalize_zero(x), line_normalize_zero(y))
 }
 fn line_intersection(left: LineValue, right: LineValue) -> PointValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let LineValue::Unknown = left { unresolved_flavor = 1; };
+    if let LineValue::Unknown = right { unresolved_flavor = 1; };
     if let LineValue::Error(error) = left {
         return PointValue::Error(error);
     };
@@ -64,7 +67,7 @@ fn line_intersection(left: LineValue, right: LineValue) -> PointValue {
         return PointValue::Error(error);
     };
     if left == LineValue::Unknown || right == LineValue::Unknown {
-        return PointValue::Unknown;
+        return point_unresolved(unresolved_flavor);
     };
     if left == LineValue::Null || right == LineValue::Null {
         return PointValue::Null;
@@ -84,9 +87,12 @@ fn line_intersection(left: LineValue, right: LineValue) -> PointValue {
             return PointValue::Null;
         };
     };
-    PointValue::Unknown
+    point_unresolved(unresolved_flavor)
 }
 fn line_intersection_predicate(left: LineValue, right: LineValue, parallel: bool) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let LineValue::Unknown = left { unresolved_flavor = 1; };
+    if let LineValue::Unknown = right { unresolved_flavor = 1; };
     if let LineValue::Error(error) = left {
         return BoolValue::Error(error);
     };
@@ -94,7 +100,7 @@ fn line_intersection_predicate(left: LineValue, right: LineValue, parallel: bool
         return BoolValue::Error(error);
     };
     if left == LineValue::Unknown || right == LineValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if left == LineValue::Null || right == LineValue::Null {
         return BoolValue::Null;
@@ -104,7 +110,7 @@ fn line_intersection_predicate(left: LineValue, right: LineValue, parallel: bool
         return BoolValue::Error(error);
     };
     if result == PointValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     make_bool_value((result == PointValue::Null) == parallel)
 }
@@ -122,6 +128,9 @@ pub fn sql__pg_catalog__isparallel__3lb4(left: LineValue, right: LineValue) -> B
 }
 
 fn line_perpendicular(left: LineValue, right: LineValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let LineValue::Unknown = left { unresolved_flavor = 1; };
+    if let LineValue::Unknown = right { unresolved_flavor = 1; };
     if let LineValue::Error(error) = left {
         return BoolValue::Error(error);
     };
@@ -129,7 +138,7 @@ fn line_perpendicular(left: LineValue, right: LineValue) -> BoolValue {
         return BoolValue::Error(error);
     };
     if left == LineValue::Unknown || right == LineValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if left == LineValue::Null || right == LineValue::Null {
         return BoolValue::Null;
@@ -166,7 +175,7 @@ fn line_perpendicular(left: LineValue, right: LineValue) -> BoolValue {
             };
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__line_perp__iw13(left: LineValue, right: LineValue) -> BoolValue {
     line_perpendicular(left, right)
@@ -175,6 +184,9 @@ pub fn sql__pg_catalog__isperp__5z5s(left: LineValue, right: LineValue) -> BoolV
     line_perpendicular(left, right)
 }
 pub fn sql__pg_catalog__line_distance__a9ql(left: LineValue, right: LineValue) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let LineValue::Unknown = left { unresolved_flavor = 1; };
+    if let LineValue::Unknown = right { unresolved_flavor = 1; };
     if let LineValue::Error(error) = left {
         return Float8Value::Error(error);
     };
@@ -182,7 +194,7 @@ pub fn sql__pg_catalog__line_distance__a9ql(left: LineValue, right: LineValue) -
         return Float8Value::Error(error);
     };
     if left == LineValue::Unknown || right == LineValue::Unknown {
-        return Float8Value::Unknown;
+        return float8_unresolved(unresolved_flavor);
     };
     if left == LineValue::Null || right == LineValue::Null {
         return Float8Value::Null;
@@ -192,7 +204,7 @@ pub fn sql__pg_catalog__line_distance__a9ql(left: LineValue, right: LineValue) -
         return Float8Value::Error(error);
     };
     if intersection == PointValue::Unknown {
-        return Float8Value::Unknown;
+        return float8_unresolved(unresolved_flavor);
     };
     if intersection != PointValue::Null {
         return make_float8_bits(0i64);
@@ -230,7 +242,7 @@ pub fn sql__pg_catalog__line_distance__a9ql(left: LineValue, right: LineValue) -
             return result;
         };
     };
-    Float8Value::Unknown
+    float8_unresolved(unresolved_flavor)
 }
 
 fn line_inverse_slope(line: LinePayload) -> Float8Value {
@@ -329,6 +341,9 @@ pub fn sql__pg_catalog__close_pl__9f9o(point: PointValue, line: LineValue) -> Po
     projected.point
 }
 pub fn sql__pg_catalog__on_pl__5c6f(point: PointValue, line: LineValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PointValue::Unknown = point { unresolved_flavor = 1; };
+    if let LineValue::Unknown = line { unresolved_flavor = 1; };
     if let PointValue::Error(error) = point {
         return BoolValue::Error(error);
     };
@@ -336,7 +351,7 @@ pub fn sql__pg_catalog__on_pl__5c6f(point: PointValue, line: LineValue) -> BoolV
         return BoolValue::Error(error);
     };
     if point == PointValue::Unknown || line == LineValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if point == PointValue::Null || line == LineValue::Null {
         return BoolValue::Null;
@@ -364,5 +379,5 @@ pub fn sql__pg_catalog__on_pl__5c6f(point: PointValue, line: LineValue) -> BoolV
             };
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }

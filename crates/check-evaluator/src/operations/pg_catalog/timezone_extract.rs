@@ -28,6 +28,9 @@ fn timezone_extract_number(
     limit: i32,
     utf8: bool,
 ) -> NumericValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = units { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = units {
         return NumericValue::Error(error);
     };
@@ -35,7 +38,7 @@ fn timezone_extract_number(
         return NumericValue::Error(error);
     };
     if units == TextValue::Unknown || input == TimestamptzValue::Unknown {
-        return NumericValue::Unknown;
+        return numeric_unresolved(unresolved_flavor);
     };
     if units == TextValue::Null || input == TimestamptzValue::Null {
         return NumericValue::Null;
@@ -54,7 +57,7 @@ fn timezone_extract_number(
             };
             let profile = session_timezone_profile(session, value, false);
             if profile.valid == false {
-                return NumericValue::Unknown;
+                return numeric_unresolved(unresolved_flavor);
             };
             let mut seconds = profile.seconds;
             if offset_field > 0 {
@@ -69,7 +72,7 @@ fn timezone_extract_number(
             return temporal_extract_timestamp_value(projected, unit.as_str(), true);
         };
     };
-    NumericValue::Unknown
+    numeric_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__extract__yxyk(
@@ -89,6 +92,9 @@ pub fn sql__pg_catalog__date_part__jhr8(
     limit: i32,
     utf8: bool,
 ) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = units { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
     let number = timezone_extract_number(units.clone(), input, session, limit, utf8);
     let clipped = name_from_text_context(units, limit, utf8);
     if let TextValue::Value(unit) = clipped {
@@ -100,7 +106,7 @@ pub fn sql__pg_catalog__date_part__jhr8(
             {
                 let profile = session_timezone_profile(session, value, false);
                 if profile.valid == false {
-                    return Float8Value::Unknown;
+                    return float8_unresolved(unresolved_flavor);
                 };
                 return temporal_timestamp_legacy_value(
                     number,

@@ -1,4 +1,6 @@
 pub fn sql__pg_catalog__to_jsonb__9y7o(input: JsonbInput) -> JsonbValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbInput::Unknown = input { unresolved_flavor = 1; };
     if let JsonbInput::JsonbNonNull(maximum) = input {
         return JsonbValue::NonNull(maximum);
     };
@@ -32,7 +34,7 @@ pub fn sql__pg_catalog__to_jsonb__9y7o(input: JsonbInput) -> JsonbValue {
     if let JsonbInput::Jsonb(value) = input {
         return JsonbValue::Value(value);
     };
-    JsonbValue::Unknown
+    jsonb_unresolved(unresolved_flavor)
 }
 
 pub fn jsonb_input_from_uuid(input: UuidValue) -> JsonbInput {
@@ -142,6 +144,8 @@ fn jsonb_calendar_text(calendar: TemporalCalendarFields) -> String {
 }
 
 pub fn jsonb_input_from_date(input: DateValue) -> JsonbInput {
+    let mut unresolved_flavor: i32 = 0;
+    if let DateValue::Unknown = input { unresolved_flavor = 1; };
     if let DateValue::Error(error) = input {
         return JsonbInput::Error(error);
     };
@@ -163,10 +167,12 @@ pub fn jsonb_input_from_date(input: DateValue) -> JsonbInput {
         };
         return JsonbInput::Text(output);
     };
-    JsonbInput::Unknown
+    jsonb_input_unresolved(unresolved_flavor)
 }
 
 pub fn jsonb_input_from_timestamp(input: TimestampValue) -> JsonbInput {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestampValue::Unknown = input { unresolved_flavor = 1; };
     if let TimestampValue::Error(error) = input {
         return JsonbInput::Error(error);
     };
@@ -199,10 +205,12 @@ pub fn jsonb_input_from_timestamp(input: TimestampValue) -> JsonbInput {
         };
         return JsonbInput::Text(output);
     };
-    JsonbInput::Unknown
+    jsonb_input_unresolved(unresolved_flavor)
 }
 
 pub fn jsonb_input_from_timestamptz(input: TimestamptzValue) -> JsonbInput {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
     if let TimestamptzValue::Error(error) = input {
         return JsonbInput::Error(error);
     };
@@ -217,10 +225,12 @@ pub fn jsonb_input_from_timestamptz(input: TimestamptzValue) -> JsonbInput {
             return JsonbInput::Text("infinity".to_owned());
         };
     };
-    JsonbInput::Unknown
+    jsonb_input_unresolved(unresolved_flavor)
 }
 
 pub fn jsonb_input_from_json_context(input: JsonValue, utf8: bool) -> JsonbInput {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonValue::Unknown = input { unresolved_flavor = 1; };
     if utf8 == false {
         return jsonb_input_from_json(input);
     };
@@ -237,7 +247,7 @@ pub fn jsonb_input_from_json_context(input: JsonValue, utf8: bool) -> JsonbInput
         };
         return jsonb_input_from_jsonb(converted);
     };
-    JsonbInput::Unknown
+    jsonb_input_unresolved(unresolved_flavor)
 }
 
 pub fn jsonb_input_from_xml(input: XmlValue) -> JsonbInput {

@@ -173,11 +173,13 @@ fn digest_md5_hex(input: &str) -> String {
 }
 
 pub fn sql__pg_catalog__md5__vpfl(input: ByteaValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
     if let ByteaValue::Error(error) = input {
         return TextValue::Error(error);
     }
     if input == ByteaValue::Unknown {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if input == ByteaValue::Null {
         return TextValue::Null;
@@ -186,15 +188,17 @@ pub fn sql__pg_catalog__md5__vpfl(input: ByteaValue) -> TextValue {
         let result = digest_md5_hex(value.as_str());
         return TextValue::Value(result);
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__md5__kt50(input: TextValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return TextValue::Error(error);
     }
     if (input == TextValue::Unknown || input == TextValue::NonNull) {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if input == TextValue::Null {
         return TextValue::Null;
@@ -210,5 +214,5 @@ pub fn sql__pg_catalog__md5__kt50(input: TextValue) -> TextValue {
         let result = digest_md5_hex(encoded.as_str());
         return TextValue::Value(result);
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }

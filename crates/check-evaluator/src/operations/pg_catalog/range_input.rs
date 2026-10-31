@@ -5,9 +5,11 @@ fn range_input_space(ch: char) -> bool {
 }
 
 fn range_input_bound(input: TextValue, kind: i32, cidr: bool, name: bool, alias_mode: i32, utf8: bool, enum_labels: &str, enum_count: i32) -> ArrayElement {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if kind == 6 {
         if let TextValue::Value(_) = input {
-            if enum_count < 0 { return ArrayElement::Unknown; };
+            if enum_count < 0 { return array_element_unresolved(unresolved_flavor); };
         };
         return array_element_from_enum(scalar_enum_from_text(input, enum_labels, enum_count));
     };
@@ -103,7 +105,7 @@ fn range_input_bound(input: TextValue, kind: i32, cidr: bool, name: bool, alias_
     if kind == 47 {
         return array_element_from_tsvector(tsvector_from_text_context(input, utf8));
     };
-    ArrayElement::Unknown
+    array_element_unresolved(unresolved_flavor)
 }
 
 fn range_text_value(
@@ -135,6 +137,8 @@ fn range_text_value(
 }
 
 pub fn prepare_range_text(input: TextValue) -> RangeTextPlan {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return RangeTextPlan::Error(error);
     };
@@ -231,10 +235,12 @@ pub fn prepare_range_text(input: TextValue) -> RangeTextPlan {
         flags.push(closing);
         return range_text_value(false, lower_text, upper_text, flags);
     };
-    RangeTextPlan::Unknown
+    range_text_plan_unresolved(unresolved_flavor)
 }
 
 pub fn range_text_state(plan: RangeTextPlan) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeTextPlan::Unknown = plan { unresolved_flavor = 1; };
     if let RangeTextPlan::Error(error) = plan {
         return BoolValue::Error(error);
     };
@@ -244,7 +250,7 @@ pub fn range_text_state(plan: RangeTextPlan) -> BoolValue {
     if let RangeTextPlan::Value(payload) = plan {
         return BoolValue::Value(payload.empty);
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn range_text_needs_bounds(plan: RangeTextPlan) -> bool {
@@ -296,8 +302,10 @@ pub fn range_text_bound_continues(input: ArrayElement) -> bool {
 }
 
 pub fn range_stored_text_bound(input: ArrayElement) -> ArrayElement {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
     if let ArrayElement::Error(_) = input {
-        return ArrayElement::Unknown;
+        return array_element_unresolved(unresolved_flavor);
     };
     input
 }
@@ -309,9 +317,11 @@ pub fn range_stored_text_initial(
     kind: i32,
     support: RangeSupport,
 ) -> RangeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeTextPlan::Unknown = plan { unresolved_flavor = 1; };
     let initial = range_text_initial(plan, type_name, element_type, kind, support);
     if let RangeValue::Error(_) = initial {
-        return RangeValue::Unknown;
+        return range_unresolved(unresolved_flavor);
     };
     initial
 }
@@ -325,6 +335,10 @@ pub fn finish_range_stored_text(
     lower: ArrayElement,
     upper: ArrayElement,
 ) -> RangeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeTextPlan::Unknown = plan { unresolved_flavor = 1; };
+    if let ArrayElement::Unknown = lower { unresolved_flavor = 1; };
+    if let ArrayElement::Unknown = upper { unresolved_flavor = 1; };
     if range_text_needs_bounds(plan.clone()) == false {
         return range_stored_text_initial(plan, type_name, element_type, kind, support);
     };
@@ -342,7 +356,7 @@ pub fn finish_range_stored_text(
             support,
         );
     };
-    RangeValue::Unknown
+    range_unresolved(unresolved_flavor)
 }
 
 pub fn range_text_initial(
@@ -352,6 +366,8 @@ pub fn range_text_initial(
     kind: i32,
     support: RangeSupport,
 ) -> RangeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeTextPlan::Unknown = plan { unresolved_flavor = 1; };
     let state = range_text_state(plan.clone());
     if let BoolValue::Error(error) = state {
         return RangeValue::Error(error);
@@ -372,7 +388,7 @@ pub fn range_text_initial(
             support,
         );
     };
-    RangeValue::Unknown
+    range_unresolved(unresolved_flavor)
 }
 
 pub fn finish_range_text(
@@ -409,6 +425,10 @@ pub fn finish_range_stored_text_defined(
     support: RangeSupport, lower: ArrayElement, upper: ArrayElement,
     enum_labels: &str, enum_count: i32,
 ) -> RangeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeTextPlan::Unknown = plan { unresolved_flavor = 1; };
+    if let ArrayElement::Unknown = lower { unresolved_flavor = 1; };
+    if let ArrayElement::Unknown = upper { unresolved_flavor = 1; };
     if range_text_needs_bounds(plan.clone()) == false {
         let initial = range_stored_text_initial(plan, type_name, element_type, kind, support);
         return range_with_enum_definition(initial, enum_labels, enum_count);
@@ -421,7 +441,7 @@ pub fn finish_range_stored_text_defined(
             range_stored_text_bound(lower), range_stored_text_bound(upper), support,
             enum_labels, enum_count);
     };
-    RangeValue::Unknown
+    range_unresolved(unresolved_flavor)
 }
 
 pub fn finish_range_text_typed(plan: RangeTextPlan, type_name: &str, element_type: &str,
@@ -437,6 +457,10 @@ pub fn finish_range_text_typed(plan: RangeTextPlan, type_name: &str, element_typ
 pub fn finish_range_stored_text_typed(plan: RangeTextPlan, type_name: &str, element_type: &str,
     kind: i32, support: RangeSupport, lower: ArrayElement, upper: ArrayElement,
     bound_profile: RangeBoundContext) -> RangeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeTextPlan::Unknown = plan { unresolved_flavor = 1; };
+    if let ArrayElement::Unknown = lower { unresolved_flavor = 1; };
+    if let ArrayElement::Unknown = upper { unresolved_flavor = 1; };
     if range_text_needs_bounds(plan.clone()) == false {
         return range_with_bound_profile(range_stored_text_initial(plan,type_name,element_type,kind,support),bound_profile);
     };
@@ -446,7 +470,7 @@ pub fn finish_range_stored_text_typed(plan: RangeTextPlan, type_name: &str, elem
             text.as_str()=="[]" || text.as_str()=="[)",text.as_str()=="[]" || text.as_str()=="(]",
             range_stored_text_bound(lower),range_stored_text_bound(upper),support,"",-1,bound_profile);
     };
-    RangeValue::Unknown
+    range_unresolved(unresolved_flavor)
 }
 
 pub fn range_from_text_with_support(
@@ -468,13 +492,15 @@ pub fn range_from_text_defined(
     enum_labels: &str,
     enum_count: i32,
 ) -> RangeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     let plan = prepare_range_text(input);
     if range_text_needs_bounds(plan.clone()) == false {
         let initial = range_text_initial(plan.clone(), type_name, element_type, kind, support);
         return range_with_enum_definition(initial, enum_labels, enum_count);
     };
     if kind == 6 && range_enum_definition_valid(enum_labels, enum_count) == false {
-        return RangeValue::Unknown;
+        return range_unresolved(unresolved_flavor);
     };
     let lower_text = range_text_bound(plan.clone(), false);
     let cidr = range_support_is_cidr(support) || element_type == "pg_catalog.cidr";
@@ -486,7 +512,7 @@ pub fn range_from_text_defined(
         return RangeValue::Error(error);
     };
     if let ArrayElement::Unknown = lower {
-        return RangeValue::Unknown;
+        return range_unresolved(unresolved_flavor);
     };
     let upper_text = range_text_bound(plan.clone(), true);
     let upper = range_input_bound(upper_text, kind, cidr, name, alias_mode, utf8, enum_labels, enum_count);
@@ -494,7 +520,7 @@ pub fn range_from_text_defined(
         return RangeValue::Error(error);
     };
     if let ArrayElement::Unknown = upper {
-        return RangeValue::Unknown;
+        return range_unresolved(unresolved_flavor);
     };
     finish_range_text_defined(plan, type_name, element_type, kind, support, lower, upper, enum_labels, enum_count)
 }

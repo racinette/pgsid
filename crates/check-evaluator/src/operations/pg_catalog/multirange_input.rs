@@ -241,6 +241,7 @@ pub(crate) fn finish_multirange_text(
     element_kind: i32,
     support: RangeSupport,
 ) -> MultirangeValue {
+    let unresolved_flavor: i32 = 0;
     if input.state == -2 {
         return MultirangeValue::Error(input.error);
     };
@@ -248,7 +249,7 @@ pub(crate) fn finish_multirange_text(
         return MultirangeValue::Null;
     };
     if input.state != 2 {
-        return MultirangeValue::Unknown;
+        return multirange_unresolved(unresolved_flavor);
     };
     let typed = multirange_from_profiled_ranges(
         type_name,
@@ -272,11 +273,12 @@ pub(crate) fn finish_multirange_stored_text(
     element_kind: i32,
     support: RangeSupport,
 ) -> MultirangeValue {
+    let unresolved_flavor: i32 = 0;
     if input.state == 0 {
         return MultirangeValue::Null;
     };
     if input.state != 2 {
-        return MultirangeValue::Unknown;
+        return multirange_unresolved(unresolved_flavor);
     };
     multirange_from_profiled_ranges(
         type_name,

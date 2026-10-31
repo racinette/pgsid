@@ -1,10 +1,12 @@
 const TSVECTOR_INVALID_PARAMETER: u32 = 3452619;
 
 pub fn sql__pg_catalog__length__grcw(input: TsvectorValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TsvectorValue::Unknown = input { unresolved_flavor = 1; };
     if let TsvectorValue::Error(error) = input { return Int4Value::Error(error); };
     if let TsvectorValue::Null = input { return Int4Value::Null; };
     if let TsvectorValue::Value(value) = input { return make_int4_value(value.lexemes.len() as i32); };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__strip__3rdv(input: TsvectorValue) -> TsvectorValue {
@@ -24,10 +26,13 @@ pub fn sql__pg_catalog__strip__3rdv(input: TsvectorValue) -> TsvectorValue {
 }
 
 pub fn sql__pg_catalog__setweight__hza4(input: TsvectorValue, weight: InternalCharValue) -> TsvectorValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TsvectorValue::Unknown = input { unresolved_flavor = 1; };
+    if let InternalCharValue::Unknown = weight { unresolved_flavor = 1; };
     if let TsvectorValue::Error(error) = input { return TsvectorValue::Error(error); };
     if let InternalCharValue::Error(error) = weight { return TsvectorValue::Error(error); };
-    if let TsvectorValue::Unknown = input { return TsvectorValue::Unknown; };
-    if weight == InternalCharValue::Unknown { return TsvectorValue::Unknown; };
+    if let TsvectorValue::Unknown = input { return tsvector_unresolved(unresolved_flavor); };
+    if weight == InternalCharValue::Unknown { return tsvector_unresolved(unresolved_flavor); };
     if let TsvectorValue::Null = input { return TsvectorValue::Null; };
     if weight == InternalCharValue::Null { return TsvectorValue::Null; };
     if let InternalCharValue::Value(code) = weight {
@@ -53,10 +58,12 @@ pub fn sql__pg_catalog__setweight__hza4(input: TsvectorValue, weight: InternalCh
             return TsvectorValue::Value(TsvectorPayload {lexemes:lexemes,native_bytes:value.native_bytes});
         };
     };
-    TsvectorValue::Unknown
+    tsvector_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__tsvector_to_array__rv21(input: TsvectorValue) -> ArrayValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TsvectorValue::Unknown = input { unresolved_flavor = 1; };
     if let TsvectorValue::Error(error) = input { return ArrayValue::Error(error); };
     if let TsvectorValue::Null = input { return ArrayValue::Null; };
     if let TsvectorValue::Value(value) = input {
@@ -69,19 +76,22 @@ pub fn sql__pg_catalog__tsvector_to_array__rv21(input: TsvectorValue) -> ArrayVa
         }
         return finish_array_arguments(builder);
     };
-    ArrayValue::Unknown
+    array_unresolved(unresolved_flavor)
 }
 
 fn tsvector_compare(left: TsvectorValue, right: TsvectorValue, exact: bool) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TsvectorValue::Unknown = left { unresolved_flavor = 1; };
+    if let TsvectorValue::Unknown = right { unresolved_flavor = 1; };
     if let TsvectorValue::Error(error) = left { return Int4Value::Error(error); };
     if let TsvectorValue::Error(error) = right { return Int4Value::Error(error); };
-    if let TsvectorValue::Unknown = left { return Int4Value::Unknown; };
-    if let TsvectorValue::Unknown = right { return Int4Value::Unknown; };
+    if let TsvectorValue::Unknown = left { return int4_unresolved(unresolved_flavor); };
+    if let TsvectorValue::Unknown = right { return int4_unresolved(unresolved_flavor); };
     if let TsvectorValue::Null = left { return Int4Value::Null; };
     if let TsvectorValue::Null = right { return Int4Value::Null; };
     if let TsvectorValue::Value(a) = left {
         if let TsvectorValue::Value(b) = right {
-            if a.native_bytes < 0 || b.native_bytes < 0 { return Int4Value::Unknown; };
+            if a.native_bytes < 0 || b.native_bytes < 0 { return int4_unresolved(unresolved_flavor); };
             if a.native_bytes < b.native_bytes { return make_int4_value(-1); };
             if a.native_bytes > b.native_bytes { return make_int4_value(1); };
             if a.lexemes.len() < b.lexemes.len() { return make_int4_value(-1); };
@@ -96,7 +106,7 @@ fn tsvector_compare(left: TsvectorValue, right: TsvectorValue, exact: bool) -> I
                 if order != 0 {
                     let a_prefix = text_has_prefix(a.lexemes[i].text.as_str(),b.lexemes[i].text.as_str());
                     let b_prefix = text_has_prefix(b.lexemes[i].text.as_str(),a.lexemes[i].text.as_str());
-                    if exact && a_prefix == false && b_prefix == false { return Int4Value::Unknown; };
+                    if exact && a_prefix == false && b_prefix == false { return int4_unresolved(unresolved_flavor); };
                     return make_int4_value(order);
                 };
                 if ac > bc { return make_int4_value(-1); };
@@ -116,7 +126,7 @@ fn tsvector_compare(left: TsvectorValue, right: TsvectorValue, exact: bool) -> I
             return make_int4_value(0);
         };
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn tsvector_order(left: TsvectorValue, right: TsvectorValue) -> Int4Value {
@@ -127,6 +137,9 @@ pub fn sql__pg_catalog__tsvector_cmp__xinv(left: TsvectorValue, right: TsvectorV
     tsvector_compare(left,right,true)
 }
 fn tsvector_relation(left: TsvectorValue, right: TsvectorValue, mode: i32) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TsvectorValue::Unknown = left { unresolved_flavor = 1; };
+    if let TsvectorValue::Unknown = right { unresolved_flavor = 1; };
     let order = tsvector_compare(left,right,false);
     if let Int4Value::Error(error) = order { return BoolValue::Error(error); };
     if let Int4Value::Null = order { return BoolValue::Null; };
@@ -138,7 +151,7 @@ fn tsvector_relation(left: TsvectorValue, right: TsvectorValue, mode: i32) -> Bo
         if mode == 4 { return make_bool_value(value > 0); };
         return make_bool_value(value >= 0);
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__tsvector_eq__aqk8(a: TsvectorValue,b: TsvectorValue)->BoolValue {tsvector_relation(a,b,0)}
 pub fn sql__pg_catalog__tsvector_ne__v0j3(a: TsvectorValue,b: TsvectorValue)->BoolValue {tsvector_relation(a,b,1)}
