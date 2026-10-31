@@ -17711,6 +17711,13 @@ func RecordArrayFromText(input checkruntime.TextValue, nulls int) checkruntime.A
 	}
 	first := recordArrayInputWithNulls(input, 1)
 	second := recordArrayInputWithNulls(input, 0)
+	settingFlavor := checkruntime.ResolutionContext(unresolvedFlavor)
+	if first.Kind == checkruntime.ArrayValueUnimplemented {
+		settingFlavor = langruntime.CheckedI32(2)
+	}
+	if second.Kind == checkruntime.ArrayValueUnimplemented {
+		settingFlavor = langruntime.CheckedI32(2)
+	}
 	if first.Kind == checkruntime.ArrayValueError {
 		left := first.Error
 		if second.Kind == checkruntime.ArrayValueError {
@@ -17719,24 +17726,33 @@ func RecordArrayFromText(input checkruntime.TextValue, nulls int) checkruntime.A
 				return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: left}
 			}
 		}
-		return checkruntime.ArrayUnresolved(unresolvedFlavor)
+		return checkruntime.ArrayUnresolved(settingFlavor)
 	}
 	if first.Kind == checkruntime.ArrayValueNull {
 		if second.Kind == checkruntime.ArrayValueNull {
 			return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}
 		}
-		return checkruntime.ArrayUnresolved(unresolvedFlavor)
+		return checkruntime.ArrayUnresolved(settingFlavor)
 	}
 	if first.Kind == checkruntime.ArrayValueValue {
 		left := checkruntime.CopyArrayPayload(first.Value)
 		if second.Kind == checkruntime.ArrayValueValue {
 			right := checkruntime.CopyArrayPayload(second.Value)
-			if len(left.Elements) == 0 && len(right.Elements) == 0 {
+			nullRead := false
+			position := 0
+			for position < len(left.Elements) {
+				element := checkruntime.CopyArrayElement(left.Elements[position])
+				if element.Kind == checkruntime.ArrayElementNull {
+					nullRead = true
+				}
+				position = langruntime.CheckedAdd(position, 1)
+			}
+			if nullRead == false && len(left.Elements) == len(right.Elements) {
 				return checkruntime.MakeArrayValue(left)
 			}
 		}
 	}
-	return checkruntime.ArrayUnresolved(unresolvedFlavor)
+	return checkruntime.ArrayUnresolved(settingFlavor)
 }
 func RecordEqRc7m(input checkruntime.Int4Value) checkruntime.BoolValue {
 	return arrayComparisonBoolean(input, 3)
@@ -19036,7 +19052,7 @@ func HashenumZ4zk(input checkruntime.EnumValue) checkruntime.Int4Value {
 	if input.Kind == checkruntime.EnumValueValue {
 		value := input.Value
 		if value.LabelOid == int64(0) {
-			return checkruntime.Int4Unresolved(unresolvedFlavor)
+			return checkruntime.Int4Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		word := int(int32(value.LabelOid))
 		return Hashint4Zr00(checkruntime.MakeInt4Value(word))
@@ -19091,7 +19107,7 @@ func Hashenumextended18hh(input checkruntime.EnumValue, seed checkruntime.Int8Va
 	if input.Kind == checkruntime.EnumValueValue {
 		value := input.Value
 		if value.LabelOid == int64(0) {
-			return checkruntime.Int8Unresolved(unresolvedFlavor)
+			return checkruntime.Int8Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		word := int(int32(value.LabelOid))
 		return Hashint4extendedXf6v(checkruntime.MakeInt4Value(word), seed)
@@ -32021,7 +32037,7 @@ func JsonbInputFromEnum(input checkruntime.EnumValue) checkruntime.JsonbInput {
 	if input == (checkruntime.EnumValue{Kind: checkruntime.EnumValueNull}) {
 		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputNull}
 	}
-	return checkruntime.JsonbInputUnresolved(unresolvedFlavor)
+	return checkruntime.JsonbInputUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 }
 func JsonbTypeof68xu(input checkruntime.JsonbValue) checkruntime.TextValue {
 	input = checkruntime.CopyJsonbValue(input)
@@ -83800,6 +83816,7 @@ func FormatTypeBj8v(identity checkruntime.OidValue, modifier checkruntime.Int4Va
 		if value == int64(0) {
 			return checkruntime.MakeTextValue("-")
 		}
+		return checkruntime.TextUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 	}
 	return checkruntime.TextUnresolved(unresolvedFlavor)
 }
@@ -83820,6 +83837,9 @@ func PgCollationFor808q(argument checkruntime.BoolValue, collation checkruntime.
 	if argument.Kind == checkruntime.BoolValueError {
 		error := argument.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if collation == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
 	}
 	if collation == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(metadataNoncollatableType)}

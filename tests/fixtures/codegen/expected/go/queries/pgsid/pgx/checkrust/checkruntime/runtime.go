@@ -17514,6 +17514,9 @@ func ArrayTextEventAt(input *ArrayTextPayload, index Int4Value) TextValue {
 			error := event.Error
 			return TextValue{Kind: TextValueError, Error: error}
 		}
+		if event.Kind == ArrayTextEventUnknown {
+			return TextUnresolved(ResolutionContext(unresolvedFlavor))
+		}
 	}
 	return TextUnresolved(unresolvedFlavor)
 }
@@ -17595,6 +17598,9 @@ func PrepareArrayText(input TextValue, boxDelimiter bool, nulls int) ArrayTextPa
 		return payload
 	}
 	state := langruntime.CheckedSignedNegate(1)
+	if plan.Kind == ArrayTextPlanUnknown {
+		state = langruntime.CheckedI32(langruntime.CheckedSignedNegate(3))
+	}
 	if plan.Kind == ArrayTextPlanNull {
 		state = langruntime.CheckedI32(0)
 	}
@@ -17656,7 +17662,7 @@ func FinishPreparedArrayText(input ArrayTextPayload, converted ArrayArguments) A
 		return ArrayValue{Kind: ArrayValueNull}
 	}
 	if input.State != 1 {
-		return ArrayUnresolved(unresolvedFlavor)
+		return ArrayUnresolved(ArrayOutputFlavor(input.State, unresolvedFlavor))
 	}
 	return FinishArrayText(ArrayTextPlan{Kind: ArrayTextPlanValue, Value: input}, converted)
 }

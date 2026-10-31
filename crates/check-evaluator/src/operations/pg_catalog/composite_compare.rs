@@ -170,28 +170,42 @@ pub fn record_array_from_text(input: TextValue, nulls: i32) -> ArrayValue {
     };
     let first = record_array_input_with_nulls(input.clone(), 1);
     let second = record_array_input_with_nulls(input, 0);
+    // The settings disagree only where an unquoted NULL is read, so a disagreement follows the
+    // session's array_nulls, unless either reading is itself unimplemented.
+    let mut setting_flavor: i32 = resolution_context(unresolved_flavor);
+    if let ArrayValue::Unimplemented = first { setting_flavor = 2; };
+    if let ArrayValue::Unimplemented = second { setting_flavor = 2; };
     if let ArrayValue::Error(left) = first {
         if let ArrayValue::Error(right) = second {
             if left.state == right.state {
                 return ArrayValue::Error(left);
             };
         };
-        return array_unresolved(unresolved_flavor);
+        return array_unresolved(setting_flavor);
     };
     if let ArrayValue::Null = first {
         if let ArrayValue::Null = second {
             return ArrayValue::Null;
         };
-        return array_unresolved(unresolved_flavor);
+        return array_unresolved(setting_flavor);
     };
     if let ArrayValue::Value(left) = first {
         if let ArrayValue::Value(right) = second {
-            if left.elements.len() == 0 && right.elements.len() == 0 {
+            let mut null_read = false;
+            let mut position: usize = 0;
+            while position < left.elements.len() {
+                let element = left.elements[position].clone();
+                if let ArrayElement::Null = element {
+                    null_read = true;
+                };
+                position += 1;
+            }
+            if null_read == false && left.elements.len() == right.elements.len() {
                 return make_array_value(left);
             };
         };
     };
-    array_unresolved(unresolved_flavor)
+    array_unresolved(setting_flavor)
 }
 
 pub fn sql__pg_catalog__record_eq__rc7m(input: Int4Value) -> BoolValue {

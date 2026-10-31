@@ -17726,6 +17726,13 @@ export function recordArrayFromText(input: checkruntime.TextValue, nulls: number
     }
     const first: checkruntime.ArrayValue = recordArrayInputWithNulls(input, 1);
     const second: checkruntime.ArrayValue = recordArrayInputWithNulls(input, 0);
+    let settingFlavor: number = checkruntime.resolutionContext(unresolvedFlavor);
+    if (first.kind === "Unimplemented") {
+        settingFlavor = langruntime.checkedI32(2);
+    }
+    if (second.kind === "Unimplemented") {
+        settingFlavor = langruntime.checkedI32(2);
+    }
     if (first.kind === "Error") {
         const left: checkruntime.SqlError = first.value;
         if (second.kind === "Error") {
@@ -17734,24 +17741,33 @@ export function recordArrayFromText(input: checkruntime.TextValue, nulls: number
                 return { kind: "Error", value: left };
             }
         }
-        return checkruntime.arrayUnresolved(unresolvedFlavor);
+        return checkruntime.arrayUnresolved(settingFlavor);
     }
     if (first.kind === "Null") {
         if (second.kind === "Null") {
             return { kind: "Null" };
         }
-        return checkruntime.arrayUnresolved(unresolvedFlavor);
+        return checkruntime.arrayUnresolved(settingFlavor);
     }
     if (first.kind === "Value") {
         const left: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(first.value);
         if (second.kind === "Value") {
             const right: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(second.value);
-            if (left.elements.length === 0 && right.elements.length === 0) {
+            let nullRead: boolean = false;
+            let position: number = 0;
+            while (position < left.elements.length) {
+                const element: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(left.elements, langruntime.checkedIndex(position), checkruntime.copyArrayElement));
+                if (element.kind === "Null") {
+                    nullRead = langruntime.checkedBool(true);
+                }
+                position = langruntime.checkedAdd(position, 1);
+            }
+            if (nullRead === false && left.elements.length === right.elements.length) {
                 return checkruntime.makeArrayValue(left);
             }
         }
     }
-    return checkruntime.arrayUnresolved(unresolvedFlavor);
+    return checkruntime.arrayUnresolved(settingFlavor);
 }
 export function recordEqRc7m(input: checkruntime.Int4Value): checkruntime.BoolValue {
     return arrayComparisonBoolean(input, 3);
@@ -19052,7 +19068,7 @@ export function hashenumZ4zk(input: checkruntime.EnumValue): checkruntime.Int4Va
     if (input.kind === "Value") {
         const value: checkruntime.EnumPayload = input.value;
         if (value.labelOid === 0n) {
-            return checkruntime.int4Unresolved(unresolvedFlavor);
+            return checkruntime.int4Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         const word: number = Number(BigInt.asIntN(32, langruntime.checkedI64(value.labelOid)));
         return hashint4Zr00(checkruntime.makeInt4Value(word));
@@ -19107,7 +19123,7 @@ export function hashenumextended18hh(input: checkruntime.EnumValue, seed: checkr
     if (input.kind === "Value") {
         const value: checkruntime.EnumPayload = input.value;
         if (value.labelOid === 0n) {
-            return checkruntime.int8Unresolved(unresolvedFlavor);
+            return checkruntime.int8Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         const word: number = Number(BigInt.asIntN(32, langruntime.checkedI64(value.labelOid)));
         return hashint4extendedXf6v(checkruntime.makeInt4Value(word), seed);
@@ -32232,7 +32248,7 @@ export function jsonbInputFromEnum(input: checkruntime.EnumValue): checkruntime.
     if (checkruntime.equalEnumValue(input, { kind: "Null" })) {
         return { kind: "Null" };
     }
-    return checkruntime.jsonbInputUnresolved(unresolvedFlavor);
+    return checkruntime.jsonbInputUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
 }
 export function jsonbTypeof68xu(input: checkruntime.JsonbValue): checkruntime.TextValue {
     input = checkruntime.copyJsonbValue(input);
@@ -84286,6 +84302,7 @@ export function formatTypeBj8v(identity: checkruntime.OidValue, modifier: checkr
         if (value === 0n) {
             return checkruntime.makeTextValue("-");
         }
+        return checkruntime.textUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
     }
     return checkruntime.textUnresolved(unresolvedFlavor);
 }
@@ -84306,6 +84323,9 @@ export function pgCollationFor808q(argument: checkruntime.BoolValue, collation: 
     if (argument.kind === "Error") {
         const error: checkruntime.SqlError = argument.value;
         return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBoolValue(collation, { kind: "Null" })) {
+        return { kind: "Null" };
     }
     if (checkruntime.equalBoolValue(collation, { kind: "Value", value: false })) {
         return { kind: "Error", value: checkruntime.makeSqlError(metadataNoncollatableType) };

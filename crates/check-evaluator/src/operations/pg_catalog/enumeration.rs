@@ -201,8 +201,9 @@ pub fn sql__pg_catalog__hashenum__z4zk(input: EnumValue) -> Int4Value {
         return Int4Value::Null;
     }
     if let EnumValue::Value(value) = input {
+        // The hash reads the label's deployment OID.
         if value.label_oid == 0i64 {
-            return int4_unresolved(unresolved_flavor);
+            return int4_unresolved(resolution_context(unresolved_flavor));
         }
         let word = value.label_oid as i32;
         return sql__pg_catalog__hashint4__zr00(make_int4_value(word));
@@ -229,8 +230,9 @@ pub fn sql__pg_catalog__hashenumextended__18hh(input: EnumValue, seed: Int8Value
         return Int8Value::Null;
     }
     if let EnumValue::Value(value) = input {
+        // The hash reads the label's deployment OID.
         if value.label_oid == 0i64 {
-            return int8_unresolved(unresolved_flavor);
+            return int8_unresolved(resolution_context(unresolved_flavor));
         }
         let word = value.label_oid as i32;
         return sql__pg_catalog__hashint4extended__xf6v(make_int4_value(word), seed);

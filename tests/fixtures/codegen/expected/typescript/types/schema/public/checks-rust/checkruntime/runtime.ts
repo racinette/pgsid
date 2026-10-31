@@ -17506,6 +17506,9 @@ export function arrayTextEventAt(input: ArrayTextPayload, index: Int4Value): Tex
             const error: SqlError = event.value;
             return { kind: "Error", value: error };
         }
+        if (event.kind === "Unknown") {
+            return textUnresolved(resolutionContext(unresolvedFlavor));
+        }
     }
     return textUnresolved(unresolvedFlavor);
 }
@@ -17588,6 +17591,9 @@ export function prepareArrayText(input: TextValue, boxDelimiter: boolean, nulls:
         return payload;
     }
     let state: number = langruntime.checkedSignedNegate(1);
+    if (plan.kind === "Unknown") {
+        state = langruntime.checkedI32(langruntime.checkedSignedNegate(3));
+    }
     if (plan.kind === "Null") {
         state = langruntime.checkedI32(0);
     }
@@ -17649,7 +17655,7 @@ export function finishPreparedArrayText(input: ArrayTextPayload, converted: Arra
         return { kind: "Null" };
     }
     if (!(input.state === 1)) {
-        return arrayUnresolved(unresolvedFlavor);
+        return arrayUnresolved(arrayOutputFlavor(input.state, unresolvedFlavor));
     }
     return finishArrayText({ kind: "Value", value: input }, converted);
 }
