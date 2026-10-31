@@ -198,17 +198,56 @@ const inputsSql = [
   },
 ]
 const profiles: { name: string; context: CheckExecutionContext }[] = [
-  { name: 'UTC', context: { timeZone: 'UTC', timeLocale: 'C', defaultCollation: 'C' } },
+  {
+    name: 'UTC',
+    context: { timeZone: 'UTC', timeLocale: 'C', defaultCollation: 'C', defaultCtype: 'C.UTF-8' },
+  },
   {
     name: 'New_York',
-    context: { timeZone: 'America/New_York', timeLocale: 'C', defaultCollation: 'C' },
+    context: {
+      timeZone: 'America/New_York',
+      timeLocale: 'C',
+      defaultCollation: 'C',
+      defaultCtype: 'C.UTF-8',
+    },
   },
-  { name: 'Guam', context: { timeZone: 'Pacific/Guam', timeLocale: 'C', defaultCollation: 'C' } },
-  { name: 'east', context: { timeZone: '167.999', timeLocale: 'C', defaultCollation: 'C' } },
-  { name: 'west', context: { timeZone: '-167.999', timeLocale: 'C', defaultCollation: 'C' } },
-  { name: 'missing_zone', context: { timeLocale: 'C', defaultCollation: 'C' } },
-  { name: 'missing_locale', context: { timeZone: 'UTC', defaultCollation: 'C' } },
-  { name: 'missing_collation', context: { timeZone: 'UTC', timeLocale: 'C' } },
+  {
+    name: 'Guam',
+    context: {
+      timeZone: 'Pacific/Guam',
+      timeLocale: 'C',
+      defaultCollation: 'C',
+      defaultCtype: 'C.UTF-8',
+    },
+  },
+  {
+    name: 'east',
+    context: {
+      timeZone: '167.999',
+      timeLocale: 'C',
+      defaultCollation: 'C',
+      defaultCtype: 'C.UTF-8',
+    },
+  },
+  {
+    name: 'west',
+    context: {
+      timeZone: '-167.999',
+      timeLocale: 'C',
+      defaultCollation: 'C',
+      defaultCtype: 'C.UTF-8',
+    },
+  },
+  {
+    name: 'missing_zone',
+    context: { timeLocale: 'C', defaultCollation: 'C', defaultCtype: 'C.UTF-8' },
+  },
+  {
+    name: 'missing_locale',
+    context: { timeZone: 'UTC', defaultCollation: 'C', defaultCtype: 'C.UTF-8' },
+  },
+  // Translated names are cased by the ctype; C and C.UTF-8 case ASCII alike.
+  { name: 'missing_ctype', context: { timeZone: 'UTC', timeLocale: 'C', defaultCollation: 'C' } },
 ]
 const forms = functions.flatMap((fn) => {
   const column = fn.args[0] === 'pg_catalog.timestamptz' ? 'z' : 's'
@@ -404,7 +443,7 @@ it('matches local and instant timestamp templates with explicit locale and timez
                   ((picture.locale || (form.other && picture.text === 'TMMONTH')) &&
                     (profile.context.timeLocale === undefined ||
                       form.other ||
-                      (!form.explicit && profile.context.defaultCollation === undefined)))))
+                      (!form.explicit && profile.context.defaultCtype === undefined)))))
             if (defer) deferred++
             native.push({
               profile: profile.name,
@@ -571,7 +610,7 @@ it.skipIf(!functions.some((fn) => fn.args[0] === 'pg_catalog.timestamptz'))(
               }
             }),
           ),
-          { timeZone, defaultCollation: 'C' },
+          { timeZone, defaultCollation: 'C', defaultCtype: 'C.UTF-8' },
         ),
       )
       const evaluatorSource = groups.map((g) => g.evaluatorSource!).join('\n'),

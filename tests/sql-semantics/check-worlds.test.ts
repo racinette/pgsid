@@ -185,6 +185,12 @@ const arraySortContextCases = new Map<string, string>([
   ],
 ])
 const declaredValueContextCases = new Map<string, string>([
+  // Translated month names lowercase the input by the ctype, and PGlite's C.UTF-8 ctype is not
+  // the C ctype that would decide a default-collation parse.
+  [
+    '044_inspection_records/ImportedDatetimeLocalizedMonth/imported_day_value',
+    'world_044_inspection_records.inspection_imported_datetimes.imported_day_value',
+  ],
   ...['acl_json_scalar', 'acl_json_array', 'acl_json_record', 'acl_json_object'].map(
     (name) =>
       [

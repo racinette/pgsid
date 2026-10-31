@@ -39,6 +39,9 @@ const full: CheckExecutionContext = {
   timeZoneAbbreviations: 'Default',
   timeLocale: 'C',
   defaultCollation: 'C',
+  // PGlite's database ctype; translated name parsing lowercases input by the ctype, so only a C
+  // ctype decides default-collation forms.
+  defaultCtype: 'C.UTF-8',
   serverEncoding: 'UTF8',
 }
 const profiles: { name: string; context: CheckExecutionContext }[] = [
@@ -49,7 +52,7 @@ const profiles: { name: string; context: CheckExecutionContext }[] = [
   { name: 'POSIX_same', context: { ...full, timeZone: 'ABC3ABC2,M3.2.0,M11.1.0' } },
   { name: 'missing_zone', context: { ...full, timeZone: undefined } },
   { name: 'missing_locale', context: { ...full, timeLocale: undefined } },
-  { name: 'missing_collation', context: { ...full, defaultCollation: undefined } },
+  { name: 'missing_ctype', context: { ...full, defaultCtype: undefined } },
   { name: 'missing_encoding', context: { ...full, serverEncoding: undefined } },
   { name: 'missing_registry', context: { ...full, timeZoneAbbreviations: undefined } },
 ]
@@ -98,6 +101,11 @@ const expression = (call: string, fn: FunctionMetadata) =>
 const known = (value: string | boolean | null): Input =>
   value === null ? { kind: 'Null' } : { kind: 'Value', value }
 const error = (state: string): Outcome => ({ kind: 'Error', value: { state: parseInt(state, 36) } })
+// Generated pairs carry no locale flags; translated name fields read the time locale and ctype
+// once any input remains.
+const translatedName = (template: string | null) =>
+  template !== null &&
+  /TM(?:FM)?(?:MONTH|Month|month|MON|Mon|mon|DAY|Day|day|DY|Dy|dy)/u.test(template)
 const overflowGroup = (input: string | null, template: string | null) => {
   if (input === null || template === null || !template.includes('Y,YYY')) return false
   const match = input.match(/^\s*([+-]?\d+),\s*[+-]?\d/)
@@ -200,7 +208,9 @@ it('matches SQL datetime templates, native input grammar, calendars, zone prefix
           }
           const settings = input as (typeof cases)[number]
           const nullInput = input.input === null || input.template === null
-          const needsLocale = 'locale' in settings && settings.locale
+          const needsLocale =
+            ('locale' in settings && settings.locale) ||
+            (index === 0 && input.input !== '' && translatedName(input.template))
           const needsLookup = 'abbreviation' in settings && settings.abbreviation
           const needsEncoding = 'encoding' in settings && settings.encoding
           const needsRegistry = 'registry' in settings && settings.registry
@@ -211,7 +221,7 @@ it('matches SQL datetime templates, native input grammar, calendars, zone prefix
               ((needsLocale &&
                 (profile.context.timeLocale === undefined ||
                   form.other ||
-                  (!form.explicit && profile.context.defaultCollation === undefined))) ||
+                  (!form.explicit && profile.context.defaultCtype !== 'C'))) ||
                 (needsLookup && profile.context.timeZone === undefined) ||
                 (needsEncoding && profile.context.serverEncoding === undefined) ||
                 (needsRegistry && profile.context.timeZoneAbbreviations === undefined) ||
