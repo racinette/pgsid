@@ -246,6 +246,15 @@ it('preserves stored scalar and array bound facets through ranges, multiranges a
     for (const f of forms.filter((f) => ['document', 'state'].includes(f.name))) {
       add('padded_' + f.name + '_stored', after, f, 'stored')
       await observe('padded', f, ['stored'])
+      // A stored tsvector decodes from its datum, padding included, so missing or stale
+      // captured metadata cannot change the document outcome. Array storage still comes from
+      // its capture, so the state check defers without trustworthy metadata.
+      const padded = (row: Row) =>
+        fixtures.find(
+          (fixture) =>
+            fixture.name === 'padded_' + f.name + '_stored' &&
+            JSON.stringify(fixture.row) === JSON.stringify(row),
+        )!.expected
       for (const mode of ['missing', 'stale', 'extra']) {
         const label = mode + '_' + f.name
         add(label, after, f, 'stored', (constraint) => {
@@ -271,18 +280,20 @@ it('preserves stored scalar and array bound facets through ranges, multiranges a
             }
           }
         })
-        for (const bypass of [false, true])
+        for (const bypass of [false, true]) {
+          const row: Row = {
+            selector: known(f.selector),
+            source: known('a'),
+            observation: known(4),
+            expected: known(true),
+            bypass: known(bypass),
+          }
           fixtures.push({
             name: label,
-            row: {
-              selector: known(f.selector),
-              source: known('a'),
-              observation: known(4),
-              expected: known(true),
-              bypass: known(bypass),
-            },
-            expected: { kind: bypass ? 'True' : 'Unknown' },
+            row,
+            expected: f.name === 'document' ? padded(row) : { kind: bypass ? 'True' : 'Unknown' },
           })
+        }
       }
     }
     const group = prepareCheckRustGroup(plans, {
