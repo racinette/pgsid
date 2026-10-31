@@ -925,7 +925,11 @@ func TestChecksMatchPostgres(t *testing.T) {
   ]).catch((error: { stdout: string; stderr: string }) => {
     throw new Error(error.stdout + error.stderr, { cause: error })
   })
-  await run(join(directory, 'rust-test'), []).catch((error: { stdout: string; stderr: string }) => {
+  // Each unoptimized test function inlines 250 assertions with their temporaries in one frame,
+  // which can outgrow the default 2 MB test thread (multirange algebra needed about 4 MB).
+  await run(join(directory, 'rust-test'), [], {
+    env: { ...process.env, RUST_MIN_STACK: process.env['RUST_MIN_STACK'] ?? String(16 << 20) },
+  }).catch((error: { stdout: string; stderr: string }) => {
     throw new Error(error.stdout + error.stderr, { cause: error })
   })
   for (const [name, source] of Object.entries(split.go)) {
