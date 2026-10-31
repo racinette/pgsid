@@ -47,7 +47,7 @@ fn line_from_scalars(first: Float8Value, second: Float8Value, third: Float8Value
             };
         };
     };
-    line_unresolved(unresolved_flavor)
+    let mut local_flavor_50_4: i32 = unresolved_flavor; if let Float8Value::Unknown = c { if local_flavor_50_4 < 1 { local_flavor_50_4 = 1; }; }; if let Float8Value::Unimplemented = c { local_flavor_50_4 = 2; }; if let Float8Value::Unknown = b { if local_flavor_50_4 < 1 { local_flavor_50_4 = 1; }; }; if let Float8Value::Unimplemented = b { local_flavor_50_4 = 2; }; if let Float8Value::Unknown = a { if local_flavor_50_4 < 1 { local_flavor_50_4 = 1; }; }; if let Float8Value::Unimplemented = a { local_flavor_50_4 = 2; }; line_unresolved(local_flavor_50_4)
 }
 fn line_origin_coordinate(point: PointPayload, horizontal: bool) -> Float8Value {
     let mut bits = point.x;
@@ -96,7 +96,7 @@ fn line_from_origin_slope(origin: PointPayload, gradient: Float8Value) -> LineVa
         };
         return line_from_scalars(gradient, make_float8_value(-1.0f64), intercept);
     };
-    line_unresolved(unresolved_flavor)
+    let mut local_flavor_99_4: i32 = unresolved_flavor; if let Float8Value::Unknown = known { if local_flavor_99_4 < 1 { local_flavor_99_4 = 1; }; }; if let Float8Value::Unimplemented = known { local_flavor_99_4 = 2; }; line_unresolved(local_flavor_99_4)
 }
 fn line_from_points(left: PointValue, right: PointValue, invalid: u32) -> LineValue {
     let mut unresolved_flavor: i32 = 0;

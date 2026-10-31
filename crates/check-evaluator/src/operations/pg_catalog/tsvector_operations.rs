@@ -198,7 +198,7 @@ pub fn sql__pg_catalog__array_to_tsvector__y8ia(input: ArrayValue, utf8: bool) -
                 let chars: Vec<char> = text.chars().collect();
                 let mut c: usize = 0;
                 while c < chars.len() {
-                    if utf8 == false && (chars[c] as i32) > 127 { return tsvector_unresolved(unresolved_flavor); };
+                    if utf8 == false && (chars[c] as i32) > 127 { return tsvector_unresolved(resolution_context(unresolved_flavor)); };
                     c += 1;
                 }
                 if tsvector_lexeme_bytes(text.as_str()) > 2046 { return TsvectorValue::Error(make_sql_error(TSVECTOR_PROGRAM_LIMIT)); };
@@ -296,7 +296,7 @@ pub fn sql__pg_catalog__tsvectorsend__37x7(input: TsvectorValue, utf8: bool) -> 
             let chars: Vec<char> = lexeme.text.chars().collect();
             let mut c: usize = 0;
             while c < chars.len() {
-                if utf8 == false && (chars[c] as i32) > 127 { return bytea_unresolved(unresolved_flavor); };
+                if utf8 == false && (chars[c] as i32) > 127 { return bytea_unresolved(resolution_context(unresolved_flavor)); };
                 output = bytea_utf8_character(output,chars[c]);
                 c += 1;
             }

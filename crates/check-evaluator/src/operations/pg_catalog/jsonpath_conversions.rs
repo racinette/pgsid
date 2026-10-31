@@ -270,7 +270,7 @@ fn jsonpath_conversion_numeric_value(
                 ));
             };
         };
-        return numeric_unresolved(unresolved_flavor);
+        let mut local_flavor_273_8: i32 = unresolved_flavor; if let Int4Value::Unknown = precision { if local_flavor_273_8 < 1 { local_flavor_273_8 = 1; }; }; if let Int4Value::Unimplemented = precision { local_flavor_273_8 = 2; }; return numeric_unresolved(local_flavor_273_8);
     };
     converted
 }

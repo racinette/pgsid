@@ -39,7 +39,7 @@ fn xpath_result_exists(input: &XPathValue) -> BoolValue {
     let count = xpath_result_count(input);
     if let Int4Value::Error(error) = count { return BoolValue::Error(error); };
     if let Int4Value::Value(value) = count { return BoolValue::Value(value > 0); };
-    bool_unresolved(unresolved_flavor)
+    let mut local_flavor_42_4: i32 = unresolved_flavor; if let Int4Value::Unknown = count { if local_flavor_42_4 < 1 { local_flavor_42_4 = 1; }; }; if let Int4Value::Unimplemented = count { local_flavor_42_4 = 2; }; bool_unresolved(local_flavor_42_4)
 }
 
 pub(crate) fn xpath_result_to_xml(input: XPathValue, tree: &XmlTree, graph: &XPathGraph, extra: i32, known: bool) -> XPathXmlResult {

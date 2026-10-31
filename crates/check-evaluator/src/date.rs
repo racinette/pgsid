@@ -969,7 +969,7 @@ fn date_from_temporal_text(value: TextValue, date_order: i32) -> DateValue {
             return make_date_value(narrow);
         }
     }
-    date_unresolved(unresolved_flavor)
+    let mut local_flavor_972_4: i32 = unresolved_flavor; if let Int8Value::Unknown = parsed { if local_flavor_972_4 < 1 { local_flavor_972_4 = 1; }; }; if let Int8Value::Unimplemented = parsed { local_flavor_972_4 = 2; }; date_unresolved(local_flavor_972_4)
 }
 
 pub fn date_from_ymd(year: i32, month: i32, day: i32) -> DateValue {
@@ -981,7 +981,7 @@ pub fn date_from_ymd(year: i32, month: i32, day: i32) -> DateValue {
     if let Int4Value::Value(value) = days {
         return make_date_value(value);
     }
-    date_unresolved(unresolved_flavor)
+    let mut local_flavor_984_4: i32 = unresolved_flavor; if let Int4Value::Unknown = days { if local_flavor_984_4 < 1 { local_flavor_984_4 = 1; }; }; if let Int4Value::Unimplemented = days { local_flavor_984_4 = 2; }; date_unresolved(local_flavor_984_4)
 }
 
 fn calendar_days_from_ymd(year: i32, month: i32, day: i32) -> Int4Value {

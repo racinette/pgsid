@@ -152,7 +152,7 @@ fn lseg_length_relation(left: LsegValue, right: LsegValue, mode: i32) -> BoolVal
             return make_bool_value(x + 0.000001f64 >= y);
         };
     };
-    bool_unresolved(unresolved_flavor)
+    let mut local_flavor_155_4: i32 = unresolved_flavor; if let Float8Value::Unknown = b { if local_flavor_155_4 < 1 { local_flavor_155_4 = 1; }; }; if let Float8Value::Unimplemented = b { local_flavor_155_4 = 2; }; if let Float8Value::Unknown = a { if local_flavor_155_4 < 1 { local_flavor_155_4 = 1; }; }; if let Float8Value::Unimplemented = a { local_flavor_155_4 = 2; }; if let Float8Value::Unknown = second { if local_flavor_155_4 < 1 { local_flavor_155_4 = 1; }; }; if let Float8Value::Unimplemented = second { local_flavor_155_4 = 2; }; if let Float8Value::Unknown = first { if local_flavor_155_4 < 1 { local_flavor_155_4 = 1; }; }; if let Float8Value::Unimplemented = first { local_flavor_155_4 = 2; }; bool_unresolved(local_flavor_155_4)
 }
 fn lseg_midpoint(input: LsegValue) -> PointValue {
     let mut unresolved_flavor: i32 = 0;
@@ -254,7 +254,7 @@ fn lseg_direction_relation(left: LsegValue, right: LsegValue, perpendicular: boo
             ));
         };
     };
-    bool_unresolved(unresolved_flavor)
+    let mut local_flavor_257_4: i32 = unresolved_flavor; if let Float8Value::Unknown = b { if local_flavor_257_4 < 1 { local_flavor_257_4 = 1; }; }; if let Float8Value::Unimplemented = b { local_flavor_257_4 = 2; }; if let Float8Value::Unknown = a { if local_flavor_257_4 < 1 { local_flavor_257_4 = 1; }; }; if let Float8Value::Unimplemented = a { local_flavor_257_4 = 2; }; if let Float8Value::Unknown = second { if local_flavor_257_4 < 1 { local_flavor_257_4 = 1; }; }; if let Float8Value::Unimplemented = second { local_flavor_257_4 = 2; }; if let Float8Value::Unknown = first { if local_flavor_257_4 < 1 { local_flavor_257_4 = 1; }; }; if let Float8Value::Unimplemented = first { local_flavor_257_4 = 2; }; bool_unresolved(local_flavor_257_4)
 }
 pub fn sql__pg_catalog__lseg_eq__n70t(left: LsegValue, right: LsegValue) -> BoolValue {
     lseg_equal(left, right, false)

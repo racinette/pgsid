@@ -35,7 +35,7 @@ fn timezone_truncate_value(zone: &str, value: i64, code: i32) -> TimestamptzValu
         }
         return make_timestamptz_value(result - final_offset * 1000000i64);
     }
-    timestamptz_unresolved(unresolved_flavor)
+    let mut local_flavor_38_4: i32 = unresolved_flavor; if let TimestampValue::Unknown = truncated { if local_flavor_38_4 < 1 { local_flavor_38_4 = 1; }; }; if let TimestampValue::Unimplemented = truncated { local_flavor_38_4 = 2; }; timestamptz_unresolved(local_flavor_38_4)
 }
 
 pub fn sql__pg_catalog__date_trunc__6323(

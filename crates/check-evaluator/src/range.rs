@@ -139,6 +139,12 @@ pub fn range_support_is_cidr(input: RangeSupport) -> bool {
     input.comparison == 100 || input.comparison == 113
 }
 
+// The subtype comparison is unavailable: its comparator is not the builtin one, or it needs an
+// encoding or collation fact that was not declared. Either way only the database can order bounds.
+pub fn range_comparison_unavailable(comparison: i32) -> bool {
+    comparison == 0 || comparison == 100 || comparison == 120 || comparison == 200 || (comparison > 300 && comparison < 330)
+}
+
 pub fn range_support_jsonb_utf8(input: RangeSupport) -> bool {
     input.comparison == 12 || input.comparison == 120
 }

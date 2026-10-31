@@ -122,7 +122,7 @@ pub fn xml_indent_utf8(input: XmlValue, document: bool, utf8: bool) -> TextValue
         return text_unresolved(unresolved_flavor);
     };
     if let XmlValue::Value(value) = input {
-        if xml_text_encoding_available(value.as_str(),utf8) == false { return text_unresolved(unresolved_flavor); };
+        if xml_text_encoding_available(value.as_str(),utf8) == false { return text_unresolved(resolution_context(unresolved_flavor)); };
         if xml_well_formed(value.as_str(),document) == false { return TextValue::Error(make_sql_error(SQLSTATE_NOT_XML_DOCUMENT)); };
         let tree = xml_tree_parse(value.as_str(),document,false);
         if tree.serialization_known == false { return text_unresolved(unresolved_flavor); };
@@ -143,7 +143,7 @@ pub fn xml_indent_utf8(input: XmlValue, document: bool, utf8: bool) -> TextValue
             if tree.flags.document && (document == false || node.next > 0) { output.push('\n'); };
             previous = true; cursor = node.next;
         }
-        if xml_text_encoding_available(output.as_str(),utf8) == false { return text_unresolved(unresolved_flavor); };
+        if xml_text_encoding_available(output.as_str(),utf8) == false { return text_unresolved(resolution_context(unresolved_flavor)); };
         return TextValue::Value(output);
     };
     text_unresolved(unresolved_flavor)

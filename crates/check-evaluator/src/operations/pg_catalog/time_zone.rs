@@ -79,7 +79,7 @@ pub fn sql__pg_catalog__timezone__lxij(
     if let TimestampValue::Value(time) = result {
         return make_timestamptz_value(time);
     };
-    timestamptz_unresolved(unresolved_flavor)
+    let mut local_flavor_82_4: i32 = unresolved_flavor; if let TimestampValue::Unknown = result { if local_flavor_82_4 < 1 { local_flavor_82_4 = 1; }; }; if let TimestampValue::Unimplemented = result { local_flavor_82_4 = 2; }; timestamptz_unresolved(local_flavor_82_4)
 }
 pub fn sql__pg_catalog__timezone__n8k4(
     zone: IntervalValue,

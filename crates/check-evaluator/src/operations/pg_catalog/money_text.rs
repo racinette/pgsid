@@ -79,7 +79,7 @@ pub fn money_to_text_context(input: MoneyValue, c_locale: bool) -> TextValue {
     if let MoneyValue::Unimplemented = input { unresolved_flavor = 2; };
     if let MoneyValue::Error(error) = input { return TextValue::Error(error); };
     if let MoneyValue::Null = input { return TextValue::Null; };
-    if c_locale == false { return text_unresolved(unresolved_flavor); };
+    if c_locale == false { return text_unresolved(resolution_context(unresolved_flavor)); };
     if let MoneyValue::Value(value) = input {
         let raw = text_signed_number(value);
         let characters: Vec<char> = raw.chars().collect();

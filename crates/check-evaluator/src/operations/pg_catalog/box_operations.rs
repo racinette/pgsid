@@ -76,7 +76,7 @@ fn box_spatial_relation(left: BoxValue, right: BoxValue, mode: i32) -> BoolValue
             return make_bool_value(box_coordinate_relation(aly, bhy, 3));
         };
     };
-    bool_unresolved(unresolved_flavor)
+    let mut local_flavor_79_4: i32 = unresolved_flavor; if let BoolValue::Unknown = status { if local_flavor_79_4 < 1 { local_flavor_79_4 = 1; }; }; if let BoolValue::Unimplemented = status { local_flavor_79_4 = 2; }; bool_unresolved(local_flavor_79_4)
 }
 fn box_from_scalars(
     high_x: Float8Value,
@@ -141,7 +141,7 @@ fn box_from_scalars(
             };
         };
     };
-    box_unresolved(unresolved_flavor)
+    let mut local_flavor_144_4: i32 = unresolved_flavor; if let Float8Value::Unknown = ly { if local_flavor_144_4 < 1 { local_flavor_144_4 = 1; }; }; if let Float8Value::Unimplemented = ly { local_flavor_144_4 = 2; }; if let Float8Value::Unknown = lx { if local_flavor_144_4 < 1 { local_flavor_144_4 = 1; }; }; if let Float8Value::Unimplemented = lx { local_flavor_144_4 = 2; }; if let Float8Value::Unknown = hy { if local_flavor_144_4 < 1 { local_flavor_144_4 = 1; }; }; if let Float8Value::Unimplemented = hy { local_flavor_144_4 = 2; }; if let Float8Value::Unknown = hx { if local_flavor_144_4 < 1 { local_flavor_144_4 = 1; }; }; if let Float8Value::Unimplemented = hx { local_flavor_144_4 = 2; }; box_unresolved(local_flavor_144_4)
 }
 fn box_merge(left: BoxValue, right: BoxValue, intersection: bool) -> BoxValue {
     let mut unresolved_flavor: i32 = 0;
@@ -303,7 +303,7 @@ fn box_contains_point(input: BoxValue, point: PointValue) -> BoolValue {
             );
         };
     };
-    bool_unresolved(unresolved_flavor)
+    let mut local_flavor_306_4: i32 = unresolved_flavor; if let BoolValue::Unknown = status { if local_flavor_306_4 < 1 { local_flavor_306_4 = 1; }; }; if let BoolValue::Unimplemented = status { local_flavor_306_4 = 2; }; bool_unresolved(local_flavor_306_4)
 }
 fn box_contains_segment(input: BoxValue, segment: LsegValue) -> BoolValue {
     let status = box_segment_status(input, segment);
@@ -373,7 +373,7 @@ fn box_segment_bounds(segment: LsegValue) -> BoxValue {
             );
         };
     };
-    box_unresolved(unresolved_flavor)
+    let mut local_flavor_376_4: i32 = unresolved_flavor; if let PointValue::Unknown = second { if local_flavor_376_4 < 1 { local_flavor_376_4 = 1; }; }; if let PointValue::Unimplemented = second { local_flavor_376_4 = 2; }; if let PointValue::Unknown = first { if local_flavor_376_4 < 1 { local_flavor_376_4 = 1; }; }; if let PointValue::Unimplemented = first { local_flavor_376_4 = 2; }; box_unresolved(local_flavor_376_4)
 }
 #[derive(Clone, Copy)]
 struct BoxSegmentIntersection {

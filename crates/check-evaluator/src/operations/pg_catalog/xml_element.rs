@@ -60,7 +60,7 @@ pub fn xml_element_attribute(name: &str, mapped: bool, implicit: bool, input: Te
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Value(value) = input {
-        if xml_text_encoding_available(value.as_str(),utf8) == false { return text_unresolved(unresolved_flavor); };
+        if xml_text_encoding_available(value.as_str(),utf8) == false { return text_unresolved(resolution_context(unresolved_flavor)); };
         let mut target = name.to_owned();
         if mapped == false { target = xml_constructor_mapped_name(name,implicit); };
         let mut output = " ".to_owned();

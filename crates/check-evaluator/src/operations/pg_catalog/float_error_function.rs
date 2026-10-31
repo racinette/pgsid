@@ -161,7 +161,7 @@ fn float8_error_function(input: Float8Value, musl: bool, complement: bool) -> Fl
             return Float8Value::UnspecifiedNan;
         };
         if musl == false {
-            return float8_unresolved(unresolved_flavor);
+            return float8_unresolved(resolution_context(unresolved_flavor));
         };
         if complement {
             return make_float8_value(musl_erfc(number));
@@ -357,7 +357,7 @@ pub fn sql__pg_catalog__gamma__t3sa(input: Float8Value, musl: bool) -> Float8Val
             return Float8Value::Error(make_sql_error(FLOAT_CORE_RANGE));
         };
         if musl == false {
-            return float8_unresolved(unresolved_flavor);
+            return float8_unresolved(resolution_context(unresolved_flavor));
         };
         let result = musl_tgamma(number);
         if result != result || result.abs() == 1.0f64 / 0.0f64 || result == 0.0f64 {
@@ -585,7 +585,7 @@ pub fn sql__pg_catalog__lgamma__rpzb(input: Float8Value, musl: bool) -> Float8Va
             return make_float8_value(1.0f64 / 0.0f64);
         };
         if musl == false {
-            return float8_unresolved(unresolved_flavor);
+            return float8_unresolved(resolution_context(unresolved_flavor));
         };
         let result = musl_lgamma(number);
         if result.abs() == 1.0f64 / 0.0f64 {

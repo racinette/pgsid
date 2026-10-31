@@ -217,7 +217,7 @@ fn box_area_relation(left: BoxValue, right: BoxValue, mode: i32) -> BoolValue {
             return make_bool_value(x + 0.000001f64 >= y);
         };
     };
-    bool_unresolved(unresolved_flavor)
+    let mut local_flavor_220_4: i32 = unresolved_flavor; if let Float8Value::Unknown = b { if local_flavor_220_4 < 1 { local_flavor_220_4 = 1; }; }; if let Float8Value::Unimplemented = b { local_flavor_220_4 = 2; }; if let Float8Value::Unknown = a { if local_flavor_220_4 < 1 { local_flavor_220_4 = 1; }; }; if let Float8Value::Unimplemented = a { local_flavor_220_4 = 2; }; if let Float8Value::Unknown = second { if local_flavor_220_4 < 1 { local_flavor_220_4 = 1; }; }; if let Float8Value::Unimplemented = second { local_flavor_220_4 = 2; }; if let Float8Value::Unknown = first { if local_flavor_220_4 < 1 { local_flavor_220_4 = 1; }; }; if let Float8Value::Unimplemented = first { local_flavor_220_4 = 2; }; if let BoolValue::Unknown = status { if local_flavor_220_4 < 1 { local_flavor_220_4 = 1; }; }; if let BoolValue::Unimplemented = status { local_flavor_220_4 = 2; }; bool_unresolved(local_flavor_220_4)
 }
 fn box_binary(input: BoxValue) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;

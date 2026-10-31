@@ -88,7 +88,7 @@ fn float8_compare(left: Float8Value, right: Float8Value) -> Int4Value {
             return Int4Value::Value(0);
         };
     };
-    int4_unresolved(unresolved_flavor)
+    let mut local_flavor_91_4: i32 = unresolved_flavor; if let Float8Value::Unknown = known_right { if local_flavor_91_4 < 1 { local_flavor_91_4 = 1; }; }; if let Float8Value::Unimplemented = known_right { local_flavor_91_4 = 2; }; if let Float8Value::Unknown = known_left { if local_flavor_91_4 < 1 { local_flavor_91_4 = 1; }; }; if let Float8Value::Unimplemented = known_left { local_flavor_91_4 = 2; }; int4_unresolved(local_flavor_91_4)
 }
 
 
@@ -145,7 +145,7 @@ fn float8_integer(input: Float8Value) -> Int8Value {
         }
         return Int8Value::Value(coefficient);
     };
-    int8_unresolved(unresolved_flavor)
+    let mut local_flavor_148_4: i32 = unresolved_flavor; if let Float8Value::Unknown = known_input { if local_flavor_148_4 < 1 { local_flavor_148_4 = 1; }; }; if let Float8Value::Unimplemented = known_input { local_flavor_148_4 = 2; }; int8_unresolved(local_flavor_148_4)
 }
 
 fn integer_float4(input: Int8Value) -> Float4Value {
@@ -362,7 +362,7 @@ pub fn sql__pg_catalog__int2__pv8l(input: Float4Value) -> Int2Value {
         }
         return Int2Value::Value(number as i32);
     };
-    int2_unresolved(unresolved_flavor)
+    let mut local_flavor_365_4: i32 = unresolved_flavor; if let Int8Value::Unknown = result { if local_flavor_365_4 < 1 { local_flavor_365_4 = 1; }; }; if let Int8Value::Unimplemented = result { local_flavor_365_4 = 2; }; int2_unresolved(local_flavor_365_4)
 }
 
 pub fn sql__pg_catalog__int4__tbuy(input: Float4Value) -> Int4Value {
@@ -382,7 +382,7 @@ pub fn sql__pg_catalog__int4__tbuy(input: Float4Value) -> Int4Value {
         }
         return Int4Value::Value(number as i32);
     };
-    int4_unresolved(unresolved_flavor)
+    let mut local_flavor_385_4: i32 = unresolved_flavor; if let Int8Value::Unknown = result { if local_flavor_385_4 < 1 { local_flavor_385_4 = 1; }; }; if let Int8Value::Unimplemented = result { local_flavor_385_4 = 2; }; int4_unresolved(local_flavor_385_4)
 }
 
 pub fn sql__pg_catalog__int8__85by(input: Float4Value) -> Int8Value {
@@ -410,7 +410,7 @@ pub fn sql__pg_catalog__int2__68cf(input: Float8Value) -> Int2Value {
         }
         return Int2Value::Value(number as i32);
     };
-    int2_unresolved(unresolved_flavor)
+    let mut local_flavor_413_4: i32 = unresolved_flavor; if let Int8Value::Unknown = result { if local_flavor_413_4 < 1 { local_flavor_413_4 = 1; }; }; if let Int8Value::Unimplemented = result { local_flavor_413_4 = 2; }; int2_unresolved(local_flavor_413_4)
 }
 
 pub fn sql__pg_catalog__int4__nc79(input: Float8Value) -> Int4Value {
@@ -430,7 +430,7 @@ pub fn sql__pg_catalog__int4__nc79(input: Float8Value) -> Int4Value {
         }
         return Int4Value::Value(number as i32);
     };
-    int4_unresolved(unresolved_flavor)
+    let mut local_flavor_433_4: i32 = unresolved_flavor; if let Int8Value::Unknown = result { if local_flavor_433_4 < 1 { local_flavor_433_4 = 1; }; }; if let Int8Value::Unimplemented = result { local_flavor_433_4 = 2; }; int4_unresolved(local_flavor_433_4)
 }
 
 pub fn sql__pg_catalog__int8__kmmw(input: Float8Value) -> Int8Value {

@@ -75,7 +75,7 @@ fn oid_relation(left: OidValue, right: OidValue, mode: i32) -> BoolValue {
         };
         return make_bool_value(order >= 0);
     };
-    bool_unresolved(unresolved_flavor)
+    let mut local_flavor_78_4: i32 = unresolved_flavor; if let Int4Value::Unknown = comparison { if local_flavor_78_4 < 1 { local_flavor_78_4 = 1; }; }; if let Int4Value::Unimplemented = comparison { local_flavor_78_4 = 2; }; bool_unresolved(local_flavor_78_4)
 }
 fn oid_select(left: OidValue, right: OidValue, larger: bool) -> OidValue {
     let mut unresolved_flavor: i32 = 0;
@@ -96,7 +96,7 @@ fn oid_select(left: OidValue, right: OidValue, larger: bool) -> OidValue {
         };
         return right;
     };
-    oid_unresolved(unresolved_flavor)
+    let mut local_flavor_99_4: i32 = unresolved_flavor; if let Int4Value::Unknown = comparison { if local_flavor_99_4 < 1 { local_flavor_99_4 = 1; }; }; if let Int4Value::Unimplemented = comparison { local_flavor_99_4 = 2; }; oid_unresolved(local_flavor_99_4)
 }
 
 pub fn oid_to_int4(input: OidValue) -> Int4Value {

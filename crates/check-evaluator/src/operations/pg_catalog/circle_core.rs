@@ -27,7 +27,7 @@ fn circle_from_center_radius(center: PointValue, radius: Float8Value) -> CircleV
             });
         };
     };
-    circle_unresolved(unresolved_flavor)
+    let mut local_flavor_30_4: i32 = unresolved_flavor; if let Float8Value::Unknown = semantic { if local_flavor_30_4 < 1 { local_flavor_30_4 = 1; }; }; if let Float8Value::Unimplemented = semantic { local_flavor_30_4 = 2; }; circle_unresolved(local_flavor_30_4)
 }
 fn circle_center_value(input: CircleValue) -> PointValue {
     let mut unresolved_flavor: i32 = 0;
@@ -138,7 +138,7 @@ fn circle_area_relation(left: CircleValue, right: CircleValue, mode: i32) -> Boo
             return make_bool_value(x != y && (x - y).abs() > 0.000001f64);
         };
     };
-    bool_unresolved(unresolved_flavor)
+    let mut local_flavor_141_4: i32 = unresolved_flavor; if let Float8Value::Unknown = b { if local_flavor_141_4 < 1 { local_flavor_141_4 = 1; }; }; if let Float8Value::Unimplemented = b { local_flavor_141_4 = 2; }; if let Float8Value::Unknown = a { if local_flavor_141_4 < 1 { local_flavor_141_4 = 1; }; }; if let Float8Value::Unimplemented = a { local_flavor_141_4 = 2; }; if let Float8Value::Unknown = second { if local_flavor_141_4 < 1 { local_flavor_141_4 = 1; }; }; if let Float8Value::Unimplemented = second { local_flavor_141_4 = 2; }; if let Float8Value::Unknown = first { if local_flavor_141_4 < 1 { local_flavor_141_4 = 1; }; }; if let Float8Value::Unimplemented = first { local_flavor_141_4 = 2; }; if let BoolValue::Unknown = status { if local_flavor_141_4 < 1 { local_flavor_141_4 = 1; }; }; if let BoolValue::Unimplemented = status { local_flavor_141_4 = 2; }; bool_unresolved(local_flavor_141_4)
 }
 fn circle_same_value(left: CircleValue, right: CircleValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
@@ -165,7 +165,7 @@ fn circle_same_value(left: CircleValue, right: CircleValue) -> BoolValue {
             return make_bool_value(false);
         };
     };
-    bool_unresolved(unresolved_flavor)
+    let mut local_flavor_168_4: i32 = unresolved_flavor; if let Float8Value::Unknown = b { if local_flavor_168_4 < 1 { local_flavor_168_4 = 1; }; }; if let Float8Value::Unimplemented = b { local_flavor_168_4 = 2; }; if let Float8Value::Unknown = a { if local_flavor_168_4 < 1 { local_flavor_168_4 = 1; }; }; if let Float8Value::Unimplemented = a { local_flavor_168_4 = 2; }; if let BoolValue::Unknown = status { if local_flavor_168_4 < 1 { local_flavor_168_4 = 1; }; }; if let BoolValue::Unimplemented = status { local_flavor_168_4 = 2; }; bool_unresolved(local_flavor_168_4)
 }
 fn circle_binary(input: CircleValue) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;

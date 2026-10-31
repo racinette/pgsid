@@ -343,7 +343,7 @@ export function aclitemFromTextContext(input: checkruntime.TextValue, limit: num
             }
             else {
                 if (code >= 128 && utf8 === false) {
-                    return checkruntime.aclitemUnresolved(unresolvedFlavor);
+                    return checkruntime.aclitemUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
                 }
                 scanning = langruntime.checkedBool(false);
             }
@@ -605,7 +605,16 @@ export function makeaclitemAb9i(grantee: checkruntime.OidValue, grantor: checkru
             }
         }
     }
-    return checkruntime.aclitemUnresolved(unresolvedFlavor);
+    let localFlavor2124: number = unresolvedFlavor;
+    if (parsed.kind === "Unknown") {
+        if (localFlavor2124 < 1) {
+            localFlavor2124 = langruntime.checkedI32(1);
+        }
+    }
+    if (parsed.kind === "Unimplemented") {
+        localFlavor2124 = langruntime.checkedI32(2);
+    }
+    return checkruntime.aclitemUnresolved(localFlavor2124);
 }
 function aclitemCatalogFacts(input: checkruntime.AclitemValue): checkruntime.AclitemCatalogPayload {
     if (input.kind === "Value") {
@@ -780,7 +789,16 @@ export function hashAclitem4zd0(input: checkruntime.AclitemValue): checkruntime.
         const value: bigint = langruntime.checkedI64(sum.value);
         return { kind: "Value", value: Number(BigInt.asIntN(32, langruntime.checkedI64(value))) };
     }
-    return checkruntime.int4Unresolved(unresolvedFlavor);
+    let localFlavor2894: number = unresolvedFlavor;
+    if (sum.kind === "Unknown") {
+        if (localFlavor2894 < 1) {
+            localFlavor2894 = langruntime.checkedI32(1);
+        }
+    }
+    if (sum.kind === "Unimplemented") {
+        localFlavor2894 = langruntime.checkedI32(2);
+    }
+    return checkruntime.int4Unresolved(localFlavor2894);
 }
 export function hashAclitemExtendedC0ek(input: checkruntime.AclitemValue, seed: checkruntime.Int8Value): checkruntime.Int8Value {
     let unresolvedFlavor: number = 0;
@@ -1769,7 +1787,24 @@ function floatStateArithmetic(left: checkruntime.Float8Value, right: checkruntim
             return floatStateResult(result);
         }
     }
-    return checkruntime.float8Unresolved(unresolvedFlavor);
+    let localFlavor714: number = unresolvedFlavor;
+    if (second.kind === "Unknown") {
+        if (localFlavor714 < 1) {
+            localFlavor714 = langruntime.checkedI32(1);
+        }
+    }
+    if (second.kind === "Unimplemented") {
+        localFlavor714 = langruntime.checkedI32(2);
+    }
+    if (first.kind === "Unknown") {
+        if (localFlavor714 < 1) {
+            localFlavor714 = langruntime.checkedI32(1);
+        }
+    }
+    if (first.kind === "Unimplemented") {
+        localFlavor714 = langruntime.checkedI32(2);
+    }
+    return checkruntime.float8Unresolved(localFlavor714);
 }
 function floatStateIsZero(input: checkruntime.Float8Value): boolean {
     const value: checkruntime.Float8Value = checkruntime.float8Semantic(input);
@@ -1892,7 +1927,48 @@ function floatArrayFinal(input: checkruntime.ArrayValue, operation: number): che
                     const denominator: checkruntime.Float8Value = floatStateArithmetic(sxx, syy, 2);
                     return floatStateArithmetic(numerator, denominator, 3);
                 }
-                return checkruntime.float8Unresolved(unresolvedFlavor);
+                let localFlavor18816: number = unresolvedFlavor;
+                if (knownSxx.kind === "Unknown") {
+                    if (localFlavor18816 < 1) {
+                        localFlavor18816 = langruntime.checkedI32(1);
+                    }
+                }
+                if (knownSxx.kind === "Unimplemented") {
+                    localFlavor18816 = langruntime.checkedI32(2);
+                }
+                if (sxy.kind === "Unknown") {
+                    if (localFlavor18816 < 1) {
+                        localFlavor18816 = langruntime.checkedI32(1);
+                    }
+                }
+                if (sxy.kind === "Unimplemented") {
+                    localFlavor18816 = langruntime.checkedI32(2);
+                }
+                if (sxx.kind === "Unknown") {
+                    if (localFlavor18816 < 1) {
+                        localFlavor18816 = langruntime.checkedI32(1);
+                    }
+                }
+                if (sxx.kind === "Unimplemented") {
+                    localFlavor18816 = langruntime.checkedI32(2);
+                }
+                if (count.kind === "Unknown") {
+                    if (localFlavor18816 < 1) {
+                        localFlavor18816 = langruntime.checkedI32(1);
+                    }
+                }
+                if (count.kind === "Unimplemented") {
+                    localFlavor18816 = langruntime.checkedI32(2);
+                }
+                if (validity.kind === "Unknown") {
+                    if (localFlavor18816 < 1) {
+                        localFlavor18816 = langruntime.checkedI32(1);
+                    }
+                }
+                if (validity.kind === "Unimplemented") {
+                    localFlavor18816 = langruntime.checkedI32(2);
+                }
+                return checkruntime.float8Unresolved(localFlavor18816);
             }
             if (operation === 14) {
                 return floatStateArithmetic(sxy, sxx, 3);
@@ -1996,7 +2072,16 @@ function floatTransitionTest(input: checkruntime.Float8Value, operation: number)
         }
         return checkruntime.checkFromBool(checkruntime.makeBoolValue(!(number === number) || langruntime.f64Abs(number) === infinity));
     }
-    return checkruntime.checkUnresolved(unresolvedFlavor);
+    let localFlavor224: number = unresolvedFlavor;
+    if (value.kind === "Unknown") {
+        if (localFlavor224 < 1) {
+            localFlavor224 = langruntime.checkedI32(1);
+        }
+    }
+    if (value.kind === "Unimplemented") {
+        localFlavor224 = langruntime.checkedI32(2);
+    }
+    return checkruntime.checkUnresolved(localFlavor224);
 }
 function floatTransitionNan(input: checkruntime.Float8Value, condition: checkruntime.CheckOutcome): checkruntime.Float8Value {
     let unresolvedFlavor: number = 0;
@@ -2026,7 +2111,16 @@ function floatTransitionNan(input: checkruntime.Float8Value, condition: checkrun
             return { kind: "UnspecifiedNan" };
         }
     }
-    return checkruntime.float8Unresolved(unresolvedFlavor);
+    let localFlavor444: number = unresolvedFlavor;
+    if (value.kind === "Unknown") {
+        if (localFlavor444 < 1) {
+            localFlavor444 = langruntime.checkedI32(1);
+        }
+    }
+    if (value.kind === "Unimplemented") {
+        localFlavor444 = langruntime.checkedI32(2);
+    }
+    return checkruntime.float8Unresolved(localFlavor444);
 }
 function floatTransitionOutput(n: checkruntime.Float8Value, sx: checkruntime.Float8Value, sxx: checkruntime.Float8Value, sy: checkruntime.Float8Value, syy: checkruntime.Float8Value, sxy: checkruntime.Float8Value, regression: boolean): checkruntime.ArrayValue {
     regression = langruntime.checkedBool(regression);
@@ -2186,7 +2280,112 @@ function floatArrayAccumulate(input: checkruntime.ArrayValue, y: checkruntime.Fl
                 return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
             }
             if (!(checkruntime.equalCheckOutcome(overflow, { kind: "False" }))) {
-                return checkruntime.arrayUnresolved(unresolvedFlavor);
+                let localFlavor18816: number = unresolvedFlavor;
+                if (xInfinite.kind === "Unknown") {
+                    if (localFlavor18816 < 1) {
+                        localFlavor18816 = langruntime.checkedI32(1);
+                    }
+                }
+                if (xInfinite.kind === "Unimplemented") {
+                    localFlavor18816 = langruntime.checkedI32(2);
+                }
+                if (scale.kind === "Unknown") {
+                    if (localFlavor18816 < 1) {
+                        localFlavor18816 = langruntime.checkedI32(1);
+                    }
+                }
+                if (scale.kind === "Unimplemented") {
+                    localFlavor18816 = langruntime.checkedI32(2);
+                }
+                if (correction.kind === "Unknown") {
+                    if (localFlavor18816 < 1) {
+                        localFlavor18816 = langruntime.checkedI32(1);
+                    }
+                }
+                if (correction.kind === "Unimplemented") {
+                    localFlavor18816 = langruntime.checkedI32(2);
+                }
+                if (square.kind === "Unknown") {
+                    if (localFlavor18816 < 1) {
+                        localFlavor18816 = langruntime.checkedI32(1);
+                    }
+                }
+                if (square.kind === "Unimplemented") {
+                    localFlavor18816 = langruntime.checkedI32(2);
+                }
+                if (denominator.kind === "Unknown") {
+                    if (localFlavor18816 < 1) {
+                        localFlavor18816 = langruntime.checkedI32(1);
+                    }
+                }
+                if (denominator.kind === "Unimplemented") {
+                    localFlavor18816 = langruntime.checkedI32(2);
+                }
+                if (tx.kind === "Unknown") {
+                    if (localFlavor18816 < 1) {
+                        localFlavor18816 = langruntime.checkedI32(1);
+                    }
+                }
+                if (tx.kind === "Unimplemented") {
+                    localFlavor18816 = langruntime.checkedI32(2);
+                }
+                if (oldSy.kind === "Unknown") {
+                    if (localFlavor18816 < 1) {
+                        localFlavor18816 = langruntime.checkedI32(1);
+                    }
+                }
+                if (oldSy.kind === "Unimplemented") {
+                    localFlavor18816 = langruntime.checkedI32(2);
+                }
+                if (sxx.kind === "Unknown") {
+                    if (localFlavor18816 < 1) {
+                        localFlavor18816 = langruntime.checkedI32(1);
+                    }
+                }
+                if (sxx.kind === "Unimplemented") {
+                    localFlavor18816 = langruntime.checkedI32(2);
+                }
+                if (sx.kind === "Unknown") {
+                    if (localFlavor18816 < 1) {
+                        localFlavor18816 = langruntime.checkedI32(1);
+                    }
+                }
+                if (sx.kind === "Unimplemented") {
+                    localFlavor18816 = langruntime.checkedI32(2);
+                }
+                if (n.kind === "Unknown") {
+                    if (localFlavor18816 < 1) {
+                        localFlavor18816 = langruntime.checkedI32(1);
+                    }
+                }
+                if (n.kind === "Unimplemented") {
+                    localFlavor18816 = langruntime.checkedI32(2);
+                }
+                if (oldSx.kind === "Unknown") {
+                    if (localFlavor18816 < 1) {
+                        localFlavor18816 = langruntime.checkedI32(1);
+                    }
+                }
+                if (oldSx.kind === "Unimplemented") {
+                    localFlavor18816 = langruntime.checkedI32(2);
+                }
+                if (oldN.kind === "Unknown") {
+                    if (localFlavor18816 < 1) {
+                        localFlavor18816 = langruntime.checkedI32(1);
+                    }
+                }
+                if (oldN.kind === "Unimplemented") {
+                    localFlavor18816 = langruntime.checkedI32(2);
+                }
+                if (validity.kind === "Unknown") {
+                    if (localFlavor18816 < 1) {
+                        localFlavor18816 = langruntime.checkedI32(1);
+                    }
+                }
+                if (validity.kind === "Unimplemented") {
+                    localFlavor18816 = langruntime.checkedI32(2);
+                }
+                return checkruntime.arrayUnresolved(localFlavor18816);
             }
         }
         else {
@@ -2261,7 +2460,40 @@ function floatCombineVariance(first: checkruntime.Float8Value, second: checkrunt
         return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
     }
     if (!(checkruntime.equalCheckOutcome(overflow, { kind: "False" }))) {
-        return checkruntime.float8Unresolved(unresolvedFlavor);
+        let localFlavor2548: number = unresolvedFlavor;
+        if (result.kind === "Unknown") {
+            if (localFlavor2548 < 1) {
+                localFlavor2548 = langruntime.checkedI32(1);
+            }
+        }
+        if (result.kind === "Unimplemented") {
+            localFlavor2548 = langruntime.checkedI32(2);
+        }
+        if (sum.kind === "Unknown") {
+            if (localFlavor2548 < 1) {
+                localFlavor2548 = langruntime.checkedI32(1);
+            }
+        }
+        if (sum.kind === "Unimplemented") {
+            localFlavor2548 = langruntime.checkedI32(2);
+        }
+        if (correction.kind === "Unknown") {
+            if (localFlavor2548 < 1) {
+                localFlavor2548 = langruntime.checkedI32(1);
+            }
+        }
+        if (correction.kind === "Unimplemented") {
+            localFlavor2548 = langruntime.checkedI32(2);
+        }
+        if (product.kind === "Unknown") {
+            if (localFlavor2548 < 1) {
+                localFlavor2548 = langruntime.checkedI32(1);
+            }
+        }
+        if (product.kind === "Unimplemented") {
+            localFlavor2548 = langruntime.checkedI32(2);
+        }
+        return checkruntime.float8Unresolved(localFlavor2548);
     }
     return result;
 }
@@ -2324,14 +2556,88 @@ function floatArrayCombine(left: checkruntime.ArrayValue, right: checkruntime.Ar
                 return floatTransitionCopy(second, regression);
             }
             if (!(checkruntime.equalCheckOutcome(firstEmpty, { kind: "False" }))) {
-                return checkruntime.arrayUnresolved(unresolvedFlavor);
+                let localFlavor30116: number = unresolvedFlavor;
+                if (n2.kind === "Unknown") {
+                    if (localFlavor30116 < 1) {
+                        localFlavor30116 = langruntime.checkedI32(1);
+                    }
+                }
+                if (n2.kind === "Unimplemented") {
+                    localFlavor30116 = langruntime.checkedI32(2);
+                }
+                if (n1.kind === "Unknown") {
+                    if (localFlavor30116 < 1) {
+                        localFlavor30116 = langruntime.checkedI32(1);
+                    }
+                }
+                if (n1.kind === "Unimplemented") {
+                    localFlavor30116 = langruntime.checkedI32(2);
+                }
+                if (secondValid.kind === "Unknown") {
+                    if (localFlavor30116 < 1) {
+                        localFlavor30116 = langruntime.checkedI32(1);
+                    }
+                }
+                if (secondValid.kind === "Unimplemented") {
+                    localFlavor30116 = langruntime.checkedI32(2);
+                }
+                if (firstValid.kind === "Unknown") {
+                    if (localFlavor30116 < 1) {
+                        localFlavor30116 = langruntime.checkedI32(1);
+                    }
+                }
+                if (firstValid.kind === "Unimplemented") {
+                    localFlavor30116 = langruntime.checkedI32(2);
+                }
+                return checkruntime.arrayUnresolved(localFlavor30116);
             }
             const secondEmpty: checkruntime.CheckOutcome = floatTransitionTest(n2, 1);
             if (checkruntime.equalCheckOutcome(secondEmpty, { kind: "True" })) {
                 return floatTransitionCopy(first, regression);
             }
             if (!(checkruntime.equalCheckOutcome(secondEmpty, { kind: "False" }))) {
-                return checkruntime.arrayUnresolved(unresolvedFlavor);
+                let localFlavor30816: number = unresolvedFlavor;
+                if (firstEmpty.kind === "Unknown") {
+                    if (localFlavor30816 < 1) {
+                        localFlavor30816 = langruntime.checkedI32(1);
+                    }
+                }
+                if (firstEmpty.kind === "Unimplemented") {
+                    localFlavor30816 = langruntime.checkedI32(2);
+                }
+                if (n2.kind === "Unknown") {
+                    if (localFlavor30816 < 1) {
+                        localFlavor30816 = langruntime.checkedI32(1);
+                    }
+                }
+                if (n2.kind === "Unimplemented") {
+                    localFlavor30816 = langruntime.checkedI32(2);
+                }
+                if (n1.kind === "Unknown") {
+                    if (localFlavor30816 < 1) {
+                        localFlavor30816 = langruntime.checkedI32(1);
+                    }
+                }
+                if (n1.kind === "Unimplemented") {
+                    localFlavor30816 = langruntime.checkedI32(2);
+                }
+                if (secondValid.kind === "Unknown") {
+                    if (localFlavor30816 < 1) {
+                        localFlavor30816 = langruntime.checkedI32(1);
+                    }
+                }
+                if (secondValid.kind === "Unimplemented") {
+                    localFlavor30816 = langruntime.checkedI32(2);
+                }
+                if (firstValid.kind === "Unknown") {
+                    if (localFlavor30816 < 1) {
+                        localFlavor30816 = langruntime.checkedI32(1);
+                    }
+                }
+                if (firstValid.kind === "Unimplemented") {
+                    localFlavor30816 = langruntime.checkedI32(2);
+                }
+                return checkruntime.arrayUnresolved(localFlavor30816);
             }
             const n: checkruntime.Float8Value = floatStateArithmetic(n1, n2, 0);
             const counts: checkruntime.Float8Value = floatStateArithmetic(n1, n2, 2);
@@ -2465,7 +2771,16 @@ export function arrayHashCell64(nullness: checkruntime.BoolValue): checkruntime.
         const value: number = langruntime.checkedI32(state.value);
         return { kind: "Value", value: BigInt(langruntime.checkedI32(value)) };
     }
-    return checkruntime.int8Unresolved(unresolvedFlavor);
+    let localFlavor364: number = unresolvedFlavor;
+    if (state.kind === "Unknown") {
+        if (localFlavor364 < 1) {
+            localFlavor364 = langruntime.checkedI32(1);
+        }
+    }
+    if (state.kind === "Unimplemented") {
+        localFlavor364 = langruntime.checkedI32(2);
+    }
+    return checkruntime.int8Unresolved(localFlavor364);
 }
 export function arrayHashRequiresScalar32(input: checkruntime.Int4Value): boolean {
     return checkruntime.equalInt4Value(input, { kind: "Value", value: 1 });
@@ -2573,7 +2888,7 @@ export function arrayHashFinish32(first: checkruntime.Int4Value, second: checkru
     if (checkruntime.equalInt4Value(first, second)) {
         return first;
     }
-    return checkruntime.int4Unresolved(unresolvedFlavor);
+    return checkruntime.int4Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
 }
 export function arrayHashFinish64(first: checkruntime.Int8Value, second: checkruntime.Int8Value): checkruntime.Int8Value {
     let unresolvedFlavor: number = 0;
@@ -2600,7 +2915,7 @@ export function arrayHashFinish64(first: checkruntime.Int8Value, second: checkru
     if (checkruntime.equalInt8Value(first, second)) {
         return first;
     }
-    return checkruntime.int8Unresolved(unresolvedFlavor);
+    return checkruntime.int8Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
 }
 export function hashArrayBk1m(input: checkruntime.Int4Value): checkruntime.Int4Value {
     return input;
@@ -2694,7 +3009,7 @@ export function parseIdentUh6p(input: checkruntime.TextValue, strict: checkrunti
                     while (position < characters.length && identifierContinuation(langruntime.indexChar(characters, langruntime.checkedIndex(position)))) {
                         const character: string = langruntime.indexChar(characters, langruntime.checkedIndex(position));
                         if ((langruntime.checkedChar(character).codePointAt(0)!) >= 128 && utf8 === false) {
-                            return checkruntime.arrayUnresolved(unresolvedFlavor);
+                            return checkruntime.arrayUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
                         }
                         part = part + langruntime.checkedChar(langruntime.asciiLowercase(character));
                         position = langruntime.checkedAdd(position, 1);
@@ -4341,7 +4656,7 @@ function arrayStringSplit(input: checkruntime.TextValue, delimiter: checkruntime
             while (position < characters.length) {
                 const ch: string = langruntime.indexChar(characters, langruntime.checkedIndex(position));
                 if (utf8 === false && (langruntime.checkedChar(ch).codePointAt(0)!) > 127) {
-                    return checkruntime.arrayUnresolved(unresolvedFlavor);
+                    return checkruntime.arrayUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
                 }
                 let field: string = "";
                 field = field + langruntime.checkedChar(ch);
@@ -6232,7 +6547,24 @@ export function byteaeqZ0yh(left: checkruntime.ByteaValue, right: checkruntime.B
             return { kind: "Value", value: a === b };
         }
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    let localFlavor324: number = unresolvedFlavor;
+    if (rightLength.kind === "Unknown") {
+        if (localFlavor324 < 1) {
+            localFlavor324 = langruntime.checkedI32(1);
+        }
+    }
+    if (rightLength.kind === "Unimplemented") {
+        localFlavor324 = langruntime.checkedI32(2);
+    }
+    if (leftLength.kind === "Unknown") {
+        if (localFlavor324 < 1) {
+            localFlavor324 = langruntime.checkedI32(1);
+        }
+    }
+    if (leftLength.kind === "Unimplemented") {
+        localFlavor324 = langruntime.checkedI32(2);
+    }
+    return checkruntime.boolUnresolved(localFlavor324);
 }
 export function byteaneVolo(left: checkruntime.ByteaValue, right: checkruntime.ByteaValue): checkruntime.BoolValue {
     let unresolvedFlavor: number = 0;
@@ -6300,7 +6632,24 @@ export function byteaneVolo(left: checkruntime.ByteaValue, right: checkruntime.B
             return { kind: "Value", value: !(a === b) };
         }
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    let localFlavor664: number = unresolvedFlavor;
+    if (rightLength.kind === "Unknown") {
+        if (localFlavor664 < 1) {
+            localFlavor664 = langruntime.checkedI32(1);
+        }
+    }
+    if (rightLength.kind === "Unimplemented") {
+        localFlavor664 = langruntime.checkedI32(2);
+    }
+    if (leftLength.kind === "Unknown") {
+        if (localFlavor664 < 1) {
+            localFlavor664 = langruntime.checkedI32(1);
+        }
+    }
+    if (leftLength.kind === "Unimplemented") {
+        localFlavor664 = langruntime.checkedI32(2);
+    }
+    return checkruntime.boolUnresolved(localFlavor664);
 }
 export function textWireContext(input: checkruntime.TextValue, utf8: boolean): checkruntime.ByteaValue {
     utf8 = langruntime.checkedBool(utf8);
@@ -6325,7 +6674,7 @@ export function textWireContext(input: checkruntime.TextValue, utf8: boolean): c
         while (index < chars.length) {
             const code: number = langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index))).codePointAt(0)!;
             if (code === 0 || (utf8 === false && code > 127)) {
-                return checkruntime.byteaUnresolved(unresolvedFlavor);
+                return checkruntime.byteaUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
             }
             index = langruntime.checkedAdd(index, 1);
         }
@@ -7631,7 +7980,7 @@ export function bitFromTextModifier(input: checkruntime.TextValue, width: number
         while (index < characters.length) {
             const character: number = langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(index))).codePointAt(0)!;
             if (character > 127 && utf8 === false) {
-                return checkruntime.bitUnresolved(unresolvedFlavor);
+                return checkruntime.bitUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
             }
             index = langruntime.checkedAdd(index, 1);
         }
@@ -8884,7 +9233,48 @@ function boxAreaRelation(left: checkruntime.BoxValue, right: checkruntime.BoxVal
             return checkruntime.makeBoolValue(langruntime.f64Add(x, 0.000001) >= y);
         }
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    let localFlavor2204: number = unresolvedFlavor;
+    if (b.kind === "Unknown") {
+        if (localFlavor2204 < 1) {
+            localFlavor2204 = langruntime.checkedI32(1);
+        }
+    }
+    if (b.kind === "Unimplemented") {
+        localFlavor2204 = langruntime.checkedI32(2);
+    }
+    if (a.kind === "Unknown") {
+        if (localFlavor2204 < 1) {
+            localFlavor2204 = langruntime.checkedI32(1);
+        }
+    }
+    if (a.kind === "Unimplemented") {
+        localFlavor2204 = langruntime.checkedI32(2);
+    }
+    if (second.kind === "Unknown") {
+        if (localFlavor2204 < 1) {
+            localFlavor2204 = langruntime.checkedI32(1);
+        }
+    }
+    if (second.kind === "Unimplemented") {
+        localFlavor2204 = langruntime.checkedI32(2);
+    }
+    if (first.kind === "Unknown") {
+        if (localFlavor2204 < 1) {
+            localFlavor2204 = langruntime.checkedI32(1);
+        }
+    }
+    if (first.kind === "Unimplemented") {
+        localFlavor2204 = langruntime.checkedI32(2);
+    }
+    if (status.kind === "Unknown") {
+        if (localFlavor2204 < 1) {
+            localFlavor2204 = langruntime.checkedI32(1);
+        }
+    }
+    if (status.kind === "Unimplemented") {
+        localFlavor2204 = langruntime.checkedI32(2);
+    }
+    return checkruntime.boolUnresolved(localFlavor2204);
 }
 function boxBinary(input: checkruntime.BoxValue): checkruntime.ByteaValue {
     let unresolvedFlavor: number = 0;
@@ -9107,7 +9497,16 @@ function boxSpatialRelation(left: checkruntime.BoxValue, right: checkruntime.Box
             return checkruntime.makeBoolValue(boxCoordinateRelation(aly, bhy, 3));
         }
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    let localFlavor794: number = unresolvedFlavor;
+    if (status.kind === "Unknown") {
+        if (localFlavor794 < 1) {
+            localFlavor794 = langruntime.checkedI32(1);
+        }
+    }
+    if (status.kind === "Unimplemented") {
+        localFlavor794 = langruntime.checkedI32(2);
+    }
+    return checkruntime.boolUnresolved(localFlavor794);
 }
 function boxFromScalars(highX: checkruntime.Float8Value, highY: checkruntime.Float8Value, lowX: checkruntime.Float8Value, lowY: checkruntime.Float8Value): checkruntime.BoxValue {
     let unresolvedFlavor: number = 0;
@@ -9207,7 +9606,40 @@ function boxFromScalars(highX: checkruntime.Float8Value, highY: checkruntime.Flo
             }
         }
     }
-    return checkruntime.boxUnresolved(unresolvedFlavor);
+    let localFlavor1444: number = unresolvedFlavor;
+    if (ly.kind === "Unknown") {
+        if (localFlavor1444 < 1) {
+            localFlavor1444 = langruntime.checkedI32(1);
+        }
+    }
+    if (ly.kind === "Unimplemented") {
+        localFlavor1444 = langruntime.checkedI32(2);
+    }
+    if (lx.kind === "Unknown") {
+        if (localFlavor1444 < 1) {
+            localFlavor1444 = langruntime.checkedI32(1);
+        }
+    }
+    if (lx.kind === "Unimplemented") {
+        localFlavor1444 = langruntime.checkedI32(2);
+    }
+    if (hy.kind === "Unknown") {
+        if (localFlavor1444 < 1) {
+            localFlavor1444 = langruntime.checkedI32(1);
+        }
+    }
+    if (hy.kind === "Unimplemented") {
+        localFlavor1444 = langruntime.checkedI32(2);
+    }
+    if (hx.kind === "Unknown") {
+        if (localFlavor1444 < 1) {
+            localFlavor1444 = langruntime.checkedI32(1);
+        }
+    }
+    if (hx.kind === "Unimplemented") {
+        localFlavor1444 = langruntime.checkedI32(2);
+    }
+    return checkruntime.boxUnresolved(localFlavor1444);
 }
 function boxMerge(left: checkruntime.BoxValue, right: checkruntime.BoxValue, intersection: boolean): checkruntime.BoxValue {
     intersection = langruntime.checkedBool(intersection);
@@ -9473,7 +9905,16 @@ function boxContainsPoint(input: checkruntime.BoxValue, point: checkruntime.Poin
             return checkruntime.makeBoolValue(checkruntime.float8Number(a.highX) >= x && checkruntime.float8Number(a.lowX) <= x && checkruntime.float8Number(a.highY) >= y && checkruntime.float8Number(a.lowY) <= y);
         }
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    let localFlavor3064: number = unresolvedFlavor;
+    if (status.kind === "Unknown") {
+        if (localFlavor3064 < 1) {
+            localFlavor3064 = langruntime.checkedI32(1);
+        }
+    }
+    if (status.kind === "Unimplemented") {
+        localFlavor3064 = langruntime.checkedI32(2);
+    }
+    return checkruntime.boolUnresolved(localFlavor3064);
 }
 function boxContainsSegment(input: checkruntime.BoxValue, segment: checkruntime.LsegValue): checkruntime.BoolValue {
     const status: checkruntime.BoolValue = boxSegmentStatus(input, segment);
@@ -9553,7 +9994,24 @@ function boxSegmentBounds(segment: checkruntime.LsegValue): checkruntime.BoxValu
             return boxFromScalars(float8largerB58s(ax, bx), float8largerB58s(ay, by), float8smallerSp3n(ax, bx), float8smallerSp3n(ay, by));
         }
     }
-    return checkruntime.boxUnresolved(unresolvedFlavor);
+    let localFlavor3764: number = unresolvedFlavor;
+    if (second.kind === "Unknown") {
+        if (localFlavor3764 < 1) {
+            localFlavor3764 = langruntime.checkedI32(1);
+        }
+    }
+    if (second.kind === "Unimplemented") {
+        localFlavor3764 = langruntime.checkedI32(2);
+    }
+    if (first.kind === "Unknown") {
+        if (localFlavor3764 < 1) {
+            localFlavor3764 = langruntime.checkedI32(1);
+        }
+    }
+    if (first.kind === "Unimplemented") {
+        localFlavor3764 = langruntime.checkedI32(2);
+    }
+    return checkruntime.boxUnresolved(localFlavor3764);
 }
 interface BoxSegmentIntersection {
     intersects: checkruntime.BoolValue;
@@ -9977,7 +10435,24 @@ export function byteacatZitv(left: checkruntime.ByteaValue, right: checkruntime.
             return { kind: "Value", value: output };
         }
     }
-    return checkruntime.byteaUnresolved(unresolvedFlavor);
+    let localFlavor664: number = unresolvedFlavor;
+    if (secondLength.kind === "Unknown") {
+        if (localFlavor664 < 1) {
+            localFlavor664 = langruntime.checkedI32(1);
+        }
+    }
+    if (secondLength.kind === "Unimplemented") {
+        localFlavor664 = langruntime.checkedI32(2);
+    }
+    if (firstLength.kind === "Unknown") {
+        if (localFlavor664 < 1) {
+            localFlavor664 = langruntime.checkedI32(1);
+        }
+    }
+    if (firstLength.kind === "Unimplemented") {
+        localFlavor664 = langruntime.checkedI32(2);
+    }
+    return checkruntime.byteaUnresolved(localFlavor664);
 }
 function byteaCompare(left: checkruntime.ByteaValue, right: checkruntime.ByteaValue): checkruntime.Int4Value {
     let unresolvedFlavor: number = 0;
@@ -13756,7 +14231,16 @@ export function catalogVectorToText(input: checkruntime.ArrayValue, oid: boolean
                 appended = langruntime.checkedBool(true);
             }
             if (appended === false) {
-                return checkruntime.textUnresolved(unresolvedFlavor);
+                let localFlavor4935: number = unresolvedFlavor;
+                if (status.kind === "Unknown") {
+                    if (localFlavor4935 < 1) {
+                        localFlavor4935 = langruntime.checkedI32(1);
+                    }
+                }
+                if (status.kind === "Unimplemented") {
+                    localFlavor4935 = langruntime.checkedI32(2);
+                }
+                return checkruntime.textUnresolved(localFlavor4935);
             }
             index = langruntime.checkedAdd(index, 1);
         }
@@ -13971,7 +14455,16 @@ export function btoidvectorcmp6oyf(left: checkruntime.ArrayValue, right: checkru
                 return { kind: "Error", value: error };
             }
             if (!(checkruntime.equalBoolValue(second, { kind: "Value", value: true }))) {
-                return checkruntime.int4Unresolved(unresolvedFlavor);
+                let localFlavor15650: number = unresolvedFlavor;
+                if (first.kind === "Unknown") {
+                    if (localFlavor15650 < 1) {
+                        localFlavor15650 = langruntime.checkedI32(1);
+                    }
+                }
+                if (first.kind === "Unimplemented") {
+                    localFlavor15650 = langruntime.checkedI32(2);
+                }
+                return checkruntime.int4Unresolved(localFlavor15650);
             }
             if (!(a.elements.length === b.elements.length)) {
                 return checkruntime.makeInt4Value(langruntime.checkedSignedSubtract((langruntime.checkedI32(langruntime.checkedIndex(a.elements.length))), (langruntime.checkedI32(langruntime.checkedIndex(b.elements.length)))));
@@ -14054,7 +14547,16 @@ export function oidvectortypesW22j(input: checkruntime.ArrayValue): checkruntime
                 return { kind: "Error", value: error };
             }
             if (!(checkruntime.equalTextValue(name, checkruntime.makeTextValue("-")))) {
-                return checkruntime.textUnresolved(unresolvedFlavor);
+                let localFlavor19346: number = unresolvedFlavor;
+                if (status.kind === "Unknown") {
+                    if (localFlavor19346 < 1) {
+                        localFlavor19346 = langruntime.checkedI32(1);
+                    }
+                }
+                if (status.kind === "Unimplemented") {
+                    localFlavor19346 = langruntime.checkedI32(2);
+                }
+                return checkruntime.textUnresolved(localFlavor19346);
             }
             if (index > 0) {
                 output = output + ", ";
@@ -14767,7 +15269,7 @@ export function chrContext(input: checkruntime.Int4Value, utf8: boolean): checkr
             const code: number = langruntime.checkedI32(input.value);
             if (code > 127) {
                 if (value.kind === "Value") {
-                    return checkruntime.textUnresolved(unresolvedFlavor);
+                    return checkruntime.textUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
                 }
             }
         }
@@ -14827,7 +15329,16 @@ function circleFromCenterRadius(center: checkruntime.PointValue, radius: checkru
             return { kind: "Value", value: { x: point.x, y: point.y, radius: bits, wireKnown: point.wireKnown && !(checkruntime.equalFloat8Value(radius, { kind: "UnspecifiedNan" })) } };
         }
     }
-    return checkruntime.circleUnresolved(unresolvedFlavor);
+    let localFlavor304: number = unresolvedFlavor;
+    if (semantic.kind === "Unknown") {
+        if (localFlavor304 < 1) {
+            localFlavor304 = langruntime.checkedI32(1);
+        }
+    }
+    if (semantic.kind === "Unimplemented") {
+        localFlavor304 = langruntime.checkedI32(2);
+    }
+    return checkruntime.circleUnresolved(localFlavor304);
 }
 function circleCenterValue(input: checkruntime.CircleValue): checkruntime.PointValue {
     let unresolvedFlavor: number = 0;
@@ -14981,7 +15492,48 @@ function circleAreaRelation(left: checkruntime.CircleValue, right: checkruntime.
             return checkruntime.makeBoolValue(!(x === y) && langruntime.f64Abs((langruntime.f64Subtract(x, y))) > 0.000001);
         }
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    let localFlavor1414: number = unresolvedFlavor;
+    if (b.kind === "Unknown") {
+        if (localFlavor1414 < 1) {
+            localFlavor1414 = langruntime.checkedI32(1);
+        }
+    }
+    if (b.kind === "Unimplemented") {
+        localFlavor1414 = langruntime.checkedI32(2);
+    }
+    if (a.kind === "Unknown") {
+        if (localFlavor1414 < 1) {
+            localFlavor1414 = langruntime.checkedI32(1);
+        }
+    }
+    if (a.kind === "Unimplemented") {
+        localFlavor1414 = langruntime.checkedI32(2);
+    }
+    if (second.kind === "Unknown") {
+        if (localFlavor1414 < 1) {
+            localFlavor1414 = langruntime.checkedI32(1);
+        }
+    }
+    if (second.kind === "Unimplemented") {
+        localFlavor1414 = langruntime.checkedI32(2);
+    }
+    if (first.kind === "Unknown") {
+        if (localFlavor1414 < 1) {
+            localFlavor1414 = langruntime.checkedI32(1);
+        }
+    }
+    if (first.kind === "Unimplemented") {
+        localFlavor1414 = langruntime.checkedI32(2);
+    }
+    if (status.kind === "Unknown") {
+        if (localFlavor1414 < 1) {
+            localFlavor1414 = langruntime.checkedI32(1);
+        }
+    }
+    if (status.kind === "Unimplemented") {
+        localFlavor1414 = langruntime.checkedI32(2);
+    }
+    return checkruntime.boolUnresolved(localFlavor1414);
 }
 function circleSameValue(left: checkruntime.CircleValue, right: checkruntime.CircleValue): checkruntime.BoolValue {
     let unresolvedFlavor: number = 0;
@@ -15015,7 +15567,32 @@ function circleSameValue(left: checkruntime.CircleValue, right: checkruntime.Cir
             return checkruntime.makeBoolValue(false);
         }
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    let localFlavor1684: number = unresolvedFlavor;
+    if (b.kind === "Unknown") {
+        if (localFlavor1684 < 1) {
+            localFlavor1684 = langruntime.checkedI32(1);
+        }
+    }
+    if (b.kind === "Unimplemented") {
+        localFlavor1684 = langruntime.checkedI32(2);
+    }
+    if (a.kind === "Unknown") {
+        if (localFlavor1684 < 1) {
+            localFlavor1684 = langruntime.checkedI32(1);
+        }
+    }
+    if (a.kind === "Unimplemented") {
+        localFlavor1684 = langruntime.checkedI32(2);
+    }
+    if (status.kind === "Unknown") {
+        if (localFlavor1684 < 1) {
+            localFlavor1684 = langruntime.checkedI32(1);
+        }
+    }
+    if (status.kind === "Unimplemented") {
+        localFlavor1684 = langruntime.checkedI32(2);
+    }
+    return checkruntime.boolUnresolved(localFlavor1684);
 }
 function circleBinary(input: checkruntime.CircleValue): checkruntime.ByteaValue {
     let unresolvedFlavor: number = 0;
@@ -15293,7 +15870,24 @@ function circleFuzzyRelation(left: checkruntime.Float8Value, right: checkruntime
             return checkruntime.makeBoolValue(x <= y);
         }
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    let localFlavor404: number = unresolvedFlavor;
+    if (second.kind === "Unknown") {
+        if (localFlavor404 < 1) {
+            localFlavor404 = langruntime.checkedI32(1);
+        }
+    }
+    if (second.kind === "Unimplemented") {
+        localFlavor404 = langruntime.checkedI32(2);
+    }
+    if (first.kind === "Unknown") {
+        if (localFlavor404 < 1) {
+            localFlavor404 = langruntime.checkedI32(1);
+        }
+    }
+    if (first.kind === "Unimplemented") {
+        localFlavor404 = langruntime.checkedI32(2);
+    }
+    return checkruntime.boolUnresolved(localFlavor404);
 }
 function circleEdge(input: checkruntime.CircleValue, vertical: boolean, low: boolean): checkruntime.Float8Value {
     vertical = langruntime.checkedBool(vertical);
@@ -15322,7 +15916,16 @@ function circleEdge(input: checkruntime.CircleValue, vertical: boolean, low: boo
         }
         return float8plG3ou(coordinate, radius);
     }
-    return checkruntime.float8Unresolved(unresolvedFlavor);
+    let localFlavor614: number = unresolvedFlavor;
+    if (center.kind === "Unknown") {
+        if (localFlavor614 < 1) {
+            localFlavor614 = langruntime.checkedI32(1);
+        }
+    }
+    if (center.kind === "Unimplemented") {
+        localFlavor614 = langruntime.checkedI32(2);
+    }
+    return checkruntime.float8Unresolved(localFlavor614);
 }
 function circlePositionRelation(left: checkruntime.CircleValue, right: checkruntime.CircleValue, vertical: boolean, mode: number): checkruntime.BoolValue {
     vertical = langruntime.checkedBool(vertical);
@@ -15711,7 +16314,7 @@ export function polygon9juc(count: checkruntime.Int4Value, input: checkruntime.C
                 return checkruntime.polygonUnresolved(conditionFlavor6512);
             }
             if (fdlibm === false) {
-                return checkruntime.polygonUnresolved(unresolvedFlavor);
+                return checkruntime.polygonUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
             }
             let points: checkruntime.PointPayload[] = [];
             if (first.kind === "Value") {
@@ -16076,7 +16679,16 @@ function clockFieldsNumericValue(span: checkruntime.IntervalPayload, zone: numbe
         }
         return temporalScaledNumber(number, scale);
     }
-    return checkruntime.numericUnresolved(unresolvedFlavor);
+    let localFlavor2004: number = unresolvedFlavor;
+    if (component.kind === "Unknown") {
+        if (localFlavor2004 < 1) {
+            localFlavor2004 = langruntime.checkedI32(1);
+        }
+    }
+    if (component.kind === "Unimplemented") {
+        localFlavor2004 = langruntime.checkedI32(2);
+    }
+    return checkruntime.numericUnresolved(localFlavor2004);
 }
 function clockFieldsNumeric(units: checkruntime.TextValue, input: ClockFieldInput): checkruntime.NumericValue {
     input = copyClockFieldInput(input);
@@ -16525,7 +17137,16 @@ export function recordHashInitial64(input: checkruntime.ArrayComparisonPayload):
         const value: number = langruntime.checkedI32(initial.value);
         return { kind: "Value", value: BigInt(langruntime.checkedI32(value)) };
     }
-    return checkruntime.int8Unresolved(unresolvedFlavor);
+    let localFlavor874: number = unresolvedFlavor;
+    if (initial.kind === "Unknown") {
+        if (localFlavor874 < 1) {
+            localFlavor874 = langruntime.checkedI32(1);
+        }
+    }
+    if (initial.kind === "Unimplemented") {
+        localFlavor874 = langruntime.checkedI32(2);
+    }
+    return checkruntime.int8Unresolved(localFlavor874);
 }
 export function recordHashCell32(input: checkruntime.ArrayElement, availability: number): checkruntime.Int4Value {
     let unresolvedFlavor: number = 0;
@@ -16564,7 +17185,16 @@ export function recordHashCell64(input: checkruntime.ArrayElement, availability:
         const payload: number = langruntime.checkedI32(value.value);
         return { kind: "Value", value: BigInt(langruntime.checkedI32(payload)) };
     }
-    return checkruntime.int8Unresolved(unresolvedFlavor);
+    let localFlavor1174: number = unresolvedFlavor;
+    if (value.kind === "Unknown") {
+        if (localFlavor1174 < 1) {
+            localFlavor1174 = langruntime.checkedI32(1);
+        }
+    }
+    if (value.kind === "Unimplemented") {
+        localFlavor1174 = langruntime.checkedI32(2);
+    }
+    return checkruntime.int8Unresolved(localFlavor1174);
 }
 export function hashRecord5xrm(input: checkruntime.Int4Value): checkruntime.Int4Value {
     return input;
@@ -17626,7 +18256,16 @@ export function enumLargerEm2s(left: checkruntime.EnumValue, right: checkruntime
         }
         return right;
     }
-    return checkruntime.enumUnresolved(unresolvedFlavor);
+    let localFlavor1644: number = unresolvedFlavor;
+    if (comparison.kind === "Unknown") {
+        if (localFlavor1644 < 1) {
+            localFlavor1644 = langruntime.checkedI32(1);
+        }
+    }
+    if (comparison.kind === "Unimplemented") {
+        localFlavor1644 = langruntime.checkedI32(2);
+    }
+    return checkruntime.enumUnresolved(localFlavor1644);
 }
 export function enumSmallerWhhx(left: checkruntime.EnumValue, right: checkruntime.EnumValue): checkruntime.EnumValue {
     let unresolvedFlavor: number = 0;
@@ -17657,7 +18296,16 @@ export function enumSmallerWhhx(left: checkruntime.EnumValue, right: checkruntim
         }
         return right;
     }
-    return checkruntime.enumUnresolved(unresolvedFlavor);
+    let localFlavor1864: number = unresolvedFlavor;
+    if (comparison.kind === "Unknown") {
+        if (localFlavor1864 < 1) {
+            localFlavor1864 = langruntime.checkedI32(1);
+        }
+    }
+    if (comparison.kind === "Unimplemented") {
+        localFlavor1864 = langruntime.checkedI32(2);
+    }
+    return checkruntime.enumUnresolved(localFlavor1864);
 }
 export function hashenumZ4zk(input: checkruntime.EnumValue): checkruntime.Int4Value {
     let unresolvedFlavor: number = 0;
@@ -18015,7 +18663,24 @@ function floatArithmetic(left: checkruntime.Float8Value, right: checkruntime.Flo
             return checkruntime.makeFloat8Value(value);
         }
     }
-    return checkruntime.float8Unresolved(unresolvedFlavor);
+    let localFlavor235: number = unresolvedFlavor;
+    if (knownRight.kind === "Unknown") {
+        if (localFlavor235 < 1) {
+            localFlavor235 = langruntime.checkedI32(1);
+        }
+    }
+    if (knownRight.kind === "Unimplemented") {
+        localFlavor235 = langruntime.checkedI32(2);
+    }
+    if (knownLeft.kind === "Unknown") {
+        if (localFlavor235 < 1) {
+            localFlavor235 = langruntime.checkedI32(1);
+        }
+    }
+    if (knownLeft.kind === "Unimplemented") {
+        localFlavor235 = langruntime.checkedI32(2);
+    }
+    return checkruntime.float8Unresolved(localFlavor235);
 }
 export function float48divRlvj(left: checkruntime.Float4Value, right: checkruntime.Float8Value): checkruntime.Float8Value {
     return floatArithmetic(float4Widen(left), right, 3, false);
@@ -18437,7 +19102,24 @@ function float8Compare(left: checkruntime.Float8Value, right: checkruntime.Float
             return { kind: "Value", value: 0 };
         }
     }
-    return checkruntime.int4Unresolved(unresolvedFlavor);
+    let localFlavor914: number = unresolvedFlavor;
+    if (knownRight.kind === "Unknown") {
+        if (localFlavor914 < 1) {
+            localFlavor914 = langruntime.checkedI32(1);
+        }
+    }
+    if (knownRight.kind === "Unimplemented") {
+        localFlavor914 = langruntime.checkedI32(2);
+    }
+    if (knownLeft.kind === "Unknown") {
+        if (localFlavor914 < 1) {
+            localFlavor914 = langruntime.checkedI32(1);
+        }
+    }
+    if (knownLeft.kind === "Unimplemented") {
+        localFlavor914 = langruntime.checkedI32(2);
+    }
+    return checkruntime.int4Unresolved(localFlavor914);
 }
 function float8Integer(input: checkruntime.Float8Value): checkruntime.Int8Value {
     let unresolvedFlavor: number = 0;
@@ -18499,7 +19181,16 @@ function float8Integer(input: checkruntime.Float8Value): checkruntime.Int8Value 
         }
         return { kind: "Value", value: coefficient };
     }
-    return checkruntime.int8Unresolved(unresolvedFlavor);
+    let localFlavor1484: number = unresolvedFlavor;
+    if (knownInput.kind === "Unknown") {
+        if (localFlavor1484 < 1) {
+            localFlavor1484 = langruntime.checkedI32(1);
+        }
+    }
+    if (knownInput.kind === "Unimplemented") {
+        localFlavor1484 = langruntime.checkedI32(2);
+    }
+    return checkruntime.int8Unresolved(localFlavor1484);
 }
 function integerFloat4(input: checkruntime.Int8Value): checkruntime.Float4Value {
     let unresolvedFlavor: number = 0;
@@ -18697,7 +19388,16 @@ export function int2Pv8l(input: checkruntime.Float4Value): checkruntime.Int2Valu
         }
         return { kind: "Value", value: Number(BigInt.asIntN(32, langruntime.checkedI64(number))) };
     }
-    return checkruntime.int2Unresolved(unresolvedFlavor);
+    let localFlavor3654: number = unresolvedFlavor;
+    if (result.kind === "Unknown") {
+        if (localFlavor3654 < 1) {
+            localFlavor3654 = langruntime.checkedI32(1);
+        }
+    }
+    if (result.kind === "Unimplemented") {
+        localFlavor3654 = langruntime.checkedI32(2);
+    }
+    return checkruntime.int2Unresolved(localFlavor3654);
 }
 export function int4Tbuy(input: checkruntime.Float4Value): checkruntime.Int4Value {
     let unresolvedFlavor: number = 0;
@@ -18722,7 +19422,16 @@ export function int4Tbuy(input: checkruntime.Float4Value): checkruntime.Int4Valu
         }
         return { kind: "Value", value: Number(BigInt.asIntN(32, langruntime.checkedI64(number))) };
     }
-    return checkruntime.int4Unresolved(unresolvedFlavor);
+    let localFlavor3854: number = unresolvedFlavor;
+    if (result.kind === "Unknown") {
+        if (localFlavor3854 < 1) {
+            localFlavor3854 = langruntime.checkedI32(1);
+        }
+    }
+    if (result.kind === "Unimplemented") {
+        localFlavor3854 = langruntime.checkedI32(2);
+    }
+    return checkruntime.int4Unresolved(localFlavor3854);
 }
 export function int885by(input: checkruntime.Float4Value): checkruntime.Int8Value {
     return float8Integer(float4Widen(input));
@@ -18753,7 +19462,16 @@ export function int268cf(input: checkruntime.Float8Value): checkruntime.Int2Valu
         }
         return { kind: "Value", value: Number(BigInt.asIntN(32, langruntime.checkedI64(number))) };
     }
-    return checkruntime.int2Unresolved(unresolvedFlavor);
+    let localFlavor4134: number = unresolvedFlavor;
+    if (result.kind === "Unknown") {
+        if (localFlavor4134 < 1) {
+            localFlavor4134 = langruntime.checkedI32(1);
+        }
+    }
+    if (result.kind === "Unimplemented") {
+        localFlavor4134 = langruntime.checkedI32(2);
+    }
+    return checkruntime.int2Unresolved(localFlavor4134);
 }
 export function int4Nc79(input: checkruntime.Float8Value): checkruntime.Int4Value {
     let unresolvedFlavor: number = 0;
@@ -18778,7 +19496,16 @@ export function int4Nc79(input: checkruntime.Float8Value): checkruntime.Int4Valu
         }
         return { kind: "Value", value: Number(BigInt.asIntN(32, langruntime.checkedI64(number))) };
     }
-    return checkruntime.int4Unresolved(unresolvedFlavor);
+    let localFlavor4334: number = unresolvedFlavor;
+    if (result.kind === "Unknown") {
+        if (localFlavor4334 < 1) {
+            localFlavor4334 = langruntime.checkedI32(1);
+        }
+    }
+    if (result.kind === "Unimplemented") {
+        localFlavor4334 = langruntime.checkedI32(2);
+    }
+    return checkruntime.int4Unresolved(localFlavor4334);
 }
 export function int8Kmmw(input: checkruntime.Float8Value): checkruntime.Int8Value {
     return float8Integer(input);
@@ -18899,7 +19626,7 @@ function float8ErrorFunction(input: checkruntime.Float8Value, musl: boolean, com
             return { kind: "UnspecifiedNan" };
         }
         if (musl === false) {
-            return checkruntime.float8Unresolved(unresolvedFlavor);
+            return checkruntime.float8Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         if (complement) {
             return checkruntime.makeFloat8Value(muslErfc(number));
@@ -19044,7 +19771,7 @@ export function gammaT3sa(input: checkruntime.Float8Value, musl: boolean): check
             return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
         }
         if (musl === false) {
-            return checkruntime.float8Unresolved(unresolvedFlavor);
+            return checkruntime.float8Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         const result: number = muslTgamma(number);
         if (!(result === result) || langruntime.f64Abs(result) === langruntime.f64Divide(1.0, 0.0) || result === 0.0) {
@@ -19218,7 +19945,7 @@ export function lgammaRpzb(input: checkruntime.Float8Value, musl: boolean): chec
             return checkruntime.makeFloat8Value(langruntime.f64Divide(1.0, 0.0));
         }
         if (musl === false) {
-            return checkruntime.float8Unresolved(unresolvedFlavor);
+            return checkruntime.float8Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         const result: number = muslLgamma(number);
         if (langruntime.f64Abs(result) === langruntime.f64Divide(1.0, 0.0)) {
@@ -19386,7 +20113,7 @@ export function dexpWe7o(input: checkruntime.Float8Value, musl: boolean): checkr
             return checkruntime.makeFloat8Value(0.0);
         }
         if (musl === false) {
-            return checkruntime.float8Unresolved(unresolvedFlavor);
+            return checkruntime.float8Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         const result: number = muslExp(number);
         if (langruntime.f64Abs(result) === langruntime.f64Divide(1.0, 0.0) || result === 0.0) {
@@ -19425,7 +20152,7 @@ export function dlog16b2t(input: checkruntime.Float8Value, musl: boolean): check
             return input;
         }
         if (musl === false) {
-            return checkruntime.float8Unresolved(unresolvedFlavor);
+            return checkruntime.float8Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         return checkruntime.makeFloat8Value(muslLog(number));
     }
@@ -19499,7 +20226,7 @@ export function dlog10Uzhv(input: checkruntime.Float8Value, musl: boolean): chec
             return input;
         }
         if (musl === false) {
-            return checkruntime.float8Unresolved(unresolvedFlavor);
+            return checkruntime.float8Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         return checkruntime.makeFloat8Value(muslLog10(number));
     }
@@ -19576,7 +20303,7 @@ export function dcbrtQu0u(input: checkruntime.Float8Value, musl: boolean): check
             return input;
         }
         if (musl === false) {
-            return checkruntime.float8Unresolved(unresolvedFlavor);
+            return checkruntime.float8Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         return checkruntime.makeFloat8Value(muslCbrt(number));
     }
@@ -19892,7 +20619,7 @@ export function dpowAnie(left: checkruntime.Float8Value, right: checkruntime.Flo
                 return checkruntime.makeFloat8Value(0.0);
             }
             if (musl === false) {
-                return checkruntime.float8Unresolved(unresolvedFlavor);
+                return checkruntime.float8Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
             }
             const result: number = muslPow(x, y);
             if (!(result === result)) {
@@ -19904,7 +20631,24 @@ export function dpowAnie(left: checkruntime.Float8Value, right: checkruntime.Flo
             return checkruntime.makeFloat8Value(result);
         }
     }
-    return checkruntime.float8Unresolved(unresolvedFlavor);
+    let localFlavor18994: number = unresolvedFlavor;
+    if (knownRight.kind === "Unknown") {
+        if (localFlavor18994 < 1) {
+            localFlavor18994 = langruntime.checkedI32(1);
+        }
+    }
+    if (knownRight.kind === "Unimplemented") {
+        localFlavor18994 = langruntime.checkedI32(2);
+    }
+    if (knownLeft.kind === "Unknown") {
+        if (localFlavor18994 < 1) {
+            localFlavor18994 = langruntime.checkedI32(1);
+        }
+    }
+    if (knownLeft.kind === "Unimplemented") {
+        localFlavor18994 = langruntime.checkedI32(2);
+    }
+    return checkruntime.float8Unresolved(localFlavor18994);
 }
 export function powHjab(left: checkruntime.Float8Value, right: checkruntime.Float8Value, musl: boolean): checkruntime.Float8Value {
     musl = langruntime.checkedBool(musl);
@@ -20344,7 +21088,7 @@ function float8Hyperbolic(input: checkruntime.Float8Value, musl: boolean, operat
             }
         }
         if (musl === false) {
-            return checkruntime.float8Unresolved(unresolvedFlavor);
+            return checkruntime.float8Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         let result: number = 0.0;
         if (operation === 0) {
@@ -20929,7 +21673,7 @@ function float8InverseTrigonometry(input: checkruntime.Float8Value, fdlibm: bool
             return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
         }
         if (fdlibm === false) {
-            return checkruntime.float8Unresolved(unresolvedFlavor);
+            return checkruntime.float8Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         if (operation === 0) {
             return checkruntime.makeFloat8Value(float8AsinKernel(number));
@@ -21011,12 +21755,29 @@ export function atan2Re5y(left: checkruntime.Float8Value, right: checkruntime.Fl
                 return { kind: "UnspecifiedNan" };
             }
             if (fdlibm === false) {
-                return checkruntime.float8Unresolved(unresolvedFlavor);
+                return checkruntime.float8Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
             }
             return checkruntime.makeFloat8Value(float8Atan2Kernel(y, x));
         }
     }
-    return checkruntime.float8Unresolved(unresolvedFlavor);
+    let localFlavor3214: number = unresolvedFlavor;
+    if (knownRight.kind === "Unknown") {
+        if (localFlavor3214 < 1) {
+            localFlavor3214 = langruntime.checkedI32(1);
+        }
+    }
+    if (knownRight.kind === "Unimplemented") {
+        localFlavor3214 = langruntime.checkedI32(2);
+    }
+    if (knownLeft.kind === "Unknown") {
+        if (localFlavor3214 < 1) {
+            localFlavor3214 = langruntime.checkedI32(1);
+        }
+    }
+    if (knownLeft.kind === "Unimplemented") {
+        localFlavor3214 = langruntime.checkedI32(2);
+    }
+    return checkruntime.float8Unresolved(localFlavor3214);
 }
 function float8AsindQ1(x: number): number {
     x = langruntime.checkedF64(x);
@@ -21055,7 +21816,7 @@ function float8InverseDegrees(input: checkruntime.Float8Value, fdlibm: boolean, 
             return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
         }
         if (fdlibm === false) {
-            return checkruntime.float8Unresolved(unresolvedFlavor);
+            return checkruntime.float8Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         if (operation === 0) {
             if (number >= 0.0) {
@@ -21176,7 +21937,16 @@ function floatNumericDecimal(input: checkruntime.Float8Value, precision: number)
         const result: NumericWork = { valid: rounded.valid, special: rounded.special, sign: sign, weight: rounded.weight, scale: minimumScale, digits: rounded.digits };
         return { kind: "Value", value: numericWorkText(result) };
     }
-    return checkruntime.numericUnresolved(unresolvedFlavor);
+    let localFlavor574: number = unresolvedFlavor;
+    if (knownInput.kind === "Unknown") {
+        if (localFlavor574 < 1) {
+            localFlavor574 = langruntime.checkedI32(1);
+        }
+    }
+    if (knownInput.kind === "Unimplemented") {
+        localFlavor574 = langruntime.checkedI32(2);
+    }
+    return checkruntime.numericUnresolved(localFlavor574);
 }
 function floatNumericText(input: checkruntime.NumericValue): checkruntime.TextValue {
     let unresolvedFlavor: number = 0;
@@ -21697,7 +22467,7 @@ function float8Trigonometry(input: checkruntime.Float8Value, fdlibm: boolean, co
             return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
         }
         if (fdlibm === false || circleMathHighWord(magnitude) >= 1094263291) {
-            return checkruntime.float8Unresolved(unresolvedFlavor);
+            return checkruntime.float8Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         let result: number = circleTrigonometry(magnitude, cosine);
         if (cosine === false && bits < 0n) {
@@ -21768,7 +22538,7 @@ function float8DegreeTrigonometry(input: checkruntime.Float8Value, fdlibm: boole
             return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
         }
         if (fdlibm === false) {
-            return checkruntime.float8Unresolved(unresolvedFlavor);
+            return checkruntime.float8Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         let angle: number = float8Fmod360(number);
         let sign: number = 1.0;
@@ -21892,7 +22662,7 @@ function float8Tangent(input: checkruntime.Float8Value, fdlibm: boolean, cotange
         }
         const high: number = circleMathHighWord(magnitude);
         if (fdlibm === false || high >= 1094263291) {
-            return checkruntime.float8Unresolved(unresolvedFlavor);
+            return checkruntime.float8Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         let result: number = magnitude;
         if (high <= 1072243195) {
@@ -21959,7 +22729,7 @@ function float8DegreeTangent(input: checkruntime.Float8Value, fdlibm: boolean, c
             return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
         }
         if (fdlibm === false) {
-            return checkruntime.float8Unresolved(unresolvedFlavor);
+            return checkruntime.float8Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         let angle: number = float8Fmod360(number);
         let sign: number = 1.0;
@@ -22145,7 +22915,32 @@ function floatInRange(value: checkruntime.Float8Value, base: checkruntime.Float8
             }
         }
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    let localFlavor984: number = unresolvedFlavor;
+    if (knownOffset.kind === "Unknown") {
+        if (localFlavor984 < 1) {
+            localFlavor984 = langruntime.checkedI32(1);
+        }
+    }
+    if (knownOffset.kind === "Unimplemented") {
+        localFlavor984 = langruntime.checkedI32(2);
+    }
+    if (knownBase.kind === "Unknown") {
+        if (localFlavor984 < 1) {
+            localFlavor984 = langruntime.checkedI32(1);
+        }
+    }
+    if (knownBase.kind === "Unimplemented") {
+        localFlavor984 = langruntime.checkedI32(2);
+    }
+    if (knownValue.kind === "Unknown") {
+        if (localFlavor984 < 1) {
+            localFlavor984 = langruntime.checkedI32(1);
+        }
+    }
+    if (knownValue.kind === "Unimplemented") {
+        localFlavor984 = langruntime.checkedI32(2);
+    }
+    return checkruntime.boolUnresolved(localFlavor984);
 }
 export function inRangeT6r5(value: checkruntime.Float8Value, base: checkruntime.Float8Value, offset: checkruntime.Float8Value, subtract: checkruntime.BoolValue, less: checkruntime.BoolValue): checkruntime.BoolValue {
     return floatInRange(value, base, offset, subtract, less);
@@ -22294,7 +23089,32 @@ export function widthBucketWbi9(operand: checkruntime.Float8Value, lower: checkr
             }
         }
     }
-    return checkruntime.int4Unresolved(unresolvedFlavor);
+    let localFlavor2304: number = unresolvedFlavor;
+    if (knownUpper.kind === "Unknown") {
+        if (localFlavor2304 < 1) {
+            localFlavor2304 = langruntime.checkedI32(1);
+        }
+    }
+    if (knownUpper.kind === "Unimplemented") {
+        localFlavor2304 = langruntime.checkedI32(2);
+    }
+    if (knownLower.kind === "Unknown") {
+        if (localFlavor2304 < 1) {
+            localFlavor2304 = langruntime.checkedI32(1);
+        }
+    }
+    if (knownLower.kind === "Unimplemented") {
+        localFlavor2304 = langruntime.checkedI32(2);
+    }
+    if (knownOperand.kind === "Unknown") {
+        if (localFlavor2304 < 1) {
+            localFlavor2304 = langruntime.checkedI32(1);
+        }
+    }
+    if (knownOperand.kind === "Unimplemented") {
+        localFlavor2304 = langruntime.checkedI32(2);
+    }
+    return checkruntime.int4Unresolved(localFlavor2304);
 }
 export function int8incFloat8Float8Naop(count: checkruntime.Int8Value, left: checkruntime.Float8Value, right: checkruntime.Float8Value): checkruntime.Int8Value {
     let unresolvedFlavor: number = 0;
@@ -25096,7 +25916,16 @@ function internalCharRelation(left: checkruntime.InternalCharValue, right: check
         }
         return checkruntime.makeBoolValue(order >= 0);
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    let localFlavor584: number = unresolvedFlavor;
+    if (result.kind === "Unknown") {
+        if (localFlavor584 < 1) {
+            localFlavor584 = langruntime.checkedI32(1);
+        }
+    }
+    if (result.kind === "Unimplemented") {
+        localFlavor584 = langruntime.checkedI32(2);
+    }
+    return checkruntime.boolUnresolved(localFlavor584);
 }
 export function int49xis(input: checkruntime.InternalCharValue): checkruntime.Int4Value {
     let unresolvedFlavor: number = 0;
@@ -28340,7 +29169,16 @@ function jsonPopulateArrayElement(input: checkruntime.JsonbInput, position: numb
         }
         return checkruntime.jsonbInputFromJsonb(selected);
     }
-    return checkruntime.jsonbInputUnresolved(unresolvedFlavor);
+    let localFlavor604: number = unresolvedFlavor;
+    if (index.kind === "Unknown") {
+        if (localFlavor604 < 1) {
+            localFlavor604 = langruntime.checkedI32(1);
+        }
+    }
+    if (index.kind === "Unimplemented") {
+        localFlavor604 = langruntime.checkedI32(2);
+    }
+    return checkruntime.jsonbInputUnresolved(localFlavor604);
 }
 function jsonPopulateArrayTextEvent(input: checkruntime.TextValue): checkruntime.ArrayTextEvent {
     let unresolvedFlavor: number = 0;
@@ -31845,7 +32683,16 @@ export function jsonbHashQo2a(input: checkruntime.JsonbValue, byteOrder: number,
         const value: bigint = langruntime.checkedI64(result.value);
         return { kind: "Value", value: Number(BigInt.asIntN(32, langruntime.checkedI64(value))) };
     }
-    return checkruntime.int4Unresolved(unresolvedFlavor);
+    let localFlavor2464: number = unresolvedFlavor;
+    if (result.kind === "Unknown") {
+        if (localFlavor2464 < 1) {
+            localFlavor2464 = langruntime.checkedI32(1);
+        }
+    }
+    if (result.kind === "Unimplemented") {
+        localFlavor2464 = langruntime.checkedI32(2);
+    }
+    return checkruntime.int4Unresolved(localFlavor2464);
 }
 export function jsonbHashExtendedH75l(input: checkruntime.JsonbValue, seed: checkruntime.Int8Value, byteOrder: number, utf8: boolean): checkruntime.Int8Value {
     input = checkruntime.copyJsonbValue(input);
@@ -37212,7 +38059,24 @@ function lineEqualProduct(left: bigint, right: bigint, ratio: checkruntime.Float
         const bits: bigint = langruntime.checkedI64(knownProduct.value);
         return checkruntime.makeBoolValue(geometricCoordinateEqual(checkruntime.float8Number(left), checkruntime.float8Number(bits)));
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    let localFlavor134: number = unresolvedFlavor;
+    if (knownProduct.kind === "Unknown") {
+        if (localFlavor134 < 1) {
+            localFlavor134 = langruntime.checkedI32(1);
+        }
+    }
+    if (knownProduct.kind === "Unimplemented") {
+        localFlavor134 = langruntime.checkedI32(2);
+    }
+    if (product.kind === "Unknown") {
+        if (localFlavor134 < 1) {
+            localFlavor134 = langruntime.checkedI32(1);
+        }
+    }
+    if (product.kind === "Unimplemented") {
+        localFlavor134 = langruntime.checkedI32(2);
+    }
+    return checkruntime.boolUnresolved(localFlavor134);
 }
 export function lineEqK687(left: checkruntime.LineValue, right: checkruntime.LineValue): checkruntime.BoolValue {
     let unresolvedFlavor: number = 0;
@@ -37446,7 +38310,32 @@ function lineFromScalars(first: checkruntime.Float8Value, second: checkruntime.F
             }
         }
     }
-    return checkruntime.lineUnresolved(unresolvedFlavor);
+    let localFlavor504: number = unresolvedFlavor;
+    if (c.kind === "Unknown") {
+        if (localFlavor504 < 1) {
+            localFlavor504 = langruntime.checkedI32(1);
+        }
+    }
+    if (c.kind === "Unimplemented") {
+        localFlavor504 = langruntime.checkedI32(2);
+    }
+    if (b.kind === "Unknown") {
+        if (localFlavor504 < 1) {
+            localFlavor504 = langruntime.checkedI32(1);
+        }
+    }
+    if (b.kind === "Unimplemented") {
+        localFlavor504 = langruntime.checkedI32(2);
+    }
+    if (a.kind === "Unknown") {
+        if (localFlavor504 < 1) {
+            localFlavor504 = langruntime.checkedI32(1);
+        }
+    }
+    if (a.kind === "Unimplemented") {
+        localFlavor504 = langruntime.checkedI32(2);
+    }
+    return checkruntime.lineUnresolved(localFlavor504);
 }
 function lineOriginCoordinate(point: checkruntime.PointPayload, horizontal: boolean): checkruntime.Float8Value {
     horizontal = langruntime.checkedBool(horizontal);
@@ -37493,7 +38382,16 @@ function lineFromOriginSlope(origin: checkruntime.PointPayload, gradient: checkr
         }
         return lineFromScalars(gradient, checkruntime.makeFloat8Value(-1.0), intercept);
     }
-    return checkruntime.lineUnresolved(unresolvedFlavor);
+    let localFlavor994: number = unresolvedFlavor;
+    if (known.kind === "Unknown") {
+        if (localFlavor994 < 1) {
+            localFlavor994 = langruntime.checkedI32(1);
+        }
+    }
+    if (known.kind === "Unimplemented") {
+        localFlavor994 = langruntime.checkedI32(2);
+    }
+    return checkruntime.lineUnresolved(localFlavor994);
 }
 function lineFromPoints(left: checkruntime.PointValue, right: checkruntime.PointValue, invalid: number): checkruntime.LineValue {
     invalid = langruntime.checkedIndex(invalid);
@@ -38634,7 +39532,40 @@ function lsegLengthRelation(left: checkruntime.LsegValue, right: checkruntime.Ls
             return checkruntime.makeBoolValue(langruntime.f64Add(x, 0.000001) >= y);
         }
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    let localFlavor1554: number = unresolvedFlavor;
+    if (b.kind === "Unknown") {
+        if (localFlavor1554 < 1) {
+            localFlavor1554 = langruntime.checkedI32(1);
+        }
+    }
+    if (b.kind === "Unimplemented") {
+        localFlavor1554 = langruntime.checkedI32(2);
+    }
+    if (a.kind === "Unknown") {
+        if (localFlavor1554 < 1) {
+            localFlavor1554 = langruntime.checkedI32(1);
+        }
+    }
+    if (a.kind === "Unimplemented") {
+        localFlavor1554 = langruntime.checkedI32(2);
+    }
+    if (second.kind === "Unknown") {
+        if (localFlavor1554 < 1) {
+            localFlavor1554 = langruntime.checkedI32(1);
+        }
+    }
+    if (second.kind === "Unimplemented") {
+        localFlavor1554 = langruntime.checkedI32(2);
+    }
+    if (first.kind === "Unknown") {
+        if (localFlavor1554 < 1) {
+            localFlavor1554 = langruntime.checkedI32(1);
+        }
+    }
+    if (first.kind === "Unimplemented") {
+        localFlavor1554 = langruntime.checkedI32(2);
+    }
+    return checkruntime.boolUnresolved(localFlavor1554);
 }
 function lsegMidpoint(input: checkruntime.LsegValue): checkruntime.PointValue {
     let unresolvedFlavor: number = 0;
@@ -38765,7 +39696,40 @@ function lsegDirectionRelation(left: checkruntime.LsegValue, right: checkruntime
             return checkruntime.makeBoolValue(geometricCoordinateEqual(checkruntime.float8Number(aa), checkruntime.float8Number(bb)));
         }
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    let localFlavor2574: number = unresolvedFlavor;
+    if (b.kind === "Unknown") {
+        if (localFlavor2574 < 1) {
+            localFlavor2574 = langruntime.checkedI32(1);
+        }
+    }
+    if (b.kind === "Unimplemented") {
+        localFlavor2574 = langruntime.checkedI32(2);
+    }
+    if (a.kind === "Unknown") {
+        if (localFlavor2574 < 1) {
+            localFlavor2574 = langruntime.checkedI32(1);
+        }
+    }
+    if (a.kind === "Unimplemented") {
+        localFlavor2574 = langruntime.checkedI32(2);
+    }
+    if (second.kind === "Unknown") {
+        if (localFlavor2574 < 1) {
+            localFlavor2574 = langruntime.checkedI32(1);
+        }
+    }
+    if (second.kind === "Unimplemented") {
+        localFlavor2574 = langruntime.checkedI32(2);
+    }
+    if (first.kind === "Unknown") {
+        if (localFlavor2574 < 1) {
+            localFlavor2574 = langruntime.checkedI32(1);
+        }
+    }
+    if (first.kind === "Unimplemented") {
+        localFlavor2574 = langruntime.checkedI32(2);
+    }
+    return checkruntime.boolUnresolved(localFlavor2574);
 }
 export function lsegEqN70t(left: checkruntime.LsegValue, right: checkruntime.LsegValue): checkruntime.BoolValue {
     return lsegEqual(left, right, false);
@@ -39082,7 +40046,24 @@ function segmentRawRelation(left: checkruntime.Float8Value, right: checkruntime.
             return checkruntime.makeBoolValue(checkruntime.float8Number(a) < checkruntime.float8Number(b));
         }
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    let localFlavor1134: number = unresolvedFlavor;
+    if (second.kind === "Unknown") {
+        if (localFlavor1134 < 1) {
+            localFlavor1134 = langruntime.checkedI32(1);
+        }
+    }
+    if (second.kind === "Unimplemented") {
+        localFlavor1134 = langruntime.checkedI32(2);
+    }
+    if (first.kind === "Unknown") {
+        if (localFlavor1134 < 1) {
+            localFlavor1134 = langruntime.checkedI32(1);
+        }
+    }
+    if (first.kind === "Unimplemented") {
+        localFlavor1134 = langruntime.checkedI32(2);
+    }
+    return checkruntime.boolUnresolved(localFlavor1134);
 }
 function segmentContainsPoint(segment: checkruntime.LsegValue, point: checkruntime.PointValue): checkruntime.BoolValue {
     let unresolvedFlavor: number = 0;
@@ -39131,7 +40112,64 @@ function segmentContainsPoint(segment: checkruntime.LsegValue, point: checkrunti
             }
         }
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    let localFlavor1484: number = unresolvedFlavor;
+    if (c.kind === "Unknown") {
+        if (localFlavor1484 < 1) {
+            localFlavor1484 = langruntime.checkedI32(1);
+        }
+    }
+    if (c.kind === "Unimplemented") {
+        localFlavor1484 = langruntime.checkedI32(2);
+    }
+    if (b.kind === "Unknown") {
+        if (localFlavor1484 < 1) {
+            localFlavor1484 = langruntime.checkedI32(1);
+        }
+    }
+    if (b.kind === "Unimplemented") {
+        localFlavor1484 = langruntime.checkedI32(2);
+    }
+    if (a.kind === "Unknown") {
+        if (localFlavor1484 < 1) {
+            localFlavor1484 = langruntime.checkedI32(1);
+        }
+    }
+    if (a.kind === "Unimplemented") {
+        localFlavor1484 = langruntime.checkedI32(2);
+    }
+    if (length.kind === "Unknown") {
+        if (localFlavor1484 < 1) {
+            localFlavor1484 = langruntime.checkedI32(1);
+        }
+    }
+    if (length.kind === "Unimplemented") {
+        localFlavor1484 = langruntime.checkedI32(2);
+    }
+    if (second.kind === "Unknown") {
+        if (localFlavor1484 < 1) {
+            localFlavor1484 = langruntime.checkedI32(1);
+        }
+    }
+    if (second.kind === "Unimplemented") {
+        localFlavor1484 = langruntime.checkedI32(2);
+    }
+    if (first.kind === "Unknown") {
+        if (localFlavor1484 < 1) {
+            localFlavor1484 = langruntime.checkedI32(1);
+        }
+    }
+    if (first.kind === "Unimplemented") {
+        localFlavor1484 = langruntime.checkedI32(2);
+    }
+    if (status.kind === "Unknown") {
+        if (localFlavor1484 < 1) {
+            localFlavor1484 = langruntime.checkedI32(1);
+        }
+    }
+    if (status.kind === "Unimplemented") {
+        localFlavor1484 = langruntime.checkedI32(2);
+    }
+    return checkruntime.boolUnresolved(localFlavor1484);
 }
 function segmentPromoteLine(segment: checkruntime.LsegValue): checkruntime.LineValue {
     let unresolvedFlavor: number = 0;
@@ -39153,7 +40191,16 @@ function segmentPromoteLine(segment: checkruntime.LsegValue): checkruntime.LineV
         const origin: checkruntime.PointPayload = first.value;
         return lineFromOriginSlope(origin, lsegSlope(segment, false));
     }
-    return checkruntime.lineUnresolved(unresolvedFlavor);
+    let localFlavor1644: number = unresolvedFlavor;
+    if (first.kind === "Unknown") {
+        if (localFlavor1644 < 1) {
+            localFlavor1644 = langruntime.checkedI32(1);
+        }
+    }
+    if (first.kind === "Unimplemented") {
+        localFlavor1644 = langruntime.checkedI32(2);
+    }
+    return checkruntime.lineUnresolved(localFlavor1644);
 }
 function segmentLineIntersection(segment: checkruntime.LsegValue, line: checkruntime.LineValue): checkruntime.PointValue {
     const status: checkruntime.BoolValue = segmentLineStatus(segment, line);
@@ -40899,7 +41946,16 @@ function moneyRelation(left: checkruntime.MoneyValue, right: checkruntime.MoneyV
         }
         return checkruntime.makeBoolValue(order >= 0);
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    let localFlavor934: number = unresolvedFlavor;
+    if (comparison.kind === "Unknown") {
+        if (localFlavor934 < 1) {
+            localFlavor934 = langruntime.checkedI32(1);
+        }
+    }
+    if (comparison.kind === "Unimplemented") {
+        localFlavor934 = langruntime.checkedI32(2);
+    }
+    return checkruntime.boolUnresolved(localFlavor934);
 }
 function moneySelect(left: checkruntime.MoneyValue, right: checkruntime.MoneyValue, larger: boolean): checkruntime.MoneyValue {
     larger = langruntime.checkedBool(larger);
@@ -40931,7 +41987,16 @@ function moneySelect(left: checkruntime.MoneyValue, right: checkruntime.MoneyVal
         }
         return right;
     }
-    return checkruntime.moneyUnresolved(unresolvedFlavor);
+    let localFlavor1144: number = unresolvedFlavor;
+    if (comparison.kind === "Unknown") {
+        if (localFlavor1144 < 1) {
+            localFlavor1144 = langruntime.checkedI32(1);
+        }
+    }
+    if (comparison.kind === "Unimplemented") {
+        localFlavor1144 = langruntime.checkedI32(2);
+    }
+    return checkruntime.moneyUnresolved(localFlavor1144);
 }
 function moneyFloatScale(input: checkruntime.MoneyValue, factor: checkruntime.Float8Value, divide: boolean, reverse: boolean): checkruntime.MoneyValue {
     divide = langruntime.checkedBool(divide);
@@ -41426,7 +42491,7 @@ export function moneyToTextContext(input: checkruntime.MoneyValue, cLocale: bool
         return { kind: "Null" };
     }
     if (cLocale === false) {
-        return checkruntime.textUnresolved(unresolvedFlavor);
+        return checkruntime.textUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
     }
     if (input.kind === "Value") {
         const value: bigint = langruntime.checkedI64(input.value);
@@ -42211,7 +43276,16 @@ function multirangeSearchSpan(input: checkruntime.MultirangePayload, span: check
                         }
                     }
                     if (decided === false) {
-                        return checkruntime.boolUnresolved(unresolvedFlavor);
+                        let localFlavor33924: number = unresolvedFlavor;
+                        if (after.kind === "Unknown") {
+                            if (localFlavor33924 < 1) {
+                                localFlavor33924 = langruntime.checkedI32(1);
+                            }
+                        }
+                        if (after.kind === "Unimplemented") {
+                            localFlavor33924 = langruntime.checkedI32(2);
+                        }
+                        return checkruntime.boolUnresolved(localFlavor33924);
                     }
                 }
             }
@@ -42245,7 +43319,16 @@ function multirangeSpanContains(input: checkruntime.MultirangePayload, span: che
         const hi: checkruntime.Int4Value = multirangeEndpointOrder(rangeCopyPayload(span), true, last, true);
         return rangeOrderBoolean(hi, 4);
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    let localFlavor3724: number = unresolvedFlavor;
+    if (lo.kind === "Unknown") {
+        if (localFlavor3724 < 1) {
+            localFlavor3724 = langruntime.checkedI32(1);
+        }
+    }
+    if (lo.kind === "Unimplemented") {
+        localFlavor3724 = langruntime.checkedI32(2);
+    }
+    return checkruntime.boolUnresolved(localFlavor3724);
 }
 function multirangeSpanRelation(input: checkruntime.MultirangeValue, span: checkruntime.RangeValue, strategy: number, multiFirst: boolean): checkruntime.BoolValue {
     input = checkruntime.copyMultirangeValue(input);
@@ -44204,7 +45287,16 @@ function nameRelation(left: checkruntime.TextValue, right: checkruntime.TextValu
         }
         return checkruntime.makeBoolValue(value >= 0);
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    let localFlavor524: number = unresolvedFlavor;
+    if (order.kind === "Unknown") {
+        if (localFlavor524 < 1) {
+            localFlavor524 = langruntime.checkedI32(1);
+        }
+    }
+    if (order.kind === "Unimplemented") {
+        localFlavor524 = langruntime.checkedI32(2);
+    }
+    return checkruntime.boolUnresolved(localFlavor524);
 }
 export function bpchar8cer(input: checkruntime.TextValue): checkruntime.TextValue {
     return input;
@@ -44308,7 +45400,7 @@ export function nameFromTextContext(input: checkruntime.TextValue, limit: number
             let position: number = 0;
             while (position < characters.length) {
                 if (langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(position))).codePointAt(0)! >= 128) {
-                    return checkruntime.textUnresolved(unresolvedFlavor);
+                    return checkruntime.textUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
                 }
                 position = langruntime.checkedAdd(position, 1);
             }
@@ -48076,7 +49168,16 @@ export function toCharB68b(input: checkruntime.Float8Value, template: checkrunti
             return numberFormatFloat(bits, false, format, numericC, monetaryC);
         }
     }
-    return checkruntime.textUnresolved(unresolvedFlavor);
+    let localFlavor17524: number = unresolvedFlavor;
+    if (known.kind === "Unknown") {
+        if (localFlavor17524 < 1) {
+            localFlavor17524 = langruntime.checkedI32(1);
+        }
+    }
+    if (known.kind === "Unimplemented") {
+        localFlavor17524 = langruntime.checkedI32(2);
+    }
+    return checkruntime.textUnresolved(localFlavor17524);
 }
 export function toChar1rcw(input: checkruntime.Float4Value, template: checkruntime.TextValue, numericC: boolean, monetaryC: boolean): checkruntime.TextValue {
     numericC = langruntime.checkedBool(numericC);
@@ -48939,7 +50040,16 @@ function numericBucket(value: string, lower: string, upper: string, count: numbe
         const bucket: number = Number(BigInt.asIntN(32, langruntime.checkedI64(number)));
         return { kind: "Value", value: langruntime.checkedSignedAdd(bucket, 1) };
     }
-    return checkruntime.int4Unresolved(unresolvedFlavor);
+    let localFlavor654: number = unresolvedFlavor;
+    if (integer.kind === "Unknown") {
+        if (localFlavor654 < 1) {
+            localFlavor654 = langruntime.checkedI32(1);
+        }
+    }
+    if (integer.kind === "Unimplemented") {
+        localFlavor654 = langruntime.checkedI32(2);
+    }
+    return checkruntime.int4Unresolved(localFlavor654);
 }
 export function widthBucketMx75(value: checkruntime.NumericValue, lower: checkruntime.NumericValue, upper: checkruntime.NumericValue, count: checkruntime.Int4Value): checkruntime.Int4Value {
     let unresolvedFlavor: number = 0;
@@ -52721,7 +53831,16 @@ function oidRelation(left: checkruntime.OidValue, right: checkruntime.OidValue, 
         }
         return checkruntime.makeBoolValue(order >= 0);
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    let localFlavor784: number = unresolvedFlavor;
+    if (comparison.kind === "Unknown") {
+        if (localFlavor784 < 1) {
+            localFlavor784 = langruntime.checkedI32(1);
+        }
+    }
+    if (comparison.kind === "Unimplemented") {
+        localFlavor784 = langruntime.checkedI32(2);
+    }
+    return checkruntime.boolUnresolved(localFlavor784);
 }
 function oidSelect(left: checkruntime.OidValue, right: checkruntime.OidValue, larger: boolean): checkruntime.OidValue {
     larger = langruntime.checkedBool(larger);
@@ -52753,7 +53872,16 @@ function oidSelect(left: checkruntime.OidValue, right: checkruntime.OidValue, la
         }
         return right;
     }
-    return checkruntime.oidUnresolved(unresolvedFlavor);
+    let localFlavor994: number = unresolvedFlavor;
+    if (comparison.kind === "Unknown") {
+        if (localFlavor994 < 1) {
+            localFlavor994 = langruntime.checkedI32(1);
+        }
+    }
+    if (comparison.kind === "Unimplemented") {
+        localFlavor994 = langruntime.checkedI32(2);
+    }
+    return checkruntime.oidUnresolved(localFlavor994);
 }
 export function oidToInt4(input: checkruntime.OidValue): checkruntime.Int4Value {
     let unresolvedFlavor: number = 0;
@@ -54106,7 +55234,40 @@ function pathAxisCrossing(x: number, y: number, previousX: number, previousY: nu
         }
         return checkruntime.makeInt4Value(langruntime.checkedSignedMultiply(2, direction));
     }
-    return checkruntime.int4Unresolved(unresolvedFlavor);
+    let localFlavor1874: number = unresolvedFlavor;
+    if (knownDifference.kind === "Unknown") {
+        if (localFlavor1874 < 1) {
+            localFlavor1874 = langruntime.checkedI32(1);
+        }
+    }
+    if (knownDifference.kind === "Unimplemented") {
+        localFlavor1874 = langruntime.checkedI32(2);
+    }
+    if (difference.kind === "Unknown") {
+        if (localFlavor1874 < 1) {
+            localFlavor1874 = langruntime.checkedI32(1);
+        }
+    }
+    if (difference.kind === "Unimplemented") {
+        localFlavor1874 = langruntime.checkedI32(2);
+    }
+    if (second.kind === "Unknown") {
+        if (localFlavor1874 < 1) {
+            localFlavor1874 = langruntime.checkedI32(1);
+        }
+    }
+    if (second.kind === "Unimplemented") {
+        localFlavor1874 = langruntime.checkedI32(2);
+    }
+    if (first.kind === "Unknown") {
+        if (localFlavor1874 < 1) {
+            localFlavor1874 = langruntime.checkedI32(1);
+        }
+    }
+    if (first.kind === "Unimplemented") {
+        localFlavor1874 = langruntime.checkedI32(2);
+    }
+    return checkruntime.int4Unresolved(localFlavor1874);
 }
 function closedPathContains(point: checkruntime.PointPayload, path: checkruntime.PathPayload): checkruntime.BoolValue {
     const unresolvedFlavor: number = 0;
@@ -54147,7 +55308,16 @@ function closedPathContains(point: checkruntime.PointPayload, path: checkruntime
                     crossingKnown = langruntime.checkedBool(true);
                 }
                 if (crossingKnown === false) {
-                    return checkruntime.boolUnresolved(unresolvedFlavor);
+                    let localFlavor23320: number = unresolvedFlavor;
+                    if (cross.kind === "Unknown") {
+                        if (localFlavor23320 < 1) {
+                            localFlavor23320 = langruntime.checkedI32(1);
+                        }
+                    }
+                    if (cross.kind === "Unimplemented") {
+                        localFlavor23320 = langruntime.checkedI32(2);
+                    }
+                    return checkruntime.boolUnresolved(localFlavor23320);
                 }
                 previous = current;
                 advanced = langruntime.checkedBool(true);
@@ -54159,7 +55329,16 @@ function closedPathContains(point: checkruntime.PointPayload, path: checkruntime
         }
         return checkruntime.makeBoolValue(!(total === 0));
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    let localFlavor2454: number = unresolvedFlavor;
+    if (first.kind === "Unknown") {
+        if (localFlavor2454 < 1) {
+            localFlavor2454 = langruntime.checkedI32(1);
+        }
+    }
+    if (first.kind === "Unimplemented") {
+        localFlavor2454 = langruntime.checkedI32(2);
+    }
+    return checkruntime.boolUnresolved(localFlavor2454);
 }
 export function onPpath8fo6(point: checkruntime.PointValue, input: checkruntime.PathValue): checkruntime.BoolValue {
     input = checkruntime.copyPathValue(input);
@@ -54260,7 +55439,48 @@ export function onPpath8fo6(point: checkruntime.PointValue, input: checkruntime.
                     }
                 }
                 if (compared === false) {
-                    return checkruntime.boolUnresolved(unresolvedFlavor);
+                    let localFlavor31520: number = unresolvedFlavor;
+                    if (knownSum.kind === "Unknown") {
+                        if (localFlavor31520 < 1) {
+                            localFlavor31520 = langruntime.checkedI32(1);
+                        }
+                    }
+                    if (knownSum.kind === "Unimplemented") {
+                        localFlavor31520 = langruntime.checkedI32(2);
+                    }
+                    if (edge.kind === "Unknown") {
+                        if (localFlavor31520 < 1) {
+                            localFlavor31520 = langruntime.checkedI32(1);
+                        }
+                    }
+                    if (edge.kind === "Unimplemented") {
+                        localFlavor31520 = langruntime.checkedI32(2);
+                    }
+                    if (sum.kind === "Unknown") {
+                        if (localFlavor31520 < 1) {
+                            localFlavor31520 = langruntime.checkedI32(1);
+                        }
+                    }
+                    if (sum.kind === "Unimplemented") {
+                        localFlavor31520 = langruntime.checkedI32(2);
+                    }
+                    if (next.kind === "Unknown") {
+                        if (localFlavor31520 < 1) {
+                            localFlavor31520 = langruntime.checkedI32(1);
+                        }
+                    }
+                    if (next.kind === "Unimplemented") {
+                        localFlavor31520 = langruntime.checkedI32(2);
+                    }
+                    if (previous.kind === "Unknown") {
+                        if (localFlavor31520 < 1) {
+                            localFlavor31520 = langruntime.checkedI32(1);
+                        }
+                    }
+                    if (previous.kind === "Unimplemented") {
+                        localFlavor31520 = langruntime.checkedI32(2);
+                    }
+                    return checkruntime.boolUnresolved(localFlavor31520);
                 }
                 previous = next;
                 index = langruntime.checkedAdd(index, 1);
@@ -54398,7 +55618,16 @@ function pgLsnRelation(left: checkruntime.PgLsnValue, right: checkruntime.PgLsnV
         }
         return checkruntime.makeBoolValue(order >= 0);
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    let localFlavor674: number = unresolvedFlavor;
+    if (comparison.kind === "Unknown") {
+        if (localFlavor674 < 1) {
+            localFlavor674 = langruntime.checkedI32(1);
+        }
+    }
+    if (comparison.kind === "Unimplemented") {
+        localFlavor674 = langruntime.checkedI32(2);
+    }
+    return checkruntime.boolUnresolved(localFlavor674);
 }
 function pgLsnSelect(left: checkruntime.PgLsnValue, right: checkruntime.PgLsnValue, larger: boolean): checkruntime.PgLsnValue {
     larger = langruntime.checkedBool(larger);
@@ -54430,7 +55659,16 @@ function pgLsnSelect(left: checkruntime.PgLsnValue, right: checkruntime.PgLsnVal
         }
         return right;
     }
-    return checkruntime.pgLsnUnresolved(unresolvedFlavor);
+    let localFlavor884: number = unresolvedFlavor;
+    if (comparison.kind === "Unknown") {
+        if (localFlavor884 < 1) {
+            localFlavor884 = langruntime.checkedI32(1);
+        }
+    }
+    if (comparison.kind === "Unimplemented") {
+        localFlavor884 = langruntime.checkedI32(2);
+    }
+    return checkruntime.pgLsnUnresolved(localFlavor884);
 }
 function pgLsnBits(input: checkruntime.PgLsnValue): checkruntime.Int8Value {
     let unresolvedFlavor: number = 0;
@@ -54901,7 +56139,24 @@ export function pointDb27(x: checkruntime.Float8Value, y: checkruntime.Float8Val
             return { kind: "Value", value: { x: xBits, y: yBits, wireKnown: precise } };
         }
     }
-    return checkruntime.pointUnresolved(unresolvedFlavor);
+    let localFlavor704: number = unresolvedFlavor;
+    if (knownY.kind === "Unknown") {
+        if (localFlavor704 < 1) {
+            localFlavor704 = langruntime.checkedI32(1);
+        }
+    }
+    if (knownY.kind === "Unimplemented") {
+        localFlavor704 = langruntime.checkedI32(2);
+    }
+    if (knownX.kind === "Unknown") {
+        if (localFlavor704 < 1) {
+            localFlavor704 = langruntime.checkedI32(1);
+        }
+    }
+    if (knownX.kind === "Unimplemented") {
+        localFlavor704 = langruntime.checkedI32(2);
+    }
+    return checkruntime.pointUnresolved(localFlavor704);
 }
 export function pointSendKuoa(input: checkruntime.PointValue): checkruntime.ByteaValue {
     let unresolvedFlavor: number = 0;
@@ -55399,7 +56654,24 @@ function geometricHypot(first: checkruntime.Float8Value, second: checkruntime.Fl
             return checkruntime.makeFloat8Value(result);
         }
     }
-    return checkruntime.float8Unresolved(unresolvedFlavor);
+    let localFlavor2094: number = unresolvedFlavor;
+    if (knownSecond.kind === "Unknown") {
+        if (localFlavor2094 < 1) {
+            localFlavor2094 = langruntime.checkedI32(1);
+        }
+    }
+    if (knownSecond.kind === "Unimplemented") {
+        localFlavor2094 = langruntime.checkedI32(2);
+    }
+    if (knownFirst.kind === "Unknown") {
+        if (localFlavor2094 < 1) {
+            localFlavor2094 = langruntime.checkedI32(1);
+        }
+    }
+    if (knownFirst.kind === "Unimplemented") {
+        localFlavor2094 = langruntime.checkedI32(2);
+    }
+    return checkruntime.float8Unresolved(localFlavor2094);
 }
 function pointMeasurement(left: checkruntime.PointValue, right: checkruntime.PointValue, slope: boolean): checkruntime.Float8Value {
     slope = langruntime.checkedBool(slope);
@@ -56487,7 +57759,32 @@ function polygonSegmentInside(a: checkruntime.PointPayload, b: checkruntime.Poin
             const point: checkruntime.PointPayload = center.value;
             return closedPathContains(point, polygon);
         }
-        return checkruntime.boolUnresolved(unresolvedFlavor);
+        let localFlavor1688: number = unresolvedFlavor;
+        if (center.kind === "Unknown") {
+            if (localFlavor1688 < 1) {
+                localFlavor1688 = langruntime.checkedI32(1);
+            }
+        }
+        if (center.kind === "Unimplemented") {
+            localFlavor1688 = langruntime.checkedI32(2);
+        }
+        if (result.kind === "Unknown") {
+            if (localFlavor1688 < 1) {
+                localFlavor1688 = langruntime.checkedI32(1);
+            }
+        }
+        if (result.kind === "Unimplemented") {
+            localFlavor1688 = langruntime.checkedI32(2);
+        }
+        if (segment.kind === "Unknown") {
+            if (localFlavor1688 < 1) {
+                localFlavor1688 = langruntime.checkedI32(1);
+            }
+        }
+        if (segment.kind === "Unimplemented") {
+            localFlavor1688 = langruntime.checkedI32(2);
+        }
+        return checkruntime.boolUnresolved(localFlavor1688);
     }
     return result;
 }
@@ -56570,7 +57867,16 @@ function polygonRelation(left: checkruntime.PolygonValue, right: checkruntime.Po
                 return status;
             }
             if (aPath.points.length === 0 || bPath.points.length === 0) {
-                return checkruntime.boolUnresolved(unresolvedFlavor);
+                let localFlavor19670: number = unresolvedFlavor;
+                if (status.kind === "Unknown") {
+                    if (localFlavor19670 < 1) {
+                        localFlavor19670 = langruntime.checkedI32(1);
+                    }
+                }
+                if (status.kind === "Unimplemented") {
+                    localFlavor19670 = langruntime.checkedI32(2);
+                }
+                return checkruntime.boolUnresolved(localFlavor19670);
             }
             let previous: number = langruntime.checkedSubtract(bPath.points.length, 1);
             let index: number = 0;
@@ -57056,7 +58362,16 @@ function rangeBoundsAdjacent(left: checkruntime.RangePayload, right: checkruntim
         }
         return { kind: "Value", value: false };
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    let localFlavor2454: number = unresolvedFlavor;
+    if (comparison.kind === "Unknown") {
+        if (localFlavor2454 < 1) {
+            localFlavor2454 = langruntime.checkedI32(1);
+        }
+    }
+    if (comparison.kind === "Unimplemented") {
+        localFlavor2454 = langruntime.checkedI32(2);
+    }
+    return checkruntime.boolUnresolved(localFlavor2454);
 }
 function rangePayloadRelation(left: checkruntime.RangePayload, right: checkruntime.RangePayload, strategy: number): checkruntime.BoolValue {
     strategy = langruntime.checkedI32(strategy);
@@ -57154,7 +58469,16 @@ function rangePayloadRelation(left: checkruntime.RangePayload, right: checkrunti
         }
         return rangeOrderBoolean(reverse, 4);
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    let localFlavor3304: number = unresolvedFlavor;
+    if (lo.kind === "Unknown") {
+        if (localFlavor3304 < 1) {
+            localFlavor3304 = langruntime.checkedI32(1);
+        }
+    }
+    if (lo.kind === "Unimplemented") {
+        localFlavor3304 = langruntime.checkedI32(2);
+    }
+    return checkruntime.boolUnresolved(localFlavor3304);
 }
 function rangeRelation(left: checkruntime.RangeValue, right: checkruntime.RangeValue, strategy: number): checkruntime.BoolValue {
     left = checkruntime.copyRangeValue(left);
@@ -57470,19 +58794,46 @@ function rangeProfiledCompare(lower: checkruntime.ArrayElement, upper: checkrunt
         return pair;
     }
     if (index >= profile.nodes.length || otherIndex >= other.nodes.length) {
-        return checkruntime.int4Unresolved(unresolvedFlavor);
+        let localFlavor258: number = unresolvedFlavor;
+        if (pair.kind === "Unknown") {
+            if (localFlavor258 < 1) {
+                localFlavor258 = langruntime.checkedI32(1);
+            }
+        }
+        if (pair.kind === "Unimplemented") {
+            localFlavor258 = langruntime.checkedI32(2);
+        }
+        return checkruntime.int4Unresolved(localFlavor258);
     }
     const node: checkruntime.RangeBoundProfile = checkruntime.copyRangeBoundProfile(langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(index), checkruntime.copyRangeBoundProfile));
     const peer: checkruntime.RangeBoundProfile = checkruntime.copyRangeBoundProfile(langruntime.indexStruct(other.nodes, langruntime.checkedIndex(otherIndex), checkruntime.copyRangeBoundProfile));
     if (!(node.kind === peer.kind) || !(node.comparison === peer.comparison) || !(node.missingComparison === peer.missingComparison)) {
-        return checkruntime.int4Unresolved(unresolvedFlavor);
+        let localFlavor338: number = unresolvedFlavor;
+        if (pair.kind === "Unknown") {
+            if (localFlavor338 < 1) {
+                localFlavor338 = langruntime.checkedI32(1);
+            }
+        }
+        if (pair.kind === "Unimplemented") {
+            localFlavor338 = langruntime.checkedI32(2);
+        }
+        return checkruntime.int4Unresolved(localFlavor338);
     }
     if (node.missingComparison) {
         return { kind: "Error", value: checkruntime.makeSqlError(rangeArrayComparisonUndefined) };
     }
     if (node.kind === 44) {
         if (!(node.comparison === 44) || !(node.typeName === peer.typeName)) {
-            return checkruntime.int4Unresolved(unresolvedFlavor);
+            let localFlavor4012: number = unresolvedFlavor;
+            if (pair.kind === "Unknown") {
+                if (localFlavor4012 < 1) {
+                    localFlavor4012 = langruntime.checkedI32(1);
+                }
+            }
+            if (pair.kind === "Unimplemented") {
+                localFlavor4012 = langruntime.checkedI32(2);
+            }
+            return checkruntime.int4Unresolved(localFlavor4012);
         }
         const left: checkruntime.CompositeValue = checkruntime.arrayElementToComposite(lower);
         const right: checkruntime.CompositeValue = checkruntime.arrayElementToComposite(upper);
@@ -57510,7 +58861,16 @@ function rangeProfiledCompare(lower: checkruntime.ArrayElement, upper: checkrunt
     }
     if (node.kind === 42 || node.kind === 43) {
         if (!(node.typeName === peer.typeName) || !(node.elementType === peer.elementType) || !(node.canonical === peer.canonical) || !(node.comparison === node.kind)) {
-            return checkruntime.int4Unresolved(unresolvedFlavor);
+            let localFlavor9212: number = unresolvedFlavor;
+            if (pair.kind === "Unknown") {
+                if (localFlavor9212 < 1) {
+                    localFlavor9212 = langruntime.checkedI32(1);
+                }
+            }
+            if (pair.kind === "Unimplemented") {
+                localFlavor9212 = langruntime.checkedI32(2);
+            }
+            return checkruntime.int4Unresolved(localFlavor9212);
         }
         if (node.kind === 42) {
             return rangeOrder(checkruntime.arrayElementToRange(lower), checkruntime.arrayElementToRange(upper));
@@ -57519,21 +58879,57 @@ function rangeProfiledCompare(lower: checkruntime.ArrayElement, upper: checkrunt
     }
     if (!(node.kind === 41)) {
         if (node.kind === 6 && (!(node.enumLabels === peer.enumLabels) || !(node.enumCount === peer.enumCount))) {
-            return checkruntime.int4Unresolved(unresolvedFlavor);
+            let localFlavor10912: number = unresolvedFlavor;
+            if (pair.kind === "Unknown") {
+                if (localFlavor10912 < 1) {
+                    localFlavor10912 = langruntime.checkedI32(1);
+                }
+            }
+            if (pair.kind === "Unimplemented") {
+                localFlavor10912 = langruntime.checkedI32(2);
+            }
+            return checkruntime.int4Unresolved(localFlavor10912);
         }
         return rangeBuiltinCompare(lower, upper, node.comparison);
     }
     if ((!(node.comparison === 41) && !(node.comparison === checkruntime.rangeComparisonOidVector)) || node.child >= profile.nodes.length || peer.child >= other.nodes.length || !(node.elementType === peer.elementType)) {
-        return checkruntime.int4Unresolved(unresolvedFlavor);
+        let localFlavor1188: number = unresolvedFlavor;
+        if (pair.kind === "Unknown") {
+            if (localFlavor1188 < 1) {
+                localFlavor1188 = langruntime.checkedI32(1);
+            }
+        }
+        if (pair.kind === "Unimplemented") {
+            localFlavor1188 = langruntime.checkedI32(2);
+        }
+        return checkruntime.int4Unresolved(localFlavor1188);
     }
     if (node.comparison === checkruntime.rangeComparisonOidVector) {
         if (!(node.typeName === "pg_catalog.oidvector") || !(peer.typeName === "pg_catalog.oidvector")) {
-            return checkruntime.int4Unresolved(unresolvedFlavor);
+            let localFlavor12412: number = unresolvedFlavor;
+            if (pair.kind === "Unknown") {
+                if (localFlavor12412 < 1) {
+                    localFlavor12412 = langruntime.checkedI32(1);
+                }
+            }
+            if (pair.kind === "Unimplemented") {
+                localFlavor12412 = langruntime.checkedI32(2);
+            }
+            return checkruntime.int4Unresolved(localFlavor12412);
         }
         return btoidvectorcmp6oyf(checkruntime.arrayElementToArray(lower), checkruntime.arrayElementToArray(upper));
     }
     if (!(langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(node.child), checkruntime.copyRangeBoundProfile).missingComparison === langruntime.indexStruct(other.nodes, langruntime.checkedIndex(peer.child), checkruntime.copyRangeBoundProfile).missingComparison)) {
-        return checkruntime.int4Unresolved(unresolvedFlavor);
+        let localFlavor1308: number = unresolvedFlavor;
+        if (pair.kind === "Unknown") {
+            if (localFlavor1308 < 1) {
+                localFlavor1308 = langruntime.checkedI32(1);
+            }
+        }
+        if (pair.kind === "Unimplemented") {
+            localFlavor1308 = langruntime.checkedI32(2);
+        }
+        return checkruntime.int4Unresolved(localFlavor1308);
     }
     const left: checkruntime.ArrayValue = checkruntime.arrayElementToArray(lower);
     const right: checkruntime.ArrayValue = checkruntime.arrayElementToArray(upper);
@@ -57560,6 +58956,24 @@ function rangeTypedCompare(lower: checkruntime.ArrayElement, upper: checkruntime
     }
     if ((comparison >= 41 && comparison <= 44) || comparison === checkruntime.rangeComparisonOidVector) {
         return rangeProfiledCompare(lower, upper, profile, 0, other, 0);
+    }
+    if (checkruntime.rangeComparisonUnavailable(comparison)) {
+        if (lower.kind === "Error") {
+            const error: checkruntime.SqlError = lower.value;
+            return { kind: "Error", value: error };
+        }
+        if (upper.kind === "Error") {
+            const error: checkruntime.SqlError = upper.value;
+            return { kind: "Error", value: error };
+        }
+        let contextFlavor: number = 1;
+        if (lower.kind === "Unimplemented") {
+            contextFlavor = langruntime.checkedI32(2);
+        }
+        if (upper.kind === "Unimplemented") {
+            contextFlavor = langruntime.checkedI32(2);
+        }
+        return checkruntime.int4Unresolved(contextFlavor);
     }
     return rangeBuiltinCompare(lower, upper, comparison);
 }
@@ -57791,7 +59205,16 @@ function rangeProfileSerialize(typeName: string, elementType: string, kind: numb
         }
         return checkruntime.rangeFromTypedBounds(typeName, elementType, kind, false, loInc, hiInc, lower, upper, support, enumLabels, enumCount, boundProfile);
     }
-    return checkruntime.rangeUnresolved(unresolvedFlavor);
+    let localFlavor4064: number = unresolvedFlavor;
+    if (comparison.kind === "Unknown") {
+        if (localFlavor4064 < 1) {
+            localFlavor4064 = langruntime.checkedI32(1);
+        }
+    }
+    if (comparison.kind === "Unimplemented") {
+        localFlavor4064 = langruntime.checkedI32(2);
+    }
+    return checkruntime.rangeUnresolved(localFlavor4064);
 }
 function rangeBuiltinCanonical(input: checkruntime.RangeValue): checkruntime.RangeValue {
     input = checkruntime.copyRangeValue(input);
@@ -58790,7 +60213,16 @@ export function rangeTextInitial(plan: checkruntime.RangeTextPlan, typeName: str
     if (checkruntime.equalBoolValue(state, { kind: "Value", value: true })) {
         return checkruntime.rangeFromProfiledBounds(typeName, elementType, kind, true, false, false, { kind: "Null" }, { kind: "Null" }, support);
     }
-    return checkruntime.rangeUnresolved(unresolvedFlavor);
+    let localFlavor4024: number = unresolvedFlavor;
+    if (state.kind === "Unknown") {
+        if (localFlavor4024 < 1) {
+            localFlavor4024 = langruntime.checkedI32(1);
+        }
+    }
+    if (state.kind === "Unimplemented") {
+        localFlavor4024 = langruntime.checkedI32(2);
+    }
+    return checkruntime.rangeUnresolved(localFlavor4024);
 }
 export function finishRangeText(plan: checkruntime.RangeTextPlan, typeName: string, elementType: string, kind: number, support: checkruntime.RangeSupport, lower: checkruntime.ArrayElement, upper: checkruntime.ArrayElement): checkruntime.RangeValue {
     plan = checkruntime.copyRangeTextPlan(plan);
@@ -59491,7 +60923,40 @@ function rangePayloadDifference(left: checkruntime.RangePayload, right: checkrun
             }
         }
     }
-    return checkruntime.rangeUnresolved(unresolvedFlavor);
+    let localFlavor1234: number = unresolvedFlavor;
+    if (uu.kind === "Unknown") {
+        if (localFlavor1234 < 1) {
+            localFlavor1234 = langruntime.checkedI32(1);
+        }
+    }
+    if (uu.kind === "Unimplemented") {
+        localFlavor1234 = langruntime.checkedI32(2);
+    }
+    if (ul.kind === "Unknown") {
+        if (localFlavor1234 < 1) {
+            localFlavor1234 = langruntime.checkedI32(1);
+        }
+    }
+    if (ul.kind === "Unimplemented") {
+        localFlavor1234 = langruntime.checkedI32(2);
+    }
+    if (lu.kind === "Unknown") {
+        if (localFlavor1234 < 1) {
+            localFlavor1234 = langruntime.checkedI32(1);
+        }
+    }
+    if (lu.kind === "Unimplemented") {
+        localFlavor1234 = langruntime.checkedI32(2);
+    }
+    if (ll.kind === "Unknown") {
+        if (localFlavor1234 < 1) {
+            localFlavor1234 = langruntime.checkedI32(1);
+        }
+    }
+    if (ll.kind === "Unimplemented") {
+        localFlavor1234 = langruntime.checkedI32(2);
+    }
+    return checkruntime.rangeUnresolved(localFlavor1234);
 }
 function rangePayloadSet(left: checkruntime.RangePayload, right: checkruntime.RangePayload, strategy: number): checkruntime.RangeValue {
     strategy = langruntime.checkedI32(strategy);
@@ -59589,7 +61054,16 @@ function rangePayloadSet(left: checkruntime.RangePayload, right: checkruntime.Ra
             return rangeRebuild(left, lower, upper, lowerInc, upperInc);
         }
     }
-    return checkruntime.rangeUnresolved(unresolvedFlavor);
+    let localFlavor1984: number = unresolvedFlavor;
+    if (lo.kind === "Unknown") {
+        if (localFlavor1984 < 1) {
+            localFlavor1984 = langruntime.checkedI32(1);
+        }
+    }
+    if (lo.kind === "Unimplemented") {
+        localFlavor1984 = langruntime.checkedI32(2);
+    }
+    return checkruntime.rangeUnresolved(localFlavor1984);
 }
 function rangeSet(left: checkruntime.RangeValue, right: checkruntime.RangeValue, strategy: number): checkruntime.RangeValue {
     left = checkruntime.copyRangeValue(left);
@@ -59774,7 +61248,16 @@ export function moneyFromCapturedText(input: checkruntime.TextValue, texts: stri
             return checkruntime.makeMoneyValue(value);
         }
     }
-    return checkruntime.moneyUnresolved(unresolvedFlavor);
+    let localFlavor274: number = unresolvedFlavor;
+    if (selected.kind === "Unknown") {
+        if (localFlavor274 < 1) {
+            localFlavor274 = langruntime.checkedI32(1);
+        }
+    }
+    if (selected.kind === "Unimplemented") {
+        localFlavor274 = langruntime.checkedI32(2);
+    }
+    return checkruntime.moneyUnresolved(localFlavor274);
 }
 function scalarInputDigit(ch: string): number {
     ch = langruntime.checkedChar(ch);
@@ -60569,7 +62052,16 @@ function snapshotXidBound(input: checkruntime.SnapshotValue, maximum: boolean): 
         const bits: bigint = langruntime.checkedI64(bound.value);
         return checkruntime.makeXid8Bits(bits);
     }
-    return checkruntime.xid8Unresolved(unresolvedFlavor);
+    let localFlavor1254: number = unresolvedFlavor;
+    if (bound.kind === "Unknown") {
+        if (localFlavor1254 < 1) {
+            localFlavor1254 = langruntime.checkedI32(1);
+        }
+    }
+    if (bound.kind === "Unimplemented") {
+        localFlavor1254 = langruntime.checkedI32(2);
+    }
+    return checkruntime.xid8Unresolved(localFlavor1254);
 }
 function snapshotVisible(value: checkruntime.Int8Value, snapshot: checkruntime.SnapshotValue): checkruntime.BoolValue {
     snapshot = checkruntime.copySnapshotValue(snapshot);
@@ -60999,7 +62491,16 @@ function xid8Relation(left: checkruntime.Xid8Value, right: checkruntime.Xid8Valu
         }
         return checkruntime.makeBoolValue(order >= 0);
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    let localFlavor1074: number = unresolvedFlavor;
+    if (comparison.kind === "Unknown") {
+        if (localFlavor1074 < 1) {
+            localFlavor1074 = langruntime.checkedI32(1);
+        }
+    }
+    if (comparison.kind === "Unimplemented") {
+        localFlavor1074 = langruntime.checkedI32(2);
+    }
+    return checkruntime.boolUnresolved(localFlavor1074);
 }
 function xid8Select(left: checkruntime.Xid8Value, right: checkruntime.Xid8Value, larger: boolean): checkruntime.Xid8Value {
     larger = langruntime.checkedBool(larger);
@@ -61031,7 +62532,16 @@ function xid8Select(left: checkruntime.Xid8Value, right: checkruntime.Xid8Value,
         }
         return right;
     }
-    return checkruntime.xid8Unresolved(unresolvedFlavor);
+    let localFlavor1284: number = unresolvedFlavor;
+    if (comparison.kind === "Unknown") {
+        if (localFlavor1284 < 1) {
+            localFlavor1284 = langruntime.checkedI32(1);
+        }
+    }
+    if (comparison.kind === "Unimplemented") {
+        localFlavor1284 = langruntime.checkedI32(2);
+    }
+    return checkruntime.xid8Unresolved(localFlavor1284);
 }
 function xid8Bits(input: checkruntime.Xid8Value): checkruntime.Int8Value {
     let unresolvedFlavor: number = 0;
@@ -61107,7 +62617,16 @@ export function xidLwyo(left: checkruntime.Xid8Value): checkruntime.XidValue {
         const value: bigint = langruntime.checkedI64(bits.value);
         return xidFromOid(oidFromInt4(checkruntime.makeInt4Value(Number(BigInt.asIntN(32, langruntime.checkedI64(value))))));
     }
-    return checkruntime.xidUnresolved(unresolvedFlavor);
+    let localFlavor1914: number = unresolvedFlavor;
+    if (bits.kind === "Unknown") {
+        if (localFlavor1914 < 1) {
+            localFlavor1914 = langruntime.checkedI32(1);
+        }
+    }
+    if (bits.kind === "Unimplemented") {
+        localFlavor1914 = langruntime.checkedI32(2);
+    }
+    return checkruntime.xidUnresolved(localFlavor1914);
 }
 export function xid8Larger92s8(left: checkruntime.Xid8Value, right: checkruntime.Xid8Value): checkruntime.Xid8Value {
     return xid8Select(left, right, true);
@@ -61803,7 +63322,32 @@ export function dateBin0b5n(stride: checkruntime.IntervalValue, input: checkrunt
         const timestamp: bigint = langruntime.checkedI64(result.value);
         return { kind: "Value", value: timestamp };
     }
-    return checkruntime.timestamptzUnresolved(unresolvedFlavor);
+    let localFlavor1884: number = unresolvedFlavor;
+    if (result.kind === "Unknown") {
+        if (localFlavor1884 < 1) {
+            localFlavor1884 = langruntime.checkedI32(1);
+        }
+    }
+    if (result.kind === "Unimplemented") {
+        localFlavor1884 = langruntime.checkedI32(2);
+    }
+    if (originTime.kind === "Unknown") {
+        if (localFlavor1884 < 1) {
+            localFlavor1884 = langruntime.checkedI32(1);
+        }
+    }
+    if (originTime.kind === "Unimplemented") {
+        localFlavor1884 = langruntime.checkedI32(2);
+    }
+    if (sourceTime.kind === "Unknown") {
+        if (localFlavor1884 < 1) {
+            localFlavor1884 = langruntime.checkedI32(1);
+        }
+    }
+    if (sourceTime.kind === "Unimplemented") {
+        localFlavor1884 = langruntime.checkedI32(2);
+    }
+    return checkruntime.timestamptzUnresolved(localFlavor1884);
 }
 function temporalCompare(left: bigint, right: bigint): number {
     left = langruntime.checkedI64(left);
@@ -64001,7 +65545,16 @@ function temporalRangeTimestampValue(value: bigint, base: bigint, offset: checkr
         }
         return checkruntime.makeBoolValue(order >= 0);
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    let localFlavor764: number = unresolvedFlavor;
+    if (boundary.kind === "Unknown") {
+        if (localFlavor764 < 1) {
+            localFlavor764 = langruntime.checkedI32(1);
+        }
+    }
+    if (boundary.kind === "Unimplemented") {
+        localFlavor764 = langruntime.checkedI32(2);
+    }
+    return checkruntime.boolUnresolved(localFlavor764);
 }
 function temporalRangeIntervalValue(value: checkruntime.IntervalPayload, base: checkruntime.IntervalPayload, offset: checkruntime.IntervalPayload, subtract: boolean, less: boolean): checkruntime.BoolValue {
     subtract = langruntime.checkedBool(subtract);
@@ -64683,7 +66236,16 @@ export function toTimestampKymq(input: checkruntime.Float8Value): checkruntime.T
             return checkruntime.makeTimestamptzValue(value);
         }
     }
-    return checkruntime.timestamptzUnresolved(unresolvedFlavor);
+    let localFlavor644: number = unresolvedFlavor;
+    if (semantic.kind === "Unknown") {
+        if (localFlavor644 < 1) {
+            localFlavor644 = langruntime.checkedI32(1);
+        }
+    }
+    if (semantic.kind === "Unimplemented") {
+        localFlavor644 = langruntime.checkedI32(2);
+    }
+    return checkruntime.timestamptzUnresolved(localFlavor644);
 }
 export function dateCmpU18z(left: checkruntime.DateValue, right: checkruntime.DateValue): checkruntime.Int4Value {
     let unresolvedFlavor: number = 0;
@@ -66375,7 +67937,7 @@ export function asciiContext(input: checkruntime.TextValue, utf8: boolean): chec
         if (value.kind === "Value") {
             const code: number = langruntime.checkedI32(value.value);
             if (code > 127) {
-                return checkruntime.int4Unresolved(unresolvedFlavor);
+                return checkruntime.int4Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
             }
         }
     }
@@ -67532,7 +69094,7 @@ function textHashValue(input: checkruntime.TextValue, trimSpaces: boolean, byteO
             let index: number = 0;
             while (index < chars.length) {
                 if (langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index))).codePointAt(0)! > 127) {
-                    return checkruntime.int4Unresolved(unresolvedFlavor);
+                    return checkruntime.int4Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
                 }
                 index = langruntime.checkedAdd(index, 1);
             }
@@ -67600,7 +69162,7 @@ function textHashExtended(input: checkruntime.TextValue, seed: checkruntime.Int8
                 let index: number = 0;
                 while (index < chars.length) {
                     if (langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index))).codePointAt(0)! > 127) {
-                        return checkruntime.int8Unresolved(unresolvedFlavor);
+                        return checkruntime.int8Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
                     }
                     index = langruntime.checkedAdd(index, 1);
                 }
@@ -70915,7 +72477,16 @@ function tidRelation(left: checkruntime.TidValue, right: checkruntime.TidValue, 
         }
         return checkruntime.makeBoolValue(order >= 0);
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    let localFlavor634: number = unresolvedFlavor;
+    if (comparison.kind === "Unknown") {
+        if (localFlavor634 < 1) {
+            localFlavor634 = langruntime.checkedI32(1);
+        }
+    }
+    if (comparison.kind === "Unimplemented") {
+        localFlavor634 = langruntime.checkedI32(2);
+    }
+    return checkruntime.boolUnresolved(localFlavor634);
 }
 function tidSelect(left: checkruntime.TidValue, right: checkruntime.TidValue, larger: boolean): checkruntime.TidValue {
     larger = langruntime.checkedBool(larger);
@@ -70947,7 +72518,16 @@ function tidSelect(left: checkruntime.TidValue, right: checkruntime.TidValue, la
         }
         return right;
     }
-    return checkruntime.tidUnresolved(unresolvedFlavor);
+    let localFlavor844: number = unresolvedFlavor;
+    if (comparison.kind === "Unknown") {
+        if (localFlavor844 < 1) {
+            localFlavor844 = langruntime.checkedI32(1);
+        }
+    }
+    if (comparison.kind === "Unimplemented") {
+        localFlavor844 = langruntime.checkedI32(2);
+    }
+    return checkruntime.tidUnresolved(localFlavor844);
 }
 export function tidToText(input: checkruntime.TidValue): checkruntime.TextValue {
     let unresolvedFlavor: number = 0;
@@ -72066,7 +73646,16 @@ function clockDateTimestamp(date: checkruntime.DateValue, clock: checkruntime.Ti
             return checkruntime.makeTimestampValue(langruntime.checkedI64Add(midnight, time));
         }
     }
-    return checkruntime.timestampUnresolved(unresolvedFlavor);
+    let localFlavor1934: number = unresolvedFlavor;
+    if (base.kind === "Unknown") {
+        if (localFlavor1934 < 1) {
+            localFlavor1934 = langruntime.checkedI32(1);
+        }
+    }
+    if (base.kind === "Unimplemented") {
+        localFlavor1934 = langruntime.checkedI32(2);
+    }
+    return checkruntime.timestampUnresolved(localFlavor1934);
 }
 function clockDateTimestamptz(date: checkruntime.DateValue, clock: checkruntime.TimetzValue): checkruntime.TimestamptzValue {
     let unresolvedFlavor: number = 0;
@@ -72128,7 +73717,16 @@ function clockDateTimestamptz(date: checkruntime.DateValue, clock: checkruntime.
             return checkruntime.makeTimestamptzValue(langruntime.checkedI64Add(langruntime.checkedI64Add(midnight, time.time), langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(time.zone))), 1000000n)));
         }
     }
-    return checkruntime.timestamptzUnresolved(unresolvedFlavor);
+    let localFlavor2254: number = unresolvedFlavor;
+    if (base.kind === "Unknown") {
+        if (localFlavor2254 < 1) {
+            localFlavor2254 = langruntime.checkedI32(1);
+        }
+    }
+    if (base.kind === "Unimplemented") {
+        localFlavor2254 = langruntime.checkedI32(2);
+    }
+    return checkruntime.timestamptzUnresolved(localFlavor2254);
 }
 export function timestamp4biu(date: checkruntime.DateValue, clock: checkruntime.TimeValue): checkruntime.TimestampValue {
     return clockDateTimestamp(date, clock);
@@ -73021,7 +74619,16 @@ export function timezoneLxij(zone: checkruntime.IntervalValue, input: checkrunti
         const time: bigint = langruntime.checkedI64(result.value);
         return checkruntime.makeTimestamptzValue(time);
     }
-    return checkruntime.timestamptzUnresolved(unresolvedFlavor);
+    let localFlavor824: number = unresolvedFlavor;
+    if (result.kind === "Unknown") {
+        if (localFlavor824 < 1) {
+            localFlavor824 = langruntime.checkedI32(1);
+        }
+    }
+    if (result.kind === "Unimplemented") {
+        localFlavor824 = langruntime.checkedI32(2);
+    }
+    return checkruntime.timestamptzUnresolved(localFlavor824);
 }
 export function timezoneN8k4(zone: checkruntime.IntervalValue, input: checkruntime.TimestamptzValue): checkruntime.TimestampValue {
     return fixedZoneTimestamp(zone, intervalCalendarLocalPayload(input), true);
@@ -75781,7 +77388,7 @@ function tsqueryCompare(left: checkruntime.TsqueryValue, right: checkruntime.Tsq
                     if (an.kind === 0) {
                         if (!(an.text === bn.text)) {
                             if (utf8 === false && (tsqueryAscii(an.text) === false || tsqueryAscii(bn.text) === false)) {
-                                return checkruntime.int4Unresolved(unresolvedFlavor);
+                                return checkruntime.int4Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
                             }
                             const ac: number = tsqueryLegacyCrc(an.text);
                             const bc: number = tsqueryLegacyCrc(bn.text);
@@ -75892,7 +77499,16 @@ function tsqueryRelation(left: checkruntime.TsqueryValue, right: checkruntime.Ts
         }
         return checkruntime.makeBoolValue(value >= 0);
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    let localFlavor1274: number = unresolvedFlavor;
+    if (order.kind === "Unknown") {
+        if (localFlavor1274 < 1) {
+            localFlavor1274 = langruntime.checkedI32(1);
+        }
+    }
+    if (order.kind === "Unimplemented") {
+        localFlavor1274 = langruntime.checkedI32(2);
+    }
+    return checkruntime.boolUnresolved(localFlavor1274);
 }
 export function tsqueryEqD4ao(a: checkruntime.TsqueryValue, b: checkruntime.TsqueryValue, utf8: boolean): checkruntime.BoolValue {
     a = checkruntime.copyTsqueryValue(a);
@@ -77359,7 +78975,7 @@ export function tsquerysend0660(input: checkruntime.TsqueryValue, utf8: boolean)
                 let index: number = 0;
                 while (index < chars.length) {
                     if (utf8 === false && (langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index))).codePointAt(0)!) > 127) {
-                        return checkruntime.byteaUnresolved(unresolvedFlavor);
+                        return checkruntime.byteaUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
                     }
                     output = langruntime.checkedString(byteaUtf8Character(output, langruntime.indexChar(chars, langruntime.checkedIndex(index))));
                     index = langruntime.checkedAdd(index, 1);
@@ -77919,7 +79535,7 @@ function tsqueryRewriteCompare(tree: TsqueryRewriteTree, left: number, right: nu
             if (a.value.kind === 0) {
                 if (!(a.value.text === b.value.text)) {
                     if (utf8 === false && (tsqueryAscii(a.value.text) === false || tsqueryAscii(b.value.text) === false)) {
-                        return checkruntime.int4Unresolved(unresolvedFlavor);
+                        return checkruntime.int4Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
                     }
                     const ac: number = tsqueryLegacyCrc(a.value.text);
                     const bc: number = tsqueryLegacyCrc(b.value.text);
@@ -78605,7 +80221,7 @@ function tsvectorParseText(input: checkruntime.TextValue, utf8: boolean, stored:
                     return checkruntime.tsvectorUnresolved(unresolvedFlavor);
                 }
                 if ((langruntime.checkedChar(character).codePointAt(0)!) >= 128 && utf8 === false) {
-                    return checkruntime.tsvectorUnresolved(unresolvedFlavor);
+                    return checkruntime.tsvectorUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
                 }
                 if (character === "\\") {
                     index = langruntime.checkedAdd(index, 1);
@@ -78614,7 +80230,7 @@ function tsvectorParseText(input: checkruntime.TextValue, utf8: boolean, stored:
                     }
                     const escaped: string = langruntime.indexChar(chars, langruntime.checkedIndex(index));
                     if (escaped === "\0" || ((langruntime.checkedChar(escaped).codePointAt(0)!) >= 128 && utf8 === false)) {
-                        return checkruntime.tsvectorUnresolved(unresolvedFlavor);
+                        return checkruntime.tsvectorUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
                     }
                     word = word + langruntime.checkedChar(escaped);
                     index = langruntime.checkedAdd(index, 1);
@@ -79339,7 +80955,7 @@ export function arrayToTsvectorY8ia(input: checkruntime.ArrayValue, utf8: boolea
                 let c: number = 0;
                 while (c < chars.length) {
                     if (utf8 === false && (langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(c))).codePointAt(0)!) > 127) {
-                        return checkruntime.tsvectorUnresolved(unresolvedFlavor);
+                        return checkruntime.tsvectorUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
                     }
                     c = langruntime.checkedAdd(c, 1);
                 }
@@ -79521,7 +81137,7 @@ export function tsvectorsend37x7(input: checkruntime.TsvectorValue, utf8: boolea
             let c: number = 0;
             while (c < chars.length) {
                 if (utf8 === false && (langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(c))).codePointAt(0)!) > 127) {
-                    return checkruntime.byteaUnresolved(unresolvedFlavor);
+                    return checkruntime.byteaUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
                 }
                 output = langruntime.checkedString(byteaUtf8Character(output, langruntime.indexChar(chars, langruntime.checkedIndex(c))));
                 c = langruntime.checkedAdd(c, 1);
@@ -80105,7 +81721,16 @@ function tsvectorRelation(left: checkruntime.TsvectorValue, right: checkruntime.
         }
         return checkruntime.makeBoolValue(value >= 0);
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    let localFlavor1624: number = unresolvedFlavor;
+    if (order.kind === "Unknown") {
+        if (localFlavor1624 < 1) {
+            localFlavor1624 = langruntime.checkedI32(1);
+        }
+    }
+    if (order.kind === "Unimplemented") {
+        localFlavor1624 = langruntime.checkedI32(2);
+    }
+    return checkruntime.boolUnresolved(localFlavor1624);
 }
 export function tsvectorEqAqk8(a: checkruntime.TsvectorValue, b: checkruntime.TsvectorValue): checkruntime.BoolValue {
     a = checkruntime.copyTsvectorValue(a);
@@ -82590,7 +84215,7 @@ export function xmlElementAttribute(name: string, mapped: boolean, implicit: boo
     if (input.kind === "Value") {
         const value: string = langruntime.checkedString(input.value);
         if (xmlTextEncodingAvailable(value, utf8) === false) {
-            return checkruntime.textUnresolved(unresolvedFlavor);
+            return checkruntime.textUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         let target: string = name;
         if (mapped === false) {
@@ -83597,7 +85222,7 @@ export function xmlIndentUtf8(input: checkruntime.XmlValue, document: boolean, u
     if (input.kind === "Value") {
         const value: string = langruntime.checkedString(input.value);
         if (xmlTextEncodingAvailable(value, utf8) === false) {
-            return checkruntime.textUnresolved(unresolvedFlavor);
+            return checkruntime.textUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         if (xmlWellFormed(value, document) === false) {
             return { kind: "Error", value: checkruntime.makeSqlError(sqlstateNotXmlDocument) };
@@ -83636,7 +85261,7 @@ export function xmlIndentUtf8(input: checkruntime.XmlValue, document: boolean, u
             cursor = langruntime.checkedIndex(node.next);
         }
         if (xmlTextEncodingAvailable(output, utf8) === false) {
-            return checkruntime.textUnresolved(unresolvedFlavor);
+            return checkruntime.textUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         return { kind: "Value", value: output };
     }
@@ -85686,7 +87311,7 @@ export function xmlFromTextContext(input: checkruntime.TextValue, mode: number, 
     if (input.kind === "Value") {
         const value: string = langruntime.checkedString(input.value);
         if (xmlTextEncodingAvailable(value, utf8) === false) {
-            return checkruntime.xmlUnresolved(unresolvedFlavor);
+            return checkruntime.xmlUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         if (mode === 0) {
             if (xmlWellFormed(value, true) && xmlWellFormed(value, false)) {
@@ -85724,14 +87349,14 @@ export function xmlIsDocumentContext(input: checkruntime.XmlValue, utf8: boolean
     if (stored.kind === "Value") {
         const value: string = langruntime.checkedString(stored.value);
         if (xmlTextEncodingAvailable(value, utf8) === false) {
-            return checkruntime.boolUnresolved(unresolvedFlavor);
+            return checkruntime.boolUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
     }
     const rendered: checkruntime.XmlValue = input;
     if (rendered.kind === "RenderedText") {
         const value: string = langruntime.checkedString(rendered.value);
         if (xmlTextEncodingAvailable(value, utf8) === false) {
-            return checkruntime.boolUnresolved(unresolvedFlavor);
+            return checkruntime.boolUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
     }
     return xmlIsDocumentUtf8(input);
@@ -85768,7 +87393,16 @@ export function xmlSerializeContext(input: checkruntime.XmlValue, mode: number, 
             valid = langruntime.checkedBool(true);
         }
         if (valid === false) {
-            return checkruntime.textUnresolved(unresolvedFlavor);
+            let localFlavor8328: number = unresolvedFlavor;
+            if (document.kind === "Unknown") {
+                if (localFlavor8328 < 1) {
+                    localFlavor8328 = langruntime.checkedI32(1);
+                }
+            }
+            if (document.kind === "Unimplemented") {
+                localFlavor8328 = langruntime.checkedI32(2);
+            }
+            return checkruntime.textUnresolved(localFlavor8328);
         }
     }
     return xmlToText(input);
@@ -85790,7 +87424,7 @@ export function xmlSendUur7(input: checkruntime.XmlValue, clientUtf8: boolean): 
         return { kind: "Null" };
     }
     if (clientUtf8 === false) {
-        return checkruntime.byteaUnresolved(unresolvedFlavor);
+        return checkruntime.byteaUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
     }
     return xmlToByteaUtf8(input);
 }
@@ -90874,7 +92508,16 @@ function xpathResultExists(input: XPathValue): checkruntime.BoolValue {
         const value: number = langruntime.checkedI32(count.value);
         return { kind: "Value", value: value > 0 };
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    let localFlavor424: number = unresolvedFlavor;
+    if (count.kind === "Unknown") {
+        if (localFlavor424 < 1) {
+            localFlavor424 = langruntime.checkedI32(1);
+        }
+    }
+    if (count.kind === "Unimplemented") {
+        localFlavor424 = langruntime.checkedI32(2);
+    }
+    return checkruntime.boolUnresolved(localFlavor424);
 }
 export function xpathResultToXml(input: XPathValue, tree: XmlTree, graph: XPathGraph, extra: number, known: boolean): XPathXmlResult {
     if (!(input.state === 0)) {

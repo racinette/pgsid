@@ -161,7 +161,7 @@ pub fn sql__pg_catalog__enum_larger__em2s(left: EnumValue, right: EnumValue) -> 
         }
         return right;
     }
-    enum_unresolved(unresolved_flavor)
+    let mut local_flavor_164_4: i32 = unresolved_flavor; if let Int4Value::Unknown = comparison { if local_flavor_164_4 < 1 { local_flavor_164_4 = 1; }; }; if let Int4Value::Unimplemented = comparison { local_flavor_164_4 = 2; }; enum_unresolved(local_flavor_164_4)
 }
 
 pub fn sql__pg_catalog__enum_smaller__whhx(left: EnumValue, right: EnumValue) -> EnumValue {
@@ -183,7 +183,7 @@ pub fn sql__pg_catalog__enum_smaller__whhx(left: EnumValue, right: EnumValue) ->
         }
         return right;
     }
-    enum_unresolved(unresolved_flavor)
+    let mut local_flavor_186_4: i32 = unresolved_flavor; if let Int4Value::Unknown = comparison { if local_flavor_186_4 < 1 { local_flavor_186_4 = 1; }; }; if let Int4Value::Unimplemented = comparison { local_flavor_186_4 = 2; }; enum_unresolved(local_flavor_186_4)
 }
 
 pub fn sql__pg_catalog__hashenum__z4zk(input: EnumValue) -> Int4Value {

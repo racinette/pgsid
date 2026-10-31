@@ -38,7 +38,7 @@ pub fn chr_context(input: Int4Value, utf8: bool) -> TextValue {
         if let Int4Value::Value(code) = input {
             if code > 127 {
                 if let TextValue::Value(_) = value {
-                    return text_unresolved(unresolved_flavor);
+                    return text_unresolved(resolution_context(unresolved_flavor));
                 }
             }
         }

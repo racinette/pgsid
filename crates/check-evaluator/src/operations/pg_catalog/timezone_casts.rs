@@ -377,5 +377,5 @@ pub fn timetz_from_text_context(input: TextValue, zone: &str) -> TimetzValue {
     if let TimeValue::Value(_) = clock {
         return sql__pg_catalog__timetz__qcb2(clock, zone);
     };
-    timetz_unresolved(unresolved_flavor)
+    let mut local_flavor_380_4: i32 = unresolved_flavor; if let TimeValue::Unknown = clock { if local_flavor_380_4 < 1 { local_flavor_380_4 = 1; }; }; if let TimeValue::Unimplemented = clock { local_flavor_380_4 = 2; }; timetz_unresolved(local_flavor_380_4)
 }

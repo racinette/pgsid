@@ -118,7 +118,7 @@ fn timezone_interval_add(
                 if let TimestampValue::Value(time) = result {
                     return TimestamptzValue::Value(time);
                 };
-                return timestamptz_unresolved(unresolved_flavor);
+                let mut local_flavor_121_16: i32 = unresolved_flavor; if let TimestampValue::Unknown = result { if local_flavor_121_16 < 1 { local_flavor_121_16 = 1; }; }; if let TimestampValue::Unimplemented = result { local_flavor_121_16 = 2; }; return timestamptz_unresolved(local_flavor_121_16);
             };
             let mut timestamp = input;
             if span.months != 0 {

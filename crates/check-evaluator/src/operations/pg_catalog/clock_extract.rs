@@ -197,7 +197,7 @@ fn clock_fields_numeric_value(
         };
         return temporal_scaled_number(number, scale);
     };
-    numeric_unresolved(unresolved_flavor)
+    let mut local_flavor_200_4: i32 = unresolved_flavor; if let Int8Value::Unknown = component { if local_flavor_200_4 < 1 { local_flavor_200_4 = 1; }; }; if let Int8Value::Unimplemented = component { local_flavor_200_4 = 2; }; numeric_unresolved(local_flavor_200_4)
 }
 fn clock_fields_numeric(units: TextValue, input: ClockFieldInput) -> NumericValue {
     let mut unresolved_flavor: i32 = 0;

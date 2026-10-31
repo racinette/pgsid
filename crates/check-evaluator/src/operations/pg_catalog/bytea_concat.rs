@@ -63,5 +63,5 @@ pub fn sql__pg_catalog__byteacat__zitv(left: ByteaValue, right: ByteaValue) -> B
             return ByteaValue::Value(output);
         }
     }
-    bytea_unresolved(unresolved_flavor)
+    let mut local_flavor_66_4: i32 = unresolved_flavor; if let Int4Value::Unknown = second_length { if local_flavor_66_4 < 1 { local_flavor_66_4 = 1; }; }; if let Int4Value::Unimplemented = second_length { local_flavor_66_4 = 2; }; if let Int4Value::Unknown = first_length { if local_flavor_66_4 < 1 { local_flavor_66_4 = 1; }; }; if let Int4Value::Unimplemented = first_length { local_flavor_66_4 = 2; }; bytea_unresolved(local_flavor_66_4)
 }

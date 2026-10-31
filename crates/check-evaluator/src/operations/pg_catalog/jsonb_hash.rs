@@ -243,7 +243,7 @@ pub fn sql__pg_catalog__jsonb_hash__qo2a(
     if let Int8Value::Value(value) = result {
         return Int4Value::Value(value as i32);
     };
-    int4_unresolved(unresolved_flavor)
+    let mut local_flavor_246_4: i32 = unresolved_flavor; if let Int8Value::Unknown = result { if local_flavor_246_4 < 1 { local_flavor_246_4 = 1; }; }; if let Int8Value::Unimplemented = result { local_flavor_246_4 = 2; }; int4_unresolved(local_flavor_246_4)
 }
 
 pub fn sql__pg_catalog__jsonb_hash_extended__h75l(

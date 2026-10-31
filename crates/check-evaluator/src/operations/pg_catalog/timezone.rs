@@ -230,12 +230,12 @@ fn timezone_forced_offset(name: &str, spelling: &str, microseconds: i64, local: 
     if local == false {
         let profile = session_timezone_profile(name, microseconds, false);
         if profile.valid == false {
-            return int4_unresolved(unresolved_flavor);
+            let mut local_flavor_233_12: i32 = unresolved_flavor; if let Int4Value::Unknown = found { if local_flavor_233_12 < 1 { local_flavor_233_12 = 1; }; }; if let Int4Value::Unimplemented = found { local_flavor_233_12 = 2; }; return int4_unresolved(local_flavor_233_12);
         };
         let projected = microseconds + (profile.seconds as i64) * 1000000i64;
         let adjusted = session_timezone_profile(name, projected, true);
         if adjusted.valid == false {
-            return int4_unresolved(unresolved_flavor);
+            let mut local_flavor_238_12: i32 = unresolved_flavor; if let Int4Value::Unknown = found { if local_flavor_238_12 < 1 { local_flavor_238_12 = 1; }; }; if let Int4Value::Unimplemented = found { local_flavor_238_12 = 2; }; return int4_unresolved(local_flavor_238_12);
         };
         fallback = adjusted.seconds;
     };

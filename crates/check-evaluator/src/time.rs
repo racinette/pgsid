@@ -331,7 +331,7 @@ pub fn time_from_text(input: TextValue) -> TimeValue {
     if let Int8Value::Value(time) = parsed {
         return make_time_value(time);
     };
-    time_unresolved(unresolved_flavor)
+    let mut local_flavor_334_4: i32 = unresolved_flavor; if let Int8Value::Unknown = parsed { if local_flavor_334_4 < 1 { local_flavor_334_4 = 1; }; }; if let Int8Value::Unimplemented = parsed { local_flavor_334_4 = 2; }; time_unresolved(local_flavor_334_4)
 }
 
 pub fn timetz_from_text(input: TextValue) -> TimetzValue {
@@ -356,5 +356,5 @@ pub fn timetz_from_text(input: TextValue) -> TimetzValue {
             return make_timetz_value(time, zone as i32);
         };
     };
-    timetz_unresolved(unresolved_flavor)
+    let mut local_flavor_359_4: i32 = unresolved_flavor; if let Int8Value::Unknown = utc { if local_flavor_359_4 < 1 { local_flavor_359_4 = 1; }; }; if let Int8Value::Unimplemented = utc { local_flavor_359_4 = 2; }; if let Int8Value::Unknown = local { if local_flavor_359_4 < 1 { local_flavor_359_4 = 1; }; }; if let Int8Value::Unimplemented = local { local_flavor_359_4 = 2; }; timetz_unresolved(local_flavor_359_4)
 }

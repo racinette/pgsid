@@ -62,7 +62,7 @@ fn array_string_split(
             while position < characters.len() {
                 let ch = characters[position];
                 if utf8 == false && (ch as i32) > 127 {
-                    return array_unresolved(unresolved_flavor);
+                    return array_unresolved(resolution_context(unresolved_flavor));
                 };
                 let mut field = String::new();
                 field.push(ch);

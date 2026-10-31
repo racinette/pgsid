@@ -165,7 +165,7 @@ fn polygon_segment_inside(a: PointPayload, b: PointPayload, polygon: &PathPayloa
         let center = lseg_midpoint(segment);
         if let PointValue::Error(error) = center { return BoolValue::Error(error); };
         if let PointValue::Value(point) = center { return closed_path_contains(point, polygon); };
-        return bool_unresolved(unresolved_flavor);
+        let mut local_flavor_168_8: i32 = unresolved_flavor; if let PointValue::Unknown = center { if local_flavor_168_8 < 1 { local_flavor_168_8 = 1; }; }; if let PointValue::Unimplemented = center { local_flavor_168_8 = 2; }; if let BoolValue::Unknown = result { if local_flavor_168_8 < 1 { local_flavor_168_8 = 1; }; }; if let BoolValue::Unimplemented = result { local_flavor_168_8 = 2; }; if let LsegValue::Unknown = segment { if local_flavor_168_8 < 1 { local_flavor_168_8 = 1; }; }; if let LsegValue::Unimplemented = segment { local_flavor_168_8 = 2; }; return bool_unresolved(local_flavor_168_8);
     };
     result
 }
@@ -193,7 +193,7 @@ fn polygon_relation(left: PolygonValue, right: PolygonValue, contains: bool) -> 
                 polygon_path_bounds(a_bounds, &a_path), polygon_path_bounds(b_bounds, &b_path),
             );
             if status != BoolValue::Value(true) { return status; };
-            if a_path.points.len() == 0 || b_path.points.len() == 0 { return bool_unresolved(unresolved_flavor); };
+            if a_path.points.len() == 0 || b_path.points.len() == 0 { let mut local_flavor_196_70: i32 = unresolved_flavor; if let BoolValue::Unknown = status { if local_flavor_196_70 < 1 { local_flavor_196_70 = 1; }; }; if let BoolValue::Unimplemented = status { local_flavor_196_70 = 2; }; return bool_unresolved(local_flavor_196_70); };
             let mut previous = b_path.points.len() - 1;
             let mut index: usize = 0;
             while index < b_path.points.len() {

@@ -331,7 +331,7 @@ fn float8_hyperbolic(input: Float8Value, musl: bool, operation: i32) -> Float8Va
             };
         };
         if musl == false {
-            return float8_unresolved(unresolved_flavor);
+            return float8_unresolved(resolution_context(unresolved_flavor));
         };
         let mut result = 0.0f64;
         if operation == 0 {

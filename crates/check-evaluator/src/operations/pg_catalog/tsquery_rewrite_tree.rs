@@ -80,7 +80,7 @@ fn tsquery_rewrite_compare(tree: &TsqueryRewriteTree, left: usize, right: usize,
             if a.value.kind < b.value.kind { return make_int4_value(1); };
             if a.value.kind == 0 {
                 if a.value.text != b.value.text {
-                    if utf8 == false && (tsquery_ascii(a.value.text.as_str()) == false || tsquery_ascii(b.value.text.as_str()) == false) { return int4_unresolved(unresolved_flavor); };
+                    if utf8 == false && (tsquery_ascii(a.value.text.as_str()) == false || tsquery_ascii(b.value.text.as_str()) == false) { return int4_unresolved(resolution_context(unresolved_flavor)); };
                     let ac = tsquery_legacy_crc(a.value.text.as_str());
                     let bc = tsquery_legacy_crc(b.value.text.as_str());
                     if ac > bc { return make_int4_value(-1); };

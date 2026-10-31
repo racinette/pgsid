@@ -54,7 +54,7 @@ fn float_numeric_decimal(input: Float8Value, precision: usize) -> NumericValue {
         };
         return NumericValue::Value(numeric_work_text(result));
     }
-    numeric_unresolved(unresolved_flavor)
+    let mut local_flavor_57_4: i32 = unresolved_flavor; if let Float8Value::Unknown = known_input { if local_flavor_57_4 < 1 { local_flavor_57_4 = 1; }; }; if let Float8Value::Unimplemented = known_input { local_flavor_57_4 = 2; }; numeric_unresolved(local_flavor_57_4)
 }
 
 fn float_numeric_text(input: NumericValue) -> TextValue {

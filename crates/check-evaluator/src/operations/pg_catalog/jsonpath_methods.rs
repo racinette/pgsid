@@ -105,7 +105,7 @@ fn jsonpath_method_double_value(
         };
         return sql__pg_catalog__numeric__ev2s(Float8Value::Value(bits));
     };
-    numeric_unresolved(unresolved_flavor)
+    let mut local_flavor_108_4: i32 = unresolved_flavor; if let Float8Value::Unknown = converted { if local_flavor_108_4 < 1 { local_flavor_108_4 = 1; }; }; if let Float8Value::Unimplemented = converted { local_flavor_108_4 = 2; }; numeric_unresolved(local_flavor_108_4)
 }
 
 fn jsonpath_method_numeric(

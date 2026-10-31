@@ -399,7 +399,7 @@ pub fn range_text_initial(
             support,
         );
     };
-    range_unresolved(unresolved_flavor)
+    let mut local_flavor_402_4: i32 = unresolved_flavor; if let BoolValue::Unknown = state { if local_flavor_402_4 < 1 { local_flavor_402_4 = 1; }; }; if let BoolValue::Unimplemented = state { local_flavor_402_4 = 2; }; range_unresolved(local_flavor_402_4)
 }
 
 pub fn finish_range_text(

@@ -3778,3 +3778,10 @@ pub fn check_unresolved(flavor: i32) -> CheckOutcome {
     if flavor == 1 { return CheckOutcome::Unknown; };
     CheckOutcome::Unimplemented
 }
+
+// A deferral guarded by a declared-context fact needs the database, unless an input it reached was
+// already Unimplemented.
+pub fn resolution_context(flavor: i32) -> i32 {
+    if flavor == 2 { return 2; };
+    1
+}

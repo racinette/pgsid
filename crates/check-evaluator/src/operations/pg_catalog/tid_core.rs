@@ -60,7 +60,7 @@ fn tid_relation(left: TidValue, right: TidValue, mode: i32) -> BoolValue {
         };
         return make_bool_value(order >= 0);
     };
-    bool_unresolved(unresolved_flavor)
+    let mut local_flavor_63_4: i32 = unresolved_flavor; if let Int4Value::Unknown = comparison { if local_flavor_63_4 < 1 { local_flavor_63_4 = 1; }; }; if let Int4Value::Unimplemented = comparison { local_flavor_63_4 = 2; }; bool_unresolved(local_flavor_63_4)
 }
 fn tid_select(left: TidValue, right: TidValue, larger: bool) -> TidValue {
     let mut unresolved_flavor: i32 = 0;
@@ -81,7 +81,7 @@ fn tid_select(left: TidValue, right: TidValue, larger: bool) -> TidValue {
         };
         return right;
     };
-    tid_unresolved(unresolved_flavor)
+    let mut local_flavor_84_4: i32 = unresolved_flavor; if let Int4Value::Unknown = comparison { if local_flavor_84_4 < 1 { local_flavor_84_4 = 1; }; }; if let Int4Value::Unimplemented = comparison { local_flavor_84_4 = 2; }; tid_unresolved(local_flavor_84_4)
 }
 
 

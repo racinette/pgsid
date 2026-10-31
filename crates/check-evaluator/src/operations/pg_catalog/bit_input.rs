@@ -13,7 +13,7 @@ pub(crate) fn bit_from_text_modifier(
         while index < characters.len() {
             let character = characters[index] as i32;
             if character > 127 && utf8 == false {
-                return bit_unresolved(unresolved_flavor);
+                return bit_unresolved(resolution_context(unresolved_flavor));
             };
             index += 1;
         }

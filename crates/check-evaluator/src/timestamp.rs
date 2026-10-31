@@ -140,7 +140,7 @@ fn timestamp_calendar_microseconds(
         }
         return Int8Value::Value(microseconds);
     }
-    int8_unresolved(unresolved_flavor)
+    let mut local_flavor_143_4: i32 = unresolved_flavor; if let Int4Value::Unknown = days { if local_flavor_143_4 < 1 { local_flavor_143_4 = 1; }; }; if let Int4Value::Unimplemented = days { local_flavor_143_4 = 2; }; int8_unresolved(local_flavor_143_4)
 }
 
 // ParseDateTime skips ASCII punctuation where a field would start; these characters never

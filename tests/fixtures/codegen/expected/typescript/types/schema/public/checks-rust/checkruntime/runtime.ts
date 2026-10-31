@@ -5716,6 +5716,13 @@ export function checkUnresolved(flavor: number): CheckOutcome {
     }
     return { kind: "Unimplemented" };
 }
+export function resolutionContext(flavor: number): number {
+    flavor = langruntime.checkedI32(flavor);
+    if (flavor === 2) {
+        return 2;
+    }
+    return 1;
+}
 export interface NumericLayout {
     valid: boolean;
     special: number;
@@ -7295,7 +7302,7 @@ function jsonReadDecodeStringContext(source: JsonSyntaxSource, token: JsonReadTo
                         return { kind: "Error", value: makeSqlError(jsonReadZero) };
                     }
                     if (code > 127 && utf8 === false) {
-                        return textUnresolved(unresolvedFlavor);
+                        return textUnresolved(resolutionContext(unresolvedFlavor));
                     }
                     output = output + langruntime.checkedChar(langruntime.characterFromI32(code, " "));
                 }
@@ -13685,6 +13692,10 @@ export function rangeSupportValid(input: RangeSupport, kind: number): boolean {
 export function rangeSupportIsCidr(input: RangeSupport): boolean {
     return input.comparison === 100 || input.comparison === 113;
 }
+export function rangeComparisonUnavailable(comparison: number): boolean {
+    comparison = langruntime.checkedI32(comparison);
+    return comparison === 0 || comparison === 100 || comparison === 120 || comparison === 200 || (comparison > 300 && comparison < 330);
+}
 export function rangeSupportJsonbUtf8(input: RangeSupport): boolean {
     return input.comparison === 12 || input.comparison === 120;
 }
@@ -19332,7 +19343,16 @@ function arrayStorageMissingBitmap(input: ArrayPayload): BoolValue {
     if (equalBoolValue(elements, { kind: "Value", value: true })) {
         return elements;
     }
-    return boolUnresolved(unresolvedFlavor);
+    let localFlavor2254: number = unresolvedFlavor;
+    if (elements.kind === "Unknown") {
+        if (localFlavor2254 < 1) {
+            localFlavor2254 = langruntime.checkedI32(1);
+        }
+    }
+    if (elements.kind === "Unimplemented") {
+        localFlavor2254 = langruntime.checkedI32(2);
+    }
+    return boolUnresolved(localFlavor2254);
 }
 export function forgetArrayStorage(input: ArrayElement): ArrayElement {
     input = copyArrayElement(input);
@@ -20001,7 +20021,6 @@ export function hashNative32(bytes: HashByte[], byteOrder: number, unit: number)
     bytes = langruntime.checkedStructs(bytes, copyHashByte);
     byteOrder = langruntime.checkedI32(byteOrder);
     unit = langruntime.checkedIndex(unit);
-    const unresolvedFlavor: number = 0;
     if (byteOrder === 1) {
         return { kind: "Value", value: hashBytes32(bytes) };
     }
@@ -20016,14 +20035,13 @@ export function hashNative32(bytes: HashByte[], byteOrder: number, unit: number)
     if (byteOrder === 0 && little === big) {
         return { kind: "Value", value: little };
     }
-    return int4Unresolved(unresolvedFlavor);
+    return int4Unresolved(1);
 }
 export function hashNative64(bytes: HashByte[], seed: bigint, byteOrder: number, unit: number): Int8Value {
     bytes = langruntime.checkedStructs(bytes, copyHashByte);
     seed = langruntime.checkedI64(seed);
     byteOrder = langruntime.checkedI32(byteOrder);
     unit = langruntime.checkedIndex(unit);
-    const unresolvedFlavor: number = 0;
     if (byteOrder === 1) {
         return { kind: "Value", value: hashBytes64(bytes, seed) };
     }
@@ -20038,7 +20056,7 @@ export function hashNative64(bytes: HashByte[], seed: bigint, byteOrder: number,
     if (byteOrder === 0 && little === big) {
         return { kind: "Value", value: little };
     }
-    return int8Unresolved(unresolvedFlavor);
+    return int8Unresolved(1);
 }
 export function textNumber(value: number, base: number): string {
     value = langruntime.checkedI32(value);
@@ -20999,7 +21017,16 @@ function dateFromTemporalText(value: TextValue, dateOrder: number): DateValue {
             return makeDateValue(narrow);
         }
     }
-    return dateUnresolved(unresolvedFlavor);
+    let localFlavor9724: number = unresolvedFlavor;
+    if (parsed.kind === "Unknown") {
+        if (localFlavor9724 < 1) {
+            localFlavor9724 = langruntime.checkedI32(1);
+        }
+    }
+    if (parsed.kind === "Unimplemented") {
+        localFlavor9724 = langruntime.checkedI32(2);
+    }
+    return dateUnresolved(localFlavor9724);
 }
 export function dateFromYmd(year: number, month: number, day: number): DateValue {
     year = langruntime.checkedI32(year);
@@ -21015,7 +21042,16 @@ export function dateFromYmd(year: number, month: number, day: number): DateValue
         const value: number = langruntime.checkedI32(days.value);
         return makeDateValue(value);
     }
-    return dateUnresolved(unresolvedFlavor);
+    let localFlavor9844: number = unresolvedFlavor;
+    if (days.kind === "Unknown") {
+        if (localFlavor9844 < 1) {
+            localFlavor9844 = langruntime.checkedI32(1);
+        }
+    }
+    if (days.kind === "Unimplemented") {
+        localFlavor9844 = langruntime.checkedI32(2);
+    }
+    return dateUnresolved(localFlavor9844);
 }
 function calendarDaysFromYmd(year: number, month: number, day: number): Int4Value {
     year = langruntime.checkedI32(year);
@@ -21172,7 +21208,16 @@ function timestampCalendarMicroseconds(year: number, month: number, day: number,
         }
         return { kind: "Value", value: microseconds };
     }
-    return int8Unresolved(unresolvedFlavor);
+    let localFlavor1434: number = unresolvedFlavor;
+    if (days.kind === "Unknown") {
+        if (localFlavor1434 < 1) {
+            localFlavor1434 = langruntime.checkedI32(1);
+        }
+    }
+    if (days.kind === "Unimplemented") {
+        localFlavor1434 = langruntime.checkedI32(2);
+    }
+    return int8Unresolved(localFlavor1434);
 }
 function temporalSkippedPunctuation(value: string): boolean {
     value = langruntime.checkedChar(value);
@@ -22272,7 +22317,16 @@ export function timeFromText(input: TextValue): TimeValue {
         const time: bigint = langruntime.checkedI64(parsed.value);
         return makeTimeValue(time);
     }
-    return timeUnresolved(unresolvedFlavor);
+    let localFlavor3344: number = unresolvedFlavor;
+    if (parsed.kind === "Unknown") {
+        if (localFlavor3344 < 1) {
+            localFlavor3344 = langruntime.checkedI32(1);
+        }
+    }
+    if (parsed.kind === "Unimplemented") {
+        localFlavor3344 = langruntime.checkedI32(2);
+    }
+    return timeUnresolved(localFlavor3344);
 }
 export function timetzFromText(input: TextValue): TimetzValue {
     let unresolvedFlavor: number = 0;
@@ -22304,7 +22358,24 @@ export function timetzFromText(input: TextValue): TimetzValue {
             return makeTimetzValue(time, Number(BigInt.asIntN(32, langruntime.checkedI64(zone))));
         }
     }
-    return timetzUnresolved(unresolvedFlavor);
+    let localFlavor3594: number = unresolvedFlavor;
+    if (utc.kind === "Unknown") {
+        if (localFlavor3594 < 1) {
+            localFlavor3594 = langruntime.checkedI32(1);
+        }
+    }
+    if (utc.kind === "Unimplemented") {
+        localFlavor3594 = langruntime.checkedI32(2);
+    }
+    if (local.kind === "Unknown") {
+        if (localFlavor3594 < 1) {
+            localFlavor3594 = langruntime.checkedI32(1);
+        }
+    }
+    if (local.kind === "Unimplemented") {
+        localFlavor3594 = langruntime.checkedI32(2);
+    }
+    return timetzUnresolved(localFlavor3594);
 }
 const intervalInputSyntax = 3452551;
 const intervalInputRange = 3452585;

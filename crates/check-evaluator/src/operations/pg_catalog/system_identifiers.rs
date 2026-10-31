@@ -104,7 +104,7 @@ fn xid8_relation(left: Xid8Value, right: Xid8Value, mode: i32) -> BoolValue {
         };
         return make_bool_value(order >= 0);
     };
-    bool_unresolved(unresolved_flavor)
+    let mut local_flavor_107_4: i32 = unresolved_flavor; if let Int4Value::Unknown = comparison { if local_flavor_107_4 < 1 { local_flavor_107_4 = 1; }; }; if let Int4Value::Unimplemented = comparison { local_flavor_107_4 = 2; }; bool_unresolved(local_flavor_107_4)
 }
 fn xid8_select(left: Xid8Value, right: Xid8Value, larger: bool) -> Xid8Value {
     let mut unresolved_flavor: i32 = 0;
@@ -125,7 +125,7 @@ fn xid8_select(left: Xid8Value, right: Xid8Value, larger: bool) -> Xid8Value {
         };
         return right;
     };
-    xid8_unresolved(unresolved_flavor)
+    let mut local_flavor_128_4: i32 = unresolved_flavor; if let Int4Value::Unknown = comparison { if local_flavor_128_4 < 1 { local_flavor_128_4 = 1; }; }; if let Int4Value::Unimplemented = comparison { local_flavor_128_4 = 2; }; xid8_unresolved(local_flavor_128_4)
 }
 
 
@@ -188,7 +188,7 @@ pub fn sql__pg_catalog__xid__lwyo(left: Xid8Value) -> XidValue {
     if let Int8Value::Error(error) = bits { return XidValue::Error(error); };
     if bits == Int8Value::Null { return XidValue::Null; };
     if let Int8Value::Value(value) = bits { return xid_from_oid(oid_from_int4(make_int4_value(value as i32))); };
-    xid_unresolved(unresolved_flavor)
+    let mut local_flavor_191_4: i32 = unresolved_flavor; if let Int8Value::Unknown = bits { if local_flavor_191_4 < 1 { local_flavor_191_4 = 1; }; }; if let Int8Value::Unimplemented = bits { local_flavor_191_4 = 2; }; xid_unresolved(local_flavor_191_4)
 }
 
 pub fn sql__pg_catalog__xid8_larger__92s8(left: Xid8Value, right: Xid8Value) -> Xid8Value {

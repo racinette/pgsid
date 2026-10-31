@@ -84,7 +84,7 @@ pub(crate) fn record_hash_initial64(input: &ArrayComparisonPayload) -> Int8Value
     if let Int4Value::Value(value) = initial {
         return Int8Value::Value(value as i64);
     };
-    int8_unresolved(unresolved_flavor)
+    let mut local_flavor_87_4: i32 = unresolved_flavor; if let Int4Value::Unknown = initial { if local_flavor_87_4 < 1 { local_flavor_87_4 = 1; }; }; if let Int4Value::Unimplemented = initial { local_flavor_87_4 = 2; }; int8_unresolved(local_flavor_87_4)
 }
 
 pub(crate) fn record_hash_cell32(input: ArrayElement, availability: i32) -> Int4Value {
@@ -114,7 +114,7 @@ pub(crate) fn record_hash_cell64(input: ArrayElement, availability: i32) -> Int8
     if let Int4Value::Value(payload) = value {
         return Int8Value::Value(payload as i64);
     };
-    int8_unresolved(unresolved_flavor)
+    let mut local_flavor_117_4: i32 = unresolved_flavor; if let Int4Value::Unknown = value { if local_flavor_117_4 < 1 { local_flavor_117_4 = 1; }; }; if let Int4Value::Unimplemented = value { local_flavor_117_4 = 2; }; int8_unresolved(local_flavor_117_4)
 }
 
 pub fn sql__pg_catalog__hash_record__5xrm(input: Int4Value) -> Int4Value {

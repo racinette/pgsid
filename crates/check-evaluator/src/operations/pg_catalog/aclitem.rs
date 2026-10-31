@@ -95,7 +95,7 @@ pub fn aclitem_from_text_context(input: TextValue, limit: i32, utf8: bool) -> Ac
                 if aclitem_mode_character(character) == false { return AclitemValue::Error(make_sql_error(ACLITEM_INVALID_TEXT)); };
                 position += 1;
             } else {
-                if code >= 128 && utf8 == false { return aclitem_unresolved(unresolved_flavor); };
+                if code >= 128 && utf8 == false { return aclitem_unresolved(resolution_context(unresolved_flavor)); };
                 scanning = false;
             };
         }
@@ -209,7 +209,7 @@ pub fn sql__pg_catalog__makeaclitem__ab9i(grantee: OidValue, grantor: OidValue, 
             };
         };
     };
-    aclitem_unresolved(unresolved_flavor)
+    let mut local_flavor_212_4: i32 = unresolved_flavor; if let Int8Value::Unknown = parsed { if local_flavor_212_4 < 1 { local_flavor_212_4 = 1; }; }; if let Int8Value::Unimplemented = parsed { local_flavor_212_4 = 2; }; aclitem_unresolved(local_flavor_212_4)
 }
 
 fn aclitem_catalog_facts(input: AclitemValue) -> AclitemCatalogPayload {
@@ -286,7 +286,7 @@ pub fn sql__pg_catalog__hash_aclitem__4zd0(input: AclitemValue) -> Int4Value {
     if let Int8Value::Error(error) = sum { return Int4Value::Error(error); };
     if sum == Int8Value::Null { return Int4Value::Null; };
     if let Int8Value::Value(value) = sum { return Int4Value::Value(value as i32); };
-    int4_unresolved(unresolved_flavor)
+    let mut local_flavor_289_4: i32 = unresolved_flavor; if let Int8Value::Unknown = sum { if local_flavor_289_4 < 1 { local_flavor_289_4 = 1; }; }; if let Int8Value::Unimplemented = sum { local_flavor_289_4 = 2; }; int4_unresolved(local_flavor_289_4)
 }
 
 pub fn sql__pg_catalog__hash_aclitem_extended__c0ek(input: AclitemValue, seed: Int8Value) -> Int8Value {

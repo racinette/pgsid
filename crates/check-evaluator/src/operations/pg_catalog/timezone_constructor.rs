@@ -221,5 +221,5 @@ pub fn sql__pg_catalog__make_timestamptz__nko2(
             return TimestamptzValue::Error(error);
         };
     };
-    timestamptz_unresolved(unresolved_flavor)
+    let mut local_flavor_224_4: i32 = unresolved_flavor; if let TimestampValue::Unknown = local { if local_flavor_224_4 < 1 { local_flavor_224_4 = 1; }; }; if let TimestampValue::Unimplemented = local { local_flavor_224_4 = 2; }; timestamptz_unresolved(local_flavor_224_4)
 }

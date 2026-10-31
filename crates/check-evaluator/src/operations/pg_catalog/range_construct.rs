@@ -22,7 +22,7 @@ fn range_profiled_compare(
         return pair;
     };
     if index >= profile.nodes.len() || other_index >= other.nodes.len() {
-        return int4_unresolved(unresolved_flavor);
+        let mut local_flavor_25_8: i32 = unresolved_flavor; if let Int4Value::Unknown = pair { if local_flavor_25_8 < 1 { local_flavor_25_8 = 1; }; }; if let Int4Value::Unimplemented = pair { local_flavor_25_8 = 2; }; return int4_unresolved(local_flavor_25_8);
     };
     let node = profile.nodes[index].clone();
     let peer = other.nodes[other_index].clone();
@@ -30,14 +30,14 @@ fn range_profiled_compare(
         || node.comparison != peer.comparison
         || node.missing_comparison != peer.missing_comparison
     {
-        return int4_unresolved(unresolved_flavor);
+        let mut local_flavor_33_8: i32 = unresolved_flavor; if let Int4Value::Unknown = pair { if local_flavor_33_8 < 1 { local_flavor_33_8 = 1; }; }; if let Int4Value::Unimplemented = pair { local_flavor_33_8 = 2; }; return int4_unresolved(local_flavor_33_8);
     };
     if node.missing_comparison {
         return Int4Value::Error(make_sql_error(RANGE_ARRAY_COMPARISON_UNDEFINED));
     };
     if node.kind == 44 {
         if node.comparison != 44 || node.type_name != peer.type_name {
-            return int4_unresolved(unresolved_flavor);
+            let mut local_flavor_40_12: i32 = unresolved_flavor; if let Int4Value::Unknown = pair { if local_flavor_40_12 < 1 { local_flavor_40_12 = 1; }; }; if let Int4Value::Unimplemented = pair { local_flavor_40_12 = 2; }; return int4_unresolved(local_flavor_40_12);
         };
         let left = array_element_to_composite(lower);
         let right = array_element_to_composite(upper);
@@ -89,7 +89,7 @@ fn range_profiled_compare(
             || node.canonical != peer.canonical
             || node.comparison != node.kind
         {
-            return int4_unresolved(unresolved_flavor);
+            let mut local_flavor_92_12: i32 = unresolved_flavor; if let Int4Value::Unknown = pair { if local_flavor_92_12 < 1 { local_flavor_92_12 = 1; }; }; if let Int4Value::Unimplemented = pair { local_flavor_92_12 = 2; }; return int4_unresolved(local_flavor_92_12);
         };
         if node.kind == 42 {
             return range_order(
@@ -106,7 +106,7 @@ fn range_profiled_compare(
         if node.kind == 6
             && (node.enum_labels != peer.enum_labels || node.enum_count != peer.enum_count)
         {
-            return int4_unresolved(unresolved_flavor);
+            let mut local_flavor_109_12: i32 = unresolved_flavor; if let Int4Value::Unknown = pair { if local_flavor_109_12 < 1 { local_flavor_109_12 = 1; }; }; if let Int4Value::Unimplemented = pair { local_flavor_109_12 = 2; }; return int4_unresolved(local_flavor_109_12);
         };
         return range_builtin_compare(lower, upper, node.comparison);
     };
@@ -115,19 +115,19 @@ fn range_profiled_compare(
         || peer.child >= other.nodes.len()
         || node.element_type != peer.element_type
     {
-        return int4_unresolved(unresolved_flavor);
+        let mut local_flavor_118_8: i32 = unresolved_flavor; if let Int4Value::Unknown = pair { if local_flavor_118_8 < 1 { local_flavor_118_8 = 1; }; }; if let Int4Value::Unimplemented = pair { local_flavor_118_8 = 2; }; return int4_unresolved(local_flavor_118_8);
     };
     if node.comparison == RANGE_COMPARISON_OID_VECTOR {
         if node.type_name.as_str() != "pg_catalog.oidvector"
             || peer.type_name.as_str() != "pg_catalog.oidvector"
         {
-            return int4_unresolved(unresolved_flavor);
+            let mut local_flavor_124_12: i32 = unresolved_flavor; if let Int4Value::Unknown = pair { if local_flavor_124_12 < 1 { local_flavor_124_12 = 1; }; }; if let Int4Value::Unimplemented = pair { local_flavor_124_12 = 2; }; return int4_unresolved(local_flavor_124_12);
         };
         return sql__pg_catalog__btoidvectorcmp__6oyf(
             array_element_to_array(lower), array_element_to_array(upper));
     };
     if profile.nodes[node.child].missing_comparison != other.nodes[peer.child].missing_comparison {
-        return int4_unresolved(unresolved_flavor);
+        let mut local_flavor_130_8: i32 = unresolved_flavor; if let Int4Value::Unknown = pair { if local_flavor_130_8 < 1 { local_flavor_130_8 = 1; }; }; if let Int4Value::Unimplemented = pair { local_flavor_130_8 = 2; }; return int4_unresolved(local_flavor_130_8);
     };
     let left = array_element_to_array(lower);
     let right = array_element_to_array(upper);
@@ -155,6 +155,14 @@ fn range_typed_compare(lower: ArrayElement, upper: ArrayElement, comparison: i32
     if let ArrayElement::Null = upper { return make_int4_value(-1); };
     if (comparison >= 41 && comparison <= 44) || comparison == RANGE_COMPARISON_OID_VECTOR {
         return range_profiled_compare(lower, upper, profile, 0, other, 0);
+    };
+    if range_comparison_unavailable(comparison) {
+        if let ArrayElement::Error(error) = lower { return Int4Value::Error(error); };
+        if let ArrayElement::Error(error) = upper { return Int4Value::Error(error); };
+        let mut context_flavor: i32 = 1;
+        if let ArrayElement::Unimplemented = lower { context_flavor = 2; };
+        if let ArrayElement::Unimplemented = upper { context_flavor = 2; };
+        return int4_unresolved(context_flavor);
     };
     range_builtin_compare(lower, upper, comparison)
 }
@@ -395,7 +403,7 @@ fn range_profile_serialize(
             bound_profile,
         );
     };
-    range_unresolved(unresolved_flavor)
+    let mut local_flavor_406_4: i32 = unresolved_flavor; if let Int4Value::Unknown = comparison { if local_flavor_406_4 < 1 { local_flavor_406_4 = 1; }; }; if let Int4Value::Unimplemented = comparison { local_flavor_406_4 = 2; }; range_unresolved(local_flavor_406_4)
 }
 
 fn range_builtin_canonical(input: RangeValue) -> RangeValue {

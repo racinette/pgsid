@@ -158,7 +158,7 @@ pub fn sql__pg_catalog__tsquerysend__0660(input: TsqueryValue, utf8: bool) -> By
                 let chars: Vec<char> = node.text.chars().collect();
                 let mut index: usize = 0;
                 while index < chars.len() {
-                    if utf8 == false && (chars[index] as i32) > 127 { return bytea_unresolved(unresolved_flavor); };
+                    if utf8 == false && (chars[index] as i32) > 127 { return bytea_unresolved(resolution_context(unresolved_flavor)); };
                     output = bytea_utf8_character(output,chars[index]);
                     index += 1;
                 }

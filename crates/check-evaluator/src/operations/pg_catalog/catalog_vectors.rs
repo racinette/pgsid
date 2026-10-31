@@ -46,7 +46,7 @@ pub fn catalog_vector_to_text(input: ArrayValue, oid: bool) -> TextValue {
                 output.push_str(part.as_str());
                 appended = true;
             };
-            if appended == false { return text_unresolved(unresolved_flavor); };
+            if appended == false { let mut local_flavor_49_35: i32 = unresolved_flavor; if let BoolValue::Unknown = status { if local_flavor_49_35 < 1 { local_flavor_49_35 = 1; }; }; if let BoolValue::Unimplemented = status { local_flavor_49_35 = 2; }; return text_unresolved(local_flavor_49_35); };
             index += 1;
         }
         return make_text_value(output.as_str());
@@ -153,7 +153,7 @@ pub fn sql__pg_catalog__btoidvectorcmp__6oyf(left: ArrayValue, right: ArrayValue
             if first != BoolValue::Value(true) { return int4_unresolved(unresolved_flavor); };
             let second = catalog_vector_status(&b, true);
             if let BoolValue::Error(error) = second { return Int4Value::Error(error); };
-            if second != BoolValue::Value(true) { return int4_unresolved(unresolved_flavor); };
+            if second != BoolValue::Value(true) { let mut local_flavor_156_50: i32 = unresolved_flavor; if let BoolValue::Unknown = first { if local_flavor_156_50 < 1 { local_flavor_156_50 = 1; }; }; if let BoolValue::Unimplemented = first { local_flavor_156_50 = 2; }; return int4_unresolved(local_flavor_156_50); };
             if a.elements.len() != b.elements.len() {
                 return make_int4_value((a.elements.len() as i32) - (b.elements.len() as i32));
             };
@@ -190,7 +190,7 @@ pub fn sql__pg_catalog__oidvectortypes__w22j(input: ArrayValue) -> TextValue {
         while index < value.elements.len() {
             let name = oid_alias_to_text(array_element_to_oid(value.elements[index].clone()), true);
             if let TextValue::Error(error) = name { return TextValue::Error(error); };
-            if name != make_text_value("-") { return text_unresolved(unresolved_flavor); };
+            if name != make_text_value("-") { let mut local_flavor_193_46: i32 = unresolved_flavor; if let BoolValue::Unknown = status { if local_flavor_193_46 < 1 { local_flavor_193_46 = 1; }; }; if let BoolValue::Unimplemented = status { local_flavor_193_46 = 2; }; return text_unresolved(local_flavor_193_46); };
             if index > 0 { output.push_str(", "); };
             output.push('-');
             index += 1;

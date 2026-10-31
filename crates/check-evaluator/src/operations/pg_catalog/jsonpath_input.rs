@@ -2,7 +2,7 @@ fn jsonpath_regex_literal(pattern: &str, flags: i32, c_collation: bool) -> BoolV
     let unresolved_flavor: i32 = 0;
     let quoted = flags >= 16;
     if quoted == false && c_collation == false {
-        return bool_unresolved(unresolved_flavor);
+        return bool_unresolved(resolution_context(unresolved_flavor));
     };
     let result = compile(pattern, jsonpath_regex_options(flags));
     if let CompileOutcome::InvalidPattern = result {
@@ -30,14 +30,14 @@ pub fn jsonpath_from_text(input: TextValue, c_collation: bool, utf8: bool) -> Js
             let mut position: usize = 0;
             while position < tree.source.len() {
                 if tree.source[position] as i32 > 127 {
-                    return jsonpath_unresolved(unresolved_flavor);
+                    return jsonpath_unresolved(resolution_context(unresolved_flavor));
                 };
                 position += 1;
             }
             position = 0;
             while position < tree.text.len() {
                 if tree.text[position] as i32 > 127 {
-                    return jsonpath_unresolved(unresolved_flavor);
+                    return jsonpath_unresolved(resolution_context(unresolved_flavor));
                 };
                 position += 1;
             }

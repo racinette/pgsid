@@ -31,7 +31,7 @@ pub fn xml_from_text_context(input: TextValue, mode: i32, utf8: bool) -> XmlValu
     if let TextValue::Error(error) = input { return XmlValue::Error(error); };
     if let TextValue::Null = input { return XmlValue::Null; };
     if let TextValue::Value(value) = input {
-        if xml_text_encoding_available(value.as_str(),utf8) == false { return xml_unresolved(unresolved_flavor); };
+        if xml_text_encoding_available(value.as_str(),utf8) == false { return xml_unresolved(resolution_context(unresolved_flavor)); };
         if mode == 0 {
             if xml_well_formed(value.as_str(),true) && xml_well_formed(value.as_str(),false) {
                 return make_xml_value(value.as_str());
@@ -57,11 +57,11 @@ pub fn xml_is_document_context(input: XmlValue, utf8: bool) -> BoolValue {
     if utf8 { return xml_is_document_utf8(input); };
     let stored = input.clone();
     if let XmlValue::Value(value) = stored {
-        if xml_text_encoding_available(value.as_str(),utf8) == false { return bool_unresolved(unresolved_flavor); };
+        if xml_text_encoding_available(value.as_str(),utf8) == false { return bool_unresolved(resolution_context(unresolved_flavor)); };
     };
     let rendered = input.clone();
     if let XmlValue::RenderedText(value) = rendered {
-        if xml_text_encoding_available(value.as_str(),utf8) == false { return bool_unresolved(unresolved_flavor); };
+        if xml_text_encoding_available(value.as_str(),utf8) == false { return bool_unresolved(resolution_context(unresolved_flavor)); };
     };
     xml_is_document_utf8(input)
 }
@@ -80,7 +80,7 @@ pub fn xml_serialize_context(input: XmlValue, mode: i32, indent: bool, utf8: boo
             if value == false { return TextValue::Error(make_sql_error(SQLSTATE_NOT_XML_DOCUMENT)); };
             valid = true;
         };
-        if valid == false { return text_unresolved(unresolved_flavor); };
+        if valid == false { let mut local_flavor_83_28: i32 = unresolved_flavor; if let BoolValue::Unknown = document { if local_flavor_83_28 < 1 { local_flavor_83_28 = 1; }; }; if let BoolValue::Unimplemented = document { local_flavor_83_28 = 2; }; return text_unresolved(local_flavor_83_28); };
     };
     xml_to_text(input)
 }
@@ -91,7 +91,7 @@ pub fn sql__pg_catalog__xml_send__uur7(input: XmlValue, client_utf8: bool) -> By
     if let XmlValue::Unimplemented = input { unresolved_flavor = 2; };
     if let XmlValue::Error(error) = input { return ByteaValue::Error(error); };
     if let XmlValue::Null = input { return ByteaValue::Null; };
-    if client_utf8 == false { return bytea_unresolved(unresolved_flavor); };
+    if client_utf8 == false { return bytea_unresolved(resolution_context(unresolved_flavor)); };
     xml_to_bytea_utf8(input)
 }
 

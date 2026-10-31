@@ -242,7 +242,7 @@ fn range_bounds_adjacent(left: &RangePayload, right: &RangePayload) -> BoolValue
         };
         return BoolValue::Value(false);
     };
-    bool_unresolved(unresolved_flavor)
+    let mut local_flavor_245_4: i32 = unresolved_flavor; if let Int4Value::Unknown = comparison { if local_flavor_245_4 < 1 { local_flavor_245_4 = 1; }; }; if let Int4Value::Unimplemented = comparison { local_flavor_245_4 = 2; }; bool_unresolved(local_flavor_245_4)
 }
 
 fn range_payload_relation(left: &RangePayload, right: &RangePayload, strategy: i32) -> BoolValue {
@@ -327,7 +327,7 @@ fn range_payload_relation(left: &RangePayload, right: &RangePayload, strategy: i
         };
         return range_order_boolean(reverse, 4);
     };
-    bool_unresolved(unresolved_flavor)
+    let mut local_flavor_330_4: i32 = unresolved_flavor; if let Int4Value::Unknown = lo { if local_flavor_330_4 < 1 { local_flavor_330_4 = 1; }; }; if let Int4Value::Unimplemented = lo { local_flavor_330_4 = 2; }; bool_unresolved(local_flavor_330_4)
 }
 
 fn range_relation(left: RangeValue, right: RangeValue, strategy: i32) -> BoolValue {

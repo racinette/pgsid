@@ -342,7 +342,7 @@ func AclitemFromTextContext(input checkruntime.TextValue, limit int, utf8 bool) 
 				position = langruntime.CheckedAdd(position, 1)
 			} else {
 				if code >= 128 && utf8 == false {
-					return checkruntime.AclitemUnresolved(unresolvedFlavor)
+					return checkruntime.AclitemUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 				}
 				scanning = false
 			}
@@ -604,7 +604,16 @@ func MakeaclitemAb9i(grantee checkruntime.OidValue, grantor checkruntime.OidValu
 			}
 		}
 	}
-	return checkruntime.AclitemUnresolved(unresolvedFlavor)
+	localFlavor2124 := unresolvedFlavor
+	if parsed.Kind == checkruntime.Int8ValueUnknown {
+		if localFlavor2124 < 1 {
+			localFlavor2124 = langruntime.CheckedI32(1)
+		}
+	}
+	if parsed.Kind == checkruntime.Int8ValueUnimplemented {
+		localFlavor2124 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.AclitemUnresolved(localFlavor2124)
 }
 func aclitemCatalogFacts(input checkruntime.AclitemValue) checkruntime.AclitemCatalogPayload {
 	if input.Kind == checkruntime.AclitemValueValue {
@@ -779,7 +788,16 @@ func HashAclitem4zd0(input checkruntime.AclitemValue) checkruntime.Int4Value {
 		value := sum.Value
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: int(int32(value))}
 	}
-	return checkruntime.Int4Unresolved(unresolvedFlavor)
+	localFlavor2894 := unresolvedFlavor
+	if sum.Kind == checkruntime.Int8ValueUnknown {
+		if localFlavor2894 < 1 {
+			localFlavor2894 = langruntime.CheckedI32(1)
+		}
+	}
+	if sum.Kind == checkruntime.Int8ValueUnimplemented {
+		localFlavor2894 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.Int4Unresolved(localFlavor2894)
 }
 func HashAclitemExtendedC0ek(input checkruntime.AclitemValue, seed checkruntime.Int8Value) checkruntime.Int8Value {
 	unresolvedFlavor := 0
@@ -1781,7 +1799,24 @@ func floatStateArithmetic(left checkruntime.Float8Value, right checkruntime.Floa
 			return floatStateResult(result)
 		}
 	}
-	return checkruntime.Float8Unresolved(unresolvedFlavor)
+	localFlavor714 := unresolvedFlavor
+	if second.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor714 < 1 {
+			localFlavor714 = langruntime.CheckedI32(1)
+		}
+	}
+	if second.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor714 = langruntime.CheckedI32(2)
+	}
+	if first.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor714 < 1 {
+			localFlavor714 = langruntime.CheckedI32(1)
+		}
+	}
+	if first.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor714 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.Float8Unresolved(localFlavor714)
 }
 func floatStateIsZero(input checkruntime.Float8Value) bool {
 	value := checkruntime.Float8Semantic(input)
@@ -1902,7 +1937,48 @@ func floatArrayFinal(input checkruntime.ArrayValue, operation int) checkruntime.
 					denominator := floatStateArithmetic(sxx, syy, 2)
 					return floatStateArithmetic(numerator, denominator, 3)
 				}
-				return checkruntime.Float8Unresolved(unresolvedFlavor)
+				localFlavor18816 := unresolvedFlavor
+				if knownSxx.Kind == checkruntime.Float8ValueUnknown {
+					if localFlavor18816 < 1 {
+						localFlavor18816 = langruntime.CheckedI32(1)
+					}
+				}
+				if knownSxx.Kind == checkruntime.Float8ValueUnimplemented {
+					localFlavor18816 = langruntime.CheckedI32(2)
+				}
+				if sxy.Kind == checkruntime.Float8ValueUnknown {
+					if localFlavor18816 < 1 {
+						localFlavor18816 = langruntime.CheckedI32(1)
+					}
+				}
+				if sxy.Kind == checkruntime.Float8ValueUnimplemented {
+					localFlavor18816 = langruntime.CheckedI32(2)
+				}
+				if sxx.Kind == checkruntime.Float8ValueUnknown {
+					if localFlavor18816 < 1 {
+						localFlavor18816 = langruntime.CheckedI32(1)
+					}
+				}
+				if sxx.Kind == checkruntime.Float8ValueUnimplemented {
+					localFlavor18816 = langruntime.CheckedI32(2)
+				}
+				if count.Kind == checkruntime.Float8ValueUnknown {
+					if localFlavor18816 < 1 {
+						localFlavor18816 = langruntime.CheckedI32(1)
+					}
+				}
+				if count.Kind == checkruntime.Float8ValueUnimplemented {
+					localFlavor18816 = langruntime.CheckedI32(2)
+				}
+				if validity.Kind == checkruntime.BoolValueUnknown {
+					if localFlavor18816 < 1 {
+						localFlavor18816 = langruntime.CheckedI32(1)
+					}
+				}
+				if validity.Kind == checkruntime.BoolValueUnimplemented {
+					localFlavor18816 = langruntime.CheckedI32(2)
+				}
+				return checkruntime.Float8Unresolved(localFlavor18816)
 			}
 			if operation == 14 {
 				return floatStateArithmetic(sxy, sxx, 3)
@@ -2006,7 +2082,16 @@ func floatTransitionTest(input checkruntime.Float8Value, operation int) checkrun
 		}
 		return checkruntime.CheckFromBool(checkruntime.MakeBoolValue(number != number || langruntime.F64Abs(number) == infinity))
 	}
-	return checkruntime.CheckUnresolved(unresolvedFlavor)
+	localFlavor224 := unresolvedFlavor
+	if value.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor224 < 1 {
+			localFlavor224 = langruntime.CheckedI32(1)
+		}
+	}
+	if value.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor224 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.CheckUnresolved(localFlavor224)
 }
 func floatTransitionNan(input checkruntime.Float8Value, condition checkruntime.CheckOutcome) checkruntime.Float8Value {
 	unresolvedFlavor := 0
@@ -2036,7 +2121,16 @@ func floatTransitionNan(input checkruntime.Float8Value, condition checkruntime.C
 			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
 		}
 	}
-	return checkruntime.Float8Unresolved(unresolvedFlavor)
+	localFlavor444 := unresolvedFlavor
+	if value.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor444 < 1 {
+			localFlavor444 = langruntime.CheckedI32(1)
+		}
+	}
+	if value.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor444 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.Float8Unresolved(localFlavor444)
 }
 func floatTransitionOutput(n checkruntime.Float8Value, sx checkruntime.Float8Value, sxx checkruntime.Float8Value, sy checkruntime.Float8Value, syy checkruntime.Float8Value, sxy checkruntime.Float8Value, regression bool) checkruntime.ArrayValue {
 	elements := []checkruntime.ArrayElement{}
@@ -2200,7 +2294,112 @@ func floatArrayAccumulate(input checkruntime.ArrayValue, y checkruntime.Float8Va
 				return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(floatCoreRange)}
 			}
 			if overflow != (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeFalse}) {
-				return checkruntime.ArrayUnresolved(unresolvedFlavor)
+				localFlavor18816 := unresolvedFlavor
+				if xInfinite.Kind == checkruntime.CheckOutcomeUnknown {
+					if localFlavor18816 < 1 {
+						localFlavor18816 = langruntime.CheckedI32(1)
+					}
+				}
+				if xInfinite.Kind == checkruntime.CheckOutcomeUnimplemented {
+					localFlavor18816 = langruntime.CheckedI32(2)
+				}
+				if scale.Kind == checkruntime.Float8ValueUnknown {
+					if localFlavor18816 < 1 {
+						localFlavor18816 = langruntime.CheckedI32(1)
+					}
+				}
+				if scale.Kind == checkruntime.Float8ValueUnimplemented {
+					localFlavor18816 = langruntime.CheckedI32(2)
+				}
+				if correction.Kind == checkruntime.Float8ValueUnknown {
+					if localFlavor18816 < 1 {
+						localFlavor18816 = langruntime.CheckedI32(1)
+					}
+				}
+				if correction.Kind == checkruntime.Float8ValueUnimplemented {
+					localFlavor18816 = langruntime.CheckedI32(2)
+				}
+				if square.Kind == checkruntime.Float8ValueUnknown {
+					if localFlavor18816 < 1 {
+						localFlavor18816 = langruntime.CheckedI32(1)
+					}
+				}
+				if square.Kind == checkruntime.Float8ValueUnimplemented {
+					localFlavor18816 = langruntime.CheckedI32(2)
+				}
+				if denominator.Kind == checkruntime.Float8ValueUnknown {
+					if localFlavor18816 < 1 {
+						localFlavor18816 = langruntime.CheckedI32(1)
+					}
+				}
+				if denominator.Kind == checkruntime.Float8ValueUnimplemented {
+					localFlavor18816 = langruntime.CheckedI32(2)
+				}
+				if tx.Kind == checkruntime.Float8ValueUnknown {
+					if localFlavor18816 < 1 {
+						localFlavor18816 = langruntime.CheckedI32(1)
+					}
+				}
+				if tx.Kind == checkruntime.Float8ValueUnimplemented {
+					localFlavor18816 = langruntime.CheckedI32(2)
+				}
+				if oldSy.Kind == checkruntime.Float8ValueUnknown {
+					if localFlavor18816 < 1 {
+						localFlavor18816 = langruntime.CheckedI32(1)
+					}
+				}
+				if oldSy.Kind == checkruntime.Float8ValueUnimplemented {
+					localFlavor18816 = langruntime.CheckedI32(2)
+				}
+				if sxx.Kind == checkruntime.Float8ValueUnknown {
+					if localFlavor18816 < 1 {
+						localFlavor18816 = langruntime.CheckedI32(1)
+					}
+				}
+				if sxx.Kind == checkruntime.Float8ValueUnimplemented {
+					localFlavor18816 = langruntime.CheckedI32(2)
+				}
+				if sx.Kind == checkruntime.Float8ValueUnknown {
+					if localFlavor18816 < 1 {
+						localFlavor18816 = langruntime.CheckedI32(1)
+					}
+				}
+				if sx.Kind == checkruntime.Float8ValueUnimplemented {
+					localFlavor18816 = langruntime.CheckedI32(2)
+				}
+				if n.Kind == checkruntime.Float8ValueUnknown {
+					if localFlavor18816 < 1 {
+						localFlavor18816 = langruntime.CheckedI32(1)
+					}
+				}
+				if n.Kind == checkruntime.Float8ValueUnimplemented {
+					localFlavor18816 = langruntime.CheckedI32(2)
+				}
+				if oldSx.Kind == checkruntime.Float8ValueUnknown {
+					if localFlavor18816 < 1 {
+						localFlavor18816 = langruntime.CheckedI32(1)
+					}
+				}
+				if oldSx.Kind == checkruntime.Float8ValueUnimplemented {
+					localFlavor18816 = langruntime.CheckedI32(2)
+				}
+				if oldN.Kind == checkruntime.Float8ValueUnknown {
+					if localFlavor18816 < 1 {
+						localFlavor18816 = langruntime.CheckedI32(1)
+					}
+				}
+				if oldN.Kind == checkruntime.Float8ValueUnimplemented {
+					localFlavor18816 = langruntime.CheckedI32(2)
+				}
+				if validity.Kind == checkruntime.BoolValueUnknown {
+					if localFlavor18816 < 1 {
+						localFlavor18816 = langruntime.CheckedI32(1)
+					}
+				}
+				if validity.Kind == checkruntime.BoolValueUnimplemented {
+					localFlavor18816 = langruntime.CheckedI32(2)
+				}
+				return checkruntime.ArrayUnresolved(localFlavor18816)
 			}
 		} else {
 			specialX := floatTransitionTest(x, 3)
@@ -2273,7 +2472,40 @@ func floatCombineVariance(first checkruntime.Float8Value, second checkruntime.Fl
 		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: checkruntime.MakeSqlError(floatCoreRange)}
 	}
 	if overflow != (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeFalse}) {
-		return checkruntime.Float8Unresolved(unresolvedFlavor)
+		localFlavor2548 := unresolvedFlavor
+		if result.Kind == checkruntime.Float8ValueUnknown {
+			if localFlavor2548 < 1 {
+				localFlavor2548 = langruntime.CheckedI32(1)
+			}
+		}
+		if result.Kind == checkruntime.Float8ValueUnimplemented {
+			localFlavor2548 = langruntime.CheckedI32(2)
+		}
+		if sum.Kind == checkruntime.Float8ValueUnknown {
+			if localFlavor2548 < 1 {
+				localFlavor2548 = langruntime.CheckedI32(1)
+			}
+		}
+		if sum.Kind == checkruntime.Float8ValueUnimplemented {
+			localFlavor2548 = langruntime.CheckedI32(2)
+		}
+		if correction.Kind == checkruntime.Float8ValueUnknown {
+			if localFlavor2548 < 1 {
+				localFlavor2548 = langruntime.CheckedI32(1)
+			}
+		}
+		if correction.Kind == checkruntime.Float8ValueUnimplemented {
+			localFlavor2548 = langruntime.CheckedI32(2)
+		}
+		if product.Kind == checkruntime.Float8ValueUnknown {
+			if localFlavor2548 < 1 {
+				localFlavor2548 = langruntime.CheckedI32(1)
+			}
+		}
+		if product.Kind == checkruntime.Float8ValueUnimplemented {
+			localFlavor2548 = langruntime.CheckedI32(2)
+		}
+		return checkruntime.Float8Unresolved(localFlavor2548)
 	}
 	return result
 }
@@ -2335,14 +2567,88 @@ func floatArrayCombine(left checkruntime.ArrayValue, right checkruntime.ArrayVal
 				return floatTransitionCopy(&second, regression)
 			}
 			if firstEmpty != (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeFalse}) {
-				return checkruntime.ArrayUnresolved(unresolvedFlavor)
+				localFlavor30116 := unresolvedFlavor
+				if n2.Kind == checkruntime.Float8ValueUnknown {
+					if localFlavor30116 < 1 {
+						localFlavor30116 = langruntime.CheckedI32(1)
+					}
+				}
+				if n2.Kind == checkruntime.Float8ValueUnimplemented {
+					localFlavor30116 = langruntime.CheckedI32(2)
+				}
+				if n1.Kind == checkruntime.Float8ValueUnknown {
+					if localFlavor30116 < 1 {
+						localFlavor30116 = langruntime.CheckedI32(1)
+					}
+				}
+				if n1.Kind == checkruntime.Float8ValueUnimplemented {
+					localFlavor30116 = langruntime.CheckedI32(2)
+				}
+				if secondValid.Kind == checkruntime.BoolValueUnknown {
+					if localFlavor30116 < 1 {
+						localFlavor30116 = langruntime.CheckedI32(1)
+					}
+				}
+				if secondValid.Kind == checkruntime.BoolValueUnimplemented {
+					localFlavor30116 = langruntime.CheckedI32(2)
+				}
+				if firstValid.Kind == checkruntime.BoolValueUnknown {
+					if localFlavor30116 < 1 {
+						localFlavor30116 = langruntime.CheckedI32(1)
+					}
+				}
+				if firstValid.Kind == checkruntime.BoolValueUnimplemented {
+					localFlavor30116 = langruntime.CheckedI32(2)
+				}
+				return checkruntime.ArrayUnresolved(localFlavor30116)
 			}
 			secondEmpty := floatTransitionTest(n2, 1)
 			if secondEmpty == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
 				return floatTransitionCopy(&first, regression)
 			}
 			if secondEmpty != (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeFalse}) {
-				return checkruntime.ArrayUnresolved(unresolvedFlavor)
+				localFlavor30816 := unresolvedFlavor
+				if firstEmpty.Kind == checkruntime.CheckOutcomeUnknown {
+					if localFlavor30816 < 1 {
+						localFlavor30816 = langruntime.CheckedI32(1)
+					}
+				}
+				if firstEmpty.Kind == checkruntime.CheckOutcomeUnimplemented {
+					localFlavor30816 = langruntime.CheckedI32(2)
+				}
+				if n2.Kind == checkruntime.Float8ValueUnknown {
+					if localFlavor30816 < 1 {
+						localFlavor30816 = langruntime.CheckedI32(1)
+					}
+				}
+				if n2.Kind == checkruntime.Float8ValueUnimplemented {
+					localFlavor30816 = langruntime.CheckedI32(2)
+				}
+				if n1.Kind == checkruntime.Float8ValueUnknown {
+					if localFlavor30816 < 1 {
+						localFlavor30816 = langruntime.CheckedI32(1)
+					}
+				}
+				if n1.Kind == checkruntime.Float8ValueUnimplemented {
+					localFlavor30816 = langruntime.CheckedI32(2)
+				}
+				if secondValid.Kind == checkruntime.BoolValueUnknown {
+					if localFlavor30816 < 1 {
+						localFlavor30816 = langruntime.CheckedI32(1)
+					}
+				}
+				if secondValid.Kind == checkruntime.BoolValueUnimplemented {
+					localFlavor30816 = langruntime.CheckedI32(2)
+				}
+				if firstValid.Kind == checkruntime.BoolValueUnknown {
+					if localFlavor30816 < 1 {
+						localFlavor30816 = langruntime.CheckedI32(1)
+					}
+				}
+				if firstValid.Kind == checkruntime.BoolValueUnimplemented {
+					localFlavor30816 = langruntime.CheckedI32(2)
+				}
+				return checkruntime.ArrayUnresolved(localFlavor30816)
 			}
 			n := floatStateArithmetic(n1, n2, 0)
 			counts := floatStateArithmetic(n1, n2, 2)
@@ -2474,7 +2780,16 @@ func ArrayHashCell64(nullness checkruntime.BoolValue) checkruntime.Int8Value {
 		value := langruntime.CheckedI32(state.Value)
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: int64(langruntime.CheckedI32(value))}
 	}
-	return checkruntime.Int8Unresolved(unresolvedFlavor)
+	localFlavor364 := unresolvedFlavor
+	if state.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor364 < 1 {
+			localFlavor364 = langruntime.CheckedI32(1)
+		}
+	}
+	if state.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor364 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.Int8Unresolved(localFlavor364)
 }
 func ArrayHashRequiresScalar32(input checkruntime.Int4Value) bool {
 	return input == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1})
@@ -2582,7 +2897,7 @@ func ArrayHashFinish32(first checkruntime.Int4Value, second checkruntime.Int4Val
 	if first == second {
 		return first
 	}
-	return checkruntime.Int4Unresolved(unresolvedFlavor)
+	return checkruntime.Int4Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 }
 func ArrayHashFinish64(first checkruntime.Int8Value, second checkruntime.Int8Value) checkruntime.Int8Value {
 	unresolvedFlavor := 0
@@ -2609,7 +2924,7 @@ func ArrayHashFinish64(first checkruntime.Int8Value, second checkruntime.Int8Val
 	if first == second {
 		return first
 	}
-	return checkruntime.Int8Unresolved(unresolvedFlavor)
+	return checkruntime.Int8Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 }
 func HashArrayBk1m(input checkruntime.Int4Value) checkruntime.Int4Value {
 	return input
@@ -2701,7 +3016,7 @@ func ParseIdentUh6p(input checkruntime.TextValue, strict checkruntime.BoolValue,
 					for position < len(characters) && identifierContinuation(characters[position]) {
 						character := characters[position]
 						if (int(langruntime.CheckedChar(character))) >= 128 && utf8 == false {
-							return checkruntime.ArrayUnresolved(unresolvedFlavor)
+							return checkruntime.ArrayUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 						}
 						part = append(part, string(langruntime.CheckedChar(langruntime.AsciiLowercase(character)))...)
 						position = langruntime.CheckedAdd(position, 1)
@@ -4343,7 +4658,7 @@ func arrayStringSplit(input checkruntime.TextValue, delimiter checkruntime.TextV
 			for position < len(characters) {
 				ch := characters[position]
 				if utf8 == false && (int(langruntime.CheckedChar(ch))) > 127 {
-					return checkruntime.ArrayUnresolved(unresolvedFlavor)
+					return checkruntime.ArrayUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 				}
 				field := langruntime.NewTextBuffer("")
 				field = append(field, string(langruntime.CheckedChar(ch))...)
@@ -6236,7 +6551,24 @@ func ByteaeqZ0yh(left checkruntime.ByteaValue, right checkruntime.ByteaValue) ch
 			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: a == b}
 		}
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	localFlavor324 := unresolvedFlavor
+	if rightLength.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor324 < 1 {
+			localFlavor324 = langruntime.CheckedI32(1)
+		}
+	}
+	if rightLength.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor324 = langruntime.CheckedI32(2)
+	}
+	if leftLength.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor324 < 1 {
+			localFlavor324 = langruntime.CheckedI32(1)
+		}
+	}
+	if leftLength.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor324 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoolUnresolved(localFlavor324)
 }
 func ByteaneVolo(left checkruntime.ByteaValue, right checkruntime.ByteaValue) checkruntime.BoolValue {
 	unresolvedFlavor := 0
@@ -6304,7 +6636,24 @@ func ByteaneVolo(left checkruntime.ByteaValue, right checkruntime.ByteaValue) ch
 			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: a != b}
 		}
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	localFlavor664 := unresolvedFlavor
+	if rightLength.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor664 < 1 {
+			localFlavor664 = langruntime.CheckedI32(1)
+		}
+	}
+	if rightLength.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor664 = langruntime.CheckedI32(2)
+	}
+	if leftLength.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor664 < 1 {
+			localFlavor664 = langruntime.CheckedI32(1)
+		}
+	}
+	if leftLength.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor664 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoolUnresolved(localFlavor664)
 }
 func TextWireContext(input checkruntime.TextValue, utf8 bool) checkruntime.ByteaValue {
 	unresolvedFlavor := 0
@@ -6328,7 +6677,7 @@ func TextWireContext(input checkruntime.TextValue, utf8 bool) checkruntime.Bytea
 		for index < len(chars) {
 			code := int(langruntime.CheckedChar(chars[index]))
 			if code == 0 || (utf8 == false && code > 127) {
-				return checkruntime.ByteaUnresolved(unresolvedFlavor)
+				return checkruntime.ByteaUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 			}
 			index = langruntime.CheckedAdd(index, 1)
 		}
@@ -7635,7 +7984,7 @@ func BitFromTextModifier(input checkruntime.TextValue, width int, varying bool, 
 		for index < len(characters) {
 			character := int(langruntime.CheckedChar(characters[index]))
 			if character > 127 && utf8 == false {
-				return checkruntime.BitUnresolved(unresolvedFlavor)
+				return checkruntime.BitUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 			}
 			index = langruntime.CheckedAdd(index, 1)
 		}
@@ -8883,7 +9232,48 @@ func boxAreaRelation(left checkruntime.BoxValue, right checkruntime.BoxValue, mo
 			return checkruntime.MakeBoolValue(langruntime.F64Add(x, float64(0.000001)) >= y)
 		}
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	localFlavor2204 := unresolvedFlavor
+	if b.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor2204 < 1 {
+			localFlavor2204 = langruntime.CheckedI32(1)
+		}
+	}
+	if b.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor2204 = langruntime.CheckedI32(2)
+	}
+	if a.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor2204 < 1 {
+			localFlavor2204 = langruntime.CheckedI32(1)
+		}
+	}
+	if a.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor2204 = langruntime.CheckedI32(2)
+	}
+	if second.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor2204 < 1 {
+			localFlavor2204 = langruntime.CheckedI32(1)
+		}
+	}
+	if second.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor2204 = langruntime.CheckedI32(2)
+	}
+	if first.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor2204 < 1 {
+			localFlavor2204 = langruntime.CheckedI32(1)
+		}
+	}
+	if first.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor2204 = langruntime.CheckedI32(2)
+	}
+	if status.Kind == checkruntime.BoolValueUnknown {
+		if localFlavor2204 < 1 {
+			localFlavor2204 = langruntime.CheckedI32(1)
+		}
+	}
+	if status.Kind == checkruntime.BoolValueUnimplemented {
+		localFlavor2204 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoolUnresolved(localFlavor2204)
 }
 func boxBinary(input checkruntime.BoxValue) checkruntime.ByteaValue {
 	unresolvedFlavor := 0
@@ -9104,7 +9494,16 @@ func boxSpatialRelation(left checkruntime.BoxValue, right checkruntime.BoxValue,
 			return checkruntime.MakeBoolValue(boxCoordinateRelation(aly, bhy, 3))
 		}
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	localFlavor794 := unresolvedFlavor
+	if status.Kind == checkruntime.BoolValueUnknown {
+		if localFlavor794 < 1 {
+			localFlavor794 = langruntime.CheckedI32(1)
+		}
+	}
+	if status.Kind == checkruntime.BoolValueUnimplemented {
+		localFlavor794 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoolUnresolved(localFlavor794)
 }
 func boxFromScalars(highX checkruntime.Float8Value, highY checkruntime.Float8Value, lowX checkruntime.Float8Value, lowY checkruntime.Float8Value) checkruntime.BoxValue {
 	unresolvedFlavor := 0
@@ -9204,7 +9603,40 @@ func boxFromScalars(highX checkruntime.Float8Value, highY checkruntime.Float8Val
 			}
 		}
 	}
-	return checkruntime.BoxUnresolved(unresolvedFlavor)
+	localFlavor1444 := unresolvedFlavor
+	if ly.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor1444 < 1 {
+			localFlavor1444 = langruntime.CheckedI32(1)
+		}
+	}
+	if ly.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor1444 = langruntime.CheckedI32(2)
+	}
+	if lx.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor1444 < 1 {
+			localFlavor1444 = langruntime.CheckedI32(1)
+		}
+	}
+	if lx.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor1444 = langruntime.CheckedI32(2)
+	}
+	if hy.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor1444 < 1 {
+			localFlavor1444 = langruntime.CheckedI32(1)
+		}
+	}
+	if hy.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor1444 = langruntime.CheckedI32(2)
+	}
+	if hx.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor1444 < 1 {
+			localFlavor1444 = langruntime.CheckedI32(1)
+		}
+	}
+	if hx.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor1444 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoxUnresolved(localFlavor1444)
 }
 func boxMerge(left checkruntime.BoxValue, right checkruntime.BoxValue, intersection bool) checkruntime.BoxValue {
 	unresolvedFlavor := 0
@@ -9469,7 +9901,16 @@ func boxContainsPoint(input checkruntime.BoxValue, point checkruntime.PointValue
 			return checkruntime.MakeBoolValue(checkruntime.Float8Number(a.HighX) >= x && checkruntime.Float8Number(a.LowX) <= x && checkruntime.Float8Number(a.HighY) >= y && checkruntime.Float8Number(a.LowY) <= y)
 		}
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	localFlavor3064 := unresolvedFlavor
+	if status.Kind == checkruntime.BoolValueUnknown {
+		if localFlavor3064 < 1 {
+			localFlavor3064 = langruntime.CheckedI32(1)
+		}
+	}
+	if status.Kind == checkruntime.BoolValueUnimplemented {
+		localFlavor3064 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoolUnresolved(localFlavor3064)
 }
 func boxContainsSegment(input checkruntime.BoxValue, segment checkruntime.LsegValue) checkruntime.BoolValue {
 	status := boxSegmentStatus(input, segment)
@@ -9547,7 +9988,24 @@ func boxSegmentBounds(segment checkruntime.LsegValue) checkruntime.BoxValue {
 			return boxFromScalars(Float8largerB58s(ax, bx), Float8largerB58s(ay, by), Float8smallerSp3n(ax, bx), Float8smallerSp3n(ay, by))
 		}
 	}
-	return checkruntime.BoxUnresolved(unresolvedFlavor)
+	localFlavor3764 := unresolvedFlavor
+	if second.Kind == checkruntime.PointValueUnknown {
+		if localFlavor3764 < 1 {
+			localFlavor3764 = langruntime.CheckedI32(1)
+		}
+	}
+	if second.Kind == checkruntime.PointValueUnimplemented {
+		localFlavor3764 = langruntime.CheckedI32(2)
+	}
+	if first.Kind == checkruntime.PointValueUnknown {
+		if localFlavor3764 < 1 {
+			localFlavor3764 = langruntime.CheckedI32(1)
+		}
+	}
+	if first.Kind == checkruntime.PointValueUnimplemented {
+		localFlavor3764 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoxUnresolved(localFlavor3764)
 }
 
 type boxSegmentIntersection struct {
@@ -9973,7 +10431,24 @@ func ByteacatZitv(left checkruntime.ByteaValue, right checkruntime.ByteaValue) c
 			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: string(output)}
 		}
 	}
-	return checkruntime.ByteaUnresolved(unresolvedFlavor)
+	localFlavor664 := unresolvedFlavor
+	if secondLength.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor664 < 1 {
+			localFlavor664 = langruntime.CheckedI32(1)
+		}
+	}
+	if secondLength.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor664 = langruntime.CheckedI32(2)
+	}
+	if firstLength.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor664 < 1 {
+			localFlavor664 = langruntime.CheckedI32(1)
+		}
+	}
+	if firstLength.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor664 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.ByteaUnresolved(localFlavor664)
 }
 func byteaCompare(left checkruntime.ByteaValue, right checkruntime.ByteaValue) checkruntime.Int4Value {
 	unresolvedFlavor := 0
@@ -13701,7 +14176,16 @@ func CatalogVectorToText(input checkruntime.ArrayValue, oid bool) checkruntime.T
 				appended = true
 			}
 			if appended == false {
-				return checkruntime.TextUnresolved(unresolvedFlavor)
+				localFlavor4935 := unresolvedFlavor
+				if status.Kind == checkruntime.BoolValueUnknown {
+					if localFlavor4935 < 1 {
+						localFlavor4935 = langruntime.CheckedI32(1)
+					}
+				}
+				if status.Kind == checkruntime.BoolValueUnimplemented {
+					localFlavor4935 = langruntime.CheckedI32(2)
+				}
+				return checkruntime.TextUnresolved(localFlavor4935)
 			}
 			index = langruntime.CheckedAdd(index, 1)
 		}
@@ -13917,7 +14401,16 @@ func Btoidvectorcmp6oyf(left checkruntime.ArrayValue, right checkruntime.ArrayVa
 				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
 			}
 			if second != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
-				return checkruntime.Int4Unresolved(unresolvedFlavor)
+				localFlavor15650 := unresolvedFlavor
+				if first.Kind == checkruntime.BoolValueUnknown {
+					if localFlavor15650 < 1 {
+						localFlavor15650 = langruntime.CheckedI32(1)
+					}
+				}
+				if first.Kind == checkruntime.BoolValueUnimplemented {
+					localFlavor15650 = langruntime.CheckedI32(2)
+				}
+				return checkruntime.Int4Unresolved(localFlavor15650)
 			}
 			if len(a.Elements) != len(b.Elements) {
 				return checkruntime.MakeInt4Value(langruntime.CheckedSignedSubtract((int(int32(len(a.Elements)))), (int(int32(len(b.Elements))))))
@@ -14000,7 +14493,16 @@ func OidvectortypesW22j(input checkruntime.ArrayValue) checkruntime.TextValue {
 				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 			}
 			if name != checkruntime.MakeTextValue("-") {
-				return checkruntime.TextUnresolved(unresolvedFlavor)
+				localFlavor19346 := unresolvedFlavor
+				if status.Kind == checkruntime.BoolValueUnknown {
+					if localFlavor19346 < 1 {
+						localFlavor19346 = langruntime.CheckedI32(1)
+					}
+				}
+				if status.Kind == checkruntime.BoolValueUnimplemented {
+					localFlavor19346 = langruntime.CheckedI32(2)
+				}
+				return checkruntime.TextUnresolved(localFlavor19346)
 			}
 			if index > 0 {
 				output = append(output, ", "...)
@@ -14716,7 +15218,7 @@ func ChrContext(input checkruntime.Int4Value, utf8 bool) checkruntime.TextValue 
 			code := langruntime.CheckedI32(input.Value)
 			if code > 127 {
 				if value.Kind == checkruntime.TextValueValue {
-					return checkruntime.TextUnresolved(unresolvedFlavor)
+					return checkruntime.TextUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 				}
 			}
 		}
@@ -14776,7 +15278,16 @@ func circleFromCenterRadius(center checkruntime.PointValue, radius checkruntime.
 			return checkruntime.CircleValue{Kind: checkruntime.CircleValueValue, Value: checkruntime.CirclePayload{X: point.X, Y: point.Y, Radius: bits, WireKnown: point.WireKnown && radius != (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan})}}
 		}
 	}
-	return checkruntime.CircleUnresolved(unresolvedFlavor)
+	localFlavor304 := unresolvedFlavor
+	if semantic.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor304 < 1 {
+			localFlavor304 = langruntime.CheckedI32(1)
+		}
+	}
+	if semantic.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor304 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.CircleUnresolved(localFlavor304)
 }
 func circleCenterValue(input checkruntime.CircleValue) checkruntime.PointValue {
 	unresolvedFlavor := 0
@@ -14930,7 +15441,48 @@ func circleAreaRelation(left checkruntime.CircleValue, right checkruntime.Circle
 			return checkruntime.MakeBoolValue(x != y && langruntime.F64Abs((langruntime.F64Subtract(x, y))) > float64(0.000001))
 		}
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	localFlavor1414 := unresolvedFlavor
+	if b.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor1414 < 1 {
+			localFlavor1414 = langruntime.CheckedI32(1)
+		}
+	}
+	if b.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor1414 = langruntime.CheckedI32(2)
+	}
+	if a.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor1414 < 1 {
+			localFlavor1414 = langruntime.CheckedI32(1)
+		}
+	}
+	if a.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor1414 = langruntime.CheckedI32(2)
+	}
+	if second.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor1414 < 1 {
+			localFlavor1414 = langruntime.CheckedI32(1)
+		}
+	}
+	if second.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor1414 = langruntime.CheckedI32(2)
+	}
+	if first.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor1414 < 1 {
+			localFlavor1414 = langruntime.CheckedI32(1)
+		}
+	}
+	if first.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor1414 = langruntime.CheckedI32(2)
+	}
+	if status.Kind == checkruntime.BoolValueUnknown {
+		if localFlavor1414 < 1 {
+			localFlavor1414 = langruntime.CheckedI32(1)
+		}
+	}
+	if status.Kind == checkruntime.BoolValueUnimplemented {
+		localFlavor1414 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoolUnresolved(localFlavor1414)
 }
 func circleSameValue(left checkruntime.CircleValue, right checkruntime.CircleValue) checkruntime.BoolValue {
 	unresolvedFlavor := 0
@@ -14964,7 +15516,32 @@ func circleSameValue(left checkruntime.CircleValue, right checkruntime.CircleVal
 			return checkruntime.MakeBoolValue(false)
 		}
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	localFlavor1684 := unresolvedFlavor
+	if b.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor1684 < 1 {
+			localFlavor1684 = langruntime.CheckedI32(1)
+		}
+	}
+	if b.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor1684 = langruntime.CheckedI32(2)
+	}
+	if a.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor1684 < 1 {
+			localFlavor1684 = langruntime.CheckedI32(1)
+		}
+	}
+	if a.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor1684 = langruntime.CheckedI32(2)
+	}
+	if status.Kind == checkruntime.BoolValueUnknown {
+		if localFlavor1684 < 1 {
+			localFlavor1684 = langruntime.CheckedI32(1)
+		}
+	}
+	if status.Kind == checkruntime.BoolValueUnimplemented {
+		localFlavor1684 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoolUnresolved(localFlavor1684)
 }
 func circleBinary(input checkruntime.CircleValue) checkruntime.ByteaValue {
 	unresolvedFlavor := 0
@@ -15241,7 +15818,24 @@ func circleFuzzyRelation(left checkruntime.Float8Value, right checkruntime.Float
 			return checkruntime.MakeBoolValue(x <= y)
 		}
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	localFlavor404 := unresolvedFlavor
+	if second.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor404 < 1 {
+			localFlavor404 = langruntime.CheckedI32(1)
+		}
+	}
+	if second.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor404 = langruntime.CheckedI32(2)
+	}
+	if first.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor404 < 1 {
+			localFlavor404 = langruntime.CheckedI32(1)
+		}
+	}
+	if first.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor404 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoolUnresolved(localFlavor404)
 }
 func circleEdge(input checkruntime.CircleValue, vertical bool, low bool) checkruntime.Float8Value {
 	unresolvedFlavor := 0
@@ -15268,7 +15862,16 @@ func circleEdge(input checkruntime.CircleValue, vertical bool, low bool) checkru
 		}
 		return Float8plG3ou(coordinate, radius)
 	}
-	return checkruntime.Float8Unresolved(unresolvedFlavor)
+	localFlavor614 := unresolvedFlavor
+	if center.Kind == checkruntime.PointValueUnknown {
+		if localFlavor614 < 1 {
+			localFlavor614 = langruntime.CheckedI32(1)
+		}
+	}
+	if center.Kind == checkruntime.PointValueUnimplemented {
+		localFlavor614 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.Float8Unresolved(localFlavor614)
 }
 func circlePositionRelation(left checkruntime.CircleValue, right checkruntime.CircleValue, vertical bool, mode int) checkruntime.BoolValue {
 	mode = langruntime.CheckedI32(mode)
@@ -15652,7 +16255,7 @@ func Polygon9juc(count checkruntime.Int4Value, input checkruntime.CircleValue, f
 				return checkruntime.PolygonUnresolved(conditionFlavor6512)
 			}
 			if fdlibm == false {
-				return checkruntime.PolygonUnresolved(unresolvedFlavor)
+				return checkruntime.PolygonUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 			}
 			points := []checkruntime.PointPayload{}
 			if first.Kind == checkruntime.PointValueValue {
@@ -16010,7 +16613,16 @@ func clockFieldsNumericValue(span checkruntime.IntervalPayload, zone int, family
 		}
 		return temporalScaledNumber(number, scale)
 	}
-	return checkruntime.NumericUnresolved(unresolvedFlavor)
+	localFlavor2004 := unresolvedFlavor
+	if component.Kind == checkruntime.Int8ValueUnknown {
+		if localFlavor2004 < 1 {
+			localFlavor2004 = langruntime.CheckedI32(1)
+		}
+	}
+	if component.Kind == checkruntime.Int8ValueUnimplemented {
+		localFlavor2004 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.NumericUnresolved(localFlavor2004)
 }
 func clockFieldsNumeric(units checkruntime.TextValue, input clockFieldInput) checkruntime.NumericValue {
 	input = copyclockFieldInput(input)
@@ -16462,7 +17074,16 @@ func RecordHashInitial64(input *checkruntime.ArrayComparisonPayload) checkruntim
 		value := langruntime.CheckedI32(initial.Value)
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: int64(langruntime.CheckedI32(value))}
 	}
-	return checkruntime.Int8Unresolved(unresolvedFlavor)
+	localFlavor874 := unresolvedFlavor
+	if initial.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor874 < 1 {
+			localFlavor874 = langruntime.CheckedI32(1)
+		}
+	}
+	if initial.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor874 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.Int8Unresolved(localFlavor874)
 }
 func RecordHashCell32(input checkruntime.ArrayElement, availability int) checkruntime.Int4Value {
 	unresolvedFlavor := 0
@@ -16501,7 +17122,16 @@ func RecordHashCell64(input checkruntime.ArrayElement, availability int) checkru
 		payload := langruntime.CheckedI32(value.Value)
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: int64(langruntime.CheckedI32(payload))}
 	}
-	return checkruntime.Int8Unresolved(unresolvedFlavor)
+	localFlavor1174 := unresolvedFlavor
+	if value.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor1174 < 1 {
+			localFlavor1174 = langruntime.CheckedI32(1)
+		}
+	}
+	if value.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor1174 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.Int8Unresolved(localFlavor1174)
 }
 func HashRecord5xrm(input checkruntime.Int4Value) checkruntime.Int4Value {
 	return input
@@ -17559,7 +18189,16 @@ func EnumLargerEm2s(left checkruntime.EnumValue, right checkruntime.EnumValue) c
 		}
 		return right
 	}
-	return checkruntime.EnumUnresolved(unresolvedFlavor)
+	localFlavor1644 := unresolvedFlavor
+	if comparison.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor1644 < 1 {
+			localFlavor1644 = langruntime.CheckedI32(1)
+		}
+	}
+	if comparison.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor1644 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.EnumUnresolved(localFlavor1644)
 }
 func EnumSmallerWhhx(left checkruntime.EnumValue, right checkruntime.EnumValue) checkruntime.EnumValue {
 	unresolvedFlavor := 0
@@ -17590,7 +18229,16 @@ func EnumSmallerWhhx(left checkruntime.EnumValue, right checkruntime.EnumValue) 
 		}
 		return right
 	}
-	return checkruntime.EnumUnresolved(unresolvedFlavor)
+	localFlavor1864 := unresolvedFlavor
+	if comparison.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor1864 < 1 {
+			localFlavor1864 = langruntime.CheckedI32(1)
+		}
+	}
+	if comparison.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor1864 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.EnumUnresolved(localFlavor1864)
 }
 func HashenumZ4zk(input checkruntime.EnumValue) checkruntime.Int4Value {
 	unresolvedFlavor := 0
@@ -17945,7 +18593,24 @@ func floatArithmetic(left checkruntime.Float8Value, right checkruntime.Float8Val
 			return checkruntime.MakeFloat8Value(value)
 		}
 	}
-	return checkruntime.Float8Unresolved(unresolvedFlavor)
+	localFlavor235 := unresolvedFlavor
+	if knownRight.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor235 < 1 {
+			localFlavor235 = langruntime.CheckedI32(1)
+		}
+	}
+	if knownRight.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor235 = langruntime.CheckedI32(2)
+	}
+	if knownLeft.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor235 < 1 {
+			localFlavor235 = langruntime.CheckedI32(1)
+		}
+	}
+	if knownLeft.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor235 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.Float8Unresolved(localFlavor235)
 }
 func Float48divRlvj(left checkruntime.Float4Value, right checkruntime.Float8Value) checkruntime.Float8Value {
 	return floatArithmetic(float4Widen(left), right, 3, false)
@@ -18367,7 +19032,24 @@ func float8Compare(left checkruntime.Float8Value, right checkruntime.Float8Value
 			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
 		}
 	}
-	return checkruntime.Int4Unresolved(unresolvedFlavor)
+	localFlavor914 := unresolvedFlavor
+	if knownRight.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor914 < 1 {
+			localFlavor914 = langruntime.CheckedI32(1)
+		}
+	}
+	if knownRight.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor914 = langruntime.CheckedI32(2)
+	}
+	if knownLeft.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor914 < 1 {
+			localFlavor914 = langruntime.CheckedI32(1)
+		}
+	}
+	if knownLeft.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor914 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.Int4Unresolved(localFlavor914)
 }
 func float8Integer(input checkruntime.Float8Value) checkruntime.Int8Value {
 	unresolvedFlavor := 0
@@ -18428,7 +19110,16 @@ func float8Integer(input checkruntime.Float8Value) checkruntime.Int8Value {
 		}
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: coefficient}
 	}
-	return checkruntime.Int8Unresolved(unresolvedFlavor)
+	localFlavor1484 := unresolvedFlavor
+	if knownInput.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor1484 < 1 {
+			localFlavor1484 = langruntime.CheckedI32(1)
+		}
+	}
+	if knownInput.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor1484 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.Int8Unresolved(localFlavor1484)
 }
 func integerFloat4(input checkruntime.Int8Value) checkruntime.Float4Value {
 	unresolvedFlavor := 0
@@ -18626,7 +19317,16 @@ func Int2Pv8l(input checkruntime.Float4Value) checkruntime.Int2Value {
 		}
 		return checkruntime.Int2Value{Kind: checkruntime.Int2ValueValue, Value: int(int32(number))}
 	}
-	return checkruntime.Int2Unresolved(unresolvedFlavor)
+	localFlavor3654 := unresolvedFlavor
+	if result.Kind == checkruntime.Int8ValueUnknown {
+		if localFlavor3654 < 1 {
+			localFlavor3654 = langruntime.CheckedI32(1)
+		}
+	}
+	if result.Kind == checkruntime.Int8ValueUnimplemented {
+		localFlavor3654 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.Int2Unresolved(localFlavor3654)
 }
 func Int4Tbuy(input checkruntime.Float4Value) checkruntime.Int4Value {
 	unresolvedFlavor := 0
@@ -18651,7 +19351,16 @@ func Int4Tbuy(input checkruntime.Float4Value) checkruntime.Int4Value {
 		}
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: int(int32(number))}
 	}
-	return checkruntime.Int4Unresolved(unresolvedFlavor)
+	localFlavor3854 := unresolvedFlavor
+	if result.Kind == checkruntime.Int8ValueUnknown {
+		if localFlavor3854 < 1 {
+			localFlavor3854 = langruntime.CheckedI32(1)
+		}
+	}
+	if result.Kind == checkruntime.Int8ValueUnimplemented {
+		localFlavor3854 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.Int4Unresolved(localFlavor3854)
 }
 func Int885by(input checkruntime.Float4Value) checkruntime.Int8Value {
 	return float8Integer(float4Widen(input))
@@ -18682,7 +19391,16 @@ func Int268cf(input checkruntime.Float8Value) checkruntime.Int2Value {
 		}
 		return checkruntime.Int2Value{Kind: checkruntime.Int2ValueValue, Value: int(int32(number))}
 	}
-	return checkruntime.Int2Unresolved(unresolvedFlavor)
+	localFlavor4134 := unresolvedFlavor
+	if result.Kind == checkruntime.Int8ValueUnknown {
+		if localFlavor4134 < 1 {
+			localFlavor4134 = langruntime.CheckedI32(1)
+		}
+	}
+	if result.Kind == checkruntime.Int8ValueUnimplemented {
+		localFlavor4134 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.Int2Unresolved(localFlavor4134)
 }
 func Int4Nc79(input checkruntime.Float8Value) checkruntime.Int4Value {
 	unresolvedFlavor := 0
@@ -18707,7 +19425,16 @@ func Int4Nc79(input checkruntime.Float8Value) checkruntime.Int4Value {
 		}
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: int(int32(number))}
 	}
-	return checkruntime.Int4Unresolved(unresolvedFlavor)
+	localFlavor4334 := unresolvedFlavor
+	if result.Kind == checkruntime.Int8ValueUnknown {
+		if localFlavor4334 < 1 {
+			localFlavor4334 = langruntime.CheckedI32(1)
+		}
+	}
+	if result.Kind == checkruntime.Int8ValueUnimplemented {
+		localFlavor4334 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.Int4Unresolved(localFlavor4334)
 }
 func Int8Kmmw(input checkruntime.Float8Value) checkruntime.Int8Value {
 	return float8Integer(input)
@@ -18821,7 +19548,7 @@ func float8ErrorFunction(input checkruntime.Float8Value, musl bool, complement b
 			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
 		}
 		if musl == false {
-			return checkruntime.Float8Unresolved(unresolvedFlavor)
+			return checkruntime.Float8Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		if complement {
 			return checkruntime.MakeFloat8Value(muslErfc(number))
@@ -18960,7 +19687,7 @@ func GammaT3sa(input checkruntime.Float8Value, musl bool) checkruntime.Float8Val
 			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: checkruntime.MakeSqlError(floatCoreRange)}
 		}
 		if musl == false {
-			return checkruntime.Float8Unresolved(unresolvedFlavor)
+			return checkruntime.Float8Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		result := muslTgamma(number)
 		if result != result || langruntime.F64Abs(result) == langruntime.F64Divide(float64(1.0), float64(0.0)) || result == float64(0.0) {
@@ -19122,7 +19849,7 @@ func LgammaRpzb(input checkruntime.Float8Value, musl bool) checkruntime.Float8Va
 			return checkruntime.MakeFloat8Value(langruntime.F64Divide(float64(1.0), float64(0.0)))
 		}
 		if musl == false {
-			return checkruntime.Float8Unresolved(unresolvedFlavor)
+			return checkruntime.Float8Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		result := muslLgamma(number)
 		if langruntime.F64Abs(result) == langruntime.F64Divide(float64(1.0), float64(0.0)) {
@@ -19284,7 +20011,7 @@ func DexpWe7o(input checkruntime.Float8Value, musl bool) checkruntime.Float8Valu
 			return checkruntime.MakeFloat8Value(float64(0.0))
 		}
 		if musl == false {
-			return checkruntime.Float8Unresolved(unresolvedFlavor)
+			return checkruntime.Float8Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		result := muslExp(number)
 		if langruntime.F64Abs(result) == langruntime.F64Divide(float64(1.0), float64(0.0)) || result == float64(0.0) {
@@ -19321,7 +20048,7 @@ func Dlog16b2t(input checkruntime.Float8Value, musl bool) checkruntime.Float8Val
 			return input
 		}
 		if musl == false {
-			return checkruntime.Float8Unresolved(unresolvedFlavor)
+			return checkruntime.Float8Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		return checkruntime.MakeFloat8Value(muslLog(number))
 	}
@@ -19392,7 +20119,7 @@ func Dlog10Uzhv(input checkruntime.Float8Value, musl bool) checkruntime.Float8Va
 			return input
 		}
 		if musl == false {
-			return checkruntime.Float8Unresolved(unresolvedFlavor)
+			return checkruntime.Float8Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		return checkruntime.MakeFloat8Value(muslLog10(number))
 	}
@@ -19464,7 +20191,7 @@ func DcbrtQu0u(input checkruntime.Float8Value, musl bool) checkruntime.Float8Val
 			return input
 		}
 		if musl == false {
-			return checkruntime.Float8Unresolved(unresolvedFlavor)
+			return checkruntime.Float8Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		return checkruntime.MakeFloat8Value(muslCbrt(number))
 	}
@@ -19771,7 +20498,7 @@ func DpowAnie(left checkruntime.Float8Value, right checkruntime.Float8Value, mus
 				return checkruntime.MakeFloat8Value(float64(0.0))
 			}
 			if musl == false {
-				return checkruntime.Float8Unresolved(unresolvedFlavor)
+				return checkruntime.Float8Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 			}
 			result := muslPow(x, y)
 			if result != result {
@@ -19783,7 +20510,24 @@ func DpowAnie(left checkruntime.Float8Value, right checkruntime.Float8Value, mus
 			return checkruntime.MakeFloat8Value(result)
 		}
 	}
-	return checkruntime.Float8Unresolved(unresolvedFlavor)
+	localFlavor18994 := unresolvedFlavor
+	if knownRight.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor18994 < 1 {
+			localFlavor18994 = langruntime.CheckedI32(1)
+		}
+	}
+	if knownRight.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor18994 = langruntime.CheckedI32(2)
+	}
+	if knownLeft.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor18994 < 1 {
+			localFlavor18994 = langruntime.CheckedI32(1)
+		}
+	}
+	if knownLeft.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor18994 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.Float8Unresolved(localFlavor18994)
 }
 func PowHjab(left checkruntime.Float8Value, right checkruntime.Float8Value, musl bool) checkruntime.Float8Value {
 	return DpowAnie(left, right, musl)
@@ -20197,7 +20941,7 @@ func float8Hyperbolic(input checkruntime.Float8Value, musl bool, operation int) 
 			}
 		}
 		if musl == false {
-			return checkruntime.Float8Unresolved(unresolvedFlavor)
+			return checkruntime.Float8Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		result := float64(0.0)
 		if operation == 0 {
@@ -20762,7 +21506,7 @@ func float8InverseTrigonometry(input checkruntime.Float8Value, fdlibm bool, oper
 			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: checkruntime.MakeSqlError(floatCoreRange)}
 		}
 		if fdlibm == false {
-			return checkruntime.Float8Unresolved(unresolvedFlavor)
+			return checkruntime.Float8Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		if operation == 0 {
 			return checkruntime.MakeFloat8Value(float8AsinKernel(number))
@@ -20840,12 +21584,29 @@ func Atan2Re5y(left checkruntime.Float8Value, right checkruntime.Float8Value, fd
 				return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
 			}
 			if fdlibm == false {
-				return checkruntime.Float8Unresolved(unresolvedFlavor)
+				return checkruntime.Float8Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 			}
 			return checkruntime.MakeFloat8Value(float8Atan2Kernel(y, x))
 		}
 	}
-	return checkruntime.Float8Unresolved(unresolvedFlavor)
+	localFlavor3214 := unresolvedFlavor
+	if knownRight.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor3214 < 1 {
+			localFlavor3214 = langruntime.CheckedI32(1)
+		}
+	}
+	if knownRight.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor3214 = langruntime.CheckedI32(2)
+	}
+	if knownLeft.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor3214 < 1 {
+			localFlavor3214 = langruntime.CheckedI32(1)
+		}
+	}
+	if knownLeft.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor3214 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.Float8Unresolved(localFlavor3214)
 }
 func float8AsindQ1(x float64) float64 {
 	if x <= float64(0.5) {
@@ -20881,7 +21642,7 @@ func float8InverseDegrees(input checkruntime.Float8Value, fdlibm bool, operation
 			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: checkruntime.MakeSqlError(floatCoreRange)}
 		}
 		if fdlibm == false {
-			return checkruntime.Float8Unresolved(unresolvedFlavor)
+			return checkruntime.Float8Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		if operation == 0 {
 			if number >= float64(0.0) {
@@ -21000,7 +21761,16 @@ func floatNumericDecimal(input checkruntime.Float8Value, precision int) checkrun
 		result := numericWork{valid: rounded.valid, special: rounded.special, sign: sign, weight: rounded.weight, scale: minimumScale, digits: rounded.digits}
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(result)}
 	}
-	return checkruntime.NumericUnresolved(unresolvedFlavor)
+	localFlavor574 := unresolvedFlavor
+	if knownInput.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor574 < 1 {
+			localFlavor574 = langruntime.CheckedI32(1)
+		}
+	}
+	if knownInput.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor574 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.NumericUnresolved(localFlavor574)
 }
 func floatNumericText(input checkruntime.NumericValue) checkruntime.TextValue {
 	unresolvedFlavor := 0
@@ -21506,7 +22276,7 @@ func float8Trigonometry(input checkruntime.Float8Value, fdlibm bool, cosine bool
 			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: checkruntime.MakeSqlError(floatCoreRange)}
 		}
 		if fdlibm == false || circleMathHighWord(magnitude) >= 1094263291 {
-			return checkruntime.Float8Unresolved(unresolvedFlavor)
+			return checkruntime.Float8Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		result := circleTrigonometry(magnitude, cosine)
 		if cosine == false && bits < int64(0) {
@@ -21570,7 +22340,7 @@ func float8DegreeTrigonometry(input checkruntime.Float8Value, fdlibm bool, cosin
 			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: checkruntime.MakeSqlError(floatCoreRange)}
 		}
 		if fdlibm == false {
-			return checkruntime.Float8Unresolved(unresolvedFlavor)
+			return checkruntime.Float8Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		angle := float8Fmod360(number)
 		sign := float64(1.0)
@@ -21683,7 +22453,7 @@ func float8Tangent(input checkruntime.Float8Value, fdlibm bool, cotangent bool) 
 		}
 		high := circleMathHighWord(magnitude)
 		if fdlibm == false || high >= 1094263291 {
-			return checkruntime.Float8Unresolved(unresolvedFlavor)
+			return checkruntime.Float8Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		result := magnitude
 		if high <= 1072243195 {
@@ -21743,7 +22513,7 @@ func float8DegreeTangent(input checkruntime.Float8Value, fdlibm bool, cotangent 
 			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: checkruntime.MakeSqlError(floatCoreRange)}
 		}
 		if fdlibm == false {
-			return checkruntime.Float8Unresolved(unresolvedFlavor)
+			return checkruntime.Float8Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		angle := float8Fmod360(number)
 		sign := float64(1.0)
@@ -21928,7 +22698,32 @@ func floatInRange(value checkruntime.Float8Value, base checkruntime.Float8Value,
 			}
 		}
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	localFlavor984 := unresolvedFlavor
+	if knownOffset.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor984 < 1 {
+			localFlavor984 = langruntime.CheckedI32(1)
+		}
+	}
+	if knownOffset.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor984 = langruntime.CheckedI32(2)
+	}
+	if knownBase.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor984 < 1 {
+			localFlavor984 = langruntime.CheckedI32(1)
+		}
+	}
+	if knownBase.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor984 = langruntime.CheckedI32(2)
+	}
+	if knownValue.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor984 < 1 {
+			localFlavor984 = langruntime.CheckedI32(1)
+		}
+	}
+	if knownValue.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor984 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoolUnresolved(localFlavor984)
 }
 func InRangeT6r5(value checkruntime.Float8Value, base checkruntime.Float8Value, offset checkruntime.Float8Value, subtract checkruntime.BoolValue, less checkruntime.BoolValue) checkruntime.BoolValue {
 	return floatInRange(value, base, offset, subtract, less)
@@ -22074,7 +22869,32 @@ func WidthBucketWbi9(operand checkruntime.Float8Value, lower checkruntime.Float8
 			}
 		}
 	}
-	return checkruntime.Int4Unresolved(unresolvedFlavor)
+	localFlavor2304 := unresolvedFlavor
+	if knownUpper.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor2304 < 1 {
+			localFlavor2304 = langruntime.CheckedI32(1)
+		}
+	}
+	if knownUpper.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor2304 = langruntime.CheckedI32(2)
+	}
+	if knownLower.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor2304 < 1 {
+			localFlavor2304 = langruntime.CheckedI32(1)
+		}
+	}
+	if knownLower.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor2304 = langruntime.CheckedI32(2)
+	}
+	if knownOperand.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor2304 < 1 {
+			localFlavor2304 = langruntime.CheckedI32(1)
+		}
+	}
+	if knownOperand.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor2304 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.Int4Unresolved(localFlavor2304)
 }
 func Int8incFloat8Float8Naop(count checkruntime.Int8Value, left checkruntime.Float8Value, right checkruntime.Float8Value) checkruntime.Int8Value {
 	unresolvedFlavor := 0
@@ -24878,7 +25698,16 @@ func internalCharRelation(left checkruntime.InternalCharValue, right checkruntim
 		}
 		return checkruntime.MakeBoolValue(order >= 0)
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	localFlavor584 := unresolvedFlavor
+	if result.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor584 < 1 {
+			localFlavor584 = langruntime.CheckedI32(1)
+		}
+	}
+	if result.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor584 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoolUnresolved(localFlavor584)
 }
 func Int49xis(input checkruntime.InternalCharValue) checkruntime.Int4Value {
 	unresolvedFlavor := 0
@@ -28072,7 +28901,16 @@ func jsonPopulateArrayElement(input checkruntime.JsonbInput, position int, utf8 
 		}
 		return checkruntime.JsonbInputFromJsonb(selected)
 	}
-	return checkruntime.JsonbInputUnresolved(unresolvedFlavor)
+	localFlavor604 := unresolvedFlavor
+	if index.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor604 < 1 {
+			localFlavor604 = langruntime.CheckedI32(1)
+		}
+	}
+	if index.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor604 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.JsonbInputUnresolved(localFlavor604)
 }
 func jsonPopulateArrayTextEvent(input checkruntime.TextValue) checkruntime.ArrayTextEvent {
 	unresolvedFlavor := 0
@@ -31566,7 +32404,16 @@ func JsonbHashQo2a(input checkruntime.JsonbValue, byteOrder int, utf8 bool) chec
 		value := result.Value
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: int(int32(value))}
 	}
-	return checkruntime.Int4Unresolved(unresolvedFlavor)
+	localFlavor2464 := unresolvedFlavor
+	if result.Kind == checkruntime.Int8ValueUnknown {
+		if localFlavor2464 < 1 {
+			localFlavor2464 = langruntime.CheckedI32(1)
+		}
+	}
+	if result.Kind == checkruntime.Int8ValueUnimplemented {
+		localFlavor2464 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.Int4Unresolved(localFlavor2464)
 }
 func JsonbHashExtendedH75l(input checkruntime.JsonbValue, seed checkruntime.Int8Value, byteOrder int, utf8 bool) checkruntime.Int8Value {
 	input = checkruntime.CopyJsonbValue(input)
@@ -36900,7 +37747,24 @@ func lineEqualProduct(left int64, right int64, ratio checkruntime.Float8Value) c
 		bits := knownProduct.Value
 		return checkruntime.MakeBoolValue(geometricCoordinateEqual(checkruntime.Float8Number(left), checkruntime.Float8Number(bits)))
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	localFlavor134 := unresolvedFlavor
+	if knownProduct.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor134 < 1 {
+			localFlavor134 = langruntime.CheckedI32(1)
+		}
+	}
+	if knownProduct.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor134 = langruntime.CheckedI32(2)
+	}
+	if product.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor134 < 1 {
+			localFlavor134 = langruntime.CheckedI32(1)
+		}
+	}
+	if product.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor134 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoolUnresolved(localFlavor134)
 }
 func LineEqK687(left checkruntime.LineValue, right checkruntime.LineValue) checkruntime.BoolValue {
 	unresolvedFlavor := 0
@@ -37133,7 +37997,32 @@ func lineFromScalars(first checkruntime.Float8Value, second checkruntime.Float8V
 			}
 		}
 	}
-	return checkruntime.LineUnresolved(unresolvedFlavor)
+	localFlavor504 := unresolvedFlavor
+	if c.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor504 < 1 {
+			localFlavor504 = langruntime.CheckedI32(1)
+		}
+	}
+	if c.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor504 = langruntime.CheckedI32(2)
+	}
+	if b.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor504 < 1 {
+			localFlavor504 = langruntime.CheckedI32(1)
+		}
+	}
+	if b.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor504 = langruntime.CheckedI32(2)
+	}
+	if a.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor504 < 1 {
+			localFlavor504 = langruntime.CheckedI32(1)
+		}
+	}
+	if a.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor504 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.LineUnresolved(localFlavor504)
 }
 func lineOriginCoordinate(point checkruntime.PointPayload, horizontal bool) checkruntime.Float8Value {
 	bits := point.X
@@ -37179,7 +38068,16 @@ func lineFromOriginSlope(origin checkruntime.PointPayload, gradient checkruntime
 		}
 		return lineFromScalars(gradient, checkruntime.MakeFloat8Value(float64(-1.0)), intercept)
 	}
-	return checkruntime.LineUnresolved(unresolvedFlavor)
+	localFlavor994 := unresolvedFlavor
+	if known.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor994 < 1 {
+			localFlavor994 = langruntime.CheckedI32(1)
+		}
+	}
+	if known.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor994 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.LineUnresolved(localFlavor994)
 }
 func lineFromPoints(left checkruntime.PointValue, right checkruntime.PointValue, invalid int) checkruntime.LineValue {
 	invalid = langruntime.CheckedIndex(invalid)
@@ -38323,7 +39221,40 @@ func lsegLengthRelation(left checkruntime.LsegValue, right checkruntime.LsegValu
 			return checkruntime.MakeBoolValue(langruntime.F64Add(x, float64(0.000001)) >= y)
 		}
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	localFlavor1554 := unresolvedFlavor
+	if b.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor1554 < 1 {
+			localFlavor1554 = langruntime.CheckedI32(1)
+		}
+	}
+	if b.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor1554 = langruntime.CheckedI32(2)
+	}
+	if a.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor1554 < 1 {
+			localFlavor1554 = langruntime.CheckedI32(1)
+		}
+	}
+	if a.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor1554 = langruntime.CheckedI32(2)
+	}
+	if second.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor1554 < 1 {
+			localFlavor1554 = langruntime.CheckedI32(1)
+		}
+	}
+	if second.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor1554 = langruntime.CheckedI32(2)
+	}
+	if first.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor1554 < 1 {
+			localFlavor1554 = langruntime.CheckedI32(1)
+		}
+	}
+	if first.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor1554 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoolUnresolved(localFlavor1554)
 }
 func lsegMidpoint(input checkruntime.LsegValue) checkruntime.PointValue {
 	unresolvedFlavor := 0
@@ -38451,7 +39382,40 @@ func lsegDirectionRelation(left checkruntime.LsegValue, right checkruntime.LsegV
 			return checkruntime.MakeBoolValue(geometricCoordinateEqual(checkruntime.Float8Number(aa), checkruntime.Float8Number(bb)))
 		}
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	localFlavor2574 := unresolvedFlavor
+	if b.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor2574 < 1 {
+			localFlavor2574 = langruntime.CheckedI32(1)
+		}
+	}
+	if b.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor2574 = langruntime.CheckedI32(2)
+	}
+	if a.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor2574 < 1 {
+			localFlavor2574 = langruntime.CheckedI32(1)
+		}
+	}
+	if a.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor2574 = langruntime.CheckedI32(2)
+	}
+	if second.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor2574 < 1 {
+			localFlavor2574 = langruntime.CheckedI32(1)
+		}
+	}
+	if second.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor2574 = langruntime.CheckedI32(2)
+	}
+	if first.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor2574 < 1 {
+			localFlavor2574 = langruntime.CheckedI32(1)
+		}
+	}
+	if first.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor2574 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoolUnresolved(localFlavor2574)
 }
 func LsegEqN70t(left checkruntime.LsegValue, right checkruntime.LsegValue) checkruntime.BoolValue {
 	return lsegEqual(left, right, false)
@@ -38767,7 +39731,24 @@ func segmentRawRelation(left checkruntime.Float8Value, right checkruntime.Float8
 			return checkruntime.MakeBoolValue(checkruntime.Float8Number(a) < checkruntime.Float8Number(b))
 		}
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	localFlavor1134 := unresolvedFlavor
+	if second.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor1134 < 1 {
+			localFlavor1134 = langruntime.CheckedI32(1)
+		}
+	}
+	if second.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor1134 = langruntime.CheckedI32(2)
+	}
+	if first.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor1134 < 1 {
+			localFlavor1134 = langruntime.CheckedI32(1)
+		}
+	}
+	if first.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor1134 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoolUnresolved(localFlavor1134)
 }
 func segmentContainsPoint(segment checkruntime.LsegValue, point checkruntime.PointValue) checkruntime.BoolValue {
 	unresolvedFlavor := 0
@@ -38816,7 +39797,64 @@ func segmentContainsPoint(segment checkruntime.LsegValue, point checkruntime.Poi
 			}
 		}
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	localFlavor1484 := unresolvedFlavor
+	if c.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor1484 < 1 {
+			localFlavor1484 = langruntime.CheckedI32(1)
+		}
+	}
+	if c.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor1484 = langruntime.CheckedI32(2)
+	}
+	if b.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor1484 < 1 {
+			localFlavor1484 = langruntime.CheckedI32(1)
+		}
+	}
+	if b.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor1484 = langruntime.CheckedI32(2)
+	}
+	if a.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor1484 < 1 {
+			localFlavor1484 = langruntime.CheckedI32(1)
+		}
+	}
+	if a.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor1484 = langruntime.CheckedI32(2)
+	}
+	if length.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor1484 < 1 {
+			localFlavor1484 = langruntime.CheckedI32(1)
+		}
+	}
+	if length.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor1484 = langruntime.CheckedI32(2)
+	}
+	if second.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor1484 < 1 {
+			localFlavor1484 = langruntime.CheckedI32(1)
+		}
+	}
+	if second.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor1484 = langruntime.CheckedI32(2)
+	}
+	if first.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor1484 < 1 {
+			localFlavor1484 = langruntime.CheckedI32(1)
+		}
+	}
+	if first.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor1484 = langruntime.CheckedI32(2)
+	}
+	if status.Kind == checkruntime.BoolValueUnknown {
+		if localFlavor1484 < 1 {
+			localFlavor1484 = langruntime.CheckedI32(1)
+		}
+	}
+	if status.Kind == checkruntime.BoolValueUnimplemented {
+		localFlavor1484 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoolUnresolved(localFlavor1484)
 }
 func segmentPromoteLine(segment checkruntime.LsegValue) checkruntime.LineValue {
 	unresolvedFlavor := 0
@@ -38838,7 +39876,16 @@ func segmentPromoteLine(segment checkruntime.LsegValue) checkruntime.LineValue {
 		origin := first.Value
 		return lineFromOriginSlope(origin, lsegSlope(segment, false))
 	}
-	return checkruntime.LineUnresolved(unresolvedFlavor)
+	localFlavor1644 := unresolvedFlavor
+	if first.Kind == checkruntime.PointValueUnknown {
+		if localFlavor1644 < 1 {
+			localFlavor1644 = langruntime.CheckedI32(1)
+		}
+	}
+	if first.Kind == checkruntime.PointValueUnimplemented {
+		localFlavor1644 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.LineUnresolved(localFlavor1644)
 }
 func segmentLineIntersection(segment checkruntime.LsegValue, line checkruntime.LineValue) checkruntime.PointValue {
 	status := segmentLineStatus(segment, line)
@@ -40585,7 +41632,16 @@ func moneyRelation(left checkruntime.MoneyValue, right checkruntime.MoneyValue, 
 		}
 		return checkruntime.MakeBoolValue(order >= 0)
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	localFlavor934 := unresolvedFlavor
+	if comparison.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor934 < 1 {
+			localFlavor934 = langruntime.CheckedI32(1)
+		}
+	}
+	if comparison.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor934 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoolUnresolved(localFlavor934)
 }
 func moneySelect(left checkruntime.MoneyValue, right checkruntime.MoneyValue, larger bool) checkruntime.MoneyValue {
 	unresolvedFlavor := 0
@@ -40616,7 +41672,16 @@ func moneySelect(left checkruntime.MoneyValue, right checkruntime.MoneyValue, la
 		}
 		return right
 	}
-	return checkruntime.MoneyUnresolved(unresolvedFlavor)
+	localFlavor1144 := unresolvedFlavor
+	if comparison.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor1144 < 1 {
+			localFlavor1144 = langruntime.CheckedI32(1)
+		}
+	}
+	if comparison.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor1144 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.MoneyUnresolved(localFlavor1144)
 }
 func moneyFloatScale(input checkruntime.MoneyValue, factor checkruntime.Float8Value, divide bool, reverse bool) checkruntime.MoneyValue {
 	unresolvedFlavor := 0
@@ -41100,7 +42165,7 @@ func MoneyToTextContext(input checkruntime.MoneyValue, cLocale bool) checkruntim
 		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
 	}
 	if cLocale == false {
-		return checkruntime.TextUnresolved(unresolvedFlavor)
+		return checkruntime.TextUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 	}
 	if input.Kind == checkruntime.MoneyValueValue {
 		value := input.Value
@@ -41871,7 +42936,16 @@ func multirangeSearchSpan(input *checkruntime.MultirangePayload, span *checkrunt
 						}
 					}
 					if decided == false {
-						return checkruntime.BoolUnresolved(unresolvedFlavor)
+						localFlavor33924 := unresolvedFlavor
+						if after.Kind == checkruntime.Int4ValueUnknown {
+							if localFlavor33924 < 1 {
+								localFlavor33924 = langruntime.CheckedI32(1)
+							}
+						}
+						if after.Kind == checkruntime.Int4ValueUnimplemented {
+							localFlavor33924 = langruntime.CheckedI32(2)
+						}
+						return checkruntime.BoolUnresolved(localFlavor33924)
 					}
 				}
 			}
@@ -41905,7 +42979,16 @@ func multirangeSpanContains(input *checkruntime.MultirangePayload, span *checkru
 		hi := multirangeEndpointOrder(rangeCopyPayload(span), true, last, true)
 		return rangeOrderBoolean(hi, 4)
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	localFlavor3724 := unresolvedFlavor
+	if lo.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor3724 < 1 {
+			localFlavor3724 = langruntime.CheckedI32(1)
+		}
+	}
+	if lo.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor3724 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoolUnresolved(localFlavor3724)
 }
 func multirangeSpanRelation(input checkruntime.MultirangeValue, span checkruntime.RangeValue, strategy int, multiFirst bool) checkruntime.BoolValue {
 	input = checkruntime.CopyMultirangeValue(input)
@@ -43852,7 +44935,16 @@ func nameRelation(left checkruntime.TextValue, right checkruntime.TextValue, mod
 		}
 		return checkruntime.MakeBoolValue(value >= 0)
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	localFlavor524 := unresolvedFlavor
+	if order.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor524 < 1 {
+			localFlavor524 = langruntime.CheckedI32(1)
+		}
+	}
+	if order.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor524 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoolUnresolved(localFlavor524)
 }
 func Bpchar8cer(input checkruntime.TextValue) checkruntime.TextValue {
 	return input
@@ -43953,7 +45045,7 @@ func NameFromTextContext(input checkruntime.TextValue, limit int, utf8 bool) che
 			position := 0
 			for position < len(characters) {
 				if int(langruntime.CheckedChar(characters[position])) >= 128 {
-					return checkruntime.TextUnresolved(unresolvedFlavor)
+					return checkruntime.TextUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 				}
 				position = langruntime.CheckedAdd(position, 1)
 			}
@@ -47673,7 +48765,16 @@ func ToCharB68b(input checkruntime.Float8Value, template checkruntime.TextValue,
 			return numberFormatFloat(bits, false, format, numericC, monetaryC)
 		}
 	}
-	return checkruntime.TextUnresolved(unresolvedFlavor)
+	localFlavor17524 := unresolvedFlavor
+	if known.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor17524 < 1 {
+			localFlavor17524 = langruntime.CheckedI32(1)
+		}
+	}
+	if known.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor17524 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.TextUnresolved(localFlavor17524)
 }
 func ToChar1rcw(input checkruntime.Float4Value, template checkruntime.TextValue, numericC bool, monetaryC bool) checkruntime.TextValue {
 	unresolvedFlavor := 0
@@ -48536,7 +49637,16 @@ func numericBucket(value string, lower string, upper string, count int) checkrun
 		bucket := int(int32(number))
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedAdd(bucket, 1)}
 	}
-	return checkruntime.Int4Unresolved(unresolvedFlavor)
+	localFlavor654 := unresolvedFlavor
+	if integer.Kind == checkruntime.Int8ValueUnknown {
+		if localFlavor654 < 1 {
+			localFlavor654 = langruntime.CheckedI32(1)
+		}
+	}
+	if integer.Kind == checkruntime.Int8ValueUnimplemented {
+		localFlavor654 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.Int4Unresolved(localFlavor654)
 }
 func WidthBucketMx75(value checkruntime.NumericValue, lower checkruntime.NumericValue, upper checkruntime.NumericValue, count checkruntime.Int4Value) checkruntime.Int4Value {
 	unresolvedFlavor := 0
@@ -52328,7 +53438,16 @@ func oidRelation(left checkruntime.OidValue, right checkruntime.OidValue, mode i
 		}
 		return checkruntime.MakeBoolValue(order >= 0)
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	localFlavor784 := unresolvedFlavor
+	if comparison.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor784 < 1 {
+			localFlavor784 = langruntime.CheckedI32(1)
+		}
+	}
+	if comparison.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor784 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoolUnresolved(localFlavor784)
 }
 func oidSelect(left checkruntime.OidValue, right checkruntime.OidValue, larger bool) checkruntime.OidValue {
 	unresolvedFlavor := 0
@@ -52359,7 +53478,16 @@ func oidSelect(left checkruntime.OidValue, right checkruntime.OidValue, larger b
 		}
 		return right
 	}
-	return checkruntime.OidUnresolved(unresolvedFlavor)
+	localFlavor994 := unresolvedFlavor
+	if comparison.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor994 < 1 {
+			localFlavor994 = langruntime.CheckedI32(1)
+		}
+	}
+	if comparison.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor994 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.OidUnresolved(localFlavor994)
 }
 func OidToInt4(input checkruntime.OidValue) checkruntime.Int4Value {
 	unresolvedFlavor := 0
@@ -53707,7 +54835,40 @@ func pathAxisCrossing(x float64, y float64, previousX float64, previousY float64
 		}
 		return checkruntime.MakeInt4Value(langruntime.CheckedSignedMultiply(2, direction))
 	}
-	return checkruntime.Int4Unresolved(unresolvedFlavor)
+	localFlavor1874 := unresolvedFlavor
+	if knownDifference.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor1874 < 1 {
+			localFlavor1874 = langruntime.CheckedI32(1)
+		}
+	}
+	if knownDifference.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor1874 = langruntime.CheckedI32(2)
+	}
+	if difference.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor1874 < 1 {
+			localFlavor1874 = langruntime.CheckedI32(1)
+		}
+	}
+	if difference.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor1874 = langruntime.CheckedI32(2)
+	}
+	if second.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor1874 < 1 {
+			localFlavor1874 = langruntime.CheckedI32(1)
+		}
+	}
+	if second.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor1874 = langruntime.CheckedI32(2)
+	}
+	if first.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor1874 < 1 {
+			localFlavor1874 = langruntime.CheckedI32(1)
+		}
+	}
+	if first.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor1874 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.Int4Unresolved(localFlavor1874)
 }
 func closedPathContains(point checkruntime.PointPayload, path *checkruntime.PathPayload) checkruntime.BoolValue {
 	unresolvedFlavor := 0
@@ -53748,7 +54909,16 @@ func closedPathContains(point checkruntime.PointPayload, path *checkruntime.Path
 					crossingKnown = true
 				}
 				if crossingKnown == false {
-					return checkruntime.BoolUnresolved(unresolvedFlavor)
+					localFlavor23320 := unresolvedFlavor
+					if cross.Kind == checkruntime.Int4ValueUnknown {
+						if localFlavor23320 < 1 {
+							localFlavor23320 = langruntime.CheckedI32(1)
+						}
+					}
+					if cross.Kind == checkruntime.Int4ValueUnimplemented {
+						localFlavor23320 = langruntime.CheckedI32(2)
+					}
+					return checkruntime.BoolUnresolved(localFlavor23320)
 				}
 				previous = current
 				advanced = true
@@ -53760,7 +54930,16 @@ func closedPathContains(point checkruntime.PointPayload, path *checkruntime.Path
 		}
 		return checkruntime.MakeBoolValue(total != 0)
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	localFlavor2454 := unresolvedFlavor
+	if first.Kind == checkruntime.PointValueUnknown {
+		if localFlavor2454 < 1 {
+			localFlavor2454 = langruntime.CheckedI32(1)
+		}
+	}
+	if first.Kind == checkruntime.PointValueUnimplemented {
+		localFlavor2454 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoolUnresolved(localFlavor2454)
 }
 func OnPpath8fo6(point checkruntime.PointValue, input checkruntime.PathValue) checkruntime.BoolValue {
 	input = checkruntime.CopyPathValue(input)
@@ -53861,7 +55040,48 @@ func OnPpath8fo6(point checkruntime.PointValue, input checkruntime.PathValue) ch
 					}
 				}
 				if compared == false {
-					return checkruntime.BoolUnresolved(unresolvedFlavor)
+					localFlavor31520 := unresolvedFlavor
+					if knownSum.Kind == checkruntime.Float8ValueUnknown {
+						if localFlavor31520 < 1 {
+							localFlavor31520 = langruntime.CheckedI32(1)
+						}
+					}
+					if knownSum.Kind == checkruntime.Float8ValueUnimplemented {
+						localFlavor31520 = langruntime.CheckedI32(2)
+					}
+					if edge.Kind == checkruntime.Float8ValueUnknown {
+						if localFlavor31520 < 1 {
+							localFlavor31520 = langruntime.CheckedI32(1)
+						}
+					}
+					if edge.Kind == checkruntime.Float8ValueUnimplemented {
+						localFlavor31520 = langruntime.CheckedI32(2)
+					}
+					if sum.Kind == checkruntime.Float8ValueUnknown {
+						if localFlavor31520 < 1 {
+							localFlavor31520 = langruntime.CheckedI32(1)
+						}
+					}
+					if sum.Kind == checkruntime.Float8ValueUnimplemented {
+						localFlavor31520 = langruntime.CheckedI32(2)
+					}
+					if next.Kind == checkruntime.Float8ValueUnknown {
+						if localFlavor31520 < 1 {
+							localFlavor31520 = langruntime.CheckedI32(1)
+						}
+					}
+					if next.Kind == checkruntime.Float8ValueUnimplemented {
+						localFlavor31520 = langruntime.CheckedI32(2)
+					}
+					if previous.Kind == checkruntime.Float8ValueUnknown {
+						if localFlavor31520 < 1 {
+							localFlavor31520 = langruntime.CheckedI32(1)
+						}
+					}
+					if previous.Kind == checkruntime.Float8ValueUnimplemented {
+						localFlavor31520 = langruntime.CheckedI32(2)
+					}
+					return checkruntime.BoolUnresolved(localFlavor31520)
 				}
 				previous = next
 				index = langruntime.CheckedAdd(index, 1)
@@ -54001,7 +55221,16 @@ func pgLsnRelation(left checkruntime.PgLsnValue, right checkruntime.PgLsnValue, 
 		}
 		return checkruntime.MakeBoolValue(order >= 0)
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	localFlavor674 := unresolvedFlavor
+	if comparison.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor674 < 1 {
+			localFlavor674 = langruntime.CheckedI32(1)
+		}
+	}
+	if comparison.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor674 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoolUnresolved(localFlavor674)
 }
 func pgLsnSelect(left checkruntime.PgLsnValue, right checkruntime.PgLsnValue, larger bool) checkruntime.PgLsnValue {
 	unresolvedFlavor := 0
@@ -54032,7 +55261,16 @@ func pgLsnSelect(left checkruntime.PgLsnValue, right checkruntime.PgLsnValue, la
 		}
 		return right
 	}
-	return checkruntime.PgLsnUnresolved(unresolvedFlavor)
+	localFlavor884 := unresolvedFlavor
+	if comparison.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor884 < 1 {
+			localFlavor884 = langruntime.CheckedI32(1)
+		}
+	}
+	if comparison.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor884 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.PgLsnUnresolved(localFlavor884)
 }
 func pgLsnBits(input checkruntime.PgLsnValue) checkruntime.Int8Value {
 	unresolvedFlavor := 0
@@ -54497,7 +55735,24 @@ func PointDb27(x checkruntime.Float8Value, y checkruntime.Float8Value) checkrunt
 			return checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: checkruntime.PointPayload{X: xBits, Y: yBits, WireKnown: precise}}
 		}
 	}
-	return checkruntime.PointUnresolved(unresolvedFlavor)
+	localFlavor704 := unresolvedFlavor
+	if knownY.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor704 < 1 {
+			localFlavor704 = langruntime.CheckedI32(1)
+		}
+	}
+	if knownY.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor704 = langruntime.CheckedI32(2)
+	}
+	if knownX.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor704 < 1 {
+			localFlavor704 = langruntime.CheckedI32(1)
+		}
+	}
+	if knownX.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor704 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.PointUnresolved(localFlavor704)
 }
 func PointSendKuoa(input checkruntime.PointValue) checkruntime.ByteaValue {
 	unresolvedFlavor := 0
@@ -54994,7 +56249,24 @@ func geometricHypot(first checkruntime.Float8Value, second checkruntime.Float8Va
 			return checkruntime.MakeFloat8Value(result)
 		}
 	}
-	return checkruntime.Float8Unresolved(unresolvedFlavor)
+	localFlavor2094 := unresolvedFlavor
+	if knownSecond.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor2094 < 1 {
+			localFlavor2094 = langruntime.CheckedI32(1)
+		}
+	}
+	if knownSecond.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor2094 = langruntime.CheckedI32(2)
+	}
+	if knownFirst.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor2094 < 1 {
+			localFlavor2094 = langruntime.CheckedI32(1)
+		}
+	}
+	if knownFirst.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor2094 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.Float8Unresolved(localFlavor2094)
 }
 func pointMeasurement(left checkruntime.PointValue, right checkruntime.PointValue, slope bool) checkruntime.Float8Value {
 	unresolvedFlavor := 0
@@ -56080,7 +57352,32 @@ func polygonSegmentInside(a checkruntime.PointPayload, b checkruntime.PointPaylo
 			point := center.Value
 			return closedPathContains(point, polygon)
 		}
-		return checkruntime.BoolUnresolved(unresolvedFlavor)
+		localFlavor1688 := unresolvedFlavor
+		if center.Kind == checkruntime.PointValueUnknown {
+			if localFlavor1688 < 1 {
+				localFlavor1688 = langruntime.CheckedI32(1)
+			}
+		}
+		if center.Kind == checkruntime.PointValueUnimplemented {
+			localFlavor1688 = langruntime.CheckedI32(2)
+		}
+		if result.Kind == checkruntime.BoolValueUnknown {
+			if localFlavor1688 < 1 {
+				localFlavor1688 = langruntime.CheckedI32(1)
+			}
+		}
+		if result.Kind == checkruntime.BoolValueUnimplemented {
+			localFlavor1688 = langruntime.CheckedI32(2)
+		}
+		if segment.Kind == checkruntime.LsegValueUnknown {
+			if localFlavor1688 < 1 {
+				localFlavor1688 = langruntime.CheckedI32(1)
+			}
+		}
+		if segment.Kind == checkruntime.LsegValueUnimplemented {
+			localFlavor1688 = langruntime.CheckedI32(2)
+		}
+		return checkruntime.BoolUnresolved(localFlavor1688)
 	}
 	return result
 }
@@ -56162,7 +57459,16 @@ func polygonRelation(left checkruntime.PolygonValue, right checkruntime.PolygonV
 				return status
 			}
 			if len(aPath.Points) == 0 || len(bPath.Points) == 0 {
-				return checkruntime.BoolUnresolved(unresolvedFlavor)
+				localFlavor19670 := unresolvedFlavor
+				if status.Kind == checkruntime.BoolValueUnknown {
+					if localFlavor19670 < 1 {
+						localFlavor19670 = langruntime.CheckedI32(1)
+					}
+				}
+				if status.Kind == checkruntime.BoolValueUnimplemented {
+					localFlavor19670 = langruntime.CheckedI32(2)
+				}
+				return checkruntime.BoolUnresolved(localFlavor19670)
 			}
 			previous := langruntime.CheckedSubtract(len(bPath.Points), 1)
 			index := 0
@@ -56638,7 +57944,16 @@ func rangeBoundsAdjacent(left *checkruntime.RangePayload, right *checkruntime.Ra
 		}
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	localFlavor2454 := unresolvedFlavor
+	if comparison.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor2454 < 1 {
+			localFlavor2454 = langruntime.CheckedI32(1)
+		}
+	}
+	if comparison.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor2454 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoolUnresolved(localFlavor2454)
 }
 func rangePayloadRelation(left *checkruntime.RangePayload, right *checkruntime.RangePayload, strategy int) checkruntime.BoolValue {
 	strategy = langruntime.CheckedI32(strategy)
@@ -56736,7 +58051,16 @@ func rangePayloadRelation(left *checkruntime.RangePayload, right *checkruntime.R
 		}
 		return rangeOrderBoolean(reverse, 4)
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	localFlavor3304 := unresolvedFlavor
+	if lo.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor3304 < 1 {
+			localFlavor3304 = langruntime.CheckedI32(1)
+		}
+	}
+	if lo.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor3304 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoolUnresolved(localFlavor3304)
 }
 func rangeRelation(left checkruntime.RangeValue, right checkruntime.RangeValue, strategy int) checkruntime.BoolValue {
 	left = checkruntime.CopyRangeValue(left)
@@ -57053,19 +58377,46 @@ func rangeProfiledCompare(lower checkruntime.ArrayElement, upper checkruntime.Ar
 		return pair
 	}
 	if index >= len(profile.Nodes) || otherIndex >= len(other.Nodes) {
-		return checkruntime.Int4Unresolved(unresolvedFlavor)
+		localFlavor258 := unresolvedFlavor
+		if pair.Kind == checkruntime.Int4ValueUnknown {
+			if localFlavor258 < 1 {
+				localFlavor258 = langruntime.CheckedI32(1)
+			}
+		}
+		if pair.Kind == checkruntime.Int4ValueUnimplemented {
+			localFlavor258 = langruntime.CheckedI32(2)
+		}
+		return checkruntime.Int4Unresolved(localFlavor258)
 	}
 	node := checkruntime.CopyRangeBoundProfile(profile.Nodes[index])
 	peer := checkruntime.CopyRangeBoundProfile(other.Nodes[otherIndex])
 	if node.Kind != peer.Kind || node.Comparison != peer.Comparison || node.MissingComparison != peer.MissingComparison {
-		return checkruntime.Int4Unresolved(unresolvedFlavor)
+		localFlavor338 := unresolvedFlavor
+		if pair.Kind == checkruntime.Int4ValueUnknown {
+			if localFlavor338 < 1 {
+				localFlavor338 = langruntime.CheckedI32(1)
+			}
+		}
+		if pair.Kind == checkruntime.Int4ValueUnimplemented {
+			localFlavor338 = langruntime.CheckedI32(2)
+		}
+		return checkruntime.Int4Unresolved(localFlavor338)
 	}
 	if node.MissingComparison {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(rangeArrayComparisonUndefined)}
 	}
 	if node.Kind == 44 {
 		if node.Comparison != 44 || node.TypeName != peer.TypeName {
-			return checkruntime.Int4Unresolved(unresolvedFlavor)
+			localFlavor4012 := unresolvedFlavor
+			if pair.Kind == checkruntime.Int4ValueUnknown {
+				if localFlavor4012 < 1 {
+					localFlavor4012 = langruntime.CheckedI32(1)
+				}
+			}
+			if pair.Kind == checkruntime.Int4ValueUnimplemented {
+				localFlavor4012 = langruntime.CheckedI32(2)
+			}
+			return checkruntime.Int4Unresolved(localFlavor4012)
 		}
 		left := checkruntime.ArrayElementToComposite(lower)
 		right := checkruntime.ArrayElementToComposite(upper)
@@ -57093,7 +58444,16 @@ func rangeProfiledCompare(lower checkruntime.ArrayElement, upper checkruntime.Ar
 	}
 	if node.Kind == 42 || node.Kind == 43 {
 		if node.TypeName != peer.TypeName || node.ElementType != peer.ElementType || node.Canonical != peer.Canonical || node.Comparison != node.Kind {
-			return checkruntime.Int4Unresolved(unresolvedFlavor)
+			localFlavor9212 := unresolvedFlavor
+			if pair.Kind == checkruntime.Int4ValueUnknown {
+				if localFlavor9212 < 1 {
+					localFlavor9212 = langruntime.CheckedI32(1)
+				}
+			}
+			if pair.Kind == checkruntime.Int4ValueUnimplemented {
+				localFlavor9212 = langruntime.CheckedI32(2)
+			}
+			return checkruntime.Int4Unresolved(localFlavor9212)
 		}
 		if node.Kind == 42 {
 			return RangeOrder(checkruntime.ArrayElementToRange(lower), checkruntime.ArrayElementToRange(upper))
@@ -57102,21 +58462,57 @@ func rangeProfiledCompare(lower checkruntime.ArrayElement, upper checkruntime.Ar
 	}
 	if node.Kind != 41 {
 		if node.Kind == 6 && (node.EnumLabels != peer.EnumLabels || node.EnumCount != peer.EnumCount) {
-			return checkruntime.Int4Unresolved(unresolvedFlavor)
+			localFlavor10912 := unresolvedFlavor
+			if pair.Kind == checkruntime.Int4ValueUnknown {
+				if localFlavor10912 < 1 {
+					localFlavor10912 = langruntime.CheckedI32(1)
+				}
+			}
+			if pair.Kind == checkruntime.Int4ValueUnimplemented {
+				localFlavor10912 = langruntime.CheckedI32(2)
+			}
+			return checkruntime.Int4Unresolved(localFlavor10912)
 		}
 		return rangeBuiltinCompare(lower, upper, node.Comparison)
 	}
 	if (node.Comparison != 41 && node.Comparison != checkruntime.RangeComparisonOidVector) || node.Child >= len(profile.Nodes) || peer.Child >= len(other.Nodes) || node.ElementType != peer.ElementType {
-		return checkruntime.Int4Unresolved(unresolvedFlavor)
+		localFlavor1188 := unresolvedFlavor
+		if pair.Kind == checkruntime.Int4ValueUnknown {
+			if localFlavor1188 < 1 {
+				localFlavor1188 = langruntime.CheckedI32(1)
+			}
+		}
+		if pair.Kind == checkruntime.Int4ValueUnimplemented {
+			localFlavor1188 = langruntime.CheckedI32(2)
+		}
+		return checkruntime.Int4Unresolved(localFlavor1188)
 	}
 	if node.Comparison == checkruntime.RangeComparisonOidVector {
 		if node.TypeName != "pg_catalog.oidvector" || peer.TypeName != "pg_catalog.oidvector" {
-			return checkruntime.Int4Unresolved(unresolvedFlavor)
+			localFlavor12412 := unresolvedFlavor
+			if pair.Kind == checkruntime.Int4ValueUnknown {
+				if localFlavor12412 < 1 {
+					localFlavor12412 = langruntime.CheckedI32(1)
+				}
+			}
+			if pair.Kind == checkruntime.Int4ValueUnimplemented {
+				localFlavor12412 = langruntime.CheckedI32(2)
+			}
+			return checkruntime.Int4Unresolved(localFlavor12412)
 		}
 		return Btoidvectorcmp6oyf(checkruntime.ArrayElementToArray(lower), checkruntime.ArrayElementToArray(upper))
 	}
 	if profile.Nodes[node.Child].MissingComparison != other.Nodes[peer.Child].MissingComparison {
-		return checkruntime.Int4Unresolved(unresolvedFlavor)
+		localFlavor1308 := unresolvedFlavor
+		if pair.Kind == checkruntime.Int4ValueUnknown {
+			if localFlavor1308 < 1 {
+				localFlavor1308 = langruntime.CheckedI32(1)
+			}
+		}
+		if pair.Kind == checkruntime.Int4ValueUnimplemented {
+			localFlavor1308 = langruntime.CheckedI32(2)
+		}
+		return checkruntime.Int4Unresolved(localFlavor1308)
 	}
 	left := checkruntime.ArrayElementToArray(lower)
 	right := checkruntime.ArrayElementToArray(upper)
@@ -57143,6 +58539,24 @@ func rangeTypedCompare(lower checkruntime.ArrayElement, upper checkruntime.Array
 	}
 	if (comparison >= 41 && comparison <= 44) || comparison == checkruntime.RangeComparisonOidVector {
 		return rangeProfiledCompare(lower, upper, profile, 0, other, 0)
+	}
+	if checkruntime.RangeComparisonUnavailable(comparison) {
+		if lower.Kind == checkruntime.ArrayElementError {
+			error := lower.Error
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+		}
+		if upper.Kind == checkruntime.ArrayElementError {
+			error := upper.Error
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+		}
+		contextFlavor := 1
+		if lower.Kind == checkruntime.ArrayElementUnimplemented {
+			contextFlavor = langruntime.CheckedI32(2)
+		}
+		if upper.Kind == checkruntime.ArrayElementUnimplemented {
+			contextFlavor = langruntime.CheckedI32(2)
+		}
+		return checkruntime.Int4Unresolved(contextFlavor)
 	}
 	return rangeBuiltinCompare(lower, upper, comparison)
 }
@@ -57372,7 +58786,16 @@ func rangeProfileSerialize(typeName string, elementType string, kind int, lower 
 		}
 		return checkruntime.RangeFromTypedBounds(typeName, elementType, kind, false, loInc, hiInc, lower, upper, support, enumLabels, enumCount, boundProfile)
 	}
-	return checkruntime.RangeUnresolved(unresolvedFlavor)
+	localFlavor4064 := unresolvedFlavor
+	if comparison.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor4064 < 1 {
+			localFlavor4064 = langruntime.CheckedI32(1)
+		}
+	}
+	if comparison.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor4064 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.RangeUnresolved(localFlavor4064)
 }
 func rangeBuiltinCanonical(input checkruntime.RangeValue) checkruntime.RangeValue {
 	input = checkruntime.CopyRangeValue(input)
@@ -58363,7 +59786,16 @@ func RangeTextInitial(plan checkruntime.RangeTextPlan, typeName string, elementT
 	if state == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
 		return checkruntime.RangeFromProfiledBounds(typeName, elementType, kind, true, false, false, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull}, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull}, support)
 	}
-	return checkruntime.RangeUnresolved(unresolvedFlavor)
+	localFlavor4024 := unresolvedFlavor
+	if state.Kind == checkruntime.BoolValueUnknown {
+		if localFlavor4024 < 1 {
+			localFlavor4024 = langruntime.CheckedI32(1)
+		}
+	}
+	if state.Kind == checkruntime.BoolValueUnimplemented {
+		localFlavor4024 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.RangeUnresolved(localFlavor4024)
 }
 func FinishRangeText(plan checkruntime.RangeTextPlan, typeName string, elementType string, kind int, support checkruntime.RangeSupport, lower checkruntime.ArrayElement, upper checkruntime.ArrayElement) checkruntime.RangeValue {
 	plan = checkruntime.CopyRangeTextPlan(plan)
@@ -59060,7 +60492,40 @@ func rangePayloadDifference(left *checkruntime.RangePayload, right *checkruntime
 			}
 		}
 	}
-	return checkruntime.RangeUnresolved(unresolvedFlavor)
+	localFlavor1234 := unresolvedFlavor
+	if uu.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor1234 < 1 {
+			localFlavor1234 = langruntime.CheckedI32(1)
+		}
+	}
+	if uu.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor1234 = langruntime.CheckedI32(2)
+	}
+	if ul.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor1234 < 1 {
+			localFlavor1234 = langruntime.CheckedI32(1)
+		}
+	}
+	if ul.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor1234 = langruntime.CheckedI32(2)
+	}
+	if lu.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor1234 < 1 {
+			localFlavor1234 = langruntime.CheckedI32(1)
+		}
+	}
+	if lu.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor1234 = langruntime.CheckedI32(2)
+	}
+	if ll.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor1234 < 1 {
+			localFlavor1234 = langruntime.CheckedI32(1)
+		}
+	}
+	if ll.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor1234 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.RangeUnresolved(localFlavor1234)
 }
 func rangePayloadSet(left *checkruntime.RangePayload, right *checkruntime.RangePayload, strategy int) checkruntime.RangeValue {
 	strategy = langruntime.CheckedI32(strategy)
@@ -59158,7 +60623,16 @@ func rangePayloadSet(left *checkruntime.RangePayload, right *checkruntime.RangeP
 			return rangeRebuild(left, lower, upper, lowerInc, upperInc)
 		}
 	}
-	return checkruntime.RangeUnresolved(unresolvedFlavor)
+	localFlavor1984 := unresolvedFlavor
+	if lo.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor1984 < 1 {
+			localFlavor1984 = langruntime.CheckedI32(1)
+		}
+	}
+	if lo.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor1984 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.RangeUnresolved(localFlavor1984)
 }
 func rangeSet(left checkruntime.RangeValue, right checkruntime.RangeValue, strategy int) checkruntime.RangeValue {
 	left = checkruntime.CopyRangeValue(left)
@@ -59344,7 +60818,16 @@ func MoneyFromCapturedText(input checkruntime.TextValue, texts string, units str
 			return checkruntime.MakeMoneyValue(value)
 		}
 	}
-	return checkruntime.MoneyUnresolved(unresolvedFlavor)
+	localFlavor274 := unresolvedFlavor
+	if selected.Kind == checkruntime.EnumValueUnknown {
+		if localFlavor274 < 1 {
+			localFlavor274 = langruntime.CheckedI32(1)
+		}
+	}
+	if selected.Kind == checkruntime.EnumValueUnimplemented {
+		localFlavor274 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.MoneyUnresolved(localFlavor274)
 }
 func scalarInputDigit(ch rune) int {
 	ch = langruntime.CheckedChar(ch)
@@ -60133,7 +61616,16 @@ func snapshotXidBound(input checkruntime.SnapshotValue, maximum bool) checkrunti
 		bits := bound.Value
 		return checkruntime.MakeXid8Bits(bits)
 	}
-	return checkruntime.Xid8Unresolved(unresolvedFlavor)
+	localFlavor1254 := unresolvedFlavor
+	if bound.Kind == checkruntime.Int8ValueUnknown {
+		if localFlavor1254 < 1 {
+			localFlavor1254 = langruntime.CheckedI32(1)
+		}
+	}
+	if bound.Kind == checkruntime.Int8ValueUnimplemented {
+		localFlavor1254 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.Xid8Unresolved(localFlavor1254)
 }
 func snapshotVisible(value checkruntime.Int8Value, snapshot checkruntime.SnapshotValue) checkruntime.BoolValue {
 	snapshot = checkruntime.CopySnapshotValue(snapshot)
@@ -60568,7 +62060,16 @@ func xid8Relation(left checkruntime.Xid8Value, right checkruntime.Xid8Value, mod
 		}
 		return checkruntime.MakeBoolValue(order >= 0)
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	localFlavor1074 := unresolvedFlavor
+	if comparison.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor1074 < 1 {
+			localFlavor1074 = langruntime.CheckedI32(1)
+		}
+	}
+	if comparison.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor1074 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoolUnresolved(localFlavor1074)
 }
 func xid8Select(left checkruntime.Xid8Value, right checkruntime.Xid8Value, larger bool) checkruntime.Xid8Value {
 	unresolvedFlavor := 0
@@ -60599,7 +62100,16 @@ func xid8Select(left checkruntime.Xid8Value, right checkruntime.Xid8Value, large
 		}
 		return right
 	}
-	return checkruntime.Xid8Unresolved(unresolvedFlavor)
+	localFlavor1284 := unresolvedFlavor
+	if comparison.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor1284 < 1 {
+			localFlavor1284 = langruntime.CheckedI32(1)
+		}
+	}
+	if comparison.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor1284 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.Xid8Unresolved(localFlavor1284)
 }
 func xid8Bits(input checkruntime.Xid8Value) checkruntime.Int8Value {
 	unresolvedFlavor := 0
@@ -60675,7 +62185,16 @@ func XidLwyo(left checkruntime.Xid8Value) checkruntime.XidValue {
 		value := bits.Value
 		return xidFromOid(OidFromInt4(checkruntime.MakeInt4Value(int(int32(value)))))
 	}
-	return checkruntime.XidUnresolved(unresolvedFlavor)
+	localFlavor1914 := unresolvedFlavor
+	if bits.Kind == checkruntime.Int8ValueUnknown {
+		if localFlavor1914 < 1 {
+			localFlavor1914 = langruntime.CheckedI32(1)
+		}
+	}
+	if bits.Kind == checkruntime.Int8ValueUnimplemented {
+		localFlavor1914 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.XidUnresolved(localFlavor1914)
 }
 func Xid8Larger92s8(left checkruntime.Xid8Value, right checkruntime.Xid8Value) checkruntime.Xid8Value {
 	return xid8Select(left, right, true)
@@ -61371,7 +62890,32 @@ func DateBin0b5n(stride checkruntime.IntervalValue, input checkruntime.Timestamp
 		timestamp := result.Value
 		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueValue, Value: timestamp}
 	}
-	return checkruntime.TimestamptzUnresolved(unresolvedFlavor)
+	localFlavor1884 := unresolvedFlavor
+	if result.Kind == checkruntime.TimestampValueUnknown {
+		if localFlavor1884 < 1 {
+			localFlavor1884 = langruntime.CheckedI32(1)
+		}
+	}
+	if result.Kind == checkruntime.TimestampValueUnimplemented {
+		localFlavor1884 = langruntime.CheckedI32(2)
+	}
+	if originTime.Kind == checkruntime.TimestampValueUnknown {
+		if localFlavor1884 < 1 {
+			localFlavor1884 = langruntime.CheckedI32(1)
+		}
+	}
+	if originTime.Kind == checkruntime.TimestampValueUnimplemented {
+		localFlavor1884 = langruntime.CheckedI32(2)
+	}
+	if sourceTime.Kind == checkruntime.TimestampValueUnknown {
+		if localFlavor1884 < 1 {
+			localFlavor1884 = langruntime.CheckedI32(1)
+		}
+	}
+	if sourceTime.Kind == checkruntime.TimestampValueUnimplemented {
+		localFlavor1884 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.TimestamptzUnresolved(localFlavor1884)
 }
 func temporalCompare(left int64, right int64) int {
 	if left < right {
@@ -63549,7 +65093,16 @@ func temporalRangeTimestampValue(value int64, base int64, offset checkruntime.In
 		}
 		return checkruntime.MakeBoolValue(order >= 0)
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	localFlavor764 := unresolvedFlavor
+	if boundary.Kind == checkruntime.TimestampValueUnknown {
+		if localFlavor764 < 1 {
+			localFlavor764 = langruntime.CheckedI32(1)
+		}
+	}
+	if boundary.Kind == checkruntime.TimestampValueUnimplemented {
+		localFlavor764 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoolUnresolved(localFlavor764)
 }
 func temporalRangeIntervalValue(value checkruntime.IntervalPayload, base checkruntime.IntervalPayload, offset checkruntime.IntervalPayload, subtract bool, less bool) checkruntime.BoolValue {
 	zero := checkruntime.IntervalPayload{Months: 0, Days: 0, Time: int64(0)}
@@ -64228,7 +65781,16 @@ func ToTimestampKymq(input checkruntime.Float8Value) checkruntime.TimestamptzVal
 			return checkruntime.MakeTimestamptzValue(value)
 		}
 	}
-	return checkruntime.TimestamptzUnresolved(unresolvedFlavor)
+	localFlavor644 := unresolvedFlavor
+	if semantic.Kind == checkruntime.Float8ValueUnknown {
+		if localFlavor644 < 1 {
+			localFlavor644 = langruntime.CheckedI32(1)
+		}
+	}
+	if semantic.Kind == checkruntime.Float8ValueUnimplemented {
+		localFlavor644 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.TimestamptzUnresolved(localFlavor644)
 }
 func DateCmpU18z(left checkruntime.DateValue, right checkruntime.DateValue) checkruntime.Int4Value {
 	unresolvedFlavor := 0
@@ -65907,7 +67469,7 @@ func AsciiContext(input checkruntime.TextValue, utf8 bool) checkruntime.Int4Valu
 		if value.Kind == checkruntime.Int4ValueValue {
 			code := langruntime.CheckedI32(value.Value)
 			if code > 127 {
-				return checkruntime.Int4Unresolved(unresolvedFlavor)
+				return checkruntime.Int4Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 			}
 		}
 	}
@@ -67067,7 +68629,7 @@ func textHashValue(input checkruntime.TextValue, trimSpaces bool, byteOrder int,
 			index := 0
 			for index < len(chars) {
 				if int(langruntime.CheckedChar(chars[index])) > 127 {
-					return checkruntime.Int4Unresolved(unresolvedFlavor)
+					return checkruntime.Int4Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 				}
 				index = langruntime.CheckedAdd(index, 1)
 			}
@@ -67133,7 +68695,7 @@ func textHashExtended(input checkruntime.TextValue, seed checkruntime.Int8Value,
 				index := 0
 				for index < len(chars) {
 					if int(langruntime.CheckedChar(chars[index])) > 127 {
-						return checkruntime.Int8Unresolved(unresolvedFlavor)
+						return checkruntime.Int8Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 					}
 					index = langruntime.CheckedAdd(index, 1)
 				}
@@ -70391,7 +71953,16 @@ func tidRelation(left checkruntime.TidValue, right checkruntime.TidValue, mode i
 		}
 		return checkruntime.MakeBoolValue(order >= 0)
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	localFlavor634 := unresolvedFlavor
+	if comparison.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor634 < 1 {
+			localFlavor634 = langruntime.CheckedI32(1)
+		}
+	}
+	if comparison.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor634 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoolUnresolved(localFlavor634)
 }
 func tidSelect(left checkruntime.TidValue, right checkruntime.TidValue, larger bool) checkruntime.TidValue {
 	unresolvedFlavor := 0
@@ -70422,7 +71993,16 @@ func tidSelect(left checkruntime.TidValue, right checkruntime.TidValue, larger b
 		}
 		return right
 	}
-	return checkruntime.TidUnresolved(unresolvedFlavor)
+	localFlavor844 := unresolvedFlavor
+	if comparison.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor844 < 1 {
+			localFlavor844 = langruntime.CheckedI32(1)
+		}
+	}
+	if comparison.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor844 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.TidUnresolved(localFlavor844)
 }
 func TidToText(input checkruntime.TidValue) checkruntime.TextValue {
 	unresolvedFlavor := 0
@@ -71544,7 +73124,16 @@ func clockDateTimestamp(date checkruntime.DateValue, clock checkruntime.TimeValu
 			return checkruntime.MakeTimestampValue(langruntime.CheckedI64Add(midnight, time))
 		}
 	}
-	return checkruntime.TimestampUnresolved(unresolvedFlavor)
+	localFlavor1934 := unresolvedFlavor
+	if base.Kind == checkruntime.TimestampValueUnknown {
+		if localFlavor1934 < 1 {
+			localFlavor1934 = langruntime.CheckedI32(1)
+		}
+	}
+	if base.Kind == checkruntime.TimestampValueUnimplemented {
+		localFlavor1934 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.TimestampUnresolved(localFlavor1934)
 }
 func clockDateTimestamptz(date checkruntime.DateValue, clock checkruntime.TimetzValue) checkruntime.TimestamptzValue {
 	unresolvedFlavor := 0
@@ -71606,7 +73195,16 @@ func clockDateTimestamptz(date checkruntime.DateValue, clock checkruntime.Timetz
 			return checkruntime.MakeTimestamptzValue(langruntime.CheckedI64Add(langruntime.CheckedI64Add(midnight, time.Time), langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(time.Zone))), int64(1000000))))
 		}
 	}
-	return checkruntime.TimestamptzUnresolved(unresolvedFlavor)
+	localFlavor2254 := unresolvedFlavor
+	if base.Kind == checkruntime.TimestampValueUnknown {
+		if localFlavor2254 < 1 {
+			localFlavor2254 = langruntime.CheckedI32(1)
+		}
+	}
+	if base.Kind == checkruntime.TimestampValueUnimplemented {
+		localFlavor2254 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.TimestamptzUnresolved(localFlavor2254)
 }
 func Timestamp4biu(date checkruntime.DateValue, clock checkruntime.TimeValue) checkruntime.TimestampValue {
 	return clockDateTimestamp(date, clock)
@@ -72492,7 +74090,16 @@ func TimezoneLxij(zone checkruntime.IntervalValue, input checkruntime.TimestampV
 		time := result.Value
 		return checkruntime.MakeTimestamptzValue(time)
 	}
-	return checkruntime.TimestamptzUnresolved(unresolvedFlavor)
+	localFlavor824 := unresolvedFlavor
+	if result.Kind == checkruntime.TimestampValueUnknown {
+		if localFlavor824 < 1 {
+			localFlavor824 = langruntime.CheckedI32(1)
+		}
+	}
+	if result.Kind == checkruntime.TimestampValueUnimplemented {
+		localFlavor824 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.TimestamptzUnresolved(localFlavor824)
 }
 func TimezoneN8k4(zone checkruntime.IntervalValue, input checkruntime.TimestamptzValue) checkruntime.TimestampValue {
 	return fixedZoneTimestamp(zone, intervalCalendarLocalPayload(input), true)
@@ -75264,7 +76871,7 @@ func tsqueryCompare(left checkruntime.TsqueryValue, right checkruntime.TsqueryVa
 					if an.Kind == 0 {
 						if an.Text != bn.Text {
 							if utf8 == false && (tsqueryAscii(an.Text) == false || tsqueryAscii(bn.Text) == false) {
-								return checkruntime.Int4Unresolved(unresolvedFlavor)
+								return checkruntime.Int4Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 							}
 							ac := tsqueryLegacyCrc(an.Text)
 							bc := tsqueryLegacyCrc(bn.Text)
@@ -75371,7 +76978,16 @@ func tsqueryRelation(left checkruntime.TsqueryValue, right checkruntime.TsqueryV
 		}
 		return checkruntime.MakeBoolValue(value >= 0)
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	localFlavor1274 := unresolvedFlavor
+	if order.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor1274 < 1 {
+			localFlavor1274 = langruntime.CheckedI32(1)
+		}
+	}
+	if order.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor1274 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoolUnresolved(localFlavor1274)
 }
 func TsqueryEqD4ao(a checkruntime.TsqueryValue, b checkruntime.TsqueryValue, utf8 bool) checkruntime.BoolValue {
 	a = checkruntime.CopyTsqueryValue(a)
@@ -76794,7 +78410,7 @@ func Tsquerysend0660(input checkruntime.TsqueryValue, utf8 bool) checkruntime.By
 				index := 0
 				for index < len(chars) {
 					if utf8 == false && (int(langruntime.CheckedChar(chars[index]))) > 127 {
-						return checkruntime.ByteaUnresolved(unresolvedFlavor)
+						return checkruntime.ByteaUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 					}
 					output = langruntime.NewTextBuffer(byteaUtf8Character(string(output), chars[index]))
 					index = langruntime.CheckedAdd(index, 1)
@@ -77366,7 +78982,7 @@ func tsqueryRewriteCompare(tree *tsqueryRewriteTree, left int, right int, utf8 b
 			if a.value.Kind == 0 {
 				if a.value.Text != b.value.Text {
 					if utf8 == false && (tsqueryAscii(a.value.Text) == false || tsqueryAscii(b.value.Text) == false) {
-						return checkruntime.Int4Unresolved(unresolvedFlavor)
+						return checkruntime.Int4Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 					}
 					ac := tsqueryLegacyCrc(a.value.Text)
 					bc := tsqueryLegacyCrc(b.value.Text)
@@ -78058,7 +79674,7 @@ func tsvectorParseText(input checkruntime.TextValue, utf8 bool, stored bool) che
 					return checkruntime.TsvectorUnresolved(unresolvedFlavor)
 				}
 				if (int(langruntime.CheckedChar(character))) >= 128 && utf8 == false {
-					return checkruntime.TsvectorUnresolved(unresolvedFlavor)
+					return checkruntime.TsvectorUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 				}
 				if character == '\\' {
 					index = langruntime.CheckedAdd(index, 1)
@@ -78067,7 +79683,7 @@ func tsvectorParseText(input checkruntime.TextValue, utf8 bool, stored bool) che
 					}
 					escaped := chars[index]
 					if escaped == '\x00' || ((int(langruntime.CheckedChar(escaped))) >= 128 && utf8 == false) {
-						return checkruntime.TsvectorUnresolved(unresolvedFlavor)
+						return checkruntime.TsvectorUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 					}
 					word = append(word, string(langruntime.CheckedChar(escaped))...)
 					index = langruntime.CheckedAdd(index, 1)
@@ -78788,7 +80404,7 @@ func ArrayToTsvectorY8ia(input checkruntime.ArrayValue, utf8 bool) checkruntime.
 				c := 0
 				for c < len(chars) {
 					if utf8 == false && (int(langruntime.CheckedChar(chars[c]))) > 127 {
-						return checkruntime.TsvectorUnresolved(unresolvedFlavor)
+						return checkruntime.TsvectorUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 					}
 					c = langruntime.CheckedAdd(c, 1)
 				}
@@ -78970,7 +80586,7 @@ func Tsvectorsend37x7(input checkruntime.TsvectorValue, utf8 bool) checkruntime.
 			c := 0
 			for c < len(chars) {
 				if utf8 == false && (int(langruntime.CheckedChar(chars[c]))) > 127 {
-					return checkruntime.ByteaUnresolved(unresolvedFlavor)
+					return checkruntime.ByteaUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 				}
 				output = langruntime.NewTextBuffer(byteaUtf8Character(string(output), chars[c]))
 				c = langruntime.CheckedAdd(c, 1)
@@ -79561,7 +81177,16 @@ func tsvectorRelation(left checkruntime.TsvectorValue, right checkruntime.Tsvect
 		}
 		return checkruntime.MakeBoolValue(value >= 0)
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	localFlavor1624 := unresolvedFlavor
+	if order.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor1624 < 1 {
+			localFlavor1624 = langruntime.CheckedI32(1)
+		}
+	}
+	if order.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor1624 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoolUnresolved(localFlavor1624)
 }
 func TsvectorEqAqk8(a checkruntime.TsvectorValue, b checkruntime.TsvectorValue) checkruntime.BoolValue {
 	a = checkruntime.CopyTsvectorValue(a)
@@ -82003,7 +83628,7 @@ func XmlElementAttribute(name string, mapped bool, implicit bool, input checkrun
 	if input.Kind == checkruntime.TextValueValue {
 		value := langruntime.CheckedString(input.Value)
 		if xmlTextEncodingAvailable(value, utf8) == false {
-			return checkruntime.TextUnresolved(unresolvedFlavor)
+			return checkruntime.TextUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		target := langruntime.NewTextBuffer(name)
 		if mapped == false {
@@ -82981,7 +84606,7 @@ func XmlIndentUtf8(input checkruntime.XmlValue, document bool, utf8 bool) checkr
 	if input.Kind == checkruntime.XmlValueValue {
 		value := langruntime.CheckedString(input.Value)
 		if xmlTextEncodingAvailable(value, utf8) == false {
-			return checkruntime.TextUnresolved(unresolvedFlavor)
+			return checkruntime.TextUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		if xmlWellFormed(value, document) == false {
 			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(sqlstateNotXmlDocument)}
@@ -83020,7 +84645,7 @@ func XmlIndentUtf8(input checkruntime.XmlValue, document bool, utf8 bool) checkr
 			cursor = langruntime.CheckedIndex(node.next)
 		}
 		if xmlTextEncodingAvailable(string(output), utf8) == false {
-			return checkruntime.TextUnresolved(unresolvedFlavor)
+			return checkruntime.TextUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
 	}
@@ -85017,7 +86642,7 @@ func XmlFromTextContext(input checkruntime.TextValue, mode int, utf8 bool) check
 	if input.Kind == checkruntime.TextValueValue {
 		value := langruntime.CheckedString(input.Value)
 		if xmlTextEncodingAvailable(value, utf8) == false {
-			return checkruntime.XmlUnresolved(unresolvedFlavor)
+			return checkruntime.XmlUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		if mode == 0 {
 			if xmlWellFormed(value, true) && xmlWellFormed(value, false) {
@@ -85053,14 +86678,14 @@ func XmlIsDocumentContext(input checkruntime.XmlValue, utf8 bool) checkruntime.B
 	if stored.Kind == checkruntime.XmlValueValue {
 		value := langruntime.CheckedString(stored.Value)
 		if xmlTextEncodingAvailable(value, utf8) == false {
-			return checkruntime.BoolUnresolved(unresolvedFlavor)
+			return checkruntime.BoolUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 	}
 	rendered := input
 	if rendered.Kind == checkruntime.XmlValueRenderedText {
 		value := langruntime.CheckedString(rendered.RenderedText)
 		if xmlTextEncodingAvailable(value, utf8) == false {
-			return checkruntime.BoolUnresolved(unresolvedFlavor)
+			return checkruntime.BoolUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 	}
 	return XmlIsDocumentUtf8(input)
@@ -85095,7 +86720,16 @@ func XmlSerializeContext(input checkruntime.XmlValue, mode int, indent bool, utf
 			valid = true
 		}
 		if valid == false {
-			return checkruntime.TextUnresolved(unresolvedFlavor)
+			localFlavor8328 := unresolvedFlavor
+			if document.Kind == checkruntime.BoolValueUnknown {
+				if localFlavor8328 < 1 {
+					localFlavor8328 = langruntime.CheckedI32(1)
+				}
+			}
+			if document.Kind == checkruntime.BoolValueUnimplemented {
+				localFlavor8328 = langruntime.CheckedI32(2)
+			}
+			return checkruntime.TextUnresolved(localFlavor8328)
 		}
 	}
 	return XmlToText(input)
@@ -85116,7 +86750,7 @@ func XmlSendUur7(input checkruntime.XmlValue, clientUtf8 bool) checkruntime.Byte
 		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
 	}
 	if clientUtf8 == false {
-		return checkruntime.ByteaUnresolved(unresolvedFlavor)
+		return checkruntime.ByteaUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 	}
 	return XmlToByteaUtf8(input)
 }
@@ -90090,7 +91724,16 @@ func xpathResultExists(input *xPathValue) checkruntime.BoolValue {
 		value := langruntime.CheckedI32(count.Value)
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: value > 0}
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	localFlavor424 := unresolvedFlavor
+	if count.Kind == checkruntime.Int4ValueUnknown {
+		if localFlavor424 < 1 {
+			localFlavor424 = langruntime.CheckedI32(1)
+		}
+	}
+	if count.Kind == checkruntime.Int4ValueUnimplemented {
+		localFlavor424 = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoolUnresolved(localFlavor424)
 }
 func XpathResultToXml(input xPathValue, tree *xmlTree, graph *xPathGraph, extra int, known bool) xPathXmlResult {
 	if input.state != 0 {

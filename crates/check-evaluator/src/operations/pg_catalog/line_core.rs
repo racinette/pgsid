@@ -10,7 +10,7 @@ fn line_equal_product(left: i64, right: i64, ratio: Float8Value) -> BoolValue {
     if let Float8Value::Value(bits) = known_product {
         return make_bool_value(geometric_coordinate_equal(float8_number(left), float8_number(bits)));
     };
-    bool_unresolved(unresolved_flavor)
+    let mut local_flavor_13_4: i32 = unresolved_flavor; if let Float8Value::Unknown = known_product { if local_flavor_13_4 < 1 { local_flavor_13_4 = 1; }; }; if let Float8Value::Unimplemented = known_product { local_flavor_13_4 = 2; }; if let Float8Value::Unknown = product { if local_flavor_13_4 < 1 { local_flavor_13_4 = 1; }; }; if let Float8Value::Unimplemented = product { local_flavor_13_4 = 2; }; bool_unresolved(local_flavor_13_4)
 }
 pub fn sql__pg_catalog__line_eq__k687(left: LineValue, right: LineValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
