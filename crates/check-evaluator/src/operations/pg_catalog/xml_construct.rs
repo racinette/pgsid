@@ -96,7 +96,7 @@ pub fn xml_concat_append(input: XmlConcatState, value: XmlValue) -> XmlConcatSta
         return xml_concat_status(input,failed);
     };
     if let XmlValue::Null = value { return input; };
-    if input.status == CheckOutcome::Unknown { return input; };
+    if (input.status == CheckOutcome::Unknown || input.status == CheckOutcome::Unimplemented) { return input; };
     if let XmlValue::Value(text) = value {
         let declaration = parse_xml_constructor_declaration(text.as_str());
         let mut standalone = input.standalone;
@@ -116,10 +116,12 @@ pub fn xml_concat_append(input: XmlConcatState, value: XmlValue) -> XmlConcatSta
 }
 
 pub fn xml_concat_finish(input: XmlConcatState) -> XmlValue {
-    let unresolved_flavor: i32 = 0;
+    let mut unresolved_flavor: i32 = 0;
+    if input.status == CheckOutcome::Unknown { unresolved_flavor = 1; };
+    if input.status == CheckOutcome::Unimplemented { unresolved_flavor = 2; };
     let status = input.status;
     if let CheckOutcome::Error(error) = status { return XmlValue::Error(error); };
-    if input.status == CheckOutcome::Unknown { return xml_unresolved(unresolved_flavor); };
+    if (input.status == CheckOutcome::Unknown || input.status == CheckOutcome::Unimplemented) { return xml_unresolved(unresolved_flavor); };
     if input.has_value == false { return XmlValue::Null; };
     xml_constructor_output(input.version.as_str(),input.version_consistent,input.standalone,input.body.as_str())
 }
@@ -139,6 +141,8 @@ pub fn xml_root(input: XmlValue, version: TextValue, standalone: i32) -> XmlValu
     let mut unresolved_flavor: i32 = 0;
     if let XmlValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unknown = version { unresolved_flavor = 1; };
+    if let XmlValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = version { unresolved_flavor = 2; };
     if let XmlValue::Error(error) = input { return XmlValue::Error(error); };
     if let TextValue::Error(error) = version { return XmlValue::Error(error); };
     if let XmlValue::Null = input { return XmlValue::Null; };
@@ -166,6 +170,7 @@ pub fn xml_root(input: XmlValue, version: TextValue, standalone: i32) -> XmlValu
 pub fn xml_make_processing_instruction(name: &str, content: TextValue, present: bool, mapped: bool) -> XmlValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = content { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = content { unresolved_flavor = 2; };
     let mut target = name.to_owned();
     if mapped == false { target = xml_constructor_name(name); };
     if let TextValue::Error(error) = content { return XmlValue::Error(error); };
@@ -179,7 +184,7 @@ pub fn xml_make_processing_instruction(name: &str, content: TextValue, present: 
     output.push_str(target.as_str());
     if present {
         if let TextValue::Null = content { return XmlValue::Null; };
-        if content == TextValue::Unknown || content == TextValue::NonNull { return xml_unresolved(unresolved_flavor); };
+        let mut condition_flavor_187_8: i32 = unresolved_flavor; if let TextValue::Unknown = content { if condition_flavor_187_8 < 1 { condition_flavor_187_8 = 1; }; }; if let TextValue::Unimplemented = content { condition_flavor_187_8 = 2; }; if (content == TextValue::Unknown || content == TextValue::Unimplemented) || content == TextValue::NonNull { return xml_unresolved(condition_flavor_187_8); };
         if let TextValue::Value(value) = content {
             let source = XmlSource { characters: value.as_str().chars().collect() };
             let mut index: usize = 0;

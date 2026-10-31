@@ -92,6 +92,7 @@ fn json_object_array_known(keys: ArrayPayload, values: ArrayPayload, paired: boo
 pub fn sql__pg_catalog__json_object__fm30(input: ArrayValue) -> JsonValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayValue::Error(error) = input {
         return JsonValue::Error(error);
     };
@@ -108,6 +109,8 @@ pub fn sql__pg_catalog__json_object__katl(keys: ArrayValue, values: ArrayValue) 
     let mut unresolved_flavor: i32 = 0;
     if let ArrayValue::Unknown = keys { unresolved_flavor = 1; };
     if let ArrayValue::Unknown = values { unresolved_flavor = 1; };
+    if let ArrayValue::Unimplemented = keys { unresolved_flavor = 2; };
+    if let ArrayValue::Unimplemented = values { unresolved_flavor = 2; };
     if let ArrayValue::Error(error) = keys {
         return JsonValue::Error(error);
     };
@@ -131,6 +134,7 @@ pub fn sql__pg_catalog__json_object__katl(keys: ArrayValue, values: ArrayValue) 
 fn json_object_array_to_jsonb(input: JsonValue) -> JsonbValue {
     let mut unresolved_flavor: i32 = 0;
     if let JsonValue::Unknown = input { unresolved_flavor = 1; };
+    if let JsonValue::Unimplemented = input { unresolved_flavor = 2; };
     if let JsonValue::Error(error) = input {
         return JsonbValue::Error(error);
     };

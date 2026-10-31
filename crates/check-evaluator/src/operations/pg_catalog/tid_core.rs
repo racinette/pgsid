@@ -2,14 +2,16 @@ fn tid_compare(left: TidValue, right: TidValue) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let TidValue::Unknown = left { unresolved_flavor = 1; };
     if let TidValue::Unknown = right { unresolved_flavor = 1; };
+    if let TidValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let TidValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TidValue::Error(error) = left {
         return Int4Value::Error(error);
     };
     if let TidValue::Error(error) = right {
         return Int4Value::Error(error);
     };
-    if left == TidValue::Unknown || right == TidValue::Unknown {
-        return int4_unresolved(unresolved_flavor);
+    let mut condition_flavor_13_4: i32 = unresolved_flavor; if let TidValue::Unknown = left { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let TidValue::Unimplemented = left { condition_flavor_13_4 = 2; }; if let TidValue::Unknown = right { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let TidValue::Unimplemented = right { condition_flavor_13_4 = 2; }; if (left == TidValue::Unknown || left == TidValue::Unimplemented) || (right == TidValue::Unknown || right == TidValue::Unimplemented) {
+        return int4_unresolved(condition_flavor_13_4);
     };
     if left == TidValue::Null || right == TidValue::Null {
         return Int4Value::Null;
@@ -31,6 +33,8 @@ fn tid_relation(left: TidValue, right: TidValue, mode: i32) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let TidValue::Unknown = left { unresolved_flavor = 1; };
     if let TidValue::Unknown = right { unresolved_flavor = 1; };
+    if let TidValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let TidValue::Unimplemented = right { unresolved_flavor = 2; };
     let comparison = tid_compare(left, right);
     if let Int4Value::Error(error) = comparison {
         return BoolValue::Error(error);
@@ -62,6 +66,8 @@ fn tid_select(left: TidValue, right: TidValue, larger: bool) -> TidValue {
     let mut unresolved_flavor: i32 = 0;
     if let TidValue::Unknown = left { unresolved_flavor = 1; };
     if let TidValue::Unknown = right { unresolved_flavor = 1; };
+    if let TidValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let TidValue::Unimplemented = right { unresolved_flavor = 2; };
     let comparison = tid_compare(left, right);
     if let Int4Value::Error(error) = comparison {
         return TidValue::Error(error);
@@ -82,6 +88,7 @@ fn tid_select(left: TidValue, right: TidValue, larger: bool) -> TidValue {
 pub fn tid_to_text(input: TidValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TidValue::Unknown = input { unresolved_flavor = 1; };
+    if let TidValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TidValue::Error(error) = input { return TextValue::Error(error); };
     if input == TidValue::Null { return TextValue::Null; };
     if let TidValue::Value(value) = input {
@@ -98,6 +105,7 @@ pub fn tid_to_text(input: TidValue) -> TextValue {
 fn tid_send(input: TidValue) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let TidValue::Unknown = input { unresolved_flavor = 1; };
+    if let TidValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TidValue::Error(error) = input { return ByteaValue::Error(error); };
     if input == TidValue::Null { return ByteaValue::Null; };
     if let TidValue::Value(value) = input {
@@ -138,6 +146,7 @@ fn tid_hash_bytes(value: i64) -> Vec<HashByte> {
 pub fn sql__pg_catalog__hashtid__li7j(left: TidValue, byte_order: i32) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let TidValue::Unknown = left { unresolved_flavor = 1; };
+    if let TidValue::Unimplemented = left { unresolved_flavor = 2; };
     if let TidValue::Error(error) = left {
         return Int4Value::Error(error);
     };
@@ -159,14 +168,16 @@ pub fn sql__pg_catalog__hashtidextended__osxq(
     let mut unresolved_flavor: i32 = 0;
     if let TidValue::Unknown = left { unresolved_flavor = 1; };
     if let Int8Value::Unknown = right { unresolved_flavor = 1; };
+    if let TidValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let Int8Value::Unimplemented = right { unresolved_flavor = 2; };
     if let TidValue::Error(error) = left {
         return Int8Value::Error(error);
     };
     if let Int8Value::Error(error) = right {
         return Int8Value::Error(error);
     };
-    if left == TidValue::Unknown || right == Int8Value::Unknown {
-        return int8_unresolved(unresolved_flavor);
+    let mut condition_flavor_179_4: i32 = unresolved_flavor; if let TidValue::Unknown = left { if condition_flavor_179_4 < 1 { condition_flavor_179_4 = 1; }; }; if let TidValue::Unimplemented = left { condition_flavor_179_4 = 2; }; if let Int8Value::Unknown = right { if condition_flavor_179_4 < 1 { condition_flavor_179_4 = 1; }; }; if let Int8Value::Unimplemented = right { condition_flavor_179_4 = 2; }; if (left == TidValue::Unknown || left == TidValue::Unimplemented) || (right == Int8Value::Unknown || right == Int8Value::Unimplemented) {
+        return int8_unresolved(condition_flavor_179_4);
     };
     if left == TidValue::Null || right == Int8Value::Null {
         return Int8Value::Null;

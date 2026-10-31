@@ -76,6 +76,10 @@ pub fn sql__pg_catalog__width_bucket__mx75(
     if let NumericValue::Unknown = lower { unresolved_flavor = 1; };
     if let NumericValue::Unknown = upper { unresolved_flavor = 1; };
     if let Int4Value::Unknown = count { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = value { unresolved_flavor = 2; };
+    if let NumericValue::Unimplemented = lower { unresolved_flavor = 2; };
+    if let NumericValue::Unimplemented = upper { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = count { unresolved_flavor = 2; };
     if let NumericValue::Error(error) = value {
         return Int4Value::Error(error);
     }
@@ -88,12 +92,12 @@ pub fn sql__pg_catalog__width_bucket__mx75(
     if let Int4Value::Error(error) = count {
         return Int4Value::Error(error);
     }
-    if value == NumericValue::Unknown
-        || lower == NumericValue::Unknown
-        || upper == NumericValue::Unknown
-        || count == Int4Value::Unknown
+    let mut condition_flavor_95_4: i32 = unresolved_flavor; if let NumericValue::Unknown = value { if condition_flavor_95_4 < 1 { condition_flavor_95_4 = 1; }; }; if let NumericValue::Unimplemented = value { condition_flavor_95_4 = 2; }; if let NumericValue::Unknown = lower { if condition_flavor_95_4 < 1 { condition_flavor_95_4 = 1; }; }; if let NumericValue::Unimplemented = lower { condition_flavor_95_4 = 2; }; if let NumericValue::Unknown = upper { if condition_flavor_95_4 < 1 { condition_flavor_95_4 = 1; }; }; if let NumericValue::Unimplemented = upper { condition_flavor_95_4 = 2; }; if let Int4Value::Unknown = count { if condition_flavor_95_4 < 1 { condition_flavor_95_4 = 1; }; }; if let Int4Value::Unimplemented = count { condition_flavor_95_4 = 2; }; if (value == NumericValue::Unknown || value == NumericValue::Unimplemented)
+        || (lower == NumericValue::Unknown || lower == NumericValue::Unimplemented)
+        || (upper == NumericValue::Unknown || upper == NumericValue::Unimplemented)
+        || (count == Int4Value::Unknown || count == Int4Value::Unimplemented)
     {
-        return int4_unresolved(unresolved_flavor);
+        return int4_unresolved(condition_flavor_95_4);
     }
     if value == NumericValue::Null
         || lower == NumericValue::Null

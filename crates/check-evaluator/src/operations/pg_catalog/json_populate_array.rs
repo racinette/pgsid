@@ -37,6 +37,7 @@ fn json_populate_array_length(input: JsonbInput) -> i32 {
 fn json_populate_array_element(input: JsonbInput, position: i32, utf8: bool) -> JsonbInput {
     let mut unresolved_flavor: i32 = 0;
     if let JsonbInput::Unknown = input { unresolved_flavor = 1; };
+    if let JsonbInput::Unimplemented = input { unresolved_flavor = 2; };
     let index = make_int4_value(position);
     let raw = input.clone();
     if let JsonbInput::Json(value) = raw {
@@ -62,6 +63,7 @@ fn json_populate_array_element(input: JsonbInput, position: i32, utf8: bool) -> 
 fn json_populate_array_text_event(input: TextValue) -> ArrayTextEvent {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Value(text) = input {
         return ArrayTextEvent::Text(text);
     };
@@ -225,6 +227,7 @@ pub(crate) fn json_populate_array_current(
 ) -> JsonbInput {
     let mut unresolved_flavor: i32 = 0;
     if let Int4Value::Unknown = index { unresolved_flavor = 1; };
+    if let Int4Value::Unimplemented = index { unresolved_flavor = 2; };
     if let Int4Value::Value(position) = index {
         if position >= 0 && position < input.values.len() as i32 {
             return input.values[usize::try_from(position).unwrap_or(0)].clone();
@@ -248,6 +251,8 @@ pub(crate) fn json_populate_array_jsonb(
 ) -> JsonbValue {
     if let JsonbInput::Unknown = input {
         return jsonb_from_text_context(text, utf8);
+    }; if let JsonbInput::Unimplemented = input {
+        return jsonb_from_text_context(text, utf8);
     };
     json_populate_jsonb(input, utf8)
 }
@@ -258,8 +263,11 @@ pub(crate) fn finish_json_populate_array(
 ) -> ArrayValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayArguments::Unknown = converted { unresolved_flavor = 1; };
-    if let ArrayArguments::Unknown = converted {
-        return array_unresolved(unresolved_flavor);
+    if let ArrayArguments::Unimplemented = converted { unresolved_flavor = 2; };
+    let mut condition_flavor_267_4: i32 = unresolved_flavor; if let ArrayArguments::Unknown = converted { if condition_flavor_267_4 < 1 { condition_flavor_267_4 = 1; }; }; if let ArrayArguments::Unknown = converted {
+        return array_unresolved(condition_flavor_267_4);
+    }; let mut condition_flavor_269_7: i32 = unresolved_flavor; if let ArrayArguments::Unimplemented = converted { condition_flavor_269_7 = 2; }; if let ArrayArguments::Unimplemented = converted {
+        return array_unresolved(condition_flavor_269_7);
     };
     finish_domain_array_input(input, converted)
 }

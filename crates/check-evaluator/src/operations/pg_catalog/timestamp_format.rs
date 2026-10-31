@@ -400,14 +400,16 @@ pub fn sql__pg_catalog__to_char__m86d(
     let mut unresolved_flavor: i32 = 0;
     if let TimestampValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unknown = template { unresolved_flavor = 1; };
+    if let TimestampValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = template { unresolved_flavor = 2; };
     if let TimestampValue::Error(error) = input {
         return TextValue::Error(error);
     };
     if let TextValue::Error(error) = template {
         return TextValue::Error(error);
     };
-    if input == TimestampValue::Unknown || template == TextValue::Unknown {
-        return text_unresolved(unresolved_flavor);
+    let mut condition_flavor_411_4: i32 = unresolved_flavor; if let TimestampValue::Unknown = input { if condition_flavor_411_4 < 1 { condition_flavor_411_4 = 1; }; }; if let TimestampValue::Unimplemented = input { condition_flavor_411_4 = 2; }; if let TextValue::Unknown = template { if condition_flavor_411_4 < 1 { condition_flavor_411_4 = 1; }; }; if let TextValue::Unimplemented = template { condition_flavor_411_4 = 2; }; if (input == TimestampValue::Unknown || input == TimestampValue::Unimplemented) || (template == TextValue::Unknown || template == TextValue::Unimplemented) {
+        return text_unresolved(condition_flavor_411_4);
     };
     if input == TimestampValue::Null || template == TextValue::Null {
         return TextValue::Null;

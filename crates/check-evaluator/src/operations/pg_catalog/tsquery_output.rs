@@ -9,6 +9,7 @@ struct TsqueryRenderFrame {
 pub fn sql__pg_catalog__numnode__7bkv(input: TsqueryValue) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let TsqueryValue::Unknown = input { unresolved_flavor = 1; };
+    if let TsqueryValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TsqueryValue::Error(error) = input { return Int4Value::Error(error); };
     if let TsqueryValue::Null = input { return Int4Value::Null; };
     if let TsqueryValue::Value(value) = input { return make_int4_value(value.nodes.len() as i32); };
@@ -18,6 +19,7 @@ pub fn sql__pg_catalog__numnode__7bkv(input: TsqueryValue) -> Int4Value {
 pub fn tsquery_to_text(input: TsqueryValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TsqueryValue::Unknown = input { unresolved_flavor = 1; };
+    if let TsqueryValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TsqueryValue::Error(error) = input { return TextValue::Error(error); };
     if let TsqueryValue::Null = input { return TextValue::Null; };
     if let TsqueryValue::Value(value) = input { return tsquery_render(&value,value.root); };
@@ -92,6 +94,7 @@ fn tsquery_render(value: &TsqueryPayload, root: usize) -> TextValue {
 pub fn sql__pg_catalog__querytree__8aj6(input: TsqueryValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TsqueryValue::Unknown = input { unresolved_flavor = 1; };
+    if let TsqueryValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TsqueryValue::Error(error) = input { return TextValue::Error(error); };
     if let TsqueryValue::Null = input { return TextValue::Null; };
     if let TsqueryValue::Value(value) = input {
@@ -129,6 +132,7 @@ pub fn sql__pg_catalog__querytree__8aj6(input: TsqueryValue) -> TextValue {
 pub fn sql__pg_catalog__tsquerysend__0660(input: TsqueryValue, utf8: bool) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let TsqueryValue::Unknown = input { unresolved_flavor = 1; };
+    if let TsqueryValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TsqueryValue::Error(error) = input { return ByteaValue::Error(error); };
     if let TsqueryValue::Null = input { return ByteaValue::Null; };
     if let TsqueryValue::Value(value) = input {

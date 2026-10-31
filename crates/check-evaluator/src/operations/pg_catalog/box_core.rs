@@ -2,14 +2,16 @@ fn box_from_points(left: PointValue, right: PointValue, keep_ties: bool) -> BoxV
     let mut unresolved_flavor: i32 = 0;
     if let PointValue::Unknown = left { unresolved_flavor = 1; };
     if let PointValue::Unknown = right { unresolved_flavor = 1; };
+    if let PointValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let PointValue::Unimplemented = right { unresolved_flavor = 2; };
     if let PointValue::Error(error) = left {
         return BoxValue::Error(error);
     };
     if let PointValue::Error(error) = right {
         return BoxValue::Error(error);
     };
-    if left == PointValue::Unknown || right == PointValue::Unknown {
-        return box_unresolved(unresolved_flavor);
+    let mut condition_flavor_13_4: i32 = unresolved_flavor; if let PointValue::Unknown = left { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let PointValue::Unimplemented = left { condition_flavor_13_4 = 2; }; if let PointValue::Unknown = right { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let PointValue::Unimplemented = right { condition_flavor_13_4 = 2; }; if (left == PointValue::Unknown || left == PointValue::Unimplemented) || (right == PointValue::Unknown || right == PointValue::Unimplemented) {
+        return box_unresolved(condition_flavor_13_4);
     };
     if left == PointValue::Null || right == PointValue::Null {
         return BoxValue::Null;
@@ -44,6 +46,7 @@ fn box_from_points(left: PointValue, right: PointValue, keep_ties: bool) -> BoxV
 fn box_endpoint(input: BoxValue, low: bool) -> PointValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoxValue::Unknown = input { unresolved_flavor = 1; };
+    if let BoxValue::Unimplemented = input { unresolved_flavor = 2; };
     if let BoxValue::Error(error) = input {
         return PointValue::Error(error);
     };
@@ -95,6 +98,7 @@ fn box_computed_scalar(input: Float8Value) -> Float8Value {
 fn box_dimension(input: BoxValue, vertical: bool) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let BoxValue::Unknown = input { unresolved_flavor = 1; };
+    if let BoxValue::Unimplemented = input { unresolved_flavor = 2; };
     if let BoxValue::Error(error) = input {
         return Float8Value::Error(error);
     };
@@ -121,6 +125,7 @@ fn box_area_value(input: BoxValue) -> Float8Value {
 fn box_midpoint(input: BoxValue) -> PointValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoxValue::Unknown = input { unresolved_flavor = 1; };
+    if let BoxValue::Unimplemented = input { unresolved_flavor = 2; };
     if let BoxValue::Error(error) = input {
         return PointValue::Error(error);
     };
@@ -145,14 +150,16 @@ fn box_pair_status(left: BoxValue, right: BoxValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoxValue::Unknown = left { unresolved_flavor = 1; };
     if let BoxValue::Unknown = right { unresolved_flavor = 1; };
+    if let BoxValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let BoxValue::Unimplemented = right { unresolved_flavor = 2; };
     if let BoxValue::Error(error) = left {
         return BoolValue::Error(error);
     };
     if let BoxValue::Error(error) = right {
         return BoolValue::Error(error);
     };
-    if left == BoxValue::Unknown || right == BoxValue::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_161_4: i32 = unresolved_flavor; if let BoxValue::Unknown = left { if condition_flavor_161_4 < 1 { condition_flavor_161_4 = 1; }; }; if let BoxValue::Unimplemented = left { condition_flavor_161_4 = 2; }; if let BoxValue::Unknown = right { if condition_flavor_161_4 < 1 { condition_flavor_161_4 = 1; }; }; if let BoxValue::Unimplemented = right { condition_flavor_161_4 = 2; }; if (left == BoxValue::Unknown || left == BoxValue::Unimplemented) || (right == BoxValue::Unknown || right == BoxValue::Unimplemented) {
+        return bool_unresolved(condition_flavor_161_4);
     };
     if left == BoxValue::Null || right == BoxValue::Null {
         return BoolValue::Null;
@@ -175,6 +182,8 @@ fn box_area_relation(left: BoxValue, right: BoxValue, mode: i32) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoxValue::Unknown = left { unresolved_flavor = 1; };
     if let BoxValue::Unknown = right { unresolved_flavor = 1; };
+    if let BoxValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let BoxValue::Unimplemented = right { unresolved_flavor = 2; };
     let status = box_pair_status(left, right);
     if status != BoolValue::Value(true) {
         return status;
@@ -213,6 +222,7 @@ fn box_area_relation(left: BoxValue, right: BoxValue, mode: i32) -> BoolValue {
 fn box_binary(input: BoxValue) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoxValue::Unknown = input { unresolved_flavor = 1; };
+    if let BoxValue::Unimplemented = input { unresolved_flavor = 2; };
     if let BoxValue::Error(error) = input {
         return ByteaValue::Error(error);
     };
@@ -240,6 +250,8 @@ fn box_centers_distance(left: BoxValue, right: BoxValue) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let BoxValue::Unknown = left { unresolved_flavor = 1; };
     if let BoxValue::Unknown = right { unresolved_flavor = 1; };
+    if let BoxValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let BoxValue::Unimplemented = right { unresolved_flavor = 2; };
     let status = box_pair_status(left, right);
     if status != BoolValue::Value(true) {
         if let BoolValue::Error(error) = status {

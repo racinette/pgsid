@@ -161,7 +161,7 @@ pub fn concat_after_argument(input: TextConcatState, rendered: TextValue) -> Tex
         if let TextValue::Error(_) = rendered {
             return concat_append(state, rendered);
         };
-        if rendered == TextValue::Unknown || rendered == TextValue::Null {
+        if (rendered == TextValue::Unknown || rendered == TextValue::Unimplemented) || rendered == TextValue::Null {
             return concat_append(state, rendered);
         };
         if state.length >= 1073741808i64 {
@@ -184,14 +184,16 @@ pub(crate) fn concat_array_element_nullness(
     element: ArrayElement,
 ) -> BoolValue {
     let nullness = array_element_bitmap(element);
-    if nullness == BoolValue::Unknown && input.null_bitmap == BoolValue::Value(false) {
+    if (nullness == BoolValue::Unknown || nullness == BoolValue::Unimplemented) && input.null_bitmap == BoolValue::Value(false) {
         return BoolValue::Value(false);
     };
     nullness
 }
 
 fn concat_finish(input: TextConcatState) -> TextValue {
-    let unresolved_flavor: i32 = 0;
+    let mut unresolved_flavor: i32 = 0;
+    if input.status == CheckOutcome::Unknown { unresolved_flavor = 1; };
+    if input.status == CheckOutcome::Unimplemented { unresolved_flavor = 2; };
     if input.status == CheckOutcome::True {
         if input.length > 1073741819i64 {
             let error = make_sql_error(TEXT_CONCAT_ALLOCATION_ERROR);

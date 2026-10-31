@@ -10,14 +10,16 @@ fn similar_pattern_value(pattern: TextValue, escape: TextValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = pattern { unresolved_flavor = 1; };
     if let TextValue::Unknown = escape { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = pattern { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = escape { unresolved_flavor = 2; };
     if let TextValue::Error(error) = pattern {
         return TextValue::Error(error);
     }
     if let TextValue::Error(error) = escape {
         return TextValue::Error(error);
     }
-    if (pattern == TextValue::Unknown || pattern == TextValue::NonNull) || (escape == TextValue::Unknown || escape == TextValue::NonNull) {
-        return text_unresolved(unresolved_flavor);
+    let mut condition_flavor_21_4: i32 = unresolved_flavor; if let TextValue::Unknown = pattern { if condition_flavor_21_4 < 1 { condition_flavor_21_4 = 1; }; }; if let TextValue::Unimplemented = pattern { condition_flavor_21_4 = 2; }; if let TextValue::Unknown = escape { if condition_flavor_21_4 < 1 { condition_flavor_21_4 = 1; }; }; if let TextValue::Unimplemented = escape { condition_flavor_21_4 = 2; }; if ((pattern == TextValue::Unknown || pattern == TextValue::Unimplemented) || pattern == TextValue::NonNull) || ((escape == TextValue::Unknown || escape == TextValue::Unimplemented) || escape == TextValue::NonNull) {
+        return text_unresolved(condition_flavor_21_4);
     }
     if pattern == TextValue::Null || escape == TextValue::Null {
         return TextValue::Null;

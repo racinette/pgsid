@@ -5,6 +5,9 @@ fn bit_coerce(input: BitValue, width: Int4Value, explicit: BoolValue, varying: b
     if let BitValue::Unknown = input { unresolved_flavor = 1; };
     if let Int4Value::Unknown = width { unresolved_flavor = 1; };
     if let BoolValue::Unknown = explicit { unresolved_flavor = 1; };
+    if let BitValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = width { unresolved_flavor = 2; };
+    if let BoolValue::Unimplemented = explicit { unresolved_flavor = 2; };
     if let BitValue::Error(error) = input {
         return BitValue::Error(error);
     }
@@ -14,8 +17,8 @@ fn bit_coerce(input: BitValue, width: Int4Value, explicit: BoolValue, varying: b
     if let BoolValue::Error(error) = explicit {
         return BitValue::Error(error);
     }
-    if input == BitValue::Unknown || width == Int4Value::Unknown || explicit == BoolValue::Unknown {
-        return bit_unresolved(unresolved_flavor);
+    let mut condition_flavor_20_4: i32 = unresolved_flavor; if let BitValue::Unknown = input { if condition_flavor_20_4 < 1 { condition_flavor_20_4 = 1; }; }; if let BitValue::Unimplemented = input { condition_flavor_20_4 = 2; }; if let Int4Value::Unknown = width { if condition_flavor_20_4 < 1 { condition_flavor_20_4 = 1; }; }; if let Int4Value::Unimplemented = width { condition_flavor_20_4 = 2; }; if let BoolValue::Unknown = explicit { if condition_flavor_20_4 < 1 { condition_flavor_20_4 = 1; }; }; if let BoolValue::Unimplemented = explicit { condition_flavor_20_4 = 2; }; if (input == BitValue::Unknown || input == BitValue::Unimplemented) || (width == Int4Value::Unknown || width == Int4Value::Unimplemented) || (explicit == BoolValue::Unknown || explicit == BoolValue::Unimplemented) {
+        return bit_unresolved(condition_flavor_20_4);
     }
     if input == BitValue::Null || width == Int4Value::Null || explicit == BoolValue::Null {
         return BitValue::Null;

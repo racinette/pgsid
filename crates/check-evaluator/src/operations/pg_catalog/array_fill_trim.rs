@@ -15,6 +15,8 @@ fn array_fill_nulls(input: &ArrayPayload) -> Int4Value {
         };
         if let ArrayElement::Unknown = element {
             unknown = true;
+        }; if let ArrayElement::Unimplemented = element {
+            unknown = true;
         };
         position += 1;
     }
@@ -33,6 +35,7 @@ fn array_fill_payload(
 ) -> ArrayValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = element { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = element { unresolved_flavor = 2; };
     if bounds.dimensions.len() > 1 {
         return ArrayValue::Error(make_sql_error(ARRAY_FILL_SHAPE));
     };
@@ -40,8 +43,8 @@ fn array_fill_payload(
     if let Int4Value::Error(error) = bound_nulls {
         return ArrayValue::Error(error);
     };
-    if bound_nulls == Int4Value::Unknown {
-        return array_unresolved(unresolved_flavor);
+    let mut condition_flavor_46_4: i32 = unresolved_flavor; if let Int4Value::Unknown = bound_nulls { if condition_flavor_46_4 < 1 { condition_flavor_46_4 = 1; }; }; if let Int4Value::Unimplemented = bound_nulls { condition_flavor_46_4 = 2; }; if (bound_nulls == Int4Value::Unknown || bound_nulls == Int4Value::Unimplemented) {
+        return array_unresolved(condition_flavor_46_4);
     };
     if bounds.elements.len() != lengths.elements.len() {
         return ArrayValue::Error(make_sql_error(ARRAY_FILL_SHAPE));
@@ -121,6 +124,9 @@ fn array_fill_value(
     if let ArrayElement::Unknown = element { unresolved_flavor = 1; };
     if let ArrayValue::Unknown = lengths { unresolved_flavor = 1; };
     if let ArrayValue::Unknown = bounds { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = element { unresolved_flavor = 2; };
+    if let ArrayValue::Unimplemented = lengths { unresolved_flavor = 2; };
+    if let ArrayValue::Unimplemented = bounds { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = element {
         return ArrayValue::Error(error);
     };
@@ -146,8 +152,8 @@ fn array_fill_value(
         if let Int4Value::Error(error) = nulls {
             return ArrayValue::Error(error);
         };
-        if nulls == Int4Value::Unknown {
-            return array_unresolved(unresolved_flavor);
+        let mut condition_flavor_155_8: i32 = unresolved_flavor; if let Int4Value::Unknown = nulls { if condition_flavor_155_8 < 1 { condition_flavor_155_8 = 1; }; }; if let Int4Value::Unimplemented = nulls { condition_flavor_155_8 = 2; }; if (nulls == Int4Value::Unknown || nulls == Int4Value::Unimplemented) {
+            return array_unresolved(condition_flavor_155_8);
         };
         if shape.elements.len() > 6 {
             return ArrayValue::Error(make_sql_error(ARRAY_FILL_LIMIT));
@@ -203,6 +209,8 @@ pub fn sql__pg_catalog__trim_array__uzie(input: ArrayValue, count: Int4Value) ->
     let mut unresolved_flavor: i32 = 0;
     if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
     if let Int4Value::Unknown = count { unresolved_flavor = 1; };
+    if let ArrayValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = count { unresolved_flavor = 2; };
     if let ArrayValue::Error(error) = input {
         return ArrayValue::Error(error);
     };

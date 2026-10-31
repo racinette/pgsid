@@ -31,6 +31,8 @@ fn jsonb_array_path_select(input: JsonbValue, path: ArrayValue) -> JsonbValue {
     let mut unresolved_flavor: i32 = 0;
     if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
     if let ArrayValue::Unknown = path { unresolved_flavor = 1; };
+    if let JsonbValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let ArrayValue::Unimplemented = path { unresolved_flavor = 2; };
     if let JsonbValue::Error(error) = input {
         return JsonbValue::Error(error);
     };
@@ -44,8 +46,8 @@ fn jsonb_array_path_select(input: JsonbValue, path: ArrayValue) -> JsonbValue {
     if state == Int4Value::Null {
         return JsonbValue::Null;
     };
-    if state == Int4Value::Unknown {
-        return jsonb_unresolved(unresolved_flavor);
+    let mut condition_flavor_49_4: i32 = unresolved_flavor; if let Int4Value::Unknown = state { if condition_flavor_49_4 < 1 { condition_flavor_49_4 = 1; }; }; if let Int4Value::Unimplemented = state { condition_flavor_49_4 = 2; }; if (state == Int4Value::Unknown || state == Int4Value::Unimplemented) {
+        return jsonb_unresolved(condition_flavor_49_4);
     };
     let partial = input.clone();
     let partial_path = path.clone();
@@ -105,6 +107,10 @@ fn jsonb_array_path_select(input: JsonbValue, path: ArrayValue) -> JsonbValue {
                 };
                 let key = array_element_to_text(keys.elements[position].clone());
                 let mut selected: usize = 0;
+                let mut key_flavor: i32 = unresolved_flavor;
+                if let TextValue::Unknown = key { if key_flavor < 1 { key_flavor = 1; }; };
+                if let TextValue::NonNull = key { if key_flavor < 1 { key_flavor = 1; }; };
+                if let TextValue::Unimplemented = key { key_flavor = 2; };
                 let mut known = false;
                 if let TextValue::Value(text) = key {
                     known = true;
@@ -140,7 +146,7 @@ fn jsonb_array_path_select(input: JsonbValue, path: ArrayValue) -> JsonbValue {
                     };
                 };
                 if known == false {
-                    return jsonb_unresolved(unresolved_flavor);
+                    return jsonb_unresolved(key_flavor);
                 };
                 if selected == 0 {
                     return JsonbValue::Null;
@@ -201,6 +207,8 @@ fn jsonb_array_path_exists(input: JsonbValue, keys: ArrayValue, all: bool) -> Bo
     let mut unresolved_flavor: i32 = 0;
     if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
     if let ArrayValue::Unknown = keys { unresolved_flavor = 1; };
+    if let JsonbValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let ArrayValue::Unimplemented = keys { unresolved_flavor = 2; };
     if let JsonbValue::Error(error) = input {
         return BoolValue::Error(error);
     };

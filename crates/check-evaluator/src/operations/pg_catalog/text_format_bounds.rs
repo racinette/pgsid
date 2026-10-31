@@ -222,14 +222,19 @@ fn format_append_output(
 }
 
 fn format_finish_output(input: TextFormatOutput) -> TextValue {
-    let unresolved_flavor: i32 = 0;
+    let mut unresolved_flavor: i32 = 0;
+    if input.status == CheckOutcome::Unknown { unresolved_flavor = 1; };
+    if input.status == CheckOutcome::Unimplemented { unresolved_flavor = 2; };
+    if input.status == CheckOutcome::Unknown { unresolved_flavor = 1; };
+    if input.status == CheckOutcome::Unimplemented { unresolved_flavor = 2; };
     if input.status == CheckOutcome::True {
         if input.minimum > 1073741819i64 {
             let error = make_sql_error(TEXT_CONCAT_ALLOCATION_ERROR);
             return TextValue::Error(error);
         };
+        // The length bounds span the limit only when an argument length was not supplied.
         if input.maximum > 1073741819i64 {
-            return text_unresolved(unresolved_flavor);
+            return text_unresolved(1);
         };
         if input.known {
             return concat_finish(input.buffer);

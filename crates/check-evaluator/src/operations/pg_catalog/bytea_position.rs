@@ -2,14 +2,16 @@ pub fn sql__pg_catalog__position__9w14(input: ByteaValue, pattern: ByteaValue) -
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
     if let ByteaValue::Unknown = pattern { unresolved_flavor = 1; };
+    if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let ByteaValue::Unimplemented = pattern { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = input {
         return Int4Value::Error(error);
     }
     if let ByteaValue::Error(error) = pattern {
         return Int4Value::Error(error);
     }
-    if input == ByteaValue::Unknown || pattern == ByteaValue::Unknown {
-        return int4_unresolved(unresolved_flavor);
+    let mut condition_flavor_13_4: i32 = unresolved_flavor; if let ByteaValue::Unknown = input { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let ByteaValue::Unimplemented = input { condition_flavor_13_4 = 2; }; if let ByteaValue::Unknown = pattern { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let ByteaValue::Unimplemented = pattern { condition_flavor_13_4 = 2; }; if (input == ByteaValue::Unknown || input == ByteaValue::Unimplemented) || (pattern == ByteaValue::Unknown || pattern == ByteaValue::Unimplemented) {
+        return int4_unresolved(condition_flavor_13_4);
     }
     if input == ByteaValue::Null || pattern == ByteaValue::Null {
         return Int4Value::Null;

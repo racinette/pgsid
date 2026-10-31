@@ -8,6 +8,7 @@ fn multirange_set_range_known(input: RangeValue) -> bool {
 fn multirange_set_range_failure(input: RangeValue) -> MultirangeValue {
     let mut unresolved_flavor: i32 = 0;
     if let RangeValue::Unknown = input { unresolved_flavor = 1; };
+    if let RangeValue::Unimplemented = input { unresolved_flavor = 2; };
     if let RangeValue::Error(error) = input {
         return MultirangeValue::Error(error);
     };
@@ -17,6 +18,7 @@ fn multirange_set_range_failure(input: RangeValue) -> MultirangeValue {
 fn multirange_set_boolean_failure(input: BoolValue) -> MultirangeValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoolValue::Unknown = input { unresolved_flavor = 1; };
+    if let BoolValue::Unimplemented = input { unresolved_flavor = 2; };
     if let BoolValue::Error(error) = input {
         return MultirangeValue::Error(error);
     };
@@ -53,6 +55,8 @@ fn multirange_set_split(left: RangeValue, right: RangeValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let RangeValue::Unknown = left { unresolved_flavor = 1; };
     if let RangeValue::Unknown = right { unresolved_flavor = 1; };
+    if let RangeValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let RangeValue::Unimplemented = right { unresolved_flavor = 2; };
     if let RangeValue::Error(error) = left {
         return BoolValue::Error(error);
     };
@@ -81,6 +85,8 @@ fn multirange_set_cut(left: RangeValue, right: RangeValue, upper: bool) -> Range
     let mut unresolved_flavor: i32 = 0;
     if let RangeValue::Unknown = left { unresolved_flavor = 1; };
     if let RangeValue::Unknown = right { unresolved_flavor = 1; };
+    if let RangeValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let RangeValue::Unimplemented = right { unresolved_flavor = 2; };
     if let RangeValue::Error(error) = left {
         return RangeValue::Error(error);
     };
@@ -242,6 +248,8 @@ fn multirange_set(left: MultirangeValue, right: MultirangeValue, strategy: i32) 
     let mut unresolved_flavor: i32 = 0;
     if let MultirangeValue::Unknown = left { unresolved_flavor = 1; };
     if let MultirangeValue::Unknown = right { unresolved_flavor = 1; };
+    if let MultirangeValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let MultirangeValue::Unimplemented = right { unresolved_flavor = 2; };
     if let MultirangeValue::Error(error) = left {
         return MultirangeValue::Error(error);
     };
@@ -308,6 +316,7 @@ pub fn sql__pg_catalog__multirange_minus__8qbr(
 pub fn sql__pg_catalog__range_merge__f619(input: MultirangeValue) -> RangeValue {
     let mut unresolved_flavor: i32 = 0;
     if let MultirangeValue::Unknown = input { unresolved_flavor = 1; };
+    if let MultirangeValue::Unimplemented = input { unresolved_flavor = 2; };
     if let MultirangeValue::Error(error) = input {
         return RangeValue::Error(error);
     };

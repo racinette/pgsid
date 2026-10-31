@@ -8,14 +8,16 @@ fn bit_combine(left: BitValue, right: BitValue, operation: i32) -> BitValue {
     let mut unresolved_flavor: i32 = 0;
     if let BitValue::Unknown = left { unresolved_flavor = 1; };
     if let BitValue::Unknown = right { unresolved_flavor = 1; };
+    if let BitValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let BitValue::Unimplemented = right { unresolved_flavor = 2; };
     if let BitValue::Error(error) = left {
         return BitValue::Error(error);
     }
     if let BitValue::Error(error) = right {
         return BitValue::Error(error);
     }
-    if left == BitValue::Unknown || right == BitValue::Unknown {
-        return bit_unresolved(unresolved_flavor);
+    let mut condition_flavor_19_4: i32 = unresolved_flavor; if let BitValue::Unknown = left { if condition_flavor_19_4 < 1 { condition_flavor_19_4 = 1; }; }; if let BitValue::Unimplemented = left { condition_flavor_19_4 = 2; }; if let BitValue::Unknown = right { if condition_flavor_19_4 < 1 { condition_flavor_19_4 = 1; }; }; if let BitValue::Unimplemented = right { condition_flavor_19_4 = 2; }; if (left == BitValue::Unknown || left == BitValue::Unimplemented) || (right == BitValue::Unknown || right == BitValue::Unimplemented) {
+        return bit_unresolved(condition_flavor_19_4);
     }
     if left == BitValue::Null || right == BitValue::Null {
         return BitValue::Null;
@@ -56,14 +58,16 @@ fn bit_shift(input: BitValue, distance: Int4Value, leftwards: bool) -> BitValue 
     let mut unresolved_flavor: i32 = 0;
     if let BitValue::Unknown = input { unresolved_flavor = 1; };
     if let Int4Value::Unknown = distance { unresolved_flavor = 1; };
+    if let BitValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = distance { unresolved_flavor = 2; };
     if let BitValue::Error(error) = input {
         return BitValue::Error(error);
     }
     if let Int4Value::Error(error) = distance {
         return BitValue::Error(error);
     }
-    if input == BitValue::Unknown || distance == Int4Value::Unknown {
-        return bit_unresolved(unresolved_flavor);
+    let mut condition_flavor_69_4: i32 = unresolved_flavor; if let BitValue::Unknown = input { if condition_flavor_69_4 < 1 { condition_flavor_69_4 = 1; }; }; if let BitValue::Unimplemented = input { condition_flavor_69_4 = 2; }; if let Int4Value::Unknown = distance { if condition_flavor_69_4 < 1 { condition_flavor_69_4 = 1; }; }; if let Int4Value::Unimplemented = distance { condition_flavor_69_4 = 2; }; if (input == BitValue::Unknown || input == BitValue::Unimplemented) || (distance == Int4Value::Unknown || distance == Int4Value::Unimplemented) {
+        return bit_unresolved(condition_flavor_69_4);
     }
     if input == BitValue::Null || distance == Int4Value::Null {
         return BitValue::Null;

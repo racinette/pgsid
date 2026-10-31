@@ -40,6 +40,8 @@ fn integer_state_transition(input: ArrayValue, amount: Int8Value, inverse: bool)
     let mut unresolved_flavor: i32 = 0;
     if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
     if let Int8Value::Unknown = amount { unresolved_flavor = 1; };
+    if let ArrayValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int8Value::Unimplemented = amount { unresolved_flavor = 2; };
     if let ArrayValue::Error(error) = input {
         return ArrayValue::Error(error);
     };
@@ -110,6 +112,7 @@ pub fn sql__pg_catalog__int4_avg_accum_inv__dt0r(
 fn integer_state_sum(input: ArrayValue) -> Int8Value {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayValue::Error(error) = input {
         return Int8Value::Error(error);
     };
@@ -144,6 +147,7 @@ pub fn sql__pg_catalog__int2int4_sum__8u9i(input: ArrayValue) -> Int8Value {
 pub fn sql__pg_catalog__int8_avg__pgr2(input: ArrayValue) -> NumericValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayValue::Unimplemented = input { unresolved_flavor = 2; };
     let sum = integer_state_sum(input.clone());
     if let Int8Value::Error(error) = sum {
         return NumericValue::Error(error);
@@ -151,8 +155,8 @@ pub fn sql__pg_catalog__int8_avg__pgr2(input: ArrayValue) -> NumericValue {
     if sum == Int8Value::Null {
         return NumericValue::Null;
     };
-    if sum == Int8Value::Unknown {
-        return numeric_unresolved(unresolved_flavor);
+    let mut condition_flavor_158_4: i32 = unresolved_flavor; if let Int8Value::Unknown = sum { if condition_flavor_158_4 < 1 { condition_flavor_158_4 = 1; }; }; if let Int8Value::Unimplemented = sum { condition_flavor_158_4 = 2; }; if (sum == Int8Value::Unknown || sum == Int8Value::Unimplemented) {
+        return numeric_unresolved(condition_flavor_158_4);
     };
     if let ArrayValue::Value(value) = input {
         let count = array_element_to_int8(value.elements[0].clone());

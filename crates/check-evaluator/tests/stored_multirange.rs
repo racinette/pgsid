@@ -84,32 +84,33 @@ fn stored_multirange_validates_member_identity_shape_and_states() {
         restore(ArrayValue::Unknown),
         MultirangeValue::Unknown
     ));
+    // Malformed stored payloads are defensive refusals, not database state.
     assert!(matches!(
         restore(ArrayValue::Null),
-        MultirangeValue::Unknown
+        MultirangeValue::Unimplemented
     ));
     assert!(
         matches!(restore(ArrayValue::Error(SqlError{state:1})), MultirangeValue::Error(error) if error.state == 1)
     );
     assert!(matches!(
         restore(array(vec![ArrayElement::Null])),
-        MultirangeValue::Unknown
+        MultirangeValue::Unimplemented
     ));
     let mut wrong = array(vec![member(1, 3)]);
     if let ArrayValue::Value(ref mut value) = wrong {
         value.dimensions[0].length = 2;
     }
-    assert!(matches!(restore(wrong), MultirangeValue::Unknown));
+    assert!(matches!(restore(wrong), MultirangeValue::Unimplemented));
     let mut wrong = array(vec![member(1, 3)]);
     if let ArrayValue::Value(ref mut value) = wrong {
         value.element_type = "public.other".to_owned();
     }
-    assert!(matches!(restore(wrong), MultirangeValue::Unknown));
+    assert!(matches!(restore(wrong), MultirangeValue::Unimplemented));
     let mut wrong = array(vec![member(1, 3)]);
     if let ArrayValue::Value(ref mut value) = wrong {
         if let ArrayElement::Range(ref mut range) = value.elements[0] {
             range.type_name = "public.other".to_owned();
         }
     }
-    assert!(matches!(restore(wrong), MultirangeValue::Unknown));
+    assert!(matches!(restore(wrong), MultirangeValue::Unimplemented));
 }

@@ -1,6 +1,7 @@
 pub fn sql__pg_catalog__jsonb_typeof__68xu(input: JsonbValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
+    if let JsonbValue::Unimplemented = input { unresolved_flavor = 2; };
     if let JsonbValue::NonNull(facts) = input {
         if facts.kind >= 0 {
             return json_kind_text(facts.kind);

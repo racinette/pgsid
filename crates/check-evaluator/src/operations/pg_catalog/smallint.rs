@@ -157,6 +157,7 @@ pub fn sql__pg_catalog__int82ne__6rol(left: Int8Value, right: Int2Value) -> Bool
 fn smallint_result(value: Int4Value) -> Int2Value {
     let mut unresolved_flavor: i32 = 0;
     if let Int4Value::Unknown = value { unresolved_flavor = 1; };
+    if let Int4Value::Unimplemented = value { unresolved_flavor = 2; };
     if let Int4Value::Value(payload) = value {
         if payload < -32768 || payload > 32767 {
             return Int2Value::Error(make_sql_error(SQLSTATE_NUMERIC_VALUE_OUT_OF_RANGE));

@@ -1,11 +1,12 @@
 pub fn sql__pg_catalog__gist_translate_cmptype_common__ai1r(input: Int4Value) -> Int2Value {
     let mut unresolved_flavor: i32 = 0;
     if let Int4Value::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Int4Value::Error(error) = input {
         return Int2Value::Error(error);
     }
-    if input == Int4Value::Unknown {
-        return int2_unresolved(unresolved_flavor);
+    let mut condition_flavor_8_4: i32 = unresolved_flavor; if let Int4Value::Unknown = input { if condition_flavor_8_4 < 1 { condition_flavor_8_4 = 1; }; }; if let Int4Value::Unimplemented = input { condition_flavor_8_4 = 2; }; if (input == Int4Value::Unknown || input == Int4Value::Unimplemented) {
+        return int2_unresolved(condition_flavor_8_4);
     }
     if input == Int4Value::Null {
         return Int2Value::Null;
@@ -40,11 +41,12 @@ pub fn sql__pg_catalog__gist_translate_cmptype_common__ai1r(input: Int4Value) ->
 pub fn sql__pg_catalog__pg_encoding_max_length__aj1r(input: Int4Value) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let Int4Value::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Int4Value::Error(error) = input {
         return Int4Value::Error(error);
     }
-    if input == Int4Value::Unknown {
-        return int4_unresolved(unresolved_flavor);
+    let mut condition_flavor_48_4: i32 = unresolved_flavor; if let Int4Value::Unknown = input { if condition_flavor_48_4 < 1 { condition_flavor_48_4 = 1; }; }; if let Int4Value::Unimplemented = input { condition_flavor_48_4 = 2; }; if (input == Int4Value::Unknown || input == Int4Value::Unimplemented) {
+        return int4_unresolved(condition_flavor_48_4);
     }
     if input == Int4Value::Null {
         return Int4Value::Null;
@@ -72,11 +74,12 @@ const INTEGER_SIZE_UNITS: &[&str] = &["bytes", "kB", "MB", "GB", "TB", "PB"];
 pub fn sql__pg_catalog__pg_size_pretty__24qt(input: Int8Value) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let Int8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Int8Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Int8Value::Error(error) = input {
         return TextValue::Error(error);
     }
-    if input == Int8Value::Unknown {
-        return text_unresolved(unresolved_flavor);
+    let mut condition_flavor_81_4: i32 = unresolved_flavor; if let Int8Value::Unknown = input { if condition_flavor_81_4 < 1 { condition_flavor_81_4 = 1; }; }; if let Int8Value::Unimplemented = input { condition_flavor_81_4 = 2; }; if (input == Int8Value::Unknown || input == Int8Value::Unimplemented) {
+        return text_unresolved(condition_flavor_81_4);
     }
     if input == Int8Value::Null {
         return TextValue::Null;

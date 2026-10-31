@@ -3,6 +3,9 @@ package pgsidsql
 type EvalValue[T any] struct {
 	Certain bool
 	Value   T
+	// Unimplemented marks an uncertain value the local evaluator does not compute although no
+	// database state is needed; other uncertain values need the database.
+	Unimplemented bool
 }
 
 type EvalBool = EvalValue[SqlBoolean]
@@ -18,6 +21,8 @@ func evalValueFromBool(value EvalBool) EvalValue[SqlBoolean] {
 func evalBoolCertain(value SqlBoolean) EvalBool { return EvalBool{Certain: true, Value: value} }
 
 func evalBoolUncertain() EvalBool { return EvalBool{} }
+
+func evalBoolUnimplemented() EvalBool { return EvalBool{Unimplemented: true} }
 
 func evalBoolNot(value EvalBool) EvalBool {
 	if !value.Certain || value.Value.Error != "" || !value.Value.Valid {

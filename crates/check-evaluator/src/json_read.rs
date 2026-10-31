@@ -235,8 +235,8 @@ fn json_read_select(value: &str, key: &str, index: i32, object: bool, as_text: b
             if let TextValue::Error(error) = decoded {
                 return TextValue::Error(error);
             };
-            if decoded == TextValue::Unknown || decoded == TextValue::NonNull {
-                return text_unresolved(unresolved_flavor);
+            let mut condition_flavor_238_12: i32 = unresolved_flavor; if let TextValue::Unknown = decoded { if condition_flavor_238_12 < 1 { condition_flavor_238_12 = 1; }; }; if let TextValue::Unimplemented = decoded { condition_flavor_238_12 = 2; }; if (decoded == TextValue::Unknown || decoded == TextValue::Unimplemented) || decoded == TextValue::NonNull {
+                return text_unresolved(condition_flavor_238_12);
             };
         };
         if depth == 1 {
@@ -303,17 +303,21 @@ pub fn json_read_field_context(input: JsonValue, key: TextValue, as_text: bool, 
     let mut unresolved_flavor: i32 = 0;
     if let JsonValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unknown = key { unresolved_flavor = 1; };
+    if let JsonValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = key { unresolved_flavor = 2; };
     if let JsonValue::Error(error) = input {
         return TextValue::Error(error);
     };
     if let TextValue::Error(error) = key {
         return TextValue::Error(error);
     };
-    if let JsonValue::Unknown = input {
-        return text_unresolved(unresolved_flavor);
+    let mut condition_flavor_314_4: i32 = unresolved_flavor; if let JsonValue::Unknown = input { if condition_flavor_314_4 < 1 { condition_flavor_314_4 = 1; }; }; if let JsonValue::Unknown = input {
+        return text_unresolved(condition_flavor_314_4);
+    }; let mut condition_flavor_316_7: i32 = unresolved_flavor; if let JsonValue::Unimplemented = input { condition_flavor_316_7 = 2; }; if let JsonValue::Unimplemented = input {
+        return text_unresolved(condition_flavor_316_7);
     };
-    if key == TextValue::Unknown || key == TextValue::NonNull {
-        return text_unresolved(unresolved_flavor);
+    let mut condition_flavor_319_4: i32 = unresolved_flavor; if let TextValue::Unknown = key { if condition_flavor_319_4 < 1 { condition_flavor_319_4 = 1; }; }; if let TextValue::Unimplemented = key { condition_flavor_319_4 = 2; }; if (key == TextValue::Unknown || key == TextValue::Unimplemented) || key == TextValue::NonNull {
+        return text_unresolved(condition_flavor_319_4);
     };
     if let JsonValue::Null = input {
         return TextValue::Null;
@@ -337,17 +341,21 @@ pub fn json_read_element_context(input: JsonValue, index: Int4Value, as_text: bo
     let mut unresolved_flavor: i32 = 0;
     if let JsonValue::Unknown = input { unresolved_flavor = 1; };
     if let Int4Value::Unknown = index { unresolved_flavor = 1; };
+    if let JsonValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = index { unresolved_flavor = 2; };
     if let JsonValue::Error(error) = input {
         return TextValue::Error(error);
     };
     if let Int4Value::Error(error) = index {
         return TextValue::Error(error);
     };
-    if let JsonValue::Unknown = input {
-        return text_unresolved(unresolved_flavor);
+    let mut condition_flavor_352_4: i32 = unresolved_flavor; if let JsonValue::Unknown = input { if condition_flavor_352_4 < 1 { condition_flavor_352_4 = 1; }; }; if let JsonValue::Unknown = input {
+        return text_unresolved(condition_flavor_352_4);
+    }; let mut condition_flavor_354_7: i32 = unresolved_flavor; if let JsonValue::Unimplemented = input { condition_flavor_354_7 = 2; }; if let JsonValue::Unimplemented = input {
+        return text_unresolved(condition_flavor_354_7);
     };
-    if let Int4Value::Unknown = index {
-        return text_unresolved(unresolved_flavor);
+    let mut condition_flavor_357_4: i32 = unresolved_flavor; if let Int4Value::Unknown = index { if condition_flavor_357_4 < 1 { condition_flavor_357_4 = 1; }; }; if let Int4Value::Unimplemented = index { condition_flavor_357_4 = 2; }; if (index == Int4Value::Unknown || index == Int4Value::Unimplemented) {
+        return text_unresolved(condition_flavor_357_4);
     };
     if let JsonValue::Null = input {
         return TextValue::Null;
@@ -366,6 +374,7 @@ pub fn json_read_element_context(input: JsonValue, index: Int4Value, as_text: bo
 pub fn json_read_length(input: JsonValue) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let JsonValue::Unknown = input { unresolved_flavor = 1; };
+    if let JsonValue::Unimplemented = input { unresolved_flavor = 2; };
     if let JsonValue::Error(error) = input {
         return Int4Value::Error(error);
     };
@@ -388,6 +397,7 @@ pub fn json_read_length(input: JsonValue) -> Int4Value {
 pub fn json_read_input_scalar(input: JsonValue, quoted: bool, utf8: bool) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let JsonValue::Unknown = input { unresolved_flavor = 1; };
+    if let JsonValue::Unimplemented = input { unresolved_flavor = 2; };
     if let JsonValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -418,6 +428,7 @@ pub fn json_read_input_scalar(input: JsonValue, quoted: bool, utf8: bool) -> Tex
 pub fn json_read_object_ready(input: JsonValue, utf8: bool) -> CheckOutcome {
     let mut unresolved_flavor: i32 = 0;
     if let JsonValue::Unknown = input { unresolved_flavor = 1; };
+    if let JsonValue::Unimplemented = input { unresolved_flavor = 2; };
     if let JsonValue::Value(value) = input {
         let kind = value.kind;
         let source = JsonValue::Value(value);
@@ -431,8 +442,8 @@ pub fn json_read_object_ready(input: JsonValue, utf8: bool) -> CheckOutcome {
         if let TextValue::Error(error) = checked {
             return CheckOutcome::Error(error);
         };
-        if checked == TextValue::Unknown || checked == TextValue::NonNull {
-            return check_unresolved(unresolved_flavor);
+        let mut condition_flavor_445_8: i32 = unresolved_flavor; if let TextValue::Unknown = checked { if condition_flavor_445_8 < 1 { condition_flavor_445_8 = 1; }; }; if let TextValue::Unimplemented = checked { condition_flavor_445_8 = 2; }; if (checked == TextValue::Unknown || checked == TextValue::Unimplemented) || checked == TextValue::NonNull {
+            return check_unresolved(condition_flavor_445_8);
         };
         if kind == 6 {
             return CheckOutcome::True;

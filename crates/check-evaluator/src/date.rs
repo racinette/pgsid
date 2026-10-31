@@ -816,11 +816,12 @@ pub fn date_from_text(value: TextValue) -> DateValue {
 pub fn date_from_text_order(value: TextValue, date_order: i32) -> DateValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = value { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = value { unresolved_flavor = 2; };
     if let TextValue::Error(error) = value {
         return DateValue::Error(error);
     }
-    if (value == TextValue::Unknown || value == TextValue::NonNull) {
-        return date_unresolved(unresolved_flavor);
+    let mut condition_flavor_823_4: i32 = unresolved_flavor; if let TextValue::Unknown = value { if condition_flavor_823_4 < 1 { condition_flavor_823_4 = 1; }; }; if let TextValue::Unimplemented = value { condition_flavor_823_4 = 2; }; if ((value == TextValue::Unknown || value == TextValue::Unimplemented) || value == TextValue::NonNull) {
+        return date_unresolved(condition_flavor_823_4);
     }
     if value == TextValue::Null {
         return DateValue::Null;
@@ -957,6 +958,7 @@ pub fn date_from_text_order(value: TextValue, date_order: i32) -> DateValue {
 fn date_from_temporal_text(value: TextValue, date_order: i32) -> DateValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = value { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = value { unresolved_flavor = 2; };
     let parsed = parse_temporal_text(value, false, true, date_order);
     if let Int8Value::Error(error) = parsed {
         return DateValue::Error(error);

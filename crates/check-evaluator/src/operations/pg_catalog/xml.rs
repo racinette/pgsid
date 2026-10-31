@@ -1,6 +1,7 @@
 fn xml_well_formed_value(input: TextValue, document: bool) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return BoolValue::Error(error);
     }

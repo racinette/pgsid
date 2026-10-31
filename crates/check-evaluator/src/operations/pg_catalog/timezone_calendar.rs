@@ -319,6 +319,9 @@ fn timezone_explicit_interval(
     if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
     if let IntervalValue::Unknown = amount { unresolved_flavor = 1; };
     if let TextValue::Unknown = zone { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let IntervalValue::Unimplemented = amount { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = zone { unresolved_flavor = 2; };
     if let TimestamptzValue::Error(error) = input {
         return TimestamptzValue::Error(error);
     };
@@ -328,12 +331,12 @@ fn timezone_explicit_interval(
     if let TextValue::Error(error) = zone {
         return TimestamptzValue::Error(error);
     };
-    if input == TimestamptzValue::Unknown
-        || amount == IntervalValue::Unknown
-        || zone == TextValue::Unknown
+    let mut condition_flavor_334_4: i32 = unresolved_flavor; if let TimestamptzValue::Unknown = input { if condition_flavor_334_4 < 1 { condition_flavor_334_4 = 1; }; }; if let TimestamptzValue::Unimplemented = input { condition_flavor_334_4 = 2; }; if let IntervalValue::Unknown = amount { if condition_flavor_334_4 < 1 { condition_flavor_334_4 = 1; }; }; if let IntervalValue::Unimplemented = amount { condition_flavor_334_4 = 2; }; if let TextValue::Unknown = zone { if condition_flavor_334_4 < 1 { condition_flavor_334_4 = 1; }; }; if let TextValue::Unimplemented = zone { condition_flavor_334_4 = 2; }; if (input == TimestamptzValue::Unknown || input == TimestamptzValue::Unimplemented)
+        || (amount == IntervalValue::Unknown || amount == IntervalValue::Unimplemented)
+        || (zone == TextValue::Unknown || zone == TextValue::Unimplemented)
         || zone == TextValue::NonNull
     {
-        return timestamptz_unresolved(unresolved_flavor);
+        return timestamptz_unresolved(condition_flavor_334_4);
     };
     if input == TimestamptzValue::Null || amount == IntervalValue::Null || zone == TextValue::Null {
         return TimestamptzValue::Null;

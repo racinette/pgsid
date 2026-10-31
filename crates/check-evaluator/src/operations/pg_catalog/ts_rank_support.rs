@@ -64,6 +64,8 @@ fn ts_rank_read_weights(input: ArrayValue) -> TsRankWeights {
             if let ArrayElement::Null = element { return TsRankWeights::Error(make_sql_error(TS_RANK_WEIGHT_NULL)); };
             if let ArrayElement::Unknown = element {
                 if value.null_bitmap != BoolValue::Value(false) { uncertain = true; };
+            }; if let ArrayElement::Unimplemented = element {
+                if value.null_bitmap != BoolValue::Value(false) { uncertain = true; };
             };
             index += 1;
         }
@@ -74,7 +76,7 @@ fn ts_rank_read_weights(input: ArrayValue) -> TsRankWeights {
         while index < 4 {
             let input = array_element_to_float4(value.elements[index].clone());
             if let Float4Value::Error(error) = input { return TsRankWeights::Error(error); };
-            if input == Float4Value::Unknown { uncertain = true; };
+            if (input == Float4Value::Unknown || input == Float4Value::Unimplemented) { uncertain = true; };
             let mut bits = defaults.d;
             if index == 1 { bits = defaults.c; };
             if index == 2 { bits = defaults.b; };

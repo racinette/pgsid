@@ -23,6 +23,9 @@ fn regex_array_value(
     if let TextValue::Unknown = subject { unresolved_flavor = 1; };
     if let TextValue::Unknown = pattern { unresolved_flavor = 1; };
     if let TextValue::Unknown = flags { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = subject { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = pattern { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = flags { unresolved_flavor = 2; };
     if let TextValue::Error(error) = subject {
         return ArrayValue::Error(error);
     };

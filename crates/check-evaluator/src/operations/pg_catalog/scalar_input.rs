@@ -9,6 +9,7 @@ pub fn money_from_captured_text(
 ) -> MoneyValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return MoneyValue::Error(error);
     };
@@ -43,6 +44,7 @@ fn scalar_input_digit(ch: char) -> i32 {
 pub fn scalar_integer_from_text(input: TextValue, bits: i32) -> Int8Value {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return Int8Value::Error(error);
     };
@@ -143,6 +145,7 @@ pub fn scalar_integer_from_text(input: TextValue, bits: i32) -> Int8Value {
 pub fn scalar_boolean_from_text(input: TextValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return BoolValue::Error(error);
     };
@@ -176,6 +179,7 @@ pub fn scalar_boolean_from_text(input: TextValue) -> BoolValue {
 pub fn scalar_enum_from_text(input: TextValue, labels: &str, count: i32) -> EnumValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return EnumValue::Error(error);
     };
@@ -210,6 +214,7 @@ pub fn scalar_enum_from_text(input: TextValue, labels: &str, count: i32) -> Enum
 pub fn scalar_numeric_from_text(input: TextValue) -> NumericValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return NumericValue::Error(error);
     };
@@ -338,6 +343,7 @@ pub fn scalar_numeric_from_text(input: TextValue) -> NumericValue {
 fn scalar_boolean_word(input: TextValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Value(value) = input {
         let characters: Vec<char> = value.chars().collect();
         let start: usize = 0;

@@ -96,7 +96,8 @@ const DATA_DRIVEN_FIXTURES = 20000
 // while each suite keeps its own directory.
 export const goParityModule = 'pgsidparity'
 export type Outcome =
-  { kind: 'True' | 'False' | 'Null' | 'Unknown' } | { kind: 'Error'; value: { state: number } }
+  | { kind: 'True' | 'False' | 'Null' | 'Unknown' | 'Unimplemented' }
+  | { kind: 'Error'; value: { state: number } }
 
 export async function runCheckParity(
   directory: string,
@@ -562,7 +563,11 @@ export async function runCheckParity(
     const checkNames = [...entries.keys()]
     const checkIndex = new Map(checkNames.map((name, index) => [name, index]))
     const outcomeCode = (outcome: Outcome): string =>
-      outcome.kind === 'Error' ? `E${outcome.value.state}` : outcome.kind[0]!
+      outcome.kind === 'Error'
+        ? `E${outcome.value.state}`
+        : outcome.kind === 'Unimplemented'
+          ? 'I'
+          : outcome.kind[0]!
     const caseLines: string[] = []
     for (const [index, fixture] of fixtures.entries()) {
       const check = entries.get(fixture.name)!
@@ -634,10 +639,12 @@ fn checks_match_postgres() {
             Ok(CheckOutcome::False) => "F".to_string(),
             Ok(CheckOutcome::Null) => "N".to_string(),
             Ok(CheckOutcome::Unknown) => "U".to_string(),
+            Ok(CheckOutcome::Unimplemented) => "I".to_string(),
             Ok(CheckOutcome::Error(error)) => format!("E{}", error.state),
             Err(_) => "panic".to_string(),
         };
-        if actual != expected {
+        // Until owners name the flavor, an Unknown expectation also admits Unimplemented.
+        if actual != expected && !(expected == "U" && actual == "I") {
             mismatches.push(format!("{} {}: expected {} got {}", names[check], fixture, expected, actual));
         }
     }
@@ -785,6 +792,8 @@ func runParityCase(runner func(*parityTables, []int) checkruntime.CheckOutcome, 
 		return "N"
 	case checkruntime.CheckOutcomeUnknown:
 		return "U"
+	case checkruntime.CheckOutcomeUnimplemented:
+		return "I"
 	default:
 		return "E" + strconv.Itoa(actual.Error.State)
 	}
@@ -811,7 +820,7 @@ func TestChecksMatchPostgres(t *testing.T) {
 			}
 		}
 		count++
-		if actual := runParityCase(runners[check], tables, args); actual != parts[2] {
+		if actual := runParityCase(runners[check], tables, args); actual != parts[2] && !(parts[2] == "U" && actual == "I") {
 			mismatches = append(mismatches, fmt.Sprintf("%s %s: expected %s got %s", names[check], parts[1], parts[2], actual))
 		}
 	}
@@ -840,7 +849,7 @@ func TestChecksMatchPostgres(t *testing.T) {
         )
         .join(', ')
       const rustExpected = `CheckOutcome::${fixture.expected.kind}${fixture.expected.kind === 'Error' ? `(make_sql_error(${fixture.expected.value.state}))` : ''}`
-      const rustAssertion = `{let actual=${check.entryName}(${args});let error=match actual {CheckOutcome::Error(error)=>error.state,_=>0};assert!(actual == ${rustExpected}, "${fixture.name} ${index}: unknown={} false={} null={} true={} error={}", actual==CheckOutcome::Unknown,actual==CheckOutcome::False,actual==CheckOutcome::Null,actual==CheckOutcome::True,error);}`
+      const rustAssertion = `{let actual=${check.entryName}(${args});let error=match actual {CheckOutcome::Error(error)=>error.state,_=>0};assert!(actual == ${rustExpected}${fixture.expected.kind === 'Unknown' ? ' || actual == CheckOutcome::Unimplemented' : ''}, "${fixture.name} ${index}: unknown={} false={} null={} true={} error={}", actual==CheckOutcome::Unknown,actual==CheckOutcome::False,actual==CheckOutcome::Null,actual==CheckOutcome::True,error);}`
       if (check.inputs.some((input) => input.type.startsWith('composite:'))) {
         const name = `checks_fixture_${index}`
         rustFixtureFunctions.push(`#[inline(never)]\nfn ${name}() {${rustAssertion}}`)
@@ -877,19 +886,36 @@ func TestChecksMatchPostgres(t *testing.T) {
         ),
         `fixture${index}_`,
       )
+      const failure = go.expression(
+        go.call(go.selector(go.ident('t'), 'Fatalf'), [
+          go.string(`${fixture.name} ${index}: %+v`),
+          actual,
+        ]),
+      )
+      const unimplemented = go.ident('unimplemented' + index)
       const assertions = [
         ...binding.statements,
         go.assign([expected], [goExpected]),
+        ...(fixture.expected.kind === 'Unknown'
+          ? [
+              go.assign(
+                [unimplemented],
+                [
+                  go.composite(go.selector(go.ident('checkruntime'), 'CheckOutcome'), [
+                    go.keyValue(
+                      'Kind',
+                      go.selector(go.ident('checkruntime'), 'CheckOutcomeUnimplemented'),
+                    ),
+                  ]),
+                ],
+              ),
+            ]
+          : []),
         go.if(
           go.notEqual(actual, expected),
-          [
-            go.expression(
-              go.call(go.selector(go.ident('t'), 'Fatalf'), [
-                go.string(`${fixture.name} ${index}: %+v`),
-                actual,
-              ]),
-            ),
-          ],
+          fixture.expected.kind === 'Unknown'
+            ? [go.if(go.notEqual(actual, unimplemented), [failure])]
+            : [failure],
           go.assign([actual], [binding.expression]),
         ),
       ]
@@ -1184,7 +1210,10 @@ func TestChecksMatchPostgres(t *testing.T) {
       }),
     )
     assert.deepEqual(
-      result,
+      fixture.expected.kind === 'Unknown' &&
+        (result as { kind?: string } | null)?.kind === 'Unimplemented'
+        ? fixture.expected
+        : result,
       fixture.expected,
       `${fixture.name}: ${JSON.stringify(fixture.row, (_key, value) => (typeof value === 'bigint' ? value.toString() : value))}`,
     )

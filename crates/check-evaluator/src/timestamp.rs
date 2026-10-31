@@ -211,11 +211,12 @@ fn parse_temporal_text(
 ) -> Int8Value {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = value { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = value { unresolved_flavor = 2; };
     if let TextValue::Error(error) = value {
         return Int8Value::Error(error);
     }
-    if (value == TextValue::Unknown || value == TextValue::NonNull) {
-        return int8_unresolved(unresolved_flavor);
+    let mut condition_flavor_218_4: i32 = unresolved_flavor; if let TextValue::Unknown = value { if condition_flavor_218_4 < 1 { condition_flavor_218_4 = 1; }; }; if let TextValue::Unimplemented = value { condition_flavor_218_4 = 2; }; if ((value == TextValue::Unknown || value == TextValue::Unimplemented) || value == TextValue::NonNull) {
+        return int8_unresolved(condition_flavor_218_4);
     }
     if value == TextValue::Null {
         return Int8Value::Null;
@@ -927,8 +928,8 @@ fn parse_temporal_text(
         {
             let after_clock =
                 temporal_number_after_clock(hour, minute, second, compact_clock, year_overflow);
-            if after_clock == Int8Value::Unknown {
-                return int8_unresolved(unresolved_flavor);
+            let mut condition_flavor_931_12: i32 = unresolved_flavor; if let Int8Value::Unknown = after_clock { if condition_flavor_931_12 < 1 { condition_flavor_931_12 = 1; }; }; if let Int8Value::Unimplemented = after_clock { condition_flavor_931_12 = 2; }; if (after_clock == Int8Value::Unknown || after_clock == Int8Value::Unimplemented) {
+                return int8_unresolved(condition_flavor_931_12);
             }
             if let Int8Value::Error(error) = after_clock {
                 if error.state == INVALID_TIMESTAMP_TEXT && (offset < -57599 || offset > 57599) {
@@ -988,6 +989,7 @@ fn parse_temporal_text(
 fn timestamp_from_microseconds(value: Int8Value) -> TimestampValue {
     let mut unresolved_flavor: i32 = 0;
     if let Int8Value::Unknown = value { unresolved_flavor = 1; };
+    if let Int8Value::Unimplemented = value { unresolved_flavor = 2; };
     if let Int8Value::Error(error) = value {
         return TimestampValue::Error(error);
     }

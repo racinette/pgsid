@@ -35,6 +35,7 @@ fn polygon_parse(value: &str) -> PolygonValue {
 pub fn polygon_from_text(input: TextValue) -> PolygonValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return PolygonValue::Error(error);
     };

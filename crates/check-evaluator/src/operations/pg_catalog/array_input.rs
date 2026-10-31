@@ -26,6 +26,7 @@ pub(crate) fn array_element_typmod(
 ) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     let width = Int4Value::Value(modifier);
     let explicit = BoolValue::Value(true);
     if identity == "pg_catalog.\"varchar\"" {
@@ -98,6 +99,7 @@ pub(crate) fn array_element_typmod(
 pub fn array_with_typmod(input: ArrayValue, modifier: i32) -> ArrayValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayValue::Unimplemented = input { unresolved_flavor = 2; };
     if modifier < 0 {
         return input;
     };
@@ -121,8 +123,10 @@ pub fn array_with_typmod(input: ArrayValue, modifier: i32) -> ArrayValue {
                 return ArrayValue::Error(error);
             };
             if unknown_valid == false {
-                if let ArrayElement::Unknown = converted {
-                    return array_unresolved(unresolved_flavor);
+                let mut condition_flavor_126_16: i32 = unresolved_flavor; if let ArrayElement::Unknown = converted { if condition_flavor_126_16 < 1 { condition_flavor_126_16 = 1; }; }; if let ArrayElement::Unknown = converted {
+                    return array_unresolved(condition_flavor_126_16);
+                }; let mut condition_flavor_128_19: i32 = unresolved_flavor; if let ArrayElement::Unimplemented = converted { condition_flavor_128_19 = 2; }; if let ArrayElement::Unimplemented = converted {
+                    return array_unresolved(condition_flavor_128_19);
                 };
             };
             elements[position] = converted;

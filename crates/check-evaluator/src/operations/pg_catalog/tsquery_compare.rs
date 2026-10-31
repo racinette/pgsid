@@ -40,10 +40,12 @@ fn tsquery_compare(left: TsqueryValue, right: TsqueryValue, utf8: bool, exact: b
     let mut unresolved_flavor: i32 = 0;
     if let TsqueryValue::Unknown = left { unresolved_flavor = 1; };
     if let TsqueryValue::Unknown = right { unresolved_flavor = 1; };
+    if let TsqueryValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let TsqueryValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TsqueryValue::Error(error) = left { return Int4Value::Error(error); };
     if let TsqueryValue::Error(error) = right { return Int4Value::Error(error); };
-    if let TsqueryValue::Unknown = left { return int4_unresolved(unresolved_flavor); };
-    if let TsqueryValue::Unknown = right { return int4_unresolved(unresolved_flavor); };
+    let mut condition_flavor_47_4: i32 = unresolved_flavor; if let TsqueryValue::Unknown = left { if condition_flavor_47_4 < 1 { condition_flavor_47_4 = 1; }; }; if let TsqueryValue::Unknown = left { return int4_unresolved(condition_flavor_47_4); }; let mut condition_flavor_47_88: i32 = unresolved_flavor; if let TsqueryValue::Unimplemented = left { condition_flavor_47_88 = 2; }; if let TsqueryValue::Unimplemented = left { return int4_unresolved(condition_flavor_47_88); };
+    let mut condition_flavor_48_4: i32 = unresolved_flavor; if let TsqueryValue::Unknown = right { if condition_flavor_48_4 < 1 { condition_flavor_48_4 = 1; }; }; if let TsqueryValue::Unknown = right { return int4_unresolved(condition_flavor_48_4); }; let mut condition_flavor_48_89: i32 = unresolved_flavor; if let TsqueryValue::Unimplemented = right { condition_flavor_48_89 = 2; }; if let TsqueryValue::Unimplemented = right { return int4_unresolved(condition_flavor_48_89); };
     if let TsqueryValue::Null = left { return Int4Value::Null; };
     if let TsqueryValue::Null = right { return Int4Value::Null; };
     if let TsqueryValue::Value(a) = left {
@@ -109,6 +111,8 @@ fn tsquery_relation(left: TsqueryValue, right: TsqueryValue, utf8: bool, mode: i
     let mut unresolved_flavor: i32 = 0;
     if let TsqueryValue::Unknown = left { unresolved_flavor = 1; };
     if let TsqueryValue::Unknown = right { unresolved_flavor = 1; };
+    if let TsqueryValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let TsqueryValue::Unimplemented = right { unresolved_flavor = 2; };
     let order = tsquery_compare(left,right,utf8,false);
     if let Int4Value::Error(error) = order { return BoolValue::Error(error); };
     if let Int4Value::Null = order { return BoolValue::Null; };
@@ -133,10 +137,12 @@ fn tsquery_contains(left: TsqueryValue,right: TsqueryValue,reverse: bool)->BoolV
     let mut unresolved_flavor: i32 = 0;
     if let TsqueryValue::Unknown = left { unresolved_flavor = 1; };
     if let TsqueryValue::Unknown = right { unresolved_flavor = 1; };
+    if let TsqueryValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let TsqueryValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TsqueryValue::Error(error) = left { return BoolValue::Error(error); };
     if let TsqueryValue::Error(error) = right { return BoolValue::Error(error); };
-    if let TsqueryValue::Unknown = left { return bool_unresolved(unresolved_flavor); };
-    if let TsqueryValue::Unknown = right { return bool_unresolved(unresolved_flavor); };
+    let mut condition_flavor_144_4: i32 = unresolved_flavor; if let TsqueryValue::Unknown = left { if condition_flavor_144_4 < 1 { condition_flavor_144_4 = 1; }; }; if let TsqueryValue::Unknown = left { return bool_unresolved(condition_flavor_144_4); }; let mut condition_flavor_144_88: i32 = unresolved_flavor; if let TsqueryValue::Unimplemented = left { condition_flavor_144_88 = 2; }; if let TsqueryValue::Unimplemented = left { return bool_unresolved(condition_flavor_144_88); };
+    let mut condition_flavor_145_4: i32 = unresolved_flavor; if let TsqueryValue::Unknown = right { if condition_flavor_145_4 < 1 { condition_flavor_145_4 = 1; }; }; if let TsqueryValue::Unknown = right { return bool_unresolved(condition_flavor_145_4); }; let mut condition_flavor_145_89: i32 = unresolved_flavor; if let TsqueryValue::Unimplemented = right { condition_flavor_145_89 = 2; }; if let TsqueryValue::Unimplemented = right { return bool_unresolved(condition_flavor_145_89); };
     if let TsqueryValue::Null = left { return BoolValue::Null; };
     if let TsqueryValue::Null = right { return BoolValue::Null; };
     if let TsqueryValue::Value(a) = left {

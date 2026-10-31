@@ -1,6 +1,6 @@
 fn polygon_path_bounds(bounds: BoxValue, path: &PathPayload) -> BoxValue {
     // Ambiguous zero or NaN bits do not change the extrema's numeric comparisons.
-    if bounds == BoxValue::NonNull || bounds == BoxValue::Unknown {
+    if bounds == BoxValue::NonNull || (bounds == BoxValue::Unknown || bounds == BoxValue::Unimplemented) {
         return path_bounds(path);
     };
     bounds
@@ -10,14 +10,16 @@ fn polygon_direction(left: PolygonValue, right: PolygonValue, mode: i32) -> Bool
     let mut unresolved_flavor: i32 = 0;
     if let PolygonValue::Unknown = left { unresolved_flavor = 1; };
     if let PolygonValue::Unknown = right { unresolved_flavor = 1; };
+    if let PolygonValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let PolygonValue::Unimplemented = right { unresolved_flavor = 2; };
     if let PolygonValue::Error(error) = left {
         return BoolValue::Error(error);
     };
     if let PolygonValue::Error(error) = right {
         return BoolValue::Error(error);
     };
-    if let PolygonValue::Unknown = left { return bool_unresolved(unresolved_flavor); };
-    if let PolygonValue::Unknown = right { return bool_unresolved(unresolved_flavor); };
+    let mut condition_flavor_21_4: i32 = unresolved_flavor; if let PolygonValue::Unknown = left { if condition_flavor_21_4 < 1 { condition_flavor_21_4 = 1; }; }; if let PolygonValue::Unknown = left { return bool_unresolved(condition_flavor_21_4); }; let mut condition_flavor_21_88: i32 = unresolved_flavor; if let PolygonValue::Unimplemented = left { condition_flavor_21_88 = 2; }; if let PolygonValue::Unimplemented = left { return bool_unresolved(condition_flavor_21_88); };
+    let mut condition_flavor_22_4: i32 = unresolved_flavor; if let PolygonValue::Unknown = right { if condition_flavor_22_4 < 1 { condition_flavor_22_4 = 1; }; }; if let PolygonValue::Unknown = right { return bool_unresolved(condition_flavor_22_4); }; let mut condition_flavor_22_89: i32 = unresolved_flavor; if let PolygonValue::Unimplemented = right { condition_flavor_22_89 = 2; }; if let PolygonValue::Unimplemented = right { return bool_unresolved(condition_flavor_22_89); };
     if let PolygonValue::Null = left { return BoolValue::Null; };
     if let PolygonValue::Null = right { return BoolValue::Null; };
     if let PolygonValue::Value(a) = left {
@@ -56,6 +58,8 @@ fn polygon_paths_overlap(
     let mut unresolved_flavor: i32 = 0;
     if let BoxValue::Unknown = a_bounds { unresolved_flavor = 1; };
     if let BoxValue::Unknown = b_bounds { unresolved_flavor = 1; };
+    if let BoxValue::Unimplemented = a_bounds { unresolved_flavor = 2; };
+    if let BoxValue::Unimplemented = b_bounds { unresolved_flavor = 2; };
     if a.points.len() == 0 || b.points.len() == 0 { return bool_unresolved(unresolved_flavor); };
     let bounds = sql__pg_catalog__box_overlap__ke99(
         polygon_path_bounds(a_bounds, a), polygon_path_bounds(b_bounds, b),
@@ -144,7 +148,7 @@ fn polygon_segment_inside(a: PointPayload, b: PointPayload, polygon: &PathPayloa
         } else {
             let point = segment_intersection(segment, edge);
             if let PointValue::Error(error) = point { return BoolValue::Error(error); };
-            if point == PointValue::Unknown { return bool_unresolved(unresolved_flavor); };
+            let mut condition_flavor_151_12: i32 = unresolved_flavor; if let PointValue::Unknown = point { if condition_flavor_151_12 < 1 { condition_flavor_151_12 = 1; }; }; if let PointValue::Unimplemented = point { condition_flavor_151_12 = 2; }; if (point == PointValue::Unknown || point == PointValue::Unimplemented) { return bool_unresolved(condition_flavor_151_12); };
             if let PointValue::Value(crossing) = point {
                 intersection = true;
                 result = polygon_segment_inside(a, crossing, polygon, index + 1);
@@ -170,10 +174,12 @@ fn polygon_relation(left: PolygonValue, right: PolygonValue, contains: bool) -> 
     let mut unresolved_flavor: i32 = 0;
     if let PolygonValue::Unknown = left { unresolved_flavor = 1; };
     if let PolygonValue::Unknown = right { unresolved_flavor = 1; };
+    if let PolygonValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let PolygonValue::Unimplemented = right { unresolved_flavor = 2; };
     if let PolygonValue::Error(error) = left { return BoolValue::Error(error); };
     if let PolygonValue::Error(error) = right { return BoolValue::Error(error); };
-    if let PolygonValue::Unknown = left { return bool_unresolved(unresolved_flavor); };
-    if let PolygonValue::Unknown = right { return bool_unresolved(unresolved_flavor); };
+    let mut condition_flavor_181_4: i32 = unresolved_flavor; if let PolygonValue::Unknown = left { if condition_flavor_181_4 < 1 { condition_flavor_181_4 = 1; }; }; if let PolygonValue::Unknown = left { return bool_unresolved(condition_flavor_181_4); }; let mut condition_flavor_181_88: i32 = unresolved_flavor; if let PolygonValue::Unimplemented = left { condition_flavor_181_88 = 2; }; if let PolygonValue::Unimplemented = left { return bool_unresolved(condition_flavor_181_88); };
+    let mut condition_flavor_182_4: i32 = unresolved_flavor; if let PolygonValue::Unknown = right { if condition_flavor_182_4 < 1 { condition_flavor_182_4 = 1; }; }; if let PolygonValue::Unknown = right { return bool_unresolved(condition_flavor_182_4); }; let mut condition_flavor_182_89: i32 = unresolved_flavor; if let PolygonValue::Unimplemented = right { condition_flavor_182_89 = 2; }; if let PolygonValue::Unimplemented = right { return bool_unresolved(condition_flavor_182_89); };
     if let PolygonValue::Null = left { return BoolValue::Null; };
     if let PolygonValue::Null = right { return BoolValue::Null; };
     if let PolygonValue::Value(a) = left {

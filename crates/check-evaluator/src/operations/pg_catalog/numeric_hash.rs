@@ -41,11 +41,12 @@ fn numeric_hash_digits(value: &str) -> Vec<HashByte> {
 pub fn sql__pg_catalog__hash_numeric__0e7w(input: NumericValue, byte_order: i32) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = input { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = input { unresolved_flavor = 2; };
     if let NumericValue::Error(error) = input {
         return Int4Value::Error(error);
     }
-    if input == NumericValue::Unknown {
-        return int4_unresolved(unresolved_flavor);
+    let mut condition_flavor_48_4: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_48_4 < 1 { condition_flavor_48_4 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_48_4 = 2; }; if (input == NumericValue::Unknown || input == NumericValue::Unimplemented) {
+        return int4_unresolved(condition_flavor_48_4);
     }
     if input == NumericValue::Null {
         return Int4Value::Null;
@@ -80,14 +81,16 @@ pub fn sql__pg_catalog__hash_numeric_extended__oglu(
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = input { unresolved_flavor = 1; };
     if let Int8Value::Unknown = seed { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int8Value::Unimplemented = seed { unresolved_flavor = 2; };
     if let NumericValue::Error(error) = input {
         return Int8Value::Error(error);
     }
     if let Int8Value::Error(error) = seed {
         return Int8Value::Error(error);
     }
-    if input == NumericValue::Unknown || seed == Int8Value::Unknown {
-        return int8_unresolved(unresolved_flavor);
+    let mut condition_flavor_92_4: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_92_4 < 1 { condition_flavor_92_4 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_92_4 = 2; }; if let Int8Value::Unknown = seed { if condition_flavor_92_4 < 1 { condition_flavor_92_4 = 1; }; }; if let Int8Value::Unimplemented = seed { condition_flavor_92_4 = 2; }; if (input == NumericValue::Unknown || input == NumericValue::Unimplemented) || (seed == Int8Value::Unknown || seed == Int8Value::Unimplemented) {
+        return int8_unresolved(condition_flavor_92_4);
     }
     if input == NumericValue::Null || seed == Int8Value::Null {
         return Int8Value::Null;

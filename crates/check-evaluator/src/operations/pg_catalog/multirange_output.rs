@@ -1,6 +1,7 @@
 pub fn multirange_to_text(input: MultirangeValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let MultirangeValue::Unknown = input { unresolved_flavor = 1; };
+    if let MultirangeValue::Unimplemented = input { unresolved_flavor = 2; };
     if let MultirangeValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -16,6 +17,10 @@ pub fn multirange_to_text(input: MultirangeValue) -> TextValue {
             if let TextValue::Error(error) = member {
                 return TextValue::Error(error);
             };
+            let mut member_flavor: i32 = unresolved_flavor;
+            if let TextValue::Unknown = member { if member_flavor < 1 { member_flavor = 1; }; };
+            if let TextValue::NonNull = member { if member_flavor < 1 { member_flavor = 1; }; };
+            if let TextValue::Unimplemented = member { member_flavor = 2; };
             let mut known = false;
             if let TextValue::Value(text) = member {
                 if index > 0 {
@@ -25,7 +30,7 @@ pub fn multirange_to_text(input: MultirangeValue) -> TextValue {
                 known = true;
             };
             if known == false {
-                return text_unresolved(unresolved_flavor);
+                return text_unresolved(member_flavor);
             };
             index += 1;
         }
@@ -38,6 +43,7 @@ pub fn multirange_to_text(input: MultirangeValue) -> TextValue {
 pub fn multirange_output_initial(input: MultirangeValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let MultirangeValue::Unknown = input { unresolved_flavor = 1; };
+    if let MultirangeValue::Unimplemented = input { unresolved_flavor = 2; };
     if let MultirangeValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -70,6 +76,9 @@ pub fn multirange_output_append(
     if let TextValue::Unknown = output { unresolved_flavor = 1; };
     if let TextValue::Unknown = member { unresolved_flavor = 1; };
     if let Int4Value::Unknown = index { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = output { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = member { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = index { unresolved_flavor = 2; };
     if let TextValue::Error(error) = output {
         return TextValue::Error(error);
     };

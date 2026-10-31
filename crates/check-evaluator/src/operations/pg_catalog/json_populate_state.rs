@@ -48,8 +48,12 @@ pub(crate) fn prepare_json_populate(
     if status == CheckOutcome::True {
         if let CompositeValue::Unknown = base {
             status = CheckOutcome::Unknown;
+        }; if let CompositeValue::Unimplemented = base {
+            status = CheckOutcome::Unknown;
         };
         if let JsonbInput::Unknown = input {
+            status = CheckOutcome::Unknown;
+        }; if let JsonbInput::Unimplemented = input {
             status = CheckOutcome::Unknown;
         };
     };
@@ -222,6 +226,8 @@ pub(crate) fn json_populate_accept_domain(
     };
     if let CompositeValue::Unknown = output {
         status = CheckOutcome::Unknown;
+    }; if let CompositeValue::Unimplemented = output {
+        status = CheckOutcome::Unknown;
     };
     JsonPopulateState {
         input: input.input,
@@ -255,6 +261,8 @@ pub(crate) fn json_populate_accept(
     if status == CheckOutcome::True {
         if let ArrayElement::Unknown = field {
             status = CheckOutcome::Unknown;
+        }; if let ArrayElement::Unimplemented = field {
+            status = CheckOutcome::Unknown;
         };
     };
     if status == CheckOutcome::True {
@@ -277,7 +285,9 @@ pub(crate) fn json_populate_accept(
 }
 
 pub(crate) fn finish_json_populate(input: JsonPopulateState) -> CompositeValue {
-    let unresolved_flavor: i32 = 0;
+    let mut unresolved_flavor: i32 = 0;
+    if input.status == CheckOutcome::Unknown { unresolved_flavor = 1; };
+    if input.status == CheckOutcome::Unimplemented { unresolved_flavor = 2; };
     let hard = input.hard;
     if let CheckOutcome::Error(error) = hard {
         return CompositeValue::Error(error);
@@ -310,7 +320,7 @@ pub(crate) fn json_populate_guard(
         status = CheckOutcome::Error(error);
         hard = status;
     };
-    if safe == false && flag == BoolValue::Unknown {
+    if safe == false && (flag == BoolValue::Unknown || flag == BoolValue::Unimplemented) {
         status = CheckOutcome::Unknown;
     };
     JsonPopulateState {
@@ -345,7 +355,9 @@ pub fn sql__pg_catalog__jsonb_populate_record__f6m5(input: JsonPopulatePlan) -> 
 }
 
 fn finish_json_populate_valid(input: JsonPopulateState) -> BoolValue {
-    let unresolved_flavor: i32 = 0;
+    let mut unresolved_flavor: i32 = 0;
+    if input.status == CheckOutcome::Unknown { unresolved_flavor = 1; };
+    if input.status == CheckOutcome::Unimplemented { unresolved_flavor = 2; };
     let hard = input.hard;
     if let CheckOutcome::Error(error) = hard {
         return BoolValue::Error(error);

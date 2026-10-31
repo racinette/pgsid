@@ -1,6 +1,7 @@
 fn oid_units(input: OidValue) -> Int8Value {
     let mut unresolved_flavor: i32 = 0;
     if let OidValue::Unknown = input { unresolved_flavor = 1; };
+    if let OidValue::Unimplemented = input { unresolved_flavor = 2; };
     if let OidValue::Error(error) = input {
         return Int8Value::Error(error);
     };
@@ -16,14 +17,16 @@ fn oid_compare(left: OidValue, right: OidValue) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let OidValue::Unknown = left { unresolved_flavor = 1; };
     if let OidValue::Unknown = right { unresolved_flavor = 1; };
+    if let OidValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let OidValue::Unimplemented = right { unresolved_flavor = 2; };
     if let OidValue::Error(error) = left {
         return Int4Value::Error(error);
     };
     if let OidValue::Error(error) = right {
         return Int4Value::Error(error);
     };
-    if left == OidValue::Unknown || right == OidValue::Unknown {
-        return int4_unresolved(unresolved_flavor);
+    let mut condition_flavor_28_4: i32 = unresolved_flavor; if let OidValue::Unknown = left { if condition_flavor_28_4 < 1 { condition_flavor_28_4 = 1; }; }; if let OidValue::Unimplemented = left { condition_flavor_28_4 = 2; }; if let OidValue::Unknown = right { if condition_flavor_28_4 < 1 { condition_flavor_28_4 = 1; }; }; if let OidValue::Unimplemented = right { condition_flavor_28_4 = 2; }; if (left == OidValue::Unknown || left == OidValue::Unimplemented) || (right == OidValue::Unknown || right == OidValue::Unimplemented) {
+        return int4_unresolved(condition_flavor_28_4);
     };
     if left == OidValue::Null || right == OidValue::Null {
         return Int4Value::Null;
@@ -45,6 +48,8 @@ fn oid_relation(left: OidValue, right: OidValue, mode: i32) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let OidValue::Unknown = left { unresolved_flavor = 1; };
     if let OidValue::Unknown = right { unresolved_flavor = 1; };
+    if let OidValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let OidValue::Unimplemented = right { unresolved_flavor = 2; };
     let comparison = oid_compare(left, right);
     if let Int4Value::Error(error) = comparison {
         return BoolValue::Error(error);
@@ -76,6 +81,8 @@ fn oid_select(left: OidValue, right: OidValue, larger: bool) -> OidValue {
     let mut unresolved_flavor: i32 = 0;
     if let OidValue::Unknown = left { unresolved_flavor = 1; };
     if let OidValue::Unknown = right { unresolved_flavor = 1; };
+    if let OidValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let OidValue::Unimplemented = right { unresolved_flavor = 2; };
     let comparison = oid_compare(left, right);
     if let Int4Value::Error(error) = comparison {
         return OidValue::Error(error);
@@ -95,6 +102,7 @@ fn oid_select(left: OidValue, right: OidValue, larger: bool) -> OidValue {
 pub fn oid_to_int4(input: OidValue) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let OidValue::Unknown = input { unresolved_flavor = 1; };
+    if let OidValue::Unimplemented = input { unresolved_flavor = 2; };
     if let OidValue::Error(error) = input { return Int4Value::Error(error); };
     if input == OidValue::Null { return Int4Value::Null; };
     if let OidValue::Value(value) = input {
@@ -107,6 +115,7 @@ pub fn oid_to_int4(input: OidValue) -> Int4Value {
 pub fn oid_from_int4(input: Int4Value) -> OidValue {
     let mut unresolved_flavor: i32 = 0;
     if let Int4Value::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Int4Value::Error(error) = input { return OidValue::Error(error); };
     if input == Int4Value::Null { return OidValue::Null; };
     if let Int4Value::Value(value) = input {
@@ -141,6 +150,7 @@ pub fn sql__pg_catalog__int8__egit(left: OidValue) -> Int8Value {
 pub fn sql__pg_catalog__oid__h1d6(left: Int8Value) -> OidValue {
     let mut unresolved_flavor: i32 = 0;
     if let Int8Value::Unknown = left { unresolved_flavor = 1; };
+    if let Int8Value::Unimplemented = left { unresolved_flavor = 2; };
     if let Int8Value::Error(error) = left { return OidValue::Error(error); };
     if left == Int8Value::Null { return OidValue::Null; };
     if let Int8Value::Value(value) = left {

@@ -1,11 +1,12 @@
 pub fn enum_to_text(input: EnumValue, labels: &str, count: i32) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let EnumValue::Unknown = input { unresolved_flavor = 1; };
+    if let EnumValue::Unimplemented = input { unresolved_flavor = 2; };
     if let EnumValue::Error(error) = input {
         return TextValue::Error(error);
     }
-    if input == EnumValue::Unknown {
-        return text_unresolved(unresolved_flavor);
+    let mut condition_flavor_8_4: i32 = unresolved_flavor; if let EnumValue::Unknown = input { if condition_flavor_8_4 < 1 { condition_flavor_8_4 = 1; }; }; if let EnumValue::Unimplemented = input { condition_flavor_8_4 = 2; }; if (input == EnumValue::Unknown || input == EnumValue::Unimplemented) {
+        return text_unresolved(condition_flavor_8_4);
     }
     if input == EnumValue::Null {
         return TextValue::Null;
@@ -41,14 +42,16 @@ pub fn sql__pg_catalog__enum_eq__w63e(left: EnumValue, right: EnumValue) -> Bool
     let mut unresolved_flavor: i32 = 0;
     if let EnumValue::Unknown = left { unresolved_flavor = 1; };
     if let EnumValue::Unknown = right { unresolved_flavor = 1; };
+    if let EnumValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let EnumValue::Unimplemented = right { unresolved_flavor = 2; };
     if let EnumValue::Error(error) = left {
         return BoolValue::Error(error);
     }
     if let EnumValue::Error(error) = right {
         return BoolValue::Error(error);
     }
-    if left == EnumValue::Unknown || right == EnumValue::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_53_4: i32 = unresolved_flavor; if let EnumValue::Unknown = left { if condition_flavor_53_4 < 1 { condition_flavor_53_4 = 1; }; }; if let EnumValue::Unimplemented = left { condition_flavor_53_4 = 2; }; if let EnumValue::Unknown = right { if condition_flavor_53_4 < 1 { condition_flavor_53_4 = 1; }; }; if let EnumValue::Unimplemented = right { condition_flavor_53_4 = 2; }; if (left == EnumValue::Unknown || left == EnumValue::Unimplemented) || (right == EnumValue::Unknown || right == EnumValue::Unimplemented) {
+        return bool_unresolved(condition_flavor_53_4);
     }
     if left == EnumValue::Null || right == EnumValue::Null {
         return BoolValue::Null;
@@ -65,14 +68,16 @@ pub fn sql__pg_catalog__enum_ne__tph2(left: EnumValue, right: EnumValue) -> Bool
     let mut unresolved_flavor: i32 = 0;
     if let EnumValue::Unknown = left { unresolved_flavor = 1; };
     if let EnumValue::Unknown = right { unresolved_flavor = 1; };
+    if let EnumValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let EnumValue::Unimplemented = right { unresolved_flavor = 2; };
     if let EnumValue::Error(error) = left {
         return BoolValue::Error(error);
     }
     if let EnumValue::Error(error) = right {
         return BoolValue::Error(error);
     }
-    if left == EnumValue::Unknown || right == EnumValue::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_79_4: i32 = unresolved_flavor; if let EnumValue::Unknown = left { if condition_flavor_79_4 < 1 { condition_flavor_79_4 = 1; }; }; if let EnumValue::Unimplemented = left { condition_flavor_79_4 = 2; }; if let EnumValue::Unknown = right { if condition_flavor_79_4 < 1 { condition_flavor_79_4 = 1; }; }; if let EnumValue::Unimplemented = right { condition_flavor_79_4 = 2; }; if (left == EnumValue::Unknown || left == EnumValue::Unimplemented) || (right == EnumValue::Unknown || right == EnumValue::Unimplemented) {
+        return bool_unresolved(condition_flavor_79_4);
     }
     if left == EnumValue::Null || right == EnumValue::Null {
         return BoolValue::Null;
@@ -89,14 +94,16 @@ pub fn sql__pg_catalog__enum_cmp__hjt6(left: EnumValue, right: EnumValue) -> Int
     let mut unresolved_flavor: i32 = 0;
     if let EnumValue::Unknown = left { unresolved_flavor = 1; };
     if let EnumValue::Unknown = right { unresolved_flavor = 1; };
+    if let EnumValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let EnumValue::Unimplemented = right { unresolved_flavor = 2; };
     if let EnumValue::Error(error) = left {
         return Int4Value::Error(error);
     }
     if let EnumValue::Error(error) = right {
         return Int4Value::Error(error);
     }
-    if left == EnumValue::Unknown || right == EnumValue::Unknown {
-        return int4_unresolved(unresolved_flavor);
+    let mut condition_flavor_105_4: i32 = unresolved_flavor; if let EnumValue::Unknown = left { if condition_flavor_105_4 < 1 { condition_flavor_105_4 = 1; }; }; if let EnumValue::Unimplemented = left { condition_flavor_105_4 = 2; }; if let EnumValue::Unknown = right { if condition_flavor_105_4 < 1 { condition_flavor_105_4 = 1; }; }; if let EnumValue::Unimplemented = right { condition_flavor_105_4 = 2; }; if (left == EnumValue::Unknown || left == EnumValue::Unimplemented) || (right == EnumValue::Unknown || right == EnumValue::Unimplemented) {
+        return int4_unresolved(condition_flavor_105_4);
     }
     if left == EnumValue::Null || right == EnumValue::Null {
         return Int4Value::Null;
@@ -139,6 +146,8 @@ pub fn sql__pg_catalog__enum_larger__em2s(left: EnumValue, right: EnumValue) -> 
     let mut unresolved_flavor: i32 = 0;
     if let EnumValue::Unknown = left { unresolved_flavor = 1; };
     if let EnumValue::Unknown = right { unresolved_flavor = 1; };
+    if let EnumValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let EnumValue::Unimplemented = right { unresolved_flavor = 2; };
     let comparison = sql__pg_catalog__enum_cmp__hjt6(left, right);
     if let Int4Value::Error(error) = comparison {
         return EnumValue::Error(error);
@@ -159,6 +168,8 @@ pub fn sql__pg_catalog__enum_smaller__whhx(left: EnumValue, right: EnumValue) ->
     let mut unresolved_flavor: i32 = 0;
     if let EnumValue::Unknown = left { unresolved_flavor = 1; };
     if let EnumValue::Unknown = right { unresolved_flavor = 1; };
+    if let EnumValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let EnumValue::Unimplemented = right { unresolved_flavor = 2; };
     let comparison = sql__pg_catalog__enum_cmp__hjt6(left, right);
     if let Int4Value::Error(error) = comparison {
         return EnumValue::Error(error);
@@ -178,11 +189,12 @@ pub fn sql__pg_catalog__enum_smaller__whhx(left: EnumValue, right: EnumValue) ->
 pub fn sql__pg_catalog__hashenum__z4zk(input: EnumValue) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let EnumValue::Unknown = input { unresolved_flavor = 1; };
+    if let EnumValue::Unimplemented = input { unresolved_flavor = 2; };
     if let EnumValue::Error(error) = input {
         return Int4Value::Error(error);
     }
-    if input == EnumValue::Unknown {
-        return int4_unresolved(unresolved_flavor);
+    let mut condition_flavor_196_4: i32 = unresolved_flavor; if let EnumValue::Unknown = input { if condition_flavor_196_4 < 1 { condition_flavor_196_4 = 1; }; }; if let EnumValue::Unimplemented = input { condition_flavor_196_4 = 2; }; if (input == EnumValue::Unknown || input == EnumValue::Unimplemented) {
+        return int4_unresolved(condition_flavor_196_4);
     }
     if input == EnumValue::Null {
         return Int4Value::Null;
@@ -201,14 +213,16 @@ pub fn sql__pg_catalog__hashenumextended__18hh(input: EnumValue, seed: Int8Value
     let mut unresolved_flavor: i32 = 0;
     if let EnumValue::Unknown = input { unresolved_flavor = 1; };
     if let Int8Value::Unknown = seed { unresolved_flavor = 1; };
+    if let EnumValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int8Value::Unimplemented = seed { unresolved_flavor = 2; };
     if let EnumValue::Error(error) = input {
         return Int8Value::Error(error);
     }
     if let Int8Value::Error(error) = seed {
         return Int8Value::Error(error);
     }
-    if input == EnumValue::Unknown || seed == Int8Value::Unknown {
-        return int8_unresolved(unresolved_flavor);
+    let mut condition_flavor_224_4: i32 = unresolved_flavor; if let EnumValue::Unknown = input { if condition_flavor_224_4 < 1 { condition_flavor_224_4 = 1; }; }; if let EnumValue::Unimplemented = input { condition_flavor_224_4 = 2; }; if let Int8Value::Unknown = seed { if condition_flavor_224_4 < 1 { condition_flavor_224_4 = 1; }; }; if let Int8Value::Unimplemented = seed { condition_flavor_224_4 = 2; }; if (input == EnumValue::Unknown || input == EnumValue::Unimplemented) || (seed == Int8Value::Unknown || seed == Int8Value::Unimplemented) {
+        return int8_unresolved(condition_flavor_224_4);
     }
     if input == EnumValue::Null || seed == Int8Value::Null {
         return Int8Value::Null;

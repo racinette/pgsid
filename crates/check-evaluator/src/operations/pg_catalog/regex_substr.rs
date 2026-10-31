@@ -13,6 +13,12 @@ fn regex_substring_value(
     if let Int4Value::Unknown = occurrence { unresolved_flavor = 1; };
     if let TextValue::Unknown = flags { unresolved_flavor = 1; };
     if let Int4Value::Unknown = subexpression { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = subject { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = pattern { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = starting { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = occurrence { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = flags { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = subexpression { unresolved_flavor = 2; };
     if let TextValue::Error(error) = subject {
         return TextValue::Error(error);
     }
@@ -31,14 +37,14 @@ fn regex_substring_value(
     if let Int4Value::Error(error) = subexpression {
         return TextValue::Error(error);
     }
-    if (subject == TextValue::Unknown || subject == TextValue::NonNull)
-        || (pattern == TextValue::Unknown || pattern == TextValue::NonNull)
-        || starting == Int4Value::Unknown
-        || occurrence == Int4Value::Unknown
-        || (flags == TextValue::Unknown || flags == TextValue::NonNull)
-        || subexpression == Int4Value::Unknown
+    let mut condition_flavor_40_4: i32 = unresolved_flavor; if let TextValue::Unknown = subject { if condition_flavor_40_4 < 1 { condition_flavor_40_4 = 1; }; }; if let TextValue::Unimplemented = subject { condition_flavor_40_4 = 2; }; if let TextValue::Unknown = pattern { if condition_flavor_40_4 < 1 { condition_flavor_40_4 = 1; }; }; if let TextValue::Unimplemented = pattern { condition_flavor_40_4 = 2; }; if let Int4Value::Unknown = starting { if condition_flavor_40_4 < 1 { condition_flavor_40_4 = 1; }; }; if let Int4Value::Unimplemented = starting { condition_flavor_40_4 = 2; }; if let Int4Value::Unknown = occurrence { if condition_flavor_40_4 < 1 { condition_flavor_40_4 = 1; }; }; if let Int4Value::Unimplemented = occurrence { condition_flavor_40_4 = 2; }; if let TextValue::Unknown = flags { if condition_flavor_40_4 < 1 { condition_flavor_40_4 = 1; }; }; if let TextValue::Unimplemented = flags { condition_flavor_40_4 = 2; }; if let Int4Value::Unknown = subexpression { if condition_flavor_40_4 < 1 { condition_flavor_40_4 = 1; }; }; if let Int4Value::Unimplemented = subexpression { condition_flavor_40_4 = 2; }; if ((subject == TextValue::Unknown || subject == TextValue::Unimplemented) || subject == TextValue::NonNull)
+        || ((pattern == TextValue::Unknown || pattern == TextValue::Unimplemented) || pattern == TextValue::NonNull)
+        || (starting == Int4Value::Unknown || starting == Int4Value::Unimplemented)
+        || (occurrence == Int4Value::Unknown || occurrence == Int4Value::Unimplemented)
+        || ((flags == TextValue::Unknown || flags == TextValue::Unimplemented) || flags == TextValue::NonNull)
+        || (subexpression == Int4Value::Unknown || subexpression == Int4Value::Unimplemented)
     {
-        return text_unresolved(unresolved_flavor);
+        return text_unresolved(condition_flavor_40_4);
     }
     if subject == TextValue::Null
         || pattern == TextValue::Null

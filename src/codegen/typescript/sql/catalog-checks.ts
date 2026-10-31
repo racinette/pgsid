@@ -643,7 +643,7 @@ export function renderTypescriptSchemaCheckArtifacts(
               ),
             ]),
           },
-          helpers: ['evalBoolCertain', 'evalBoolUncertain'],
+          helpers: ['evalBoolCertain', 'evalBoolUncertain', 'evalBoolUnimplemented'],
           unknownMessage,
         }
       }
@@ -1815,6 +1815,7 @@ function checkRustOutcome(value: _checkRust.CheckOutcome): CheckResult {
     case 'False': return evalBoolCertain(false)
     case 'Null': return evalBoolCertain(null)
     case 'Unknown': return evalBoolUncertain()
+    case 'Unimplemented': return evalBoolUnimplemented()
     case 'Error': return {
       certain: true,
       error: value.value.state.toString(36).toUpperCase().padStart(5, '0'),

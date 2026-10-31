@@ -3,6 +3,7 @@ const PG_LSN_INPUT_ERROR: u32 = 3484946;
 pub fn pg_lsn_from_text(input: TextValue) -> PgLsnValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input { return PgLsnValue::Error(error); };
     if input == TextValue::Null { return PgLsnValue::Null; };
     if let TextValue::Value(text) = input {

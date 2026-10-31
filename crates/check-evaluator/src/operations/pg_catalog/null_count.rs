@@ -15,6 +15,8 @@ fn null_count_step(input: Int4Value, nullness: BoolValue, count_nulls: bool) -> 
     let mut unresolved_flavor: i32 = 0;
     if let Int4Value::Unknown = input { unresolved_flavor = 1; };
     if let BoolValue::Unknown = nullness { unresolved_flavor = 1; };
+    if let Int4Value::Unimplemented = input { unresolved_flavor = 2; };
+    if let BoolValue::Unimplemented = nullness { unresolved_flavor = 2; };
     if let Int4Value::Error(_) = input {
         return input;
     };
@@ -60,7 +62,7 @@ pub fn null_count_array_arguments(input: ArrayValue) -> NullCountArguments {
         let mut index: usize = 0;
         while index < value.elements.len() {
             let mut nullness = array_element_bitmap(value.elements[index].clone());
-            if nullness == BoolValue::Unknown && value.null_bitmap == BoolValue::Value(false) {
+            if (nullness == BoolValue::Unknown || nullness == BoolValue::Unimplemented) && value.null_bitmap == BoolValue::Value(false) {
                 nullness = BoolValue::Value(false);
             };
             result = append_null_count_argument(result, nullness);

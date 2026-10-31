@@ -31,14 +31,16 @@ fn timezone_extract_number(
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = units { unresolved_flavor = 1; };
     if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = units { unresolved_flavor = 2; };
+    if let TimestamptzValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = units {
         return NumericValue::Error(error);
     };
     if let TimestamptzValue::Error(error) = input {
         return NumericValue::Error(error);
     };
-    if units == TextValue::Unknown || input == TimestamptzValue::Unknown {
-        return numeric_unresolved(unresolved_flavor);
+    let mut condition_flavor_42_4: i32 = unresolved_flavor; if let TextValue::Unknown = units { if condition_flavor_42_4 < 1 { condition_flavor_42_4 = 1; }; }; if let TextValue::Unimplemented = units { condition_flavor_42_4 = 2; }; if let TimestamptzValue::Unknown = input { if condition_flavor_42_4 < 1 { condition_flavor_42_4 = 1; }; }; if let TimestamptzValue::Unimplemented = input { condition_flavor_42_4 = 2; }; if (units == TextValue::Unknown || units == TextValue::Unimplemented) || (input == TimestamptzValue::Unknown || input == TimestamptzValue::Unimplemented) {
+        return numeric_unresolved(condition_flavor_42_4);
     };
     if units == TextValue::Null || input == TimestamptzValue::Null {
         return NumericValue::Null;
@@ -95,6 +97,8 @@ pub fn sql__pg_catalog__date_part__jhr8(
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = units { unresolved_flavor = 1; };
     if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = units { unresolved_flavor = 2; };
+    if let TimestamptzValue::Unimplemented = input { unresolved_flavor = 2; };
     let number = timezone_extract_number(units.clone(), input, session, limit, utf8);
     let clipped = name_from_text_context(units, limit, utf8);
     if let TextValue::Value(unit) = clipped {

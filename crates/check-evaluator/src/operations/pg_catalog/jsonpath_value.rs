@@ -147,8 +147,8 @@ fn jsonpath_value_from_tree(tree: JsonpathParseTree) -> JsonpathValue {
             if let TextValue::Error(error) = result {
                 return JsonpathValue::Error(error);
             };
-            if result == TextValue::Unknown || result == TextValue::NonNull {
-                return jsonpath_unresolved(unresolved_flavor);
+            let mut condition_flavor_150_12: i32 = unresolved_flavor; if let TextValue::Unknown = result { if condition_flavor_150_12 < 1 { condition_flavor_150_12 = 1; }; }; if let TextValue::Unimplemented = result { condition_flavor_150_12 = 2; }; if (result == TextValue::Unknown || result == TextValue::Unimplemented) || result == TextValue::NonNull {
+                return jsonpath_unresolved(condition_flavor_150_12);
             };
             if let TextValue::Value(normalized) = result {
                 let text: Vec<char> = normalized.chars().collect();
@@ -228,6 +228,7 @@ fn jsonpath_number_node(next: usize, begin: usize, end: usize) -> JsonpathNode {
 pub fn jsonpath_from_coerced_source_utf8(input: TextValue) -> JsonpathValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return JsonpathValue::Error(error);
     };
@@ -248,6 +249,7 @@ pub fn jsonpath_from_coerced_source_utf8(input: TextValue) -> JsonpathValue {
 pub fn jsonpath_from_stored_text(input: TextValue) -> JsonpathValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return JsonpathValue::Error(error);
     };

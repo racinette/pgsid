@@ -7,18 +7,19 @@ pub struct CompositePayload {
 #[derive(Clone)]
 pub enum CompositeValue {
     Unknown,
+    Unimplemented,
     Null,
     Error(SqlError),
     Value(CompositePayload),
 }
 
-pub fn composite_unknown() -> CompositeValue {
-    let unresolved_flavor: i32 = 0; composite_row_unresolved(unresolved_flavor) }
+pub fn composite_unknown() -> CompositeValue { CompositeValue::Unknown }
 pub fn composite_null() -> CompositeValue { CompositeValue::Null }
 
 pub fn composite_from_case_guard(input: CheckOutcome) -> CompositeValue {
     let mut unresolved_flavor: i32 = 0;
     if let CheckOutcome::Unknown = input { unresolved_flavor = 1; };
+    if let CheckOutcome::Unimplemented = input { unresolved_flavor = 2; };
     if let CheckOutcome::Error(error) = input { return CompositeValue::Error(error); };
     composite_row_unresolved(unresolved_flavor)
 }
@@ -38,7 +39,10 @@ pub fn make_composite_value(input: CompositePayload) -> CompositeValue {
         let source = fields[index].clone();
         let checked = array_coerced_owned_element(source.clone());
         if let ArrayElement::Error(error) = checked { return CompositeValue::Error(error); };
-        if let ArrayElement::Unknown = checked {
+        let mut checked_unresolved = false;
+        if let ArrayElement::Unknown = checked { checked_unresolved = true; };
+        if let ArrayElement::Unimplemented = checked { checked_unresolved = true; };
+        if checked_unresolved {
             let family = array_element_family(source);
             if family >= 41 && family <= 44 { return composite_row_unresolved(unresolved_flavor); };
         };
@@ -82,6 +86,7 @@ pub fn invalid_composite_row_coercion(input: CompositeValue) -> CompositeValue {
 pub fn composite_field_count(input: CompositeValue) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let CompositeValue::Unknown = input { unresolved_flavor = 1; };
+    if let CompositeValue::Unimplemented = input { unresolved_flavor = 2; };
     let checked = composite_from_coerced_value(input);
     if let CompositeValue::Error(error) = checked { return Int4Value::Error(error); };
     if let CompositeValue::Null = checked { return Int4Value::Null; };
@@ -93,6 +98,8 @@ pub fn composite_field_at(input: CompositeValue, index: Int4Value) -> ArrayEleme
     let mut unresolved_flavor: i32 = 0;
     if let CompositeValue::Unknown = input { unresolved_flavor = 1; };
     if let Int4Value::Unknown = index { unresolved_flavor = 1; };
+    if let CompositeValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = index { unresolved_flavor = 2; };
     let checked = composite_from_coerced_value(input);
     if let CompositeValue::Error(error) = checked { return ArrayElement::Error(error); };
     if let Int4Value::Error(error) = index { return ArrayElement::Error(error); };
@@ -109,9 +116,10 @@ pub fn composite_field_at(input: CompositeValue, index: Int4Value) -> ArrayEleme
 pub fn composite_datum_is_null(input: CompositeValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let CompositeValue::Unknown = input { unresolved_flavor = 1; };
+    if let CompositeValue::Unimplemented = input { unresolved_flavor = 2; };
     let checked = composite_from_coerced_value(input);
     if let CompositeValue::Error(error) = checked { return BoolValue::Error(error); };
-    if let CompositeValue::Unknown = checked { return bool_unresolved(unresolved_flavor); };
+    let mut condition_flavor_122_4: i32 = unresolved_flavor; if let CompositeValue::Unknown = checked { if condition_flavor_122_4 < 1 { condition_flavor_122_4 = 1; }; }; if let CompositeValue::Unknown = checked { return bool_unresolved(condition_flavor_122_4); }; let mut condition_flavor_122_93: i32 = unresolved_flavor; if let CompositeValue::Unimplemented = checked { condition_flavor_122_93 = 2; }; if let CompositeValue::Unimplemented = checked { return bool_unresolved(condition_flavor_122_93); };
     if let CompositeValue::Null = checked { return make_bool_value(true); };
     make_bool_value(false)
 }
@@ -119,6 +127,7 @@ pub fn composite_datum_is_null(input: CompositeValue) -> BoolValue {
 fn composite_row_null_test(input: CompositeValue, negated: bool) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let CompositeValue::Unknown = input { unresolved_flavor = 1; };
+    if let CompositeValue::Unimplemented = input { unresolved_flavor = 2; };
     let checked = composite_from_coerced_value(input);
     if let CompositeValue::Error(error) = checked { return BoolValue::Error(error); };
     if let CompositeValue::Null = checked { return make_bool_value(negated == false); };
@@ -129,6 +138,9 @@ fn composite_row_null_test(input: CompositeValue, negated: bool) -> BoolValue {
             let field = value.fields[index].clone();
             let mut known = true;
             if let ArrayElement::Unknown = field {
+                unknown = true;
+                known = false;
+            }; if let ArrayElement::Unimplemented = field {
                 unknown = true;
                 known = false;
             };
@@ -153,6 +165,7 @@ pub fn composite_row_is_not_null(input: CompositeValue) -> BoolValue { composite
 pub fn array_element_from_composite(input: CompositeValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let CompositeValue::Unknown = input { unresolved_flavor = 1; };
+    if let CompositeValue::Unimplemented = input { unresolved_flavor = 2; };
     if let CompositeValue::Error(error) = input { return ArrayElement::Error(error); };
     if let CompositeValue::Null = input { return ArrayElement::Null; };
     if let CompositeValue::Value(value) = input { return ArrayElement::Composite(value); };
@@ -162,6 +175,7 @@ pub fn array_element_from_composite(input: CompositeValue) -> ArrayElement {
 pub fn array_element_to_composite(input: ArrayElement) -> CompositeValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input { return CompositeValue::Error(error); };
     if let ArrayElement::Null = input { return CompositeValue::Null; };
     if let ArrayElement::Composite(value) = input { return CompositeValue::Value(value); };
@@ -241,8 +255,9 @@ fn composite_type_context_valid(context: &CompositeTypeContext) -> bool {
 fn composite_prepare_cell(input: ArrayElement, context: &CompositeTypeContext, index: usize) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Null = input {return input;};
-    if let ArrayElement::Unknown = input {return input;};
+    if let ArrayElement::Unknown = input {return input;}; if let ArrayElement::Unimplemented = input {return input;};
     if let ArrayElement::Error(_) = input {return input;};
     if index >= context.nodes.len() {return array_element_unresolved(unresolved_flavor);};
     let node = context.nodes[index].clone();
@@ -255,10 +270,14 @@ fn composite_prepare_cell(input: ArrayElement, context: &CompositeTypeContext, i
             let original = payload.fields[position].clone();
             let checked = composite_prepare_cell(original.clone(),context,node.fields[position]);
             if let ArrayElement::Error(error) = checked {return ArrayElement::Error(error);};
-            if let ArrayElement::Unknown = checked {
+            let mut condition_flavor_273_12: i32 = unresolved_flavor; if let ArrayElement::Unknown = checked { if condition_flavor_273_12 < 1 { condition_flavor_273_12 = 1; }; }; if let ArrayElement::Unknown = checked {
+                let mut partial = false;
+                if let ArrayElement::Unknown = original {partial=true;}; if let ArrayElement::Unimplemented = original {partial=true;};
+                if partial == false {return array_element_unresolved(condition_flavor_273_12);};
+            }; let mut condition_flavor_277_15: i32 = unresolved_flavor; if let ArrayElement::Unimplemented = checked { condition_flavor_277_15 = 2; }; if let ArrayElement::Unimplemented = checked {
                 let mut partial = false;
                 if let ArrayElement::Unknown = original {partial=true;};
-                if partial == false {return array_element_unresolved(unresolved_flavor);};
+                if partial == false {return array_element_unresolved(condition_flavor_277_15);};
             };
             fields.push(checked);
             position += 1;
@@ -272,10 +291,14 @@ fn composite_prepare_cell(input: ArrayElement, context: &CompositeTypeContext, i
         while position < payload.elements.len() {
             let original = payload.elements[position].clone();
             let checked = composite_prepare_cell(original.clone(),context,node.child);
-            if let ArrayElement::Unknown = checked {
+            let mut condition_flavor_294_12: i32 = unresolved_flavor; if let ArrayElement::Unknown = checked { if condition_flavor_294_12 < 1 { condition_flavor_294_12 = 1; }; }; if let ArrayElement::Unknown = checked {
+                let mut partial = false;
+                if let ArrayElement::Unknown = original {partial=true;}; if let ArrayElement::Unimplemented = original {partial=true;};
+                if partial == false {return array_element_unresolved(condition_flavor_294_12);};
+            }; let mut condition_flavor_298_15: i32 = unresolved_flavor; if let ArrayElement::Unimplemented = checked { condition_flavor_298_15 = 2; }; if let ArrayElement::Unimplemented = checked {
                 let mut partial = false;
                 if let ArrayElement::Unknown = original {partial=true;};
-                if partial == false {return array_element_unresolved(unresolved_flavor);};
+                if partial == false {return array_element_unresolved(condition_flavor_298_15);};
             };
             elements.push(checked);
             position += 1;
@@ -290,6 +313,7 @@ fn composite_prepare_cell(input: ArrayElement, context: &CompositeTypeContext, i
 pub(crate) fn composite_prepare_scalar_cell(checked: ArrayElement) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = checked { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = checked { unresolved_flavor = 2; };
     if let ArrayElement::Tsquery(payload) = checked {
         return array_element_from_tsquery(make_tsquery_value(payload));
     };
@@ -380,6 +404,7 @@ pub(crate) fn composite_prepare_scalar_cell(checked: ArrayElement) -> ArrayEleme
 pub fn composite_from_coerced_plan(input: CompositeValue, plan: CompositeTypePlan) -> CompositeValue {
     let mut unresolved_flavor: i32 = 0;
     if let CompositeValue::Unknown = input { unresolved_flavor = 1; };
+    if let CompositeValue::Unimplemented = input { unresolved_flavor = 2; };
     if let CompositeValue::Value(payload) = input {
         if let CompositeTypePlan::Value(context) = plan {
             if composite_type_context_valid(&context) == false {return composite_row_unresolved(unresolved_flavor);};
@@ -398,6 +423,7 @@ pub fn array_from_coerced_composite_plan(
 ) -> ArrayValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayValue::Value(payload) = input {
         if let CompositeTypePlan::Value(context) = plan {
             if composite_type_context_valid(&context) == false {
@@ -414,13 +440,23 @@ pub fn array_from_coerced_composite_plan(
             while position < payload.elements.len() {
                 let original = payload.elements[position].clone();
                 let checked = composite_prepare_cell(original.clone(), &context, 0);
-                if let ArrayElement::Unknown = checked {
+                let mut condition_flavor_443_16: i32 = unresolved_flavor; if let ArrayElement::Unknown = checked { if condition_flavor_443_16 < 1 { condition_flavor_443_16 = 1; }; }; if let ArrayElement::Unknown = checked {
+                    let mut partial = false;
+                    if let ArrayElement::Unknown = original {
+                        partial = true;
+                    }; if let ArrayElement::Unimplemented = original {
+                        partial = true;
+                    };
+                    if partial == false {
+                        return array_unresolved(condition_flavor_443_16);
+                    };
+                }; let mut condition_flavor_453_19: i32 = unresolved_flavor; if let ArrayElement::Unimplemented = checked { condition_flavor_453_19 = 2; }; if let ArrayElement::Unimplemented = checked {
                     let mut partial = false;
                     if let ArrayElement::Unknown = original {
                         partial = true;
                     };
                     if partial == false {
-                        return array_unresolved(unresolved_flavor);
+                        return array_unresolved(condition_flavor_453_19);
                     };
                 };
                 elements.push(checked);

@@ -327,6 +327,7 @@ fn interval_input_add(
 fn interval_units_from_text(input: TextValue, field_mask: i32, style: i32) -> IntervalValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return IntervalValue::Error(error);
     };
@@ -476,7 +477,7 @@ fn interval_units_from_text(input: TextValue, field_mask: i32, style: i32) -> In
                 };
                 let mut whole = interval_input_whole(token.as_str());
                 let mut year_month = false;
-                if whole == Int8Value::Unknown {
+                if (whole == Int8Value::Unknown || whole == Int8Value::Unimplemented) {
                     whole = interval_input_year_month(token.as_str());
                     year_month = true;
                 };
@@ -486,7 +487,7 @@ fn interval_units_from_text(input: TextValue, field_mask: i32, style: i32) -> In
                 if let Int8Value::Error(error) = whole {
                     return IntervalValue::Error(error);
                 };
-                if whole == Int8Value::Unknown {
+                let mut condition_flavor_490_16: i32 = unresolved_flavor; if let Int8Value::Unknown = whole { if condition_flavor_490_16 < 1 { condition_flavor_490_16 = 1; }; }; if let Int8Value::Unimplemented = whole { condition_flavor_490_16 = 2; }; if (whole == Int8Value::Unknown || whole == Int8Value::Unimplemented) {
                     let mut ascii_field = false;
                     let mut scan: usize = 0;
                     while scan < token_chars.len() {
@@ -498,7 +499,7 @@ fn interval_units_from_text(input: TextValue, field_mask: i32, style: i32) -> In
                     if ascii_field == false {
                         return IntervalValue::Error(make_sql_error(INTERVAL_INPUT_SYNTAX));
                     };
-                    return interval_unresolved(unresolved_flavor);
+                    return interval_unresolved(condition_flavor_490_16);
                 };
                 if let Int8Value::Value(number) = whole {
                     let mut value = number;
@@ -599,7 +600,7 @@ fn interval_input_clock(input: IntervalInputAcc, text: &str, field_mask: i32) ->
     if let Int8Value::Error(error) = second_number {
         return interval_input_fail(input, interval_clock_error_state(error, range_error));
     };
-    if first_number == Int8Value::Unknown || second_number == Int8Value::Unknown {
+    if (first_number == Int8Value::Unknown || first_number == Int8Value::Unimplemented) || (second_number == Int8Value::Unknown || second_number == Int8Value::Unimplemented) {
         return interval_input_fail(input, INTERVAL_INPUT_SYNTAX);
     };
     let mut hours = 0i64;
@@ -641,7 +642,7 @@ fn interval_input_clock(input: IntervalInputAcc, text: &str, field_mask: i32) ->
         if let Int8Value::Error(error) = last_number {
             return interval_input_fail(input, interval_clock_error_state(error, range_error));
         };
-        if last_number == Int8Value::Unknown {
+        if (last_number == Int8Value::Unknown || last_number == Int8Value::Unimplemented) {
             return interval_input_fail(input, INTERVAL_INPUT_SYNTAX);
         };
         if let Int8Value::Value(number) = last_number {
@@ -1048,14 +1049,16 @@ pub fn interval_from_text_fields_context(
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let Int4Value::Unknown = fields { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = fields { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return IntervalValue::Error(error);
     };
     if let Int4Value::Error(error) = fields {
         return IntervalValue::Error(error);
     };
-    if (input == TextValue::Unknown || input == TextValue::NonNull) || fields == Int4Value::Unknown {
-        return interval_unresolved(unresolved_flavor);
+    let mut condition_flavor_1060_4: i32 = unresolved_flavor; if let TextValue::Unknown = input { if condition_flavor_1060_4 < 1 { condition_flavor_1060_4 = 1; }; }; if let TextValue::Unimplemented = input { condition_flavor_1060_4 = 2; }; if let Int4Value::Unknown = fields { if condition_flavor_1060_4 < 1 { condition_flavor_1060_4 = 1; }; }; if let Int4Value::Unimplemented = fields { condition_flavor_1060_4 = 2; }; if ((input == TextValue::Unknown || input == TextValue::Unimplemented) || input == TextValue::NonNull) || (fields == Int4Value::Unknown || fields == Int4Value::Unimplemented) {
+        return interval_unresolved(condition_flavor_1060_4);
     };
     if input == TextValue::Null || fields == Int4Value::Null {
         return IntervalValue::Null;
@@ -1090,6 +1093,8 @@ pub fn interval_input_agreement(left: IntervalValue, right: IntervalValue) -> In
     let mut unresolved_flavor: i32 = 0;
     if let IntervalValue::Unknown = left { unresolved_flavor = 1; };
     if let IntervalValue::Unknown = right { unresolved_flavor = 1; };
+    if let IntervalValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let IntervalValue::Unimplemented = right { unresolved_flavor = 2; };
     if left == right {
         return left;
     };

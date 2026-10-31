@@ -1,6 +1,7 @@
 fn format_choice_value(original: ArrayElement, family: i32, choice: i32) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = original { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = original { unresolved_flavor = 2; };
     if family == 4 {
         let value = array_element_to_timestamp(original);
         return timestamp_output_context(value, choice);
@@ -90,7 +91,7 @@ fn format_choice_bounds(
         let candidate = format_choice_value(source, family, index);
         let bounds = format_candidate_bounds(input, candidate, quote_all);
         result = format_merge_bounds(result, bounds);
-        if result.status == CheckOutcome::Unknown {
+        if (result.status == CheckOutcome::Unknown || result.status == CheckOutcome::Unimplemented) {
             return result;
         };
         index = index + 1;

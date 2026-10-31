@@ -1,11 +1,12 @@
 pub fn sql__pg_catalog__text__vc4r(input: TextValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return TextValue::Error(error);
     }
-    if (input == TextValue::Unknown || input == TextValue::NonNull) {
-        return text_unresolved(unresolved_flavor);
+    let mut condition_flavor_8_4: i32 = unresolved_flavor; if let TextValue::Unknown = input { if condition_flavor_8_4 < 1 { condition_flavor_8_4 = 1; }; }; if let TextValue::Unimplemented = input { condition_flavor_8_4 = 2; }; if ((input == TextValue::Unknown || input == TextValue::Unimplemented) || input == TextValue::NonNull) {
+        return text_unresolved(condition_flavor_8_4);
     }
     if input == TextValue::Null {
         return TextValue::Null;

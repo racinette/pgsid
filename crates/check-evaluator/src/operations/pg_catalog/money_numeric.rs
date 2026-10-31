@@ -10,6 +10,7 @@ fn money_scale_factor(digits: i32) -> i64 {
 pub fn sql__pg_catalog__money__u7ss(input: Int8Value, digits: i32) -> MoneyValue {
     let mut unresolved_flavor: i32 = 0;
     if let Int8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Int8Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Int8Value::Error(error) = input { return MoneyValue::Error(error); };
     if let Int8Value::Null = input { return MoneyValue::Null; };
     if let Int8Value::Value(value) = input {
@@ -28,6 +29,7 @@ pub fn sql__pg_catalog__money__2ie3(input: Int4Value, digits: i32) -> MoneyValue
 pub fn sql__pg_catalog__money__z8lp(input: NumericValue, digits: i32) -> MoneyValue {
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = input { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = input { unresolved_flavor = 2; };
     if let NumericValue::Error(error) = input { return MoneyValue::Error(error); };
     if let NumericValue::Null = input { return MoneyValue::Null; };
     if let NumericValue::Value(value) = input {
@@ -47,6 +49,7 @@ pub fn sql__pg_catalog__money__z8lp(input: NumericValue, digits: i32) -> MoneyVa
 pub fn sql__pg_catalog__numeric__khij(input: MoneyValue, digits: i32) -> NumericValue {
     let mut unresolved_flavor: i32 = 0;
     if let MoneyValue::Unknown = input { unresolved_flavor = 1; };
+    if let MoneyValue::Unimplemented = input { unresolved_flavor = 2; };
     if let MoneyValue::Error(error) = input { return NumericValue::Error(error); };
     if let MoneyValue::Null = input { return NumericValue::Null; };
     if let MoneyValue::Value(value) = input {

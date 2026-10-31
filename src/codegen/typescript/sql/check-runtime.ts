@@ -5,7 +5,7 @@ export const typescriptCheckHelpers: Record<
   EvalValue: {
     dependencies: [],
     source: `type EvalValue<T> =
-  | { readonly certain: false }
+  | { readonly certain: false; readonly unimplemented?: true }
   | { readonly certain: true; readonly value: T | null }`,
   },
   evalValueCertain: {
@@ -62,6 +62,10 @@ export const typescriptCheckHelpers: Record<
   evalBoolUncertain: {
     dependencies: ['EvalBool'],
     source: `function evalBoolUncertain(): EvalBool { return { certain: false } }`,
+  },
+  evalBoolUnimplemented: {
+    dependencies: ['EvalBool'],
+    source: `function evalBoolUnimplemented(): EvalBool { return { certain: false, unimplemented: true } }`,
   },
   evalBoolNot: {
     dependencies: ['EvalBool', 'evalBoolCertain'],

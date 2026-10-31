@@ -31,7 +31,8 @@ pub fn multirange_output_partial(mode:Int4Value)->BoolValue {
  if mode==Int4Value::Value(1) {return BoolValue::Value(multirange_to_text(multirange_output_fixture_pack(unknown,error))==TextValue::Unknown);};
  if mode==Int4Value::Value(2) {return BoolValue::Value(multirange_to_text(multirange_output_fixture_pack(error,unknown))==TextValue::Error(make_sql_error(MULTIRANGE_OUTPUT_TEST_DIVISION_BY_ZERO)));};
  if mode==Int4Value::Value(3) {return BoolValue::Value(multirange_to_text(multirange_output_fixture_pack(first,RangeValue::Unknown))==TextValue::Unknown);};
- if mode==Int4Value::Value(4) {return BoolValue::Value(multirange_to_text(multirange_output_fixture_pack(first,RangeValue::Null))==TextValue::Unknown);};
+ // A NULL member cannot come from PostgreSQL, so refusing to render it is not database state.
+ if mode==Int4Value::Value(4) {return BoolValue::Value(multirange_to_text(multirange_output_fixture_pack(first,RangeValue::Null))==TextValue::Unimplemented);};
  let unbounded=range_from_coerced_bounds("pg_catalog.int4range","pg_catalog.int4",2,false,false,false,ArrayElement::Null,ArrayElement::Int4(3));
  if mode==Int4Value::Value(5) {return BoolValue::Value(multirange_to_text(multirange_output_fixture_pack(unbounded,last))==make_text_value("{(,3),[5,9)}"));};
  let original=multirange_output_fixture_pack(first,last);

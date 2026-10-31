@@ -6,6 +6,7 @@ type Int2ValueKind uint8
 
 const (
 	Int2ValueUnknown Int2ValueKind = iota
+	Int2ValueUnimplemented
 	Int2ValueNull
 	Int2ValueValue
 	Int2ValueError
@@ -18,8 +19,7 @@ type Int2Value struct {
 }
 
 func Int2Unknown() Int2Value {
-	unresolvedFlavor := 0
-	return Int2Unresolved(unresolvedFlavor)
+	return Int2Value{Kind: Int2ValueUnknown}
 }
 func Int2Null() Int2Value {
 	return Int2Value{Kind: Int2ValueNull}
@@ -37,12 +37,24 @@ func Int2IsNull(value Int2Value) BoolValue {
 	if value.Kind == Int2ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if value.Kind == Int2ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if value.Kind == Int2ValueError {
 		error := value.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if value == (Int2Value{Kind: Int2ValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor314 := unresolvedFlavor
+	if value.Kind == Int2ValueUnknown {
+		if conditionFlavor314 < 1 {
+			conditionFlavor314 = langruntime.CheckedI32(1)
+		}
+	}
+	if value.Kind == Int2ValueUnimplemented {
+		conditionFlavor314 = langruntime.CheckedI32(2)
+	}
+	if value == (Int2Value{Kind: Int2ValueUnknown}) || value == (Int2Value{Kind: Int2ValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor314)
 	}
 	return BoolValue{Kind: BoolValueValue, Value: value == (Int2Value{Kind: Int2ValueNull})}
 }
@@ -50,6 +62,9 @@ func Int2FromCaseGuard(value CheckOutcome) Int2Value {
 	unresolvedFlavor := 0
 	if value.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if value.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if value.Kind == CheckOutcomeError {
 		error := value.Error
@@ -61,6 +76,9 @@ func Int2ToInt4(value Int2Value) Int4Value {
 	unresolvedFlavor := 0
 	if value.Kind == Int2ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if value.Kind == Int2ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if value.Kind == Int2ValueError {
 		error := value.Error
@@ -79,6 +97,9 @@ func Int2ToInt8(value Int2Value) Int8Value {
 	unresolvedFlavor := 0
 	if value.Kind == Int2ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if value.Kind == Int2ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if value.Kind == Int2ValueError {
 		error := value.Error
@@ -99,6 +120,7 @@ type Int4ValueKind uint8
 
 const (
 	Int4ValueUnknown Int4ValueKind = iota
+	Int4ValueUnimplemented
 	Int4ValueNull
 	Int4ValueValue
 	Int4ValueError
@@ -113,6 +135,7 @@ type Int8ValueKind uint8
 
 const (
 	Int8ValueUnknown Int8ValueKind = iota
+	Int8ValueUnimplemented
 	Int8ValueNull
 	Int8ValueValue
 	Int8ValueError
@@ -134,6 +157,7 @@ type TimestampValueKind uint8
 
 const (
 	TimestampValueUnknown TimestampValueKind = iota
+	TimestampValueUnimplemented
 	TimestampValueNull
 	TimestampValueValue
 	TimestampValueError
@@ -146,8 +170,7 @@ type TimestampValue struct {
 }
 
 func TimestampUnknown() TimestampValue {
-	unresolvedFlavor := 0
-	return TimestampUnresolved(unresolvedFlavor)
+	return TimestampValue{Kind: TimestampValueUnknown}
 }
 func TimestampNull() TimestampValue {
 	return TimestampValue{Kind: TimestampValueNull}
@@ -169,12 +192,24 @@ func TimestampIsNull(value TimestampValue) BoolValue {
 	if value.Kind == TimestampValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if value.Kind == TimestampValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if value.Kind == TimestampValueError {
 		error := value.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if value == (TimestampValue{Kind: TimestampValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor1444 := unresolvedFlavor
+	if value.Kind == TimestampValueUnknown {
+		if conditionFlavor1444 < 1 {
+			conditionFlavor1444 = langruntime.CheckedI32(1)
+		}
+	}
+	if value.Kind == TimestampValueUnimplemented {
+		conditionFlavor1444 = langruntime.CheckedI32(2)
+	}
+	if value == (TimestampValue{Kind: TimestampValueUnknown}) || value == (TimestampValue{Kind: TimestampValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor1444)
 	}
 	return BoolValue{Kind: BoolValueValue, Value: value == (TimestampValue{Kind: TimestampValueNull})}
 }
@@ -182,6 +217,9 @@ func TimestampFromCaseGuard(value CheckOutcome) TimestampValue {
 	unresolvedFlavor := 0
 	if value.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if value.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if value.Kind == CheckOutcomeError {
 		error := value.Error
@@ -194,6 +232,7 @@ type TimestamptzValueKind uint8
 
 const (
 	TimestamptzValueUnknown TimestamptzValueKind = iota
+	TimestamptzValueUnimplemented
 	TimestamptzValueNull
 	TimestamptzValueValue
 	TimestamptzValueError
@@ -206,8 +245,7 @@ type TimestamptzValue struct {
 }
 
 func TimestamptzUnknown() TimestamptzValue {
-	unresolvedFlavor := 0
-	return TimestamptzUnresolved(unresolvedFlavor)
+	return TimestamptzValue{Kind: TimestamptzValueUnknown}
 }
 func TimestamptzNull() TimestamptzValue {
 	return TimestamptzValue{Kind: TimestamptzValueNull}
@@ -229,12 +267,24 @@ func TimestamptzIsNull(value TimestamptzValue) BoolValue {
 	if value.Kind == TimestamptzValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if value.Kind == TimestamptzValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if value.Kind == TimestamptzValueError {
 		error := value.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if value == (TimestamptzValue{Kind: TimestamptzValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor1984 := unresolvedFlavor
+	if value.Kind == TimestamptzValueUnknown {
+		if conditionFlavor1984 < 1 {
+			conditionFlavor1984 = langruntime.CheckedI32(1)
+		}
+	}
+	if value.Kind == TimestamptzValueUnimplemented {
+		conditionFlavor1984 = langruntime.CheckedI32(2)
+	}
+	if value == (TimestamptzValue{Kind: TimestamptzValueUnknown}) || value == (TimestamptzValue{Kind: TimestamptzValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor1984)
 	}
 	return BoolValue{Kind: BoolValueValue, Value: value == (TimestamptzValue{Kind: TimestamptzValueNull})}
 }
@@ -242,6 +292,9 @@ func TimestamptzFromCaseGuard(value CheckOutcome) TimestamptzValue {
 	unresolvedFlavor := 0
 	if value.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if value.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if value.Kind == CheckOutcomeError {
 		error := value.Error
@@ -258,6 +311,7 @@ type EnumValueKind uint8
 
 const (
 	EnumValueUnknown EnumValueKind = iota
+	EnumValueUnimplemented
 	EnumValueNull
 	EnumValueValue
 	EnumValueError
@@ -270,8 +324,7 @@ type EnumValue struct {
 }
 
 func EnumUnknown() EnumValue {
-	unresolvedFlavor := 0
-	return EnumUnresolved(unresolvedFlavor)
+	return EnumValue{Kind: EnumValueUnknown}
 }
 func EnumNull() EnumValue {
 	return EnumValue{Kind: EnumValueNull}
@@ -293,12 +346,24 @@ func EnumIsNull(value EnumValue) BoolValue {
 	if value.Kind == EnumValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if value.Kind == EnumValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if value.Kind == EnumValueError {
 		error := value.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if value == (EnumValue{Kind: EnumValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor2574 := unresolvedFlavor
+	if value.Kind == EnumValueUnknown {
+		if conditionFlavor2574 < 1 {
+			conditionFlavor2574 = langruntime.CheckedI32(1)
+		}
+	}
+	if value.Kind == EnumValueUnimplemented {
+		conditionFlavor2574 = langruntime.CheckedI32(2)
+	}
+	if value == (EnumValue{Kind: EnumValueUnknown}) || value == (EnumValue{Kind: EnumValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor2574)
 	}
 	return BoolValue{Kind: BoolValueValue, Value: value == (EnumValue{Kind: EnumValueNull})}
 }
@@ -306,6 +371,9 @@ func EnumFromCaseGuard(value CheckOutcome) EnumValue {
 	unresolvedFlavor := 0
 	if value.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if value.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if value.Kind == CheckOutcomeError {
 		error := value.Error
@@ -318,6 +386,7 @@ type DateValueKind uint8
 
 const (
 	DateValueUnknown DateValueKind = iota
+	DateValueUnimplemented
 	DateValueNull
 	DateValueValue
 	DateValueError
@@ -330,8 +399,7 @@ type DateValue struct {
 }
 
 func DateUnknown() DateValue {
-	unresolvedFlavor := 0
-	return DateUnresolved(unresolvedFlavor)
+	return DateValue{Kind: DateValueUnknown}
 }
 func DateNull() DateValue {
 	return DateValue{Kind: DateValueNull}
@@ -357,12 +425,24 @@ func DateIsNull(value DateValue) BoolValue {
 	if value.Kind == DateValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if value.Kind == DateValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if value.Kind == DateValueError {
 		error := value.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if value == (DateValue{Kind: DateValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor3134 := unresolvedFlavor
+	if value.Kind == DateValueUnknown {
+		if conditionFlavor3134 < 1 {
+			conditionFlavor3134 = langruntime.CheckedI32(1)
+		}
+	}
+	if value.Kind == DateValueUnimplemented {
+		conditionFlavor3134 = langruntime.CheckedI32(2)
+	}
+	if value == (DateValue{Kind: DateValueUnknown}) || value == (DateValue{Kind: DateValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor3134)
 	}
 	return BoolValue{Kind: BoolValueValue, Value: value == (DateValue{Kind: DateValueNull})}
 }
@@ -370,6 +450,9 @@ func DateFromCaseGuard(value CheckOutcome) DateValue {
 	unresolvedFlavor := 0
 	if value.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if value.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if value.Kind == CheckOutcomeError {
 		error := value.Error
@@ -382,6 +465,7 @@ type TextValueKind uint8
 
 const (
 	TextValueUnknown TextValueKind = iota
+	TextValueUnimplemented
 	TextValueNull
 	TextValueValue
 	TextValueError
@@ -401,6 +485,7 @@ type XmlValueKind uint8
 
 const (
 	XmlValueUnknown XmlValueKind = iota
+	XmlValueUnimplemented
 	XmlValueNull
 	XmlValueValue
 	XmlValueRenderedText
@@ -420,6 +505,8 @@ func CopyXmlValue(value XmlValue) XmlValue {
 	switch value.Kind {
 	case XmlValueUnknown:
 		return XmlValue{Kind: XmlValueUnknown}
+	case XmlValueUnimplemented:
+		return XmlValue{Kind: XmlValueUnimplemented}
 	case XmlValueNull:
 		return XmlValue{Kind: XmlValueNull}
 	case XmlValueValue:
@@ -447,8 +534,7 @@ func CopyXmlConcatState(value XmlConcatState) XmlConcatState {
 	return XmlConcatState{Status: value.Status, HasValue: value.HasValue, Version: langruntime.CheckedString(value.Version), VersionConsistent: value.VersionConsistent, Standalone: langruntime.CheckedI32(value.Standalone), Body: langruntime.CheckedString(value.Body)}
 }
 func XmlUnknown() XmlValue {
-	unresolvedFlavor := 0
-	return XmlUnresolved(unresolvedFlavor)
+	return XmlValue{Kind: XmlValueUnknown}
 }
 func XmlNull() XmlValue {
 	return XmlValue{Kind: XmlValueNull}
@@ -470,6 +556,9 @@ func XmlFromRenderedText(input TextValue) XmlValue {
 	unresolvedFlavor := 0
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == TextValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == TextValueError {
 		error := input.Error
@@ -496,8 +585,14 @@ func MakeXmlKnowledge(document BoolValue, content BoolValue) XmlValue {
 	if content.Kind == BoolValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
-	validDocument := document == (BoolValue{Kind: BoolValueUnknown})
-	validContent := content == (BoolValue{Kind: BoolValueUnknown})
+	if document.Kind == BoolValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if content.Kind == BoolValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	validDocument := (document == (BoolValue{Kind: BoolValueUnknown}) || document == (BoolValue{Kind: BoolValueUnimplemented}))
+	validContent := (content == (BoolValue{Kind: BoolValueUnknown}) || content == (BoolValue{Kind: BoolValueUnimplemented}))
 	if document.Kind == BoolValueValue {
 		validDocument = true
 	}
@@ -528,19 +623,48 @@ func XmlIsNull(input XmlValue) BoolValue {
 	if input.Kind == XmlValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == XmlValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == XmlValueNonNull {
 		knowledge := input.NonNull
 		checked := MakeXmlKnowledge(knowledge.Document, knowledge.Content)
+		conditionFlavor4278 := unresolvedFlavor
 		if checked.Kind == XmlValueUnknown {
-			return BoolUnresolved(unresolvedFlavor)
+			if conditionFlavor4278 < 1 {
+				conditionFlavor4278 = langruntime.CheckedI32(1)
+			}
+		}
+		if checked.Kind == XmlValueUnknown {
+			return BoolUnresolved(conditionFlavor4278)
+		}
+		conditionFlavor42791 := unresolvedFlavor
+		if checked.Kind == XmlValueUnimplemented {
+			conditionFlavor42791 = langruntime.CheckedI32(2)
+		}
+		if checked.Kind == XmlValueUnimplemented {
+			return BoolUnresolved(conditionFlavor42791)
 		}
 	}
 	if input.Kind == XmlValueError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
+	conditionFlavor4304 := unresolvedFlavor
 	if input.Kind == XmlValueUnknown {
-		return BoolUnresolved(unresolvedFlavor)
+		if conditionFlavor4304 < 1 {
+			conditionFlavor4304 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == XmlValueUnknown {
+		return BoolUnresolved(conditionFlavor4304)
+	}
+	conditionFlavor43085 := unresolvedFlavor
+	if input.Kind == XmlValueUnimplemented {
+		conditionFlavor43085 = langruntime.CheckedI32(2)
+	}
+	if input.Kind == XmlValueUnimplemented {
+		return BoolUnresolved(conditionFlavor43085)
 	}
 	if input.Kind == XmlValueNull {
 		return BoolValue{Kind: BoolValueValue, Value: true}
@@ -552,6 +676,9 @@ func XmlFromCaseGuard(input CheckOutcome) XmlValue {
 	if input.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == CheckOutcomeError {
 		error := input.Error
 		return XmlValue{Kind: XmlValueError, Error: error}
@@ -562,8 +689,7 @@ func XmlFromCaseGuard(input CheckOutcome) XmlValue {
 	return XmlUnresolved(unresolvedFlavor)
 }
 func Int4Unknown() Int4Value {
-	unresolvedFlavor := 0
-	return Int4Unresolved(unresolvedFlavor)
+	return Int4Value{Kind: Int4ValueUnknown}
 }
 func Int4Null() Int4Value {
 	return Int4Value{Kind: Int4ValueNull}
@@ -573,8 +699,7 @@ func MakeInt4Value(value int) Int4Value {
 	return Int4Value{Kind: Int4ValueValue, Value: value}
 }
 func Int8Unknown() Int8Value {
-	unresolvedFlavor := 0
-	return Int8Unresolved(unresolvedFlavor)
+	return Int8Value{Kind: Int8ValueUnknown}
 }
 func Int8Null() Int8Value {
 	return Int8Value{Kind: Int8ValueNull}
@@ -583,8 +708,7 @@ func MakeInt8Value(value int64) Int8Value {
 	return Int8Value{Kind: Int8ValueValue, Value: value}
 }
 func TextUnknown() TextValue {
-	unresolvedFlavor := 0
-	return TextUnresolved(unresolvedFlavor)
+	return TextValue{Kind: TextValueUnknown}
 }
 func TextNull() TextValue {
 	return TextValue{Kind: TextValueNull}
@@ -612,8 +736,7 @@ func MakeTextValue(value string) TextValue {
 	return TextValue{Kind: TextValueValue, Value: value}
 }
 func BoolUnknown() BoolValue {
-	unresolvedFlavor := 0
-	return BoolUnresolved(unresolvedFlavor)
+	return BoolValue{Kind: BoolValueUnknown}
 }
 func BoolNull() BoolValue {
 	return BoolValue{Kind: BoolValueNull}
@@ -629,6 +752,7 @@ const (
 	CheckOutcomeFalse
 	CheckOutcomeNull
 	CheckOutcomeUnknown
+	CheckOutcomeUnimplemented
 	CheckOutcomeError
 )
 
@@ -677,7 +801,7 @@ func CheckRequirementMerge(left int, right int) int {
 }
 func CheckRequirementFilter(nullness BoolValue, reason int, partial bool) int {
 	reason = langruntime.CheckedI32(reason)
-	if nullness == (BoolValue{Kind: BoolValueUnknown}) {
+	if nullness == (BoolValue{Kind: BoolValueUnknown}) || nullness == (BoolValue{Kind: BoolValueUnimplemented}) {
 		if reason > 0 {
 			return reason
 		}
@@ -715,16 +839,15 @@ func CheckXmlRequirement(input XmlValue, reason int) int {
 }
 func CheckRequirementForOutcome(input CheckOutcome, reason int) int {
 	reason = langruntime.CheckedI32(reason)
-	if input == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
+	if input == (CheckOutcome{Kind: CheckOutcomeUnknown}) || input == (CheckOutcome{Kind: CheckOutcomeUnimplemented}) {
 		return reason
 	}
 	return 0
 }
 func CheckRequirementMessage(reason int) TextValue {
 	reason = langruntime.CheckedI32(reason)
-	unresolvedFlavor := 0
 	if reason <= 0 || reason > 511 {
-		return TextUnresolved(unresolvedFlavor)
+		return TextValue{Kind: TextValueUnknown}
 	}
 	output := langruntime.NewTextBuffer("")
 	if langruntime.CheckedSignedRemainder((langruntime.CheckedSignedDivide(reason, 1)), 2) != 0 {
@@ -755,7 +878,7 @@ func CheckRequirementMessage(reason int) TextValue {
 		output = append(output, "XPath evaluation needs complete namespace mapping values. "...)
 	}
 	if string(output) == "" {
-		return TextUnresolved(unresolvedFlavor)
+		return TextValue{Kind: TextValueUnknown}
 	}
 	return TextValue{Kind: TextValueValue, Value: string(output)}
 }
@@ -958,6 +1081,7 @@ type BoolValueKind uint8
 
 const (
 	BoolValueUnknown BoolValueKind = iota
+	BoolValueUnimplemented
 	BoolValueNull
 	BoolValueValue
 	BoolValueError
@@ -974,12 +1098,24 @@ func CheckFromBool(value BoolValue) CheckOutcome {
 	if value.Kind == BoolValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if value.Kind == BoolValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if value.Kind == BoolValueError {
 		error := value.Error
 		return CheckOutcome{Kind: CheckOutcomeError, Error: error}
 	}
-	if value == (BoolValue{Kind: BoolValueUnknown}) {
-		return CheckUnresolved(unresolvedFlavor)
+	conditionFlavor8484 := unresolvedFlavor
+	if value.Kind == BoolValueUnknown {
+		if conditionFlavor8484 < 1 {
+			conditionFlavor8484 = langruntime.CheckedI32(1)
+		}
+	}
+	if value.Kind == BoolValueUnimplemented {
+		conditionFlavor8484 = langruntime.CheckedI32(2)
+	}
+	if value == (BoolValue{Kind: BoolValueUnknown}) || value == (BoolValue{Kind: BoolValueUnimplemented}) {
+		return CheckUnresolved(conditionFlavor8484)
 	}
 	if value == (BoolValue{Kind: BoolValueNull}) {
 		return CheckOutcome{Kind: CheckOutcomeNull}
@@ -990,20 +1126,31 @@ func CheckFromBool(value BoolValue) CheckOutcome {
 	return CheckOutcome{Kind: CheckOutcomeTrue}
 }
 func CheckUnknown() CheckOutcome {
-	unresolvedFlavor := 0
-	return CheckUnresolved(unresolvedFlavor)
+	return CheckOutcome{Kind: CheckOutcomeUnknown}
 }
 func Int4IsNull(value Int4Value) BoolValue {
 	unresolvedFlavor := 0
 	if value.Kind == Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if value.Kind == Int4ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if value.Kind == Int4ValueError {
 		error := value.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if value == (Int4Value{Kind: Int4ValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor8694 := unresolvedFlavor
+	if value.Kind == Int4ValueUnknown {
+		if conditionFlavor8694 < 1 {
+			conditionFlavor8694 = langruntime.CheckedI32(1)
+		}
+	}
+	if value.Kind == Int4ValueUnimplemented {
+		conditionFlavor8694 = langruntime.CheckedI32(2)
+	}
+	if value == (Int4Value{Kind: Int4ValueUnknown}) || value == (Int4Value{Kind: Int4ValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor8694)
 	}
 	return BoolValue{Kind: BoolValueValue, Value: value == (Int4Value{Kind: Int4ValueNull})}
 }
@@ -1012,12 +1159,24 @@ func Int8IsNull(value Int8Value) BoolValue {
 	if value.Kind == Int8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if value.Kind == Int8ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if value.Kind == Int8ValueError {
 		error := value.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if value == (Int8Value{Kind: Int8ValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor8824 := unresolvedFlavor
+	if value.Kind == Int8ValueUnknown {
+		if conditionFlavor8824 < 1 {
+			conditionFlavor8824 = langruntime.CheckedI32(1)
+		}
+	}
+	if value.Kind == Int8ValueUnimplemented {
+		conditionFlavor8824 = langruntime.CheckedI32(2)
+	}
+	if value == (Int8Value{Kind: Int8ValueUnknown}) || value == (Int8Value{Kind: Int8ValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor8824)
 	}
 	return BoolValue{Kind: BoolValueValue, Value: value == (Int8Value{Kind: Int8ValueNull})}
 }
@@ -1026,12 +1185,24 @@ func TextIsNull(value TextValue) BoolValue {
 	if value.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if value.Kind == TextValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if value.Kind == TextValueError {
 		error := value.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if value == (TextValue{Kind: TextValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor8954 := unresolvedFlavor
+	if value.Kind == TextValueUnknown {
+		if conditionFlavor8954 < 1 {
+			conditionFlavor8954 = langruntime.CheckedI32(1)
+		}
+	}
+	if value.Kind == TextValueUnimplemented {
+		conditionFlavor8954 = langruntime.CheckedI32(2)
+	}
+	if value == (TextValue{Kind: TextValueUnknown}) || value == (TextValue{Kind: TextValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor8954)
 	}
 	return BoolValue{Kind: BoolValueValue, Value: value == (TextValue{Kind: TextValueNull})}
 }
@@ -1040,12 +1211,24 @@ func BoolIsNull(value BoolValue) BoolValue {
 	if value.Kind == BoolValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if value.Kind == BoolValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if value.Kind == BoolValueError {
 		error := value.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if value == (BoolValue{Kind: BoolValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor9084 := unresolvedFlavor
+	if value.Kind == BoolValueUnknown {
+		if conditionFlavor9084 < 1 {
+			conditionFlavor9084 = langruntime.CheckedI32(1)
+		}
+	}
+	if value.Kind == BoolValueUnimplemented {
+		conditionFlavor9084 = langruntime.CheckedI32(2)
+	}
+	if value == (BoolValue{Kind: BoolValueUnknown}) || value == (BoolValue{Kind: BoolValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor9084)
 	}
 	return BoolValue{Kind: BoolValueValue, Value: value == (BoolValue{Kind: BoolValueNull})}
 }
@@ -1064,12 +1247,24 @@ func BoolFromCheck(value CheckOutcome) BoolValue {
 	if value.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if value.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if value.Kind == CheckOutcomeError {
 		error := value.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if value == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor9314 := unresolvedFlavor
+	if value.Kind == CheckOutcomeUnknown {
+		if conditionFlavor9314 < 1 {
+			conditionFlavor9314 = langruntime.CheckedI32(1)
+		}
+	}
+	if value.Kind == CheckOutcomeUnimplemented {
+		conditionFlavor9314 = langruntime.CheckedI32(2)
+	}
+	if value == (CheckOutcome{Kind: CheckOutcomeUnknown}) || value == (CheckOutcome{Kind: CheckOutcomeUnimplemented}) {
+		return BoolUnresolved(conditionFlavor9314)
 	}
 	if value == (CheckOutcome{Kind: CheckOutcomeNull}) {
 		return BoolValue{Kind: BoolValueNull}
@@ -1080,6 +1275,9 @@ func Int4FromCaseGuard(value CheckOutcome) Int4Value {
 	unresolvedFlavor := 0
 	if value.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if value.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if value.Kind == CheckOutcomeError {
 		error := value.Error
@@ -1092,6 +1290,9 @@ func Int8FromCaseGuard(value CheckOutcome) Int8Value {
 	if value.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if value.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if value.Kind == CheckOutcomeError {
 		error := value.Error
 		return Int8Value{Kind: Int8ValueError, Error: error}
@@ -1102,6 +1303,9 @@ func TextFromCaseGuard(value CheckOutcome) TextValue {
 	unresolvedFlavor := 0
 	if value.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if value.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if value.Kind == CheckOutcomeError {
 		error := value.Error
@@ -1114,6 +1318,7 @@ type NumericValueKind uint8
 
 const (
 	NumericValueUnknown NumericValueKind = iota
+	NumericValueUnimplemented
 	NumericValueNull
 	NumericValueValue
 	NumericValueError
@@ -1129,6 +1334,8 @@ func CopyNumericValue(value NumericValue) NumericValue {
 	switch value.Kind {
 	case NumericValueUnknown:
 		return NumericValue{Kind: NumericValueUnknown}
+	case NumericValueUnimplemented:
+		return NumericValue{Kind: NumericValueUnimplemented}
 	case NumericValueNull:
 		return NumericValue{Kind: NumericValueNull}
 	case NumericValueValue:
@@ -1139,8 +1346,7 @@ func CopyNumericValue(value NumericValue) NumericValue {
 	panic("unknown enum variant")
 }
 func NumericUnknown() NumericValue {
-	unresolvedFlavor := 0
-	return NumericUnresolved(unresolvedFlavor)
+	return NumericValue{Kind: NumericValueUnknown}
 }
 func NumericNull() NumericValue {
 	return NumericValue{Kind: NumericValueNull}
@@ -1150,12 +1356,24 @@ func NumericIsNull(value NumericValue) BoolValue {
 	if value.Kind == NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if value.Kind == NumericValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if value.Kind == NumericValueError {
 		error := value.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if value == (NumericValue{Kind: NumericValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor9924 := unresolvedFlavor
+	if value.Kind == NumericValueUnknown {
+		if conditionFlavor9924 < 1 {
+			conditionFlavor9924 = langruntime.CheckedI32(1)
+		}
+	}
+	if value.Kind == NumericValueUnimplemented {
+		conditionFlavor9924 = langruntime.CheckedI32(2)
+	}
+	if value == (NumericValue{Kind: NumericValueUnknown}) || value == (NumericValue{Kind: NumericValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor9924)
 	}
 	return BoolValue{Kind: BoolValueValue, Value: value == (NumericValue{Kind: NumericValueNull})}
 }
@@ -1163,6 +1381,9 @@ func NumericFromCaseGuard(value CheckOutcome) NumericValue {
 	unresolvedFlavor := 0
 	if value.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if value.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if value.Kind == CheckOutcomeError {
 		error := value.Error
@@ -1189,6 +1410,7 @@ type JsonValueKind uint8
 
 const (
 	JsonValueUnknown JsonValueKind = iota
+	JsonValueUnimplemented
 	JsonValueNonNull
 	JsonValueNull
 	JsonValueValue
@@ -1202,8 +1424,7 @@ type JsonValue struct {
 }
 
 func JsonUnknown() JsonValue {
-	unresolvedFlavor := 0
-	return JsonUnresolved(unresolvedFlavor)
+	return JsonValue{Kind: JsonValueUnknown}
 }
 func JsonNull() JsonValue {
 	return JsonValue{Kind: JsonValueNull}
@@ -1221,6 +1442,9 @@ func JsonFromCoercedText(input TextValue) JsonValue {
 	unresolvedFlavor := 0
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == TextValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == TextValueError {
 		error := input.Error
@@ -1240,12 +1464,28 @@ func JsonIsNull(input JsonValue) BoolValue {
 	if input.Kind == JsonValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == JsonValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == JsonValueError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
+	conditionFlavor10764 := unresolvedFlavor
 	if input.Kind == JsonValueUnknown {
-		return BoolUnresolved(unresolvedFlavor)
+		if conditionFlavor10764 < 1 {
+			conditionFlavor10764 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == JsonValueUnknown {
+		return BoolUnresolved(conditionFlavor10764)
+	}
+	conditionFlavor10787 := unresolvedFlavor
+	if input.Kind == JsonValueUnimplemented {
+		conditionFlavor10787 = langruntime.CheckedI32(2)
+	}
+	if input.Kind == JsonValueUnimplemented {
+		return BoolUnresolved(conditionFlavor10787)
 	}
 	if input.Kind == JsonValueNull {
 		return BoolValue{Kind: BoolValueValue, Value: true}
@@ -1256,6 +1496,9 @@ func JsonFromCaseGuard(value CheckOutcome) JsonValue {
 	unresolvedFlavor := 0
 	if value.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if value.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if value.Kind == CheckOutcomeError {
 		error := value.Error
@@ -1303,6 +1546,7 @@ type JsonbValueKind uint8
 
 const (
 	JsonbValueUnknown JsonbValueKind = iota
+	JsonbValueUnimplemented
 	JsonbValueNonNull
 	JsonbValueNull
 	JsonbValueValue
@@ -1320,6 +1564,8 @@ func CopyJsonbValue(value JsonbValue) JsonbValue {
 	switch value.Kind {
 	case JsonbValueUnknown:
 		return JsonbValue{Kind: JsonbValueUnknown}
+	case JsonbValueUnimplemented:
+		return JsonbValue{Kind: JsonbValueUnimplemented}
 	case JsonbValueNonNull:
 		return JsonbValue{Kind: JsonbValueNonNull, NonNull: CopyJsonbKnowledge(value.NonNull)}
 	case JsonbValueNull:
@@ -1336,6 +1582,7 @@ type JsonbInputKind uint8
 
 const (
 	JsonbInputUnknown JsonbInputKind = iota
+	JsonbInputUnimplemented
 	JsonbInputScalarUnknown
 	JsonbInputJsonNonNull
 	JsonbInputJsonbNonNull
@@ -1366,6 +1613,8 @@ func CopyJsonbInput(value JsonbInput) JsonbInput {
 	switch value.Kind {
 	case JsonbInputUnknown:
 		return JsonbInput{Kind: JsonbInputUnknown}
+	case JsonbInputUnimplemented:
+		return JsonbInput{Kind: JsonbInputUnimplemented}
 	case JsonbInputScalarUnknown:
 		return JsonbInput{Kind: JsonbInputScalarUnknown, ScalarUnknown: langruntime.CheckedString(value.ScalarUnknown)}
 	case JsonbInputJsonNonNull:
@@ -1436,6 +1685,7 @@ type JsonbArgumentsKind uint8
 
 const (
 	JsonbArgumentsUnknown JsonbArgumentsKind = iota
+	JsonbArgumentsUnimplemented
 	JsonbArgumentsNull
 	JsonbArgumentsError
 	JsonbArgumentsValues
@@ -1451,6 +1701,8 @@ func CopyJsonbArguments(value JsonbArguments) JsonbArguments {
 	switch value.Kind {
 	case JsonbArgumentsUnknown:
 		return JsonbArguments{Kind: JsonbArgumentsUnknown}
+	case JsonbArgumentsUnimplemented:
+		return JsonbArguments{Kind: JsonbArgumentsUnimplemented}
 	case JsonbArgumentsNull:
 		return JsonbArguments{Kind: JsonbArgumentsNull}
 	case JsonbArgumentsError:
@@ -1527,6 +1779,9 @@ func JsonbInputFromText(input TextValue) JsonbInput {
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == TextValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == TextValueError {
 		error := input.Error
 		return JsonbInput{Kind: JsonbInputError, Error: error}
@@ -1544,6 +1799,9 @@ func JsonbInputFromJson(input JsonValue) JsonbInput {
 	unresolvedFlavor := 0
 	if input.Kind == JsonValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == JsonValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == JsonValueError {
 		error := input.Error
@@ -1566,6 +1824,9 @@ func JsonbInputFromJsonb(input JsonbValue) JsonbInput {
 	unresolvedFlavor := 0
 	if input.Kind == JsonbValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == JsonbValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == JsonbValueNonNull {
 		maximum := CopyJsonbKnowledge(input.NonNull)
@@ -1618,6 +1879,9 @@ func JsonbInputFromFloat4(input Float4Value) JsonbInput {
 	if input.Kind == Float4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == Float4ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == Float4ValueError {
 		error := input.Error
 		return JsonbInput{Kind: JsonbInputError, Error: error}
@@ -1639,6 +1903,9 @@ func JsonbInputFromFloat8(input Float8Value) JsonbInput {
 	unresolvedFlavor := 0
 	if input.Kind == Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == Float8ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == Float8ValueError {
 		error := input.Error
@@ -1667,8 +1934,7 @@ func MakeJsonbValue(source string) JsonbValue {
 	return parsed
 }
 func JsonbUnknown() JsonbValue {
-	unresolvedFlavor := 0
-	return JsonbUnresolved(unresolvedFlavor)
+	return JsonbValue{Kind: JsonbValueUnknown}
 }
 func JsonbNull() JsonbValue {
 	return JsonbValue{Kind: JsonbValueNull}
@@ -1677,6 +1943,9 @@ func JsonbFromCaseGuard(value CheckOutcome) JsonbValue {
 	unresolvedFlavor := 0
 	if value.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if value.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if value.Kind == CheckOutcomeError {
 		error := value.Error
@@ -1690,12 +1959,28 @@ func JsonbIsNull(input JsonbValue) BoolValue {
 	if input.Kind == JsonbValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == JsonbValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == JsonbValueError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
+	conditionFlavor13964 := unresolvedFlavor
 	if input.Kind == JsonbValueUnknown {
-		return BoolUnresolved(unresolvedFlavor)
+		if conditionFlavor13964 < 1 {
+			conditionFlavor13964 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == JsonbValueUnknown {
+		return BoolUnresolved(conditionFlavor13964)
+	}
+	conditionFlavor13987 := unresolvedFlavor
+	if input.Kind == JsonbValueUnimplemented {
+		conditionFlavor13987 = langruntime.CheckedI32(2)
+	}
+	if input.Kind == JsonbValueUnimplemented {
+		return BoolUnresolved(conditionFlavor13987)
 	}
 	if input.Kind == JsonbValueNull {
 		return BoolValue{Kind: BoolValueValue, Value: true}
@@ -1707,6 +1992,9 @@ func JsonbFromCoercedValue(input JsonbValue) JsonbValue {
 	unresolvedFlavor := 0
 	if input.Kind == JsonbValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == JsonbValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == JsonbValueValue {
 		value := CopyJsonbPayload(input.Value)
@@ -1739,6 +2027,7 @@ type NetworkValueKind uint8
 
 const (
 	NetworkValueUnknown NetworkValueKind = iota
+	NetworkValueUnimplemented
 	NetworkValueNull
 	NetworkValueValue
 	NetworkValueError
@@ -1751,8 +2040,7 @@ type NetworkValue struct {
 }
 
 func NetworkUnknown() NetworkValue {
-	unresolvedFlavor := 0
-	return NetworkUnresolved(unresolvedFlavor)
+	return NetworkValue{Kind: NetworkValueUnknown}
 }
 func NetworkNull() NetworkValue {
 	return NetworkValue{Kind: NetworkValueNull}
@@ -1762,12 +2050,24 @@ func NetworkIsNull(value NetworkValue) BoolValue {
 	if value.Kind == NetworkValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if value.Kind == NetworkValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if value.Kind == NetworkValueError {
 		error := value.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if value == (NetworkValue{Kind: NetworkValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor14584 := unresolvedFlavor
+	if value.Kind == NetworkValueUnknown {
+		if conditionFlavor14584 < 1 {
+			conditionFlavor14584 = langruntime.CheckedI32(1)
+		}
+	}
+	if value.Kind == NetworkValueUnimplemented {
+		conditionFlavor14584 = langruntime.CheckedI32(2)
+	}
+	if value == (NetworkValue{Kind: NetworkValueUnknown}) || value == (NetworkValue{Kind: NetworkValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor14584)
 	}
 	return BoolValue{Kind: BoolValueValue, Value: value == (NetworkValue{Kind: NetworkValueNull})}
 }
@@ -1775,6 +2075,9 @@ func NetworkFromCaseGuard(value CheckOutcome) NetworkValue {
 	unresolvedFlavor := 0
 	if value.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if value.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if value.Kind == CheckOutcomeError {
 		error := value.Error
@@ -1813,6 +2116,7 @@ type BitValueKind uint8
 
 const (
 	BitValueUnknown BitValueKind = iota
+	BitValueUnimplemented
 	BitValueNull
 	BitValueValue
 	BitValueError
@@ -1825,8 +2129,7 @@ type BitValue struct {
 }
 
 func BitUnknown() BitValue {
-	unresolvedFlavor := 0
-	return BitUnresolved(unresolvedFlavor)
+	return BitValue{Kind: BitValueUnknown}
 }
 func BitNull() BitValue {
 	return BitValue{Kind: BitValueNull}
@@ -1836,12 +2139,24 @@ func BitIsNull(value BitValue) BoolValue {
 	if value.Kind == BitValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if value.Kind == BitValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if value.Kind == BitValueError {
 		error := value.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if value == (BitValue{Kind: BitValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor15184 := unresolvedFlavor
+	if value.Kind == BitValueUnknown {
+		if conditionFlavor15184 < 1 {
+			conditionFlavor15184 = langruntime.CheckedI32(1)
+		}
+	}
+	if value.Kind == BitValueUnimplemented {
+		conditionFlavor15184 = langruntime.CheckedI32(2)
+	}
+	if value == (BitValue{Kind: BitValueUnknown}) || value == (BitValue{Kind: BitValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor15184)
 	}
 	return BoolValue{Kind: BoolValueValue, Value: value == (BitValue{Kind: BitValueNull})}
 }
@@ -1849,6 +2164,9 @@ func BitFromCaseGuard(value CheckOutcome) BitValue {
 	unresolvedFlavor := 0
 	if value.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if value.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if value.Kind == CheckOutcomeError {
 		error := value.Error
@@ -1877,6 +2195,7 @@ type ByteaValueKind uint8
 
 const (
 	ByteaValueUnknown ByteaValueKind = iota
+	ByteaValueUnimplemented
 	ByteaValueNull
 	ByteaValueValue
 	ByteaValueError
@@ -1891,8 +2210,7 @@ type ByteaValue struct {
 }
 
 func ByteaUnknown() ByteaValue {
-	unresolvedFlavor := 0
-	return ByteaUnresolved(unresolvedFlavor)
+	return ByteaValue{Kind: ByteaValueUnknown}
 }
 func ByteaNull() ByteaValue {
 	return ByteaValue{Kind: ByteaValueNull}
@@ -1902,12 +2220,24 @@ func ByteaIsNull(value ByteaValue) BoolValue {
 	if value.Kind == ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if value.Kind == ByteaValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if value.Kind == ByteaValueError {
 		error := value.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if value == (ByteaValue{Kind: ByteaValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor15694 := unresolvedFlavor
+	if value.Kind == ByteaValueUnknown {
+		if conditionFlavor15694 < 1 {
+			conditionFlavor15694 = langruntime.CheckedI32(1)
+		}
+	}
+	if value.Kind == ByteaValueUnimplemented {
+		conditionFlavor15694 = langruntime.CheckedI32(2)
+	}
+	if value == (ByteaValue{Kind: ByteaValueUnknown}) || value == (ByteaValue{Kind: ByteaValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor15694)
 	}
 	return BoolValue{Kind: BoolValueValue, Value: value == (ByteaValue{Kind: ByteaValueNull})}
 }
@@ -1915,6 +2245,9 @@ func ByteaFromCaseGuard(value CheckOutcome) ByteaValue {
 	unresolvedFlavor := 0
 	if value.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if value.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if value.Kind == CheckOutcomeError {
 		error := value.Error
@@ -1955,6 +2288,7 @@ type MacaddrValueKind uint8
 
 const (
 	MacaddrValueUnknown MacaddrValueKind = iota
+	MacaddrValueUnimplemented
 	MacaddrValueNull
 	MacaddrValueValue
 	MacaddrValueError
@@ -1967,8 +2301,7 @@ type MacaddrValue struct {
 }
 
 func MacaddrUnknown() MacaddrValue {
-	unresolvedFlavor := 0
-	return MacaddrUnresolved(unresolvedFlavor)
+	return MacaddrValue{Kind: MacaddrValueUnknown}
 }
 func MacaddrNull() MacaddrValue {
 	return MacaddrValue{Kind: MacaddrValueNull}
@@ -1978,12 +2311,24 @@ func MacaddrIsNull(value MacaddrValue) BoolValue {
 	if value.Kind == MacaddrValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if value.Kind == MacaddrValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if value.Kind == MacaddrValueError {
 		error := value.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if value == (MacaddrValue{Kind: MacaddrValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor16334 := unresolvedFlavor
+	if value.Kind == MacaddrValueUnknown {
+		if conditionFlavor16334 < 1 {
+			conditionFlavor16334 = langruntime.CheckedI32(1)
+		}
+	}
+	if value.Kind == MacaddrValueUnimplemented {
+		conditionFlavor16334 = langruntime.CheckedI32(2)
+	}
+	if value == (MacaddrValue{Kind: MacaddrValueUnknown}) || value == (MacaddrValue{Kind: MacaddrValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor16334)
 	}
 	return BoolValue{Kind: BoolValueValue, Value: value == (MacaddrValue{Kind: MacaddrValueNull})}
 }
@@ -1991,6 +2336,9 @@ func MacaddrFromCaseGuard(value CheckOutcome) MacaddrValue {
 	unresolvedFlavor := 0
 	if value.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if value.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if value.Kind == CheckOutcomeError {
 		error := value.Error
@@ -2017,6 +2365,7 @@ type Macaddr8ValueKind uint8
 
 const (
 	Macaddr8ValueUnknown Macaddr8ValueKind = iota
+	Macaddr8ValueUnimplemented
 	Macaddr8ValueNull
 	Macaddr8ValueValue
 	Macaddr8ValueError
@@ -2029,8 +2378,7 @@ type Macaddr8Value struct {
 }
 
 func Macaddr8Unknown() Macaddr8Value {
-	unresolvedFlavor := 0
-	return Macaddr8Unresolved(unresolvedFlavor)
+	return Macaddr8Value{Kind: Macaddr8ValueUnknown}
 }
 func Macaddr8Null() Macaddr8Value {
 	return Macaddr8Value{Kind: Macaddr8ValueNull}
@@ -2040,12 +2388,24 @@ func Macaddr8IsNull(value Macaddr8Value) BoolValue {
 	if value.Kind == Macaddr8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if value.Kind == Macaddr8ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if value.Kind == Macaddr8ValueError {
 		error := value.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if value == (Macaddr8Value{Kind: Macaddr8ValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor16814 := unresolvedFlavor
+	if value.Kind == Macaddr8ValueUnknown {
+		if conditionFlavor16814 < 1 {
+			conditionFlavor16814 = langruntime.CheckedI32(1)
+		}
+	}
+	if value.Kind == Macaddr8ValueUnimplemented {
+		conditionFlavor16814 = langruntime.CheckedI32(2)
+	}
+	if value == (Macaddr8Value{Kind: Macaddr8ValueUnknown}) || value == (Macaddr8Value{Kind: Macaddr8ValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor16814)
 	}
 	return BoolValue{Kind: BoolValueValue, Value: value == (Macaddr8Value{Kind: Macaddr8ValueNull})}
 }
@@ -2053,6 +2413,9 @@ func Macaddr8FromCaseGuard(value CheckOutcome) Macaddr8Value {
 	unresolvedFlavor := 0
 	if value.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if value.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if value.Kind == CheckOutcomeError {
 		error := value.Error
@@ -2089,6 +2452,7 @@ type UuidValueKind uint8
 
 const (
 	UuidValueUnknown UuidValueKind = iota
+	UuidValueUnimplemented
 	UuidValueNull
 	UuidValueValue
 	UuidValueError
@@ -2101,8 +2465,7 @@ type UuidValue struct {
 }
 
 func UuidUnknown() UuidValue {
-	unresolvedFlavor := 0
-	return UuidUnresolved(unresolvedFlavor)
+	return UuidValue{Kind: UuidValueUnknown}
 }
 func UuidNull() UuidValue {
 	return UuidValue{Kind: UuidValueNull}
@@ -2112,12 +2475,24 @@ func UuidIsNull(value UuidValue) BoolValue {
 	if value.Kind == UuidValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if value.Kind == UuidValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if value.Kind == UuidValueError {
 		error := value.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if value == (UuidValue{Kind: UuidValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor17414 := unresolvedFlavor
+	if value.Kind == UuidValueUnknown {
+		if conditionFlavor17414 < 1 {
+			conditionFlavor17414 = langruntime.CheckedI32(1)
+		}
+	}
+	if value.Kind == UuidValueUnimplemented {
+		conditionFlavor17414 = langruntime.CheckedI32(2)
+	}
+	if value == (UuidValue{Kind: UuidValueUnknown}) || value == (UuidValue{Kind: UuidValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor17414)
 	}
 	return BoolValue{Kind: BoolValueValue, Value: value == (UuidValue{Kind: UuidValueNull})}
 }
@@ -2125,6 +2500,9 @@ func UuidFromCaseGuard(value CheckOutcome) UuidValue {
 	unresolvedFlavor := 0
 	if value.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if value.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if value.Kind == CheckOutcomeError {
 		error := value.Error
@@ -2146,6 +2524,7 @@ type Float4ValueKind uint8
 
 const (
 	Float4ValueUnknown Float4ValueKind = iota
+	Float4ValueUnimplemented
 	Float4ValueNull
 	Float4ValueValue
 	Float4ValueError
@@ -2167,8 +2546,7 @@ func MakeFloat4LiteralBits(bits int) Float4Value {
 	return MakeFloat4Bits(bits)
 }
 func Float4Unknown() Float4Value {
-	unresolvedFlavor := 0
-	return Float4Unresolved(unresolvedFlavor)
+	return Float4Value{Kind: Float4ValueUnknown}
 }
 func Float4Null() Float4Value {
 	return Float4Value{Kind: Float4ValueNull}
@@ -2195,12 +2573,24 @@ func Float4IsNull(value Float4Value) BoolValue {
 	if value.Kind == Float4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if value.Kind == Float4ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if value.Kind == Float4ValueError {
 		error := value.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if value == (Float4Value{Kind: Float4ValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor18114 := unresolvedFlavor
+	if value.Kind == Float4ValueUnknown {
+		if conditionFlavor18114 < 1 {
+			conditionFlavor18114 = langruntime.CheckedI32(1)
+		}
+	}
+	if value.Kind == Float4ValueUnimplemented {
+		conditionFlavor18114 = langruntime.CheckedI32(2)
+	}
+	if value == (Float4Value{Kind: Float4ValueUnknown}) || value == (Float4Value{Kind: Float4ValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor18114)
 	}
 	return BoolValue{Kind: BoolValueValue, Value: value == (Float4Value{Kind: Float4ValueNull})}
 }
@@ -2208,6 +2598,9 @@ func Float4FromCaseGuard(value CheckOutcome) Float4Value {
 	unresolvedFlavor := 0
 	if value.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if value.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if value.Kind == CheckOutcomeError {
 		error := value.Error
@@ -2220,6 +2613,7 @@ type Float8ValueKind uint8
 
 const (
 	Float8ValueUnknown Float8ValueKind = iota
+	Float8ValueUnimplemented
 	Float8ValueNull
 	Float8ValueValue
 	Float8ValueError
@@ -2236,6 +2630,8 @@ func CopyFloat8Value(value Float8Value) Float8Value {
 	switch value.Kind {
 	case Float8ValueUnknown:
 		return Float8Value{Kind: Float8ValueUnknown}
+	case Float8ValueUnimplemented:
+		return Float8Value{Kind: Float8ValueUnimplemented}
 	case Float8ValueNull:
 		return Float8Value{Kind: Float8ValueNull}
 	case Float8ValueValue:
@@ -2261,8 +2657,7 @@ func MakeFloat8LiteralBits(bits int64) Float8Value {
 	return MakeFloat8Bits(bits)
 }
 func Float8Unknown() Float8Value {
-	unresolvedFlavor := 0
-	return Float8Unresolved(unresolvedFlavor)
+	return Float8Value{Kind: Float8ValueUnknown}
 }
 func Float8Null() Float8Value {
 	return Float8Value{Kind: Float8ValueNull}
@@ -2282,12 +2677,24 @@ func Float8IsNull(value Float8Value) BoolValue {
 	if value.Kind == Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if value.Kind == Float8ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if value.Kind == Float8ValueError {
 		error := value.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if value == (Float8Value{Kind: Float8ValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor18764 := unresolvedFlavor
+	if value.Kind == Float8ValueUnknown {
+		if conditionFlavor18764 < 1 {
+			conditionFlavor18764 = langruntime.CheckedI32(1)
+		}
+	}
+	if value.Kind == Float8ValueUnimplemented {
+		conditionFlavor18764 = langruntime.CheckedI32(2)
+	}
+	if value == (Float8Value{Kind: Float8ValueUnknown}) || value == (Float8Value{Kind: Float8ValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor18764)
 	}
 	return BoolValue{Kind: BoolValueValue, Value: value == (Float8Value{Kind: Float8ValueNull})}
 }
@@ -2295,6 +2702,9 @@ func Float8FromCaseGuard(value CheckOutcome) Float8Value {
 	unresolvedFlavor := 0
 	if value.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if value.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if value.Kind == CheckOutcomeError {
 		error := value.Error
@@ -2307,6 +2717,7 @@ type TimeValueKind uint8
 
 const (
 	TimeValueUnknown TimeValueKind = iota
+	TimeValueUnimplemented
 	TimeValueNull
 	TimeValueValue
 	TimeValueError
@@ -2319,8 +2730,7 @@ type TimeValue struct {
 }
 
 func TimeUnknown() TimeValue {
-	unresolvedFlavor := 0
-	return TimeUnresolved(unresolvedFlavor)
+	return TimeValue{Kind: TimeValueUnknown}
 }
 func TimeNull() TimeValue {
 	return TimeValue{Kind: TimeValueNull}
@@ -2337,12 +2747,24 @@ func TimeIsNull(input TimeValue) BoolValue {
 	if input.Kind == TimeValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == TimeValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == TimeValueError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if input == (TimeValue{Kind: TimeValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor19214 := unresolvedFlavor
+	if input.Kind == TimeValueUnknown {
+		if conditionFlavor19214 < 1 {
+			conditionFlavor19214 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == TimeValueUnimplemented {
+		conditionFlavor19214 = langruntime.CheckedI32(2)
+	}
+	if input == (TimeValue{Kind: TimeValueUnknown}) || input == (TimeValue{Kind: TimeValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor19214)
 	}
 	return BoolValue{Kind: BoolValueValue, Value: input == (TimeValue{Kind: TimeValueNull})}
 }
@@ -2350,6 +2772,9 @@ func TimeFromCaseGuard(input CheckOutcome) TimeValue {
 	unresolvedFlavor := 0
 	if input.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == CheckOutcomeError {
 		error := input.Error
@@ -2366,6 +2791,7 @@ type TimetzValueKind uint8
 
 const (
 	TimetzValueUnknown TimetzValueKind = iota
+	TimetzValueUnimplemented
 	TimetzValueNull
 	TimetzValueValue
 	TimetzValueError
@@ -2378,8 +2804,7 @@ type TimetzValue struct {
 }
 
 func TimetzUnknown() TimetzValue {
-	unresolvedFlavor := 0
-	return TimetzUnresolved(unresolvedFlavor)
+	return TimetzValue{Kind: TimetzValueUnknown}
 }
 func TimetzNull() TimetzValue {
 	return TimetzValue{Kind: TimetzValueNull}
@@ -2397,12 +2822,24 @@ func TimetzIsNull(input TimetzValue) BoolValue {
 	if input.Kind == TimetzValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == TimetzValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == TimetzValueError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if input == (TimetzValue{Kind: TimetzValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor19754 := unresolvedFlavor
+	if input.Kind == TimetzValueUnknown {
+		if conditionFlavor19754 < 1 {
+			conditionFlavor19754 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == TimetzValueUnimplemented {
+		conditionFlavor19754 = langruntime.CheckedI32(2)
+	}
+	if input == (TimetzValue{Kind: TimetzValueUnknown}) || input == (TimetzValue{Kind: TimetzValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor19754)
 	}
 	return BoolValue{Kind: BoolValueValue, Value: input == (TimetzValue{Kind: TimetzValueNull})}
 }
@@ -2410,6 +2847,9 @@ func TimetzFromCaseGuard(input CheckOutcome) TimetzValue {
 	unresolvedFlavor := 0
 	if input.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == CheckOutcomeError {
 		error := input.Error
@@ -2427,6 +2867,7 @@ type IntervalValueKind uint8
 
 const (
 	IntervalValueUnknown IntervalValueKind = iota
+	IntervalValueUnimplemented
 	IntervalValueNull
 	IntervalValueValue
 	IntervalValueError
@@ -2439,8 +2880,7 @@ type IntervalValue struct {
 }
 
 func IntervalUnknown() IntervalValue {
-	unresolvedFlavor := 0
-	return IntervalUnresolved(unresolvedFlavor)
+	return IntervalValue{Kind: IntervalValueUnknown}
 }
 func IntervalNull() IntervalValue {
 	return IntervalValue{Kind: IntervalValueNull}
@@ -2455,12 +2895,24 @@ func IntervalIsNull(input IntervalValue) BoolValue {
 	if input.Kind == IntervalValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == IntervalValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == IntervalValueError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if input == (IntervalValue{Kind: IntervalValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor20274 := unresolvedFlavor
+	if input.Kind == IntervalValueUnknown {
+		if conditionFlavor20274 < 1 {
+			conditionFlavor20274 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == IntervalValueUnimplemented {
+		conditionFlavor20274 = langruntime.CheckedI32(2)
+	}
+	if input == (IntervalValue{Kind: IntervalValueUnknown}) || input == (IntervalValue{Kind: IntervalValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor20274)
 	}
 	return BoolValue{Kind: BoolValueValue, Value: input == (IntervalValue{Kind: IntervalValueNull})}
 }
@@ -2468,6 +2920,9 @@ func IntervalFromCaseGuard(input CheckOutcome) IntervalValue {
 	unresolvedFlavor := 0
 	if input.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == CheckOutcomeError {
 		error := input.Error
@@ -2490,6 +2945,7 @@ type PointValueKind uint8
 
 const (
 	PointValueUnknown PointValueKind = iota
+	PointValueUnimplemented
 	PointValueNull
 	PointValueValue
 	PointValueError
@@ -2502,8 +2958,7 @@ type PointValue struct {
 }
 
 func PointUnknown() PointValue {
-	unresolvedFlavor := 0
-	return PointUnresolved(unresolvedFlavor)
+	return PointValue{Kind: PointValueUnknown}
 }
 func PointNull() PointValue {
 	return PointValue{Kind: PointValueNull}
@@ -2521,12 +2976,24 @@ func PointIsNull(input PointValue) BoolValue {
 	if input.Kind == PointValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == PointValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == PointValueError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if input == (PointValue{Kind: PointValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor20824 := unresolvedFlavor
+	if input.Kind == PointValueUnknown {
+		if conditionFlavor20824 < 1 {
+			conditionFlavor20824 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == PointValueUnimplemented {
+		conditionFlavor20824 = langruntime.CheckedI32(2)
+	}
+	if input == (PointValue{Kind: PointValueUnknown}) || input == (PointValue{Kind: PointValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor20824)
 	}
 	return MakeBoolValue(input == (PointValue{Kind: PointValueNull}))
 }
@@ -2534,6 +3001,9 @@ func PointFromCaseGuard(input CheckOutcome) PointValue {
 	unresolvedFlavor := 0
 	if input.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == CheckOutcomeError {
 		error := input.Error
@@ -2552,6 +3022,7 @@ type LineValueKind uint8
 
 const (
 	LineValueUnknown LineValueKind = iota
+	LineValueUnimplemented
 	LineValueNull
 	LineValueValue
 	LineValueError
@@ -2564,8 +3035,7 @@ type LineValue struct {
 }
 
 func LineUnknown() LineValue {
-	unresolvedFlavor := 0
-	return LineUnresolved(unresolvedFlavor)
+	return LineValue{Kind: LineValueUnknown}
 }
 func LineNull() LineValue {
 	return LineValue{Kind: LineValueNull}
@@ -2587,12 +3057,24 @@ func LineIsNull(input LineValue) BoolValue {
 	if input.Kind == LineValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == LineValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == LineValueError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if input == (LineValue{Kind: LineValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor21424 := unresolvedFlavor
+	if input.Kind == LineValueUnknown {
+		if conditionFlavor21424 < 1 {
+			conditionFlavor21424 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == LineValueUnimplemented {
+		conditionFlavor21424 = langruntime.CheckedI32(2)
+	}
+	if input == (LineValue{Kind: LineValueUnknown}) || input == (LineValue{Kind: LineValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor21424)
 	}
 	return MakeBoolValue(input == (LineValue{Kind: LineValueNull}))
 }
@@ -2600,6 +3082,9 @@ func LineFromCaseGuard(input CheckOutcome) LineValue {
 	unresolvedFlavor := 0
 	if input.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == CheckOutcomeError {
 		error := input.Error
@@ -2619,6 +3104,7 @@ type LsegValueKind uint8
 
 const (
 	LsegValueUnknown LsegValueKind = iota
+	LsegValueUnimplemented
 	LsegValueNull
 	LsegValueValue
 	LsegValueError
@@ -2631,8 +3117,7 @@ type LsegValue struct {
 }
 
 func LsegUnknown() LsegValue {
-	unresolvedFlavor := 0
-	return LsegUnresolved(unresolvedFlavor)
+	return LsegValue{Kind: LsegValueUnknown}
 }
 func LsegNull() LsegValue {
 	return LsegValue{Kind: LsegValueNull}
@@ -2645,12 +3130,24 @@ func LsegIsNull(input LsegValue) BoolValue {
 	if input.Kind == LsegValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == LsegValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == LsegValueError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if input == (LsegValue{Kind: LsegValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor21934 := unresolvedFlavor
+	if input.Kind == LsegValueUnknown {
+		if conditionFlavor21934 < 1 {
+			conditionFlavor21934 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == LsegValueUnimplemented {
+		conditionFlavor21934 = langruntime.CheckedI32(2)
+	}
+	if input == (LsegValue{Kind: LsegValueUnknown}) || input == (LsegValue{Kind: LsegValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor21934)
 	}
 	return MakeBoolValue(input == (LsegValue{Kind: LsegValueNull}))
 }
@@ -2658,6 +3155,9 @@ func LsegFromCaseGuard(input CheckOutcome) LsegValue {
 	unresolvedFlavor := 0
 	if input.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == CheckOutcomeError {
 		error := input.Error
@@ -2677,6 +3177,7 @@ type BoxValueKind uint8
 
 const (
 	BoxValueUnknown BoxValueKind = iota
+	BoxValueUnimplemented
 	BoxValueNull
 	BoxValueValue
 	BoxValueError
@@ -2690,8 +3191,7 @@ type BoxValue struct {
 }
 
 func BoxUnknown() BoxValue {
-	unresolvedFlavor := 0
-	return BoxUnresolved(unresolvedFlavor)
+	return BoxValue{Kind: BoxValueUnknown}
 }
 func BoxNull() BoxValue {
 	return BoxValue{Kind: BoxValueNull}
@@ -2704,12 +3204,24 @@ func BoxIsNull(input BoxValue) BoolValue {
 	if input.Kind == BoxValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == BoxValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == BoxValueError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if input == (BoxValue{Kind: BoxValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor22454 := unresolvedFlavor
+	if input.Kind == BoxValueUnknown {
+		if conditionFlavor22454 < 1 {
+			conditionFlavor22454 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == BoxValueUnimplemented {
+		conditionFlavor22454 = langruntime.CheckedI32(2)
+	}
+	if input == (BoxValue{Kind: BoxValueUnknown}) || input == (BoxValue{Kind: BoxValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor22454)
 	}
 	return MakeBoolValue(input == (BoxValue{Kind: BoxValueNull}))
 }
@@ -2717,6 +3229,9 @@ func BoxFromCaseGuard(input CheckOutcome) BoxValue {
 	unresolvedFlavor := 0
 	if input.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == CheckOutcomeError {
 		error := input.Error
@@ -2744,6 +3259,7 @@ type PathValueKind uint8
 
 const (
 	PathValueUnknown PathValueKind = iota
+	PathValueUnimplemented
 	PathValueNull
 	PathValueValue
 	PathValueError
@@ -2759,6 +3275,8 @@ func CopyPathValue(value PathValue) PathValue {
 	switch value.Kind {
 	case PathValueUnknown:
 		return PathValue{Kind: PathValueUnknown}
+	case PathValueUnimplemented:
+		return PathValue{Kind: PathValueUnimplemented}
 	case PathValueNull:
 		return PathValue{Kind: PathValueNull}
 	case PathValueValue:
@@ -2769,8 +3287,7 @@ func CopyPathValue(value PathValue) PathValue {
 	panic("unknown enum variant")
 }
 func PathUnknown() PathValue {
-	unresolvedFlavor := 0
-	return PathUnresolved(unresolvedFlavor)
+	return PathValue{Kind: PathValueUnknown}
 }
 func PathNull() PathValue {
 	return PathValue{Kind: PathValueNull}
@@ -2796,6 +3313,12 @@ func AppendStoredPathPoint(path PathValue, point PointValue) PathValue {
 	}
 	if point.Kind == PointValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if path.Kind == PathValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if point.Kind == PointValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if path.Kind == PathValueError {
 		error := path.Error
@@ -2825,12 +3348,28 @@ func PathIsNull(input PathValue) BoolValue {
 	if input.Kind == PathValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == PathValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == PathValueError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
+	conditionFlavor23254 := unresolvedFlavor
 	if input.Kind == PathValueUnknown {
-		return BoolUnresolved(unresolvedFlavor)
+		if conditionFlavor23254 < 1 {
+			conditionFlavor23254 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == PathValueUnknown {
+		return BoolUnresolved(conditionFlavor23254)
+	}
+	conditionFlavor23277 := unresolvedFlavor
+	if input.Kind == PathValueUnimplemented {
+		conditionFlavor23277 = langruntime.CheckedI32(2)
+	}
+	if input.Kind == PathValueUnimplemented {
+		return BoolUnresolved(conditionFlavor23277)
 	}
 	if input.Kind == PathValueNull {
 		return MakeBoolValue(true)
@@ -2841,6 +3380,9 @@ func PathFromCaseGuard(input CheckOutcome) PathValue {
 	unresolvedFlavor := 0
 	if input.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == CheckOutcomeError {
 		error := input.Error
@@ -2862,6 +3404,7 @@ type PolygonValueKind uint8
 
 const (
 	PolygonValueUnknown PolygonValueKind = iota
+	PolygonValueUnimplemented
 	PolygonValueNull
 	PolygonValueValue
 	PolygonValueError
@@ -2877,6 +3420,8 @@ func CopyPolygonValue(value PolygonValue) PolygonValue {
 	switch value.Kind {
 	case PolygonValueUnknown:
 		return PolygonValue{Kind: PolygonValueUnknown}
+	case PolygonValueUnimplemented:
+		return PolygonValue{Kind: PolygonValueUnimplemented}
 	case PolygonValueNull:
 		return PolygonValue{Kind: PolygonValueNull}
 	case PolygonValueValue:
@@ -2899,6 +3444,12 @@ func AppendStoredPolygonPoint(polygon PolygonValue, point PointValue) PolygonVal
 	}
 	if point.Kind == PointValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if polygon.Kind == PolygonValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if point.Kind == PointValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if polygon.Kind == PolygonValueError {
 		error := polygon.Error
@@ -3003,7 +3554,7 @@ func MakePolygonValue(payload PolygonPayload) PolygonValue {
 	}
 	calculated := polygonCalculatedBounds(CopyPolygonPayload(payload))
 	bounds := payload.Bounds
-	if bounds == (BoxValue{Kind: BoxValueUnknown}) {
+	if bounds == (BoxValue{Kind: BoxValueUnknown}) || bounds == (BoxValue{Kind: BoxValueUnimplemented}) {
 		bounds = BoxValue{Kind: BoxValueNonNull}
 		if polygonBoundsAmbiguous(CopyPolygonPayload(payload), calculated) == false {
 			bounds = BoxValue{Kind: BoxValueValue, Value: calculated}
@@ -3036,8 +3587,7 @@ func MakePolygonPoints(payload PolygonPayload) PolygonValue {
 	return PolygonValue{Kind: PolygonValueValue, Value: PolygonPayload{Points: payload.Points, Bounds: BoxValue{Kind: BoxValueValue, Value: bounds}}}
 }
 func PolygonUnknown() PolygonValue {
-	unresolvedFlavor := 0
-	return PolygonUnresolved(unresolvedFlavor)
+	return PolygonValue{Kind: PolygonValueUnknown}
 }
 func PolygonNull() PolygonValue {
 	return PolygonValue{Kind: PolygonValueNull}
@@ -3048,12 +3598,28 @@ func PolygonIsNull(input PolygonValue) BoolValue {
 	if input.Kind == PolygonValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == PolygonValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == PolygonValueError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
+	conditionFlavor25214 := unresolvedFlavor
 	if input.Kind == PolygonValueUnknown {
-		return BoolUnresolved(unresolvedFlavor)
+		if conditionFlavor25214 < 1 {
+			conditionFlavor25214 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == PolygonValueUnknown {
+		return BoolUnresolved(conditionFlavor25214)
+	}
+	conditionFlavor25237 := unresolvedFlavor
+	if input.Kind == PolygonValueUnimplemented {
+		conditionFlavor25237 = langruntime.CheckedI32(2)
+	}
+	if input.Kind == PolygonValueUnimplemented {
+		return BoolUnresolved(conditionFlavor25237)
 	}
 	if input.Kind == PolygonValueNull {
 		return MakeBoolValue(true)
@@ -3064,6 +3630,9 @@ func PolygonFromCaseGuard(input CheckOutcome) PolygonValue {
 	unresolvedFlavor := 0
 	if input.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == CheckOutcomeError {
 		error := input.Error
@@ -3076,6 +3645,7 @@ type CircleValueKind uint8
 
 const (
 	CircleValueUnknown CircleValueKind = iota
+	CircleValueUnimplemented
 	CircleValueNull
 	CircleValueValue
 	CircleValueError
@@ -3088,8 +3658,7 @@ type CircleValue struct {
 }
 
 func CircleUnknown() CircleValue {
-	unresolvedFlavor := 0
-	return CircleUnresolved(unresolvedFlavor)
+	return CircleValue{Kind: CircleValueUnknown}
 }
 func CircleNull() CircleValue {
 	return CircleValue{Kind: CircleValueNull}
@@ -3102,12 +3671,24 @@ func CircleIsNull(input CircleValue) BoolValue {
 	if input.Kind == CircleValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == CircleValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == CircleValueError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if input == (CircleValue{Kind: CircleValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor25674 := unresolvedFlavor
+	if input.Kind == CircleValueUnknown {
+		if conditionFlavor25674 < 1 {
+			conditionFlavor25674 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == CircleValueUnimplemented {
+		conditionFlavor25674 = langruntime.CheckedI32(2)
+	}
+	if input == (CircleValue{Kind: CircleValueUnknown}) || input == (CircleValue{Kind: CircleValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor25674)
 	}
 	return MakeBoolValue(input == (CircleValue{Kind: CircleValueNull}))
 }
@@ -3115,6 +3696,9 @@ func CircleFromCaseGuard(input CheckOutcome) CircleValue {
 	unresolvedFlavor := 0
 	if input.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == CheckOutcomeError {
 		error := input.Error
@@ -3139,6 +3723,7 @@ type AclitemValueKind uint8
 
 const (
 	AclitemValueUnknown AclitemValueKind = iota
+	AclitemValueUnimplemented
 	AclitemValueNull
 	AclitemValueValue
 	AclitemValueError
@@ -3153,8 +3738,7 @@ type AclitemValue struct {
 }
 
 func AclitemUnknown() AclitemValue {
-	unresolvedFlavor := 0
-	return AclitemUnresolved(unresolvedFlavor)
+	return AclitemValue{Kind: AclitemValueUnknown}
 }
 func AclitemNull() AclitemValue {
 	return AclitemValue{Kind: AclitemValueNull}
@@ -3181,12 +3765,24 @@ func AclitemIsNull(input AclitemValue) BoolValue {
 	if input.Kind == AclitemValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == AclitemValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == AclitemValueError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if input == (AclitemValue{Kind: AclitemValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor26264 := unresolvedFlavor
+	if input.Kind == AclitemValueUnknown {
+		if conditionFlavor26264 < 1 {
+			conditionFlavor26264 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == AclitemValueUnimplemented {
+		conditionFlavor26264 = langruntime.CheckedI32(2)
+	}
+	if input == (AclitemValue{Kind: AclitemValueUnknown}) || input == (AclitemValue{Kind: AclitemValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor26264)
 	}
 	return MakeBoolValue(input == (AclitemValue{Kind: AclitemValueNull}))
 }
@@ -3194,6 +3790,9 @@ func AclitemFromCaseGuard(input CheckOutcome) AclitemValue {
 	unresolvedFlavor := 0
 	if input.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == CheckOutcomeError {
 		error := input.Error
@@ -3206,6 +3805,7 @@ type MoneyValueKind uint8
 
 const (
 	MoneyValueUnknown MoneyValueKind = iota
+	MoneyValueUnimplemented
 	MoneyValueNull
 	MoneyValueValue
 	MoneyValueError
@@ -3218,8 +3818,7 @@ type MoneyValue struct {
 }
 
 func MoneyUnknown() MoneyValue {
-	unresolvedFlavor := 0
-	return MoneyUnresolved(unresolvedFlavor)
+	return MoneyValue{Kind: MoneyValueUnknown}
 }
 func MoneyNull() MoneyValue {
 	return MoneyValue{Kind: MoneyValueNull}
@@ -3232,12 +3831,24 @@ func MoneyIsNull(input MoneyValue) BoolValue {
 	if input.Kind == MoneyValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == MoneyValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == MoneyValueError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if input == (MoneyValue{Kind: MoneyValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor26594 := unresolvedFlavor
+	if input.Kind == MoneyValueUnknown {
+		if conditionFlavor26594 < 1 {
+			conditionFlavor26594 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == MoneyValueUnimplemented {
+		conditionFlavor26594 = langruntime.CheckedI32(2)
+	}
+	if input == (MoneyValue{Kind: MoneyValueUnknown}) || input == (MoneyValue{Kind: MoneyValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor26594)
 	}
 	return MakeBoolValue(input == (MoneyValue{Kind: MoneyValueNull}))
 }
@@ -3245,6 +3856,9 @@ func MoneyFromCaseGuard(input CheckOutcome) MoneyValue {
 	unresolvedFlavor := 0
 	if input.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == CheckOutcomeError {
 		error := input.Error
@@ -3257,6 +3871,7 @@ type InternalCharValueKind uint8
 
 const (
 	InternalCharValueUnknown InternalCharValueKind = iota
+	InternalCharValueUnimplemented
 	InternalCharValueNull
 	InternalCharValueValue
 	InternalCharValueError
@@ -3269,8 +3884,7 @@ type InternalCharValue struct {
 }
 
 func InternalCharUnknown() InternalCharValue {
-	unresolvedFlavor := 0
-	return InternalCharUnresolved(unresolvedFlavor)
+	return InternalCharValue{Kind: InternalCharValueUnknown}
 }
 func InternalCharNull() InternalCharValue {
 	return InternalCharValue{Kind: InternalCharValueNull}
@@ -3288,12 +3902,24 @@ func InternalCharIsNull(input InternalCharValue) BoolValue {
 	if input.Kind == InternalCharValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == InternalCharValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == InternalCharValueError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if input == (InternalCharValue{Kind: InternalCharValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor27004 := unresolvedFlavor
+	if input.Kind == InternalCharValueUnknown {
+		if conditionFlavor27004 < 1 {
+			conditionFlavor27004 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == InternalCharValueUnimplemented {
+		conditionFlavor27004 = langruntime.CheckedI32(2)
+	}
+	if input == (InternalCharValue{Kind: InternalCharValueUnknown}) || input == (InternalCharValue{Kind: InternalCharValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor27004)
 	}
 	return MakeBoolValue(input == (InternalCharValue{Kind: InternalCharValueNull}))
 }
@@ -3301,6 +3927,9 @@ func InternalCharFromCaseGuard(input CheckOutcome) InternalCharValue {
 	unresolvedFlavor := 0
 	if input.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == CheckOutcomeError {
 		error := input.Error
@@ -3313,6 +3942,7 @@ type OidValueKind uint8
 
 const (
 	OidValueUnknown OidValueKind = iota
+	OidValueUnimplemented
 	OidValueNull
 	OidValueValue
 	OidValueError
@@ -3325,8 +3955,7 @@ type OidValue struct {
 }
 
 func OidUnknown() OidValue {
-	unresolvedFlavor := 0
-	return OidUnresolved(unresolvedFlavor)
+	return OidValue{Kind: OidValueUnknown}
 }
 func OidNull() OidValue {
 	return OidValue{Kind: OidValueNull}
@@ -3343,12 +3972,24 @@ func OidIsNull(input OidValue) BoolValue {
 	if input.Kind == OidValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == OidValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == OidValueError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if input == (OidValue{Kind: OidValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor27414 := unresolvedFlavor
+	if input.Kind == OidValueUnknown {
+		if conditionFlavor27414 < 1 {
+			conditionFlavor27414 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == OidValueUnimplemented {
+		conditionFlavor27414 = langruntime.CheckedI32(2)
+	}
+	if input == (OidValue{Kind: OidValueUnknown}) || input == (OidValue{Kind: OidValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor27414)
 	}
 	return MakeBoolValue(input == (OidValue{Kind: OidValueNull}))
 }
@@ -3356,6 +3997,9 @@ func OidFromCaseGuard(input CheckOutcome) OidValue {
 	unresolvedFlavor := 0
 	if input.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == CheckOutcomeError {
 		error := input.Error
@@ -3368,6 +4012,7 @@ type XidValueKind uint8
 
 const (
 	XidValueUnknown XidValueKind = iota
+	XidValueUnimplemented
 	XidValueNull
 	XidValueValue
 	XidValueError
@@ -3380,8 +4025,7 @@ type XidValue struct {
 }
 
 func XidUnknown() XidValue {
-	unresolvedFlavor := 0
-	return XidUnresolved(unresolvedFlavor)
+	return XidValue{Kind: XidValueUnknown}
 }
 func XidNull() XidValue {
 	return XidValue{Kind: XidValueNull}
@@ -3398,12 +4042,24 @@ func XidIsNull(input XidValue) BoolValue {
 	if input.Kind == XidValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == XidValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == XidValueError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if input == (XidValue{Kind: XidValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor27824 := unresolvedFlavor
+	if input.Kind == XidValueUnknown {
+		if conditionFlavor27824 < 1 {
+			conditionFlavor27824 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == XidValueUnimplemented {
+		conditionFlavor27824 = langruntime.CheckedI32(2)
+	}
+	if input == (XidValue{Kind: XidValueUnknown}) || input == (XidValue{Kind: XidValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor27824)
 	}
 	return MakeBoolValue(input == (XidValue{Kind: XidValueNull}))
 }
@@ -3411,6 +4067,9 @@ func XidFromCaseGuard(input CheckOutcome) XidValue {
 	unresolvedFlavor := 0
 	if input.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == CheckOutcomeError {
 		error := input.Error
@@ -3423,6 +4082,7 @@ type CidValueKind uint8
 
 const (
 	CidValueUnknown CidValueKind = iota
+	CidValueUnimplemented
 	CidValueNull
 	CidValueValue
 	CidValueError
@@ -3435,8 +4095,7 @@ type CidValue struct {
 }
 
 func CidUnknown() CidValue {
-	unresolvedFlavor := 0
-	return CidUnresolved(unresolvedFlavor)
+	return CidValue{Kind: CidValueUnknown}
 }
 func CidNull() CidValue {
 	return CidValue{Kind: CidValueNull}
@@ -3453,12 +4112,24 @@ func CidIsNull(input CidValue) BoolValue {
 	if input.Kind == CidValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == CidValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == CidValueError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if input == (CidValue{Kind: CidValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor28234 := unresolvedFlavor
+	if input.Kind == CidValueUnknown {
+		if conditionFlavor28234 < 1 {
+			conditionFlavor28234 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == CidValueUnimplemented {
+		conditionFlavor28234 = langruntime.CheckedI32(2)
+	}
+	if input == (CidValue{Kind: CidValueUnknown}) || input == (CidValue{Kind: CidValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor28234)
 	}
 	return MakeBoolValue(input == (CidValue{Kind: CidValueNull}))
 }
@@ -3466,6 +4137,9 @@ func CidFromCaseGuard(input CheckOutcome) CidValue {
 	unresolvedFlavor := 0
 	if input.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == CheckOutcomeError {
 		error := input.Error
@@ -3496,6 +4170,7 @@ type SnapshotValueKind uint8
 
 const (
 	SnapshotValueUnknown SnapshotValueKind = iota
+	SnapshotValueUnimplemented
 	SnapshotValueNull
 	SnapshotValueValue
 	SnapshotValueError
@@ -3511,6 +4186,8 @@ func CopySnapshotValue(value SnapshotValue) SnapshotValue {
 	switch value.Kind {
 	case SnapshotValueUnknown:
 		return SnapshotValue{Kind: SnapshotValueUnknown}
+	case SnapshotValueUnimplemented:
+		return SnapshotValue{Kind: SnapshotValueUnimplemented}
 	case SnapshotValueNull:
 		return SnapshotValue{Kind: SnapshotValueNull}
 	case SnapshotValueValue:
@@ -3536,8 +4213,7 @@ func SnapshotXidOrder(left int64, right int64) int {
 	return 0
 }
 func SnapshotUnknown() SnapshotValue {
-	unresolvedFlavor := 0
-	return SnapshotUnresolved(unresolvedFlavor)
+	return SnapshotValue{Kind: SnapshotValueUnknown}
 }
 func SnapshotNull() SnapshotValue {
 	return SnapshotValue{Kind: SnapshotValueNull}
@@ -3590,12 +4266,28 @@ func SnapshotIsNull(input SnapshotValue) BoolValue {
 	if input.Kind == SnapshotValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == SnapshotValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == SnapshotValueError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
+	conditionFlavor29284 := unresolvedFlavor
 	if input.Kind == SnapshotValueUnknown {
-		return BoolUnresolved(unresolvedFlavor)
+		if conditionFlavor29284 < 1 {
+			conditionFlavor29284 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == SnapshotValueUnknown {
+		return BoolUnresolved(conditionFlavor29284)
+	}
+	conditionFlavor29307 := unresolvedFlavor
+	if input.Kind == SnapshotValueUnimplemented {
+		conditionFlavor29307 = langruntime.CheckedI32(2)
+	}
+	if input.Kind == SnapshotValueUnimplemented {
+		return BoolUnresolved(conditionFlavor29307)
 	}
 	if input.Kind == SnapshotValueNull {
 		return MakeBoolValue(true)
@@ -3606,6 +4298,9 @@ func SnapshotFromCaseGuard(input CheckOutcome) SnapshotValue {
 	unresolvedFlavor := 0
 	if input.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == CheckOutcomeError {
 		error := input.Error
@@ -3618,6 +4313,7 @@ type Xid8ValueKind uint8
 
 const (
 	Xid8ValueUnknown Xid8ValueKind = iota
+	Xid8ValueUnimplemented
 	Xid8ValueNull
 	Xid8ValueValue
 	Xid8ValueError
@@ -3630,8 +4326,7 @@ type Xid8Value struct {
 }
 
 func Xid8Unknown() Xid8Value {
-	unresolvedFlavor := 0
-	return Xid8Unresolved(unresolvedFlavor)
+	return Xid8Value{Kind: Xid8ValueUnknown}
 }
 func Xid8Null() Xid8Value {
 	return Xid8Value{Kind: Xid8ValueNull}
@@ -3644,12 +4339,24 @@ func Xid8IsNull(input Xid8Value) BoolValue {
 	if input.Kind == Xid8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == Xid8ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == Xid8ValueError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if input == (Xid8Value{Kind: Xid8ValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor29704 := unresolvedFlavor
+	if input.Kind == Xid8ValueUnknown {
+		if conditionFlavor29704 < 1 {
+			conditionFlavor29704 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == Xid8ValueUnimplemented {
+		conditionFlavor29704 = langruntime.CheckedI32(2)
+	}
+	if input == (Xid8Value{Kind: Xid8ValueUnknown}) || input == (Xid8Value{Kind: Xid8ValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor29704)
 	}
 	return MakeBoolValue(input == (Xid8Value{Kind: Xid8ValueNull}))
 }
@@ -3657,6 +4364,9 @@ func Xid8FromCaseGuard(input CheckOutcome) Xid8Value {
 	unresolvedFlavor := 0
 	if input.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == CheckOutcomeError {
 		error := input.Error
@@ -3669,6 +4379,7 @@ type PgLsnValueKind uint8
 
 const (
 	PgLsnValueUnknown PgLsnValueKind = iota
+	PgLsnValueUnimplemented
 	PgLsnValueNull
 	PgLsnValueValue
 	PgLsnValueError
@@ -3681,8 +4392,7 @@ type PgLsnValue struct {
 }
 
 func PgLsnUnknown() PgLsnValue {
-	unresolvedFlavor := 0
-	return PgLsnUnresolved(unresolvedFlavor)
+	return PgLsnValue{Kind: PgLsnValueUnknown}
 }
 func PgLsnNull() PgLsnValue {
 	return PgLsnValue{Kind: PgLsnValueNull}
@@ -3695,12 +4405,24 @@ func PgLsnIsNull(input PgLsnValue) BoolValue {
 	if input.Kind == PgLsnValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == PgLsnValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == PgLsnValueError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if input == (PgLsnValue{Kind: PgLsnValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor30074 := unresolvedFlavor
+	if input.Kind == PgLsnValueUnknown {
+		if conditionFlavor30074 < 1 {
+			conditionFlavor30074 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == PgLsnValueUnimplemented {
+		conditionFlavor30074 = langruntime.CheckedI32(2)
+	}
+	if input == (PgLsnValue{Kind: PgLsnValueUnknown}) || input == (PgLsnValue{Kind: PgLsnValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor30074)
 	}
 	return MakeBoolValue(input == (PgLsnValue{Kind: PgLsnValueNull}))
 }
@@ -3708,6 +4430,9 @@ func PgLsnFromCaseGuard(input CheckOutcome) PgLsnValue {
 	unresolvedFlavor := 0
 	if input.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == CheckOutcomeError {
 		error := input.Error
@@ -3720,6 +4445,7 @@ type TidValueKind uint8
 
 const (
 	TidValueUnknown TidValueKind = iota
+	TidValueUnimplemented
 	TidValueNull
 	TidValueValue
 	TidValueError
@@ -3732,8 +4458,7 @@ type TidValue struct {
 }
 
 func TidUnknown() TidValue {
-	unresolvedFlavor := 0
-	return TidUnresolved(unresolvedFlavor)
+	return TidValue{Kind: TidValueUnknown}
 }
 func TidNull() TidValue {
 	return TidValue{Kind: TidValueNull}
@@ -3750,12 +4475,24 @@ func TidIsNull(input TidValue) BoolValue {
 	if input.Kind == TidValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == TidValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == TidValueError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if input == (TidValue{Kind: TidValueUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor30484 := unresolvedFlavor
+	if input.Kind == TidValueUnknown {
+		if conditionFlavor30484 < 1 {
+			conditionFlavor30484 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == TidValueUnimplemented {
+		conditionFlavor30484 = langruntime.CheckedI32(2)
+	}
+	if input == (TidValue{Kind: TidValueUnknown}) || input == (TidValue{Kind: TidValueUnimplemented}) {
+		return BoolUnresolved(conditionFlavor30484)
 	}
 	return MakeBoolValue(input == (TidValue{Kind: TidValueNull}))
 }
@@ -3763,6 +4500,9 @@ func TidFromCaseGuard(input CheckOutcome) TidValue {
 	unresolvedFlavor := 0
 	if input.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == CheckOutcomeError {
 		error := input.Error
@@ -3780,8 +4520,7 @@ func MakeTidParts(block int64, offset int) TidValue {
 	return MakeTidValue(langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(block, int64(65536)), low))
 }
 func JsonpathUnknown() JsonpathValue {
-	unresolvedFlavor := 0
-	return JsonpathUnresolved(unresolvedFlavor)
+	return JsonpathValue{Kind: JsonpathValueUnknown}
 }
 func JsonpathNull() JsonpathValue {
 	return JsonpathValue{Kind: JsonpathValueNull}
@@ -3792,12 +4531,28 @@ func JsonpathIsNull(input JsonpathValue) BoolValue {
 	if input.Kind == JsonpathValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == JsonpathValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == JsonpathValueError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
+	conditionFlavor30854 := unresolvedFlavor
 	if input.Kind == JsonpathValueUnknown {
-		return BoolUnresolved(unresolvedFlavor)
+		if conditionFlavor30854 < 1 {
+			conditionFlavor30854 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == JsonpathValueUnknown {
+		return BoolUnresolved(conditionFlavor30854)
+	}
+	conditionFlavor30877 := unresolvedFlavor
+	if input.Kind == JsonpathValueUnimplemented {
+		conditionFlavor30877 = langruntime.CheckedI32(2)
+	}
+	if input.Kind == JsonpathValueUnimplemented {
+		return BoolUnresolved(conditionFlavor30877)
 	}
 	if input.Kind == JsonpathValueNull {
 		return BoolValue{Kind: BoolValueValue, Value: true}
@@ -3808,6 +4563,9 @@ func JsonpathFromCaseGuard(input CheckOutcome) JsonpathValue {
 	unresolvedFlavor := 0
 	if input.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == CheckOutcomeError {
 		error := input.Error
@@ -3820,6 +4578,9 @@ func JsonpathFromCoercedValue(input JsonpathValue) JsonpathValue {
 	unresolvedFlavor := 0
 	if input.Kind == JsonpathValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == JsonpathValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == JsonpathValueStoredText {
 		text := langruntime.CheckedString(input.StoredText)
@@ -3959,6 +4720,7 @@ type TsvectorValueKind uint8
 
 const (
 	TsvectorValueUnknown TsvectorValueKind = iota
+	TsvectorValueUnimplemented
 	TsvectorValueNull
 	TsvectorValueValue
 	TsvectorValueError
@@ -3974,6 +4736,8 @@ func CopyTsvectorValue(value TsvectorValue) TsvectorValue {
 	switch value.Kind {
 	case TsvectorValueUnknown:
 		return TsvectorValue{Kind: TsvectorValueUnknown}
+	case TsvectorValueUnimplemented:
+		return TsvectorValue{Kind: TsvectorValueUnimplemented}
 	case TsvectorValueNull:
 		return TsvectorValue{Kind: TsvectorValueNull}
 	case TsvectorValueValue:
@@ -3984,8 +4748,7 @@ func CopyTsvectorValue(value TsvectorValue) TsvectorValue {
 	panic("unknown enum variant")
 }
 func TsvectorUnknown() TsvectorValue {
-	unresolvedFlavor := 0
-	return TsvectorUnresolved(unresolvedFlavor)
+	return TsvectorValue{Kind: TsvectorValueUnknown}
 }
 func TsvectorNull() TsvectorValue {
 	return TsvectorValue{Kind: TsvectorValueNull}
@@ -4137,12 +4900,28 @@ func TsvectorIsNull(input TsvectorValue) BoolValue {
 	if input.Kind == TsvectorValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == TsvectorValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == TsvectorValueError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
+	conditionFlavor33584 := unresolvedFlavor
 	if input.Kind == TsvectorValueUnknown {
-		return BoolUnresolved(unresolvedFlavor)
+		if conditionFlavor33584 < 1 {
+			conditionFlavor33584 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == TsvectorValueUnknown {
+		return BoolUnresolved(conditionFlavor33584)
+	}
+	conditionFlavor335890 := unresolvedFlavor
+	if input.Kind == TsvectorValueUnimplemented {
+		conditionFlavor335890 = langruntime.CheckedI32(2)
+	}
+	if input.Kind == TsvectorValueUnimplemented {
+		return BoolUnresolved(conditionFlavor335890)
 	}
 	if input.Kind == TsvectorValueNull {
 		return MakeBoolValue(true)
@@ -4153,6 +4932,9 @@ func TsvectorFromCaseGuard(input CheckOutcome) TsvectorValue {
 	unresolvedFlavor := 0
 	if input.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == CheckOutcomeError {
 		error := input.Error
@@ -4189,6 +4971,7 @@ type TsqueryValueKind uint8
 
 const (
 	TsqueryValueUnknown TsqueryValueKind = iota
+	TsqueryValueUnimplemented
 	TsqueryValueNull
 	TsqueryValueValue
 	TsqueryValueError
@@ -4204,6 +4987,8 @@ func CopyTsqueryValue(value TsqueryValue) TsqueryValue {
 	switch value.Kind {
 	case TsqueryValueUnknown:
 		return TsqueryValue{Kind: TsqueryValueUnknown}
+	case TsqueryValueUnimplemented:
+		return TsqueryValue{Kind: TsqueryValueUnimplemented}
 	case TsqueryValueNull:
 		return TsqueryValue{Kind: TsqueryValueNull}
 	case TsqueryValueValue:
@@ -4214,8 +4999,7 @@ func CopyTsqueryValue(value TsqueryValue) TsqueryValue {
 	panic("unknown enum variant")
 }
 func TsqueryUnknown() TsqueryValue {
-	unresolvedFlavor := 0
-	return TsqueryUnresolved(unresolvedFlavor)
+	return TsqueryValue{Kind: TsqueryValueUnknown}
 }
 func TsqueryNull() TsqueryValue {
 	return TsqueryValue{Kind: TsqueryValueNull}
@@ -4323,12 +5107,28 @@ func TsqueryIsNull(input TsqueryValue) BoolValue {
 	if input.Kind == TsqueryValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == TsqueryValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == TsqueryValueError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
+	conditionFlavor34644 := unresolvedFlavor
 	if input.Kind == TsqueryValueUnknown {
-		return BoolUnresolved(unresolvedFlavor)
+		if conditionFlavor34644 < 1 {
+			conditionFlavor34644 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == TsqueryValueUnknown {
+		return BoolUnresolved(conditionFlavor34644)
+	}
+	conditionFlavor346489 := unresolvedFlavor
+	if input.Kind == TsqueryValueUnimplemented {
+		conditionFlavor346489 = langruntime.CheckedI32(2)
+	}
+	if input.Kind == TsqueryValueUnimplemented {
+		return BoolUnresolved(conditionFlavor346489)
 	}
 	if input.Kind == TsqueryValueNull {
 		return MakeBoolValue(true)
@@ -4339,6 +5139,9 @@ func TsqueryFromCaseGuard(input CheckOutcome) TsqueryValue {
 	unresolvedFlavor := 0
 	if input.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == CheckOutcomeError {
 		error := input.Error
@@ -4370,413 +5173,406 @@ func AclitemUnresolved(flavor int) AclitemValue {
 	if flavor == 1 {
 		return AclitemValue{Kind: AclitemValueUnknown}
 	}
-	return AclitemValue{Kind: AclitemValueUnknown}
+	return AclitemValue{Kind: AclitemValueUnimplemented}
 }
 func ArrayUnresolved(flavor int) ArrayValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return ArrayValue{Kind: ArrayValueUnknown}
 	}
-	return ArrayValue{Kind: ArrayValueUnknown}
+	return ArrayValue{Kind: ArrayValueUnimplemented}
 }
 func BitUnresolved(flavor int) BitValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return BitValue{Kind: BitValueUnknown}
 	}
-	return BitValue{Kind: BitValueUnknown}
+	return BitValue{Kind: BitValueUnimplemented}
 }
 func BoolUnresolved(flavor int) BoolValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return BoolValue{Kind: BoolValueUnknown}
 	}
-	return BoolValue{Kind: BoolValueUnknown}
+	return BoolValue{Kind: BoolValueUnimplemented}
 }
 func BoxUnresolved(flavor int) BoxValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return BoxValue{Kind: BoxValueUnknown}
 	}
-	return BoxValue{Kind: BoxValueUnknown}
+	return BoxValue{Kind: BoxValueUnimplemented}
 }
 func ByteaUnresolved(flavor int) ByteaValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return ByteaValue{Kind: ByteaValueUnknown}
 	}
-	return ByteaValue{Kind: ByteaValueUnknown}
+	return ByteaValue{Kind: ByteaValueUnimplemented}
 }
 func CidUnresolved(flavor int) CidValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return CidValue{Kind: CidValueUnknown}
 	}
-	return CidValue{Kind: CidValueUnknown}
+	return CidValue{Kind: CidValueUnimplemented}
 }
 func CircleUnresolved(flavor int) CircleValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return CircleValue{Kind: CircleValueUnknown}
 	}
-	return CircleValue{Kind: CircleValueUnknown}
-}
-func CompositeDatumUnresolved(flavor int) CompositeValue {
-	flavor = langruntime.CheckedI32(flavor)
-	if flavor == 1 {
-		return CompositeValue{Kind: CompositeValueUnknown}
-	}
-	return CompositeValue{Kind: CompositeValueUnknown}
+	return CircleValue{Kind: CircleValueUnimplemented}
 }
 func CompositeRowUnresolved(flavor int) CompositeValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return CompositeValue{Kind: CompositeValueUnknown}
 	}
-	return CompositeValue{Kind: CompositeValueUnknown}
+	return CompositeValue{Kind: CompositeValueUnimplemented}
 }
 func DateUnresolved(flavor int) DateValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return DateValue{Kind: DateValueUnknown}
 	}
-	return DateValue{Kind: DateValueUnknown}
+	return DateValue{Kind: DateValueUnimplemented}
 }
 func EnumUnresolved(flavor int) EnumValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return EnumValue{Kind: EnumValueUnknown}
 	}
-	return EnumValue{Kind: EnumValueUnknown}
+	return EnumValue{Kind: EnumValueUnimplemented}
 }
 func Float4Unresolved(flavor int) Float4Value {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return Float4Value{Kind: Float4ValueUnknown}
 	}
-	return Float4Value{Kind: Float4ValueUnknown}
+	return Float4Value{Kind: Float4ValueUnimplemented}
 }
 func Float8Unresolved(flavor int) Float8Value {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return Float8Value{Kind: Float8ValueUnknown}
 	}
-	return Float8Value{Kind: Float8ValueUnknown}
+	return Float8Value{Kind: Float8ValueUnimplemented}
 }
 func Int2Unresolved(flavor int) Int2Value {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return Int2Value{Kind: Int2ValueUnknown}
 	}
-	return Int2Value{Kind: Int2ValueUnknown}
+	return Int2Value{Kind: Int2ValueUnimplemented}
 }
 func Int4Unresolved(flavor int) Int4Value {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return Int4Value{Kind: Int4ValueUnknown}
 	}
-	return Int4Value{Kind: Int4ValueUnknown}
+	return Int4Value{Kind: Int4ValueUnimplemented}
 }
 func Int8Unresolved(flavor int) Int8Value {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return Int8Value{Kind: Int8ValueUnknown}
 	}
-	return Int8Value{Kind: Int8ValueUnknown}
+	return Int8Value{Kind: Int8ValueUnimplemented}
 }
 func InternalCharUnresolved(flavor int) InternalCharValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return InternalCharValue{Kind: InternalCharValueUnknown}
 	}
-	return InternalCharValue{Kind: InternalCharValueUnknown}
+	return InternalCharValue{Kind: InternalCharValueUnimplemented}
 }
 func IntervalUnresolved(flavor int) IntervalValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return IntervalValue{Kind: IntervalValueUnknown}
 	}
-	return IntervalValue{Kind: IntervalValueUnknown}
+	return IntervalValue{Kind: IntervalValueUnimplemented}
 }
 func JsonbUnresolved(flavor int) JsonbValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return JsonbValue{Kind: JsonbValueUnknown}
 	}
-	return JsonbValue{Kind: JsonbValueUnknown}
+	return JsonbValue{Kind: JsonbValueUnimplemented}
 }
 func JsonpathUnresolved(flavor int) JsonpathValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return JsonpathValue{Kind: JsonpathValueUnknown}
 	}
-	return JsonpathValue{Kind: JsonpathValueUnknown}
+	return JsonpathValue{Kind: JsonpathValueUnimplemented}
 }
 func JsonUnresolved(flavor int) JsonValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return JsonValue{Kind: JsonValueUnknown}
 	}
-	return JsonValue{Kind: JsonValueUnknown}
+	return JsonValue{Kind: JsonValueUnimplemented}
 }
 func LineUnresolved(flavor int) LineValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return LineValue{Kind: LineValueUnknown}
 	}
-	return LineValue{Kind: LineValueUnknown}
+	return LineValue{Kind: LineValueUnimplemented}
 }
 func LsegUnresolved(flavor int) LsegValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return LsegValue{Kind: LsegValueUnknown}
 	}
-	return LsegValue{Kind: LsegValueUnknown}
+	return LsegValue{Kind: LsegValueUnimplemented}
 }
 func Macaddr8Unresolved(flavor int) Macaddr8Value {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return Macaddr8Value{Kind: Macaddr8ValueUnknown}
 	}
-	return Macaddr8Value{Kind: Macaddr8ValueUnknown}
+	return Macaddr8Value{Kind: Macaddr8ValueUnimplemented}
 }
 func MacaddrUnresolved(flavor int) MacaddrValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return MacaddrValue{Kind: MacaddrValueUnknown}
 	}
-	return MacaddrValue{Kind: MacaddrValueUnknown}
+	return MacaddrValue{Kind: MacaddrValueUnimplemented}
 }
 func MoneyUnresolved(flavor int) MoneyValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return MoneyValue{Kind: MoneyValueUnknown}
 	}
-	return MoneyValue{Kind: MoneyValueUnknown}
+	return MoneyValue{Kind: MoneyValueUnimplemented}
 }
 func MultirangeUnresolved(flavor int) MultirangeValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return MultirangeValue{Kind: MultirangeValueUnknown}
 	}
-	return MultirangeValue{Kind: MultirangeValueUnknown}
+	return MultirangeValue{Kind: MultirangeValueUnimplemented}
 }
 func NetworkUnresolved(flavor int) NetworkValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return NetworkValue{Kind: NetworkValueUnknown}
 	}
-	return NetworkValue{Kind: NetworkValueUnknown}
+	return NetworkValue{Kind: NetworkValueUnimplemented}
 }
 func NumericUnresolved(flavor int) NumericValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return NumericValue{Kind: NumericValueUnknown}
 	}
-	return NumericValue{Kind: NumericValueUnknown}
+	return NumericValue{Kind: NumericValueUnimplemented}
 }
 func OidUnresolved(flavor int) OidValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return OidValue{Kind: OidValueUnknown}
 	}
-	return OidValue{Kind: OidValueUnknown}
+	return OidValue{Kind: OidValueUnimplemented}
 }
 func PathUnresolved(flavor int) PathValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return PathValue{Kind: PathValueUnknown}
 	}
-	return PathValue{Kind: PathValueUnknown}
+	return PathValue{Kind: PathValueUnimplemented}
 }
 func PgLsnUnresolved(flavor int) PgLsnValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return PgLsnValue{Kind: PgLsnValueUnknown}
 	}
-	return PgLsnValue{Kind: PgLsnValueUnknown}
+	return PgLsnValue{Kind: PgLsnValueUnimplemented}
 }
 func PointUnresolved(flavor int) PointValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return PointValue{Kind: PointValueUnknown}
 	}
-	return PointValue{Kind: PointValueUnknown}
+	return PointValue{Kind: PointValueUnimplemented}
 }
 func PolygonUnresolved(flavor int) PolygonValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return PolygonValue{Kind: PolygonValueUnknown}
 	}
-	return PolygonValue{Kind: PolygonValueUnknown}
+	return PolygonValue{Kind: PolygonValueUnimplemented}
 }
 func RangeUnresolved(flavor int) RangeValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return RangeValue{Kind: RangeValueUnknown}
 	}
-	return RangeValue{Kind: RangeValueUnknown}
+	return RangeValue{Kind: RangeValueUnimplemented}
 }
 func SnapshotUnresolved(flavor int) SnapshotValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return SnapshotValue{Kind: SnapshotValueUnknown}
 	}
-	return SnapshotValue{Kind: SnapshotValueUnknown}
+	return SnapshotValue{Kind: SnapshotValueUnimplemented}
 }
 func TextUnresolved(flavor int) TextValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return TextValue{Kind: TextValueUnknown}
 	}
-	return TextValue{Kind: TextValueUnknown}
+	return TextValue{Kind: TextValueUnimplemented}
 }
 func TidUnresolved(flavor int) TidValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return TidValue{Kind: TidValueUnknown}
 	}
-	return TidValue{Kind: TidValueUnknown}
+	return TidValue{Kind: TidValueUnimplemented}
 }
 func TimestamptzUnresolved(flavor int) TimestamptzValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return TimestamptzValue{Kind: TimestamptzValueUnknown}
 	}
-	return TimestamptzValue{Kind: TimestamptzValueUnknown}
+	return TimestamptzValue{Kind: TimestamptzValueUnimplemented}
 }
 func TimestampUnresolved(flavor int) TimestampValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return TimestampValue{Kind: TimestampValueUnknown}
 	}
-	return TimestampValue{Kind: TimestampValueUnknown}
+	return TimestampValue{Kind: TimestampValueUnimplemented}
 }
 func TimetzUnresolved(flavor int) TimetzValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return TimetzValue{Kind: TimetzValueUnknown}
 	}
-	return TimetzValue{Kind: TimetzValueUnknown}
+	return TimetzValue{Kind: TimetzValueUnimplemented}
 }
 func TimeUnresolved(flavor int) TimeValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return TimeValue{Kind: TimeValueUnknown}
 	}
-	return TimeValue{Kind: TimeValueUnknown}
+	return TimeValue{Kind: TimeValueUnimplemented}
 }
 func TsqueryUnresolved(flavor int) TsqueryValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return TsqueryValue{Kind: TsqueryValueUnknown}
 	}
-	return TsqueryValue{Kind: TsqueryValueUnknown}
+	return TsqueryValue{Kind: TsqueryValueUnimplemented}
 }
 func TsvectorUnresolved(flavor int) TsvectorValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return TsvectorValue{Kind: TsvectorValueUnknown}
 	}
-	return TsvectorValue{Kind: TsvectorValueUnknown}
+	return TsvectorValue{Kind: TsvectorValueUnimplemented}
 }
 func UuidUnresolved(flavor int) UuidValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return UuidValue{Kind: UuidValueUnknown}
 	}
-	return UuidValue{Kind: UuidValueUnknown}
+	return UuidValue{Kind: UuidValueUnimplemented}
 }
 func Xid8Unresolved(flavor int) Xid8Value {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return Xid8Value{Kind: Xid8ValueUnknown}
 	}
-	return Xid8Value{Kind: Xid8ValueUnknown}
+	return Xid8Value{Kind: Xid8ValueUnimplemented}
 }
 func XidUnresolved(flavor int) XidValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return XidValue{Kind: XidValueUnknown}
 	}
-	return XidValue{Kind: XidValueUnknown}
+	return XidValue{Kind: XidValueUnimplemented}
 }
 func XmlUnresolved(flavor int) XmlValue {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return XmlValue{Kind: XmlValueUnknown}
 	}
-	return XmlValue{Kind: XmlValueUnknown}
+	return XmlValue{Kind: XmlValueUnimplemented}
 }
 func ArrayArgumentsUnresolved(flavor int) ArrayArguments {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return ArrayArguments{Kind: ArrayArgumentsUnknown}
 	}
-	return ArrayArguments{Kind: ArrayArgumentsUnknown}
+	return ArrayArguments{Kind: ArrayArgumentsUnimplemented}
 }
 func ArrayChildrenArgumentsUnresolved(flavor int) ArrayChildrenArguments {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return ArrayChildrenArguments{Kind: ArrayChildrenArgumentsUnknown}
 	}
-	return ArrayChildrenArguments{Kind: ArrayChildrenArgumentsUnknown}
+	return ArrayChildrenArguments{Kind: ArrayChildrenArgumentsUnimplemented}
 }
 func ArrayElementUnresolved(flavor int) ArrayElement {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return ArrayElement{Kind: ArrayElementUnknown}
 	}
-	return ArrayElement{Kind: ArrayElementUnknown}
+	return ArrayElement{Kind: ArrayElementUnimplemented}
 }
 func ArrayTextEventUnresolved(flavor int) ArrayTextEvent {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return ArrayTextEvent{Kind: ArrayTextEventUnknown}
 	}
-	return ArrayTextEvent{Kind: ArrayTextEventUnknown}
+	return ArrayTextEvent{Kind: ArrayTextEventUnimplemented}
 }
 func ArrayTextPlanUnresolved(flavor int) ArrayTextPlan {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return ArrayTextPlan{Kind: ArrayTextPlanUnknown}
 	}
-	return ArrayTextPlan{Kind: ArrayTextPlanUnknown}
+	return ArrayTextPlan{Kind: ArrayTextPlanUnimplemented}
 }
 func CompositeTextPlanUnresolved(flavor int) CompositeTextPlan {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return CompositeTextPlan{Kind: CompositeTextPlanUnknown}
 	}
-	return CompositeTextPlan{Kind: CompositeTextPlanUnknown}
+	return CompositeTextPlan{Kind: CompositeTextPlanUnimplemented}
 }
 func JsonbArgumentsUnresolved(flavor int) JsonbArguments {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return JsonbArguments{Kind: JsonbArgumentsUnknown}
 	}
-	return JsonbArguments{Kind: JsonbArgumentsUnknown}
+	return JsonbArguments{Kind: JsonbArgumentsUnimplemented}
 }
 func JsonbInputUnresolved(flavor int) JsonbInput {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return JsonbInput{Kind: JsonbInputUnknown}
 	}
-	return JsonbInput{Kind: JsonbInputUnknown}
+	return JsonbInput{Kind: JsonbInputUnimplemented}
 }
 func RangeTextPlanUnresolved(flavor int) RangeTextPlan {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return RangeTextPlan{Kind: RangeTextPlanUnknown}
 	}
-	return RangeTextPlan{Kind: RangeTextPlanUnknown}
+	return RangeTextPlan{Kind: RangeTextPlanUnimplemented}
 }
 func CheckUnresolved(flavor int) CheckOutcome {
 	flavor = langruntime.CheckedI32(flavor)
 	if flavor == 1 {
 		return CheckOutcome{Kind: CheckOutcomeUnknown}
 	}
-	return CheckOutcome{Kind: CheckOutcomeUnknown}
+	return CheckOutcome{Kind: CheckOutcomeUnimplemented}
 }
 
 type NumericLayout struct {
@@ -5349,12 +6145,24 @@ func NetworkFromText(input TextValue) NetworkValue {
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == TextValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == TextValueError {
 		error := input.Error
 		return NetworkValue{Kind: NetworkValueError, Error: error}
 	}
-	if input == (TextValue{Kind: TextValueUnknown}) || input == (TextValue{Kind: TextValueNonNull}) {
-		return NetworkUnresolved(unresolvedFlavor)
+	conditionFlavor4234 := unresolvedFlavor
+	if input.Kind == TextValueUnknown {
+		if conditionFlavor4234 < 1 {
+			conditionFlavor4234 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == TextValueUnimplemented {
+		conditionFlavor4234 = langruntime.CheckedI32(2)
+	}
+	if (input == (TextValue{Kind: TextValueUnknown}) || input == (TextValue{Kind: TextValueUnimplemented})) || input == (TextValue{Kind: TextValueNonNull}) {
+		return NetworkUnresolved(conditionFlavor4234)
 	}
 	if input == (TextValue{Kind: TextValueNull}) {
 		return NetworkValue{Kind: NetworkValueNull}
@@ -5370,12 +6178,24 @@ func CidrFromText(input TextValue) NetworkValue {
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == TextValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == TextValueError {
 		error := input.Error
 		return NetworkValue{Kind: NetworkValueError, Error: error}
 	}
-	if input == (TextValue{Kind: TextValueUnknown}) || input == (TextValue{Kind: TextValueNonNull}) {
-		return NetworkUnresolved(unresolvedFlavor)
+	conditionFlavor4424 := unresolvedFlavor
+	if input.Kind == TextValueUnknown {
+		if conditionFlavor4424 < 1 {
+			conditionFlavor4424 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == TextValueUnimplemented {
+		conditionFlavor4424 = langruntime.CheckedI32(2)
+	}
+	if (input == (TextValue{Kind: TextValueUnknown}) || input == (TextValue{Kind: TextValueUnimplemented})) || input == (TextValue{Kind: TextValueNonNull}) {
+		return NetworkUnresolved(conditionFlavor4424)
 	}
 	if input == (TextValue{Kind: TextValueNull}) {
 		return NetworkValue{Kind: NetworkValueNull}
@@ -5621,12 +6441,24 @@ func MacaddrFromText(input TextValue) MacaddrValue {
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == TextValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == TextValueError {
 		error := input.Error
 		return MacaddrValue{Kind: MacaddrValueError, Error: error}
 	}
-	if input == (TextValue{Kind: TextValueUnknown}) || input == (TextValue{Kind: TextValueNonNull}) {
-		return MacaddrUnresolved(unresolvedFlavor)
+	conditionFlavor2884 := unresolvedFlavor
+	if input.Kind == TextValueUnknown {
+		if conditionFlavor2884 < 1 {
+			conditionFlavor2884 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == TextValueUnimplemented {
+		conditionFlavor2884 = langruntime.CheckedI32(2)
+	}
+	if (input == (TextValue{Kind: TextValueUnknown}) || input == (TextValue{Kind: TextValueUnimplemented})) || input == (TextValue{Kind: TextValueNonNull}) {
+		return MacaddrUnresolved(conditionFlavor2884)
 	}
 	if input == (TextValue{Kind: TextValueNull}) {
 		return MacaddrValue{Kind: MacaddrValueNull}
@@ -5651,12 +6483,24 @@ func Macaddr8FromText(input TextValue) Macaddr8Value {
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == TextValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == TextValueError {
 		error := input.Error
 		return Macaddr8Value{Kind: Macaddr8ValueError, Error: error}
 	}
-	if input == (TextValue{Kind: TextValueUnknown}) || input == (TextValue{Kind: TextValueNonNull}) {
-		return Macaddr8Unresolved(unresolvedFlavor)
+	conditionFlavor3164 := unresolvedFlavor
+	if input.Kind == TextValueUnknown {
+		if conditionFlavor3164 < 1 {
+			conditionFlavor3164 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == TextValueUnimplemented {
+		conditionFlavor3164 = langruntime.CheckedI32(2)
+	}
+	if (input == (TextValue{Kind: TextValueUnknown}) || input == (TextValue{Kind: TextValueUnimplemented})) || input == (TextValue{Kind: TextValueNonNull}) {
+		return Macaddr8Unresolved(conditionFlavor3164)
 	}
 	if input == (TextValue{Kind: TextValueNull}) {
 		return Macaddr8Value{Kind: Macaddr8ValueNull}
@@ -5749,12 +6593,24 @@ func UuidFromText(input TextValue) UuidValue {
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == TextValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == TextValueError {
 		error := input.Error
 		return UuidValue{Kind: UuidValueError, Error: error}
 	}
-	if input == (TextValue{Kind: TextValueUnknown}) || input == (TextValue{Kind: TextValueNonNull}) {
-		return UuidUnresolved(unresolvedFlavor)
+	conditionFlavor854 := unresolvedFlavor
+	if input.Kind == TextValueUnknown {
+		if conditionFlavor854 < 1 {
+			conditionFlavor854 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == TextValueUnimplemented {
+		conditionFlavor854 = langruntime.CheckedI32(2)
+	}
+	if (input == (TextValue{Kind: TextValueUnknown}) || input == (TextValue{Kind: TextValueUnimplemented})) || input == (TextValue{Kind: TextValueNonNull}) {
+		return UuidUnresolved(conditionFlavor854)
 	}
 	if input == (TextValue{Kind: TextValueNull}) {
 		return UuidValue{Kind: UuidValueNull}
@@ -6390,8 +7246,17 @@ func jsonReadSelect(value string, key string, index int, object bool, asText boo
 				error := decoded.Error
 				return TextValue{Kind: TextValueError, Error: error}
 			}
-			if decoded == (TextValue{Kind: TextValueUnknown}) || decoded == (TextValue{Kind: TextValueNonNull}) {
-				return TextUnresolved(unresolvedFlavor)
+			conditionFlavor23812 := unresolvedFlavor
+			if decoded.Kind == TextValueUnknown {
+				if conditionFlavor23812 < 1 {
+					conditionFlavor23812 = langruntime.CheckedI32(1)
+				}
+			}
+			if decoded.Kind == TextValueUnimplemented {
+				conditionFlavor23812 = langruntime.CheckedI32(2)
+			}
+			if (decoded == (TextValue{Kind: TextValueUnknown}) || decoded == (TextValue{Kind: TextValueUnimplemented})) || decoded == (TextValue{Kind: TextValueNonNull}) {
+				return TextUnresolved(conditionFlavor23812)
 			}
 		}
 		if depth == 1 {
@@ -6452,6 +7317,12 @@ func JsonReadFieldContext(input JsonValue, key TextValue, asText bool, utf8 bool
 	if key.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == JsonValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if key.Kind == TextValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == JsonValueError {
 		error := input.Error
 		return TextValue{Kind: TextValueError, Error: error}
@@ -6460,11 +7331,33 @@ func JsonReadFieldContext(input JsonValue, key TextValue, asText bool, utf8 bool
 		error := key.Error
 		return TextValue{Kind: TextValueError, Error: error}
 	}
+	conditionFlavor3144 := unresolvedFlavor
 	if input.Kind == JsonValueUnknown {
-		return TextUnresolved(unresolvedFlavor)
+		if conditionFlavor3144 < 1 {
+			conditionFlavor3144 = langruntime.CheckedI32(1)
+		}
 	}
-	if key == (TextValue{Kind: TextValueUnknown}) || key == (TextValue{Kind: TextValueNonNull}) {
-		return TextUnresolved(unresolvedFlavor)
+	if input.Kind == JsonValueUnknown {
+		return TextUnresolved(conditionFlavor3144)
+	}
+	conditionFlavor3167 := unresolvedFlavor
+	if input.Kind == JsonValueUnimplemented {
+		conditionFlavor3167 = langruntime.CheckedI32(2)
+	}
+	if input.Kind == JsonValueUnimplemented {
+		return TextUnresolved(conditionFlavor3167)
+	}
+	conditionFlavor3194 := unresolvedFlavor
+	if key.Kind == TextValueUnknown {
+		if conditionFlavor3194 < 1 {
+			conditionFlavor3194 = langruntime.CheckedI32(1)
+		}
+	}
+	if key.Kind == TextValueUnimplemented {
+		conditionFlavor3194 = langruntime.CheckedI32(2)
+	}
+	if (key == (TextValue{Kind: TextValueUnknown}) || key == (TextValue{Kind: TextValueUnimplemented})) || key == (TextValue{Kind: TextValueNonNull}) {
+		return TextUnresolved(conditionFlavor3194)
 	}
 	if input.Kind == JsonValueNull {
 		return TextValue{Kind: TextValueNull}
@@ -6492,6 +7385,12 @@ func JsonReadElementContext(input JsonValue, index Int4Value, asText bool, utf8 
 	if index.Kind == Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == JsonValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if index.Kind == Int4ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == JsonValueError {
 		error := input.Error
 		return TextValue{Kind: TextValueError, Error: error}
@@ -6500,11 +7399,33 @@ func JsonReadElementContext(input JsonValue, index Int4Value, asText bool, utf8 
 		error := index.Error
 		return TextValue{Kind: TextValueError, Error: error}
 	}
+	conditionFlavor3524 := unresolvedFlavor
 	if input.Kind == JsonValueUnknown {
-		return TextUnresolved(unresolvedFlavor)
+		if conditionFlavor3524 < 1 {
+			conditionFlavor3524 = langruntime.CheckedI32(1)
+		}
 	}
+	if input.Kind == JsonValueUnknown {
+		return TextUnresolved(conditionFlavor3524)
+	}
+	conditionFlavor3547 := unresolvedFlavor
+	if input.Kind == JsonValueUnimplemented {
+		conditionFlavor3547 = langruntime.CheckedI32(2)
+	}
+	if input.Kind == JsonValueUnimplemented {
+		return TextUnresolved(conditionFlavor3547)
+	}
+	conditionFlavor3574 := unresolvedFlavor
 	if index.Kind == Int4ValueUnknown {
-		return TextUnresolved(unresolvedFlavor)
+		if conditionFlavor3574 < 1 {
+			conditionFlavor3574 = langruntime.CheckedI32(1)
+		}
+	}
+	if index.Kind == Int4ValueUnimplemented {
+		conditionFlavor3574 = langruntime.CheckedI32(2)
+	}
+	if index == (Int4Value{Kind: Int4ValueUnknown}) || index == (Int4Value{Kind: Int4ValueUnimplemented}) {
+		return TextUnresolved(conditionFlavor3574)
 	}
 	if input.Kind == JsonValueNull {
 		return TextValue{Kind: TextValueNull}
@@ -6525,6 +7446,9 @@ func JsonReadLength(input JsonValue) Int4Value {
 	unresolvedFlavor := 0
 	if input.Kind == JsonValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == JsonValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == JsonValueError {
 		error := input.Error
@@ -6548,6 +7472,9 @@ func JsonReadInputScalar(input JsonValue, quoted bool, utf8 bool) TextValue {
 	unresolvedFlavor := 0
 	if input.Kind == JsonValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == JsonValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == JsonValueError {
 		error := input.Error
@@ -6583,6 +7510,9 @@ func JsonReadObjectReady(input JsonValue, utf8 bool) CheckOutcome {
 	if input.Kind == JsonValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == JsonValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == JsonValueValue {
 		value := input.Value
 		kind := value.Kind
@@ -6598,8 +7528,17 @@ func JsonReadObjectReady(input JsonValue, utf8 bool) CheckOutcome {
 			error := checked.Error
 			return CheckOutcome{Kind: CheckOutcomeError, Error: error}
 		}
-		if checked == (TextValue{Kind: TextValueUnknown}) || checked == (TextValue{Kind: TextValueNonNull}) {
-			return CheckUnresolved(unresolvedFlavor)
+		conditionFlavor4458 := unresolvedFlavor
+		if checked.Kind == TextValueUnknown {
+			if conditionFlavor4458 < 1 {
+				conditionFlavor4458 = langruntime.CheckedI32(1)
+			}
+		}
+		if checked.Kind == TextValueUnimplemented {
+			conditionFlavor4458 = langruntime.CheckedI32(2)
+		}
+		if (checked == (TextValue{Kind: TextValueUnknown}) || checked == (TextValue{Kind: TextValueUnimplemented})) || checked == (TextValue{Kind: TextValueNonNull}) {
+			return CheckUnresolved(conditionFlavor4458)
 		}
 		if kind == 6 {
 			return CheckOutcome{Kind: CheckOutcomeTrue}
@@ -6687,6 +7626,9 @@ func JsonArrayPathState(input ArrayValue) Int4Value {
 	unresolvedFlavor := 0
 	if input.Kind == ArrayValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == ArrayValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == ArrayValueError {
 		error := input.Error
@@ -6801,7 +7743,7 @@ func parseJsonArrayPathDocument(input string, utf8 bool) jsonArrayPathDocument {
 				error := decoded.Error
 				return jsonArrayPathEmpty(langruntime.CheckedSignedNegate(2), error)
 			}
-			if decoded == (TextValue{Kind: TextValueUnknown}) || decoded == (TextValue{Kind: TextValueNonNull}) {
+			if (decoded == (TextValue{Kind: TextValueUnknown}) || decoded == (TextValue{Kind: TextValueUnimplemented})) || decoded == (TextValue{Kind: TextValueNonNull}) {
 				return jsonArrayPathEmpty(langruntime.CheckedSignedNegate(1), MakeSqlError(0))
 			}
 		}
@@ -6976,6 +7918,12 @@ func JsonReadArrayPath(input JsonValue, path ArrayValue, asText bool, utf8 bool)
 	if path.Kind == ArrayValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == JsonValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if path.Kind == ArrayValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == JsonValueError {
 		error := input.Error
 		return TextValue{Kind: TextValueError, Error: error}
@@ -6991,8 +7939,17 @@ func JsonReadArrayPath(input JsonValue, path ArrayValue, asText bool, utf8 bool)
 	if pathState == (Int4Value{Kind: Int4ValueNull}) {
 		return TextValue{Kind: TextValueNull}
 	}
-	if pathState == (Int4Value{Kind: Int4ValueUnknown}) {
-		return TextUnresolved(unresolvedFlavor)
+	conditionFlavor4284 := unresolvedFlavor
+	if pathState.Kind == Int4ValueUnknown {
+		if conditionFlavor4284 < 1 {
+			conditionFlavor4284 = langruntime.CheckedI32(1)
+		}
+	}
+	if pathState.Kind == Int4ValueUnimplemented {
+		conditionFlavor4284 = langruntime.CheckedI32(2)
+	}
+	if pathState == (Int4Value{Kind: Int4ValueUnknown}) || pathState == (Int4Value{Kind: Int4ValueUnimplemented}) {
+		return TextUnresolved(conditionFlavor4284)
 	}
 	if input.Kind == JsonValueValue {
 		value := input.Value
@@ -7003,6 +7960,9 @@ func JsonReadArrayPath(input JsonValue, path ArrayValue, asText bool, utf8 bool)
 			for index < len(keys.Elements) {
 				key := CopyArrayElement(keys.Elements[index])
 				if key.Kind == ArrayElementUnknown {
+					uncertain = true
+				}
+				if key.Kind == ArrayElementUnimplemented {
 					uncertain = true
 				}
 				index = langruntime.CheckedAdd(index, 1)
@@ -7104,6 +8064,12 @@ func JsonStripNullsContext(input JsonValue, arrays BoolValue, utf8 bool) JsonVal
 	}
 	if arrays.Kind == BoolValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == JsonValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if arrays.Kind == BoolValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == JsonValueError {
 		error := input.Error
@@ -7264,8 +8230,17 @@ func jsonbScalarReady(source *jsonSyntaxSource, token jsonReadToken, utf8 bool) 
 			error := decoded.Error
 			return BoolValue{Kind: BoolValueError, Error: error}
 		}
-		if decoded == (TextValue{Kind: TextValueUnknown}) || decoded == (TextValue{Kind: TextValueNonNull}) {
-			return BoolUnresolved(unresolvedFlavor)
+		conditionFlavor498 := unresolvedFlavor
+		if decoded.Kind == TextValueUnknown {
+			if conditionFlavor498 < 1 {
+				conditionFlavor498 = langruntime.CheckedI32(1)
+			}
+		}
+		if decoded.Kind == TextValueUnimplemented {
+			conditionFlavor498 = langruntime.CheckedI32(2)
+		}
+		if (decoded == (TextValue{Kind: TextValueUnknown}) || decoded == (TextValue{Kind: TextValueUnimplemented})) || decoded == (TextValue{Kind: TextValueNonNull}) {
+			return BoolUnresolved(conditionFlavor498)
 		}
 	}
 	if following.syntax == jsonSyntaxInvalid {
@@ -7281,8 +8256,17 @@ func jsonbNumberText(source *jsonSyntaxSource, token jsonReadToken, utf8 bool) T
 		error := ready.Error
 		return TextValue{Kind: TextValueError, Error: error}
 	}
+	conditionFlavor654 := unresolvedFlavor
 	if ready.Kind == BoolValueUnknown {
-		return TextUnresolved(unresolvedFlavor)
+		if conditionFlavor654 < 1 {
+			conditionFlavor654 = langruntime.CheckedI32(1)
+		}
+	}
+	if ready.Kind == BoolValueUnimplemented {
+		conditionFlavor654 = langruntime.CheckedI32(2)
+	}
+	if ready == (BoolValue{Kind: BoolValueUnknown}) || ready == (BoolValue{Kind: BoolValueUnimplemented}) {
+		return TextUnresolved(conditionFlavor654)
 	}
 	position := token.start
 	negative := source.characters[position] == '-'
@@ -7484,6 +8468,9 @@ func jsonbParseTextContext(input TextValue, admission bool, utf8 bool) JsonbValu
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == TextValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == TextValueError {
 		error := input.Error
 		return JsonbValue{Kind: JsonbValueError, Error: error}
@@ -7513,8 +8500,17 @@ func jsonbParseTextContext(input TextValue, admission bool, utf8 bool) JsonbValu
 					error := decoded.Error
 					return JsonbValue{Kind: JsonbValueError, Error: error}
 				}
-				if decoded == (TextValue{Kind: TextValueUnknown}) || decoded == (TextValue{Kind: TextValueNonNull}) {
-					return JsonbUnresolved(unresolvedFlavor)
+				conditionFlavor31716 := unresolvedFlavor
+				if decoded.Kind == TextValueUnknown {
+					if conditionFlavor31716 < 1 {
+						conditionFlavor31716 = langruntime.CheckedI32(1)
+					}
+				}
+				if decoded.Kind == TextValueUnimplemented {
+					conditionFlavor31716 = langruntime.CheckedI32(2)
+				}
+				if (decoded == (TextValue{Kind: TextValueUnknown}) || decoded == (TextValue{Kind: TextValueUnimplemented})) || decoded == (TextValue{Kind: TextValueNonNull}) {
+					return JsonbUnresolved(conditionFlavor31716)
 				}
 			}
 			if token.syntax == jsonSyntaxInvalid {
@@ -7538,8 +8534,17 @@ func jsonbParseTextContext(input TextValue, admission bool, utf8 bool) JsonbValu
 					error := decision.Error
 					return JsonbValue{Kind: JsonbValueError, Error: error}
 				}
+				conditionFlavor34116 := unresolvedFlavor
 				if decision.Kind == BoolValueUnknown {
-					return JsonbUnresolved(unresolvedFlavor)
+					if conditionFlavor34116 < 1 {
+						conditionFlavor34116 = langruntime.CheckedI32(1)
+					}
+				}
+				if decision.Kind == BoolValueUnimplemented {
+					conditionFlavor34116 = langruntime.CheckedI32(2)
+				}
+				if decision == (BoolValue{Kind: BoolValueUnknown}) || decision == (BoolValue{Kind: BoolValueUnimplemented}) {
+					return JsonbUnresolved(conditionFlavor34116)
 				}
 			}
 			transition := jsonSyntaxStep(frame.state, token.syntax)
@@ -7555,8 +8560,17 @@ func jsonbParseTextContext(input TextValue, admission bool, utf8 bool) JsonbValu
 						error := decision.Error
 						return JsonbValue{Kind: JsonbValueError, Error: error}
 					}
+					conditionFlavor36120 := unresolvedFlavor
 					if decision.Kind == BoolValueUnknown {
-						return JsonbUnresolved(unresolvedFlavor)
+						if conditionFlavor36120 < 1 {
+							conditionFlavor36120 = langruntime.CheckedI32(1)
+						}
+					}
+					if decision.Kind == BoolValueUnimplemented {
+						conditionFlavor36120 = langruntime.CheckedI32(2)
+					}
+					if decision == (BoolValue{Kind: BoolValueUnknown}) || decision == (BoolValue{Kind: BoolValueUnimplemented}) {
+						return JsonbUnresolved(conditionFlavor36120)
 					}
 				}
 				return JsonbValue{Kind: JsonbValueValue, Value: normalized}
@@ -7587,8 +8601,17 @@ func jsonbParseTextContext(input TextValue, admission bool, utf8 bool) JsonbValu
 							error := decoded.Error
 							return JsonbValue{Kind: JsonbValueError, Error: error}
 						}
-						if decoded == (TextValue{Kind: TextValueUnknown}) || decoded == (TextValue{Kind: TextValueNonNull}) {
-							return JsonbUnresolved(unresolvedFlavor)
+						conditionFlavor39324 := unresolvedFlavor
+						if decoded.Kind == TextValueUnknown {
+							if conditionFlavor39324 < 1 {
+								conditionFlavor39324 = langruntime.CheckedI32(1)
+							}
+						}
+						if decoded.Kind == TextValueUnimplemented {
+							conditionFlavor39324 = langruntime.CheckedI32(2)
+						}
+						if (decoded == (TextValue{Kind: TextValueUnknown}) || decoded == (TextValue{Kind: TextValueUnimplemented})) || decoded == (TextValue{Kind: TextValueNonNull}) {
+							return JsonbUnresolved(conditionFlavor39324)
 						}
 					}
 					if admission && token.kind == jsonReadQuote {
@@ -7597,8 +8620,17 @@ func jsonbParseTextContext(input TextValue, admission bool, utf8 bool) JsonbValu
 							error := ready.Error
 							return JsonbValue{Kind: JsonbValueError, Error: error}
 						}
+						conditionFlavor40224 := unresolvedFlavor
 						if ready.Kind == BoolValueUnknown {
-							return JsonbUnresolved(unresolvedFlavor)
+							if conditionFlavor40224 < 1 {
+								conditionFlavor40224 = langruntime.CheckedI32(1)
+							}
+						}
+						if ready.Kind == BoolValueUnimplemented {
+							conditionFlavor40224 = langruntime.CheckedI32(2)
+						}
+						if ready == (BoolValue{Kind: BoolValueUnknown}) || ready == (BoolValue{Kind: BoolValueUnimplemented}) {
+							return JsonbUnresolved(conditionFlavor40224)
 						}
 						sizeText := decoded
 						if sizeText.Kind == TextValueValue {
@@ -7620,8 +8652,17 @@ func jsonbParseTextContext(input TextValue, admission bool, utf8 bool) JsonbValu
 								error := decision.Error
 								return JsonbValue{Kind: JsonbValueError, Error: error}
 							}
+							conditionFlavor42328 := unresolvedFlavor
 							if decision.Kind == BoolValueUnknown {
-								return JsonbUnresolved(unresolvedFlavor)
+								if conditionFlavor42328 < 1 {
+									conditionFlavor42328 = langruntime.CheckedI32(1)
+								}
+							}
+							if decision.Kind == BoolValueUnimplemented {
+								conditionFlavor42328 = langruntime.CheckedI32(2)
+							}
+							if decision == (BoolValue{Kind: BoolValueUnknown}) || decision == (BoolValue{Kind: BoolValueUnimplemented}) {
+								return JsonbUnresolved(conditionFlavor42328)
 							}
 						}
 					}
@@ -7719,6 +8760,9 @@ func jsonbRender(input JsonbValue, requireOrder bool, pretty bool) TextValue {
 	unresolvedFlavor := 0
 	if input.Kind == JsonbValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == JsonbValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == JsonbValueNonNull {
 		maximum := CopyJsonbKnowledge(input.NonNull)
@@ -8028,6 +9072,9 @@ func JsonbRebuild(input JsonbValue, admission bool) JsonbValue {
 	if input.Kind == JsonbValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == JsonbValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == JsonbValueValue {
 		value := CopyJsonbPayload(input.Value)
 		normalized := jsonbNormalizeObjects(jsonbPreorder(value))
@@ -8037,8 +9084,17 @@ func JsonbRebuild(input JsonbValue, admission bool) JsonbValue {
 				error := admitted.Error
 				return JsonbValue{Kind: JsonbValueError, Error: error}
 			}
+			conditionFlavor9012 := unresolvedFlavor
 			if admitted.Kind == BoolValueUnknown {
-				return JsonbUnresolved(unresolvedFlavor)
+				if conditionFlavor9012 < 1 {
+					conditionFlavor9012 = langruntime.CheckedI32(1)
+				}
+			}
+			if admitted.Kind == BoolValueUnimplemented {
+				conditionFlavor9012 = langruntime.CheckedI32(2)
+			}
+			if admitted == (BoolValue{Kind: BoolValueUnknown}) || admitted == (BoolValue{Kind: BoolValueUnimplemented}) {
+				return JsonbUnresolved(conditionFlavor9012)
 			}
 		}
 		return JsonbValue{Kind: JsonbValueValue, Value: normalized}
@@ -8061,6 +9117,9 @@ func JsonbFromString(input TextValue) JsonbValue {
 	unresolvedFlavor := 0
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == TextValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == TextValueError {
 		error := input.Error
@@ -8448,7 +9507,7 @@ func jsonbStorageExtents(source *JsonbPayload, characters *jsonbStorageCharacter
 							sizes[source.Root] = copyjsonbStorageSize(jsonbStorageBounds(langruntime.CheckedI64Add(jsonbStorageLimit, int64(1)), langruntime.CheckedI64Add(jsonbStorageLimit, int64(1))))
 							return sizes
 						}
-						if decision.Kind == BoolValueUnknown {
+						if decision == (BoolValue{Kind: BoolValueUnknown}) || decision == (BoolValue{Kind: BoolValueUnimplemented}) {
 							uncertain = true
 						}
 					}
@@ -8460,7 +9519,7 @@ func jsonbStorageExtents(source *JsonbPayload, characters *jsonbStorageCharacter
 					sizes[source.Root] = copyjsonbStorageSize(jsonbStorageBounds(langruntime.CheckedI64Add(jsonbStorageLimit, int64(1)), langruntime.CheckedI64Add(jsonbStorageLimit, int64(1))))
 					return sizes
 				}
-				if decision.Kind == BoolValueUnknown {
+				if decision == (BoolValue{Kind: BoolValueUnknown}) || decision == (BoolValue{Kind: BoolValueUnimplemented}) {
 					uncertain = true
 				}
 			}
@@ -8815,6 +9874,7 @@ type JsonpathValueKind uint8
 
 const (
 	JsonpathValueUnknown JsonpathValueKind = iota
+	JsonpathValueUnimplemented
 	JsonpathValueNull
 	JsonpathValueValue
 	JsonpathValueStoredText
@@ -8832,6 +9892,8 @@ func CopyJsonpathValue(value JsonpathValue) JsonpathValue {
 	switch value.Kind {
 	case JsonpathValueUnknown:
 		return JsonpathValue{Kind: JsonpathValueUnknown}
+	case JsonpathValueUnimplemented:
+		return JsonpathValue{Kind: JsonpathValueUnimplemented}
 	case JsonpathValueNull:
 		return JsonpathValue{Kind: JsonpathValueNull}
 	case JsonpathValueValue:
@@ -9027,6 +10089,7 @@ type ArrayElementKind uint8
 
 const (
 	ArrayElementUnknown ArrayElementKind = iota
+	ArrayElementUnimplemented
 	ArrayElementNull
 	ArrayElementError
 	ArrayElementInt2
@@ -9153,6 +10216,8 @@ func CopyArrayElement(value ArrayElement) ArrayElement {
 	switch value.Kind {
 	case ArrayElementUnknown:
 		return ArrayElement{Kind: ArrayElementUnknown}
+	case ArrayElementUnimplemented:
+		return ArrayElement{Kind: ArrayElementUnimplemented}
 	case ArrayElementNull:
 		return ArrayElement{Kind: ArrayElementNull}
 	case ArrayElementError:
@@ -9467,6 +10532,9 @@ func ArrayElementFromArray(input ArrayValue) ArrayElement {
 	if input.Kind == ArrayValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayValueError {
 		error := input.Error
 		return ArrayElement{Kind: ArrayElementError, Error: error}
@@ -9486,6 +10554,9 @@ func ArrayElementToArray(input ArrayElement) ArrayValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return ArrayValue{Kind: ArrayValueError, Error: error}
@@ -9503,6 +10574,9 @@ func ArrayElementFromInt2(input Int2Value) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == Int2ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == Int2ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == Int2ValueError {
 		error := input.Error
@@ -9523,6 +10597,9 @@ func ArrayElementToInt2(input ArrayElement) Int2Value {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return Int2Value{Kind: Int2ValueError, Error: error}
@@ -9540,6 +10617,9 @@ func ArrayElementFromInt4(input Int4Value) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == Int4ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == Int4ValueError {
 		error := input.Error
@@ -9560,6 +10640,9 @@ func ArrayElementToInt4(input ArrayElement) Int4Value {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return Int4Value{Kind: Int4ValueError, Error: error}
@@ -9577,6 +10660,9 @@ func ArrayElementFromInt8(input Int8Value) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == Int8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == Int8ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == Int8ValueError {
 		error := input.Error
@@ -9597,6 +10683,9 @@ func ArrayElementToInt8(input ArrayElement) Int8Value {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return Int8Value{Kind: Int8ValueError, Error: error}
@@ -9614,6 +10703,9 @@ func ArrayElementFromTimestamp(input TimestampValue) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == TimestampValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == TimestampValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == TimestampValueError {
 		error := input.Error
@@ -9634,6 +10726,9 @@ func ArrayElementToTimestamp(input ArrayElement) TimestampValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return TimestampValue{Kind: TimestampValueError, Error: error}
@@ -9651,6 +10746,9 @@ func ArrayElementFromTimestamptz(input TimestamptzValue) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == TimestamptzValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == TimestamptzValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == TimestamptzValueError {
 		error := input.Error
@@ -9671,6 +10769,9 @@ func ArrayElementToTimestamptz(input ArrayElement) TimestamptzValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return TimestamptzValue{Kind: TimestamptzValueError, Error: error}
@@ -9688,6 +10789,9 @@ func ArrayElementFromEnum(input EnumValue) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == EnumValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == EnumValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == EnumValueError {
 		error := input.Error
@@ -9708,6 +10812,9 @@ func ArrayElementToEnum(input ArrayElement) EnumValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return EnumValue{Kind: EnumValueError, Error: error}
@@ -9725,6 +10832,9 @@ func ArrayElementFromDate(input DateValue) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == DateValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == DateValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == DateValueError {
 		error := input.Error
@@ -9745,6 +10855,9 @@ func ArrayElementToDate(input ArrayElement) DateValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return DateValue{Kind: DateValueError, Error: error}
@@ -9762,6 +10875,9 @@ func ArrayElementFromText(input TextValue) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == TextValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input == (TextValue{Kind: TextValueNonNull}) {
 		return ArrayElement{Kind: ArrayElementTextNonNull}
@@ -9785,6 +10901,9 @@ func ArrayElementToText(input ArrayElement) TextValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementTextNonNull {
 		return TextValue{Kind: TextValueNonNull}
 	}
@@ -9806,6 +10925,9 @@ func ArrayElementFromBool(input BoolValue) ArrayElement {
 	if input.Kind == BoolValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == BoolValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == BoolValueError {
 		error := input.Error
 		return ArrayElement{Kind: ArrayElementError, Error: error}
@@ -9825,6 +10947,9 @@ func ArrayElementToBool(input ArrayElement) BoolValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
@@ -9842,6 +10967,9 @@ func ArrayElementFromNumeric(input NumericValue) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == NumericValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == NumericValueError {
 		error := input.Error
@@ -9862,6 +10990,9 @@ func ArrayElementToNumeric(input ArrayElement) NumericValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return NumericValue{Kind: NumericValueError, Error: error}
@@ -9879,6 +11010,9 @@ func ArrayElementFromJson(input JsonValue) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == JsonValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == JsonValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == JsonValueNonNull {
 		return ArrayElement{Kind: ArrayElementJsonNonNull}
@@ -9902,6 +11036,9 @@ func ArrayElementToJson(input ArrayElement) JsonValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementJsonNonNull {
 		return JsonValue{Kind: JsonValueNonNull}
 	}
@@ -9923,6 +11060,9 @@ func ArrayElementFromJsonb(input JsonbValue) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == JsonbValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == JsonbValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == JsonbValueNonNull {
 		maximum := CopyJsonbKnowledge(input.NonNull)
@@ -9947,6 +11087,9 @@ func ArrayElementToJsonb(input ArrayElement) JsonbValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementJsonbNonNull {
 		maximum := CopyJsonbKnowledge(input.JsonbNonNull)
 		return JsonbValue{Kind: JsonbValueNonNull, NonNull: maximum}
@@ -9969,6 +11112,9 @@ func ArrayElementFromNetwork(input NetworkValue) ArrayElement {
 	if input.Kind == NetworkValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == NetworkValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == NetworkValueError {
 		error := input.Error
 		return ArrayElement{Kind: ArrayElementError, Error: error}
@@ -9988,6 +11134,9 @@ func ArrayElementToNetwork(input ArrayElement) NetworkValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return NetworkValue{Kind: NetworkValueError, Error: error}
@@ -10005,6 +11154,9 @@ func ArrayElementFromBit(input BitValue) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == BitValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == BitValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == BitValueError {
 		error := input.Error
@@ -10025,6 +11177,9 @@ func ArrayElementToBit(input ArrayElement) BitValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return BitValue{Kind: BitValueError, Error: error}
@@ -10042,6 +11197,9 @@ func ArrayElementFromBytea(input ByteaValue) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == ByteaValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == ByteaValueError {
 		error := input.Error
@@ -10066,6 +11224,9 @@ func ArrayElementToBytea(input ArrayElement) ByteaValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return ByteaValue{Kind: ByteaValueError, Error: error}
@@ -10088,6 +11249,9 @@ func ArrayElementFromMacaddr(input MacaddrValue) ArrayElement {
 	if input.Kind == MacaddrValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == MacaddrValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == MacaddrValueError {
 		error := input.Error
 		return ArrayElement{Kind: ArrayElementError, Error: error}
@@ -10107,6 +11271,9 @@ func ArrayElementToMacaddr(input ArrayElement) MacaddrValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return MacaddrValue{Kind: MacaddrValueError, Error: error}
@@ -10124,6 +11291,9 @@ func ArrayElementFromMacaddr8(input Macaddr8Value) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == Macaddr8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == Macaddr8ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == Macaddr8ValueError {
 		error := input.Error
@@ -10144,6 +11314,9 @@ func ArrayElementToMacaddr8(input ArrayElement) Macaddr8Value {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return Macaddr8Value{Kind: Macaddr8ValueError, Error: error}
@@ -10161,6 +11334,9 @@ func ArrayElementFromUuid(input UuidValue) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == UuidValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == UuidValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == UuidValueError {
 		error := input.Error
@@ -10181,6 +11357,9 @@ func ArrayElementToUuid(input ArrayElement) UuidValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return UuidValue{Kind: UuidValueError, Error: error}
@@ -10198,6 +11377,9 @@ func ArrayElementFromFloat4(input Float4Value) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == Float4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == Float4ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == Float4ValueError {
 		error := input.Error
@@ -10221,6 +11403,9 @@ func ArrayElementToFloat4(input ArrayElement) Float4Value {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return Float4Value{Kind: Float4ValueError, Error: error}
@@ -10241,6 +11426,9 @@ func ArrayElementFromFloat8(input Float8Value) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == Float8ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == Float8ValueError {
 		error := input.Error
@@ -10264,6 +11452,9 @@ func ArrayElementToFloat8(input ArrayElement) Float8Value {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return Float8Value{Kind: Float8ValueError, Error: error}
@@ -10285,6 +11476,9 @@ func ArrayElementFromTime(input TimeValue) ArrayElement {
 	if input.Kind == TimeValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == TimeValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == TimeValueError {
 		error := input.Error
 		return ArrayElement{Kind: ArrayElementError, Error: error}
@@ -10304,6 +11498,9 @@ func ArrayElementToTime(input ArrayElement) TimeValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return TimeValue{Kind: TimeValueError, Error: error}
@@ -10321,6 +11518,9 @@ func ArrayElementFromTimetz(input TimetzValue) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == TimetzValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == TimetzValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == TimetzValueError {
 		error := input.Error
@@ -10341,6 +11541,9 @@ func ArrayElementToTimetz(input ArrayElement) TimetzValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return TimetzValue{Kind: TimetzValueError, Error: error}
@@ -10358,6 +11561,9 @@ func ArrayElementFromInterval(input IntervalValue) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == IntervalValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == IntervalValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == IntervalValueError {
 		error := input.Error
@@ -10378,6 +11584,9 @@ func ArrayElementToInterval(input ArrayElement) IntervalValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return IntervalValue{Kind: IntervalValueError, Error: error}
@@ -10395,6 +11604,9 @@ func ArrayElementFromPoint(input PointValue) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == PointValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == PointValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == PointValueError {
 		error := input.Error
@@ -10415,6 +11627,9 @@ func ArrayElementToPoint(input ArrayElement) PointValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return PointValue{Kind: PointValueError, Error: error}
@@ -10432,6 +11647,9 @@ func ArrayElementFromLine(input LineValue) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == LineValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == LineValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == LineValueError {
 		error := input.Error
@@ -10452,6 +11670,9 @@ func ArrayElementToLine(input ArrayElement) LineValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return LineValue{Kind: LineValueError, Error: error}
@@ -10469,6 +11690,9 @@ func ArrayElementFromLseg(input LsegValue) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == LsegValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == LsegValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == LsegValueError {
 		error := input.Error
@@ -10489,6 +11713,9 @@ func ArrayElementToLseg(input ArrayElement) LsegValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return LsegValue{Kind: LsegValueError, Error: error}
@@ -10506,6 +11733,9 @@ func ArrayElementFromBox(input BoxValue) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == BoxValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == BoxValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == BoxValueError {
 		error := input.Error
@@ -10529,6 +11759,9 @@ func ArrayElementToBox(input ArrayElement) BoxValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return BoxValue{Kind: BoxValueError, Error: error}
@@ -10551,6 +11784,9 @@ func ArrayElementFromPath(input PathValue) ArrayElement {
 	if input.Kind == PathValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == PathValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == PathValueError {
 		error := input.Error
 		return ArrayElement{Kind: ArrayElementError, Error: error}
@@ -10569,6 +11805,9 @@ func ArrayElementToPath(input ArrayElement) PathValue {
 	unresolvedFlavor := 0
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
@@ -10589,6 +11828,9 @@ func ArrayElementFromPolygon(input PolygonValue) ArrayElement {
 	if input.Kind == PolygonValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == PolygonValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == PolygonValueError {
 		error := input.Error
 		return ArrayElement{Kind: ArrayElementError, Error: error}
@@ -10608,6 +11850,9 @@ func ArrayElementToPolygon(input ArrayElement) PolygonValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return PolygonValue{Kind: PolygonValueError, Error: error}
@@ -10625,6 +11870,9 @@ func ArrayElementFromCircle(input CircleValue) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == CircleValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == CircleValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == CircleValueError {
 		error := input.Error
@@ -10645,6 +11893,9 @@ func ArrayElementToCircle(input ArrayElement) CircleValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return CircleValue{Kind: CircleValueError, Error: error}
@@ -10662,6 +11913,9 @@ func ArrayElementFromMoney(input MoneyValue) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == MoneyValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == MoneyValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == MoneyValueError {
 		error := input.Error
@@ -10682,6 +11936,9 @@ func ArrayElementToMoney(input ArrayElement) MoneyValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return MoneyValue{Kind: MoneyValueError, Error: error}
@@ -10699,6 +11956,9 @@ func ArrayElementFromInternalChar(input InternalCharValue) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == InternalCharValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == InternalCharValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == InternalCharValueError {
 		error := input.Error
@@ -10719,6 +11979,9 @@ func ArrayElementToInternalChar(input ArrayElement) InternalCharValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return InternalCharValue{Kind: InternalCharValueError, Error: error}
@@ -10736,6 +11999,9 @@ func ArrayElementFromOid(input OidValue) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == OidValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == OidValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == OidValueError {
 		error := input.Error
@@ -10756,6 +12022,9 @@ func ArrayElementToOid(input ArrayElement) OidValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return OidValue{Kind: OidValueError, Error: error}
@@ -10773,6 +12042,9 @@ func ArrayElementFromXid(input XidValue) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == XidValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == XidValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == XidValueError {
 		error := input.Error
@@ -10793,6 +12065,9 @@ func ArrayElementToXid(input ArrayElement) XidValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return XidValue{Kind: XidValueError, Error: error}
@@ -10810,6 +12085,9 @@ func ArrayElementFromCid(input CidValue) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == CidValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == CidValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == CidValueError {
 		error := input.Error
@@ -10830,6 +12108,9 @@ func ArrayElementToCid(input ArrayElement) CidValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return CidValue{Kind: CidValueError, Error: error}
@@ -10848,6 +12129,9 @@ func ArrayElementFromSnapshot(input SnapshotValue) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == SnapshotValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == SnapshotValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == SnapshotValueError {
 		error := input.Error
@@ -10868,6 +12152,9 @@ func ArrayElementToSnapshot(input ArrayElement) SnapshotValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return SnapshotValue{Kind: SnapshotValueError, Error: error}
@@ -10885,6 +12172,9 @@ func ArrayElementFromXid8(input Xid8Value) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == Xid8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == Xid8ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == Xid8ValueError {
 		error := input.Error
@@ -10905,6 +12195,9 @@ func ArrayElementToXid8(input ArrayElement) Xid8Value {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return Xid8Value{Kind: Xid8ValueError, Error: error}
@@ -10922,6 +12215,9 @@ func ArrayElementFromPgLsn(input PgLsnValue) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == PgLsnValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == PgLsnValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == PgLsnValueError {
 		error := input.Error
@@ -10942,6 +12238,9 @@ func ArrayElementToPgLsn(input ArrayElement) PgLsnValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return PgLsnValue{Kind: PgLsnValueError, Error: error}
@@ -10959,6 +12258,9 @@ func ArrayElementFromTid(input TidValue) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == TidValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == TidValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == TidValueError {
 		error := input.Error
@@ -10979,6 +12281,9 @@ func ArrayElementToTid(input ArrayElement) TidValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return TidValue{Kind: TidValueError, Error: error}
@@ -10997,6 +12302,9 @@ func ArrayElementFromJsonpath(input JsonpathValue) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == JsonpathValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == JsonpathValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == JsonpathValueError {
 		error := input.Error
@@ -11021,6 +12329,9 @@ func ArrayElementToJsonpath(input ArrayElement) JsonpathValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return JsonpathValue{Kind: JsonpathValueError, Error: error}
@@ -11044,6 +12355,9 @@ func ArrayElementFromRange(input RangeValue) ArrayElement {
 	if input.Kind == RangeValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == RangeValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == RangeValueError {
 		error := input.Error
 		return ArrayElement{Kind: ArrayElementError, Error: error}
@@ -11062,6 +12376,9 @@ func ArrayElementToRange(input ArrayElement) RangeValue {
 	unresolvedFlavor := 0
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
@@ -11082,6 +12399,9 @@ func ArrayElementFromMultirange(input MultirangeValue) ArrayElement {
 	if input.Kind == MultirangeValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == MultirangeValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == MultirangeValueError {
 		error := input.Error
 		return ArrayElement{Kind: ArrayElementError, Error: error}
@@ -11101,6 +12421,9 @@ func ArrayElementToMultirange(input ArrayElement) MultirangeValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return MultirangeValue{Kind: MultirangeValueError, Error: error}
@@ -11118,6 +12441,9 @@ func ArrayElementFromXml(input XmlValue) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == XmlValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == XmlValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == XmlValueNonNull {
 		knowledge := input.NonNull
@@ -11151,6 +12477,9 @@ func ArrayElementToXml(input ArrayElement) XmlValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementXmlNonNull {
 		knowledge := input.XmlNonNull
 		return MakeXmlKnowledge(knowledge.Document, knowledge.Content)
@@ -11177,6 +12506,9 @@ func ArrayElementFromAclitem(input AclitemValue) ArrayElement {
 	if input.Kind == AclitemValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == AclitemValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == AclitemValueCatalog {
 		value := input.Catalog
 		return ArrayElement{Kind: ArrayElementAclitemCatalog, AclitemCatalog: value}
@@ -11199,6 +12531,9 @@ func ArrayElementToAclitem(input ArrayElement) AclitemValue {
 	unresolvedFlavor := 0
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == ArrayElementAclitemCatalog {
 		value := input.AclitemCatalog
@@ -11223,6 +12558,9 @@ func ArrayElementFromTsvector(input TsvectorValue) ArrayElement {
 	if input.Kind == TsvectorValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == TsvectorValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == TsvectorValueError {
 		error := input.Error
 		return ArrayElement{Kind: ArrayElementError, Error: error}
@@ -11241,6 +12579,9 @@ func ArrayElementToTsvector(input ArrayElement) TsvectorValue {
 	unresolvedFlavor := 0
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
@@ -11261,6 +12602,9 @@ func ArrayElementFromTsquery(input TsqueryValue) ArrayElement {
 	if input.Kind == TsqueryValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == TsqueryValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == TsqueryValueError {
 		error := input.Error
 		return ArrayElement{Kind: ArrayElementError, Error: error}
@@ -11279,6 +12623,9 @@ func ArrayElementToTsquery(input ArrayElement) TsqueryValue {
 	unresolvedFlavor := 0
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
@@ -11307,6 +12654,7 @@ type CompositeValueKind uint8
 
 const (
 	CompositeValueUnknown CompositeValueKind = iota
+	CompositeValueUnimplemented
 	CompositeValueNull
 	CompositeValueError
 	CompositeValueValue
@@ -11322,6 +12670,8 @@ func CopyCompositeValue(value CompositeValue) CompositeValue {
 	switch value.Kind {
 	case CompositeValueUnknown:
 		return CompositeValue{Kind: CompositeValueUnknown}
+	case CompositeValueUnimplemented:
+		return CompositeValue{Kind: CompositeValueUnimplemented}
 	case CompositeValueNull:
 		return CompositeValue{Kind: CompositeValueNull}
 	case CompositeValueError:
@@ -11332,8 +12682,7 @@ func CopyCompositeValue(value CompositeValue) CompositeValue {
 	panic("unknown enum variant")
 }
 func CompositeUnknown() CompositeValue {
-	unresolvedFlavor := 0
-	return CompositeRowUnresolved(unresolvedFlavor)
+	return CompositeValue{Kind: CompositeValueUnknown}
 }
 func CompositeNull() CompositeValue {
 	return CompositeValue{Kind: CompositeValueNull}
@@ -11342,6 +12691,9 @@ func CompositeFromCaseGuard(input CheckOutcome) CompositeValue {
 	unresolvedFlavor := 0
 	if input.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == CheckOutcomeError {
 		error := input.Error
@@ -11372,7 +12724,14 @@ func MakeCompositeValue(input CompositePayload) CompositeValue {
 			error := checked.Error
 			return CompositeValue{Kind: CompositeValueError, Error: error}
 		}
+		checkedUnresolved := false
 		if checked.Kind == ArrayElementUnknown {
+			checkedUnresolved = true
+		}
+		if checked.Kind == ArrayElementUnimplemented {
+			checkedUnresolved = true
+		}
+		if checkedUnresolved {
 			family := ArrayElementFamily(source)
 			if family >= 41 && family <= 44 {
 				return CompositeRowUnresolved(unresolvedFlavor)
@@ -11431,6 +12790,9 @@ func CompositeFieldCount(input CompositeValue) Int4Value {
 	if input.Kind == CompositeValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == CompositeValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	checked := CompositeFromCoercedValue(input)
 	if checked.Kind == CompositeValueError {
 		error := checked.Error
@@ -11453,6 +12815,12 @@ func CompositeFieldAt(input CompositeValue, index Int4Value) ArrayElement {
 	}
 	if index.Kind == Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == CompositeValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if index.Kind == Int4ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	checked := CompositeFromCoercedValue(input)
 	if checked.Kind == CompositeValueError {
@@ -11484,13 +12852,29 @@ func CompositeDatumIsNull(input CompositeValue) BoolValue {
 	if input.Kind == CompositeValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == CompositeValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	checked := CompositeFromCoercedValue(input)
 	if checked.Kind == CompositeValueError {
 		error := checked.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
+	conditionFlavor1224 := unresolvedFlavor
 	if checked.Kind == CompositeValueUnknown {
-		return BoolUnresolved(unresolvedFlavor)
+		if conditionFlavor1224 < 1 {
+			conditionFlavor1224 = langruntime.CheckedI32(1)
+		}
+	}
+	if checked.Kind == CompositeValueUnknown {
+		return BoolUnresolved(conditionFlavor1224)
+	}
+	conditionFlavor12293 := unresolvedFlavor
+	if checked.Kind == CompositeValueUnimplemented {
+		conditionFlavor12293 = langruntime.CheckedI32(2)
+	}
+	if checked.Kind == CompositeValueUnimplemented {
+		return BoolUnresolved(conditionFlavor12293)
 	}
 	if checked.Kind == CompositeValueNull {
 		return MakeBoolValue(true)
@@ -11502,6 +12886,9 @@ func compositeRowNullTest(input CompositeValue, negated bool) BoolValue {
 	unresolvedFlavor := 0
 	if input.Kind == CompositeValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == CompositeValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	checked := CompositeFromCoercedValue(input)
 	if checked.Kind == CompositeValueError {
@@ -11519,6 +12906,10 @@ func compositeRowNullTest(input CompositeValue, negated bool) BoolValue {
 			field := CopyArrayElement(value.Fields[index])
 			known := true
 			if field.Kind == ArrayElementUnknown {
+				unknown = true
+				known = false
+			}
+			if field.Kind == ArrayElementUnimplemented {
 				unknown = true
 				known = false
 			}
@@ -11558,6 +12949,9 @@ func ArrayElementFromComposite(input CompositeValue) ArrayElement {
 	if input.Kind == CompositeValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == CompositeValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == CompositeValueError {
 		error := input.Error
 		return ArrayElement{Kind: ArrayElementError, Error: error}
@@ -11576,6 +12970,9 @@ func ArrayElementToComposite(input ArrayElement) CompositeValue {
 	unresolvedFlavor := 0
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
@@ -11707,10 +13104,16 @@ func compositePrepareCell(input ArrayElement, context *CompositeTypeContext, ind
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementNull {
 		return input
 	}
 	if input.Kind == ArrayElementUnknown {
+		return input
+	}
+	if input.Kind == ArrayElementUnimplemented {
 		return input
 	}
 	if input.Kind == ArrayElementError {
@@ -11737,13 +13140,35 @@ func compositePrepareCell(input ArrayElement, context *CompositeTypeContext, ind
 				error := checked.Error
 				return ArrayElement{Kind: ArrayElementError, Error: error}
 			}
+			conditionFlavor27312 := unresolvedFlavor
+			if checked.Kind == ArrayElementUnknown {
+				if conditionFlavor27312 < 1 {
+					conditionFlavor27312 = langruntime.CheckedI32(1)
+				}
+			}
 			if checked.Kind == ArrayElementUnknown {
 				partial := false
 				if original.Kind == ArrayElementUnknown {
 					partial = true
 				}
+				if original.Kind == ArrayElementUnimplemented {
+					partial = true
+				}
 				if partial == false {
-					return ArrayElementUnresolved(unresolvedFlavor)
+					return ArrayElementUnresolved(conditionFlavor27312)
+				}
+			}
+			conditionFlavor27715 := unresolvedFlavor
+			if checked.Kind == ArrayElementUnimplemented {
+				conditionFlavor27715 = langruntime.CheckedI32(2)
+			}
+			if checked.Kind == ArrayElementUnimplemented {
+				partial := false
+				if original.Kind == ArrayElementUnknown {
+					partial = true
+				}
+				if partial == false {
+					return ArrayElementUnresolved(conditionFlavor27715)
 				}
 			}
 			langruntime.CheckedAdd(len(fields), 1)
@@ -11762,13 +13187,35 @@ func compositePrepareCell(input ArrayElement, context *CompositeTypeContext, ind
 		for position < len(payload.Elements) {
 			original := CopyArrayElement(payload.Elements[position])
 			checked := compositePrepareCell(CopyArrayElement(original), context, node.Child)
+			conditionFlavor29412 := unresolvedFlavor
+			if checked.Kind == ArrayElementUnknown {
+				if conditionFlavor29412 < 1 {
+					conditionFlavor29412 = langruntime.CheckedI32(1)
+				}
+			}
 			if checked.Kind == ArrayElementUnknown {
 				partial := false
 				if original.Kind == ArrayElementUnknown {
 					partial = true
 				}
+				if original.Kind == ArrayElementUnimplemented {
+					partial = true
+				}
 				if partial == false {
-					return ArrayElementUnresolved(unresolvedFlavor)
+					return ArrayElementUnresolved(conditionFlavor29412)
+				}
+			}
+			conditionFlavor29815 := unresolvedFlavor
+			if checked.Kind == ArrayElementUnimplemented {
+				conditionFlavor29815 = langruntime.CheckedI32(2)
+			}
+			if checked.Kind == ArrayElementUnimplemented {
+				partial := false
+				if original.Kind == ArrayElementUnknown {
+					partial = true
+				}
+				if partial == false {
+					return ArrayElementUnresolved(conditionFlavor29815)
 				}
 			}
 			langruntime.CheckedAdd(len(elements), 1)
@@ -11784,6 +13231,9 @@ func CompositePrepareScalarCell(checked ArrayElement) ArrayElement {
 	unresolvedFlavor := 0
 	if checked.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if checked.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if checked.Kind == ArrayElementTsquery {
 		payload := CopyTsqueryPayload(checked.Tsquery)
@@ -11899,6 +13349,9 @@ func CompositeFromCoercedPlan(input CompositeValue, plan CompositeTypePlan) Comp
 	if input.Kind == CompositeValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == CompositeValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == CompositeValueValue {
 		payload := CopyCompositePayload(input.Value)
 		if plan.Kind == CompositeTypePlanValue {
@@ -11923,6 +13376,9 @@ func ArrayFromCoercedCompositePlan(input ArrayValue, elementType string, plan Co
 	if input.Kind == ArrayValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayValueValue {
 		payload := CopyArrayPayload(input.Value)
 		if plan.Kind == CompositeTypePlanValue {
@@ -11938,13 +13394,35 @@ func ArrayFromCoercedCompositePlan(input ArrayValue, elementType string, plan Co
 			for position < len(payload.Elements) {
 				original := CopyArrayElement(payload.Elements[position])
 				checked := compositePrepareCell(CopyArrayElement(original), &context, 0)
+				conditionFlavor44316 := unresolvedFlavor
+				if checked.Kind == ArrayElementUnknown {
+					if conditionFlavor44316 < 1 {
+						conditionFlavor44316 = langruntime.CheckedI32(1)
+					}
+				}
 				if checked.Kind == ArrayElementUnknown {
 					partial := false
 					if original.Kind == ArrayElementUnknown {
 						partial = true
 					}
+					if original.Kind == ArrayElementUnimplemented {
+						partial = true
+					}
 					if partial == false {
-						return ArrayUnresolved(unresolvedFlavor)
+						return ArrayUnresolved(conditionFlavor44316)
+					}
+				}
+				conditionFlavor45319 := unresolvedFlavor
+				if checked.Kind == ArrayElementUnimplemented {
+					conditionFlavor45319 = langruntime.CheckedI32(2)
+				}
+				if checked.Kind == ArrayElementUnimplemented {
+					partial := false
+					if original.Kind == ArrayElementUnknown {
+						partial = true
+					}
+					if partial == false {
+						return ArrayUnresolved(conditionFlavor45319)
 					}
 				}
 				langruntime.CheckedAdd(len(elements), 1)
@@ -11974,6 +13452,7 @@ type CompositeTextPlanKind uint8
 
 const (
 	CompositeTextPlanUnknown CompositeTextPlanKind = iota
+	CompositeTextPlanUnimplemented
 	CompositeTextPlanNull
 	CompositeTextPlanError
 	CompositeTextPlanValue
@@ -11989,6 +13468,8 @@ func CopyCompositeTextPlan(value CompositeTextPlan) CompositeTextPlan {
 	switch value.Kind {
 	case CompositeTextPlanUnknown:
 		return CompositeTextPlan{Kind: CompositeTextPlanUnknown}
+	case CompositeTextPlanUnimplemented:
+		return CompositeTextPlan{Kind: CompositeTextPlanUnimplemented}
 	case CompositeTextPlanNull:
 		return CompositeTextPlan{Kind: CompositeTextPlanNull}
 	case CompositeTextPlanError:
@@ -12029,6 +13510,7 @@ type RangeTextPlanKind uint8
 
 const (
 	RangeTextPlanUnknown RangeTextPlanKind = iota
+	RangeTextPlanUnimplemented
 	RangeTextPlanNull
 	RangeTextPlanError
 	RangeTextPlanValue
@@ -12044,6 +13526,8 @@ func CopyRangeTextPlan(value RangeTextPlan) RangeTextPlan {
 	switch value.Kind {
 	case RangeTextPlanUnknown:
 		return RangeTextPlan{Kind: RangeTextPlanUnknown}
+	case RangeTextPlanUnimplemented:
+		return RangeTextPlan{Kind: RangeTextPlanUnimplemented}
 	case RangeTextPlanNull:
 		return RangeTextPlan{Kind: RangeTextPlanNull}
 	case RangeTextPlanError:
@@ -12235,6 +13719,7 @@ type RangeValueKind uint8
 
 const (
 	RangeValueUnknown RangeValueKind = iota
+	RangeValueUnimplemented
 	RangeValueNull
 	RangeValueError
 	RangeValueValue
@@ -12250,6 +13735,8 @@ func CopyRangeValue(value RangeValue) RangeValue {
 	switch value.Kind {
 	case RangeValueUnknown:
 		return RangeValue{Kind: RangeValueUnknown}
+	case RangeValueUnimplemented:
+		return RangeValue{Kind: RangeValueUnimplemented}
 	case RangeValueNull:
 		return RangeValue{Kind: RangeValueNull}
 	case RangeValueError:
@@ -12260,8 +13747,7 @@ func CopyRangeValue(value RangeValue) RangeValue {
 	panic("unknown enum variant")
 }
 func RangeUnknown() RangeValue {
-	unresolvedFlavor := 0
-	return RangeUnresolved(unresolvedFlavor)
+	return RangeValue{Kind: RangeValueUnknown}
 }
 func RangeNull() RangeValue {
 	return RangeValue{Kind: RangeValueNull}
@@ -12519,10 +14005,16 @@ func rangeProfiledValueAt(input ArrayElement, profile *RangeBoundContext, index 
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementNull {
 		return input
 	}
 	if input.Kind == ArrayElementUnknown {
+		return input
+	}
+	if input.Kind == ArrayElementUnimplemented {
 		return input
 	}
 	if input.Kind == ArrayElementError {
@@ -12549,13 +14041,35 @@ func rangeProfiledValueAt(input ArrayElement, profile *RangeBoundContext, index 
 				error := checked.Error
 				return ArrayElement{Kind: ArrayElementError, Error: error}
 			}
+			conditionFlavor62612 := unresolvedFlavor
+			if checked.Kind == ArrayElementUnknown {
+				if conditionFlavor62612 < 1 {
+					conditionFlavor62612 = langruntime.CheckedI32(1)
+				}
+			}
 			if checked.Kind == ArrayElementUnknown {
 				partial := false
 				if original.Kind == ArrayElementUnknown {
 					partial = true
 				}
+				if original.Kind == ArrayElementUnimplemented {
+					partial = true
+				}
 				if partial == false {
-					return ArrayElementUnresolved(unresolvedFlavor)
+					return ArrayElementUnresolved(conditionFlavor62612)
+				}
+			}
+			conditionFlavor63615 := unresolvedFlavor
+			if checked.Kind == ArrayElementUnimplemented {
+				conditionFlavor63615 = langruntime.CheckedI32(2)
+			}
+			if checked.Kind == ArrayElementUnimplemented {
+				partial := false
+				if original.Kind == ArrayElementUnknown {
+					partial = true
+				}
+				if partial == false {
+					return ArrayElementUnresolved(conditionFlavor63615)
 				}
 			}
 			langruntime.CheckedAdd(len(fields), 1)
@@ -12574,13 +14088,35 @@ func rangeProfiledValueAt(input ArrayElement, profile *RangeBoundContext, index 
 		for position < len(payload.Elements) {
 			original := CopyArrayElement(payload.Elements[position])
 			prepared := rangeProfiledValueAt(CopyArrayElement(original), profile, node.Child)
+			conditionFlavor66412 := unresolvedFlavor
+			if prepared.Kind == ArrayElementUnknown {
+				if conditionFlavor66412 < 1 {
+					conditionFlavor66412 = langruntime.CheckedI32(1)
+				}
+			}
 			if prepared.Kind == ArrayElementUnknown {
 				partial := false
 				if original.Kind == ArrayElementUnknown {
 					partial = true
 				}
+				if original.Kind == ArrayElementUnimplemented {
+					partial = true
+				}
 				if partial == false {
-					return ArrayElementUnresolved(unresolvedFlavor)
+					return ArrayElementUnresolved(conditionFlavor66412)
+				}
+			}
+			conditionFlavor67415 := unresolvedFlavor
+			if prepared.Kind == ArrayElementUnimplemented {
+				conditionFlavor67415 = langruntime.CheckedI32(2)
+			}
+			if prepared.Kind == ArrayElementUnimplemented {
+				partial := false
+				if original.Kind == ArrayElementUnknown {
+					partial = true
+				}
+				if partial == false {
+					return ArrayElementUnresolved(conditionFlavor67415)
 				}
 			}
 			langruntime.CheckedAdd(len(elements), 1)
@@ -12635,6 +14171,9 @@ func RangePrepareProfiledBound(input ArrayElement, profile *RangeBoundContext) A
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if RangeBoundProfileValid(profile) == false {
 		return ArrayElementUnresolved(unresolvedFlavor)
 	}
@@ -12679,19 +14218,19 @@ func rangeBoundValueValid(input ArrayElement, cidr bool) bool {
 	}
 	if input.Kind == ArrayElementAclitemCatalog {
 		value := input.AclitemCatalog
-		return MakeAclitemCatalogValue(value.Privileges, value.GrantOptions, value.PublicGrantee, value.InvalidGrantor) != (AclitemValue{Kind: AclitemValueUnknown})
+		return (MakeAclitemCatalogValue(value.Privileges, value.GrantOptions, value.PublicGrantee, value.InvalidGrantor) != (AclitemValue{Kind: AclitemValueUnknown}) && MakeAclitemCatalogValue(value.Privileges, value.GrantOptions, value.PublicGrantee, value.InvalidGrantor) != (AclitemValue{Kind: AclitemValueUnimplemented}))
 	}
 	if input.Kind == ArrayElementAclitem {
 		value := input.Aclitem
-		return MakeAclitemValue(value.Grantee, value.Grantor, value.Privileges, value.GrantOptions) != (AclitemValue{Kind: AclitemValueUnknown})
+		return (MakeAclitemValue(value.Grantee, value.Grantor, value.Privileges, value.GrantOptions) != (AclitemValue{Kind: AclitemValueUnknown}) && MakeAclitemValue(value.Grantee, value.Grantor, value.Privileges, value.GrantOptions) != (AclitemValue{Kind: AclitemValueUnimplemented}))
 	}
 	if input.Kind == ArrayElementInt2 {
 		value := langruntime.CheckedI32(input.Int2)
-		return MakeInt2Value(value) != (Int2Value{Kind: Int2ValueUnknown})
+		return (MakeInt2Value(value) != (Int2Value{Kind: Int2ValueUnknown}) && MakeInt2Value(value) != (Int2Value{Kind: Int2ValueUnimplemented}))
 	}
 	if input.Kind == ArrayElementBit {
 		value := langruntime.CheckedString(input.Bit)
-		return MakeBitValue(value) != (BitValue{Kind: BitValueUnknown})
+		return (MakeBitValue(value) != (BitValue{Kind: BitValueUnknown}) && MakeBitValue(value) != (BitValue{Kind: BitValueUnimplemented}))
 	}
 	if input.Kind == ArrayElementBytea {
 		value := langruntime.CheckedString(input.Bytea)
@@ -12704,23 +14243,23 @@ func rangeBoundValueValid(input ArrayElement, cidr bool) bool {
 	}
 	if input.Kind == ArrayElementTime {
 		value := input.Time
-		return MakeTimeValue(value) != (TimeValue{Kind: TimeValueUnknown})
+		return (MakeTimeValue(value) != (TimeValue{Kind: TimeValueUnknown}) && MakeTimeValue(value) != (TimeValue{Kind: TimeValueUnimplemented}))
 	}
 	if input.Kind == ArrayElementTimetz {
 		value := input.Timetz
-		return MakeTimetzValue(value.Time, value.Zone) != (TimetzValue{Kind: TimetzValueUnknown})
+		return (MakeTimetzValue(value.Time, value.Zone) != (TimetzValue{Kind: TimetzValueUnknown}) && MakeTimetzValue(value.Time, value.Zone) != (TimetzValue{Kind: TimetzValueUnimplemented}))
 	}
 	if input.Kind == ArrayElementInternalChar {
 		value := langruntime.CheckedI32(input.InternalChar)
-		return MakeInternalCharValue(value) != (InternalCharValue{Kind: InternalCharValueUnknown})
+		return (MakeInternalCharValue(value) != (InternalCharValue{Kind: InternalCharValueUnknown}) && MakeInternalCharValue(value) != (InternalCharValue{Kind: InternalCharValueUnimplemented}))
 	}
 	if input.Kind == ArrayElementOid {
 		value := input.Oid
-		return MakeOidValue(value) != (OidValue{Kind: OidValueUnknown})
+		return (MakeOidValue(value) != (OidValue{Kind: OidValueUnknown}) && MakeOidValue(value) != (OidValue{Kind: OidValueUnimplemented}))
 	}
 	if input.Kind == ArrayElementTid {
 		value := input.Tid
-		return MakeTidValue(value) != (TidValue{Kind: TidValueUnknown})
+		return (MakeTidValue(value) != (TidValue{Kind: TidValueUnknown}) && MakeTidValue(value) != (TidValue{Kind: TidValueUnimplemented}))
 	}
 	if input.Kind == ArrayElementNetwork {
 		value := input.Network
@@ -12823,14 +14362,36 @@ func MakeCoercedRangeValue(input RangePayload) RangeValue {
 				error := normalized.Error
 				return RangeValue{Kind: RangeValueError, Error: error}
 			}
+			conditionFlavor93412 := unresolvedFlavor
 			if normalized.Kind == ArrayElementUnknown {
-				return RangeUnresolved(unresolvedFlavor)
+				if conditionFlavor93412 < 1 {
+					conditionFlavor93412 = langruntime.CheckedI32(1)
+				}
+			}
+			if normalized.Kind == ArrayElementUnknown {
+				return RangeUnresolved(conditionFlavor93412)
+			}
+			conditionFlavor934103 := unresolvedFlavor
+			if normalized.Kind == ArrayElementUnimplemented {
+				conditionFlavor934103 = langruntime.CheckedI32(2)
+			}
+			if normalized.Kind == ArrayElementUnimplemented {
+				return RangeUnresolved(conditionFlavor934103)
 			}
 			value.Bounds[index] = CopyArrayElement(normalized)
 		}
 		if bound.Kind == ArrayElementJsonb {
 			payload := CopyJsonbPayload(bound.Jsonb)
 			normalized := JsonbFromCoercedValue(JsonbValue{Kind: JsonbValueValue, Value: payload})
+			normalizedFlavor := unresolvedFlavor
+			if normalized.Kind == JsonbValueUnknown {
+				if normalizedFlavor < 1 {
+					normalizedFlavor = langruntime.CheckedI32(1)
+				}
+			}
+			if normalized.Kind == JsonbValueUnimplemented {
+				normalizedFlavor = langruntime.CheckedI32(2)
+			}
 			known := false
 			if normalized.Kind == JsonbValueValue {
 				payload := CopyJsonbPayload(normalized.Value)
@@ -12838,7 +14399,7 @@ func MakeCoercedRangeValue(input RangePayload) RangeValue {
 				known = true
 			}
 			if known == false {
-				return RangeUnresolved(unresolvedFlavor)
+				return RangeUnresolved(normalizedFlavor)
 			}
 		}
 		index = langruntime.CheckedAdd(index, 1)
@@ -12900,6 +14461,9 @@ func RangeRequireType(input RangeValue, typeName string, elementType string, ele
 	if input.Kind == RangeValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == RangeValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == RangeValueValue {
 		value := CopyRangePayload(input.Value)
 		if value.TypeName != typeName || value.ElementType != elementType || value.ElementKind != elementKind {
@@ -12924,6 +14488,9 @@ func RangeFromCoercedProfile(input RangeValue, typeName string, elementType stri
 	if input.Kind == RangeValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == RangeValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == RangeValueValue {
 		payload := CopyRangePayload(input.Value)
 		if payload.TypeName != typeName || payload.ElementType != elementType || payload.ElementKind != elementKind {
@@ -12947,6 +14514,9 @@ func RangeFromCoercedDefinedProfile(input RangeValue, typeName string, elementTy
 	if input.Kind == RangeValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == RangeValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == RangeValueValue {
 		payload := CopyRangePayload(input.Value)
 		if payload.TypeName != typeName || payload.ElementType != elementType || payload.ElementKind != elementKind {
@@ -12969,6 +14539,9 @@ func RangeFromCoercedTypedProfile(input RangeValue, typeName string, elementType
 	if input.Kind == RangeValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == RangeValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == RangeValueValue {
 		payload := CopyRangePayload(input.Value)
 		if payload.TypeName != typeName || payload.ElementType != elementType || payload.ElementKind != elementKind {
@@ -12985,6 +14558,9 @@ func RangeRequireSupport(input RangeValue, expected RangeSupport) RangeValue {
 	if input.Kind == RangeValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == RangeValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == RangeValueValue {
 		value := CopyRangePayload(input.Value)
 		if RangeSupportEqual(value.Support, expected) == false {
@@ -13000,12 +14576,28 @@ func RangeIsNull(input RangeValue) BoolValue {
 	if input.Kind == RangeValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == RangeValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == RangeValueError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
+	conditionFlavor11554 := unresolvedFlavor
 	if input.Kind == RangeValueUnknown {
-		return BoolUnresolved(unresolvedFlavor)
+		if conditionFlavor11554 < 1 {
+			conditionFlavor11554 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == RangeValueUnknown {
+		return BoolUnresolved(conditionFlavor11554)
+	}
+	conditionFlavor11577 := unresolvedFlavor
+	if input.Kind == RangeValueUnimplemented {
+		conditionFlavor11577 = langruntime.CheckedI32(2)
+	}
+	if input.Kind == RangeValueUnimplemented {
+		return BoolUnresolved(conditionFlavor11577)
 	}
 	if input.Kind == RangeValueNull {
 		return BoolValue{Kind: BoolValueValue, Value: true}
@@ -13016,6 +14608,9 @@ func RangeFromCaseGuard(input CheckOutcome) RangeValue {
 	unresolvedFlavor := 0
 	if input.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == CheckOutcomeError {
 		error := input.Error
@@ -13028,6 +14623,9 @@ func RangeEmptyState(input RangeValue) BoolValue {
 	unresolvedFlavor := 0
 	if input.Kind == RangeValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == RangeValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == RangeValueError {
 		error := input.Error
@@ -13047,6 +14645,9 @@ func RangeBound(input RangeValue, upper bool) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == RangeValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == RangeValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == RangeValueError {
 		error := input.Error
@@ -13073,6 +14674,9 @@ func RangeBoundFlag(input RangeValue, upper bool, infinite bool) BoolValue {
 	unresolvedFlavor := 0
 	if input.Kind == RangeValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == RangeValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == RangeValueError {
 		error := input.Error
@@ -13127,6 +14731,7 @@ type MultirangeValueKind uint8
 
 const (
 	MultirangeValueUnknown MultirangeValueKind = iota
+	MultirangeValueUnimplemented
 	MultirangeValueNull
 	MultirangeValueError
 	MultirangeValueValue
@@ -13142,6 +14747,8 @@ func CopyMultirangeValue(value MultirangeValue) MultirangeValue {
 	switch value.Kind {
 	case MultirangeValueUnknown:
 		return MultirangeValue{Kind: MultirangeValueUnknown}
+	case MultirangeValueUnimplemented:
+		return MultirangeValue{Kind: MultirangeValueUnimplemented}
 	case MultirangeValueNull:
 		return MultirangeValue{Kind: MultirangeValueNull}
 	case MultirangeValueError:
@@ -13185,8 +14792,7 @@ func CopyMultirangeTextPlan(value MultirangeTextPlan) MultirangeTextPlan {
 	panic("unknown enum variant")
 }
 func MultirangeUnknown() MultirangeValue {
-	unresolvedFlavor := 0
-	return MultirangeUnresolved(unresolvedFlavor)
+	return MultirangeValue{Kind: MultirangeValueUnknown}
 }
 func MultirangeNull() MultirangeValue {
 	return MultirangeValue{Kind: MultirangeValueNull}
@@ -13240,6 +14846,15 @@ func MakeCoercedMultirangeValue(input MultirangePayload) MultirangeValue {
 			error := member.Error
 			return MultirangeValue{Kind: MultirangeValueError, Error: error}
 		}
+		memberFlavor := unresolvedFlavor
+		if member.Kind == RangeValueUnknown {
+			if memberFlavor < 1 {
+				memberFlavor = langruntime.CheckedI32(1)
+			}
+		}
+		if member.Kind == RangeValueUnimplemented {
+			memberFlavor = langruntime.CheckedI32(2)
+		}
 		known := false
 		if member.Kind == RangeValueValue {
 			span := CopyRangePayload(member.Value)
@@ -13248,7 +14863,7 @@ func MakeCoercedMultirangeValue(input MultirangePayload) MultirangeValue {
 			known = true
 		}
 		if known == false {
-			return MultirangeUnresolved(unresolvedFlavor)
+			return MultirangeUnresolved(memberFlavor)
 		}
 		index = langruntime.CheckedAdd(index, 1)
 	}
@@ -13271,6 +14886,9 @@ func MultirangeFromCoercedArray(input ArrayValue, typeName string, rangeType str
 	unresolvedFlavor := 0
 	if input.Kind == ArrayValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == ArrayValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	coerced := ArrayFromCoercedValue(input, rangeType, 42)
 	if coerced.Kind == ArrayValueError {
@@ -13317,6 +14935,9 @@ func MultirangeFromCoercedDefinedProfile(input MultirangeValue, typeName string,
 	if input.Kind == MultirangeValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == MultirangeValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == MultirangeValueValue {
 		payload := CopyMultirangePayload(input.Value)
 		if payload.TypeName != typeName || payload.RangeType != rangeType || payload.ElementType != elementType || payload.ElementKind != elementKind {
@@ -13349,6 +14970,9 @@ func MultirangeFromCoercedTypedProfile(input MultirangeValue, typeName string, r
 	if input.Kind == MultirangeValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == MultirangeValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == MultirangeValueValue {
 		payload := CopyMultirangePayload(input.Value)
 		if payload.TypeName != typeName || payload.RangeType != rangeType || payload.ElementType != elementType || payload.ElementKind != elementKind {
@@ -13370,6 +14994,9 @@ func MultirangeRequireSupport(input MultirangeValue, expected RangeSupport) Mult
 	if input.Kind == MultirangeValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == MultirangeValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == MultirangeValueValue {
 		payload := CopyMultirangePayload(input.Value)
 		if RangeSupportEqual(payload.Support, expected) == false {
@@ -13389,6 +15016,9 @@ func MultirangeRequireType(input MultirangeValue, typeName string, rangeType str
 	if input.Kind == MultirangeValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == MultirangeValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == MultirangeValueValue {
 		payload := CopyMultirangePayload(input.Value)
 		if payload.TypeName != typeName || payload.RangeType != rangeType || payload.ElementType != elementType || payload.ElementKind != elementKind {
@@ -13403,6 +15033,9 @@ func MultirangeIsNull(input MultirangeValue) BoolValue {
 	unresolvedFlavor := 0
 	if input.Kind == MultirangeValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == MultirangeValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == MultirangeValueError {
 		error := input.Error
@@ -13421,6 +15054,9 @@ func MultirangeFromCaseGuard(input CheckOutcome) MultirangeValue {
 	if input.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == CheckOutcomeError {
 		error := input.Error
 		return MultirangeValue{Kind: MultirangeValueError, Error: error}
@@ -13432,6 +15068,9 @@ func MultirangeEmptyState(input MultirangeValue) BoolValue {
 	unresolvedFlavor := 0
 	if input.Kind == MultirangeValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == MultirangeValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == MultirangeValueError {
 		error := input.Error
@@ -13462,6 +15101,9 @@ func MultirangeBoundary(input MultirangeValue, upper bool) RangeValue {
 	if input.Kind == MultirangeValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == MultirangeValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == MultirangeValueError {
 		error := input.Error
 		return RangeValue{Kind: RangeValueError, Error: error}
@@ -13486,6 +15128,9 @@ func MultirangeBoundFlag(input MultirangeValue, upper bool, infinite bool) BoolV
 	if input.Kind == MultirangeValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == MultirangeValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == MultirangeValueError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
@@ -13507,6 +15152,9 @@ func DomainConversionStart(input BoolValue, notNull bool) CheckOutcome {
 	unresolvedFlavor := 0
 	if input.Kind == BoolValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == BoolValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == BoolValueError {
 		error := input.Error
@@ -13546,12 +15194,27 @@ func FinishDomainConversion(input ArrayElement, result CheckOutcome) ArrayElemen
 	if result.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if result.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if result.Kind == CheckOutcomeError {
 		error := result.Error
 		return ArrayElement{Kind: ArrayElementError, Error: error}
 	}
-	if result == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
-		return ArrayElementUnresolved(unresolvedFlavor)
+	conditionFlavor454 := unresolvedFlavor
+	if result.Kind == CheckOutcomeUnknown {
+		if conditionFlavor454 < 1 {
+			conditionFlavor454 = langruntime.CheckedI32(1)
+		}
+	}
+	if result.Kind == CheckOutcomeUnimplemented {
+		conditionFlavor454 = langruntime.CheckedI32(2)
+	}
+	if result == (CheckOutcome{Kind: CheckOutcomeUnknown}) || result == (CheckOutcome{Kind: CheckOutcomeUnimplemented}) {
+		return ArrayElementUnresolved(conditionFlavor454)
 	}
 	return input
 }
@@ -13563,12 +15226,27 @@ func FinishXmlDomainConversion(input XmlValue, result CheckOutcome) XmlValue {
 	if result.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == XmlValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if result.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if result.Kind == CheckOutcomeError {
 		error := result.Error
 		return XmlValue{Kind: XmlValueError, Error: error}
 	}
-	if result == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
-		return XmlUnresolved(unresolvedFlavor)
+	conditionFlavor604 := unresolvedFlavor
+	if result.Kind == CheckOutcomeUnknown {
+		if conditionFlavor604 < 1 {
+			conditionFlavor604 = langruntime.CheckedI32(1)
+		}
+	}
+	if result.Kind == CheckOutcomeUnimplemented {
+		conditionFlavor604 = langruntime.CheckedI32(2)
+	}
+	if result == (CheckOutcome{Kind: CheckOutcomeUnknown}) || result == (CheckOutcome{Kind: CheckOutcomeUnimplemented}) {
+		return XmlUnresolved(conditionFlavor604)
 	}
 	return input
 }
@@ -13579,8 +15257,24 @@ func FinishDomainArrayInput(input ArrayTextPayload, converted ArrayArguments) Ar
 	if converted.Kind == ArrayArgumentsUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if converted.Kind == ArrayArgumentsUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	conditionFlavor704 := unresolvedFlavor
 	if converted.Kind == ArrayArgumentsUnknown {
-		return ArrayUnresolved(unresolvedFlavor)
+		if conditionFlavor704 < 1 {
+			conditionFlavor704 = langruntime.CheckedI32(1)
+		}
+	}
+	if converted.Kind == ArrayArgumentsUnknown {
+		return ArrayUnresolved(conditionFlavor704)
+	}
+	conditionFlavor727 := unresolvedFlavor
+	if converted.Kind == ArrayArgumentsUnimplemented {
+		conditionFlavor727 = langruntime.CheckedI32(2)
+	}
+	if converted.Kind == ArrayArgumentsUnimplemented {
+		return ArrayUnresolved(conditionFlavor727)
 	}
 	return FinishPreparedArrayText(input, converted)
 }
@@ -13593,12 +15287,27 @@ func FinishArrayDomainConversion(input ArrayValue, result CheckOutcome) ArrayVal
 	if result.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if result.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if result.Kind == CheckOutcomeError {
 		error := result.Error
 		return ArrayValue{Kind: ArrayValueError, Error: error}
 	}
-	if result == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
-		return ArrayUnresolved(unresolvedFlavor)
+	conditionFlavor874 := unresolvedFlavor
+	if result.Kind == CheckOutcomeUnknown {
+		if conditionFlavor874 < 1 {
+			conditionFlavor874 = langruntime.CheckedI32(1)
+		}
+	}
+	if result.Kind == CheckOutcomeUnimplemented {
+		conditionFlavor874 = langruntime.CheckedI32(2)
+	}
+	if result == (CheckOutcome{Kind: CheckOutcomeUnknown}) || result == (CheckOutcome{Kind: CheckOutcomeUnimplemented}) {
+		return ArrayUnresolved(conditionFlavor874)
 	}
 	return input
 }
@@ -13611,12 +15320,27 @@ func FinishRangeDomainConversion(input RangeValue, result CheckOutcome) RangeVal
 	if result.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == RangeValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if result.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if result.Kind == CheckOutcomeError {
 		error := result.Error
 		return RangeValue{Kind: RangeValueError, Error: error}
 	}
-	if result == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
-		return RangeUnresolved(unresolvedFlavor)
+	conditionFlavor1024 := unresolvedFlavor
+	if result.Kind == CheckOutcomeUnknown {
+		if conditionFlavor1024 < 1 {
+			conditionFlavor1024 = langruntime.CheckedI32(1)
+		}
+	}
+	if result.Kind == CheckOutcomeUnimplemented {
+		conditionFlavor1024 = langruntime.CheckedI32(2)
+	}
+	if result == (CheckOutcome{Kind: CheckOutcomeUnknown}) || result == (CheckOutcome{Kind: CheckOutcomeUnimplemented}) {
+		return RangeUnresolved(conditionFlavor1024)
 	}
 	return input
 }
@@ -13629,12 +15353,27 @@ func FinishMultirangeDomainConversion(input MultirangeValue, result CheckOutcome
 	if result.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == MultirangeValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if result.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if result.Kind == CheckOutcomeError {
 		error := result.Error
 		return MultirangeValue{Kind: MultirangeValueError, Error: error}
 	}
-	if result == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
-		return MultirangeUnresolved(unresolvedFlavor)
+	conditionFlavor1204 := unresolvedFlavor
+	if result.Kind == CheckOutcomeUnknown {
+		if conditionFlavor1204 < 1 {
+			conditionFlavor1204 = langruntime.CheckedI32(1)
+		}
+	}
+	if result.Kind == CheckOutcomeUnimplemented {
+		conditionFlavor1204 = langruntime.CheckedI32(2)
+	}
+	if result == (CheckOutcome{Kind: CheckOutcomeUnknown}) || result == (CheckOutcome{Kind: CheckOutcomeUnimplemented}) {
+		return MultirangeUnresolved(conditionFlavor1204)
 	}
 	return input
 }
@@ -13647,12 +15386,27 @@ func FinishTsvectorDomainConversion(input TsvectorValue, result CheckOutcome) Ts
 	if result.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == TsvectorValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if result.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if result.Kind == CheckOutcomeError {
 		error := result.Error
 		return TsvectorValue{Kind: TsvectorValueError, Error: error}
 	}
-	if result == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
-		return TsvectorUnresolved(unresolvedFlavor)
+	conditionFlavor1334 := unresolvedFlavor
+	if result.Kind == CheckOutcomeUnknown {
+		if conditionFlavor1334 < 1 {
+			conditionFlavor1334 = langruntime.CheckedI32(1)
+		}
+	}
+	if result.Kind == CheckOutcomeUnimplemented {
+		conditionFlavor1334 = langruntime.CheckedI32(2)
+	}
+	if result == (CheckOutcome{Kind: CheckOutcomeUnknown}) || result == (CheckOutcome{Kind: CheckOutcomeUnimplemented}) {
+		return TsvectorUnresolved(conditionFlavor1334)
 	}
 	return input
 }
@@ -13665,12 +15419,27 @@ func FinishTsqueryDomainConversion(input TsqueryValue, result CheckOutcome) Tsqu
 	if result.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == TsqueryValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if result.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if result.Kind == CheckOutcomeError {
 		error := result.Error
 		return TsqueryValue{Kind: TsqueryValueError, Error: error}
 	}
-	if result == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
-		return TsqueryUnresolved(unresolvedFlavor)
+	conditionFlavor1444 := unresolvedFlavor
+	if result.Kind == CheckOutcomeUnknown {
+		if conditionFlavor1444 < 1 {
+			conditionFlavor1444 = langruntime.CheckedI32(1)
+		}
+	}
+	if result.Kind == CheckOutcomeUnimplemented {
+		conditionFlavor1444 = langruntime.CheckedI32(2)
+	}
+	if result == (CheckOutcome{Kind: CheckOutcomeUnknown}) || result == (CheckOutcome{Kind: CheckOutcomeUnimplemented}) {
+		return TsqueryUnresolved(conditionFlavor1444)
 	}
 	return input
 }
@@ -13700,6 +15469,7 @@ type ArrayValueKind uint8
 
 const (
 	ArrayValueUnknown ArrayValueKind = iota
+	ArrayValueUnimplemented
 	ArrayValueNull
 	ArrayValueError
 	ArrayValueValue
@@ -13715,6 +15485,8 @@ func CopyArrayValue(value ArrayValue) ArrayValue {
 	switch value.Kind {
 	case ArrayValueUnknown:
 		return ArrayValue{Kind: ArrayValueUnknown}
+	case ArrayValueUnimplemented:
+		return ArrayValue{Kind: ArrayValueUnimplemented}
 	case ArrayValueNull:
 		return ArrayValue{Kind: ArrayValueNull}
 	case ArrayValueError:
@@ -13729,6 +15501,7 @@ type ArrayArgumentsKind uint8
 
 const (
 	ArrayArgumentsUnknown ArrayArgumentsKind = iota
+	ArrayArgumentsUnimplemented
 	ArrayArgumentsError
 	ArrayArgumentsValue
 )
@@ -13743,6 +15516,8 @@ func CopyArrayArguments(value ArrayArguments) ArrayArguments {
 	switch value.Kind {
 	case ArrayArgumentsUnknown:
 		return ArrayArguments{Kind: ArrayArgumentsUnknown}
+	case ArrayArgumentsUnimplemented:
+		return ArrayArguments{Kind: ArrayArgumentsUnimplemented}
 	case ArrayArgumentsError:
 		return ArrayArguments{Kind: ArrayArgumentsError, Error: value.Error}
 	case ArrayArgumentsValue:
@@ -13786,17 +15561,29 @@ func ArrayValueValidity(input BoolValue, unknownValid bool) CheckOutcome {
 	if input.Kind == BoolValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == BoolValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == BoolValueError {
 		error := input.Error
 		return CheckOutcome{Kind: CheckOutcomeError, Error: error}
 	}
-	if input == (BoolValue{Kind: BoolValueUnknown}) && unknownValid == false {
-		return CheckUnresolved(unresolvedFlavor)
+	conditionFlavor544 := unresolvedFlavor
+	if input.Kind == BoolValueUnknown {
+		if conditionFlavor544 < 1 {
+			conditionFlavor544 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == BoolValueUnimplemented {
+		conditionFlavor544 = langruntime.CheckedI32(2)
+	}
+	if (input == (BoolValue{Kind: BoolValueUnknown}) || input == (BoolValue{Kind: BoolValueUnimplemented})) && unknownValid == false {
+		return CheckUnresolved(conditionFlavor544)
 	}
 	return CheckOutcome{Kind: CheckOutcomeTrue}
 }
 func ArrayValidityFinish(left CheckOutcome, right CheckOutcome) CheckOutcome {
-	if left == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
+	if left == (CheckOutcome{Kind: CheckOutcomeUnknown}) || left == (CheckOutcome{Kind: CheckOutcomeUnimplemented}) {
 		return left
 	}
 	if left.Kind == CheckOutcomeError {
@@ -13805,15 +15592,27 @@ func ArrayValidityFinish(left CheckOutcome, right CheckOutcome) CheckOutcome {
 	return right
 }
 func ArrayValidityUnknown(input CheckOutcome) bool {
-	return input == (CheckOutcome{Kind: CheckOutcomeUnknown})
+	return (input == (CheckOutcome{Kind: CheckOutcomeUnknown}) || input == (CheckOutcome{Kind: CheckOutcomeUnimplemented}))
 }
 func ArrayValidityPossible(input CheckOutcome) CheckOutcome {
 	unresolvedFlavor := 0
 	if input.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
-	if input == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
-		return CheckUnresolved(unresolvedFlavor)
+	if input.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	conditionFlavor784 := unresolvedFlavor
+	if input.Kind == CheckOutcomeUnknown {
+		if conditionFlavor784 < 1 {
+			conditionFlavor784 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == CheckOutcomeUnimplemented {
+		conditionFlavor784 = langruntime.CheckedI32(2)
+	}
+	if input == (CheckOutcome{Kind: CheckOutcomeUnknown}) || input == (CheckOutcome{Kind: CheckOutcomeUnimplemented}) {
+		return CheckUnresolved(conditionFlavor784)
 	}
 	if input.Kind == CheckOutcomeError {
 		return CheckUnresolved(unresolvedFlavor)
@@ -13828,12 +15627,27 @@ func ArrayConstructorFromValidity(input ArrayValue, validity CheckOutcome) Array
 	if validity.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if validity.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if validity.Kind == CheckOutcomeError {
 		error := validity.Error
 		return ArrayValue{Kind: ArrayValueError, Error: error}
 	}
-	if validity == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
-		return ArrayUnresolved(unresolvedFlavor)
+	conditionFlavor994 := unresolvedFlavor
+	if validity.Kind == CheckOutcomeUnknown {
+		if conditionFlavor994 < 1 {
+			conditionFlavor994 = langruntime.CheckedI32(1)
+		}
+	}
+	if validity.Kind == CheckOutcomeUnimplemented {
+		conditionFlavor994 = langruntime.CheckedI32(2)
+	}
+	if validity == (CheckOutcome{Kind: CheckOutcomeUnknown}) || validity == (CheckOutcome{Kind: CheckOutcomeUnimplemented}) {
+		return ArrayUnresolved(conditionFlavor994)
 	}
 	return input
 }
@@ -13841,6 +15655,9 @@ func ArrayCastValidity(input ArrayElement, source string, target string, alwaysV
 	unresolvedFlavor := 0
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
@@ -13901,6 +15718,13 @@ func AppendArrayCastConversion(input ArrayOutputPayload, element ArrayElement, v
 		}
 		return AppendArrayConversion(input, element, validity == (CheckOutcome{Kind: CheckOutcomeTrue}))
 	}
+	if element.Kind == ArrayElementUnimplemented {
+		if validity.Kind == CheckOutcomeError {
+			error := validity.Error
+			return AppendArrayConversion(input, ArrayElement{Kind: ArrayElementError, Error: error}, true)
+		}
+		return AppendArrayConversion(input, element, validity == (CheckOutcome{Kind: CheckOutcomeTrue}))
+	}
 	return AppendArrayConversion(input, element, true)
 }
 func MakeArrayConversion() ArrayOutputPayload {
@@ -13920,6 +15744,9 @@ func AppendArrayConversion(input ArrayOutputPayload, element ArrayElement, unkno
 	}
 	if state == 1 && unknownValid == false {
 		if element.Kind == ArrayElementUnknown {
+			state = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+		}
+		if element.Kind == ArrayElementUnimplemented {
 			state = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
 		}
 	}
@@ -13975,6 +15802,9 @@ func ArrayOutputElementAt(input *ArrayOutputPayload, index Int4Value) ArrayEleme
 	if index.Kind == Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if index.Kind == Int4ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if index.Kind == Int4ValueValue {
 		offset := langruntime.CheckedI32(index.Value)
 		position := langruntime.IndexFromI32(offset, len(input.Elements))
@@ -13985,8 +15815,7 @@ func ArrayOutputElementAt(input *ArrayOutputPayload, index Int4Value) ArrayEleme
 	return ArrayElementUnresolved(unresolvedFlavor)
 }
 func ArrayUnknown() ArrayValue {
-	unresolvedFlavor := 0
-	return ArrayUnresolved(unresolvedFlavor)
+	return ArrayValue{Kind: ArrayValueUnknown}
 }
 func ArrayNull() ArrayValue {
 	return ArrayValue{Kind: ArrayValueNull}
@@ -13997,12 +15826,28 @@ func ArrayIsNull(input ArrayValue) BoolValue {
 	if input.Kind == ArrayValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayValueError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
+	conditionFlavor3214 := unresolvedFlavor
 	if input.Kind == ArrayValueUnknown {
-		return BoolUnresolved(unresolvedFlavor)
+		if conditionFlavor3214 < 1 {
+			conditionFlavor3214 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == ArrayValueUnknown {
+		return BoolUnresolved(conditionFlavor3214)
+	}
+	conditionFlavor3237 := unresolvedFlavor
+	if input.Kind == ArrayValueUnimplemented {
+		conditionFlavor3237 = langruntime.CheckedI32(2)
+	}
+	if input.Kind == ArrayValueUnimplemented {
+		return BoolUnresolved(conditionFlavor3237)
 	}
 	if input.Kind == ArrayValueNull {
 		return BoolValue{Kind: BoolValueValue, Value: true}
@@ -14013,6 +15858,9 @@ func ArrayFromCaseGuard(input CheckOutcome) ArrayValue {
 	unresolvedFlavor := 0
 	if input.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == CheckOutcomeError {
 		error := input.Error
@@ -14079,10 +15927,26 @@ func MakeArrayValue(input ArrayPayload) ArrayValue {
 			error := checked.Error
 			return ArrayValue{Kind: ArrayValueError, Error: error}
 		}
+		conditionFlavor3748 := unresolvedFlavor
+		if checked.Kind == ArrayElementUnknown {
+			if conditionFlavor3748 < 1 {
+				conditionFlavor3748 = langruntime.CheckedI32(1)
+			}
+		}
 		if checked.Kind == ArrayElementUnknown {
 			family := ArrayElementFamily(CopyArrayElement(elements[position]))
 			if (family >= 41 && family <= 44) || family == 46 || family == 47 || family == 48 {
-				return ArrayUnresolved(unresolvedFlavor)
+				return ArrayUnresolved(conditionFlavor3748)
+			}
+		}
+		conditionFlavor37911 := unresolvedFlavor
+		if checked.Kind == ArrayElementUnimplemented {
+			conditionFlavor37911 = langruntime.CheckedI32(2)
+		}
+		if checked.Kind == ArrayElementUnimplemented {
+			family := ArrayElementFamily(CopyArrayElement(elements[position]))
+			if (family >= 41 && family <= 44) || family == 46 || family == 47 || family == 48 {
+				return ArrayUnresolved(conditionFlavor37911)
 			}
 		}
 		elements[position] = CopyArrayElement(checked)
@@ -14162,6 +16026,9 @@ func ArrayFromCoercedValue(input ArrayValue, elementType string, elementKind int
 	if input.Kind == ArrayValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayValueValue {
 		value := CopyArrayPayload(input.Value)
 		if value.ElementType != elementType || value.ElementKind != elementKind {
@@ -14176,6 +16043,9 @@ func CatalogVectorFromCoerced(input ArrayValue, oid bool) ArrayValue {
 	unresolvedFlavor := 0
 	if input.Kind == ArrayValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == ArrayValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == ArrayValueValue {
 		value := CopyArrayPayload(input.Value)
@@ -14253,6 +16123,9 @@ func ArrayFromCoercedTree(input ArrayValue, types string, kinds string) ArrayVal
 	if input.Kind == ArrayValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayValueValue {
 		value := CopyArrayPayload(input.Value)
 		if arrayTreeIdentityValid(&value, types, kinds, 0) == false {
@@ -14301,6 +16174,9 @@ func ArrayFromCoercedRangeTree(input ArrayValue, types string, kinds string, typ
 	unresolvedFlavor := 0
 	if input.Kind == ArrayValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == ArrayValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == ArrayValueValue {
 		payload := CopyArrayPayload(input.Value)
@@ -14367,6 +16243,9 @@ func ArrayFromCoercedMultirangeTree(input ArrayValue, types string, kinds string
 	if input.Kind == ArrayValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayValueValue {
 		payload := CopyArrayPayload(input.Value)
 		if arrayTreeIdentityValid(&payload, types, kinds, 0) == false || arrayMultirangeIdentityValid(&payload, typeName, rangeType, elementType, elementKind) == false {
@@ -14429,6 +16308,9 @@ func arrayWithTypedRangeProfile(input ArrayValue, multirangeType string, rangeTy
 	if input.Kind == ArrayValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayValueValue {
 		payload := CopyArrayPayload(input.Value)
 		elements := payload.Elements
@@ -14439,14 +16321,30 @@ func arrayWithTypedRangeProfile(input ArrayValue, multirangeType string, rangeTy
 			if element.Kind == ArrayElementUnknown {
 				convert = false
 			}
+			if element.Kind == ArrayElementUnimplemented {
+				convert = false
+			}
 			if convert {
 				converted := arrayElementWithTypedRangeProfile(element, multirangeType, rangeType, elementType, elementKind, comparison, canonical, labels, count, boundProfile)
 				if converted.Kind == ArrayElementError {
 					error := converted.Error
 					return ArrayValue{Kind: ArrayValueError, Error: error}
 				}
+				conditionFlavor81916 := unresolvedFlavor
 				if converted.Kind == ArrayElementUnknown {
-					return ArrayUnresolved(unresolvedFlavor)
+					if conditionFlavor81916 < 1 {
+						conditionFlavor81916 = langruntime.CheckedI32(1)
+					}
+				}
+				if converted.Kind == ArrayElementUnknown {
+					return ArrayUnresolved(conditionFlavor81916)
+				}
+				conditionFlavor82119 := unresolvedFlavor
+				if converted.Kind == ArrayElementUnimplemented {
+					conditionFlavor82119 = langruntime.CheckedI32(2)
+				}
+				if converted.Kind == ArrayElementUnimplemented {
+					return ArrayUnresolved(conditionFlavor82119)
 				}
 				elements[position] = CopyArrayElement(converted)
 			}
@@ -14495,6 +16393,9 @@ func ArrayFromCoercedRangeDefinedProfileTree(input ArrayValue, types string, kin
 	if input.Kind == ArrayValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayValueValue {
 		payload := CopyArrayPayload(input.Value)
 		if arrayTreeIdentityValid(&payload, types, kinds, 0) == false || arrayRangeIdentityValid(&payload, typeName, elementType, elementKind) == false {
@@ -14532,6 +16433,9 @@ func ArrayFromCoercedMultirangeDefinedProfileTree(input ArrayValue, types string
 	if input.Kind == ArrayValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayValueValue {
 		payload := CopyArrayPayload(input.Value)
 		if arrayTreeIdentityValid(&payload, types, kinds, 0) == false || arrayMultirangeIdentityValid(&payload, typeName, rangeType, elementType, elementKind) == false {
@@ -14554,6 +16458,9 @@ func ArrayFromCoercedRangeTypedProfileTree(input ArrayValue, types string, kinds
 	unresolvedFlavor := 0
 	if input.Kind == ArrayValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == ArrayValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == ArrayValueValue {
 		payload := CopyArrayPayload(input.Value)
@@ -14578,6 +16485,9 @@ func ArrayFromCoercedMultirangeTypedProfileTree(input ArrayValue, types string, 
 	unresolvedFlavor := 0
 	if input.Kind == ArrayValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == ArrayValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == ArrayValueValue {
 		payload := CopyArrayPayload(input.Value)
@@ -14634,6 +16544,9 @@ func FinishArrayArguments(input ArrayArguments) ArrayValue {
 	if input.Kind == ArrayArgumentsUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayArgumentsUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayArgumentsError {
 		error := input.Error
 		return ArrayValue{Kind: ArrayValueError, Error: error}
@@ -14652,6 +16565,12 @@ func ArrayFlatElement(input ArrayValue, offset Int4Value) ArrayElement {
 	}
 	if offset.Kind == Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == ArrayValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if offset.Kind == Int4ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == ArrayValueError {
 		error := input.Error
@@ -14689,6 +16608,9 @@ func FinishArrayConstructor(input ArrayArguments) ArrayValue {
 	if input.Kind == ArrayArgumentsUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayArgumentsUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayArgumentsError {
 		error := input.Error
 		return ArrayValue{Kind: ArrayValueError, Error: error}
@@ -14719,6 +16641,7 @@ type ArrayChildrenArgumentsKind uint8
 
 const (
 	ArrayChildrenArgumentsUnknown ArrayChildrenArgumentsKind = iota
+	ArrayChildrenArgumentsUnimplemented
 	ArrayChildrenArgumentsError
 	ArrayChildrenArgumentsValue
 )
@@ -14733,6 +16656,8 @@ func CopyArrayChildrenArguments(value ArrayChildrenArguments) ArrayChildrenArgum
 	switch value.Kind {
 	case ArrayChildrenArgumentsUnknown:
 		return ArrayChildrenArguments{Kind: ArrayChildrenArgumentsUnknown}
+	case ArrayChildrenArgumentsUnimplemented:
+		return ArrayChildrenArguments{Kind: ArrayChildrenArgumentsUnimplemented}
 	case ArrayChildrenArgumentsError:
 		return ArrayChildrenArguments{Kind: ArrayChildrenArgumentsError, Error: value.Error}
 	case ArrayChildrenArgumentsValue:
@@ -14771,6 +16696,9 @@ func FinishArrayChildren(input ArrayChildrenArguments) ArrayValue {
 	if input.Kind == ArrayChildrenArgumentsUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayChildrenArgumentsUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayChildrenArgumentsError {
 		error := input.Error
 		return ArrayValue{Kind: ArrayValueError, Error: error}
@@ -14780,8 +16708,21 @@ func FinishArrayChildren(input ArrayChildrenArguments) ArrayValue {
 		position := 0
 		for position < len(value.Arrays) {
 			child := CopyArrayValue(value.Arrays[position])
+			conditionFlavor116912 := unresolvedFlavor
 			if child.Kind == ArrayValueUnknown {
-				return ArrayUnresolved(unresolvedFlavor)
+				if conditionFlavor116912 < 1 {
+					conditionFlavor116912 = langruntime.CheckedI32(1)
+				}
+			}
+			if child.Kind == ArrayValueUnknown {
+				return ArrayUnresolved(conditionFlavor116912)
+			}
+			conditionFlavor117115 := unresolvedFlavor
+			if child.Kind == ArrayValueUnimplemented {
+				conditionFlavor117115 = langruntime.CheckedI32(2)
+			}
+			if child.Kind == ArrayValueUnimplemented {
+				return ArrayUnresolved(conditionFlavor117115)
 			}
 			position = langruntime.CheckedAdd(position, 1)
 		}
@@ -14883,6 +16824,7 @@ type ArrayTextPlanKind uint8
 
 const (
 	ArrayTextPlanUnknown ArrayTextPlanKind = iota
+	ArrayTextPlanUnimplemented
 	ArrayTextPlanNull
 	ArrayTextPlanValue
 )
@@ -14896,6 +16838,8 @@ func CopyArrayTextPlan(value ArrayTextPlan) ArrayTextPlan {
 	switch value.Kind {
 	case ArrayTextPlanUnknown:
 		return ArrayTextPlan{Kind: ArrayTextPlanUnknown}
+	case ArrayTextPlanUnimplemented:
+		return ArrayTextPlan{Kind: ArrayTextPlanUnimplemented}
 	case ArrayTextPlanNull:
 		return ArrayTextPlan{Kind: ArrayTextPlanNull}
 	case ArrayTextPlanValue:
@@ -14910,6 +16854,7 @@ const (
 	ArrayTextEventText ArrayTextEventKind = iota
 	ArrayTextEventNull
 	ArrayTextEventUnknown
+	ArrayTextEventUnimplemented
 	ArrayTextEventError
 )
 
@@ -14927,6 +16872,8 @@ func CopyArrayTextEvent(value ArrayTextEvent) ArrayTextEvent {
 		return ArrayTextEvent{Kind: ArrayTextEventNull}
 	case ArrayTextEventUnknown:
 		return ArrayTextEvent{Kind: ArrayTextEventUnknown}
+	case ArrayTextEventUnimplemented:
+		return ArrayTextEvent{Kind: ArrayTextEventUnimplemented}
 	case ArrayTextEventError:
 		return ArrayTextEvent{Kind: ArrayTextEventError, Error: value.Error}
 	}
@@ -15100,8 +17047,20 @@ func ParseArrayText(input TextValue, delimiter rune, nulls int) ArrayTextPlan {
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
-	if input == (TextValue{Kind: TextValueUnknown}) || input == (TextValue{Kind: TextValueNonNull}) {
-		return ArrayTextPlanUnresolved(unresolvedFlavor)
+	if input.Kind == TextValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	conditionFlavor15154 := unresolvedFlavor
+	if input.Kind == TextValueUnknown {
+		if conditionFlavor15154 < 1 {
+			conditionFlavor15154 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == TextValueUnimplemented {
+		conditionFlavor15154 = langruntime.CheckedI32(2)
+	}
+	if (input == (TextValue{Kind: TextValueUnknown}) || input == (TextValue{Kind: TextValueUnimplemented})) || input == (TextValue{Kind: TextValueNonNull}) {
+		return ArrayTextPlanUnresolved(conditionFlavor15154)
 	}
 	if input.Kind == TextValueNull {
 		return ArrayTextPlan{Kind: ArrayTextPlanNull}
@@ -15295,6 +17254,9 @@ func ArrayTextEventAt(input *ArrayTextPayload, index Int4Value) TextValue {
 	if index.Kind == Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if index.Kind == Int4ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if index.Kind == Int4ValueError {
 		error := index.Error
 		return TextValue{Kind: TextValueError, Error: error}
@@ -15333,6 +17295,12 @@ func FinishArrayText(plan ArrayTextPlan, converted ArrayArguments) ArrayValue {
 	if converted.Kind == ArrayArgumentsUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if plan.Kind == ArrayTextPlanUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if converted.Kind == ArrayArgumentsUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if converted.Kind == ArrayArgumentsError {
 		error := converted.Error
 		return ArrayValue{Kind: ArrayValueError, Error: error}
@@ -15356,9 +17324,24 @@ func FinishArrayText(plan ArrayTextPlan, converted ArrayArguments) ArrayValue {
 			index = langruntime.CheckedIndex(0)
 			for index < len(value.Elements) {
 				element := CopyArrayElement(value.Elements[index])
+				conditionFlavor177416 := unresolvedFlavor
+				if element.Kind == ArrayElementUnknown {
+					if conditionFlavor177416 < 1 {
+						conditionFlavor177416 = langruntime.CheckedI32(1)
+					}
+				}
 				if element.Kind == ArrayElementUnknown {
 					if value.ElementType != "pg_catalog.name" {
-						return ArrayUnresolved(unresolvedFlavor)
+						return ArrayUnresolved(conditionFlavor177416)
+					}
+				}
+				conditionFlavor177819 := unresolvedFlavor
+				if element.Kind == ArrayElementUnimplemented {
+					conditionFlavor177819 = langruntime.CheckedI32(2)
+				}
+				if element.Kind == ArrayElementUnimplemented {
+					if value.ElementType != "pg_catalog.name" {
+						return ArrayUnresolved(conditionFlavor177819)
 					}
 				}
 				index = langruntime.CheckedAdd(index, 1)
@@ -15416,6 +17399,9 @@ func ArrayTextNextIndex(input Int4Value) Int4Value {
 	if input.Kind == Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == Int4ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == Int4ValueValue {
 		value := langruntime.CheckedI32(input.Value)
 		if value < 2147483647 {
@@ -15430,6 +17416,9 @@ func FinishPreparedArrayText(input ArrayTextPayload, converted ArrayArguments) A
 	unresolvedFlavor := 0
 	if converted.Kind == ArrayArgumentsUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if converted.Kind == ArrayArgumentsUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.State == 0 {
 		return ArrayValue{Kind: ArrayValueNull}
@@ -15534,6 +17523,9 @@ func ArraySubscriptInitial(input ArrayValue) ArrayElement {
 	if input.Kind == ArrayValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayValueError {
 		error := input.Error
 		return ArrayElement{Kind: ArrayElementError, Error: error}
@@ -15572,6 +17564,9 @@ func ArrayFetchSubscript(input ArrayValue, indices ArraySubscripts) ArrayElement
 	if input.Kind == ArrayValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayValueError {
 		error := input.Error
 		return ArrayElement{Kind: ArrayElementError, Error: error}
@@ -15579,8 +17574,21 @@ func ArrayFetchSubscript(input ArrayValue, indices ArraySubscripts) ArrayElement
 	if input.Kind == ArrayValueNull {
 		return ArrayElement{Kind: ArrayElementNull}
 	}
+	conditionFlavor19974 := unresolvedFlavor
 	if input.Kind == ArrayValueUnknown {
-		return ArrayElementUnresolved(unresolvedFlavor)
+		if conditionFlavor19974 < 1 {
+			conditionFlavor19974 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == ArrayValueUnknown {
+		return ArrayElementUnresolved(conditionFlavor19974)
+	}
+	conditionFlavor19997 := unresolvedFlavor
+	if input.Kind == ArrayValueUnimplemented {
+		conditionFlavor19997 = langruntime.CheckedI32(2)
+	}
+	if input.Kind == ArrayValueUnimplemented {
+		return ArrayElementUnresolved(conditionFlavor19997)
 	}
 	if indices.Kind == ArraySubscriptsError {
 		error := indices.Error
@@ -15649,6 +17657,9 @@ func ArraySliceSubscript(input ArrayValue, indices ArraySubscripts) ArrayValue {
 	if input.Kind == ArrayValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayValueError {
 		return input
 	}
@@ -15656,6 +17667,9 @@ func ArraySliceSubscript(input ArrayValue, indices ArraySubscripts) ArrayValue {
 		return input
 	}
 	if input.Kind == ArrayValueUnknown {
+		return input
+	}
+	if input.Kind == ArrayValueUnimplemented {
 		return input
 	}
 	if indices.Kind == ArraySubscriptsError {
@@ -15835,7 +17849,13 @@ func PrepareArrayComparison(left ArrayValue, right ArrayValue, equality bool, av
 	if left.Kind == ArrayValueUnknown {
 		return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
 	}
+	if left.Kind == ArrayValueUnimplemented {
+		return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
+	}
 	if right.Kind == ArrayValueUnknown {
+		return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
+	}
+	if right.Kind == ArrayValueUnimplemented {
 		return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
 	}
 	if left.Kind == ArrayValueNull {
@@ -15895,6 +17915,9 @@ func ArrayComparisonElementAt(input *ArrayComparisonPayload, index Int4Value, ri
 	if index.Kind == Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if index.Kind == Int4ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if index.Kind == Int4ValueValue {
 		offset := langruntime.CheckedI32(index.Value)
 		position := langruntime.IndexFromI32(offset, input.Limit)
@@ -15917,6 +17940,12 @@ func ArrayComparisonPair(left ArrayElement, right ArrayElement, equality bool) I
 	if right.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if right.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if left.Kind == ArrayElementError {
 		error := left.Error
 		return Int4Value{Kind: Int4ValueError, Error: error}
@@ -15925,11 +17954,37 @@ func ArrayComparisonPair(left ArrayElement, right ArrayElement, equality bool) I
 		error := right.Error
 		return Int4Value{Kind: Int4ValueError, Error: error}
 	}
+	conditionFlavor23804 := unresolvedFlavor
 	if left.Kind == ArrayElementUnknown {
-		return Int4Unresolved(unresolvedFlavor)
+		if conditionFlavor23804 < 1 {
+			conditionFlavor23804 = langruntime.CheckedI32(1)
+		}
+	}
+	if left.Kind == ArrayElementUnknown {
+		return Int4Unresolved(conditionFlavor23804)
+	}
+	conditionFlavor23827 := unresolvedFlavor
+	if left.Kind == ArrayElementUnimplemented {
+		conditionFlavor23827 = langruntime.CheckedI32(2)
+	}
+	if left.Kind == ArrayElementUnimplemented {
+		return Int4Unresolved(conditionFlavor23827)
+	}
+	conditionFlavor23854 := unresolvedFlavor
+	if right.Kind == ArrayElementUnknown {
+		if conditionFlavor23854 < 1 {
+			conditionFlavor23854 = langruntime.CheckedI32(1)
+		}
 	}
 	if right.Kind == ArrayElementUnknown {
-		return Int4Unresolved(unresolvedFlavor)
+		return Int4Unresolved(conditionFlavor23854)
+	}
+	conditionFlavor23877 := unresolvedFlavor
+	if right.Kind == ArrayElementUnimplemented {
+		conditionFlavor23877 = langruntime.CheckedI32(2)
+	}
+	if right.Kind == ArrayElementUnimplemented {
+		return Int4Unresolved(conditionFlavor23877)
 	}
 	leftNull := false
 	rightNull := false
@@ -15964,12 +18019,24 @@ func ArrayEqualityStep(input BoolValue) Int4Value {
 	if input.Kind == BoolValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == BoolValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == BoolValueError {
 		error := input.Error
 		return Int4Value{Kind: Int4ValueError, Error: error}
 	}
+	conditionFlavor24274 := unresolvedFlavor
 	if input.Kind == BoolValueUnknown {
-		return Int4Unresolved(unresolvedFlavor)
+		if conditionFlavor24274 < 1 {
+			conditionFlavor24274 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == BoolValueUnimplemented {
+		conditionFlavor24274 = langruntime.CheckedI32(2)
+	}
+	if input == (BoolValue{Kind: BoolValueUnknown}) || input == (BoolValue{Kind: BoolValueUnimplemented}) {
+		return Int4Unresolved(conditionFlavor24274)
 	}
 	if input.Kind == BoolValueValue {
 		value := input.Value
@@ -15983,6 +18050,9 @@ func ArrayOrderStep(input Int4Value) Int4Value {
 	unresolvedFlavor := 0
 	if input.Kind == Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == Int4ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == Int4ValueValue {
 		value := langruntime.CheckedI32(input.Value)
@@ -16003,6 +18073,9 @@ func ArrayOrderFromEquality(input BoolValue) Int4Value {
 	unresolvedFlavor := 0
 	if input.Kind == BoolValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == BoolValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == BoolValueError {
 		error := input.Error
@@ -16073,6 +18146,9 @@ func ArrayMembershipElementAt(input *ArrayComparisonPayload, index Int4Value, ri
 	unresolvedFlavor := 0
 	if index.Kind == Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if index.Kind == Int4ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if index.Kind == Int4ValueValue {
 		offset := langruntime.CheckedI32(index.Value)
@@ -16149,6 +18225,9 @@ func ArrayCoercionDeferred(input ArrayElement) ArrayElement {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayElementNull {
 		return ArrayElement{Kind: ArrayElementNull}
 	}
@@ -16164,6 +18243,9 @@ func FinishArrayCoercion(input ArrayOutputPayload, converted ArrayArguments, bin
 	unresolvedFlavor := 0
 	if converted.Kind == ArrayArgumentsUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if converted.Kind == ArrayArgumentsUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.State == langruntime.CheckedSignedNegate(2) {
 		return ArrayValue{Kind: ArrayValueError, Error: input.Error}
@@ -16218,7 +18300,13 @@ func PrepareArrayBucket(needle ArrayElement, input ArrayValue, available bool) A
 	if needle.Kind == ArrayElementUnknown {
 		return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
 	}
+	if needle.Kind == ArrayElementUnimplemented {
+		return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
+	}
 	if input.Kind == ArrayValueUnknown {
+		return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
+	}
+	if input.Kind == ArrayValueUnimplemented {
 		return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
 	}
 	if needle.Kind == ArrayElementNull {
@@ -16245,6 +18333,9 @@ func PrepareArrayBucket(needle ArrayElement, input ArrayValue, available bool) A
 				knownNull = true
 			}
 			if cell.Kind == ArrayElementUnknown {
+				unknownNull = true
+			}
+			if cell.Kind == ArrayElementUnimplemented {
 				unknownNull = true
 			}
 			position = langruntime.CheckedAdd(position, 1)
@@ -16296,6 +18387,12 @@ func ArrayBucketMidpoint(low Int4Value, high Int4Value) Int4Value {
 	if high.Kind == Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if low.Kind == Int4ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if high.Kind == Int4ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if low.Kind == Int4ValueValue {
 		left := langruntime.CheckedI32(low.Value)
 		if high.Kind == Int4ValueValue {
@@ -16317,6 +18414,15 @@ func ArrayBucketLower(low Int4Value, high Int4Value, compared Int4Value) Int4Val
 	}
 	if compared.Kind == Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if low.Kind == Int4ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if high.Kind == Int4ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if compared.Kind == Int4ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if compared.Kind == Int4ValueError {
 		error := compared.Error
@@ -16347,6 +18453,15 @@ func ArrayBucketUpper(low Int4Value, high Int4Value, compared Int4Value) Int4Val
 	}
 	if compared.Kind == Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if low.Kind == Int4ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if high.Kind == Int4ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if compared.Kind == Int4ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if compared.Kind == Int4ValueError {
 		error := compared.Error
@@ -16395,6 +18510,9 @@ func PrepareArraySearch(input ArrayValue, needle ArrayElement, start Int4Value, 
 		if needle.Kind == ArrayElementUnknown {
 			needleUnknown = true
 		}
+		if needle.Kind == ArrayElementUnimplemented {
+			needleUnknown = true
+		}
 		knownNull := false
 		unknownNull := false
 		position := 0
@@ -16406,13 +18524,16 @@ func PrepareArraySearch(input ArrayValue, needle ArrayElement, start Int4Value, 
 			if element.Kind == ArrayElementUnknown {
 				unknownNull = true
 			}
+			if element.Kind == ArrayElementUnimplemented {
+				unknownNull = true
+			}
 			position = langruntime.CheckedAdd(position, 1)
 		}
 		if needleNull && knownNull == false && unknownNull == false {
 			return arrayComparisonState(2, MakeSqlError(0), 0)
 		}
 		if provided {
-			if start == (Int4Value{Kind: Int4ValueUnknown}) {
+			if start == (Int4Value{Kind: Int4ValueUnknown}) || start == (Int4Value{Kind: Int4ValueUnimplemented}) {
 				return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
 			}
 			if start == (Int4Value{Kind: Int4ValueNull}) {
@@ -16472,7 +18593,7 @@ func ArraySearchContinues(input *ArrayComparisonPayload, index Int4Value, result
 	if result.Kind == Int4ValueError {
 		return false
 	}
-	if result == (Int4Value{Kind: Int4ValueUnknown}) {
+	if result == (Int4Value{Kind: Int4ValueUnknown}) || result == (Int4Value{Kind: Int4ValueUnimplemented}) {
 		return false
 	}
 	if all == false {
@@ -16503,12 +18624,27 @@ func ArraySearchResultStep(input *ArrayComparisonPayload, index Int4Value, compa
 	if compared.Kind == Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if index.Kind == Int4ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if compared.Kind == Int4ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if compared.Kind == Int4ValueError {
 		error := compared.Error
 		return Int4Value{Kind: Int4ValueError, Error: error}
 	}
-	if compared == (Int4Value{Kind: Int4ValueUnknown}) {
-		return Int4Unresolved(unresolvedFlavor)
+	conditionFlavor30214 := unresolvedFlavor
+	if compared.Kind == Int4ValueUnknown {
+		if conditionFlavor30214 < 1 {
+			conditionFlavor30214 = langruntime.CheckedI32(1)
+		}
+	}
+	if compared.Kind == Int4ValueUnimplemented {
+		conditionFlavor30214 = langruntime.CheckedI32(2)
+	}
+	if compared == (Int4Value{Kind: Int4ValueUnknown}) || compared == (Int4Value{Kind: Int4ValueUnimplemented}) {
+		return Int4Unresolved(conditionFlavor30214)
 	}
 	if compared.Kind == Int4ValueValue {
 		value := langruntime.CheckedI32(compared.Value)
@@ -16541,6 +18677,12 @@ func FinishArraySearchPositions(input *ArrayComparisonPayload, values ArrayArgum
 	if result.Kind == Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if values.Kind == ArrayArgumentsUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if result.Kind == Int4ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.State == 0 {
 		return ArrayValue{Kind: ArrayValueNull}
 	}
@@ -16548,8 +18690,17 @@ func FinishArraySearchPositions(input *ArrayComparisonPayload, values ArrayArgum
 		error := result.Error
 		return ArrayValue{Kind: ArrayValueError, Error: error}
 	}
-	if result == (Int4Value{Kind: Int4ValueUnknown}) {
-		return ArrayUnresolved(unresolvedFlavor)
+	conditionFlavor30594 := unresolvedFlavor
+	if result.Kind == Int4ValueUnknown {
+		if conditionFlavor30594 < 1 {
+			conditionFlavor30594 = langruntime.CheckedI32(1)
+		}
+	}
+	if result.Kind == Int4ValueUnimplemented {
+		conditionFlavor30594 = langruntime.CheckedI32(2)
+	}
+	if result == (Int4Value{Kind: Int4ValueUnknown}) || result == (Int4Value{Kind: Int4ValueUnimplemented}) {
+		return ArrayUnresolved(conditionFlavor30594)
 	}
 	return FinishArrayConstructor(values)
 }
@@ -16627,6 +18778,15 @@ func ArrayRewriteStep(input ArrayArguments, plan *ArrayComparisonPayload, index 
 	if compared.Kind == Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayArgumentsUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if index.Kind == Int4ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if compared.Kind == Int4ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == ArrayArgumentsError {
 		return input
 	}
@@ -16635,9 +18795,18 @@ func ArrayRewriteStep(input ArrayArguments, plan *ArrayComparisonPayload, index 
 		return ArrayArguments{Kind: ArrayArgumentsError, Error: error}
 	}
 	source := ArrayMembershipElementAt(plan, index, false)
-	if compared == (Int4Value{Kind: Int4ValueUnknown}) {
+	conditionFlavor31564 := unresolvedFlavor
+	if compared.Kind == Int4ValueUnknown {
+		if conditionFlavor31564 < 1 {
+			conditionFlavor31564 = langruntime.CheckedI32(1)
+		}
+	}
+	if compared.Kind == Int4ValueUnimplemented {
+		conditionFlavor31564 = langruntime.CheckedI32(2)
+	}
+	if compared == (Int4Value{Kind: Int4ValueUnknown}) || compared == (Int4Value{Kind: Int4ValueUnimplemented}) {
 		if remove {
-			return ArrayArgumentsUnresolved(unresolvedFlavor)
+			return ArrayArgumentsUnresolved(conditionFlavor31564)
 		}
 		if source.Kind == ArrayElementNull {
 			replacement := CopyArrayElement(plan.Right[1])
@@ -16664,6 +18833,9 @@ func ArrayRewriteChanged(input *ArrayComparisonPayload, compared Int4Value, remo
 	unresolvedFlavor := 0
 	if compared.Kind == Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if compared.Kind == Int4ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if remove == false && len(input.Right) == 2 {
 		needle := CopyArrayElement(input.Right[0])
@@ -16693,6 +18865,15 @@ func FinishArrayRewrite(original ArrayValue, plan *ArrayComparisonPayload, value
 	}
 	if changed.Kind == BoolValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if original.Kind == ArrayValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if values.Kind == ArrayArgumentsUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if changed.Kind == BoolValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if plan.State == langruntime.CheckedSignedNegate(2) {
 		return ArrayValue{Kind: ArrayValueError, Error: plan.Error}
@@ -16802,7 +18983,10 @@ func PrepareArrayHash(input ArrayValue, seed Int8Value, available bool) ArrayCom
 	if input.Kind == ArrayValueUnknown {
 		return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 1)
 	}
-	if seed == (Int8Value{Kind: Int8ValueUnknown}) {
+	if input.Kind == ArrayValueUnimplemented {
+		return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 1)
+	}
+	if seed == (Int8Value{Kind: Int8ValueUnknown}) || seed == (Int8Value{Kind: Int8ValueUnimplemented}) {
 		return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 1)
 	}
 	if input.Kind == ArrayValueNull {
@@ -16829,8 +19013,17 @@ func ArrayHashInitial64(input *ArrayComparisonPayload) Int8Value {
 		error := initial.Error
 		return Int8Value{Kind: Int8ValueError, Error: error}
 	}
-	if initial == (Int4Value{Kind: Int4ValueUnknown}) {
-		return Int8Unresolved(unresolvedFlavor)
+	conditionFlavor33524 := unresolvedFlavor
+	if initial.Kind == Int4ValueUnknown {
+		if conditionFlavor33524 < 1 {
+			conditionFlavor33524 = langruntime.CheckedI32(1)
+		}
+	}
+	if initial.Kind == Int4ValueUnimplemented {
+		conditionFlavor33524 = langruntime.CheckedI32(2)
+	}
+	if initial == (Int4Value{Kind: Int4ValueUnknown}) || initial == (Int4Value{Kind: Int4ValueUnimplemented}) {
+		return Int8Unresolved(conditionFlavor33524)
 	}
 	if initial == (Int4Value{Kind: Int4ValueNull}) {
 		return Int8Value{Kind: Int8ValueNull}
@@ -16867,6 +19060,12 @@ func ArrayBitmapUnion(left BoolValue, right BoolValue) BoolValue {
 	if right.Kind == BoolValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == BoolValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if right.Kind == BoolValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if left == (BoolValue{Kind: BoolValueValue, Value: true}) || right == (BoolValue{Kind: BoolValueValue, Value: true}) {
 		return BoolValue{Kind: BoolValueValue, Value: true}
 	}
@@ -16881,8 +19080,24 @@ func ArrayElementBitmap(input ArrayElement) BoolValue {
 	if input.Kind == ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	conditionFlavor204 := unresolvedFlavor
 	if input.Kind == ArrayElementUnknown {
-		return BoolUnresolved(unresolvedFlavor)
+		if conditionFlavor204 < 1 {
+			conditionFlavor204 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == ArrayElementUnknown {
+		return BoolUnresolved(conditionFlavor204)
+	}
+	conditionFlavor227 := unresolvedFlavor
+	if input.Kind == ArrayElementUnimplemented {
+		conditionFlavor227 = langruntime.CheckedI32(2)
+	}
+	if input.Kind == ArrayElementUnimplemented {
+		return BoolUnresolved(conditionFlavor227)
 	}
 	if input.Kind == ArrayElementNull {
 		return BoolValue{Kind: BoolValueValue, Value: true}
@@ -16918,6 +19133,12 @@ func ArrayBitmapChoice(left BoolValue, right BoolValue) BoolValue {
 	if right.Kind == BoolValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == BoolValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if right.Kind == BoolValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if left == right {
 		return left
 	}
@@ -16928,6 +19149,9 @@ func ArrayNullBitmap(input ArrayValue) BoolValue {
 	unresolvedFlavor := 0
 	if input.Kind == ArrayValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == ArrayValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == ArrayValueError {
 		error := input.Error
@@ -17007,6 +19231,12 @@ func AdvanceTsvectorStorage(nullness BoolValue, index Int4Value) Int4Value {
 	}
 	if index.Kind == Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if nullness.Kind == BoolValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if index.Kind == Int4ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if nullness.Kind == BoolValueError {
 		error := nullness.Error
@@ -17356,7 +19586,7 @@ func ArrayQuantifierContinues(input *ArrayComparisonPayload, index Int4Value, re
 	if result.Kind == CheckOutcomeError {
 		return false
 	}
-	if result == (CheckOutcome{Kind: CheckOutcomeUnknown}) && safe == false {
+	if (result == (CheckOutcome{Kind: CheckOutcomeUnknown}) || result == (CheckOutcome{Kind: CheckOutcomeUnimplemented})) && safe == false {
 		return false
 	}
 	if any && result == (CheckOutcome{Kind: CheckOutcomeTrue}) {
@@ -17399,12 +19629,27 @@ func ArrayQuantifierFinish(input CheckOutcome, validity CheckOutcome) BoolValue 
 	if validity.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if validity.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if validity.Kind == CheckOutcomeError {
 		error := validity.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
 	}
-	if validity == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
-		return BoolUnresolved(unresolvedFlavor)
+	conditionFlavor1074 := unresolvedFlavor
+	if validity.Kind == CheckOutcomeUnknown {
+		if conditionFlavor1074 < 1 {
+			conditionFlavor1074 = langruntime.CheckedI32(1)
+		}
+	}
+	if validity.Kind == CheckOutcomeUnimplemented {
+		conditionFlavor1074 = langruntime.CheckedI32(2)
+	}
+	if validity == (CheckOutcome{Kind: CheckOutcomeUnknown}) || validity == (CheckOutcome{Kind: CheckOutcomeUnimplemented}) {
+		return BoolUnresolved(conditionFlavor1074)
 	}
 	return BoolFromCheck(input)
 }
@@ -17469,12 +19714,24 @@ func BitFromText(input TextValue) BitValue {
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == TextValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == TextValueError {
 		error := input.Error
 		return BitValue{Kind: BitValueError, Error: error}
 	}
-	if input == (TextValue{Kind: TextValueUnknown}) || input == (TextValue{Kind: TextValueNonNull}) {
-		return BitUnresolved(unresolvedFlavor)
+	conditionFlavor644 := unresolvedFlavor
+	if input.Kind == TextValueUnknown {
+		if conditionFlavor644 < 1 {
+			conditionFlavor644 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == TextValueUnimplemented {
+		conditionFlavor644 = langruntime.CheckedI32(2)
+	}
+	if (input == (TextValue{Kind: TextValueUnknown}) || input == (TextValue{Kind: TextValueUnimplemented})) || input == (TextValue{Kind: TextValueNonNull}) {
+		return BitUnresolved(conditionFlavor644)
 	}
 	if input == (TextValue{Kind: TextValueNull}) {
 		return BitValue{Kind: BitValueNull}
@@ -17490,12 +19747,24 @@ func BitToText(input BitValue) TextValue {
 	if input.Kind == BitValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == BitValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == BitValueError {
 		error := input.Error
 		return TextValue{Kind: TextValueError, Error: error}
 	}
-	if input == (BitValue{Kind: BitValueUnknown}) {
-		return TextUnresolved(unresolvedFlavor)
+	conditionFlavor834 := unresolvedFlavor
+	if input.Kind == BitValueUnknown {
+		if conditionFlavor834 < 1 {
+			conditionFlavor834 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == BitValueUnimplemented {
+		conditionFlavor834 = langruntime.CheckedI32(2)
+	}
+	if input == (BitValue{Kind: BitValueUnknown}) || input == (BitValue{Kind: BitValueUnimplemented}) {
+		return TextUnresolved(conditionFlavor834)
 	}
 	if input == (BitValue{Kind: BitValueNull}) {
 		return TextValue{Kind: TextValueNull}
@@ -18595,12 +20864,24 @@ func DateFromTextOrder(value TextValue, dateOrder int) DateValue {
 	if value.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if value.Kind == TextValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if value.Kind == TextValueError {
 		error := value.Error
 		return DateValue{Kind: DateValueError, Error: error}
 	}
-	if value == (TextValue{Kind: TextValueUnknown}) || value == (TextValue{Kind: TextValueNonNull}) {
-		return DateUnresolved(unresolvedFlavor)
+	conditionFlavor8234 := unresolvedFlavor
+	if value.Kind == TextValueUnknown {
+		if conditionFlavor8234 < 1 {
+			conditionFlavor8234 = langruntime.CheckedI32(1)
+		}
+	}
+	if value.Kind == TextValueUnimplemented {
+		conditionFlavor8234 = langruntime.CheckedI32(2)
+	}
+	if (value == (TextValue{Kind: TextValueUnknown}) || value == (TextValue{Kind: TextValueUnimplemented})) || value == (TextValue{Kind: TextValueNonNull}) {
+		return DateUnresolved(conditionFlavor8234)
 	}
 	if value == (TextValue{Kind: TextValueNull}) {
 		return DateValue{Kind: DateValueNull}
@@ -18715,6 +20996,9 @@ func dateFromTemporalText(value TextValue, dateOrder int) DateValue {
 	unresolvedFlavor := 0
 	if value.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if value.Kind == TextValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	parsed := parseTemporalText(value, false, true, dateOrder)
 	if parsed.Kind == Int8ValueError {
@@ -18927,12 +21211,24 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool, dateOr
 	if value.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if value.Kind == TextValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if value.Kind == TextValueError {
 		error := value.Error
 		return Int8Value{Kind: Int8ValueError, Error: error}
 	}
-	if value == (TextValue{Kind: TextValueUnknown}) || value == (TextValue{Kind: TextValueNonNull}) {
-		return Int8Unresolved(unresolvedFlavor)
+	conditionFlavor2184 := unresolvedFlavor
+	if value.Kind == TextValueUnknown {
+		if conditionFlavor2184 < 1 {
+			conditionFlavor2184 = langruntime.CheckedI32(1)
+		}
+	}
+	if value.Kind == TextValueUnimplemented {
+		conditionFlavor2184 = langruntime.CheckedI32(2)
+	}
+	if (value == (TextValue{Kind: TextValueUnknown}) || value == (TextValue{Kind: TextValueUnimplemented})) || value == (TextValue{Kind: TextValueNonNull}) {
+		return Int8Unresolved(conditionFlavor2184)
 	}
 	if value == (TextValue{Kind: TextValueNull}) {
 		return Int8Value{Kind: Int8ValueNull}
@@ -19501,8 +21797,17 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool, dateOr
 		}
 		if index < end && deferredZone == false && hours.digits > 0 && dateTextDigit(text.chars[index]) >= 0 {
 			afterClock := temporalNumberAfterClock(hour, minute, second, compactClock, yearOverflow)
-			if afterClock == (Int8Value{Kind: Int8ValueUnknown}) {
-				return Int8Unresolved(unresolvedFlavor)
+			conditionFlavor93112 := unresolvedFlavor
+			if afterClock.Kind == Int8ValueUnknown {
+				if conditionFlavor93112 < 1 {
+					conditionFlavor93112 = langruntime.CheckedI32(1)
+				}
+			}
+			if afterClock.Kind == Int8ValueUnimplemented {
+				conditionFlavor93112 = langruntime.CheckedI32(2)
+			}
+			if afterClock == (Int8Value{Kind: Int8ValueUnknown}) || afterClock == (Int8Value{Kind: Int8ValueUnimplemented}) {
+				return Int8Unresolved(conditionFlavor93112)
 			}
 			if afterClock.Kind == Int8ValueError {
 				error := afterClock.Error
@@ -19539,6 +21844,9 @@ func timestampFromMicroseconds(value Int8Value) TimestampValue {
 	unresolvedFlavor := 0
 	if value.Kind == Int8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if value.Kind == Int8ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if value.Kind == Int8ValueError {
 		error := value.Error
@@ -19577,6 +21885,9 @@ func timestamptzFromMicroseconds(value Int8Value) TimestamptzValue {
 	unresolvedFlavor := 0
 	if value.Kind == Int8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if value.Kind == Int8ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if value.Kind == Int8ValueError {
 		error := value.Error
@@ -19656,6 +21967,9 @@ func clockGrammarNormalized(input TextValue) TextValue {
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == TextValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == TextValueValue {
 		value := langruntime.CheckedString(input.Value)
 		chars := []rune(value)
@@ -19696,8 +22010,17 @@ func clockGrammarNormalized(input TextValue) TextValue {
 						error := parsed.Error
 						return TextValue{Kind: TextValueError, Error: error}
 					}
-					if parsed == (DateValue{Kind: DateValueUnknown}) {
-						return TextUnresolved(unresolvedFlavor)
+					conditionFlavor9420 := unresolvedFlavor
+					if parsed.Kind == DateValueUnknown {
+						if conditionFlavor9420 < 1 {
+							conditionFlavor9420 = langruntime.CheckedI32(1)
+						}
+					}
+					if parsed.Kind == DateValueUnimplemented {
+						conditionFlavor9420 = langruntime.CheckedI32(2)
+					}
+					if parsed == (DateValue{Kind: DateValueUnknown}) || parsed == (DateValue{Kind: DateValueUnimplemented}) {
+						return TextUnresolved(conditionFlavor9420)
 					}
 					start = langruntime.CheckedIndex(langruntime.CheckedAdd(position, 1))
 					for start < end && dateTextSpace(chars[start]) {
@@ -19800,6 +22123,9 @@ func clockInputText(rawInput TextValue) TextValue {
 	unresolvedFlavor := 0
 	if rawInput.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if rawInput.Kind == TextValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	input := clockGrammarNormalized(rawInput)
 	if input.Kind == TextValueValue {
@@ -19912,6 +22238,9 @@ func TimeFromText(input TextValue) TimeValue {
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == TextValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	parsed := parseTimestampText(clockInputText(input), false)
 	if parsed.Kind == Int8ValueError {
 		error := parsed.Error
@@ -19930,6 +22259,9 @@ func TimetzFromText(input TextValue) TimetzValue {
 	unresolvedFlavor := 0
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == TextValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	normalized := clockInputText(input)
 	local := parseTimestampText(normalized, false)
@@ -20267,6 +22599,9 @@ func intervalUnitsFromText(input TextValue, fieldMask int, style int) IntervalVa
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == TextValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == TextValueError {
 		error := input.Error
 		return IntervalValue{Kind: IntervalValueError, Error: error}
@@ -20394,7 +22729,7 @@ func intervalUnitsFromText(input TextValue, fieldMask int, style int) IntervalVa
 				}
 				whole := intervalInputWhole(token)
 				yearMonth := false
-				if whole == (Int8Value{Kind: Int8ValueUnknown}) {
+				if whole == (Int8Value{Kind: Int8ValueUnknown}) || whole == (Int8Value{Kind: Int8ValueUnimplemented}) {
 					whole = intervalInputYearMonth(token)
 					yearMonth = true
 				}
@@ -20405,7 +22740,16 @@ func intervalUnitsFromText(input TextValue, fieldMask int, style int) IntervalVa
 					error := whole.Error
 					return IntervalValue{Kind: IntervalValueError, Error: error}
 				}
-				if whole == (Int8Value{Kind: Int8ValueUnknown}) {
+				conditionFlavor49016 := unresolvedFlavor
+				if whole.Kind == Int8ValueUnknown {
+					if conditionFlavor49016 < 1 {
+						conditionFlavor49016 = langruntime.CheckedI32(1)
+					}
+				}
+				if whole.Kind == Int8ValueUnimplemented {
+					conditionFlavor49016 = langruntime.CheckedI32(2)
+				}
+				if whole == (Int8Value{Kind: Int8ValueUnknown}) || whole == (Int8Value{Kind: Int8ValueUnimplemented}) {
 					asciiField := false
 					scan := 0
 					for scan < len(tokenChars) {
@@ -20417,7 +22761,7 @@ func intervalUnitsFromText(input TextValue, fieldMask int, style int) IntervalVa
 					if asciiField == false {
 						return IntervalValue{Kind: IntervalValueError, Error: MakeSqlError(intervalInputSyntax)}
 					}
-					return IntervalUnresolved(unresolvedFlavor)
+					return IntervalUnresolved(conditionFlavor49016)
 				}
 				if whole.Kind == Int8ValueValue {
 					number := whole.Value
@@ -20515,7 +22859,7 @@ func intervalInputClock(input intervalInputAcc, text string, fieldMask int) inte
 		error := secondNumber.Error
 		return intervalInputFail(input, intervalClockErrorState(error, rangeError))
 	}
-	if firstNumber == (Int8Value{Kind: Int8ValueUnknown}) || secondNumber == (Int8Value{Kind: Int8ValueUnknown}) {
+	if (firstNumber == (Int8Value{Kind: Int8ValueUnknown}) || firstNumber == (Int8Value{Kind: Int8ValueUnimplemented})) || (secondNumber == (Int8Value{Kind: Int8ValueUnknown}) || secondNumber == (Int8Value{Kind: Int8ValueUnimplemented})) {
 		return intervalInputFail(input, intervalInputSyntax)
 	}
 	hours := int64(0)
@@ -20560,7 +22904,7 @@ func intervalInputClock(input intervalInputAcc, text string, fieldMask int) inte
 			error := lastNumber.Error
 			return intervalInputFail(input, intervalClockErrorState(error, rangeError))
 		}
-		if lastNumber == (Int8Value{Kind: Int8ValueUnknown}) {
+		if lastNumber == (Int8Value{Kind: Int8ValueUnknown}) || lastNumber == (Int8Value{Kind: Int8ValueUnimplemented}) {
 			return intervalInputFail(input, intervalInputSyntax)
 		}
 		if lastNumber.Kind == Int8ValueValue {
@@ -20909,6 +23253,12 @@ func IntervalFromTextFieldsContext(input TextValue, fields Int4Value, style int)
 	if fields.Kind == Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == TextValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if fields.Kind == Int4ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == TextValueError {
 		error := input.Error
 		return IntervalValue{Kind: IntervalValueError, Error: error}
@@ -20917,8 +23267,25 @@ func IntervalFromTextFieldsContext(input TextValue, fields Int4Value, style int)
 		error := fields.Error
 		return IntervalValue{Kind: IntervalValueError, Error: error}
 	}
-	if (input == (TextValue{Kind: TextValueUnknown}) || input == (TextValue{Kind: TextValueNonNull})) || fields == (Int4Value{Kind: Int4ValueUnknown}) {
-		return IntervalUnresolved(unresolvedFlavor)
+	conditionFlavor10604 := unresolvedFlavor
+	if input.Kind == TextValueUnknown {
+		if conditionFlavor10604 < 1 {
+			conditionFlavor10604 = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == TextValueUnimplemented {
+		conditionFlavor10604 = langruntime.CheckedI32(2)
+	}
+	if fields.Kind == Int4ValueUnknown {
+		if conditionFlavor10604 < 1 {
+			conditionFlavor10604 = langruntime.CheckedI32(1)
+		}
+	}
+	if fields.Kind == Int4ValueUnimplemented {
+		conditionFlavor10604 = langruntime.CheckedI32(2)
+	}
+	if ((input == (TextValue{Kind: TextValueUnknown}) || input == (TextValue{Kind: TextValueUnimplemented})) || input == (TextValue{Kind: TextValueNonNull})) || (fields == (Int4Value{Kind: Int4ValueUnknown}) || fields == (Int4Value{Kind: Int4ValueUnimplemented})) {
+		return IntervalUnresolved(conditionFlavor10604)
 	}
 	if input == (TextValue{Kind: TextValueNull}) || fields == (Int4Value{Kind: Int4ValueNull}) {
 		return IntervalValue{Kind: IntervalValueNull}
@@ -20957,6 +23324,12 @@ func IntervalInputAgreement(left IntervalValue, right IntervalValue) IntervalVal
 	}
 	if right.Kind == IntervalValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if left.Kind == IntervalValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if right.Kind == IntervalValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if left == right {
 		return left
@@ -21114,6 +23487,12 @@ func AndFinish(left CheckOutcome, right CheckOutcome) CheckOutcome {
 	if right.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if right.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if left.Kind == CheckOutcomeError {
 		error := left.Error
 		return CheckOutcome{Kind: CheckOutcomeError, Error: error}
@@ -21125,8 +23504,25 @@ func AndFinish(left CheckOutcome, right CheckOutcome) CheckOutcome {
 	if left == (CheckOutcome{Kind: CheckOutcomeFalse}) || right == (CheckOutcome{Kind: CheckOutcomeFalse}) {
 		return CheckOutcome{Kind: CheckOutcomeFalse}
 	}
-	if left == (CheckOutcome{Kind: CheckOutcomeUnknown}) || right == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
-		return CheckUnresolved(unresolvedFlavor)
+	conditionFlavor264 := unresolvedFlavor
+	if left.Kind == CheckOutcomeUnknown {
+		if conditionFlavor264 < 1 {
+			conditionFlavor264 = langruntime.CheckedI32(1)
+		}
+	}
+	if left.Kind == CheckOutcomeUnimplemented {
+		conditionFlavor264 = langruntime.CheckedI32(2)
+	}
+	if right.Kind == CheckOutcomeUnknown {
+		if conditionFlavor264 < 1 {
+			conditionFlavor264 = langruntime.CheckedI32(1)
+		}
+	}
+	if right.Kind == CheckOutcomeUnimplemented {
+		conditionFlavor264 = langruntime.CheckedI32(2)
+	}
+	if (left == (CheckOutcome{Kind: CheckOutcomeUnknown}) || left == (CheckOutcome{Kind: CheckOutcomeUnimplemented})) || (right == (CheckOutcome{Kind: CheckOutcomeUnknown}) || right == (CheckOutcome{Kind: CheckOutcomeUnimplemented})) {
+		return CheckUnresolved(conditionFlavor264)
 	}
 	if left == (CheckOutcome{Kind: CheckOutcomeNull}) || right == (CheckOutcome{Kind: CheckOutcomeNull}) {
 		return CheckOutcome{Kind: CheckOutcomeNull}
@@ -21150,6 +23546,12 @@ func OrFinish(left CheckOutcome, right CheckOutcome) CheckOutcome {
 	if right.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if right.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if left.Kind == CheckOutcomeError {
 		error := left.Error
 		return CheckOutcome{Kind: CheckOutcomeError, Error: error}
@@ -21161,8 +23563,25 @@ func OrFinish(left CheckOutcome, right CheckOutcome) CheckOutcome {
 	if left == (CheckOutcome{Kind: CheckOutcomeTrue}) || right == (CheckOutcome{Kind: CheckOutcomeTrue}) {
 		return CheckOutcome{Kind: CheckOutcomeTrue}
 	}
-	if left == (CheckOutcome{Kind: CheckOutcomeUnknown}) || right == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
-		return CheckUnresolved(unresolvedFlavor)
+	conditionFlavor604 := unresolvedFlavor
+	if left.Kind == CheckOutcomeUnknown {
+		if conditionFlavor604 < 1 {
+			conditionFlavor604 = langruntime.CheckedI32(1)
+		}
+	}
+	if left.Kind == CheckOutcomeUnimplemented {
+		conditionFlavor604 = langruntime.CheckedI32(2)
+	}
+	if right.Kind == CheckOutcomeUnknown {
+		if conditionFlavor604 < 1 {
+			conditionFlavor604 = langruntime.CheckedI32(1)
+		}
+	}
+	if right.Kind == CheckOutcomeUnimplemented {
+		conditionFlavor604 = langruntime.CheckedI32(2)
+	}
+	if (left == (CheckOutcome{Kind: CheckOutcomeUnknown}) || left == (CheckOutcome{Kind: CheckOutcomeUnimplemented})) || (right == (CheckOutcome{Kind: CheckOutcomeUnknown}) || right == (CheckOutcome{Kind: CheckOutcomeUnimplemented})) {
+		return CheckUnresolved(conditionFlavor604)
 	}
 	if left == (CheckOutcome{Kind: CheckOutcomeNull}) || right == (CheckOutcome{Kind: CheckOutcomeNull}) {
 		return CheckOutcome{Kind: CheckOutcomeNull}
@@ -21207,6 +23626,12 @@ func DistinctNullsFinish(leftNull BoolValue, rightNull BoolValue) CheckOutcome {
 	if rightNull.Kind == BoolValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if leftNull.Kind == BoolValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if rightNull.Kind == BoolValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if leftNull.Kind == BoolValueError {
 		error := leftNull.Error
 		return CheckOutcome{Kind: CheckOutcomeError, Error: error}
@@ -21230,7 +23655,7 @@ func DistinctNullsFinish(leftNull BoolValue, rightNull BoolValue) CheckOutcome {
 	return CheckUnresolved(unresolvedFlavor)
 }
 func CaseGuardStops(value CheckOutcome) bool {
-	if value == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
+	if value == (CheckOutcome{Kind: CheckOutcomeUnknown}) || value == (CheckOutcome{Kind: CheckOutcomeUnimplemented}) {
 		return true
 	}
 	if value.Kind == CheckOutcomeError {
@@ -21245,6 +23670,12 @@ func MinmaxNullsChooseRight(leftNull BoolValue, rightNull BoolValue) CheckOutcom
 	}
 	if rightNull.Kind == BoolValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if leftNull.Kind == BoolValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if rightNull.Kind == BoolValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
 	if leftNull.Kind == BoolValueError {
 		error := leftNull.Error
@@ -21282,6 +23713,9 @@ func RowCompareFinish(value Int4Value, strategy int) BoolValue {
 	if value.Kind == Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if value.Kind == Int4ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if value.Kind == Int4ValueError {
 		error := value.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
@@ -21314,6 +23748,12 @@ func ConstantFinish(left CheckOutcome, right CheckOutcome) CheckOutcome {
 	if right.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if right.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if left.Kind == CheckOutcomeError {
 		error := left.Error
 		return CheckOutcome{Kind: CheckOutcomeError, Error: error}
@@ -21322,8 +23762,25 @@ func ConstantFinish(left CheckOutcome, right CheckOutcome) CheckOutcome {
 		error := right.Error
 		return CheckOutcome{Kind: CheckOutcomeError, Error: error}
 	}
-	if left == (CheckOutcome{Kind: CheckOutcomeUnknown}) || right == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
-		return CheckUnresolved(unresolvedFlavor)
+	conditionFlavor134 := unresolvedFlavor
+	if left.Kind == CheckOutcomeUnknown {
+		if conditionFlavor134 < 1 {
+			conditionFlavor134 = langruntime.CheckedI32(1)
+		}
+	}
+	if left.Kind == CheckOutcomeUnimplemented {
+		conditionFlavor134 = langruntime.CheckedI32(2)
+	}
+	if right.Kind == CheckOutcomeUnknown {
+		if conditionFlavor134 < 1 {
+			conditionFlavor134 = langruntime.CheckedI32(1)
+		}
+	}
+	if right.Kind == CheckOutcomeUnimplemented {
+		conditionFlavor134 = langruntime.CheckedI32(2)
+	}
+	if (left == (CheckOutcome{Kind: CheckOutcomeUnknown}) || left == (CheckOutcome{Kind: CheckOutcomeUnimplemented})) || (right == (CheckOutcome{Kind: CheckOutcomeUnknown}) || right == (CheckOutcome{Kind: CheckOutcomeUnimplemented})) {
+		return CheckUnresolved(conditionFlavor134)
 	}
 	return CheckOutcome{Kind: CheckOutcomeTrue}
 }

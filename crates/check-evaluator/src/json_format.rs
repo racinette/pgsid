@@ -45,6 +45,8 @@ pub fn json_strip_nulls_context(input: JsonValue, arrays: BoolValue, utf8: bool)
     let mut unresolved_flavor: i32 = 0;
     if let JsonValue::Unknown = input { unresolved_flavor = 1; };
     if let BoolValue::Unknown = arrays { unresolved_flavor = 1; };
+    if let JsonValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let BoolValue::Unimplemented = arrays { unresolved_flavor = 2; };
     if let JsonValue::Error(error) = input {
         return JsonValue::Error(error);
     };

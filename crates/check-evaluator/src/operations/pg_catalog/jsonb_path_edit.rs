@@ -26,7 +26,7 @@ fn jsonb_bulk_key_matches(
         if let TextValue::Error(error) = key {
             return BoolValue::Error(error);
         };
-        if (key == TextValue::Unknown || key == TextValue::NonNull) {
+        if ((key == TextValue::Unknown || key == TextValue::Unimplemented) || key == TextValue::NonNull) {
             uncertain = true;
         };
         if let TextValue::Value(text) = key {
@@ -49,6 +49,8 @@ pub fn sql__pg_catalog__jsonb_delete__11uh(input: JsonbValue, keys: ArrayValue) 
     let mut unresolved_flavor: i32 = 0;
     if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
     if let ArrayValue::Unknown = keys { unresolved_flavor = 1; };
+    if let JsonbValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let ArrayValue::Unimplemented = keys { unresolved_flavor = 2; };
     if let JsonbValue::Error(error) = input {
         return JsonbValue::Error(error);
     };
@@ -144,8 +146,8 @@ pub fn sql__pg_catalog__jsonb_delete__11uh(input: JsonbValue, keys: ArrayValue) 
                 if let BoolValue::Error(error) = matched {
                     return JsonbValue::Error(error);
                 };
-                if matched == BoolValue::Unknown {
-                    return jsonb_unresolved(unresolved_flavor);
+                let mut condition_flavor_149_16: i32 = unresolved_flavor; if let BoolValue::Unknown = matched { if condition_flavor_149_16 < 1 { condition_flavor_149_16 = 1; }; }; if let BoolValue::Unimplemented = matched { condition_flavor_149_16 = 2; }; if (matched == BoolValue::Unknown || matched == BoolValue::Unimplemented) {
+                    return jsonb_unresolved(condition_flavor_149_16);
                 };
                 if matched == make_bool_value(true) {
                     changed = true;
@@ -226,6 +228,7 @@ fn jsonb_path_edit_partial(
 ) -> JsonbValue {
     let mut unresolved_flavor: i32 = 0;
     if let JsonbValue::Unknown = replacement { unresolved_flavor = 1; };
+    if let JsonbValue::Unimplemented = replacement { unresolved_flavor = 2; };
     if path.element_type != "pg_catalog.text" || path.element_kind != 8 {
         return jsonb_unresolved(unresolved_flavor);
     };
@@ -326,6 +329,7 @@ fn jsonb_path_splice(
 ) -> JsonbValue {
     let mut unresolved_flavor: i32 = 0;
     if let JsonbValue::Unknown = replacement { unresolved_flavor = 1; };
+    if let JsonbValue::Unimplemented = replacement { unresolved_flavor = 2; };
     let mut shaped = partial;
     let mut bound = maximum;
     let mut addition = replacement.clone();
@@ -480,6 +484,7 @@ fn jsonb_path_edit_known(
 ) -> JsonbValue {
     let mut unresolved_flavor: i32 = 0;
     if let JsonbValue::Unknown = replacement { unresolved_flavor = 1; };
+    if let JsonbValue::Unimplemented = replacement { unresolved_flavor = 2; };
     if path.element_type != "pg_catalog.text" || path.element_kind != 8 {
         return jsonb_unresolved(unresolved_flavor);
     };
@@ -639,6 +644,10 @@ fn jsonb_path_edit(
     if let ArrayValue::Unknown = path { unresolved_flavor = 1; };
     if let JsonbValue::Unknown = replacement { unresolved_flavor = 1; };
     if let BoolValue::Unknown = flag { unresolved_flavor = 1; };
+    if let JsonbValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let ArrayValue::Unimplemented = path { unresolved_flavor = 2; };
+    if let JsonbValue::Unimplemented = replacement { unresolved_flavor = 2; };
+    if let BoolValue::Unimplemented = flag { unresolved_flavor = 2; };
     if let JsonbValue::Error(error) = input {
         return JsonbValue::Error(error);
     };
@@ -669,8 +678,10 @@ fn jsonb_path_edit(
         if let BoolValue::Value(setting) = flag {
             let mut mode: i32 = 0;
             if operation > 0 {
-                if let JsonbValue::Unknown = replacement {
-                    return jsonb_unresolved(unresolved_flavor);
+                let mut condition_flavor_681_16: i32 = unresolved_flavor; if let JsonbValue::Unknown = replacement { if condition_flavor_681_16 < 1 { condition_flavor_681_16 = 1; }; }; if let JsonbValue::Unknown = replacement {
+                    return jsonb_unresolved(condition_flavor_681_16);
+                }; let mut condition_flavor_683_19: i32 = unresolved_flavor; if let JsonbValue::Unimplemented = replacement { condition_flavor_683_19 = 2; }; if let JsonbValue::Unimplemented = replacement {
+                    return jsonb_unresolved(condition_flavor_683_19);
                 };
                 mode = 1;
                 if setting {
@@ -693,6 +704,8 @@ fn jsonb_path_edit(
                     );
                     let mut fallback = false;
                     if let JsonbValue::Unknown = edited {
+                        fallback = true;
+                    }; if let JsonbValue::Unimplemented = edited {
                         fallback = true;
                     };
                     if fallback == false {
@@ -744,6 +757,11 @@ pub fn sql__pg_catalog__jsonb_set_lax__lecq(
     if let JsonbValue::Unknown = replacement { unresolved_flavor = 1; };
     if let BoolValue::Unknown = create { unresolved_flavor = 1; };
     if let TextValue::Unknown = treatment { unresolved_flavor = 1; };
+    if let JsonbValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let ArrayValue::Unimplemented = path { unresolved_flavor = 2; };
+    if let JsonbValue::Unimplemented = replacement { unresolved_flavor = 2; };
+    if let BoolValue::Unimplemented = create { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = treatment { unresolved_flavor = 2; };
     if let JsonbValue::Error(error) = input {
         return JsonbValue::Error(error);
     };
@@ -768,23 +786,29 @@ pub fn sql__pg_catalog__jsonb_set_lax__lecq(
     if create == BoolValue::Null {
         return JsonbValue::Null;
     };
-    if let JsonbValue::Unknown = input {
-        return jsonb_unresolved(unresolved_flavor);
+    let mut condition_flavor_789_4: i32 = unresolved_flavor; if let JsonbValue::Unknown = input { if condition_flavor_789_4 < 1 { condition_flavor_789_4 = 1; }; }; if let JsonbValue::Unknown = input {
+        return jsonb_unresolved(condition_flavor_789_4);
+    }; let mut condition_flavor_791_7: i32 = unresolved_flavor; if let JsonbValue::Unimplemented = input { condition_flavor_791_7 = 2; }; if let JsonbValue::Unimplemented = input {
+        return jsonb_unresolved(condition_flavor_791_7);
     };
-    if let ArrayValue::Unknown = path {
-        return jsonb_unresolved(unresolved_flavor);
+    let mut condition_flavor_794_4: i32 = unresolved_flavor; if let ArrayValue::Unknown = path { if condition_flavor_794_4 < 1 { condition_flavor_794_4 = 1; }; }; if let ArrayValue::Unknown = path {
+        return jsonb_unresolved(condition_flavor_794_4);
+    }; let mut condition_flavor_796_7: i32 = unresolved_flavor; if let ArrayValue::Unimplemented = path { condition_flavor_796_7 = 2; }; if let ArrayValue::Unimplemented = path {
+        return jsonb_unresolved(condition_flavor_796_7);
     };
-    if create == BoolValue::Unknown {
-        return jsonb_unresolved(unresolved_flavor);
+    let mut condition_flavor_799_4: i32 = unresolved_flavor; if let BoolValue::Unknown = create { if condition_flavor_799_4 < 1 { condition_flavor_799_4 = 1; }; }; if let BoolValue::Unimplemented = create { condition_flavor_799_4 = 2; }; if (create == BoolValue::Unknown || create == BoolValue::Unimplemented) {
+        return jsonb_unresolved(condition_flavor_799_4);
     };
     if treatment == TextValue::Null {
         return JsonbValue::Error(make_sql_error(JSONB_PATH_PARAMETER));
     };
-    if (treatment == TextValue::Unknown || treatment == TextValue::NonNull) {
-        return jsonb_unresolved(unresolved_flavor);
+    let mut condition_flavor_805_4: i32 = unresolved_flavor; if let TextValue::Unknown = treatment { if condition_flavor_805_4 < 1 { condition_flavor_805_4 = 1; }; }; if let TextValue::Unimplemented = treatment { condition_flavor_805_4 = 2; }; if ((treatment == TextValue::Unknown || treatment == TextValue::Unimplemented) || treatment == TextValue::NonNull) {
+        return jsonb_unresolved(condition_flavor_805_4);
     };
-    if let JsonbValue::Unknown = replacement {
-        return jsonb_unresolved(unresolved_flavor);
+    let mut condition_flavor_808_4: i32 = unresolved_flavor; if let JsonbValue::Unknown = replacement { if condition_flavor_808_4 < 1 { condition_flavor_808_4 = 1; }; }; if let JsonbValue::Unknown = replacement {
+        return jsonb_unresolved(condition_flavor_808_4);
+    }; let mut condition_flavor_810_7: i32 = unresolved_flavor; if let JsonbValue::Unimplemented = replacement { condition_flavor_810_7 = 2; }; if let JsonbValue::Unimplemented = replacement {
+        return jsonb_unresolved(condition_flavor_810_7);
     };
     let mut is_null = false;
     if let JsonbValue::Null = replacement {

@@ -13,6 +13,11 @@ fn integer_in_range(
     if let Int8Value::Unknown = offset { unresolved_flavor = 1; };
     if let BoolValue::Unknown = subtract { unresolved_flavor = 1; };
     if let BoolValue::Unknown = less { unresolved_flavor = 1; };
+    if let Int8Value::Unimplemented = value { unresolved_flavor = 2; };
+    if let Int8Value::Unimplemented = base { unresolved_flavor = 2; };
+    if let Int8Value::Unimplemented = offset { unresolved_flavor = 2; };
+    if let BoolValue::Unimplemented = subtract { unresolved_flavor = 2; };
+    if let BoolValue::Unimplemented = less { unresolved_flavor = 2; };
     if let Int8Value::Error(error) = value {
         return BoolValue::Error(error);
     }
@@ -36,13 +41,13 @@ fn integer_in_range(
     {
         return BoolValue::Null;
     }
-    if value == Int8Value::Unknown
-        || base == Int8Value::Unknown
-        || offset == Int8Value::Unknown
-        || subtract == BoolValue::Unknown
-        || less == BoolValue::Unknown
+    let mut condition_flavor_44_4: i32 = unresolved_flavor; if let Int8Value::Unknown = value { if condition_flavor_44_4 < 1 { condition_flavor_44_4 = 1; }; }; if let Int8Value::Unimplemented = value { condition_flavor_44_4 = 2; }; if let Int8Value::Unknown = base { if condition_flavor_44_4 < 1 { condition_flavor_44_4 = 1; }; }; if let Int8Value::Unimplemented = base { condition_flavor_44_4 = 2; }; if let Int8Value::Unknown = offset { if condition_flavor_44_4 < 1 { condition_flavor_44_4 = 1; }; }; if let Int8Value::Unimplemented = offset { condition_flavor_44_4 = 2; }; if let BoolValue::Unknown = subtract { if condition_flavor_44_4 < 1 { condition_flavor_44_4 = 1; }; }; if let BoolValue::Unimplemented = subtract { condition_flavor_44_4 = 2; }; if let BoolValue::Unknown = less { if condition_flavor_44_4 < 1 { condition_flavor_44_4 = 1; }; }; if let BoolValue::Unimplemented = less { condition_flavor_44_4 = 2; }; if (value == Int8Value::Unknown || value == Int8Value::Unimplemented)
+        || (base == Int8Value::Unknown || base == Int8Value::Unimplemented)
+        || (offset == Int8Value::Unknown || offset == Int8Value::Unimplemented)
+        || (subtract == BoolValue::Unknown || subtract == BoolValue::Unimplemented)
+        || (less == BoolValue::Unknown || less == BoolValue::Unimplemented)
     {
-        return bool_unresolved(unresolved_flavor);
+        return bool_unresolved(condition_flavor_44_4);
     }
     if let Int8Value::Value(input) = value {
         if let Int8Value::Value(center) = base {

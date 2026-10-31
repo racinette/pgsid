@@ -12,6 +12,8 @@ pub fn and_finish(left: CheckOutcome, right: CheckOutcome) -> CheckOutcome {
     let mut unresolved_flavor: i32 = 0;
     if let CheckOutcome::Unknown = left { unresolved_flavor = 1; };
     if let CheckOutcome::Unknown = right { unresolved_flavor = 1; };
+    if let CheckOutcome::Unimplemented = left { unresolved_flavor = 2; };
+    if let CheckOutcome::Unimplemented = right { unresolved_flavor = 2; };
     if let CheckOutcome::Error(error) = left {
         return CheckOutcome::Error(error);
     }
@@ -21,8 +23,8 @@ pub fn and_finish(left: CheckOutcome, right: CheckOutcome) -> CheckOutcome {
     if left == CheckOutcome::False || right == CheckOutcome::False {
         return CheckOutcome::False;
     }
-    if left == CheckOutcome::Unknown || right == CheckOutcome::Unknown {
-        return check_unresolved(unresolved_flavor);
+    let mut condition_flavor_26_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = left { if condition_flavor_26_4 < 1 { condition_flavor_26_4 = 1; }; }; if let CheckOutcome::Unimplemented = left { condition_flavor_26_4 = 2; }; if let CheckOutcome::Unknown = right { if condition_flavor_26_4 < 1 { condition_flavor_26_4 = 1; }; }; if let CheckOutcome::Unimplemented = right { condition_flavor_26_4 = 2; }; if (left == CheckOutcome::Unknown || left == CheckOutcome::Unimplemented) || (right == CheckOutcome::Unknown || right == CheckOutcome::Unimplemented) {
+        return check_unresolved(condition_flavor_26_4);
     }
     if left == CheckOutcome::Null || right == CheckOutcome::Null {
         return CheckOutcome::Null;
@@ -44,6 +46,8 @@ pub fn or_finish(left: CheckOutcome, right: CheckOutcome) -> CheckOutcome {
     let mut unresolved_flavor: i32 = 0;
     if let CheckOutcome::Unknown = left { unresolved_flavor = 1; };
     if let CheckOutcome::Unknown = right { unresolved_flavor = 1; };
+    if let CheckOutcome::Unimplemented = left { unresolved_flavor = 2; };
+    if let CheckOutcome::Unimplemented = right { unresolved_flavor = 2; };
     if let CheckOutcome::Error(error) = left {
         return CheckOutcome::Error(error);
     }
@@ -53,8 +57,8 @@ pub fn or_finish(left: CheckOutcome, right: CheckOutcome) -> CheckOutcome {
     if left == CheckOutcome::True || right == CheckOutcome::True {
         return CheckOutcome::True;
     }
-    if left == CheckOutcome::Unknown || right == CheckOutcome::Unknown {
-        return check_unresolved(unresolved_flavor);
+    let mut condition_flavor_60_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = left { if condition_flavor_60_4 < 1 { condition_flavor_60_4 = 1; }; }; if let CheckOutcome::Unimplemented = left { condition_flavor_60_4 = 2; }; if let CheckOutcome::Unknown = right { if condition_flavor_60_4 < 1 { condition_flavor_60_4 = 1; }; }; if let CheckOutcome::Unimplemented = right { condition_flavor_60_4 = 2; }; if (left == CheckOutcome::Unknown || left == CheckOutcome::Unimplemented) || (right == CheckOutcome::Unknown || right == CheckOutcome::Unimplemented) {
+        return check_unresolved(condition_flavor_60_4);
     }
     if left == CheckOutcome::Null || right == CheckOutcome::Null {
         return CheckOutcome::Null;
@@ -102,6 +106,8 @@ pub fn distinct_nulls_finish(left_null: BoolValue, right_null: BoolValue) -> Che
     let mut unresolved_flavor: i32 = 0;
     if let BoolValue::Unknown = left_null { unresolved_flavor = 1; };
     if let BoolValue::Unknown = right_null { unresolved_flavor = 1; };
+    if let BoolValue::Unimplemented = left_null { unresolved_flavor = 2; };
+    if let BoolValue::Unimplemented = right_null { unresolved_flavor = 2; };
     if let BoolValue::Error(error) = left_null {
         return CheckOutcome::Error(error);
     }
@@ -122,7 +128,7 @@ pub fn distinct_nulls_finish(left_null: BoolValue, right_null: BoolValue) -> Che
 }
 
 pub fn case_guard_stops(value: CheckOutcome) -> bool {
-    if value == CheckOutcome::Unknown {
+    if (value == CheckOutcome::Unknown || value == CheckOutcome::Unimplemented) {
         return true;
     }
     if let CheckOutcome::Error(_) = value {
@@ -135,6 +141,8 @@ pub fn minmax_nulls_choose_right(left_null: BoolValue, right_null: BoolValue) ->
     let mut unresolved_flavor: i32 = 0;
     if let BoolValue::Unknown = left_null { unresolved_flavor = 1; };
     if let BoolValue::Unknown = right_null { unresolved_flavor = 1; };
+    if let BoolValue::Unimplemented = left_null { unresolved_flavor = 2; };
+    if let BoolValue::Unimplemented = right_null { unresolved_flavor = 2; };
     if let BoolValue::Error(error) = left_null {
         return CheckOutcome::Error(error);
     }
@@ -166,6 +174,7 @@ pub fn row_compare_continues(value: Int4Value) -> bool {
 pub fn row_compare_finish(value: Int4Value, strategy: i32) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let Int4Value::Unknown = value { unresolved_flavor = 1; };
+    if let Int4Value::Unimplemented = value { unresolved_flavor = 2; };
     if let Int4Value::Error(error) = value {
         return BoolValue::Error(error);
     }

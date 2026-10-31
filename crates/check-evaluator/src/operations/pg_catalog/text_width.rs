@@ -11,6 +11,9 @@ fn text_width_value(
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let Int4Value::Unknown = modifier { unresolved_flavor = 1; };
     if let BoolValue::Unknown = explicit { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = modifier { unresolved_flavor = 2; };
+    if let BoolValue::Unimplemented = explicit { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return TextValue::Error(error);
     }
@@ -20,11 +23,11 @@ fn text_width_value(
     if let BoolValue::Error(error) = explicit {
         return TextValue::Error(error);
     }
-    if (input == TextValue::Unknown || input == TextValue::NonNull)
-        || modifier == Int4Value::Unknown
-        || explicit == BoolValue::Unknown
+    let mut condition_flavor_26_4: i32 = unresolved_flavor; if let TextValue::Unknown = input { if condition_flavor_26_4 < 1 { condition_flavor_26_4 = 1; }; }; if let TextValue::Unimplemented = input { condition_flavor_26_4 = 2; }; if let Int4Value::Unknown = modifier { if condition_flavor_26_4 < 1 { condition_flavor_26_4 = 1; }; }; if let Int4Value::Unimplemented = modifier { condition_flavor_26_4 = 2; }; if let BoolValue::Unknown = explicit { if condition_flavor_26_4 < 1 { condition_flavor_26_4 = 1; }; }; if let BoolValue::Unimplemented = explicit { condition_flavor_26_4 = 2; }; if ((input == TextValue::Unknown || input == TextValue::Unimplemented) || input == TextValue::NonNull)
+        || (modifier == Int4Value::Unknown || modifier == Int4Value::Unimplemented)
+        || (explicit == BoolValue::Unknown || explicit == BoolValue::Unimplemented)
     {
-        return text_unresolved(unresolved_flavor);
+        return text_unresolved(condition_flavor_26_4);
     }
     if input == TextValue::Null || modifier == Int4Value::Null || explicit == BoolValue::Null {
         return TextValue::Null;

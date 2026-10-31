@@ -2,6 +2,8 @@ import * as langruntime from "../langruntime/runtime.js";
 export type Int2Value = {
     readonly kind: "Unknown";
 } | {
+    readonly kind: "Unimplemented";
+} | {
     readonly kind: "Null";
 } | {
     readonly kind: "Value";
@@ -20,8 +22,7 @@ export function equalInt2Value(left: Int2Value, right: Int2Value): boolean {
     return true;
 }
 export function int2Unknown(): Int2Value {
-    const unresolvedFlavor: number = 0;
-    return int2Unresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function int2Null(): Int2Value {
     return { kind: "Null" };
@@ -39,12 +40,24 @@ export function int2IsNull(value: Int2Value): BoolValue {
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
     }
-    if (equalInt2Value(value, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor314: number = unresolvedFlavor;
+    if (value.kind === "Unknown") {
+        if (conditionFlavor314 < 1) {
+            conditionFlavor314 = langruntime.checkedI32(1);
+        }
+    }
+    if (value.kind === "Unimplemented") {
+        conditionFlavor314 = langruntime.checkedI32(2);
+    }
+    if ((equalInt2Value(value, { kind: "Unknown" }) || equalInt2Value(value, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor314);
     }
     return { kind: "Value", value: equalInt2Value(value, { kind: "Null" }) };
 }
@@ -52,6 +65,9 @@ export function int2FromCaseGuard(value: CheckOutcome): Int2Value {
     let unresolvedFlavor: number = 0;
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
@@ -63,6 +79,9 @@ export function int2ToInt4(value: Int2Value): Int4Value {
     let unresolvedFlavor: number = 0;
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
@@ -82,6 +101,9 @@ export function int2ToInt8(value: Int2Value): Int8Value {
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
@@ -98,6 +120,8 @@ export function int2ToInt8(value: Int2Value): Int8Value {
 }
 export type Int4Value = {
     readonly kind: "Unknown";
+} | {
+    readonly kind: "Unimplemented";
 } | {
     readonly kind: "Null";
 } | {
@@ -118,6 +142,8 @@ export function equalInt4Value(left: Int4Value, right: Int4Value): boolean {
 }
 export type Int8Value = {
     readonly kind: "Unknown";
+} | {
+    readonly kind: "Unimplemented";
 } | {
     readonly kind: "Null";
 } | {
@@ -144,6 +170,8 @@ function timestampMicrosecondsValid(value: bigint): boolean {
 export type TimestampValue = {
     readonly kind: "Unknown";
 } | {
+    readonly kind: "Unimplemented";
+} | {
     readonly kind: "Null";
 } | {
     readonly kind: "Value";
@@ -162,8 +190,7 @@ export function equalTimestampValue(left: TimestampValue, right: TimestampValue)
     return true;
 }
 export function timestampUnknown(): TimestampValue {
-    const unresolvedFlavor: number = 0;
-    return timestampUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function timestampNull(): TimestampValue {
     return { kind: "Null" };
@@ -187,12 +214,24 @@ export function timestampIsNull(value: TimestampValue): BoolValue {
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
     }
-    if (equalTimestampValue(value, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor1444: number = unresolvedFlavor;
+    if (value.kind === "Unknown") {
+        if (conditionFlavor1444 < 1) {
+            conditionFlavor1444 = langruntime.checkedI32(1);
+        }
+    }
+    if (value.kind === "Unimplemented") {
+        conditionFlavor1444 = langruntime.checkedI32(2);
+    }
+    if ((equalTimestampValue(value, { kind: "Unknown" }) || equalTimestampValue(value, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor1444);
     }
     return { kind: "Value", value: equalTimestampValue(value, { kind: "Null" }) };
 }
@@ -200,6 +239,9 @@ export function timestampFromCaseGuard(value: CheckOutcome): TimestampValue {
     let unresolvedFlavor: number = 0;
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
@@ -209,6 +251,8 @@ export function timestampFromCaseGuard(value: CheckOutcome): TimestampValue {
 }
 export type TimestamptzValue = {
     readonly kind: "Unknown";
+} | {
+    readonly kind: "Unimplemented";
 } | {
     readonly kind: "Null";
 } | {
@@ -228,8 +272,7 @@ export function equalTimestamptzValue(left: TimestamptzValue, right: Timestamptz
     return true;
 }
 export function timestamptzUnknown(): TimestamptzValue {
-    const unresolvedFlavor: number = 0;
-    return timestamptzUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function timestamptzNull(): TimestamptzValue {
     return { kind: "Null" };
@@ -253,12 +296,24 @@ export function timestamptzIsNull(value: TimestamptzValue): BoolValue {
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
     }
-    if (equalTimestamptzValue(value, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor1984: number = unresolvedFlavor;
+    if (value.kind === "Unknown") {
+        if (conditionFlavor1984 < 1) {
+            conditionFlavor1984 = langruntime.checkedI32(1);
+        }
+    }
+    if (value.kind === "Unimplemented") {
+        conditionFlavor1984 = langruntime.checkedI32(2);
+    }
+    if ((equalTimestamptzValue(value, { kind: "Unknown" }) || equalTimestamptzValue(value, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor1984);
     }
     return { kind: "Value", value: equalTimestamptzValue(value, { kind: "Null" }) };
 }
@@ -266,6 +321,9 @@ export function timestamptzFromCaseGuard(value: CheckOutcome): TimestamptzValue 
     let unresolvedFlavor: number = 0;
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
@@ -282,6 +340,8 @@ export function equalEnumPayload(left: EnumPayload, right: EnumPayload): boolean
 }
 export type EnumValue = {
     readonly kind: "Unknown";
+} | {
+    readonly kind: "Unimplemented";
 } | {
     readonly kind: "Null";
 } | {
@@ -301,8 +361,7 @@ export function equalEnumValue(left: EnumValue, right: EnumValue): boolean {
     return true;
 }
 export function enumUnknown(): EnumValue {
-    const unresolvedFlavor: number = 0;
-    return enumUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function enumNull(): EnumValue {
     return { kind: "Null" };
@@ -325,12 +384,24 @@ export function enumIsNull(value: EnumValue): BoolValue {
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
     }
-    if (equalEnumValue(value, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor2574: number = unresolvedFlavor;
+    if (value.kind === "Unknown") {
+        if (conditionFlavor2574 < 1) {
+            conditionFlavor2574 = langruntime.checkedI32(1);
+        }
+    }
+    if (value.kind === "Unimplemented") {
+        conditionFlavor2574 = langruntime.checkedI32(2);
+    }
+    if ((equalEnumValue(value, { kind: "Unknown" }) || equalEnumValue(value, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor2574);
     }
     return { kind: "Value", value: equalEnumValue(value, { kind: "Null" }) };
 }
@@ -338,6 +409,9 @@ export function enumFromCaseGuard(value: CheckOutcome): EnumValue {
     let unresolvedFlavor: number = 0;
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
@@ -347,6 +421,8 @@ export function enumFromCaseGuard(value: CheckOutcome): EnumValue {
 }
 export type DateValue = {
     readonly kind: "Unknown";
+} | {
+    readonly kind: "Unimplemented";
 } | {
     readonly kind: "Null";
 } | {
@@ -366,8 +442,7 @@ export function equalDateValue(left: DateValue, right: DateValue): boolean {
     return true;
 }
 export function dateUnknown(): DateValue {
-    const unresolvedFlavor: number = 0;
-    return dateUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function dateNull(): DateValue {
     return { kind: "Null" };
@@ -393,12 +468,24 @@ export function dateIsNull(value: DateValue): BoolValue {
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
     }
-    if (equalDateValue(value, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor3134: number = unresolvedFlavor;
+    if (value.kind === "Unknown") {
+        if (conditionFlavor3134 < 1) {
+            conditionFlavor3134 = langruntime.checkedI32(1);
+        }
+    }
+    if (value.kind === "Unimplemented") {
+        conditionFlavor3134 = langruntime.checkedI32(2);
+    }
+    if ((equalDateValue(value, { kind: "Unknown" }) || equalDateValue(value, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor3134);
     }
     return { kind: "Value", value: equalDateValue(value, { kind: "Null" }) };
 }
@@ -406,6 +493,9 @@ export function dateFromCaseGuard(value: CheckOutcome): DateValue {
     let unresolvedFlavor: number = 0;
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
@@ -415,6 +505,8 @@ export function dateFromCaseGuard(value: CheckOutcome): DateValue {
 }
 export type TextValue = {
     readonly kind: "Unknown";
+} | {
+    readonly kind: "Unimplemented";
 } | {
     readonly kind: "Null";
 } | {
@@ -442,6 +534,8 @@ export interface XmlKnowledge {
 export type XmlValue = {
     readonly kind: "Unknown";
 } | {
+    readonly kind: "Unimplemented";
+} | {
     readonly kind: "Null";
 } | {
     readonly kind: "Value";
@@ -459,6 +553,7 @@ export type XmlValue = {
 export function copyXmlValue(value: XmlValue): XmlValue {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
+        case "Unimplemented": return { kind: "Unimplemented" };
         case "Null": return { kind: "Null" };
         case "Value": return { kind: "Value", value: langruntime.checkedString(value.value) };
         case "RenderedText": return { kind: "RenderedText", value: langruntime.checkedString(value.value) };
@@ -478,8 +573,7 @@ export function copyXmlConcatState(value: XmlConcatState): XmlConcatState {
     return { status: value.status, hasValue: langruntime.checkedBool(value.hasValue), version: langruntime.checkedString(value.version), versionConsistent: langruntime.checkedBool(value.versionConsistent), standalone: langruntime.checkedI32(value.standalone), body: langruntime.checkedString(value.body) };
 }
 export function xmlUnknown(): XmlValue {
-    const unresolvedFlavor: number = 0;
-    return xmlUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function xmlNull(): XmlValue {
     return { kind: "Null" };
@@ -501,6 +595,9 @@ export function xmlFromRenderedText(input: TextValue): XmlValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -527,8 +624,14 @@ export function makeXmlKnowledge(document: BoolValue, content: BoolValue): XmlVa
     if (content.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
-    let validDocument: boolean = equalBoolValue(document, { kind: "Unknown" });
-    let validContent: boolean = equalBoolValue(content, { kind: "Unknown" });
+    if (document.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (content.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    let validDocument: boolean = (equalBoolValue(document, { kind: "Unknown" }) || equalBoolValue(document, { kind: "Unimplemented" }));
+    let validContent: boolean = (equalBoolValue(content, { kind: "Unknown" }) || equalBoolValue(content, { kind: "Unimplemented" }));
     if (document.kind === "Value") {
         validDocument = langruntime.checkedBool(true);
     }
@@ -559,19 +662,48 @@ export function xmlIsNull(input: XmlValue): BoolValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "NonNull") {
         const knowledge: XmlKnowledge = input.value;
         const checked: XmlValue = makeXmlKnowledge(knowledge.document, knowledge.content);
+        let conditionFlavor4278: number = unresolvedFlavor;
         if (checked.kind === "Unknown") {
-            return boolUnresolved(unresolvedFlavor);
+            if (conditionFlavor4278 < 1) {
+                conditionFlavor4278 = langruntime.checkedI32(1);
+            }
+        }
+        if (checked.kind === "Unknown") {
+            return boolUnresolved(conditionFlavor4278);
+        }
+        let conditionFlavor42791: number = unresolvedFlavor;
+        if (checked.kind === "Unimplemented") {
+            conditionFlavor42791 = langruntime.checkedI32(2);
+        }
+        if (checked.kind === "Unimplemented") {
+            return boolUnresolved(conditionFlavor42791);
         }
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
+    let conditionFlavor4304: number = unresolvedFlavor;
     if (input.kind === "Unknown") {
-        return boolUnresolved(unresolvedFlavor);
+        if (conditionFlavor4304 < 1) {
+            conditionFlavor4304 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unknown") {
+        return boolUnresolved(conditionFlavor4304);
+    }
+    let conditionFlavor43085: number = unresolvedFlavor;
+    if (input.kind === "Unimplemented") {
+        conditionFlavor43085 = langruntime.checkedI32(2);
+    }
+    if (input.kind === "Unimplemented") {
+        return boolUnresolved(conditionFlavor43085);
     }
     if (input.kind === "Null") {
         return { kind: "Value", value: true };
@@ -583,6 +715,9 @@ export function xmlFromCaseGuard(input: CheckOutcome): XmlValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -593,8 +728,7 @@ export function xmlFromCaseGuard(input: CheckOutcome): XmlValue {
     return xmlUnresolved(unresolvedFlavor);
 }
 export function int4Unknown(): Int4Value {
-    const unresolvedFlavor: number = 0;
-    return int4Unresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function int4Null(): Int4Value {
     return { kind: "Null" };
@@ -604,8 +738,7 @@ export function makeInt4Value(value: number): Int4Value {
     return { kind: "Value", value: value };
 }
 export function int8Unknown(): Int8Value {
-    const unresolvedFlavor: number = 0;
-    return int8Unresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function int8Null(): Int8Value {
     return { kind: "Null" };
@@ -615,8 +748,7 @@ export function makeInt8Value(value: bigint): Int8Value {
     return { kind: "Value", value: value };
 }
 export function textUnknown(): TextValue {
-    const unresolvedFlavor: number = 0;
-    return textUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function textNull(): TextValue {
     return { kind: "Null" };
@@ -644,8 +776,7 @@ export function makeTextValue(value: string): TextValue {
     return { kind: "Value", value: value };
 }
 export function boolUnknown(): BoolValue {
-    const unresolvedFlavor: number = 0;
-    return boolUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function boolNull(): BoolValue {
     return { kind: "Null" };
@@ -662,6 +793,8 @@ export type CheckOutcome = {
     readonly kind: "Null";
 } | {
     readonly kind: "Unknown";
+} | {
+    readonly kind: "Unimplemented";
 } | {
     readonly kind: "Error";
     readonly value: SqlError;
@@ -714,7 +847,7 @@ export function checkRequirementMerge(left: number, right: number): number {
 export function checkRequirementFilter(nullness: BoolValue, reason: number, partial: boolean): number {
     reason = langruntime.checkedI32(reason);
     partial = langruntime.checkedBool(partial);
-    if (equalBoolValue(nullness, { kind: "Unknown" })) {
+    if ((equalBoolValue(nullness, { kind: "Unknown" }) || equalBoolValue(nullness, { kind: "Unimplemented" }))) {
         if (reason > 0) {
             return reason;
         }
@@ -752,16 +885,15 @@ export function checkXmlRequirement(input: XmlValue, reason: number): number {
 }
 export function checkRequirementForOutcome(input: CheckOutcome, reason: number): number {
     reason = langruntime.checkedI32(reason);
-    if (equalCheckOutcome(input, { kind: "Unknown" })) {
+    if ((equalCheckOutcome(input, { kind: "Unknown" }) || equalCheckOutcome(input, { kind: "Unimplemented" }))) {
         return reason;
     }
     return 0;
 }
 export function checkRequirementMessage(reason: number): TextValue {
     reason = langruntime.checkedI32(reason);
-    const unresolvedFlavor: number = 0;
     if (reason <= 0 || reason > 511) {
-        return textUnresolved(unresolvedFlavor);
+        return { kind: "Unknown" };
     }
     let output: string = "";
     if (!(langruntime.checkedSignedRemainder((langruntime.checkedSignedDivide(reason, 1)), 2) === 0)) {
@@ -792,7 +924,7 @@ export function checkRequirementMessage(reason: number): TextValue {
         output = output + "XPath evaluation needs complete namespace mapping values. ";
     }
     if (output === "") {
-        return textUnresolved(unresolvedFlavor);
+        return { kind: "Unknown" };
     }
     return { kind: "Value", value: output };
 }
@@ -993,6 +1125,8 @@ export function sqlErrorMessage(error: SqlError): SqlErrorDescription {
 export type BoolValue = {
     readonly kind: "Unknown";
 } | {
+    readonly kind: "Unimplemented";
+} | {
     readonly kind: "Null";
 } | {
     readonly kind: "Value";
@@ -1015,12 +1149,24 @@ export function checkFromBool(value: BoolValue): CheckOutcome {
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
     }
-    if (equalBoolValue(value, { kind: "Unknown" })) {
-        return checkUnresolved(unresolvedFlavor);
+    let conditionFlavor8484: number = unresolvedFlavor;
+    if (value.kind === "Unknown") {
+        if (conditionFlavor8484 < 1) {
+            conditionFlavor8484 = langruntime.checkedI32(1);
+        }
+    }
+    if (value.kind === "Unimplemented") {
+        conditionFlavor8484 = langruntime.checkedI32(2);
+    }
+    if ((equalBoolValue(value, { kind: "Unknown" }) || equalBoolValue(value, { kind: "Unimplemented" }))) {
+        return checkUnresolved(conditionFlavor8484);
     }
     if (equalBoolValue(value, { kind: "Null" })) {
         return { kind: "Null" };
@@ -1031,20 +1177,31 @@ export function checkFromBool(value: BoolValue): CheckOutcome {
     return { kind: "True" };
 }
 export function checkUnknown(): CheckOutcome {
-    const unresolvedFlavor: number = 0;
-    return checkUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function int4IsNull(value: Int4Value): BoolValue {
     let unresolvedFlavor: number = 0;
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
     }
-    if (equalInt4Value(value, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor8694: number = unresolvedFlavor;
+    if (value.kind === "Unknown") {
+        if (conditionFlavor8694 < 1) {
+            conditionFlavor8694 = langruntime.checkedI32(1);
+        }
+    }
+    if (value.kind === "Unimplemented") {
+        conditionFlavor8694 = langruntime.checkedI32(2);
+    }
+    if ((equalInt4Value(value, { kind: "Unknown" }) || equalInt4Value(value, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor8694);
     }
     return { kind: "Value", value: equalInt4Value(value, { kind: "Null" }) };
 }
@@ -1053,12 +1210,24 @@ export function int8IsNull(value: Int8Value): BoolValue {
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
     }
-    if (equalInt8Value(value, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor8824: number = unresolvedFlavor;
+    if (value.kind === "Unknown") {
+        if (conditionFlavor8824 < 1) {
+            conditionFlavor8824 = langruntime.checkedI32(1);
+        }
+    }
+    if (value.kind === "Unimplemented") {
+        conditionFlavor8824 = langruntime.checkedI32(2);
+    }
+    if ((equalInt8Value(value, { kind: "Unknown" }) || equalInt8Value(value, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor8824);
     }
     return { kind: "Value", value: equalInt8Value(value, { kind: "Null" }) };
 }
@@ -1067,12 +1236,24 @@ export function textIsNull(value: TextValue): BoolValue {
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
     }
-    if (equalTextValue(value, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor8954: number = unresolvedFlavor;
+    if (value.kind === "Unknown") {
+        if (conditionFlavor8954 < 1) {
+            conditionFlavor8954 = langruntime.checkedI32(1);
+        }
+    }
+    if (value.kind === "Unimplemented") {
+        conditionFlavor8954 = langruntime.checkedI32(2);
+    }
+    if ((equalTextValue(value, { kind: "Unknown" }) || equalTextValue(value, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor8954);
     }
     return { kind: "Value", value: equalTextValue(value, { kind: "Null" }) };
 }
@@ -1081,12 +1262,24 @@ export function boolIsNull(value: BoolValue): BoolValue {
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
     }
-    if (equalBoolValue(value, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor9084: number = unresolvedFlavor;
+    if (value.kind === "Unknown") {
+        if (conditionFlavor9084 < 1) {
+            conditionFlavor9084 = langruntime.checkedI32(1);
+        }
+    }
+    if (value.kind === "Unimplemented") {
+        conditionFlavor9084 = langruntime.checkedI32(2);
+    }
+    if ((equalBoolValue(value, { kind: "Unknown" }) || equalBoolValue(value, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor9084);
     }
     return { kind: "Value", value: equalBoolValue(value, { kind: "Null" }) };
 }
@@ -1105,12 +1298,24 @@ export function boolFromCheck(value: CheckOutcome): BoolValue {
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
     }
-    if (equalCheckOutcome(value, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor9314: number = unresolvedFlavor;
+    if (value.kind === "Unknown") {
+        if (conditionFlavor9314 < 1) {
+            conditionFlavor9314 = langruntime.checkedI32(1);
+        }
+    }
+    if (value.kind === "Unimplemented") {
+        conditionFlavor9314 = langruntime.checkedI32(2);
+    }
+    if ((equalCheckOutcome(value, { kind: "Unknown" }) || equalCheckOutcome(value, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor9314);
     }
     if (equalCheckOutcome(value, { kind: "Null" })) {
         return { kind: "Null" };
@@ -1121,6 +1326,9 @@ export function int4FromCaseGuard(value: CheckOutcome): Int4Value {
     let unresolvedFlavor: number = 0;
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
@@ -1133,6 +1341,9 @@ export function int8FromCaseGuard(value: CheckOutcome): Int8Value {
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
@@ -1144,6 +1355,9 @@ export function textFromCaseGuard(value: CheckOutcome): TextValue {
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
@@ -1152,6 +1366,8 @@ export function textFromCaseGuard(value: CheckOutcome): TextValue {
 }
 export type NumericValue = {
     readonly kind: "Unknown";
+} | {
+    readonly kind: "Unimplemented";
 } | {
     readonly kind: "Null";
 } | {
@@ -1164,6 +1380,7 @@ export type NumericValue = {
 export function copyNumericValue(value: NumericValue): NumericValue {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
+        case "Unimplemented": return { kind: "Unimplemented" };
         case "Null": return { kind: "Null" };
         case "Value": return { kind: "Value", value: langruntime.checkedString(value.value) };
         case "Error": return { kind: "Error", value: value.value };
@@ -1179,8 +1396,7 @@ export function equalNumericValue(left: NumericValue, right: NumericValue): bool
     return true;
 }
 export function numericUnknown(): NumericValue {
-    const unresolvedFlavor: number = 0;
-    return numericUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function numericNull(): NumericValue {
     return { kind: "Null" };
@@ -1190,12 +1406,24 @@ export function numericIsNull(value: NumericValue): BoolValue {
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
     }
-    if (equalNumericValue(value, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor9924: number = unresolvedFlavor;
+    if (value.kind === "Unknown") {
+        if (conditionFlavor9924 < 1) {
+            conditionFlavor9924 = langruntime.checkedI32(1);
+        }
+    }
+    if (value.kind === "Unimplemented") {
+        conditionFlavor9924 = langruntime.checkedI32(2);
+    }
+    if ((equalNumericValue(value, { kind: "Unknown" }) || equalNumericValue(value, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor9924);
     }
     return { kind: "Value", value: equalNumericValue(value, { kind: "Null" }) };
 }
@@ -1203,6 +1431,9 @@ export function numericFromCaseGuard(value: CheckOutcome): NumericValue {
     let unresolvedFlavor: number = 0;
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
@@ -1227,6 +1458,8 @@ export interface JsonPayload {
 export type JsonValue = {
     readonly kind: "Unknown";
 } | {
+    readonly kind: "Unimplemented";
+} | {
     readonly kind: "NonNull";
 } | {
     readonly kind: "Null";
@@ -1238,8 +1471,7 @@ export type JsonValue = {
     readonly value: SqlError;
 };
 export function jsonUnknown(): JsonValue {
-    const unresolvedFlavor: number = 0;
-    return jsonUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function jsonNull(): JsonValue {
     return { kind: "Null" };
@@ -1257,6 +1489,9 @@ export function jsonFromCoercedText(input: TextValue): JsonValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -1276,12 +1511,28 @@ export function jsonIsNull(input: JsonValue): BoolValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
+    let conditionFlavor10764: number = unresolvedFlavor;
     if (input.kind === "Unknown") {
-        return boolUnresolved(unresolvedFlavor);
+        if (conditionFlavor10764 < 1) {
+            conditionFlavor10764 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unknown") {
+        return boolUnresolved(conditionFlavor10764);
+    }
+    let conditionFlavor10787: number = unresolvedFlavor;
+    if (input.kind === "Unimplemented") {
+        conditionFlavor10787 = langruntime.checkedI32(2);
+    }
+    if (input.kind === "Unimplemented") {
+        return boolUnresolved(conditionFlavor10787);
     }
     if (input.kind === "Null") {
         return { kind: "Value", value: true };
@@ -1292,6 +1543,9 @@ export function jsonFromCaseGuard(value: CheckOutcome): JsonValue {
     let unresolvedFlavor: number = 0;
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
@@ -1331,6 +1585,8 @@ export function copyJsonbKnowledge(value: JsonbKnowledge): JsonbKnowledge {
 export type JsonbValue = {
     readonly kind: "Unknown";
 } | {
+    readonly kind: "Unimplemented";
+} | {
     readonly kind: "NonNull";
     readonly value: JsonbKnowledge;
 } | {
@@ -1345,6 +1601,7 @@ export type JsonbValue = {
 export function copyJsonbValue(value: JsonbValue): JsonbValue {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
+        case "Unimplemented": return { kind: "Unimplemented" };
         case "NonNull": return { kind: "NonNull", value: copyJsonbKnowledge(value.value) };
         case "Null": return { kind: "Null" };
         case "Value": return { kind: "Value", value: copyJsonbPayload(value.value) };
@@ -1353,6 +1610,8 @@ export function copyJsonbValue(value: JsonbValue): JsonbValue {
 }
 export type JsonbInput = {
     readonly kind: "Unknown";
+} | {
+    readonly kind: "Unimplemented";
 } | {
     readonly kind: "ScalarUnknown";
     readonly value: string;
@@ -1388,6 +1647,7 @@ export type JsonbInput = {
 export function copyJsonbInput(value: JsonbInput): JsonbInput {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
+        case "Unimplemented": return { kind: "Unimplemented" };
         case "ScalarUnknown": return { kind: "ScalarUnknown", value: langruntime.checkedString(value.value) };
         case "JsonNonNull": return { kind: "JsonNonNull" };
         case "JsonbNonNull": return { kind: "JsonbNonNull", value: copyJsonbKnowledge(value.value) };
@@ -1430,6 +1690,8 @@ export function copyJsonbArgumentPayload(value: JsonbArgumentPayload): JsonbArgu
 export type JsonbArguments = {
     readonly kind: "Unknown";
 } | {
+    readonly kind: "Unimplemented";
+} | {
     readonly kind: "Null";
 } | {
     readonly kind: "Error";
@@ -1441,6 +1703,7 @@ export type JsonbArguments = {
 export function copyJsonbArguments(value: JsonbArguments): JsonbArguments {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
+        case "Unimplemented": return { kind: "Unimplemented" };
         case "Null": return { kind: "Null" };
         case "Error": return { kind: "Error", value: value.value };
         case "Values": return { kind: "Values", value: copyJsonbArgumentPayload(value.value) };
@@ -1512,6 +1775,9 @@ export function jsonbInputFromText(input: TextValue): JsonbInput {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -1529,6 +1795,9 @@ export function jsonbInputFromJson(input: JsonValue): JsonbInput {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -1551,6 +1820,9 @@ export function jsonbInputFromJsonb(input: JsonbValue): JsonbInput {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "NonNull") {
         const maximum: JsonbKnowledge = copyJsonbKnowledge(input.value);
@@ -1604,6 +1876,9 @@ export function jsonbInputFromFloat4(input: Float4Value): JsonbInput {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -1625,6 +1900,9 @@ export function jsonbInputFromFloat8(input: Float8Value): JsonbInput {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -1653,8 +1931,7 @@ export function makeJsonbValue(source: string): JsonbValue {
     return parsed;
 }
 export function jsonbUnknown(): JsonbValue {
-    const unresolvedFlavor: number = 0;
-    return jsonbUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function jsonbNull(): JsonbValue {
     return { kind: "Null" };
@@ -1663,6 +1940,9 @@ export function jsonbFromCaseGuard(value: CheckOutcome): JsonbValue {
     let unresolvedFlavor: number = 0;
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
@@ -1676,12 +1956,28 @@ export function jsonbIsNull(input: JsonbValue): BoolValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
+    let conditionFlavor13964: number = unresolvedFlavor;
     if (input.kind === "Unknown") {
-        return boolUnresolved(unresolvedFlavor);
+        if (conditionFlavor13964 < 1) {
+            conditionFlavor13964 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unknown") {
+        return boolUnresolved(conditionFlavor13964);
+    }
+    let conditionFlavor13987: number = unresolvedFlavor;
+    if (input.kind === "Unimplemented") {
+        conditionFlavor13987 = langruntime.checkedI32(2);
+    }
+    if (input.kind === "Unimplemented") {
+        return boolUnresolved(conditionFlavor13987);
     }
     if (input.kind === "Null") {
         return { kind: "Value", value: true };
@@ -1693,6 +1989,9 @@ export function jsonbFromCoercedValue(input: JsonbValue): JsonbValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Value") {
         const value: JsonbPayload = copyJsonbPayload(input.value);
@@ -1726,6 +2025,8 @@ export function equalNetworkAddress(left: NetworkAddress, right: NetworkAddress)
 export type NetworkValue = {
     readonly kind: "Unknown";
 } | {
+    readonly kind: "Unimplemented";
+} | {
     readonly kind: "Null";
 } | {
     readonly kind: "Value";
@@ -1744,8 +2045,7 @@ export function equalNetworkValue(left: NetworkValue, right: NetworkValue): bool
     return true;
 }
 export function networkUnknown(): NetworkValue {
-    const unresolvedFlavor: number = 0;
-    return networkUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function networkNull(): NetworkValue {
     return { kind: "Null" };
@@ -1755,12 +2055,24 @@ export function networkIsNull(value: NetworkValue): BoolValue {
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
     }
-    if (equalNetworkValue(value, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor14584: number = unresolvedFlavor;
+    if (value.kind === "Unknown") {
+        if (conditionFlavor14584 < 1) {
+            conditionFlavor14584 = langruntime.checkedI32(1);
+        }
+    }
+    if (value.kind === "Unimplemented") {
+        conditionFlavor14584 = langruntime.checkedI32(2);
+    }
+    if ((equalNetworkValue(value, { kind: "Unknown" }) || equalNetworkValue(value, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor14584);
     }
     return { kind: "Value", value: equalNetworkValue(value, { kind: "Null" }) };
 }
@@ -1768,6 +2080,9 @@ export function networkFromCaseGuard(value: CheckOutcome): NetworkValue {
     let unresolvedFlavor: number = 0;
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
@@ -1804,6 +2119,8 @@ export function makeCidrValue(value: string): NetworkValue {
 export type BitValue = {
     readonly kind: "Unknown";
 } | {
+    readonly kind: "Unimplemented";
+} | {
     readonly kind: "Null";
 } | {
     readonly kind: "Value";
@@ -1822,8 +2139,7 @@ export function equalBitValue(left: BitValue, right: BitValue): boolean {
     return true;
 }
 export function bitUnknown(): BitValue {
-    const unresolvedFlavor: number = 0;
-    return bitUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function bitNull(): BitValue {
     return { kind: "Null" };
@@ -1833,12 +2149,24 @@ export function bitIsNull(value: BitValue): BoolValue {
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
     }
-    if (equalBitValue(value, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor15184: number = unresolvedFlavor;
+    if (value.kind === "Unknown") {
+        if (conditionFlavor15184 < 1) {
+            conditionFlavor15184 = langruntime.checkedI32(1);
+        }
+    }
+    if (value.kind === "Unimplemented") {
+        conditionFlavor15184 = langruntime.checkedI32(2);
+    }
+    if ((equalBitValue(value, { kind: "Unknown" }) || equalBitValue(value, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor15184);
     }
     return { kind: "Value", value: equalBitValue(value, { kind: "Null" }) };
 }
@@ -1846,6 +2174,9 @@ export function bitFromCaseGuard(value: CheckOutcome): BitValue {
     let unresolvedFlavor: number = 0;
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
@@ -1872,6 +2203,8 @@ export function makeBitValue(value: string): BitValue {
 export type ByteaValue = {
     readonly kind: "Unknown";
 } | {
+    readonly kind: "Unimplemented";
+} | {
     readonly kind: "Null";
 } | {
     readonly kind: "Value";
@@ -1895,8 +2228,7 @@ export function equalByteaValue(left: ByteaValue, right: ByteaValue): boolean {
     return true;
 }
 export function byteaUnknown(): ByteaValue {
-    const unresolvedFlavor: number = 0;
-    return byteaUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function byteaNull(): ByteaValue {
     return { kind: "Null" };
@@ -1906,12 +2238,24 @@ export function byteaIsNull(value: ByteaValue): BoolValue {
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
     }
-    if (equalByteaValue(value, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor15694: number = unresolvedFlavor;
+    if (value.kind === "Unknown") {
+        if (conditionFlavor15694 < 1) {
+            conditionFlavor15694 = langruntime.checkedI32(1);
+        }
+    }
+    if (value.kind === "Unimplemented") {
+        conditionFlavor15694 = langruntime.checkedI32(2);
+    }
+    if ((equalByteaValue(value, { kind: "Unknown" }) || equalByteaValue(value, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor15694);
     }
     return { kind: "Value", value: equalByteaValue(value, { kind: "Null" }) };
 }
@@ -1919,6 +2263,9 @@ export function byteaFromCaseGuard(value: CheckOutcome): ByteaValue {
     let unresolvedFlavor: number = 0;
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
@@ -1960,6 +2307,8 @@ export function equalMacAddress(left: MacAddress, right: MacAddress): boolean {
 export type MacaddrValue = {
     readonly kind: "Unknown";
 } | {
+    readonly kind: "Unimplemented";
+} | {
     readonly kind: "Null";
 } | {
     readonly kind: "Value";
@@ -1978,8 +2327,7 @@ export function equalMacaddrValue(left: MacaddrValue, right: MacaddrValue): bool
     return true;
 }
 export function macaddrUnknown(): MacaddrValue {
-    const unresolvedFlavor: number = 0;
-    return macaddrUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function macaddrNull(): MacaddrValue {
     return { kind: "Null" };
@@ -1989,12 +2337,24 @@ export function macaddrIsNull(value: MacaddrValue): BoolValue {
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
     }
-    if (equalMacaddrValue(value, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor16334: number = unresolvedFlavor;
+    if (value.kind === "Unknown") {
+        if (conditionFlavor16334 < 1) {
+            conditionFlavor16334 = langruntime.checkedI32(1);
+        }
+    }
+    if (value.kind === "Unimplemented") {
+        conditionFlavor16334 = langruntime.checkedI32(2);
+    }
+    if ((equalMacaddrValue(value, { kind: "Unknown" }) || equalMacaddrValue(value, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor16334);
     }
     return { kind: "Value", value: equalMacaddrValue(value, { kind: "Null" }) };
 }
@@ -2002,6 +2362,9 @@ export function macaddrFromCaseGuard(value: CheckOutcome): MacaddrValue {
     let unresolvedFlavor: number = 0;
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
@@ -2026,6 +2389,8 @@ export function makeMacaddrValue(value: string): MacaddrValue {
 export type Macaddr8Value = {
     readonly kind: "Unknown";
 } | {
+    readonly kind: "Unimplemented";
+} | {
     readonly kind: "Null";
 } | {
     readonly kind: "Value";
@@ -2044,8 +2409,7 @@ export function equalMacaddr8Value(left: Macaddr8Value, right: Macaddr8Value): b
     return true;
 }
 export function macaddr8Unknown(): Macaddr8Value {
-    const unresolvedFlavor: number = 0;
-    return macaddr8Unresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function macaddr8Null(): Macaddr8Value {
     return { kind: "Null" };
@@ -2055,12 +2419,24 @@ export function macaddr8IsNull(value: Macaddr8Value): BoolValue {
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
     }
-    if (equalMacaddr8Value(value, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor16814: number = unresolvedFlavor;
+    if (value.kind === "Unknown") {
+        if (conditionFlavor16814 < 1) {
+            conditionFlavor16814 = langruntime.checkedI32(1);
+        }
+    }
+    if (value.kind === "Unimplemented") {
+        conditionFlavor16814 = langruntime.checkedI32(2);
+    }
+    if ((equalMacaddr8Value(value, { kind: "Unknown" }) || equalMacaddr8Value(value, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor16814);
     }
     return { kind: "Value", value: equalMacaddr8Value(value, { kind: "Null" }) };
 }
@@ -2068,6 +2444,9 @@ export function macaddr8FromCaseGuard(value: CheckOutcome): Macaddr8Value {
     let unresolvedFlavor: number = 0;
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
@@ -2105,6 +2484,8 @@ export function equalUuid(left: Uuid, right: Uuid): boolean {
 export type UuidValue = {
     readonly kind: "Unknown";
 } | {
+    readonly kind: "Unimplemented";
+} | {
     readonly kind: "Null";
 } | {
     readonly kind: "Value";
@@ -2123,8 +2504,7 @@ export function equalUuidValue(left: UuidValue, right: UuidValue): boolean {
     return true;
 }
 export function uuidUnknown(): UuidValue {
-    const unresolvedFlavor: number = 0;
-    return uuidUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function uuidNull(): UuidValue {
     return { kind: "Null" };
@@ -2134,12 +2514,24 @@ export function uuidIsNull(value: UuidValue): BoolValue {
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
     }
-    if (equalUuidValue(value, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor17414: number = unresolvedFlavor;
+    if (value.kind === "Unknown") {
+        if (conditionFlavor17414 < 1) {
+            conditionFlavor17414 = langruntime.checkedI32(1);
+        }
+    }
+    if (value.kind === "Unimplemented") {
+        conditionFlavor17414 = langruntime.checkedI32(2);
+    }
+    if ((equalUuidValue(value, { kind: "Unknown" }) || equalUuidValue(value, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor17414);
     }
     return { kind: "Value", value: equalUuidValue(value, { kind: "Null" }) };
 }
@@ -2147,6 +2539,9 @@ export function uuidFromCaseGuard(value: CheckOutcome): UuidValue {
     let unresolvedFlavor: number = 0;
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
@@ -2165,6 +2560,8 @@ export function makeUuidValue(value: string): UuidValue {
 }
 export type Float4Value = {
     readonly kind: "Unknown";
+} | {
+    readonly kind: "Unimplemented";
 } | {
     readonly kind: "Null";
 } | {
@@ -2194,8 +2591,7 @@ export function makeFloat4LiteralBits(bits: number): Float4Value {
     return makeFloat4Bits(bits);
 }
 export function float4Unknown(): Float4Value {
-    const unresolvedFlavor: number = 0;
-    return float4Unresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function float4Null(): Float4Value {
     return { kind: "Null" };
@@ -2223,12 +2619,24 @@ export function float4IsNull(value: Float4Value): BoolValue {
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
     }
-    if (equalFloat4Value(value, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor18114: number = unresolvedFlavor;
+    if (value.kind === "Unknown") {
+        if (conditionFlavor18114 < 1) {
+            conditionFlavor18114 = langruntime.checkedI32(1);
+        }
+    }
+    if (value.kind === "Unimplemented") {
+        conditionFlavor18114 = langruntime.checkedI32(2);
+    }
+    if ((equalFloat4Value(value, { kind: "Unknown" }) || equalFloat4Value(value, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor18114);
     }
     return { kind: "Value", value: equalFloat4Value(value, { kind: "Null" }) };
 }
@@ -2236,6 +2644,9 @@ export function float4FromCaseGuard(value: CheckOutcome): Float4Value {
     let unresolvedFlavor: number = 0;
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
@@ -2245,6 +2656,8 @@ export function float4FromCaseGuard(value: CheckOutcome): Float4Value {
 }
 export type Float8Value = {
     readonly kind: "Unknown";
+} | {
+    readonly kind: "Unimplemented";
 } | {
     readonly kind: "Null";
 } | {
@@ -2259,6 +2672,7 @@ export type Float8Value = {
 export function copyFloat8Value(value: Float8Value): Float8Value {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
+        case "Unimplemented": return { kind: "Unimplemented" };
         case "Null": return { kind: "Null" };
         case "Value": return { kind: "Value", value: langruntime.checkedI64(value.value) };
         case "Error": return { kind: "Error", value: value.value };
@@ -2289,8 +2703,7 @@ export function makeFloat8LiteralBits(bits: bigint): Float8Value {
     return makeFloat8Bits(bits);
 }
 export function float8Unknown(): Float8Value {
-    const unresolvedFlavor: number = 0;
-    return float8Unresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function float8Null(): Float8Value {
     return { kind: "Null" };
@@ -2313,12 +2726,24 @@ export function float8IsNull(value: Float8Value): BoolValue {
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
     }
-    if (equalFloat8Value(value, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor18764: number = unresolvedFlavor;
+    if (value.kind === "Unknown") {
+        if (conditionFlavor18764 < 1) {
+            conditionFlavor18764 = langruntime.checkedI32(1);
+        }
+    }
+    if (value.kind === "Unimplemented") {
+        conditionFlavor18764 = langruntime.checkedI32(2);
+    }
+    if ((equalFloat8Value(value, { kind: "Unknown" }) || equalFloat8Value(value, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor18764);
     }
     return { kind: "Value", value: equalFloat8Value(value, { kind: "Null" }) };
 }
@@ -2326,6 +2751,9 @@ export function float8FromCaseGuard(value: CheckOutcome): Float8Value {
     let unresolvedFlavor: number = 0;
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
@@ -2335,6 +2763,8 @@ export function float8FromCaseGuard(value: CheckOutcome): Float8Value {
 }
 export type TimeValue = {
     readonly kind: "Unknown";
+} | {
+    readonly kind: "Unimplemented";
 } | {
     readonly kind: "Null";
 } | {
@@ -2354,8 +2784,7 @@ export function equalTimeValue(left: TimeValue, right: TimeValue): boolean {
     return true;
 }
 export function timeUnknown(): TimeValue {
-    const unresolvedFlavor: number = 0;
-    return timeUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function timeNull(): TimeValue {
     return { kind: "Null" };
@@ -2373,12 +2802,24 @@ export function timeIsNull(input: TimeValue): BoolValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (equalTimeValue(input, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor19214: number = unresolvedFlavor;
+    if (input.kind === "Unknown") {
+        if (conditionFlavor19214 < 1) {
+            conditionFlavor19214 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unimplemented") {
+        conditionFlavor19214 = langruntime.checkedI32(2);
+    }
+    if ((equalTimeValue(input, { kind: "Unknown" }) || equalTimeValue(input, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor19214);
     }
     return { kind: "Value", value: equalTimeValue(input, { kind: "Null" }) };
 }
@@ -2386,6 +2827,9 @@ export function timeFromCaseGuard(input: CheckOutcome): TimeValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -2402,6 +2846,8 @@ export function equalTimetzPayload(left: TimetzPayload, right: TimetzPayload): b
 }
 export type TimetzValue = {
     readonly kind: "Unknown";
+} | {
+    readonly kind: "Unimplemented";
 } | {
     readonly kind: "Null";
 } | {
@@ -2421,8 +2867,7 @@ export function equalTimetzValue(left: TimetzValue, right: TimetzValue): boolean
     return true;
 }
 export function timetzUnknown(): TimetzValue {
-    const unresolvedFlavor: number = 0;
-    return timetzUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function timetzNull(): TimetzValue {
     return { kind: "Null" };
@@ -2441,12 +2886,24 @@ export function timetzIsNull(input: TimetzValue): BoolValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (equalTimetzValue(input, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor19754: number = unresolvedFlavor;
+    if (input.kind === "Unknown") {
+        if (conditionFlavor19754 < 1) {
+            conditionFlavor19754 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unimplemented") {
+        conditionFlavor19754 = langruntime.checkedI32(2);
+    }
+    if ((equalTimetzValue(input, { kind: "Unknown" }) || equalTimetzValue(input, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor19754);
     }
     return { kind: "Value", value: equalTimetzValue(input, { kind: "Null" }) };
 }
@@ -2454,6 +2911,9 @@ export function timetzFromCaseGuard(input: CheckOutcome): TimetzValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -2471,6 +2931,8 @@ export function equalIntervalPayload(left: IntervalPayload, right: IntervalPaylo
 }
 export type IntervalValue = {
     readonly kind: "Unknown";
+} | {
+    readonly kind: "Unimplemented";
 } | {
     readonly kind: "Null";
 } | {
@@ -2490,8 +2952,7 @@ export function equalIntervalValue(left: IntervalValue, right: IntervalValue): b
     return true;
 }
 export function intervalUnknown(): IntervalValue {
-    const unresolvedFlavor: number = 0;
-    return intervalUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function intervalNull(): IntervalValue {
     return { kind: "Null" };
@@ -2507,12 +2968,24 @@ export function intervalIsNull(input: IntervalValue): BoolValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (equalIntervalValue(input, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor20274: number = unresolvedFlavor;
+    if (input.kind === "Unknown") {
+        if (conditionFlavor20274 < 1) {
+            conditionFlavor20274 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unimplemented") {
+        conditionFlavor20274 = langruntime.checkedI32(2);
+    }
+    if ((equalIntervalValue(input, { kind: "Unknown" }) || equalIntervalValue(input, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor20274);
     }
     return { kind: "Value", value: equalIntervalValue(input, { kind: "Null" }) };
 }
@@ -2520,6 +2993,9 @@ export function intervalFromCaseGuard(input: CheckOutcome): IntervalValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -2541,6 +3017,8 @@ export function equalPointPayload(left: PointPayload, right: PointPayload): bool
 export type PointValue = {
     readonly kind: "Unknown";
 } | {
+    readonly kind: "Unimplemented";
+} | {
     readonly kind: "Null";
 } | {
     readonly kind: "Value";
@@ -2559,8 +3037,7 @@ export function equalPointValue(left: PointValue, right: PointValue): boolean {
     return true;
 }
 export function pointUnknown(): PointValue {
-    const unresolvedFlavor: number = 0;
-    return pointUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function pointNull(): PointValue {
     return { kind: "Null" };
@@ -2582,12 +3059,24 @@ export function pointIsNull(input: PointValue): BoolValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (equalPointValue(input, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor20824: number = unresolvedFlavor;
+    if (input.kind === "Unknown") {
+        if (conditionFlavor20824 < 1) {
+            conditionFlavor20824 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unimplemented") {
+        conditionFlavor20824 = langruntime.checkedI32(2);
+    }
+    if ((equalPointValue(input, { kind: "Unknown" }) || equalPointValue(input, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor20824);
     }
     return makeBoolValue(equalPointValue(input, { kind: "Null" }));
 }
@@ -2595,6 +3084,9 @@ export function pointFromCaseGuard(input: CheckOutcome): PointValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -2614,6 +3106,8 @@ export function equalLinePayload(left: LinePayload, right: LinePayload): boolean
 export type LineValue = {
     readonly kind: "Unknown";
 } | {
+    readonly kind: "Unimplemented";
+} | {
     readonly kind: "Null";
 } | {
     readonly kind: "Value";
@@ -2632,8 +3126,7 @@ export function equalLineValue(left: LineValue, right: LineValue): boolean {
     return true;
 }
 export function lineUnknown(): LineValue {
-    const unresolvedFlavor: number = 0;
-    return lineUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function lineNull(): LineValue {
     return { kind: "Null" };
@@ -2661,12 +3154,24 @@ export function lineIsNull(input: LineValue): BoolValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (equalLineValue(input, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor21424: number = unresolvedFlavor;
+    if (input.kind === "Unknown") {
+        if (conditionFlavor21424 < 1) {
+            conditionFlavor21424 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unimplemented") {
+        conditionFlavor21424 = langruntime.checkedI32(2);
+    }
+    if ((equalLineValue(input, { kind: "Unknown" }) || equalLineValue(input, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor21424);
     }
     return makeBoolValue(equalLineValue(input, { kind: "Null" }));
 }
@@ -2674,6 +3179,9 @@ export function lineFromCaseGuard(input: CheckOutcome): LineValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -2694,6 +3202,8 @@ export function equalLsegPayload(left: LsegPayload, right: LsegPayload): boolean
 export type LsegValue = {
     readonly kind: "Unknown";
 } | {
+    readonly kind: "Unimplemented";
+} | {
     readonly kind: "Null";
 } | {
     readonly kind: "Value";
@@ -2712,8 +3222,7 @@ export function equalLsegValue(left: LsegValue, right: LsegValue): boolean {
     return true;
 }
 export function lsegUnknown(): LsegValue {
-    const unresolvedFlavor: number = 0;
-    return lsegUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function lsegNull(): LsegValue {
     return { kind: "Null" };
@@ -2730,12 +3239,24 @@ export function lsegIsNull(input: LsegValue): BoolValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (equalLsegValue(input, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor21934: number = unresolvedFlavor;
+    if (input.kind === "Unknown") {
+        if (conditionFlavor21934 < 1) {
+            conditionFlavor21934 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unimplemented") {
+        conditionFlavor21934 = langruntime.checkedI32(2);
+    }
+    if ((equalLsegValue(input, { kind: "Unknown" }) || equalLsegValue(input, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor21934);
     }
     return makeBoolValue(equalLsegValue(input, { kind: "Null" }));
 }
@@ -2743,6 +3264,9 @@ export function lsegFromCaseGuard(input: CheckOutcome): LsegValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -2762,6 +3286,8 @@ export function equalBoxPayload(left: BoxPayload, right: BoxPayload): boolean {
 }
 export type BoxValue = {
     readonly kind: "Unknown";
+} | {
+    readonly kind: "Unimplemented";
 } | {
     readonly kind: "Null";
 } | {
@@ -2783,8 +3309,7 @@ export function equalBoxValue(left: BoxValue, right: BoxValue): boolean {
     return true;
 }
 export function boxUnknown(): BoxValue {
-    const unresolvedFlavor: number = 0;
-    return boxUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function boxNull(): BoxValue {
     return { kind: "Null" };
@@ -2801,12 +3326,24 @@ export function boxIsNull(input: BoxValue): BoolValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (equalBoxValue(input, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor22454: number = unresolvedFlavor;
+    if (input.kind === "Unknown") {
+        if (conditionFlavor22454 < 1) {
+            conditionFlavor22454 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unimplemented") {
+        conditionFlavor22454 = langruntime.checkedI32(2);
+    }
+    if ((equalBoxValue(input, { kind: "Unknown" }) || equalBoxValue(input, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor22454);
     }
     return makeBoolValue(equalBoxValue(input, { kind: "Null" }));
 }
@@ -2814,6 +3351,9 @@ export function boxFromCaseGuard(input: CheckOutcome): BoxValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -2840,6 +3380,8 @@ export function copyPathPayload(value: PathPayload): PathPayload {
 export type PathValue = {
     readonly kind: "Unknown";
 } | {
+    readonly kind: "Unimplemented";
+} | {
     readonly kind: "Null";
 } | {
     readonly kind: "Value";
@@ -2851,14 +3393,14 @@ export type PathValue = {
 export function copyPathValue(value: PathValue): PathValue {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
+        case "Unimplemented": return { kind: "Unimplemented" };
         case "Null": return { kind: "Null" };
         case "Value": return { kind: "Value", value: copyPathPayload(value.value) };
         case "Error": return { kind: "Error", value: value.value };
     }
 }
 export function pathUnknown(): PathValue {
-    const unresolvedFlavor: number = 0;
-    return pathUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function pathNull(): PathValue {
     return { kind: "Null" };
@@ -2885,6 +3427,12 @@ export function appendStoredPathPoint(path: PathValue, point: PointValue): PathV
     }
     if (point.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (path.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (point.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (path.kind === "Error") {
         const error: SqlError = path.value;
@@ -2913,12 +3461,28 @@ export function pathIsNull(input: PathValue): BoolValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
+    let conditionFlavor23254: number = unresolvedFlavor;
     if (input.kind === "Unknown") {
-        return boolUnresolved(unresolvedFlavor);
+        if (conditionFlavor23254 < 1) {
+            conditionFlavor23254 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unknown") {
+        return boolUnresolved(conditionFlavor23254);
+    }
+    let conditionFlavor23277: number = unresolvedFlavor;
+    if (input.kind === "Unimplemented") {
+        conditionFlavor23277 = langruntime.checkedI32(2);
+    }
+    if (input.kind === "Unimplemented") {
+        return boolUnresolved(conditionFlavor23277);
     }
     if (input.kind === "Null") {
         return makeBoolValue(true);
@@ -2929,6 +3493,9 @@ export function pathFromCaseGuard(input: CheckOutcome): PathValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -2946,6 +3513,8 @@ export function copyPolygonPayload(value: PolygonPayload): PolygonPayload {
 export type PolygonValue = {
     readonly kind: "Unknown";
 } | {
+    readonly kind: "Unimplemented";
+} | {
     readonly kind: "Null";
 } | {
     readonly kind: "Value";
@@ -2957,6 +3526,7 @@ export type PolygonValue = {
 export function copyPolygonValue(value: PolygonValue): PolygonValue {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
+        case "Unimplemented": return { kind: "Unimplemented" };
         case "Null": return { kind: "Null" };
         case "Value": return { kind: "Value", value: copyPolygonPayload(value.value) };
         case "Error": return { kind: "Error", value: value.value };
@@ -2975,6 +3545,12 @@ export function appendStoredPolygonPoint(polygon: PolygonValue, point: PointValu
     }
     if (point.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (polygon.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (point.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (polygon.kind === "Error") {
         const error: SqlError = polygon.value;
@@ -3083,7 +3659,7 @@ export function makePolygonValue(payload: PolygonPayload): PolygonValue {
     }
     const calculated: BoxPayload = polygonCalculatedBounds(copyPolygonPayload(payload));
     let bounds: BoxValue = payload.bounds;
-    if (equalBoxValue(bounds, { kind: "Unknown" })) {
+    if ((equalBoxValue(bounds, { kind: "Unknown" }) || equalBoxValue(bounds, { kind: "Unimplemented" }))) {
         bounds = { kind: "NonNull" };
         if (polygonBoundsAmbiguous(copyPolygonPayload(payload), calculated) === false) {
             bounds = { kind: "Value", value: calculated };
@@ -3116,8 +3692,7 @@ export function makePolygonPoints(payload: PolygonPayload): PolygonValue {
     return { kind: "Value", value: { points: payload.points, bounds: { kind: "Value", value: bounds } } };
 }
 export function polygonUnknown(): PolygonValue {
-    const unresolvedFlavor: number = 0;
-    return polygonUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function polygonNull(): PolygonValue {
     return { kind: "Null" };
@@ -3128,12 +3703,28 @@ export function polygonIsNull(input: PolygonValue): BoolValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
+    let conditionFlavor25214: number = unresolvedFlavor;
     if (input.kind === "Unknown") {
-        return boolUnresolved(unresolvedFlavor);
+        if (conditionFlavor25214 < 1) {
+            conditionFlavor25214 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unknown") {
+        return boolUnresolved(conditionFlavor25214);
+    }
+    let conditionFlavor25237: number = unresolvedFlavor;
+    if (input.kind === "Unimplemented") {
+        conditionFlavor25237 = langruntime.checkedI32(2);
+    }
+    if (input.kind === "Unimplemented") {
+        return boolUnresolved(conditionFlavor25237);
     }
     if (input.kind === "Null") {
         return makeBoolValue(true);
@@ -3145,6 +3736,9 @@ export function polygonFromCaseGuard(input: CheckOutcome): PolygonValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -3153,6 +3747,8 @@ export function polygonFromCaseGuard(input: CheckOutcome): PolygonValue {
 }
 export type CircleValue = {
     readonly kind: "Unknown";
+} | {
+    readonly kind: "Unimplemented";
 } | {
     readonly kind: "Null";
 } | {
@@ -3172,8 +3768,7 @@ export function equalCircleValue(left: CircleValue, right: CircleValue): boolean
     return true;
 }
 export function circleUnknown(): CircleValue {
-    const unresolvedFlavor: number = 0;
-    return circleUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function circleNull(): CircleValue {
     return { kind: "Null" };
@@ -3189,12 +3784,24 @@ export function circleIsNull(input: CircleValue): BoolValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (equalCircleValue(input, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor25674: number = unresolvedFlavor;
+    if (input.kind === "Unknown") {
+        if (conditionFlavor25674 < 1) {
+            conditionFlavor25674 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unimplemented") {
+        conditionFlavor25674 = langruntime.checkedI32(2);
+    }
+    if ((equalCircleValue(input, { kind: "Unknown" }) || equalCircleValue(input, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor25674);
     }
     return makeBoolValue(equalCircleValue(input, { kind: "Null" }));
 }
@@ -3202,6 +3809,9 @@ export function circleFromCaseGuard(input: CheckOutcome): CircleValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -3230,6 +3840,8 @@ export function equalAclitemCatalogPayload(left: AclitemCatalogPayload, right: A
 export type AclitemValue = {
     readonly kind: "Unknown";
 } | {
+    readonly kind: "Unimplemented";
+} | {
     readonly kind: "Null";
 } | {
     readonly kind: "Value";
@@ -3253,8 +3865,7 @@ export function equalAclitemValue(left: AclitemValue, right: AclitemValue): bool
     return true;
 }
 export function aclitemUnknown(): AclitemValue {
-    const unresolvedFlavor: number = 0;
-    return aclitemUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function aclitemNull(): AclitemValue {
     return { kind: "Null" };
@@ -3289,12 +3900,24 @@ export function aclitemIsNull(input: AclitemValue): BoolValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (equalAclitemValue(input, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor26264: number = unresolvedFlavor;
+    if (input.kind === "Unknown") {
+        if (conditionFlavor26264 < 1) {
+            conditionFlavor26264 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unimplemented") {
+        conditionFlavor26264 = langruntime.checkedI32(2);
+    }
+    if ((equalAclitemValue(input, { kind: "Unknown" }) || equalAclitemValue(input, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor26264);
     }
     return makeBoolValue(equalAclitemValue(input, { kind: "Null" }));
 }
@@ -3302,6 +3925,9 @@ export function aclitemFromCaseGuard(input: CheckOutcome): AclitemValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -3311,6 +3937,8 @@ export function aclitemFromCaseGuard(input: CheckOutcome): AclitemValue {
 }
 export type MoneyValue = {
     readonly kind: "Unknown";
+} | {
+    readonly kind: "Unimplemented";
 } | {
     readonly kind: "Null";
 } | {
@@ -3330,8 +3958,7 @@ export function equalMoneyValue(left: MoneyValue, right: MoneyValue): boolean {
     return true;
 }
 export function moneyUnknown(): MoneyValue {
-    const unresolvedFlavor: number = 0;
-    return moneyUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function moneyNull(): MoneyValue {
     return { kind: "Null" };
@@ -3345,12 +3972,24 @@ export function moneyIsNull(input: MoneyValue): BoolValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (equalMoneyValue(input, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor26594: number = unresolvedFlavor;
+    if (input.kind === "Unknown") {
+        if (conditionFlavor26594 < 1) {
+            conditionFlavor26594 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unimplemented") {
+        conditionFlavor26594 = langruntime.checkedI32(2);
+    }
+    if ((equalMoneyValue(input, { kind: "Unknown" }) || equalMoneyValue(input, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor26594);
     }
     return makeBoolValue(equalMoneyValue(input, { kind: "Null" }));
 }
@@ -3358,6 +3997,9 @@ export function moneyFromCaseGuard(input: CheckOutcome): MoneyValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -3367,6 +4009,8 @@ export function moneyFromCaseGuard(input: CheckOutcome): MoneyValue {
 }
 export type InternalCharValue = {
     readonly kind: "Unknown";
+} | {
+    readonly kind: "Unimplemented";
 } | {
     readonly kind: "Null";
 } | {
@@ -3386,8 +4030,7 @@ export function equalInternalCharValue(left: InternalCharValue, right: InternalC
     return true;
 }
 export function internalCharUnknown(): InternalCharValue {
-    const unresolvedFlavor: number = 0;
-    return internalCharUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function internalCharNull(): InternalCharValue {
     return { kind: "Null" };
@@ -3405,12 +4048,24 @@ export function internalCharIsNull(input: InternalCharValue): BoolValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (equalInternalCharValue(input, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor27004: number = unresolvedFlavor;
+    if (input.kind === "Unknown") {
+        if (conditionFlavor27004 < 1) {
+            conditionFlavor27004 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unimplemented") {
+        conditionFlavor27004 = langruntime.checkedI32(2);
+    }
+    if ((equalInternalCharValue(input, { kind: "Unknown" }) || equalInternalCharValue(input, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor27004);
     }
     return makeBoolValue(equalInternalCharValue(input, { kind: "Null" }));
 }
@@ -3418,6 +4073,9 @@ export function internalCharFromCaseGuard(input: CheckOutcome): InternalCharValu
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -3427,6 +4085,8 @@ export function internalCharFromCaseGuard(input: CheckOutcome): InternalCharValu
 }
 export type OidValue = {
     readonly kind: "Unknown";
+} | {
+    readonly kind: "Unimplemented";
 } | {
     readonly kind: "Null";
 } | {
@@ -3446,8 +4106,7 @@ export function equalOidValue(left: OidValue, right: OidValue): boolean {
     return true;
 }
 export function oidUnknown(): OidValue {
-    const unresolvedFlavor: number = 0;
-    return oidUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function oidNull(): OidValue {
     return { kind: "Null" };
@@ -3465,12 +4124,24 @@ export function oidIsNull(input: OidValue): BoolValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (equalOidValue(input, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor27414: number = unresolvedFlavor;
+    if (input.kind === "Unknown") {
+        if (conditionFlavor27414 < 1) {
+            conditionFlavor27414 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unimplemented") {
+        conditionFlavor27414 = langruntime.checkedI32(2);
+    }
+    if ((equalOidValue(input, { kind: "Unknown" }) || equalOidValue(input, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor27414);
     }
     return makeBoolValue(equalOidValue(input, { kind: "Null" }));
 }
@@ -3478,6 +4149,9 @@ export function oidFromCaseGuard(input: CheckOutcome): OidValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -3487,6 +4161,8 @@ export function oidFromCaseGuard(input: CheckOutcome): OidValue {
 }
 export type XidValue = {
     readonly kind: "Unknown";
+} | {
+    readonly kind: "Unimplemented";
 } | {
     readonly kind: "Null";
 } | {
@@ -3506,8 +4182,7 @@ export function equalXidValue(left: XidValue, right: XidValue): boolean {
     return true;
 }
 export function xidUnknown(): XidValue {
-    const unresolvedFlavor: number = 0;
-    return xidUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function xidNull(): XidValue {
     return { kind: "Null" };
@@ -3525,12 +4200,24 @@ export function xidIsNull(input: XidValue): BoolValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (equalXidValue(input, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor27824: number = unresolvedFlavor;
+    if (input.kind === "Unknown") {
+        if (conditionFlavor27824 < 1) {
+            conditionFlavor27824 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unimplemented") {
+        conditionFlavor27824 = langruntime.checkedI32(2);
+    }
+    if ((equalXidValue(input, { kind: "Unknown" }) || equalXidValue(input, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor27824);
     }
     return makeBoolValue(equalXidValue(input, { kind: "Null" }));
 }
@@ -3538,6 +4225,9 @@ export function xidFromCaseGuard(input: CheckOutcome): XidValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -3547,6 +4237,8 @@ export function xidFromCaseGuard(input: CheckOutcome): XidValue {
 }
 export type CidValue = {
     readonly kind: "Unknown";
+} | {
+    readonly kind: "Unimplemented";
 } | {
     readonly kind: "Null";
 } | {
@@ -3566,8 +4258,7 @@ export function equalCidValue(left: CidValue, right: CidValue): boolean {
     return true;
 }
 export function cidUnknown(): CidValue {
-    const unresolvedFlavor: number = 0;
-    return cidUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function cidNull(): CidValue {
     return { kind: "Null" };
@@ -3585,12 +4276,24 @@ export function cidIsNull(input: CidValue): BoolValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (equalCidValue(input, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor28234: number = unresolvedFlavor;
+    if (input.kind === "Unknown") {
+        if (conditionFlavor28234 < 1) {
+            conditionFlavor28234 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unimplemented") {
+        conditionFlavor28234 = langruntime.checkedI32(2);
+    }
+    if ((equalCidValue(input, { kind: "Unknown" }) || equalCidValue(input, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor28234);
     }
     return makeBoolValue(equalCidValue(input, { kind: "Null" }));
 }
@@ -3598,6 +4301,9 @@ export function cidFromCaseGuard(input: CheckOutcome): CidValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -3622,6 +4328,8 @@ export function copySnapshotPayload(value: SnapshotPayload): SnapshotPayload {
 export type SnapshotValue = {
     readonly kind: "Unknown";
 } | {
+    readonly kind: "Unimplemented";
+} | {
     readonly kind: "Null";
 } | {
     readonly kind: "Value";
@@ -3633,6 +4341,7 @@ export type SnapshotValue = {
 export function copySnapshotValue(value: SnapshotValue): SnapshotValue {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
+        case "Unimplemented": return { kind: "Unimplemented" };
         case "Null": return { kind: "Null" };
         case "Value": return { kind: "Value", value: copySnapshotPayload(value.value) };
         case "Error": return { kind: "Error", value: value.value };
@@ -3656,8 +4365,7 @@ export function snapshotXidOrder(left: bigint, right: bigint): number {
     return 0;
 }
 export function snapshotUnknown(): SnapshotValue {
-    const unresolvedFlavor: number = 0;
-    return snapshotUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function snapshotNull(): SnapshotValue {
     return { kind: "Null" };
@@ -3712,12 +4420,28 @@ export function snapshotIsNull(input: SnapshotValue): BoolValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
+    let conditionFlavor29284: number = unresolvedFlavor;
     if (input.kind === "Unknown") {
-        return boolUnresolved(unresolvedFlavor);
+        if (conditionFlavor29284 < 1) {
+            conditionFlavor29284 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unknown") {
+        return boolUnresolved(conditionFlavor29284);
+    }
+    let conditionFlavor29307: number = unresolvedFlavor;
+    if (input.kind === "Unimplemented") {
+        conditionFlavor29307 = langruntime.checkedI32(2);
+    }
+    if (input.kind === "Unimplemented") {
+        return boolUnresolved(conditionFlavor29307);
     }
     if (input.kind === "Null") {
         return makeBoolValue(true);
@@ -3729,6 +4453,9 @@ export function snapshotFromCaseGuard(input: CheckOutcome): SnapshotValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -3737,6 +4464,8 @@ export function snapshotFromCaseGuard(input: CheckOutcome): SnapshotValue {
 }
 export type Xid8Value = {
     readonly kind: "Unknown";
+} | {
+    readonly kind: "Unimplemented";
 } | {
     readonly kind: "Null";
 } | {
@@ -3756,8 +4485,7 @@ export function equalXid8Value(left: Xid8Value, right: Xid8Value): boolean {
     return true;
 }
 export function xid8Unknown(): Xid8Value {
-    const unresolvedFlavor: number = 0;
-    return xid8Unresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function xid8Null(): Xid8Value {
     return { kind: "Null" };
@@ -3771,12 +4499,24 @@ export function xid8IsNull(input: Xid8Value): BoolValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (equalXid8Value(input, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor29704: number = unresolvedFlavor;
+    if (input.kind === "Unknown") {
+        if (conditionFlavor29704 < 1) {
+            conditionFlavor29704 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unimplemented") {
+        conditionFlavor29704 = langruntime.checkedI32(2);
+    }
+    if ((equalXid8Value(input, { kind: "Unknown" }) || equalXid8Value(input, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor29704);
     }
     return makeBoolValue(equalXid8Value(input, { kind: "Null" }));
 }
@@ -3784,6 +4524,9 @@ export function xid8FromCaseGuard(input: CheckOutcome): Xid8Value {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -3793,6 +4536,8 @@ export function xid8FromCaseGuard(input: CheckOutcome): Xid8Value {
 }
 export type PgLsnValue = {
     readonly kind: "Unknown";
+} | {
+    readonly kind: "Unimplemented";
 } | {
     readonly kind: "Null";
 } | {
@@ -3812,8 +4557,7 @@ export function equalPgLsnValue(left: PgLsnValue, right: PgLsnValue): boolean {
     return true;
 }
 export function pgLsnUnknown(): PgLsnValue {
-    const unresolvedFlavor: number = 0;
-    return pgLsnUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function pgLsnNull(): PgLsnValue {
     return { kind: "Null" };
@@ -3827,12 +4571,24 @@ export function pgLsnIsNull(input: PgLsnValue): BoolValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (equalPgLsnValue(input, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor30074: number = unresolvedFlavor;
+    if (input.kind === "Unknown") {
+        if (conditionFlavor30074 < 1) {
+            conditionFlavor30074 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unimplemented") {
+        conditionFlavor30074 = langruntime.checkedI32(2);
+    }
+    if ((equalPgLsnValue(input, { kind: "Unknown" }) || equalPgLsnValue(input, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor30074);
     }
     return makeBoolValue(equalPgLsnValue(input, { kind: "Null" }));
 }
@@ -3840,6 +4596,9 @@ export function pgLsnFromCaseGuard(input: CheckOutcome): PgLsnValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -3849,6 +4608,8 @@ export function pgLsnFromCaseGuard(input: CheckOutcome): PgLsnValue {
 }
 export type TidValue = {
     readonly kind: "Unknown";
+} | {
+    readonly kind: "Unimplemented";
 } | {
     readonly kind: "Null";
 } | {
@@ -3868,8 +4629,7 @@ export function equalTidValue(left: TidValue, right: TidValue): boolean {
     return true;
 }
 export function tidUnknown(): TidValue {
-    const unresolvedFlavor: number = 0;
-    return tidUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function tidNull(): TidValue {
     return { kind: "Null" };
@@ -3887,12 +4647,24 @@ export function tidIsNull(input: TidValue): BoolValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (equalTidValue(input, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor30484: number = unresolvedFlavor;
+    if (input.kind === "Unknown") {
+        if (conditionFlavor30484 < 1) {
+            conditionFlavor30484 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unimplemented") {
+        conditionFlavor30484 = langruntime.checkedI32(2);
+    }
+    if ((equalTidValue(input, { kind: "Unknown" }) || equalTidValue(input, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor30484);
     }
     return makeBoolValue(equalTidValue(input, { kind: "Null" }));
 }
@@ -3900,6 +4672,9 @@ export function tidFromCaseGuard(input: CheckOutcome): TidValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -3918,8 +4693,7 @@ export function makeTidParts(block: bigint, offset: number): TidValue {
     return makeTidValue(langruntime.checkedI64Add(langruntime.checkedI64Multiply(block, 65536n), low));
 }
 export function jsonpathUnknown(): JsonpathValue {
-    const unresolvedFlavor: number = 0;
-    return jsonpathUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function jsonpathNull(): JsonpathValue {
     return { kind: "Null" };
@@ -3930,12 +4704,28 @@ export function jsonpathIsNull(input: JsonpathValue): BoolValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
+    let conditionFlavor30854: number = unresolvedFlavor;
     if (input.kind === "Unknown") {
-        return boolUnresolved(unresolvedFlavor);
+        if (conditionFlavor30854 < 1) {
+            conditionFlavor30854 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unknown") {
+        return boolUnresolved(conditionFlavor30854);
+    }
+    let conditionFlavor30877: number = unresolvedFlavor;
+    if (input.kind === "Unimplemented") {
+        conditionFlavor30877 = langruntime.checkedI32(2);
+    }
+    if (input.kind === "Unimplemented") {
+        return boolUnresolved(conditionFlavor30877);
     }
     if (input.kind === "Null") {
         return { kind: "Value", value: true };
@@ -3946,6 +4736,9 @@ export function jsonpathFromCaseGuard(input: CheckOutcome): JsonpathValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -3958,6 +4751,9 @@ export function jsonpathFromCoercedValue(input: JsonpathValue): JsonpathValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "StoredText") {
         const text: string = langruntime.checkedString(input.value);
@@ -4086,6 +4882,8 @@ export function copyTsvectorPayload(value: TsvectorPayload): TsvectorPayload {
 export type TsvectorValue = {
     readonly kind: "Unknown";
 } | {
+    readonly kind: "Unimplemented";
+} | {
     readonly kind: "Null";
 } | {
     readonly kind: "Value";
@@ -4097,14 +4895,14 @@ export type TsvectorValue = {
 export function copyTsvectorValue(value: TsvectorValue): TsvectorValue {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
+        case "Unimplemented": return { kind: "Unimplemented" };
         case "Null": return { kind: "Null" };
         case "Value": return { kind: "Value", value: copyTsvectorPayload(value.value) };
         case "Error": return { kind: "Error", value: value.value };
     }
 }
 export function tsvectorUnknown(): TsvectorValue {
-    const unresolvedFlavor: number = 0;
-    return tsvectorUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function tsvectorNull(): TsvectorValue {
     return { kind: "Null" };
@@ -4256,12 +5054,28 @@ export function tsvectorIsNull(input: TsvectorValue): BoolValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
+    let conditionFlavor33584: number = unresolvedFlavor;
     if (input.kind === "Unknown") {
-        return boolUnresolved(unresolvedFlavor);
+        if (conditionFlavor33584 < 1) {
+            conditionFlavor33584 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unknown") {
+        return boolUnresolved(conditionFlavor33584);
+    }
+    let conditionFlavor335890: number = unresolvedFlavor;
+    if (input.kind === "Unimplemented") {
+        conditionFlavor335890 = langruntime.checkedI32(2);
+    }
+    if (input.kind === "Unimplemented") {
+        return boolUnresolved(conditionFlavor335890);
     }
     if (input.kind === "Null") {
         return makeBoolValue(true);
@@ -4272,6 +5086,9 @@ export function tsvectorFromCaseGuard(input: CheckOutcome): TsvectorValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -4302,6 +5119,8 @@ export function copyTsqueryPayload(value: TsqueryPayload): TsqueryPayload {
 export type TsqueryValue = {
     readonly kind: "Unknown";
 } | {
+    readonly kind: "Unimplemented";
+} | {
     readonly kind: "Null";
 } | {
     readonly kind: "Value";
@@ -4313,14 +5132,14 @@ export type TsqueryValue = {
 export function copyTsqueryValue(value: TsqueryValue): TsqueryValue {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
+        case "Unimplemented": return { kind: "Unimplemented" };
         case "Null": return { kind: "Null" };
         case "Value": return { kind: "Value", value: copyTsqueryPayload(value.value) };
         case "Error": return { kind: "Error", value: value.value };
     }
 }
 export function tsqueryUnknown(): TsqueryValue {
-    const unresolvedFlavor: number = 0;
-    return tsqueryUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function tsqueryNull(): TsqueryValue {
     return { kind: "Null" };
@@ -4430,12 +5249,28 @@ export function tsqueryIsNull(input: TsqueryValue): BoolValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
+    let conditionFlavor34644: number = unresolvedFlavor;
     if (input.kind === "Unknown") {
-        return boolUnresolved(unresolvedFlavor);
+        if (conditionFlavor34644 < 1) {
+            conditionFlavor34644 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unknown") {
+        return boolUnresolved(conditionFlavor34644);
+    }
+    let conditionFlavor346489: number = unresolvedFlavor;
+    if (input.kind === "Unimplemented") {
+        conditionFlavor346489 = langruntime.checkedI32(2);
+    }
+    if (input.kind === "Unimplemented") {
+        return boolUnresolved(conditionFlavor346489);
     }
     if (input.kind === "Null") {
         return makeBoolValue(true);
@@ -4446,6 +5281,9 @@ export function tsqueryFromCaseGuard(input: CheckOutcome): TsqueryValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -4477,413 +5315,406 @@ export function aclitemUnresolved(flavor: number): AclitemValue {
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function arrayUnresolved(flavor: number): ArrayValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function bitUnresolved(flavor: number): BitValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function boolUnresolved(flavor: number): BoolValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function boxUnresolved(flavor: number): BoxValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function byteaUnresolved(flavor: number): ByteaValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function cidUnresolved(flavor: number): CidValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function circleUnresolved(flavor: number): CircleValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
-}
-export function compositeDatumUnresolved(flavor: number): CompositeValue {
-    flavor = langruntime.checkedI32(flavor);
-    if (flavor === 1) {
-        return { kind: "Unknown" };
-    }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function compositeRowUnresolved(flavor: number): CompositeValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function dateUnresolved(flavor: number): DateValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function enumUnresolved(flavor: number): EnumValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function float4Unresolved(flavor: number): Float4Value {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function float8Unresolved(flavor: number): Float8Value {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function int2Unresolved(flavor: number): Int2Value {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function int4Unresolved(flavor: number): Int4Value {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function int8Unresolved(flavor: number): Int8Value {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function internalCharUnresolved(flavor: number): InternalCharValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function intervalUnresolved(flavor: number): IntervalValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function jsonbUnresolved(flavor: number): JsonbValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function jsonpathUnresolved(flavor: number): JsonpathValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function jsonUnresolved(flavor: number): JsonValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function lineUnresolved(flavor: number): LineValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function lsegUnresolved(flavor: number): LsegValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function macaddr8Unresolved(flavor: number): Macaddr8Value {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function macaddrUnresolved(flavor: number): MacaddrValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function moneyUnresolved(flavor: number): MoneyValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function multirangeUnresolved(flavor: number): MultirangeValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function networkUnresolved(flavor: number): NetworkValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function numericUnresolved(flavor: number): NumericValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function oidUnresolved(flavor: number): OidValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function pathUnresolved(flavor: number): PathValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function pgLsnUnresolved(flavor: number): PgLsnValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function pointUnresolved(flavor: number): PointValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function polygonUnresolved(flavor: number): PolygonValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function rangeUnresolved(flavor: number): RangeValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function snapshotUnresolved(flavor: number): SnapshotValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function textUnresolved(flavor: number): TextValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function tidUnresolved(flavor: number): TidValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function timestamptzUnresolved(flavor: number): TimestamptzValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function timestampUnresolved(flavor: number): TimestampValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function timetzUnresolved(flavor: number): TimetzValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function timeUnresolved(flavor: number): TimeValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function tsqueryUnresolved(flavor: number): TsqueryValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function tsvectorUnresolved(flavor: number): TsvectorValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function uuidUnresolved(flavor: number): UuidValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function xid8Unresolved(flavor: number): Xid8Value {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function xidUnresolved(flavor: number): XidValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function xmlUnresolved(flavor: number): XmlValue {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function arrayArgumentsUnresolved(flavor: number): ArrayArguments {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function arrayChildrenArgumentsUnresolved(flavor: number): ArrayChildrenArguments {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function arrayElementUnresolved(flavor: number): ArrayElement {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function arrayTextEventUnresolved(flavor: number): ArrayTextEvent {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function arrayTextPlanUnresolved(flavor: number): ArrayTextPlan {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function compositeTextPlanUnresolved(flavor: number): CompositeTextPlan {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function jsonbArgumentsUnresolved(flavor: number): JsonbArguments {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function jsonbInputUnresolved(flavor: number): JsonbInput {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function rangeTextPlanUnresolved(flavor: number): RangeTextPlan {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export function checkUnresolved(flavor: number): CheckOutcome {
     flavor = langruntime.checkedI32(flavor);
     if (flavor === 1) {
         return { kind: "Unknown" };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 export interface NumericLayout {
     valid: boolean;
@@ -5461,12 +6292,24 @@ export function networkFromText(input: TextValue): NetworkValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if ((equalTextValue(input, { kind: "Unknown" }) || equalTextValue(input, { kind: "NonNull" }))) {
-        return networkUnresolved(unresolvedFlavor);
+    let conditionFlavor4234: number = unresolvedFlavor;
+    if (input.kind === "Unknown") {
+        if (conditionFlavor4234 < 1) {
+            conditionFlavor4234 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unimplemented") {
+        conditionFlavor4234 = langruntime.checkedI32(2);
+    }
+    if (((equalTextValue(input, { kind: "Unknown" }) || equalTextValue(input, { kind: "Unimplemented" })) || equalTextValue(input, { kind: "NonNull" }))) {
+        return networkUnresolved(conditionFlavor4234);
     }
     if (equalTextValue(input, { kind: "Null" })) {
         return { kind: "Null" };
@@ -5482,12 +6325,24 @@ export function cidrFromText(input: TextValue): NetworkValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if ((equalTextValue(input, { kind: "Unknown" }) || equalTextValue(input, { kind: "NonNull" }))) {
-        return networkUnresolved(unresolvedFlavor);
+    let conditionFlavor4424: number = unresolvedFlavor;
+    if (input.kind === "Unknown") {
+        if (conditionFlavor4424 < 1) {
+            conditionFlavor4424 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unimplemented") {
+        conditionFlavor4424 = langruntime.checkedI32(2);
+    }
+    if (((equalTextValue(input, { kind: "Unknown" }) || equalTextValue(input, { kind: "Unimplemented" })) || equalTextValue(input, { kind: "NonNull" }))) {
+        return networkUnresolved(conditionFlavor4424);
     }
     if (equalTextValue(input, { kind: "Null" })) {
         return { kind: "Null" };
@@ -5729,12 +6584,24 @@ export function macaddrFromText(input: TextValue): MacaddrValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if ((equalTextValue(input, { kind: "Unknown" }) || equalTextValue(input, { kind: "NonNull" }))) {
-        return macaddrUnresolved(unresolvedFlavor);
+    let conditionFlavor2884: number = unresolvedFlavor;
+    if (input.kind === "Unknown") {
+        if (conditionFlavor2884 < 1) {
+            conditionFlavor2884 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unimplemented") {
+        conditionFlavor2884 = langruntime.checkedI32(2);
+    }
+    if (((equalTextValue(input, { kind: "Unknown" }) || equalTextValue(input, { kind: "Unimplemented" })) || equalTextValue(input, { kind: "NonNull" }))) {
+        return macaddrUnresolved(conditionFlavor2884);
     }
     if (equalTextValue(input, { kind: "Null" })) {
         return { kind: "Null" };
@@ -5759,12 +6626,24 @@ export function macaddr8FromText(input: TextValue): Macaddr8Value {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if ((equalTextValue(input, { kind: "Unknown" }) || equalTextValue(input, { kind: "NonNull" }))) {
-        return macaddr8Unresolved(unresolvedFlavor);
+    let conditionFlavor3164: number = unresolvedFlavor;
+    if (input.kind === "Unknown") {
+        if (conditionFlavor3164 < 1) {
+            conditionFlavor3164 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unimplemented") {
+        conditionFlavor3164 = langruntime.checkedI32(2);
+    }
+    if (((equalTextValue(input, { kind: "Unknown" }) || equalTextValue(input, { kind: "Unimplemented" })) || equalTextValue(input, { kind: "NonNull" }))) {
+        return macaddr8Unresolved(conditionFlavor3164);
     }
     if (equalTextValue(input, { kind: "Null" })) {
         return { kind: "Null" };
@@ -5864,12 +6743,24 @@ export function uuidFromText(input: TextValue): UuidValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if ((equalTextValue(input, { kind: "Unknown" }) || equalTextValue(input, { kind: "NonNull" }))) {
-        return uuidUnresolved(unresolvedFlavor);
+    let conditionFlavor854: number = unresolvedFlavor;
+    if (input.kind === "Unknown") {
+        if (conditionFlavor854 < 1) {
+            conditionFlavor854 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unimplemented") {
+        conditionFlavor854 = langruntime.checkedI32(2);
+    }
+    if (((equalTextValue(input, { kind: "Unknown" }) || equalTextValue(input, { kind: "Unimplemented" })) || equalTextValue(input, { kind: "NonNull" }))) {
+        return uuidUnresolved(conditionFlavor854);
     }
     if (equalTextValue(input, { kind: "Null" })) {
         return { kind: "Null" };
@@ -6524,8 +7415,17 @@ function jsonReadSelect(value: string, key: string, index: number, object: boole
                 const error: SqlError = decoded.value;
                 return { kind: "Error", value: error };
             }
-            if (equalTextValue(decoded, { kind: "Unknown" }) || equalTextValue(decoded, { kind: "NonNull" })) {
-                return textUnresolved(unresolvedFlavor);
+            let conditionFlavor23812: number = unresolvedFlavor;
+            if (decoded.kind === "Unknown") {
+                if (conditionFlavor23812 < 1) {
+                    conditionFlavor23812 = langruntime.checkedI32(1);
+                }
+            }
+            if (decoded.kind === "Unimplemented") {
+                conditionFlavor23812 = langruntime.checkedI32(2);
+            }
+            if ((equalTextValue(decoded, { kind: "Unknown" }) || equalTextValue(decoded, { kind: "Unimplemented" })) || equalTextValue(decoded, { kind: "NonNull" })) {
+                return textUnresolved(conditionFlavor23812);
             }
         }
         if (depth === 1) {
@@ -6596,6 +7496,12 @@ export function jsonReadFieldContext(input: JsonValue, key: TextValue, asText: b
     if (key.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (key.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -6604,11 +7510,33 @@ export function jsonReadFieldContext(input: JsonValue, key: TextValue, asText: b
         const error: SqlError = key.value;
         return { kind: "Error", value: error };
     }
+    let conditionFlavor3144: number = unresolvedFlavor;
     if (input.kind === "Unknown") {
-        return textUnresolved(unresolvedFlavor);
+        if (conditionFlavor3144 < 1) {
+            conditionFlavor3144 = langruntime.checkedI32(1);
+        }
     }
-    if (equalTextValue(key, { kind: "Unknown" }) || equalTextValue(key, { kind: "NonNull" })) {
-        return textUnresolved(unresolvedFlavor);
+    if (input.kind === "Unknown") {
+        return textUnresolved(conditionFlavor3144);
+    }
+    let conditionFlavor3167: number = unresolvedFlavor;
+    if (input.kind === "Unimplemented") {
+        conditionFlavor3167 = langruntime.checkedI32(2);
+    }
+    if (input.kind === "Unimplemented") {
+        return textUnresolved(conditionFlavor3167);
+    }
+    let conditionFlavor3194: number = unresolvedFlavor;
+    if (key.kind === "Unknown") {
+        if (conditionFlavor3194 < 1) {
+            conditionFlavor3194 = langruntime.checkedI32(1);
+        }
+    }
+    if (key.kind === "Unimplemented") {
+        conditionFlavor3194 = langruntime.checkedI32(2);
+    }
+    if ((equalTextValue(key, { kind: "Unknown" }) || equalTextValue(key, { kind: "Unimplemented" })) || equalTextValue(key, { kind: "NonNull" })) {
+        return textUnresolved(conditionFlavor3194);
     }
     if (input.kind === "Null") {
         return { kind: "Null" };
@@ -6639,6 +7567,12 @@ export function jsonReadElementContext(input: JsonValue, index: Int4Value, asTex
     if (index.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (index.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -6647,11 +7581,33 @@ export function jsonReadElementContext(input: JsonValue, index: Int4Value, asTex
         const error: SqlError = index.value;
         return { kind: "Error", value: error };
     }
+    let conditionFlavor3524: number = unresolvedFlavor;
     if (input.kind === "Unknown") {
-        return textUnresolved(unresolvedFlavor);
+        if (conditionFlavor3524 < 1) {
+            conditionFlavor3524 = langruntime.checkedI32(1);
+        }
     }
+    if (input.kind === "Unknown") {
+        return textUnresolved(conditionFlavor3524);
+    }
+    let conditionFlavor3547: number = unresolvedFlavor;
+    if (input.kind === "Unimplemented") {
+        conditionFlavor3547 = langruntime.checkedI32(2);
+    }
+    if (input.kind === "Unimplemented") {
+        return textUnresolved(conditionFlavor3547);
+    }
+    let conditionFlavor3574: number = unresolvedFlavor;
     if (index.kind === "Unknown") {
-        return textUnresolved(unresolvedFlavor);
+        if (conditionFlavor3574 < 1) {
+            conditionFlavor3574 = langruntime.checkedI32(1);
+        }
+    }
+    if (index.kind === "Unimplemented") {
+        conditionFlavor3574 = langruntime.checkedI32(2);
+    }
+    if ((equalInt4Value(index, { kind: "Unknown" }) || equalInt4Value(index, { kind: "Unimplemented" }))) {
+        return textUnresolved(conditionFlavor3574);
     }
     if (input.kind === "Null") {
         return { kind: "Null" };
@@ -6672,6 +7628,9 @@ export function jsonReadLength(input: JsonValue): Int4Value {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -6697,6 +7656,9 @@ export function jsonReadInputScalar(input: JsonValue, quoted: boolean, utf8: boo
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -6733,6 +7695,9 @@ export function jsonReadObjectReady(input: JsonValue, utf8: boolean): CheckOutco
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Value") {
         const value: JsonPayload = input.value;
         const kind: number = value.kind;
@@ -6749,8 +7714,17 @@ export function jsonReadObjectReady(input: JsonValue, utf8: boolean): CheckOutco
             const error: SqlError = checked.value;
             return { kind: "Error", value: error };
         }
-        if (equalTextValue(checked, { kind: "Unknown" }) || equalTextValue(checked, { kind: "NonNull" })) {
-            return checkUnresolved(unresolvedFlavor);
+        let conditionFlavor4458: number = unresolvedFlavor;
+        if (checked.kind === "Unknown") {
+            if (conditionFlavor4458 < 1) {
+                conditionFlavor4458 = langruntime.checkedI32(1);
+            }
+        }
+        if (checked.kind === "Unimplemented") {
+            conditionFlavor4458 = langruntime.checkedI32(2);
+        }
+        if ((equalTextValue(checked, { kind: "Unknown" }) || equalTextValue(checked, { kind: "Unimplemented" })) || equalTextValue(checked, { kind: "NonNull" })) {
+            return checkUnresolved(conditionFlavor4458);
         }
         if (kind === 6) {
             return { kind: "True" };
@@ -6830,6 +7804,9 @@ export function jsonArrayPathState(input: ArrayValue): Int4Value {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -6945,7 +7922,7 @@ function parseJsonArrayPathDocument(input: string, utf8: boolean): JsonArrayPath
                 const error: SqlError = decoded.value;
                 return jsonArrayPathEmpty(langruntime.checkedSignedNegate(2), error);
             }
-            if ((equalTextValue(decoded, { kind: "Unknown" }) || equalTextValue(decoded, { kind: "NonNull" }))) {
+            if (((equalTextValue(decoded, { kind: "Unknown" }) || equalTextValue(decoded, { kind: "Unimplemented" })) || equalTextValue(decoded, { kind: "NonNull" }))) {
                 return jsonArrayPathEmpty(langruntime.checkedSignedNegate(1), makeSqlError(0));
             }
         }
@@ -7126,6 +8103,12 @@ export function jsonReadArrayPath(input: JsonValue, path: ArrayValue, asText: bo
     if (path.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (path.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -7141,8 +8124,17 @@ export function jsonReadArrayPath(input: JsonValue, path: ArrayValue, asText: bo
     if (equalInt4Value(pathState, { kind: "Null" })) {
         return { kind: "Null" };
     }
-    if (equalInt4Value(pathState, { kind: "Unknown" })) {
-        return textUnresolved(unresolvedFlavor);
+    let conditionFlavor4284: number = unresolvedFlavor;
+    if (pathState.kind === "Unknown") {
+        if (conditionFlavor4284 < 1) {
+            conditionFlavor4284 = langruntime.checkedI32(1);
+        }
+    }
+    if (pathState.kind === "Unimplemented") {
+        conditionFlavor4284 = langruntime.checkedI32(2);
+    }
+    if ((equalInt4Value(pathState, { kind: "Unknown" }) || equalInt4Value(pathState, { kind: "Unimplemented" }))) {
+        return textUnresolved(conditionFlavor4284);
     }
     if (input.kind === "Value") {
         const value: JsonPayload = input.value;
@@ -7153,6 +8145,9 @@ export function jsonReadArrayPath(input: JsonValue, path: ArrayValue, asText: bo
             while (index < keys.elements.length) {
                 const key: ArrayElement = copyArrayElement(langruntime.indexStruct(keys.elements, langruntime.checkedIndex(index), copyArrayElement));
                 if (key.kind === "Unknown") {
+                    uncertain = langruntime.checkedBool(true);
+                }
+                if (key.kind === "Unimplemented") {
                     uncertain = langruntime.checkedBool(true);
                 }
                 index = langruntime.checkedAdd(index, 1);
@@ -7260,6 +8255,12 @@ export function jsonStripNullsContext(input: JsonValue, arrays: BoolValue, utf8:
     }
     if (arrays.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (arrays.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -7421,8 +8422,17 @@ function jsonbScalarReady(source: JsonSyntaxSource, token: JsonReadToken, utf8: 
             const error: SqlError = decoded.value;
             return { kind: "Error", value: error };
         }
-        if (equalTextValue(decoded, { kind: "Unknown" }) || equalTextValue(decoded, { kind: "NonNull" })) {
-            return boolUnresolved(unresolvedFlavor);
+        let conditionFlavor498: number = unresolvedFlavor;
+        if (decoded.kind === "Unknown") {
+            if (conditionFlavor498 < 1) {
+                conditionFlavor498 = langruntime.checkedI32(1);
+            }
+        }
+        if (decoded.kind === "Unimplemented") {
+            conditionFlavor498 = langruntime.checkedI32(2);
+        }
+        if ((equalTextValue(decoded, { kind: "Unknown" }) || equalTextValue(decoded, { kind: "Unimplemented" })) || equalTextValue(decoded, { kind: "NonNull" })) {
+            return boolUnresolved(conditionFlavor498);
         }
     }
     if (following.syntax === jsonSyntaxInvalid) {
@@ -7439,8 +8449,17 @@ function jsonbNumberText(source: JsonSyntaxSource, token: JsonReadToken, utf8: b
         const error: SqlError = ready.value;
         return { kind: "Error", value: error };
     }
+    let conditionFlavor654: number = unresolvedFlavor;
     if (ready.kind === "Unknown") {
-        return textUnresolved(unresolvedFlavor);
+        if (conditionFlavor654 < 1) {
+            conditionFlavor654 = langruntime.checkedI32(1);
+        }
+    }
+    if (ready.kind === "Unimplemented") {
+        conditionFlavor654 = langruntime.checkedI32(2);
+    }
+    if ((equalBoolValue(ready, { kind: "Unknown" }) || equalBoolValue(ready, { kind: "Unimplemented" }))) {
+        return textUnresolved(conditionFlavor654);
     }
     let position: number = token.start;
     const negative: boolean = langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "-";
@@ -7645,6 +8664,9 @@ function jsonbParseTextContext(input: TextValue, admission: boolean, utf8: boole
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -7672,8 +8694,17 @@ function jsonbParseTextContext(input: TextValue, admission: boolean, utf8: boole
                     const error: SqlError = decoded.value;
                     return { kind: "Error", value: error };
                 }
-                if (equalTextValue(decoded, { kind: "Unknown" }) || equalTextValue(decoded, { kind: "NonNull" })) {
-                    return jsonbUnresolved(unresolvedFlavor);
+                let conditionFlavor31716: number = unresolvedFlavor;
+                if (decoded.kind === "Unknown") {
+                    if (conditionFlavor31716 < 1) {
+                        conditionFlavor31716 = langruntime.checkedI32(1);
+                    }
+                }
+                if (decoded.kind === "Unimplemented") {
+                    conditionFlavor31716 = langruntime.checkedI32(2);
+                }
+                if ((equalTextValue(decoded, { kind: "Unknown" }) || equalTextValue(decoded, { kind: "Unimplemented" })) || equalTextValue(decoded, { kind: "NonNull" })) {
+                    return jsonbUnresolved(conditionFlavor31716);
                 }
             }
             if (token.syntax === jsonSyntaxInvalid) {
@@ -7697,8 +8728,17 @@ function jsonbParseTextContext(input: TextValue, admission: boolean, utf8: boole
                     const error: SqlError = decision.value;
                     return { kind: "Error", value: error };
                 }
+                let conditionFlavor34116: number = unresolvedFlavor;
                 if (decision.kind === "Unknown") {
-                    return jsonbUnresolved(unresolvedFlavor);
+                    if (conditionFlavor34116 < 1) {
+                        conditionFlavor34116 = langruntime.checkedI32(1);
+                    }
+                }
+                if (decision.kind === "Unimplemented") {
+                    conditionFlavor34116 = langruntime.checkedI32(2);
+                }
+                if ((equalBoolValue(decision, { kind: "Unknown" }) || equalBoolValue(decision, { kind: "Unimplemented" }))) {
+                    return jsonbUnresolved(conditionFlavor34116);
                 }
             }
             const transition: JsonSyntaxTransition = copyJsonSyntaxTransition(jsonSyntaxStep(frame.state, token.syntax));
@@ -7714,8 +8754,17 @@ function jsonbParseTextContext(input: TextValue, admission: boolean, utf8: boole
                         const error: SqlError = decision.value;
                         return { kind: "Error", value: error };
                     }
+                    let conditionFlavor36120: number = unresolvedFlavor;
                     if (decision.kind === "Unknown") {
-                        return jsonbUnresolved(unresolvedFlavor);
+                        if (conditionFlavor36120 < 1) {
+                            conditionFlavor36120 = langruntime.checkedI32(1);
+                        }
+                    }
+                    if (decision.kind === "Unimplemented") {
+                        conditionFlavor36120 = langruntime.checkedI32(2);
+                    }
+                    if ((equalBoolValue(decision, { kind: "Unknown" }) || equalBoolValue(decision, { kind: "Unimplemented" }))) {
+                        return jsonbUnresolved(conditionFlavor36120);
                     }
                 }
                 return { kind: "Value", value: normalized };
@@ -7747,8 +8796,17 @@ function jsonbParseTextContext(input: TextValue, admission: boolean, utf8: boole
                             const error: SqlError = decoded.value;
                             return { kind: "Error", value: error };
                         }
-                        if (equalTextValue(decoded, { kind: "Unknown" }) || equalTextValue(decoded, { kind: "NonNull" })) {
-                            return jsonbUnresolved(unresolvedFlavor);
+                        let conditionFlavor39324: number = unresolvedFlavor;
+                        if (decoded.kind === "Unknown") {
+                            if (conditionFlavor39324 < 1) {
+                                conditionFlavor39324 = langruntime.checkedI32(1);
+                            }
+                        }
+                        if (decoded.kind === "Unimplemented") {
+                            conditionFlavor39324 = langruntime.checkedI32(2);
+                        }
+                        if ((equalTextValue(decoded, { kind: "Unknown" }) || equalTextValue(decoded, { kind: "Unimplemented" })) || equalTextValue(decoded, { kind: "NonNull" })) {
+                            return jsonbUnresolved(conditionFlavor39324);
                         }
                     }
                     if (admission && token.kind === jsonReadQuote) {
@@ -7757,8 +8815,17 @@ function jsonbParseTextContext(input: TextValue, admission: boolean, utf8: boole
                             const error: SqlError = ready.value;
                             return { kind: "Error", value: error };
                         }
+                        let conditionFlavor40224: number = unresolvedFlavor;
                         if (ready.kind === "Unknown") {
-                            return jsonbUnresolved(unresolvedFlavor);
+                            if (conditionFlavor40224 < 1) {
+                                conditionFlavor40224 = langruntime.checkedI32(1);
+                            }
+                        }
+                        if (ready.kind === "Unimplemented") {
+                            conditionFlavor40224 = langruntime.checkedI32(2);
+                        }
+                        if ((equalBoolValue(ready, { kind: "Unknown" }) || equalBoolValue(ready, { kind: "Unimplemented" }))) {
+                            return jsonbUnresolved(conditionFlavor40224);
                         }
                         const sizeText: TextValue = decoded;
                         if (sizeText.kind === "Value") {
@@ -7780,8 +8847,17 @@ function jsonbParseTextContext(input: TextValue, admission: boolean, utf8: boole
                                 const error: SqlError = decision.value;
                                 return { kind: "Error", value: error };
                             }
+                            let conditionFlavor42328: number = unresolvedFlavor;
                             if (decision.kind === "Unknown") {
-                                return jsonbUnresolved(unresolvedFlavor);
+                                if (conditionFlavor42328 < 1) {
+                                    conditionFlavor42328 = langruntime.checkedI32(1);
+                                }
+                            }
+                            if (decision.kind === "Unimplemented") {
+                                conditionFlavor42328 = langruntime.checkedI32(2);
+                            }
+                            if ((equalBoolValue(decision, { kind: "Unknown" }) || equalBoolValue(decision, { kind: "Unimplemented" }))) {
+                                return jsonbUnresolved(conditionFlavor42328);
                             }
                         }
                     }
@@ -7887,6 +8963,9 @@ function jsonbRender(input: JsonbValue, requireOrder: boolean, pretty: boolean):
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "NonNull") {
         const maximum: JsonbKnowledge = copyJsonbKnowledge(input.value);
@@ -8200,6 +9279,9 @@ export function jsonbRebuild(input: JsonbValue, admission: boolean): JsonbValue 
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Value") {
         const value: JsonbPayload = copyJsonbPayload(input.value);
         const normalized: JsonbPayload = jsonbNormalizeObjects(jsonbPreorder(value));
@@ -8209,8 +9291,17 @@ export function jsonbRebuild(input: JsonbValue, admission: boolean): JsonbValue 
                 const error: SqlError = admitted.value;
                 return { kind: "Error", value: error };
             }
+            let conditionFlavor9012: number = unresolvedFlavor;
             if (admitted.kind === "Unknown") {
-                return jsonbUnresolved(unresolvedFlavor);
+                if (conditionFlavor9012 < 1) {
+                    conditionFlavor9012 = langruntime.checkedI32(1);
+                }
+            }
+            if (admitted.kind === "Unimplemented") {
+                conditionFlavor9012 = langruntime.checkedI32(2);
+            }
+            if ((equalBoolValue(admitted, { kind: "Unknown" }) || equalBoolValue(admitted, { kind: "Unimplemented" }))) {
+                return jsonbUnresolved(conditionFlavor9012);
             }
         }
         return { kind: "Value", value: normalized };
@@ -8234,6 +9325,9 @@ export function jsonbFromString(input: TextValue): JsonbValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -8604,7 +9698,7 @@ function jsonbStorageExtents(source: JsonbPayload, characters: JsonbStorageChara
                             sizes[langruntime.checkedIndexIn(sizes, source.root)] = copyJsonbStorageSize(jsonbStorageBounds(langruntime.checkedI64Add(jsonbStorageLimit, 1n), langruntime.checkedI64Add(jsonbStorageLimit, 1n)));
                             return sizes;
                         }
-                        if (decision.kind === "Unknown") {
+                        if ((equalBoolValue(decision, { kind: "Unknown" }) || equalBoolValue(decision, { kind: "Unimplemented" }))) {
                             uncertain = langruntime.checkedBool(true);
                         }
                     }
@@ -8616,7 +9710,7 @@ function jsonbStorageExtents(source: JsonbPayload, characters: JsonbStorageChara
                     sizes[langruntime.checkedIndexIn(sizes, source.root)] = copyJsonbStorageSize(jsonbStorageBounds(langruntime.checkedI64Add(jsonbStorageLimit, 1n), langruntime.checkedI64Add(jsonbStorageLimit, 1n)));
                     return sizes;
                 }
-                if (decision.kind === "Unknown") {
+                if ((equalBoolValue(decision, { kind: "Unknown" }) || equalBoolValue(decision, { kind: "Unimplemented" }))) {
                     uncertain = langruntime.checkedBool(true);
                 }
             }
@@ -8968,6 +10062,8 @@ export function copyJsonpathPayload(value: JsonpathPayload): JsonpathPayload {
 export type JsonpathValue = {
     readonly kind: "Unknown";
 } | {
+    readonly kind: "Unimplemented";
+} | {
     readonly kind: "Null";
 } | {
     readonly kind: "Value";
@@ -8982,6 +10078,7 @@ export type JsonpathValue = {
 export function copyJsonpathValue(value: JsonpathValue): JsonpathValue {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
+        case "Unimplemented": return { kind: "Unimplemented" };
         case "Null": return { kind: "Null" };
         case "Value": return { kind: "Value", value: copyJsonpathPayload(value.value) };
         case "StoredText": return { kind: "StoredText", value: langruntime.checkedString(value.value) };
@@ -9168,6 +10265,8 @@ export function makeStoredJsonpathValue(input: JsonpathPayload): JsonpathValue {
 export type ArrayElement = {
     readonly kind: "Unknown";
 } | {
+    readonly kind: "Unimplemented";
+} | {
     readonly kind: "Null";
 } | {
     readonly kind: "Error";
@@ -9348,6 +10447,7 @@ export type ArrayElement = {
 export function copyArrayElement(value: ArrayElement): ArrayElement {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
+        case "Unimplemented": return { kind: "Unimplemented" };
         case "Null": return { kind: "Null" };
         case "Error": return { kind: "Error", value: value.value };
         case "Int2": return { kind: "Int2", value: langruntime.checkedI32(value.value) };
@@ -9599,6 +10699,9 @@ export function arrayElementFromArray(input: ArrayValue): ArrayElement {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -9618,6 +10721,9 @@ export function arrayElementToArray(input: ArrayElement): ArrayValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -9635,6 +10741,9 @@ export function arrayElementFromInt2(input: Int2Value): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -9655,6 +10764,9 @@ export function arrayElementToInt2(input: ArrayElement): Int2Value {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -9672,6 +10784,9 @@ export function arrayElementFromInt4(input: Int4Value): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -9692,6 +10807,9 @@ export function arrayElementToInt4(input: ArrayElement): Int4Value {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -9709,6 +10827,9 @@ export function arrayElementFromInt8(input: Int8Value): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -9729,6 +10850,9 @@ export function arrayElementToInt8(input: ArrayElement): Int8Value {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -9746,6 +10870,9 @@ export function arrayElementFromTimestamp(input: TimestampValue): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -9766,6 +10893,9 @@ export function arrayElementToTimestamp(input: ArrayElement): TimestampValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -9783,6 +10913,9 @@ export function arrayElementFromTimestamptz(input: TimestamptzValue): ArrayEleme
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -9803,6 +10936,9 @@ export function arrayElementToTimestamptz(input: ArrayElement): TimestamptzValue
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -9820,6 +10956,9 @@ export function arrayElementFromEnum(input: EnumValue): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -9840,6 +10979,9 @@ export function arrayElementToEnum(input: ArrayElement): EnumValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -9857,6 +10999,9 @@ export function arrayElementFromDate(input: DateValue): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -9877,6 +11022,9 @@ export function arrayElementToDate(input: ArrayElement): DateValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -9894,6 +11042,9 @@ export function arrayElementFromText(input: TextValue): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (equalTextValue(input, { kind: "NonNull" })) {
         return { kind: "TextNonNull" };
@@ -9917,6 +11068,9 @@ export function arrayElementToText(input: ArrayElement): TextValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "TextNonNull") {
         return { kind: "NonNull" };
     }
@@ -9938,6 +11092,9 @@ export function arrayElementFromBool(input: BoolValue): ArrayElement {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -9957,6 +11114,9 @@ export function arrayElementToBool(input: ArrayElement): BoolValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -9974,6 +11134,9 @@ export function arrayElementFromNumeric(input: NumericValue): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -9994,6 +11157,9 @@ export function arrayElementToNumeric(input: ArrayElement): NumericValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -10011,6 +11177,9 @@ export function arrayElementFromJson(input: JsonValue): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "NonNull") {
         return { kind: "JsonNonNull" };
@@ -10034,6 +11203,9 @@ export function arrayElementToJson(input: ArrayElement): JsonValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "JsonNonNull") {
         return { kind: "NonNull" };
     }
@@ -10055,6 +11227,9 @@ export function arrayElementFromJsonb(input: JsonbValue): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "NonNull") {
         const maximum: JsonbKnowledge = copyJsonbKnowledge(input.value);
@@ -10079,6 +11254,9 @@ export function arrayElementToJsonb(input: ArrayElement): JsonbValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "JsonbNonNull") {
         const maximum: JsonbKnowledge = copyJsonbKnowledge(input.value);
         return { kind: "NonNull", value: maximum };
@@ -10101,6 +11279,9 @@ export function arrayElementFromNetwork(input: NetworkValue): ArrayElement {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -10120,6 +11301,9 @@ export function arrayElementToNetwork(input: ArrayElement): NetworkValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -10137,6 +11321,9 @@ export function arrayElementFromBit(input: BitValue): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -10157,6 +11344,9 @@ export function arrayElementToBit(input: ArrayElement): BitValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -10174,6 +11364,9 @@ export function arrayElementFromBytea(input: ByteaValue): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -10198,6 +11391,9 @@ export function arrayElementToBytea(input: ArrayElement): ByteaValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -10220,6 +11416,9 @@ export function arrayElementFromMacaddr(input: MacaddrValue): ArrayElement {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -10239,6 +11438,9 @@ export function arrayElementToMacaddr(input: ArrayElement): MacaddrValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -10256,6 +11458,9 @@ export function arrayElementFromMacaddr8(input: Macaddr8Value): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -10276,6 +11481,9 @@ export function arrayElementToMacaddr8(input: ArrayElement): Macaddr8Value {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -10293,6 +11501,9 @@ export function arrayElementFromUuid(input: UuidValue): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -10313,6 +11524,9 @@ export function arrayElementToUuid(input: ArrayElement): UuidValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -10330,6 +11544,9 @@ export function arrayElementFromFloat4(input: Float4Value): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -10353,6 +11570,9 @@ export function arrayElementToFloat4(input: ArrayElement): Float4Value {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -10373,6 +11593,9 @@ export function arrayElementFromFloat8(input: Float8Value): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -10396,6 +11619,9 @@ export function arrayElementToFloat8(input: ArrayElement): Float8Value {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -10417,6 +11643,9 @@ export function arrayElementFromTime(input: TimeValue): ArrayElement {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -10436,6 +11665,9 @@ export function arrayElementToTime(input: ArrayElement): TimeValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -10453,6 +11685,9 @@ export function arrayElementFromTimetz(input: TimetzValue): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -10473,6 +11708,9 @@ export function arrayElementToTimetz(input: ArrayElement): TimetzValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -10490,6 +11728,9 @@ export function arrayElementFromInterval(input: IntervalValue): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -10510,6 +11751,9 @@ export function arrayElementToInterval(input: ArrayElement): IntervalValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -10527,6 +11771,9 @@ export function arrayElementFromPoint(input: PointValue): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -10547,6 +11794,9 @@ export function arrayElementToPoint(input: ArrayElement): PointValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -10564,6 +11814,9 @@ export function arrayElementFromLine(input: LineValue): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -10584,6 +11837,9 @@ export function arrayElementToLine(input: ArrayElement): LineValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -10601,6 +11857,9 @@ export function arrayElementFromLseg(input: LsegValue): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -10621,6 +11880,9 @@ export function arrayElementToLseg(input: ArrayElement): LsegValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -10638,6 +11900,9 @@ export function arrayElementFromBox(input: BoxValue): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -10661,6 +11926,9 @@ export function arrayElementToBox(input: ArrayElement): BoxValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -10683,6 +11951,9 @@ export function arrayElementFromPath(input: PathValue): ArrayElement {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -10701,6 +11972,9 @@ export function arrayElementToPath(input: ArrayElement): PathValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -10721,6 +11995,9 @@ export function arrayElementFromPolygon(input: PolygonValue): ArrayElement {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -10740,6 +12017,9 @@ export function arrayElementToPolygon(input: ArrayElement): PolygonValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -10757,6 +12037,9 @@ export function arrayElementFromCircle(input: CircleValue): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -10777,6 +12060,9 @@ export function arrayElementToCircle(input: ArrayElement): CircleValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -10794,6 +12080,9 @@ export function arrayElementFromMoney(input: MoneyValue): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -10814,6 +12103,9 @@ export function arrayElementToMoney(input: ArrayElement): MoneyValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -10831,6 +12123,9 @@ export function arrayElementFromInternalChar(input: InternalCharValue): ArrayEle
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -10851,6 +12146,9 @@ export function arrayElementToInternalChar(input: ArrayElement): InternalCharVal
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -10868,6 +12166,9 @@ export function arrayElementFromOid(input: OidValue): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -10888,6 +12189,9 @@ export function arrayElementToOid(input: ArrayElement): OidValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -10905,6 +12209,9 @@ export function arrayElementFromXid(input: XidValue): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -10925,6 +12232,9 @@ export function arrayElementToXid(input: ArrayElement): XidValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -10942,6 +12252,9 @@ export function arrayElementFromCid(input: CidValue): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -10962,6 +12275,9 @@ export function arrayElementToCid(input: ArrayElement): CidValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -10980,6 +12296,9 @@ export function arrayElementFromSnapshot(input: SnapshotValue): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -11000,6 +12319,9 @@ export function arrayElementToSnapshot(input: ArrayElement): SnapshotValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -11017,6 +12339,9 @@ export function arrayElementFromXid8(input: Xid8Value): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -11037,6 +12362,9 @@ export function arrayElementToXid8(input: ArrayElement): Xid8Value {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -11054,6 +12382,9 @@ export function arrayElementFromPgLsn(input: PgLsnValue): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -11074,6 +12405,9 @@ export function arrayElementToPgLsn(input: ArrayElement): PgLsnValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -11091,6 +12425,9 @@ export function arrayElementFromTid(input: TidValue): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -11111,6 +12448,9 @@ export function arrayElementToTid(input: ArrayElement): TidValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -11129,6 +12469,9 @@ export function arrayElementFromJsonpath(input: JsonpathValue): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -11153,6 +12496,9 @@ export function arrayElementToJsonpath(input: ArrayElement): JsonpathValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -11176,6 +12522,9 @@ export function arrayElementFromRange(input: RangeValue): ArrayElement {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -11194,6 +12543,9 @@ export function arrayElementToRange(input: ArrayElement): RangeValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -11214,6 +12566,9 @@ export function arrayElementFromMultirange(input: MultirangeValue): ArrayElement
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -11233,6 +12588,9 @@ export function arrayElementToMultirange(input: ArrayElement): MultirangeValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -11250,6 +12608,9 @@ export function arrayElementFromXml(input: XmlValue): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "NonNull") {
         const knowledge: XmlKnowledge = input.value;
@@ -11283,6 +12644,9 @@ export function arrayElementToXml(input: ArrayElement): XmlValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "XmlNonNull") {
         const knowledge: XmlKnowledge = input.value;
         return makeXmlKnowledge(knowledge.document, knowledge.content);
@@ -11309,6 +12673,9 @@ export function arrayElementFromAclitem(input: AclitemValue): ArrayElement {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Catalog") {
         const value: AclitemCatalogPayload = input.value;
         return { kind: "AclitemCatalog", value: value };
@@ -11331,6 +12698,9 @@ export function arrayElementToAclitem(input: ArrayElement): AclitemValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "AclitemCatalog") {
         const value: AclitemCatalogPayload = input.value;
@@ -11355,6 +12725,9 @@ export function arrayElementFromTsvector(input: TsvectorValue): ArrayElement {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -11373,6 +12746,9 @@ export function arrayElementToTsvector(input: ArrayElement): TsvectorValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -11393,6 +12769,9 @@ export function arrayElementFromTsquery(input: TsqueryValue): ArrayElement {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -11411,6 +12790,9 @@ export function arrayElementToTsquery(input: ArrayElement): TsqueryValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -11435,6 +12817,8 @@ export function copyCompositePayload(value: CompositePayload): CompositePayload 
 export type CompositeValue = {
     readonly kind: "Unknown";
 } | {
+    readonly kind: "Unimplemented";
+} | {
     readonly kind: "Null";
 } | {
     readonly kind: "Error";
@@ -11446,14 +12830,14 @@ export type CompositeValue = {
 export function copyCompositeValue(value: CompositeValue): CompositeValue {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
+        case "Unimplemented": return { kind: "Unimplemented" };
         case "Null": return { kind: "Null" };
         case "Error": return { kind: "Error", value: value.value };
         case "Value": return { kind: "Value", value: copyCompositePayload(value.value) };
     }
 }
 export function compositeUnknown(): CompositeValue {
-    const unresolvedFlavor: number = 0;
-    return compositeRowUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function compositeNull(): CompositeValue {
     return { kind: "Null" };
@@ -11462,6 +12846,9 @@ export function compositeFromCaseGuard(input: CheckOutcome): CompositeValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -11492,7 +12879,14 @@ export function makeCompositeValue(input: CompositePayload): CompositeValue {
             const error: SqlError = checked.value;
             return { kind: "Error", value: error };
         }
+        let checkedUnresolved: boolean = false;
         if (checked.kind === "Unknown") {
+            checkedUnresolved = langruntime.checkedBool(true);
+        }
+        if (checked.kind === "Unimplemented") {
+            checkedUnresolved = langruntime.checkedBool(true);
+        }
+        if (checkedUnresolved) {
             const family: number = arrayElementFamily(source);
             if (family >= 41 && family <= 44) {
                 return compositeRowUnresolved(unresolvedFlavor);
@@ -11550,6 +12944,9 @@ export function compositeFieldCount(input: CompositeValue): Int4Value {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     const checked: CompositeValue = compositeFromCoercedValue(input);
     if (checked.kind === "Error") {
         const error: SqlError = checked.value;
@@ -11572,6 +12969,12 @@ export function compositeFieldAt(input: CompositeValue, index: Int4Value): Array
     }
     if (index.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (index.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     const checked: CompositeValue = compositeFromCoercedValue(input);
     if (checked.kind === "Error") {
@@ -11603,13 +13006,29 @@ export function compositeDatumIsNull(input: CompositeValue): BoolValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     const checked: CompositeValue = compositeFromCoercedValue(input);
     if (checked.kind === "Error") {
         const error: SqlError = checked.value;
         return { kind: "Error", value: error };
     }
+    let conditionFlavor1224: number = unresolvedFlavor;
     if (checked.kind === "Unknown") {
-        return boolUnresolved(unresolvedFlavor);
+        if (conditionFlavor1224 < 1) {
+            conditionFlavor1224 = langruntime.checkedI32(1);
+        }
+    }
+    if (checked.kind === "Unknown") {
+        return boolUnresolved(conditionFlavor1224);
+    }
+    let conditionFlavor12293: number = unresolvedFlavor;
+    if (checked.kind === "Unimplemented") {
+        conditionFlavor12293 = langruntime.checkedI32(2);
+    }
+    if (checked.kind === "Unimplemented") {
+        return boolUnresolved(conditionFlavor12293);
     }
     if (checked.kind === "Null") {
         return makeBoolValue(true);
@@ -11622,6 +13041,9 @@ function compositeRowNullTest(input: CompositeValue, negated: boolean): BoolValu
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     const checked: CompositeValue = compositeFromCoercedValue(input);
     if (checked.kind === "Error") {
@@ -11639,6 +13061,10 @@ function compositeRowNullTest(input: CompositeValue, negated: boolean): BoolValu
             const field: ArrayElement = copyArrayElement(langruntime.indexStruct(value.fields, langruntime.checkedIndex(index), copyArrayElement));
             let known: boolean = true;
             if (field.kind === "Unknown") {
+                unknown = langruntime.checkedBool(true);
+                known = langruntime.checkedBool(false);
+            }
+            if (field.kind === "Unimplemented") {
                 unknown = langruntime.checkedBool(true);
                 known = langruntime.checkedBool(false);
             }
@@ -11678,6 +13104,9 @@ export function arrayElementFromComposite(input: CompositeValue): ArrayElement {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -11696,6 +13125,9 @@ export function arrayElementToComposite(input: ArrayElement): CompositeValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -11811,10 +13243,16 @@ function compositePrepareCell(input: ArrayElement, context: CompositeTypeContext
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Null") {
         return input;
     }
     if (input.kind === "Unknown") {
+        return input;
+    }
+    if (input.kind === "Unimplemented") {
         return input;
     }
     if (input.kind === "Error") {
@@ -11841,13 +13279,35 @@ function compositePrepareCell(input: ArrayElement, context: CompositeTypeContext
                 const error: SqlError = checked.value;
                 return { kind: "Error", value: error };
             }
+            let conditionFlavor27312: number = unresolvedFlavor;
+            if (checked.kind === "Unknown") {
+                if (conditionFlavor27312 < 1) {
+                    conditionFlavor27312 = langruntime.checkedI32(1);
+                }
+            }
             if (checked.kind === "Unknown") {
                 let partial: boolean = false;
                 if (original.kind === "Unknown") {
                     partial = langruntime.checkedBool(true);
                 }
+                if (original.kind === "Unimplemented") {
+                    partial = langruntime.checkedBool(true);
+                }
                 if (partial === false) {
-                    return arrayElementUnresolved(unresolvedFlavor);
+                    return arrayElementUnresolved(conditionFlavor27312);
+                }
+            }
+            let conditionFlavor27715: number = unresolvedFlavor;
+            if (checked.kind === "Unimplemented") {
+                conditionFlavor27715 = langruntime.checkedI32(2);
+            }
+            if (checked.kind === "Unimplemented") {
+                let partial: boolean = false;
+                if (original.kind === "Unknown") {
+                    partial = langruntime.checkedBool(true);
+                }
+                if (partial === false) {
+                    return arrayElementUnresolved(conditionFlavor27715);
                 }
             }
             langruntime.pushStruct(fields, checked, copyArrayElement);
@@ -11865,13 +13325,35 @@ function compositePrepareCell(input: ArrayElement, context: CompositeTypeContext
         while (position < payload.elements.length) {
             const original: ArrayElement = copyArrayElement(langruntime.indexStruct(payload.elements, langruntime.checkedIndex(position), copyArrayElement));
             const checked: ArrayElement = compositePrepareCell(copyArrayElement(original), context, node.child);
+            let conditionFlavor29412: number = unresolvedFlavor;
+            if (checked.kind === "Unknown") {
+                if (conditionFlavor29412 < 1) {
+                    conditionFlavor29412 = langruntime.checkedI32(1);
+                }
+            }
             if (checked.kind === "Unknown") {
                 let partial: boolean = false;
                 if (original.kind === "Unknown") {
                     partial = langruntime.checkedBool(true);
                 }
+                if (original.kind === "Unimplemented") {
+                    partial = langruntime.checkedBool(true);
+                }
                 if (partial === false) {
-                    return arrayElementUnresolved(unresolvedFlavor);
+                    return arrayElementUnresolved(conditionFlavor29412);
+                }
+            }
+            let conditionFlavor29815: number = unresolvedFlavor;
+            if (checked.kind === "Unimplemented") {
+                conditionFlavor29815 = langruntime.checkedI32(2);
+            }
+            if (checked.kind === "Unimplemented") {
+                let partial: boolean = false;
+                if (original.kind === "Unknown") {
+                    partial = langruntime.checkedBool(true);
+                }
+                if (partial === false) {
+                    return arrayElementUnresolved(conditionFlavor29815);
                 }
             }
             langruntime.pushStruct(elements, checked, copyArrayElement);
@@ -11886,6 +13368,9 @@ export function compositePrepareScalarCell(checked: ArrayElement): ArrayElement 
     let unresolvedFlavor: number = 0;
     if (checked.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (checked.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (checked.kind === "Tsquery") {
         const payload: TsqueryPayload = copyTsqueryPayload(checked.value);
@@ -12001,6 +13486,9 @@ export function compositeFromCoercedPlan(input: CompositeValue, plan: CompositeT
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Value") {
         const payload: CompositePayload = copyCompositePayload(input.value);
         if (plan.kind === "Value") {
@@ -12025,6 +13513,9 @@ export function arrayFromCoercedCompositePlan(input: ArrayValue, elementType: st
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Value") {
         const payload: ArrayPayload = copyArrayPayload(input.value);
         if (plan.kind === "Value") {
@@ -12040,13 +13531,35 @@ export function arrayFromCoercedCompositePlan(input: ArrayValue, elementType: st
             while (position < payload.elements.length) {
                 const original: ArrayElement = copyArrayElement(langruntime.indexStruct(payload.elements, langruntime.checkedIndex(position), copyArrayElement));
                 const checked: ArrayElement = compositePrepareCell(copyArrayElement(original), context, 0);
+                let conditionFlavor44316: number = unresolvedFlavor;
+                if (checked.kind === "Unknown") {
+                    if (conditionFlavor44316 < 1) {
+                        conditionFlavor44316 = langruntime.checkedI32(1);
+                    }
+                }
                 if (checked.kind === "Unknown") {
                     let partial: boolean = false;
                     if (original.kind === "Unknown") {
                         partial = langruntime.checkedBool(true);
                     }
+                    if (original.kind === "Unimplemented") {
+                        partial = langruntime.checkedBool(true);
+                    }
                     if (partial === false) {
-                        return arrayUnresolved(unresolvedFlavor);
+                        return arrayUnresolved(conditionFlavor44316);
+                    }
+                }
+                let conditionFlavor45319: number = unresolvedFlavor;
+                if (checked.kind === "Unimplemented") {
+                    conditionFlavor45319 = langruntime.checkedI32(2);
+                }
+                if (checked.kind === "Unimplemented") {
+                    let partial: boolean = false;
+                    if (original.kind === "Unknown") {
+                        partial = langruntime.checkedBool(true);
+                    }
+                    if (partial === false) {
+                        return arrayUnresolved(conditionFlavor45319);
                     }
                 }
                 langruntime.pushStruct(elements, checked, copyArrayElement);
@@ -12071,6 +13584,8 @@ export function copyCompositeTextPayload(value: CompositeTextPayload): Composite
 export type CompositeTextPlan = {
     kind: "Unknown";
 } | {
+    kind: "Unimplemented";
+} | {
     kind: "Null";
 } | {
     kind: "Error";
@@ -12082,6 +13597,7 @@ export type CompositeTextPlan = {
 export function copyCompositeTextPlan(value: CompositeTextPlan): CompositeTextPlan {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
+        case "Unimplemented": return { kind: "Unimplemented" };
         case "Null": return { kind: "Null" };
         case "Error": return { kind: "Error", value: value.value };
         case "Value": return { kind: "Value", value: copyCompositeTextPayload(value.value) };
@@ -12111,6 +13627,8 @@ export function copyRangeTextPayload(value: RangeTextPayload): RangeTextPayload 
 export type RangeTextPlan = {
     kind: "Unknown";
 } | {
+    kind: "Unimplemented";
+} | {
     kind: "Null";
 } | {
     kind: "Error";
@@ -12122,6 +13640,7 @@ export type RangeTextPlan = {
 export function copyRangeTextPlan(value: RangeTextPlan): RangeTextPlan {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
+        case "Unimplemented": return { kind: "Unimplemented" };
         case "Null": return { kind: "Null" };
         case "Error": return { kind: "Error", value: value.value };
         case "Value": return { kind: "Value", value: copyRangeTextPayload(value.value) };
@@ -12299,6 +13818,8 @@ export function copyRangePayload(value: RangePayload): RangePayload {
 export type RangeValue = {
     readonly kind: "Unknown";
 } | {
+    readonly kind: "Unimplemented";
+} | {
     readonly kind: "Null";
 } | {
     readonly kind: "Error";
@@ -12310,14 +13831,14 @@ export type RangeValue = {
 export function copyRangeValue(value: RangeValue): RangeValue {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
+        case "Unimplemented": return { kind: "Unimplemented" };
         case "Null": return { kind: "Null" };
         case "Error": return { kind: "Error", value: value.value };
         case "Value": return { kind: "Value", value: copyRangePayload(value.value) };
     }
 }
 export function rangeUnknown(): RangeValue {
-    const unresolvedFlavor: number = 0;
-    return rangeUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function rangeNull(): RangeValue {
     return { kind: "Null" };
@@ -12575,10 +14096,16 @@ function rangeProfiledValueAt(input: ArrayElement, profile: RangeBoundContext, i
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Null") {
         return input;
     }
     if (input.kind === "Unknown") {
+        return input;
+    }
+    if (input.kind === "Unimplemented") {
         return input;
     }
     if (input.kind === "Error") {
@@ -12605,13 +14132,35 @@ function rangeProfiledValueAt(input: ArrayElement, profile: RangeBoundContext, i
                 const error: SqlError = checked.value;
                 return { kind: "Error", value: error };
             }
+            let conditionFlavor62612: number = unresolvedFlavor;
+            if (checked.kind === "Unknown") {
+                if (conditionFlavor62612 < 1) {
+                    conditionFlavor62612 = langruntime.checkedI32(1);
+                }
+            }
             if (checked.kind === "Unknown") {
                 let partial: boolean = false;
                 if (original.kind === "Unknown") {
                     partial = langruntime.checkedBool(true);
                 }
+                if (original.kind === "Unimplemented") {
+                    partial = langruntime.checkedBool(true);
+                }
                 if (partial === false) {
-                    return arrayElementUnresolved(unresolvedFlavor);
+                    return arrayElementUnresolved(conditionFlavor62612);
+                }
+            }
+            let conditionFlavor63615: number = unresolvedFlavor;
+            if (checked.kind === "Unimplemented") {
+                conditionFlavor63615 = langruntime.checkedI32(2);
+            }
+            if (checked.kind === "Unimplemented") {
+                let partial: boolean = false;
+                if (original.kind === "Unknown") {
+                    partial = langruntime.checkedBool(true);
+                }
+                if (partial === false) {
+                    return arrayElementUnresolved(conditionFlavor63615);
                 }
             }
             langruntime.pushStruct(fields, checked, copyArrayElement);
@@ -12629,13 +14178,35 @@ function rangeProfiledValueAt(input: ArrayElement, profile: RangeBoundContext, i
         while (position < payload.elements.length) {
             const original: ArrayElement = copyArrayElement(langruntime.indexStruct(payload.elements, langruntime.checkedIndex(position), copyArrayElement));
             const prepared: ArrayElement = rangeProfiledValueAt(copyArrayElement(original), profile, node.child);
+            let conditionFlavor66412: number = unresolvedFlavor;
+            if (prepared.kind === "Unknown") {
+                if (conditionFlavor66412 < 1) {
+                    conditionFlavor66412 = langruntime.checkedI32(1);
+                }
+            }
             if (prepared.kind === "Unknown") {
                 let partial: boolean = false;
                 if (original.kind === "Unknown") {
                     partial = langruntime.checkedBool(true);
                 }
+                if (original.kind === "Unimplemented") {
+                    partial = langruntime.checkedBool(true);
+                }
                 if (partial === false) {
-                    return arrayElementUnresolved(unresolvedFlavor);
+                    return arrayElementUnresolved(conditionFlavor66412);
+                }
+            }
+            let conditionFlavor67415: number = unresolvedFlavor;
+            if (prepared.kind === "Unimplemented") {
+                conditionFlavor67415 = langruntime.checkedI32(2);
+            }
+            if (prepared.kind === "Unimplemented") {
+                let partial: boolean = false;
+                if (original.kind === "Unknown") {
+                    partial = langruntime.checkedBool(true);
+                }
+                if (partial === false) {
+                    return arrayElementUnresolved(conditionFlavor67415);
                 }
             }
             langruntime.pushStruct(elements, prepared, copyArrayElement);
@@ -12688,6 +14259,9 @@ export function rangePrepareProfiledBound(input: ArrayElement, profile: RangeBou
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (rangeBoundProfileValid(profile) === false) {
         return arrayElementUnresolved(unresolvedFlavor);
     }
@@ -12733,19 +14307,19 @@ function rangeBoundValueValid(input: ArrayElement, cidr: boolean): boolean {
     }
     if (input.kind === "AclitemCatalog") {
         const value: AclitemCatalogPayload = input.value;
-        return !(equalAclitemValue(makeAclitemCatalogValue(value.privileges, value.grantOptions, value.publicGrantee, value.invalidGrantor), { kind: "Unknown" }));
+        return (!(equalAclitemValue(makeAclitemCatalogValue(value.privileges, value.grantOptions, value.publicGrantee, value.invalidGrantor), { kind: "Unknown" })) && !(equalAclitemValue(makeAclitemCatalogValue(value.privileges, value.grantOptions, value.publicGrantee, value.invalidGrantor), { kind: "Unimplemented" })));
     }
     if (input.kind === "Aclitem") {
         const value: AclitemPayload = input.value;
-        return !(equalAclitemValue(makeAclitemValue(value.grantee, value.grantor, value.privileges, value.grantOptions), { kind: "Unknown" }));
+        return (!(equalAclitemValue(makeAclitemValue(value.grantee, value.grantor, value.privileges, value.grantOptions), { kind: "Unknown" })) && !(equalAclitemValue(makeAclitemValue(value.grantee, value.grantor, value.privileges, value.grantOptions), { kind: "Unimplemented" })));
     }
     if (input.kind === "Int2") {
         const value: number = langruntime.checkedI32(input.value);
-        return !(equalInt2Value(makeInt2Value(value), { kind: "Unknown" }));
+        return (!(equalInt2Value(makeInt2Value(value), { kind: "Unknown" })) && !(equalInt2Value(makeInt2Value(value), { kind: "Unimplemented" })));
     }
     if (input.kind === "Bit") {
         const value: string = langruntime.checkedString(input.value);
-        return !(equalBitValue(makeBitValue(value), { kind: "Unknown" }));
+        return (!(equalBitValue(makeBitValue(value), { kind: "Unknown" })) && !(equalBitValue(makeBitValue(value), { kind: "Unimplemented" })));
     }
     if (input.kind === "Bytea") {
         const value: string = langruntime.checkedString(input.value);
@@ -12758,23 +14332,23 @@ function rangeBoundValueValid(input: ArrayElement, cidr: boolean): boolean {
     }
     if (input.kind === "Time") {
         const value: bigint = langruntime.checkedI64(input.value);
-        return !(equalTimeValue(makeTimeValue(value), { kind: "Unknown" }));
+        return (!(equalTimeValue(makeTimeValue(value), { kind: "Unknown" })) && !(equalTimeValue(makeTimeValue(value), { kind: "Unimplemented" })));
     }
     if (input.kind === "Timetz") {
         const value: TimetzPayload = input.value;
-        return !(equalTimetzValue(makeTimetzValue(value.time, value.zone), { kind: "Unknown" }));
+        return (!(equalTimetzValue(makeTimetzValue(value.time, value.zone), { kind: "Unknown" })) && !(equalTimetzValue(makeTimetzValue(value.time, value.zone), { kind: "Unimplemented" })));
     }
     if (input.kind === "InternalChar") {
         const value: number = langruntime.checkedI32(input.value);
-        return !(equalInternalCharValue(makeInternalCharValue(value), { kind: "Unknown" }));
+        return (!(equalInternalCharValue(makeInternalCharValue(value), { kind: "Unknown" })) && !(equalInternalCharValue(makeInternalCharValue(value), { kind: "Unimplemented" })));
     }
     if (input.kind === "Oid") {
         const value: bigint = langruntime.checkedI64(input.value);
-        return !(equalOidValue(makeOidValue(value), { kind: "Unknown" }));
+        return (!(equalOidValue(makeOidValue(value), { kind: "Unknown" })) && !(equalOidValue(makeOidValue(value), { kind: "Unimplemented" })));
     }
     if (input.kind === "Tid") {
         const value: bigint = langruntime.checkedI64(input.value);
-        return !(equalTidValue(makeTidValue(value), { kind: "Unknown" }));
+        return (!(equalTidValue(makeTidValue(value), { kind: "Unknown" })) && !(equalTidValue(makeTidValue(value), { kind: "Unimplemented" })));
     }
     if (input.kind === "Network") {
         const value: NetworkAddress = input.value;
@@ -12877,14 +14451,36 @@ export function makeCoercedRangeValue(input: RangePayload): RangeValue {
                 const error: SqlError = normalized.value;
                 return { kind: "Error", value: error };
             }
+            let conditionFlavor93412: number = unresolvedFlavor;
             if (normalized.kind === "Unknown") {
-                return rangeUnresolved(unresolvedFlavor);
+                if (conditionFlavor93412 < 1) {
+                    conditionFlavor93412 = langruntime.checkedI32(1);
+                }
+            }
+            if (normalized.kind === "Unknown") {
+                return rangeUnresolved(conditionFlavor93412);
+            }
+            let conditionFlavor934103: number = unresolvedFlavor;
+            if (normalized.kind === "Unimplemented") {
+                conditionFlavor934103 = langruntime.checkedI32(2);
+            }
+            if (normalized.kind === "Unimplemented") {
+                return rangeUnresolved(conditionFlavor934103);
             }
             value.bounds[langruntime.checkedIndexIn(value.bounds, index)] = copyArrayElement(normalized);
         }
         if (bound.kind === "Jsonb") {
             const payload: JsonbPayload = copyJsonbPayload(bound.value);
             const normalized: JsonbValue = jsonbFromCoercedValue({ kind: "Value", value: payload });
+            let normalizedFlavor: number = unresolvedFlavor;
+            if (normalized.kind === "Unknown") {
+                if (normalizedFlavor < 1) {
+                    normalizedFlavor = langruntime.checkedI32(1);
+                }
+            }
+            if (normalized.kind === "Unimplemented") {
+                normalizedFlavor = langruntime.checkedI32(2);
+            }
             let known: boolean = false;
             if (normalized.kind === "Value") {
                 const payload1: JsonbPayload = copyJsonbPayload(normalized.value);
@@ -12892,7 +14488,7 @@ export function makeCoercedRangeValue(input: RangePayload): RangeValue {
                 known = langruntime.checkedBool(true);
             }
             if (known === false) {
-                return rangeUnresolved(unresolvedFlavor);
+                return rangeUnresolved(normalizedFlavor);
             }
         }
         index = langruntime.checkedAdd(index, 1);
@@ -12964,6 +14560,9 @@ export function rangeRequireType(input: RangeValue, typeName: string, elementTyp
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Value") {
         const value: RangePayload = copyRangePayload(input.value);
         if (!(value.typeName === typeName) || !(value.elementType === elementType) || !(value.elementKind === elementKind)) {
@@ -12988,6 +14587,9 @@ export function rangeFromCoercedProfile(input: RangeValue, typeName: string, ele
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Value") {
         const payload: RangePayload = copyRangePayload(input.value);
         if (!(payload.typeName === typeName) || !(payload.elementType === elementType) || !(payload.elementKind === elementKind)) {
@@ -13011,6 +14613,9 @@ export function rangeFromCoercedDefinedProfile(input: RangeValue, typeName: stri
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Value") {
         const payload: RangePayload = copyRangePayload(input.value);
         if (!(payload.typeName === typeName) || !(payload.elementType === elementType) || !(payload.elementKind === elementKind)) {
@@ -13033,6 +14638,9 @@ export function rangeFromCoercedTypedProfile(input: RangeValue, typeName: string
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Value") {
         const payload: RangePayload = copyRangePayload(input.value);
         if (!(payload.typeName === typeName) || !(payload.elementType === elementType) || !(payload.elementKind === elementKind)) {
@@ -13049,6 +14657,9 @@ export function rangeRequireSupport(input: RangeValue, expected: RangeSupport): 
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Value") {
         const value: RangePayload = copyRangePayload(input.value);
         if (rangeSupportEqual(value.support, expected) === false) {
@@ -13064,12 +14675,28 @@ export function rangeIsNull(input: RangeValue): BoolValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
+    let conditionFlavor11554: number = unresolvedFlavor;
     if (input.kind === "Unknown") {
-        return boolUnresolved(unresolvedFlavor);
+        if (conditionFlavor11554 < 1) {
+            conditionFlavor11554 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unknown") {
+        return boolUnresolved(conditionFlavor11554);
+    }
+    let conditionFlavor11577: number = unresolvedFlavor;
+    if (input.kind === "Unimplemented") {
+        conditionFlavor11577 = langruntime.checkedI32(2);
+    }
+    if (input.kind === "Unimplemented") {
+        return boolUnresolved(conditionFlavor11577);
     }
     if (input.kind === "Null") {
         return { kind: "Value", value: true };
@@ -13080,6 +14707,9 @@ export function rangeFromCaseGuard(input: CheckOutcome): RangeValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -13092,6 +14722,9 @@ export function rangeEmptyState(input: RangeValue): BoolValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -13112,6 +14745,9 @@ export function rangeBound(input: RangeValue, upper: boolean): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -13140,6 +14776,9 @@ export function rangeBoundFlag(input: RangeValue, upper: boolean, infinite: bool
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -13190,6 +14829,8 @@ export function multirangePayloadWithRanges(input: MultirangePayload, ranges: Ra
 export type MultirangeValue = {
     readonly kind: "Unknown";
 } | {
+    readonly kind: "Unimplemented";
+} | {
     readonly kind: "Null";
 } | {
     readonly kind: "Error";
@@ -13201,6 +14842,7 @@ export type MultirangeValue = {
 export function copyMultirangeValue(value: MultirangeValue): MultirangeValue {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
+        case "Unimplemented": return { kind: "Unimplemented" };
         case "Null": return { kind: "Null" };
         case "Error": return { kind: "Error", value: value.value };
         case "Value": return { kind: "Value", value: copyMultirangePayload(value.value) };
@@ -13228,8 +14870,7 @@ export function copyMultirangeTextPlan(value: MultirangeTextPlan): MultirangeTex
     }
 }
 export function multirangeUnknown(): MultirangeValue {
-    const unresolvedFlavor: number = 0;
-    return multirangeUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function multirangeNull(): MultirangeValue {
     return { kind: "Null" };
@@ -13283,6 +14924,15 @@ export function makeCoercedMultirangeValue(input: MultirangePayload): Multirange
             const error: SqlError = member.value;
             return { kind: "Error", value: error };
         }
+        let memberFlavor: number = unresolvedFlavor;
+        if (member.kind === "Unknown") {
+            if (memberFlavor < 1) {
+                memberFlavor = langruntime.checkedI32(1);
+            }
+        }
+        if (member.kind === "Unimplemented") {
+            memberFlavor = langruntime.checkedI32(2);
+        }
         let known: boolean = false;
         if (member.kind === "Value") {
             const span: RangePayload = copyRangePayload(member.value);
@@ -13290,7 +14940,7 @@ export function makeCoercedMultirangeValue(input: MultirangePayload): Multirange
             known = langruntime.checkedBool(true);
         }
         if (known === false) {
-            return multirangeUnresolved(unresolvedFlavor);
+            return multirangeUnresolved(memberFlavor);
         }
         index = langruntime.checkedAdd(index, 1);
     }
@@ -13313,6 +14963,9 @@ export function multirangeFromCoercedArray(input: ArrayValue, typeName: string, 
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     const coerced: ArrayValue = arrayFromCoercedValue(input, rangeType, 42);
     if (coerced.kind === "Error") {
@@ -13358,6 +15011,9 @@ export function multirangeFromCoercedDefinedProfile(input: MultirangeValue, type
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Value") {
         const payload: MultirangePayload = copyMultirangePayload(input.value);
         if (!(payload.typeName === typeName) || !(payload.rangeType === rangeType) || !(payload.elementType === elementType) || !(payload.elementKind === elementKind)) {
@@ -13391,6 +15047,9 @@ export function multirangeFromCoercedTypedProfile(input: MultirangeValue, typeNa
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Value") {
         const payload: MultirangePayload = copyMultirangePayload(input.value);
         if (!(payload.typeName === typeName) || !(payload.rangeType === rangeType) || !(payload.elementType === elementType) || !(payload.elementKind === elementKind)) {
@@ -13412,6 +15071,9 @@ export function multirangeRequireSupport(input: MultirangeValue, expected: Range
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Value") {
         const payload: MultirangePayload = copyMultirangePayload(input.value);
         if (rangeSupportEqual(payload.support, expected) === false) {
@@ -13431,6 +15093,9 @@ export function multirangeRequireType(input: MultirangeValue, typeName: string, 
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Value") {
         const payload: MultirangePayload = copyMultirangePayload(input.value);
         if (!(payload.typeName === typeName) || !(payload.rangeType === rangeType) || !(payload.elementType === elementType) || !(payload.elementKind === elementKind)) {
@@ -13445,6 +15110,9 @@ export function multirangeIsNull(input: MultirangeValue): BoolValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -13463,6 +15131,9 @@ export function multirangeFromCaseGuard(input: CheckOutcome): MultirangeValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -13474,6 +15145,9 @@ export function multirangeEmptyState(input: MultirangeValue): BoolValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -13506,6 +15180,9 @@ export function multirangeBoundary(input: MultirangeValue, upper: boolean): Rang
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -13533,6 +15210,9 @@ export function multirangeBoundFlag(input: MultirangeValue, upper: boolean, infi
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -13555,6 +15235,9 @@ export function domainConversionStart(input: BoolValue, notNull: boolean): Check
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -13594,12 +15277,27 @@ export function finishDomainConversion(input: ArrayElement, result: CheckOutcome
     if (result.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (result.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (result.kind === "Error") {
         const error: SqlError = result.value;
         return { kind: "Error", value: error };
     }
-    if (equalCheckOutcome(result, { kind: "Unknown" })) {
-        return arrayElementUnresolved(unresolvedFlavor);
+    let conditionFlavor454: number = unresolvedFlavor;
+    if (result.kind === "Unknown") {
+        if (conditionFlavor454 < 1) {
+            conditionFlavor454 = langruntime.checkedI32(1);
+        }
+    }
+    if (result.kind === "Unimplemented") {
+        conditionFlavor454 = langruntime.checkedI32(2);
+    }
+    if ((equalCheckOutcome(result, { kind: "Unknown" }) || equalCheckOutcome(result, { kind: "Unimplemented" }))) {
+        return arrayElementUnresolved(conditionFlavor454);
     }
     return input;
 }
@@ -13611,12 +15309,27 @@ export function finishXmlDomainConversion(input: XmlValue, result: CheckOutcome)
     if (result.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (result.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (result.kind === "Error") {
         const error: SqlError = result.value;
         return { kind: "Error", value: error };
     }
-    if (equalCheckOutcome(result, { kind: "Unknown" })) {
-        return xmlUnresolved(unresolvedFlavor);
+    let conditionFlavor604: number = unresolvedFlavor;
+    if (result.kind === "Unknown") {
+        if (conditionFlavor604 < 1) {
+            conditionFlavor604 = langruntime.checkedI32(1);
+        }
+    }
+    if (result.kind === "Unimplemented") {
+        conditionFlavor604 = langruntime.checkedI32(2);
+    }
+    if ((equalCheckOutcome(result, { kind: "Unknown" }) || equalCheckOutcome(result, { kind: "Unimplemented" }))) {
+        return xmlUnresolved(conditionFlavor604);
     }
     return input;
 }
@@ -13627,8 +15340,24 @@ export function finishDomainArrayInput(input: ArrayTextPayload, converted: Array
     if (converted.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (converted.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    let conditionFlavor704: number = unresolvedFlavor;
     if (converted.kind === "Unknown") {
-        return arrayUnresolved(unresolvedFlavor);
+        if (conditionFlavor704 < 1) {
+            conditionFlavor704 = langruntime.checkedI32(1);
+        }
+    }
+    if (converted.kind === "Unknown") {
+        return arrayUnresolved(conditionFlavor704);
+    }
+    let conditionFlavor727: number = unresolvedFlavor;
+    if (converted.kind === "Unimplemented") {
+        conditionFlavor727 = langruntime.checkedI32(2);
+    }
+    if (converted.kind === "Unimplemented") {
+        return arrayUnresolved(conditionFlavor727);
     }
     return finishPreparedArrayText(input, converted);
 }
@@ -13641,12 +15370,27 @@ export function finishArrayDomainConversion(input: ArrayValue, result: CheckOutc
     if (result.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (result.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (result.kind === "Error") {
         const error: SqlError = result.value;
         return { kind: "Error", value: error };
     }
-    if (equalCheckOutcome(result, { kind: "Unknown" })) {
-        return arrayUnresolved(unresolvedFlavor);
+    let conditionFlavor874: number = unresolvedFlavor;
+    if (result.kind === "Unknown") {
+        if (conditionFlavor874 < 1) {
+            conditionFlavor874 = langruntime.checkedI32(1);
+        }
+    }
+    if (result.kind === "Unimplemented") {
+        conditionFlavor874 = langruntime.checkedI32(2);
+    }
+    if ((equalCheckOutcome(result, { kind: "Unknown" }) || equalCheckOutcome(result, { kind: "Unimplemented" }))) {
+        return arrayUnresolved(conditionFlavor874);
     }
     return input;
 }
@@ -13659,12 +15403,27 @@ export function finishRangeDomainConversion(input: RangeValue, result: CheckOutc
     if (result.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (result.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (result.kind === "Error") {
         const error: SqlError = result.value;
         return { kind: "Error", value: error };
     }
-    if (equalCheckOutcome(result, { kind: "Unknown" })) {
-        return rangeUnresolved(unresolvedFlavor);
+    let conditionFlavor1024: number = unresolvedFlavor;
+    if (result.kind === "Unknown") {
+        if (conditionFlavor1024 < 1) {
+            conditionFlavor1024 = langruntime.checkedI32(1);
+        }
+    }
+    if (result.kind === "Unimplemented") {
+        conditionFlavor1024 = langruntime.checkedI32(2);
+    }
+    if ((equalCheckOutcome(result, { kind: "Unknown" }) || equalCheckOutcome(result, { kind: "Unimplemented" }))) {
+        return rangeUnresolved(conditionFlavor1024);
     }
     return input;
 }
@@ -13677,12 +15436,27 @@ export function finishMultirangeDomainConversion(input: MultirangeValue, result:
     if (result.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (result.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (result.kind === "Error") {
         const error: SqlError = result.value;
         return { kind: "Error", value: error };
     }
-    if (equalCheckOutcome(result, { kind: "Unknown" })) {
-        return multirangeUnresolved(unresolvedFlavor);
+    let conditionFlavor1204: number = unresolvedFlavor;
+    if (result.kind === "Unknown") {
+        if (conditionFlavor1204 < 1) {
+            conditionFlavor1204 = langruntime.checkedI32(1);
+        }
+    }
+    if (result.kind === "Unimplemented") {
+        conditionFlavor1204 = langruntime.checkedI32(2);
+    }
+    if ((equalCheckOutcome(result, { kind: "Unknown" }) || equalCheckOutcome(result, { kind: "Unimplemented" }))) {
+        return multirangeUnresolved(conditionFlavor1204);
     }
     return input;
 }
@@ -13695,12 +15469,27 @@ export function finishTsvectorDomainConversion(input: TsvectorValue, result: Che
     if (result.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (result.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (result.kind === "Error") {
         const error: SqlError = result.value;
         return { kind: "Error", value: error };
     }
-    if (equalCheckOutcome(result, { kind: "Unknown" })) {
-        return tsvectorUnresolved(unresolvedFlavor);
+    let conditionFlavor1334: number = unresolvedFlavor;
+    if (result.kind === "Unknown") {
+        if (conditionFlavor1334 < 1) {
+            conditionFlavor1334 = langruntime.checkedI32(1);
+        }
+    }
+    if (result.kind === "Unimplemented") {
+        conditionFlavor1334 = langruntime.checkedI32(2);
+    }
+    if ((equalCheckOutcome(result, { kind: "Unknown" }) || equalCheckOutcome(result, { kind: "Unimplemented" }))) {
+        return tsvectorUnresolved(conditionFlavor1334);
     }
     return input;
 }
@@ -13713,12 +15502,27 @@ export function finishTsqueryDomainConversion(input: TsqueryValue, result: Check
     if (result.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (result.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (result.kind === "Error") {
         const error: SqlError = result.value;
         return { kind: "Error", value: error };
     }
-    if (equalCheckOutcome(result, { kind: "Unknown" })) {
-        return tsqueryUnresolved(unresolvedFlavor);
+    let conditionFlavor1444: number = unresolvedFlavor;
+    if (result.kind === "Unknown") {
+        if (conditionFlavor1444 < 1) {
+            conditionFlavor1444 = langruntime.checkedI32(1);
+        }
+    }
+    if (result.kind === "Unimplemented") {
+        conditionFlavor1444 = langruntime.checkedI32(2);
+    }
+    if ((equalCheckOutcome(result, { kind: "Unknown" }) || equalCheckOutcome(result, { kind: "Unimplemented" }))) {
+        return tsqueryUnresolved(conditionFlavor1444);
     }
     return input;
 }
@@ -13742,6 +15546,8 @@ export function copyArrayPayload(value: ArrayPayload): ArrayPayload {
 export type ArrayValue = {
     readonly kind: "Unknown";
 } | {
+    readonly kind: "Unimplemented";
+} | {
     readonly kind: "Null";
 } | {
     readonly kind: "Error";
@@ -13753,6 +15559,7 @@ export type ArrayValue = {
 export function copyArrayValue(value: ArrayValue): ArrayValue {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
+        case "Unimplemented": return { kind: "Unimplemented" };
         case "Null": return { kind: "Null" };
         case "Error": return { kind: "Error", value: value.value };
         case "Value": return { kind: "Value", value: copyArrayPayload(value.value) };
@@ -13760,6 +15567,8 @@ export function copyArrayValue(value: ArrayValue): ArrayValue {
 }
 export type ArrayArguments = {
     readonly kind: "Unknown";
+} | {
+    readonly kind: "Unimplemented";
 } | {
     readonly kind: "Error";
     readonly value: SqlError;
@@ -13770,6 +15579,7 @@ export type ArrayArguments = {
 export function copyArrayArguments(value: ArrayArguments): ArrayArguments {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
+        case "Unimplemented": return { kind: "Unimplemented" };
         case "Error": return { kind: "Error", value: value.value };
         case "Value": return { kind: "Value", value: copyArrayPayload(value.value) };
     }
@@ -13798,17 +15608,29 @@ export function arrayValueValidity(input: BoolValue, unknownValid: boolean): Che
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (equalBoolValue(input, { kind: "Unknown" }) && unknownValid === false) {
-        return checkUnresolved(unresolvedFlavor);
+    let conditionFlavor544: number = unresolvedFlavor;
+    if (input.kind === "Unknown") {
+        if (conditionFlavor544 < 1) {
+            conditionFlavor544 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unimplemented") {
+        conditionFlavor544 = langruntime.checkedI32(2);
+    }
+    if ((equalBoolValue(input, { kind: "Unknown" }) || equalBoolValue(input, { kind: "Unimplemented" })) && unknownValid === false) {
+        return checkUnresolved(conditionFlavor544);
     }
     return { kind: "True" };
 }
 export function arrayValidityFinish(left: CheckOutcome, right: CheckOutcome): CheckOutcome {
-    if (equalCheckOutcome(left, { kind: "Unknown" })) {
+    if ((equalCheckOutcome(left, { kind: "Unknown" }) || equalCheckOutcome(left, { kind: "Unimplemented" }))) {
         return left;
     }
     if (left.kind === "Error") {
@@ -13817,15 +15639,27 @@ export function arrayValidityFinish(left: CheckOutcome, right: CheckOutcome): Ch
     return right;
 }
 export function arrayValidityUnknown(input: CheckOutcome): boolean {
-    return equalCheckOutcome(input, { kind: "Unknown" });
+    return (equalCheckOutcome(input, { kind: "Unknown" }) || equalCheckOutcome(input, { kind: "Unimplemented" }));
 }
 export function arrayValidityPossible(input: CheckOutcome): CheckOutcome {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
-    if (equalCheckOutcome(input, { kind: "Unknown" })) {
-        return checkUnresolved(unresolvedFlavor);
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    let conditionFlavor784: number = unresolvedFlavor;
+    if (input.kind === "Unknown") {
+        if (conditionFlavor784 < 1) {
+            conditionFlavor784 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unimplemented") {
+        conditionFlavor784 = langruntime.checkedI32(2);
+    }
+    if ((equalCheckOutcome(input, { kind: "Unknown" }) || equalCheckOutcome(input, { kind: "Unimplemented" }))) {
+        return checkUnresolved(conditionFlavor784);
     }
     if (input.kind === "Error") {
         return checkUnresolved(unresolvedFlavor);
@@ -13840,12 +15674,27 @@ export function arrayConstructorFromValidity(input: ArrayValue, validity: CheckO
     if (validity.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (validity.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (validity.kind === "Error") {
         const error: SqlError = validity.value;
         return { kind: "Error", value: error };
     }
-    if (equalCheckOutcome(validity, { kind: "Unknown" })) {
-        return arrayUnresolved(unresolvedFlavor);
+    let conditionFlavor994: number = unresolvedFlavor;
+    if (validity.kind === "Unknown") {
+        if (conditionFlavor994 < 1) {
+            conditionFlavor994 = langruntime.checkedI32(1);
+        }
+    }
+    if (validity.kind === "Unimplemented") {
+        conditionFlavor994 = langruntime.checkedI32(2);
+    }
+    if ((equalCheckOutcome(validity, { kind: "Unknown" }) || equalCheckOutcome(validity, { kind: "Unimplemented" }))) {
+        return arrayUnresolved(conditionFlavor994);
     }
     return input;
 }
@@ -13853,6 +15702,9 @@ export function arrayCastValidity(input: ArrayElement, source: string, target: s
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -13913,6 +15765,13 @@ export function appendArrayCastConversion(input: ArrayOutputPayload, element: Ar
         }
         return appendArrayConversion(input, element, equalCheckOutcome(validity, { kind: "True" }));
     }
+    if (element.kind === "Unimplemented") {
+        if (validity.kind === "Error") {
+            const error: SqlError = validity.value;
+            return appendArrayConversion(input, { kind: "Error", value: error }, true);
+        }
+        return appendArrayConversion(input, element, equalCheckOutcome(validity, { kind: "True" }));
+    }
     return appendArrayConversion(input, element, true);
 }
 export function makeArrayConversion(): ArrayOutputPayload {
@@ -13932,6 +15791,9 @@ export function appendArrayConversion(input: ArrayOutputPayload, element: ArrayE
     }
     if (state === 1 && unknownValid === false) {
         if (element.kind === "Unknown") {
+            state = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+        }
+        if (element.kind === "Unimplemented") {
             state = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
         }
     }
@@ -13986,6 +15848,9 @@ export function arrayOutputElementAt(input: ArrayOutputPayload, index: Int4Value
     if (index.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (index.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (index.kind === "Value") {
         const offset: number = langruntime.checkedI32(index.value);
         const position: number = langruntime.indexFromI32(offset, input.elements.length);
@@ -13996,8 +15861,7 @@ export function arrayOutputElementAt(input: ArrayOutputPayload, index: Int4Value
     return arrayElementUnresolved(unresolvedFlavor);
 }
 export function arrayUnknown(): ArrayValue {
-    const unresolvedFlavor: number = 0;
-    return arrayUnresolved(unresolvedFlavor);
+    return { kind: "Unknown" };
 }
 export function arrayNull(): ArrayValue {
     return { kind: "Null" };
@@ -14008,12 +15872,28 @@ export function arrayIsNull(input: ArrayValue): BoolValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
+    let conditionFlavor3214: number = unresolvedFlavor;
     if (input.kind === "Unknown") {
-        return boolUnresolved(unresolvedFlavor);
+        if (conditionFlavor3214 < 1) {
+            conditionFlavor3214 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unknown") {
+        return boolUnresolved(conditionFlavor3214);
+    }
+    let conditionFlavor3237: number = unresolvedFlavor;
+    if (input.kind === "Unimplemented") {
+        conditionFlavor3237 = langruntime.checkedI32(2);
+    }
+    if (input.kind === "Unimplemented") {
+        return boolUnresolved(conditionFlavor3237);
     }
     if (input.kind === "Null") {
         return { kind: "Value", value: true };
@@ -14024,6 +15904,9 @@ export function arrayFromCaseGuard(input: CheckOutcome): ArrayValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -14090,10 +15973,26 @@ export function makeArrayValue(input: ArrayPayload): ArrayValue {
             const error: SqlError = checked.value;
             return { kind: "Error", value: error };
         }
+        let conditionFlavor3748: number = unresolvedFlavor;
+        if (checked.kind === "Unknown") {
+            if (conditionFlavor3748 < 1) {
+                conditionFlavor3748 = langruntime.checkedI32(1);
+            }
+        }
         if (checked.kind === "Unknown") {
             const family: number = arrayElementFamily(copyArrayElement(langruntime.indexStruct(elements, langruntime.checkedIndex(position), copyArrayElement)));
             if ((family >= 41 && family <= 44) || family === 46 || family === 47 || family === 48) {
-                return arrayUnresolved(unresolvedFlavor);
+                return arrayUnresolved(conditionFlavor3748);
+            }
+        }
+        let conditionFlavor37911: number = unresolvedFlavor;
+        if (checked.kind === "Unimplemented") {
+            conditionFlavor37911 = langruntime.checkedI32(2);
+        }
+        if (checked.kind === "Unimplemented") {
+            const family: number = arrayElementFamily(copyArrayElement(langruntime.indexStruct(elements, langruntime.checkedIndex(position), copyArrayElement)));
+            if ((family >= 41 && family <= 44) || family === 46 || family === 47 || family === 48) {
+                return arrayUnresolved(conditionFlavor37911);
             }
         }
         elements[langruntime.checkedIndexIn(elements, position)] = copyArrayElement(checked);
@@ -14173,6 +16072,9 @@ export function arrayFromCoercedValue(input: ArrayValue, elementType: string, el
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Value") {
         const value: ArrayPayload = copyArrayPayload(input.value);
         if (!(value.elementType === elementType) || !(value.elementKind === elementKind)) {
@@ -14188,6 +16090,9 @@ export function catalogVectorFromCoerced(input: ArrayValue, oid: boolean): Array
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Value") {
         const value: ArrayPayload = copyArrayPayload(input.value);
@@ -14266,6 +16171,9 @@ export function arrayFromCoercedTree(input: ArrayValue, types: string, kinds: st
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Value") {
         const value: ArrayPayload = copyArrayPayload(input.value);
         if (arrayTreeIdentityValid(value, types, kinds, 0) === false) {
@@ -14314,6 +16222,9 @@ export function arrayFromCoercedRangeTree(input: ArrayValue, types: string, kind
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Value") {
         const payload: ArrayPayload = copyArrayPayload(input.value);
@@ -14380,6 +16291,9 @@ export function arrayFromCoercedMultirangeTree(input: ArrayValue, types: string,
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Value") {
         const payload: ArrayPayload = copyArrayPayload(input.value);
         if (arrayTreeIdentityValid(payload, types, kinds, 0) === false || arrayMultirangeIdentityValid(payload, typeName, rangeType, elementType, elementKind) === false) {
@@ -14442,6 +16356,9 @@ function arrayWithTypedRangeProfile(input: ArrayValue, multirangeType: string, r
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Value") {
         const payload: ArrayPayload = copyArrayPayload(input.value);
         let elements: ArrayElement[] = payload.elements;
@@ -14452,14 +16369,30 @@ function arrayWithTypedRangeProfile(input: ArrayValue, multirangeType: string, r
             if (element.kind === "Unknown") {
                 convert = langruntime.checkedBool(false);
             }
+            if (element.kind === "Unimplemented") {
+                convert = langruntime.checkedBool(false);
+            }
             if (convert) {
                 const converted: ArrayElement = arrayElementWithTypedRangeProfile(element, multirangeType, rangeType, elementType, elementKind, comparison, canonical, labels, count, boundProfile);
                 if (converted.kind === "Error") {
                     const error: SqlError = converted.value;
                     return { kind: "Error", value: error };
                 }
+                let conditionFlavor81916: number = unresolvedFlavor;
                 if (converted.kind === "Unknown") {
-                    return arrayUnresolved(unresolvedFlavor);
+                    if (conditionFlavor81916 < 1) {
+                        conditionFlavor81916 = langruntime.checkedI32(1);
+                    }
+                }
+                if (converted.kind === "Unknown") {
+                    return arrayUnresolved(conditionFlavor81916);
+                }
+                let conditionFlavor82119: number = unresolvedFlavor;
+                if (converted.kind === "Unimplemented") {
+                    conditionFlavor82119 = langruntime.checkedI32(2);
+                }
+                if (converted.kind === "Unimplemented") {
+                    return arrayUnresolved(conditionFlavor82119);
                 }
                 elements[langruntime.checkedIndexIn(elements, position)] = copyArrayElement(converted);
             }
@@ -14508,6 +16441,9 @@ export function arrayFromCoercedRangeDefinedProfileTree(input: ArrayValue, types
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Value") {
         const payload: ArrayPayload = copyArrayPayload(input.value);
         if (arrayTreeIdentityValid(payload, types, kinds, 0) === false || arrayRangeIdentityValid(payload, typeName, elementType, elementKind) === false) {
@@ -14545,6 +16481,9 @@ export function arrayFromCoercedMultirangeDefinedProfileTree(input: ArrayValue, 
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Value") {
         const payload: ArrayPayload = copyArrayPayload(input.value);
         if (arrayTreeIdentityValid(payload, types, kinds, 0) === false || arrayMultirangeIdentityValid(payload, typeName, rangeType, elementType, elementKind) === false) {
@@ -14567,6 +16506,9 @@ export function arrayFromCoercedRangeTypedProfileTree(input: ArrayValue, types: 
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Value") {
         const payload: ArrayPayload = copyArrayPayload(input.value);
@@ -14591,6 +16533,9 @@ export function arrayFromCoercedMultirangeTypedProfileTree(input: ArrayValue, ty
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Value") {
         const payload: ArrayPayload = copyArrayPayload(input.value);
@@ -14645,6 +16590,9 @@ export function finishArrayArguments(input: ArrayArguments): ArrayValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -14663,6 +16611,12 @@ export function arrayFlatElement(input: ArrayValue, offset: Int4Value): ArrayEle
     }
     if (offset.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (offset.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -14700,6 +16654,9 @@ export function finishArrayConstructor(input: ArrayArguments): ArrayValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -14725,6 +16682,8 @@ export function copyArrayChildrenPayload(value: ArrayChildrenPayload): ArrayChil
 export type ArrayChildrenArguments = {
     kind: "Unknown";
 } | {
+    kind: "Unimplemented";
+} | {
     kind: "Error";
     value: SqlError;
 } | {
@@ -14734,6 +16693,7 @@ export type ArrayChildrenArguments = {
 export function copyArrayChildrenArguments(value: ArrayChildrenArguments): ArrayChildrenArguments {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
+        case "Unimplemented": return { kind: "Unimplemented" };
         case "Error": return { kind: "Error", value: value.value };
         case "Value": return { kind: "Value", value: copyArrayChildrenPayload(value.value) };
     }
@@ -14768,6 +16728,9 @@ export function finishArrayChildren(input: ArrayChildrenArguments): ArrayValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -14777,8 +16740,21 @@ export function finishArrayChildren(input: ArrayChildrenArguments): ArrayValue {
         let position: number = 0;
         while (position < value.arrays.length) {
             const child: ArrayValue = copyArrayValue(langruntime.indexStruct(value.arrays, langruntime.checkedIndex(position), copyArrayValue));
+            let conditionFlavor116912: number = unresolvedFlavor;
             if (child.kind === "Unknown") {
-                return arrayUnresolved(unresolvedFlavor);
+                if (conditionFlavor116912 < 1) {
+                    conditionFlavor116912 = langruntime.checkedI32(1);
+                }
+            }
+            if (child.kind === "Unknown") {
+                return arrayUnresolved(conditionFlavor116912);
+            }
+            let conditionFlavor117115: number = unresolvedFlavor;
+            if (child.kind === "Unimplemented") {
+                conditionFlavor117115 = langruntime.checkedI32(2);
+            }
+            if (child.kind === "Unimplemented") {
+                return arrayUnresolved(conditionFlavor117115);
             }
             position = langruntime.checkedAdd(position, 1);
         }
@@ -14872,6 +16848,8 @@ export function copyArrayTextPayload(value: ArrayTextPayload): ArrayTextPayload 
 export type ArrayTextPlan = {
     kind: "Unknown";
 } | {
+    kind: "Unimplemented";
+} | {
     kind: "Null";
 } | {
     kind: "Value";
@@ -14880,6 +16858,7 @@ export type ArrayTextPlan = {
 export function copyArrayTextPlan(value: ArrayTextPlan): ArrayTextPlan {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
+        case "Unimplemented": return { kind: "Unimplemented" };
         case "Null": return { kind: "Null" };
         case "Value": return { kind: "Value", value: copyArrayTextPayload(value.value) };
     }
@@ -14892,6 +16871,8 @@ export type ArrayTextEvent = {
 } | {
     kind: "Unknown";
 } | {
+    kind: "Unimplemented";
+} | {
     kind: "Error";
     value: SqlError;
 };
@@ -14900,6 +16881,7 @@ export function copyArrayTextEvent(value: ArrayTextEvent): ArrayTextEvent {
         case "Text": return { kind: "Text", value: langruntime.checkedString(value.value) };
         case "Null": return { kind: "Null" };
         case "Unknown": return { kind: "Unknown" };
+        case "Unimplemented": return { kind: "Unimplemented" };
         case "Error": return { kind: "Error", value: value.value };
     }
 }
@@ -15067,8 +17049,20 @@ export function parseArrayText(input: TextValue, delimiter: string, nulls: numbe
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
-    if (equalTextValue(input, { kind: "Unknown" }) || equalTextValue(input, { kind: "NonNull" })) {
-        return arrayTextPlanUnresolved(unresolvedFlavor);
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    let conditionFlavor15154: number = unresolvedFlavor;
+    if (input.kind === "Unknown") {
+        if (conditionFlavor15154 < 1) {
+            conditionFlavor15154 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unimplemented") {
+        conditionFlavor15154 = langruntime.checkedI32(2);
+    }
+    if ((equalTextValue(input, { kind: "Unknown" }) || equalTextValue(input, { kind: "Unimplemented" })) || equalTextValue(input, { kind: "NonNull" })) {
+        return arrayTextPlanUnresolved(conditionFlavor15154);
     }
     if (input.kind === "Null") {
         return { kind: "Null" };
@@ -15257,6 +17251,9 @@ export function arrayTextEventAt(input: ArrayTextPayload, index: Int4Value): Tex
     if (index.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (index.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (index.kind === "Error") {
         const error: SqlError = index.value;
         return { kind: "Error", value: error };
@@ -15295,6 +17292,12 @@ export function finishArrayText(plan: ArrayTextPlan, converted: ArrayArguments):
     if (converted.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (plan.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (converted.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (converted.kind === "Error") {
         const error: SqlError = converted.value;
         return { kind: "Error", value: error };
@@ -15318,9 +17321,24 @@ export function finishArrayText(plan: ArrayTextPlan, converted: ArrayArguments):
             index = langruntime.checkedIndex(0);
             while (index < value.elements.length) {
                 const element: ArrayElement = copyArrayElement(langruntime.indexStruct(value.elements, langruntime.checkedIndex(index), copyArrayElement));
+                let conditionFlavor177416: number = unresolvedFlavor;
+                if (element.kind === "Unknown") {
+                    if (conditionFlavor177416 < 1) {
+                        conditionFlavor177416 = langruntime.checkedI32(1);
+                    }
+                }
                 if (element.kind === "Unknown") {
                     if (!(value.elementType === "pg_catalog.name")) {
-                        return arrayUnresolved(unresolvedFlavor);
+                        return arrayUnresolved(conditionFlavor177416);
+                    }
+                }
+                let conditionFlavor177819: number = unresolvedFlavor;
+                if (element.kind === "Unimplemented") {
+                    conditionFlavor177819 = langruntime.checkedI32(2);
+                }
+                if (element.kind === "Unimplemented") {
+                    if (!(value.elementType === "pg_catalog.name")) {
+                        return arrayUnresolved(conditionFlavor177819);
                     }
                 }
                 index = langruntime.checkedAdd(index, 1);
@@ -15379,6 +17397,9 @@ export function arrayTextNextIndex(input: Int4Value): Int4Value {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Value") {
         const value: number = langruntime.checkedI32(input.value);
         if (value < 2147483647) {
@@ -15393,6 +17414,9 @@ export function finishPreparedArrayText(input: ArrayTextPayload, converted: Arra
     let unresolvedFlavor: number = 0;
     if (converted.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (converted.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.state === 0) {
         return { kind: "Null" };
@@ -15484,6 +17508,9 @@ export function arraySubscriptInitial(input: ArrayValue): ArrayElement {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -15523,6 +17550,9 @@ export function arrayFetchSubscript(input: ArrayValue, indices: ArraySubscripts)
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -15530,8 +17560,21 @@ export function arrayFetchSubscript(input: ArrayValue, indices: ArraySubscripts)
     if (input.kind === "Null") {
         return { kind: "Null" };
     }
+    let conditionFlavor19974: number = unresolvedFlavor;
     if (input.kind === "Unknown") {
-        return arrayElementUnresolved(unresolvedFlavor);
+        if (conditionFlavor19974 < 1) {
+            conditionFlavor19974 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unknown") {
+        return arrayElementUnresolved(conditionFlavor19974);
+    }
+    let conditionFlavor19997: number = unresolvedFlavor;
+    if (input.kind === "Unimplemented") {
+        conditionFlavor19997 = langruntime.checkedI32(2);
+    }
+    if (input.kind === "Unimplemented") {
+        return arrayElementUnresolved(conditionFlavor19997);
     }
     if (indices.kind === "Error") {
         const error: SqlError = indices.value;
@@ -15598,6 +17641,9 @@ export function arraySliceSubscript(input: ArrayValue, indices: ArraySubscripts)
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         return input;
     }
@@ -15605,6 +17651,9 @@ export function arraySliceSubscript(input: ArrayValue, indices: ArraySubscripts)
         return input;
     }
     if (input.kind === "Unknown") {
+        return input;
+    }
+    if (input.kind === "Unimplemented") {
         return input;
     }
     if (indices.kind === "Error") {
@@ -15770,7 +17819,13 @@ export function prepareArrayComparison(left: ArrayValue, right: ArrayValue, equa
     if (left.kind === "Unknown") {
         return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
     }
+    if (left.kind === "Unimplemented") {
+        return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
+    }
     if (right.kind === "Unknown") {
+        return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
+    }
+    if (right.kind === "Unimplemented") {
         return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
     }
     if (left.kind === "Null") {
@@ -15830,6 +17885,9 @@ export function arrayComparisonElementAt(input: ArrayComparisonPayload, index: I
     if (index.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (index.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (index.kind === "Value") {
         const offset: number = langruntime.checkedI32(index.value);
         const position: number = langruntime.indexFromI32(offset, input.limit);
@@ -15853,6 +17911,12 @@ export function arrayComparisonPair(left: ArrayElement, right: ArrayElement, equ
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (right.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (left.kind === "Error") {
         const error: SqlError = left.value;
         return { kind: "Error", value: error };
@@ -15861,11 +17925,37 @@ export function arrayComparisonPair(left: ArrayElement, right: ArrayElement, equ
         const error: SqlError = right.value;
         return { kind: "Error", value: error };
     }
+    let conditionFlavor23804: number = unresolvedFlavor;
     if (left.kind === "Unknown") {
-        return int4Unresolved(unresolvedFlavor);
+        if (conditionFlavor23804 < 1) {
+            conditionFlavor23804 = langruntime.checkedI32(1);
+        }
+    }
+    if (left.kind === "Unknown") {
+        return int4Unresolved(conditionFlavor23804);
+    }
+    let conditionFlavor23827: number = unresolvedFlavor;
+    if (left.kind === "Unimplemented") {
+        conditionFlavor23827 = langruntime.checkedI32(2);
+    }
+    if (left.kind === "Unimplemented") {
+        return int4Unresolved(conditionFlavor23827);
+    }
+    let conditionFlavor23854: number = unresolvedFlavor;
+    if (right.kind === "Unknown") {
+        if (conditionFlavor23854 < 1) {
+            conditionFlavor23854 = langruntime.checkedI32(1);
+        }
     }
     if (right.kind === "Unknown") {
-        return int4Unresolved(unresolvedFlavor);
+        return int4Unresolved(conditionFlavor23854);
+    }
+    let conditionFlavor23877: number = unresolvedFlavor;
+    if (right.kind === "Unimplemented") {
+        conditionFlavor23877 = langruntime.checkedI32(2);
+    }
+    if (right.kind === "Unimplemented") {
+        return int4Unresolved(conditionFlavor23877);
     }
     let leftNull: boolean = false;
     let rightNull: boolean = false;
@@ -15900,12 +17990,24 @@ export function arrayEqualityStep(input: BoolValue): Int4Value {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
+    let conditionFlavor24274: number = unresolvedFlavor;
     if (input.kind === "Unknown") {
-        return int4Unresolved(unresolvedFlavor);
+        if (conditionFlavor24274 < 1) {
+            conditionFlavor24274 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unimplemented") {
+        conditionFlavor24274 = langruntime.checkedI32(2);
+    }
+    if ((equalBoolValue(input, { kind: "Unknown" }) || equalBoolValue(input, { kind: "Unimplemented" }))) {
+        return int4Unresolved(conditionFlavor24274);
     }
     if (input.kind === "Value") {
         const value: boolean = langruntime.checkedBool(input.value);
@@ -15919,6 +18021,9 @@ export function arrayOrderStep(input: Int4Value): Int4Value {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Value") {
         const value: number = langruntime.checkedI32(input.value);
@@ -15939,6 +18044,9 @@ export function arrayOrderFromEquality(input: BoolValue): Int4Value {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -16014,6 +18122,9 @@ export function arrayMembershipElementAt(input: ArrayComparisonPayload, index: I
     let unresolvedFlavor: number = 0;
     if (index.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (index.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (index.kind === "Value") {
         const offset: number = langruntime.checkedI32(index.value);
@@ -16092,6 +18203,9 @@ export function arrayCoercionDeferred(input: ArrayElement): ArrayElement {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Null") {
         return { kind: "Null" };
     }
@@ -16108,6 +18222,9 @@ export function finishArrayCoercion(input: ArrayOutputPayload, converted: ArrayA
     let unresolvedFlavor: number = 0;
     if (converted.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (converted.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.state === langruntime.checkedSignedNegate(2)) {
         return { kind: "Error", value: input.error };
@@ -16159,7 +18276,13 @@ export function prepareArrayBucket(needle: ArrayElement, input: ArrayValue, avai
     if (needle.kind === "Unknown") {
         return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
     }
+    if (needle.kind === "Unimplemented") {
+        return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
+    }
     if (input.kind === "Unknown") {
+        return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
+    }
+    if (input.kind === "Unimplemented") {
         return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
     }
     if (needle.kind === "Null") {
@@ -16186,6 +18309,9 @@ export function prepareArrayBucket(needle: ArrayElement, input: ArrayValue, avai
                 knownNull = langruntime.checkedBool(true);
             }
             if (cell.kind === "Unknown") {
+                unknownNull = langruntime.checkedBool(true);
+            }
+            if (cell.kind === "Unimplemented") {
                 unknownNull = langruntime.checkedBool(true);
             }
             position = langruntime.checkedAdd(position, 1);
@@ -16236,6 +18362,12 @@ export function arrayBucketMidpoint(low: Int4Value, high: Int4Value): Int4Value 
     if (high.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (low.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (high.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (low.kind === "Value") {
         const left: number = langruntime.checkedI32(low.value);
         if (high.kind === "Value") {
@@ -16257,6 +18389,15 @@ export function arrayBucketLower(low: Int4Value, high: Int4Value, compared: Int4
     }
     if (compared.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (low.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (high.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (compared.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (compared.kind === "Error") {
         const error: SqlError = compared.value;
@@ -16287,6 +18428,15 @@ export function arrayBucketUpper(low: Int4Value, high: Int4Value, compared: Int4
     }
     if (compared.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (low.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (high.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (compared.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (compared.kind === "Error") {
         const error: SqlError = compared.value;
@@ -16337,6 +18487,9 @@ export function prepareArraySearch(input: ArrayValue, needle: ArrayElement, star
         if (needle.kind === "Unknown") {
             needleUnknown = langruntime.checkedBool(true);
         }
+        if (needle.kind === "Unimplemented") {
+            needleUnknown = langruntime.checkedBool(true);
+        }
         let knownNull: boolean = false;
         let unknownNull: boolean = false;
         let position: number = 0;
@@ -16348,13 +18501,16 @@ export function prepareArraySearch(input: ArrayValue, needle: ArrayElement, star
             if (element.kind === "Unknown") {
                 unknownNull = langruntime.checkedBool(true);
             }
+            if (element.kind === "Unimplemented") {
+                unknownNull = langruntime.checkedBool(true);
+            }
             position = langruntime.checkedAdd(position, 1);
         }
         if (needleNull && knownNull === false && unknownNull === false) {
             return arrayComparisonState(2, makeSqlError(0), 0);
         }
         if (provided) {
-            if (equalInt4Value(start, { kind: "Unknown" })) {
+            if ((equalInt4Value(start, { kind: "Unknown" }) || equalInt4Value(start, { kind: "Unimplemented" }))) {
                 return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
             }
             if (equalInt4Value(start, { kind: "Null" })) {
@@ -16414,7 +18570,7 @@ export function arraySearchContinues(input: ArrayComparisonPayload, index: Int4V
     if (result.kind === "Error") {
         return false;
     }
-    if (equalInt4Value(result, { kind: "Unknown" })) {
+    if ((equalInt4Value(result, { kind: "Unknown" }) || equalInt4Value(result, { kind: "Unimplemented" }))) {
         return false;
     }
     if (all === false) {
@@ -16445,12 +18601,27 @@ export function arraySearchResultStep(input: ArrayComparisonPayload, index: Int4
     if (compared.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (index.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (compared.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (compared.kind === "Error") {
         const error: SqlError = compared.value;
         return { kind: "Error", value: error };
     }
-    if (equalInt4Value(compared, { kind: "Unknown" })) {
-        return int4Unresolved(unresolvedFlavor);
+    let conditionFlavor30214: number = unresolvedFlavor;
+    if (compared.kind === "Unknown") {
+        if (conditionFlavor30214 < 1) {
+            conditionFlavor30214 = langruntime.checkedI32(1);
+        }
+    }
+    if (compared.kind === "Unimplemented") {
+        conditionFlavor30214 = langruntime.checkedI32(2);
+    }
+    if ((equalInt4Value(compared, { kind: "Unknown" }) || equalInt4Value(compared, { kind: "Unimplemented" }))) {
+        return int4Unresolved(conditionFlavor30214);
     }
     if (compared.kind === "Value") {
         const value: number = langruntime.checkedI32(compared.value);
@@ -16483,6 +18654,12 @@ export function finishArraySearchPositions(input: ArrayComparisonPayload, values
     if (result.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (values.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (result.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.state === 0) {
         return { kind: "Null" };
     }
@@ -16490,8 +18667,17 @@ export function finishArraySearchPositions(input: ArrayComparisonPayload, values
         const error: SqlError = result.value;
         return { kind: "Error", value: error };
     }
-    if (equalInt4Value(result, { kind: "Unknown" })) {
-        return arrayUnresolved(unresolvedFlavor);
+    let conditionFlavor30594: number = unresolvedFlavor;
+    if (result.kind === "Unknown") {
+        if (conditionFlavor30594 < 1) {
+            conditionFlavor30594 = langruntime.checkedI32(1);
+        }
+    }
+    if (result.kind === "Unimplemented") {
+        conditionFlavor30594 = langruntime.checkedI32(2);
+    }
+    if ((equalInt4Value(result, { kind: "Unknown" }) || equalInt4Value(result, { kind: "Unimplemented" }))) {
+        return arrayUnresolved(conditionFlavor30594);
     }
     return finishArrayConstructor(values);
 }
@@ -16570,6 +18756,15 @@ export function arrayRewriteStep(input: ArrayArguments, plan: ArrayComparisonPay
     if (compared.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (index.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (compared.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         return input;
     }
@@ -16578,9 +18773,18 @@ export function arrayRewriteStep(input: ArrayArguments, plan: ArrayComparisonPay
         return { kind: "Error", value: error };
     }
     const source: ArrayElement = arrayMembershipElementAt(plan, index, false);
-    if (equalInt4Value(compared, { kind: "Unknown" })) {
+    let conditionFlavor31564: number = unresolvedFlavor;
+    if (compared.kind === "Unknown") {
+        if (conditionFlavor31564 < 1) {
+            conditionFlavor31564 = langruntime.checkedI32(1);
+        }
+    }
+    if (compared.kind === "Unimplemented") {
+        conditionFlavor31564 = langruntime.checkedI32(2);
+    }
+    if ((equalInt4Value(compared, { kind: "Unknown" }) || equalInt4Value(compared, { kind: "Unimplemented" }))) {
         if (remove) {
-            return arrayArgumentsUnresolved(unresolvedFlavor);
+            return arrayArgumentsUnresolved(conditionFlavor31564);
         }
         if (source.kind === "Null") {
             const replacement: ArrayElement = copyArrayElement(langruntime.indexStruct(plan.right, langruntime.checkedIndex(1), copyArrayElement));
@@ -16608,6 +18812,9 @@ export function arrayRewriteChanged(input: ArrayComparisonPayload, compared: Int
     let unresolvedFlavor: number = 0;
     if (compared.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (compared.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (remove === false && input.right.length === 2) {
         const needle: ArrayElement = copyArrayElement(langruntime.indexStruct(input.right, langruntime.checkedIndex(0), copyArrayElement));
@@ -16638,6 +18845,15 @@ export function finishArrayRewrite(original: ArrayValue, plan: ArrayComparisonPa
     }
     if (changed.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (original.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (values.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (changed.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (plan.state === langruntime.checkedSignedNegate(2)) {
         return { kind: "Error", value: plan.error };
@@ -16736,7 +18952,10 @@ export function prepareArrayHash(input: ArrayValue, seed: Int8Value, available: 
     if (input.kind === "Unknown") {
         return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 1);
     }
-    if (equalInt8Value(seed, { kind: "Unknown" })) {
+    if (input.kind === "Unimplemented") {
+        return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 1);
+    }
+    if ((equalInt8Value(seed, { kind: "Unknown" }) || equalInt8Value(seed, { kind: "Unimplemented" }))) {
         return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 1);
     }
     if (input.kind === "Null") {
@@ -16763,8 +18982,17 @@ export function arrayHashInitial64(input: ArrayComparisonPayload): Int8Value {
         const error: SqlError = initial.value;
         return { kind: "Error", value: error };
     }
-    if (equalInt4Value(initial, { kind: "Unknown" })) {
-        return int8Unresolved(unresolvedFlavor);
+    let conditionFlavor33524: number = unresolvedFlavor;
+    if (initial.kind === "Unknown") {
+        if (conditionFlavor33524 < 1) {
+            conditionFlavor33524 = langruntime.checkedI32(1);
+        }
+    }
+    if (initial.kind === "Unimplemented") {
+        conditionFlavor33524 = langruntime.checkedI32(2);
+    }
+    if ((equalInt4Value(initial, { kind: "Unknown" }) || equalInt4Value(initial, { kind: "Unimplemented" }))) {
+        return int8Unresolved(conditionFlavor33524);
     }
     if (equalInt4Value(initial, { kind: "Null" })) {
         return { kind: "Null" };
@@ -16801,6 +19029,12 @@ export function arrayBitmapUnion(left: BoolValue, right: BoolValue): BoolValue {
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (right.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (equalBoolValue(left, { kind: "Value", value: true }) || equalBoolValue(right, { kind: "Value", value: true })) {
         return { kind: "Value", value: true };
     }
@@ -16815,8 +19049,24 @@ export function arrayElementBitmap(input: ArrayElement): BoolValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    let conditionFlavor204: number = unresolvedFlavor;
     if (input.kind === "Unknown") {
-        return boolUnresolved(unresolvedFlavor);
+        if (conditionFlavor204 < 1) {
+            conditionFlavor204 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unknown") {
+        return boolUnresolved(conditionFlavor204);
+    }
+    let conditionFlavor227: number = unresolvedFlavor;
+    if (input.kind === "Unimplemented") {
+        conditionFlavor227 = langruntime.checkedI32(2);
+    }
+    if (input.kind === "Unimplemented") {
+        return boolUnresolved(conditionFlavor227);
     }
     if (input.kind === "Null") {
         return { kind: "Value", value: true };
@@ -16852,6 +19102,12 @@ export function arrayBitmapChoice(left: BoolValue, right: BoolValue): BoolValue 
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (right.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (equalBoolValue(left, right)) {
         return left;
     }
@@ -16862,6 +19118,9 @@ export function arrayNullBitmap(input: ArrayValue): BoolValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -16936,6 +19195,12 @@ export function advanceTsvectorStorage(nullness: BoolValue, index: Int4Value): I
     }
     if (index.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (nullness.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (index.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (nullness.kind === "Error") {
         const error: SqlError = nullness.value;
@@ -17268,7 +19533,7 @@ export function arrayQuantifierContinues(input: ArrayComparisonPayload, index: I
     if (result.kind === "Error") {
         return false;
     }
-    if (equalCheckOutcome(result, { kind: "Unknown" }) && safe === false) {
+    if ((equalCheckOutcome(result, { kind: "Unknown" }) || equalCheckOutcome(result, { kind: "Unimplemented" })) && safe === false) {
         return false;
     }
     if (any && equalCheckOutcome(result, { kind: "True" })) {
@@ -17313,12 +19578,27 @@ export function arrayQuantifierFinish(input: CheckOutcome, validity: CheckOutcom
     if (validity.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (validity.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (validity.kind === "Error") {
         const error: SqlError = validity.value;
         return { kind: "Error", value: error };
     }
-    if (equalCheckOutcome(validity, { kind: "Unknown" })) {
-        return boolUnresolved(unresolvedFlavor);
+    let conditionFlavor1074: number = unresolvedFlavor;
+    if (validity.kind === "Unknown") {
+        if (conditionFlavor1074 < 1) {
+            conditionFlavor1074 = langruntime.checkedI32(1);
+        }
+    }
+    if (validity.kind === "Unimplemented") {
+        conditionFlavor1074 = langruntime.checkedI32(2);
+    }
+    if ((equalCheckOutcome(validity, { kind: "Unknown" }) || equalCheckOutcome(validity, { kind: "Unimplemented" }))) {
+        return boolUnresolved(conditionFlavor1074);
     }
     return boolFromCheck(input);
 }
@@ -17385,12 +19665,24 @@ export function bitFromText(input: TextValue): BitValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if ((equalTextValue(input, { kind: "Unknown" }) || equalTextValue(input, { kind: "NonNull" }))) {
-        return bitUnresolved(unresolvedFlavor);
+    let conditionFlavor644: number = unresolvedFlavor;
+    if (input.kind === "Unknown") {
+        if (conditionFlavor644 < 1) {
+            conditionFlavor644 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unimplemented") {
+        conditionFlavor644 = langruntime.checkedI32(2);
+    }
+    if (((equalTextValue(input, { kind: "Unknown" }) || equalTextValue(input, { kind: "Unimplemented" })) || equalTextValue(input, { kind: "NonNull" }))) {
+        return bitUnresolved(conditionFlavor644);
     }
     if (equalTextValue(input, { kind: "Null" })) {
         return { kind: "Null" };
@@ -17406,12 +19698,24 @@ export function bitToText(input: BitValue): TextValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (equalBitValue(input, { kind: "Unknown" })) {
-        return textUnresolved(unresolvedFlavor);
+    let conditionFlavor834: number = unresolvedFlavor;
+    if (input.kind === "Unknown") {
+        if (conditionFlavor834 < 1) {
+            conditionFlavor834 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unimplemented") {
+        conditionFlavor834 = langruntime.checkedI32(2);
+    }
+    if ((equalBitValue(input, { kind: "Unknown" }) || equalBitValue(input, { kind: "Unimplemented" }))) {
+        return textUnresolved(conditionFlavor834);
     }
     if (equalBitValue(input, { kind: "Null" })) {
         return { kind: "Null" };
@@ -18544,12 +20848,24 @@ export function dateFromTextOrder(value: TextValue, dateOrder: number): DateValu
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
     }
-    if ((equalTextValue(value, { kind: "Unknown" }) || equalTextValue(value, { kind: "NonNull" }))) {
-        return dateUnresolved(unresolvedFlavor);
+    let conditionFlavor8234: number = unresolvedFlavor;
+    if (value.kind === "Unknown") {
+        if (conditionFlavor8234 < 1) {
+            conditionFlavor8234 = langruntime.checkedI32(1);
+        }
+    }
+    if (value.kind === "Unimplemented") {
+        conditionFlavor8234 = langruntime.checkedI32(2);
+    }
+    if (((equalTextValue(value, { kind: "Unknown" }) || equalTextValue(value, { kind: "Unimplemented" })) || equalTextValue(value, { kind: "NonNull" }))) {
+        return dateUnresolved(conditionFlavor8234);
     }
     if (equalTextValue(value, { kind: "Null" })) {
         return { kind: "Null" };
@@ -18667,6 +20983,9 @@ function dateFromTemporalText(value: TextValue, dateOrder: number): DateValue {
     let unresolvedFlavor: number = 0;
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     const parsed: Int8Value = parseTemporalText(value, false, true, dateOrder);
     if (parsed.kind === "Error") {
@@ -18886,12 +21205,24 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
     }
-    if ((equalTextValue(value, { kind: "Unknown" }) || equalTextValue(value, { kind: "NonNull" }))) {
-        return int8Unresolved(unresolvedFlavor);
+    let conditionFlavor2184: number = unresolvedFlavor;
+    if (value.kind === "Unknown") {
+        if (conditionFlavor2184 < 1) {
+            conditionFlavor2184 = langruntime.checkedI32(1);
+        }
+    }
+    if (value.kind === "Unimplemented") {
+        conditionFlavor2184 = langruntime.checkedI32(2);
+    }
+    if (((equalTextValue(value, { kind: "Unknown" }) || equalTextValue(value, { kind: "Unimplemented" })) || equalTextValue(value, { kind: "NonNull" }))) {
+        return int8Unresolved(conditionFlavor2184);
     }
     if (equalTextValue(value, { kind: "Null" })) {
         return { kind: "Null" };
@@ -19483,8 +21814,17 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
         }
         if (index < end && deferredZone === false && hours.digits > 0 && dateTextDigit(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))) >= 0) {
             const afterClock: Int8Value = temporalNumberAfterClock(hour, minute, second, compactClock, yearOverflow);
-            if (equalInt8Value(afterClock, { kind: "Unknown" })) {
-                return int8Unresolved(unresolvedFlavor);
+            let conditionFlavor93112: number = unresolvedFlavor;
+            if (afterClock.kind === "Unknown") {
+                if (conditionFlavor93112 < 1) {
+                    conditionFlavor93112 = langruntime.checkedI32(1);
+                }
+            }
+            if (afterClock.kind === "Unimplemented") {
+                conditionFlavor93112 = langruntime.checkedI32(2);
+            }
+            if ((equalInt8Value(afterClock, { kind: "Unknown" }) || equalInt8Value(afterClock, { kind: "Unimplemented" }))) {
+                return int8Unresolved(conditionFlavor93112);
             }
             if (afterClock.kind === "Error") {
                 const error: SqlError = afterClock.value;
@@ -19523,6 +21863,9 @@ function timestampFromMicroseconds(value: Int8Value): TimestampValue {
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
@@ -19560,6 +21903,9 @@ function timestamptzFromMicroseconds(value: Int8Value): TimestamptzValue {
     let unresolvedFlavor: number = 0;
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
@@ -19637,6 +21983,9 @@ function clockGrammarNormalized(input: TextValue): TextValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Value") {
         const value: string = langruntime.checkedString(input.value);
         const chars: string[] = Array.from(value);
@@ -19677,8 +22026,17 @@ function clockGrammarNormalized(input: TextValue): TextValue {
                         const error: SqlError = parsed.value;
                         return { kind: "Error", value: error };
                     }
-                    if (equalDateValue(parsed, { kind: "Unknown" })) {
-                        return textUnresolved(unresolvedFlavor);
+                    let conditionFlavor9420: number = unresolvedFlavor;
+                    if (parsed.kind === "Unknown") {
+                        if (conditionFlavor9420 < 1) {
+                            conditionFlavor9420 = langruntime.checkedI32(1);
+                        }
+                    }
+                    if (parsed.kind === "Unimplemented") {
+                        conditionFlavor9420 = langruntime.checkedI32(2);
+                    }
+                    if ((equalDateValue(parsed, { kind: "Unknown" }) || equalDateValue(parsed, { kind: "Unimplemented" }))) {
+                        return textUnresolved(conditionFlavor9420);
                     }
                     start = langruntime.checkedIndex(langruntime.checkedAdd(position, 1));
                     while (start < end && dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(start)))) {
@@ -19784,6 +22142,9 @@ function clockInputText(rawInput: TextValue): TextValue {
     let unresolvedFlavor: number = 0;
     if (rawInput.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (rawInput.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     const input: TextValue = clockGrammarNormalized(rawInput);
     if (input.kind === "Value") {
@@ -19896,6 +22257,9 @@ export function timeFromText(input: TextValue): TimeValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     const parsed: Int8Value = parseTimestampText(clockInputText(input), false);
     if (parsed.kind === "Error") {
         const error: SqlError = parsed.value;
@@ -19914,6 +22278,9 @@ export function timetzFromText(input: TextValue): TimetzValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     const normalized: TextValue = clockInputText(input);
     const local: Int8Value = parseTimestampText(normalized, false);
@@ -20253,6 +22620,9 @@ function intervalUnitsFromText(input: TextValue, fieldMask: number, style: numbe
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -20380,7 +22750,7 @@ function intervalUnitsFromText(input: TextValue, fieldMask: number, style: numbe
                 }
                 let whole: Int8Value = intervalInputWhole(token);
                 let yearMonth: boolean = false;
-                if (equalInt8Value(whole, { kind: "Unknown" })) {
+                if ((equalInt8Value(whole, { kind: "Unknown" }) || equalInt8Value(whole, { kind: "Unimplemented" }))) {
                     whole = intervalInputYearMonth(token);
                     yearMonth = langruntime.checkedBool(true);
                 }
@@ -20391,7 +22761,16 @@ function intervalUnitsFromText(input: TextValue, fieldMask: number, style: numbe
                     const error: SqlError = whole.value;
                     return { kind: "Error", value: error };
                 }
-                if (equalInt8Value(whole, { kind: "Unknown" })) {
+                let conditionFlavor49016: number = unresolvedFlavor;
+                if (whole.kind === "Unknown") {
+                    if (conditionFlavor49016 < 1) {
+                        conditionFlavor49016 = langruntime.checkedI32(1);
+                    }
+                }
+                if (whole.kind === "Unimplemented") {
+                    conditionFlavor49016 = langruntime.checkedI32(2);
+                }
+                if ((equalInt8Value(whole, { kind: "Unknown" }) || equalInt8Value(whole, { kind: "Unimplemented" }))) {
                     let asciiField: boolean = false;
                     let scan: number = 0;
                     while (scan < tokenChars.length) {
@@ -20403,7 +22782,7 @@ function intervalUnitsFromText(input: TextValue, fieldMask: number, style: numbe
                     if (asciiField === false) {
                         return { kind: "Error", value: makeSqlError(intervalInputSyntax) };
                     }
-                    return intervalUnresolved(unresolvedFlavor);
+                    return intervalUnresolved(conditionFlavor49016);
                 }
                 if (whole.kind === "Value") {
                     const number: bigint = langruntime.checkedI64(whole.value);
@@ -20499,7 +22878,7 @@ function intervalInputClock(input: IntervalInputAcc, text: string, fieldMask: nu
         const error: SqlError = secondNumber.value;
         return intervalInputFail(input, intervalClockErrorState(error, rangeError));
     }
-    if (equalInt8Value(firstNumber, { kind: "Unknown" }) || equalInt8Value(secondNumber, { kind: "Unknown" })) {
+    if ((equalInt8Value(firstNumber, { kind: "Unknown" }) || equalInt8Value(firstNumber, { kind: "Unimplemented" })) || (equalInt8Value(secondNumber, { kind: "Unknown" }) || equalInt8Value(secondNumber, { kind: "Unimplemented" }))) {
         return intervalInputFail(input, intervalInputSyntax);
     }
     let hours: bigint = 0n;
@@ -20544,7 +22923,7 @@ function intervalInputClock(input: IntervalInputAcc, text: string, fieldMask: nu
             const error: SqlError = lastNumber.value;
             return intervalInputFail(input, intervalClockErrorState(error, rangeError));
         }
-        if (equalInt8Value(lastNumber, { kind: "Unknown" })) {
+        if ((equalInt8Value(lastNumber, { kind: "Unknown" }) || equalInt8Value(lastNumber, { kind: "Unimplemented" }))) {
             return intervalInputFail(input, intervalInputSyntax);
         }
         if (lastNumber.kind === "Value") {
@@ -20900,6 +23279,12 @@ export function intervalFromTextFieldsContext(input: TextValue, fields: Int4Valu
     if (fields.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (fields.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -20908,8 +23293,25 @@ export function intervalFromTextFieldsContext(input: TextValue, fields: Int4Valu
         const error: SqlError = fields.value;
         return { kind: "Error", value: error };
     }
-    if ((equalTextValue(input, { kind: "Unknown" }) || equalTextValue(input, { kind: "NonNull" })) || equalInt4Value(fields, { kind: "Unknown" })) {
-        return intervalUnresolved(unresolvedFlavor);
+    let conditionFlavor10604: number = unresolvedFlavor;
+    if (input.kind === "Unknown") {
+        if (conditionFlavor10604 < 1) {
+            conditionFlavor10604 = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unimplemented") {
+        conditionFlavor10604 = langruntime.checkedI32(2);
+    }
+    if (fields.kind === "Unknown") {
+        if (conditionFlavor10604 < 1) {
+            conditionFlavor10604 = langruntime.checkedI32(1);
+        }
+    }
+    if (fields.kind === "Unimplemented") {
+        conditionFlavor10604 = langruntime.checkedI32(2);
+    }
+    if (((equalTextValue(input, { kind: "Unknown" }) || equalTextValue(input, { kind: "Unimplemented" })) || equalTextValue(input, { kind: "NonNull" })) || (equalInt4Value(fields, { kind: "Unknown" }) || equalInt4Value(fields, { kind: "Unimplemented" }))) {
+        return intervalUnresolved(conditionFlavor10604);
     }
     if (equalTextValue(input, { kind: "Null" }) || equalInt4Value(fields, { kind: "Null" })) {
         return { kind: "Null" };
@@ -20948,6 +23350,12 @@ export function intervalInputAgreement(left: IntervalValue, right: IntervalValue
     }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (left.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (right.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (equalIntervalValue(left, right)) {
         return left;
@@ -21107,6 +23515,12 @@ export function andFinish(left: CheckOutcome, right: CheckOutcome): CheckOutcome
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (right.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (left.kind === "Error") {
         const error: SqlError = left.value;
         return { kind: "Error", value: error };
@@ -21118,8 +23532,25 @@ export function andFinish(left: CheckOutcome, right: CheckOutcome): CheckOutcome
     if (equalCheckOutcome(left, { kind: "False" }) || equalCheckOutcome(right, { kind: "False" })) {
         return { kind: "False" };
     }
-    if (equalCheckOutcome(left, { kind: "Unknown" }) || equalCheckOutcome(right, { kind: "Unknown" })) {
-        return checkUnresolved(unresolvedFlavor);
+    let conditionFlavor264: number = unresolvedFlavor;
+    if (left.kind === "Unknown") {
+        if (conditionFlavor264 < 1) {
+            conditionFlavor264 = langruntime.checkedI32(1);
+        }
+    }
+    if (left.kind === "Unimplemented") {
+        conditionFlavor264 = langruntime.checkedI32(2);
+    }
+    if (right.kind === "Unknown") {
+        if (conditionFlavor264 < 1) {
+            conditionFlavor264 = langruntime.checkedI32(1);
+        }
+    }
+    if (right.kind === "Unimplemented") {
+        conditionFlavor264 = langruntime.checkedI32(2);
+    }
+    if ((equalCheckOutcome(left, { kind: "Unknown" }) || equalCheckOutcome(left, { kind: "Unimplemented" })) || (equalCheckOutcome(right, { kind: "Unknown" }) || equalCheckOutcome(right, { kind: "Unimplemented" }))) {
+        return checkUnresolved(conditionFlavor264);
     }
     if (equalCheckOutcome(left, { kind: "Null" }) || equalCheckOutcome(right, { kind: "Null" })) {
         return { kind: "Null" };
@@ -21143,6 +23574,12 @@ export function orFinish(left: CheckOutcome, right: CheckOutcome): CheckOutcome 
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (right.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (left.kind === "Error") {
         const error: SqlError = left.value;
         return { kind: "Error", value: error };
@@ -21154,8 +23591,25 @@ export function orFinish(left: CheckOutcome, right: CheckOutcome): CheckOutcome 
     if (equalCheckOutcome(left, { kind: "True" }) || equalCheckOutcome(right, { kind: "True" })) {
         return { kind: "True" };
     }
-    if (equalCheckOutcome(left, { kind: "Unknown" }) || equalCheckOutcome(right, { kind: "Unknown" })) {
-        return checkUnresolved(unresolvedFlavor);
+    let conditionFlavor604: number = unresolvedFlavor;
+    if (left.kind === "Unknown") {
+        if (conditionFlavor604 < 1) {
+            conditionFlavor604 = langruntime.checkedI32(1);
+        }
+    }
+    if (left.kind === "Unimplemented") {
+        conditionFlavor604 = langruntime.checkedI32(2);
+    }
+    if (right.kind === "Unknown") {
+        if (conditionFlavor604 < 1) {
+            conditionFlavor604 = langruntime.checkedI32(1);
+        }
+    }
+    if (right.kind === "Unimplemented") {
+        conditionFlavor604 = langruntime.checkedI32(2);
+    }
+    if ((equalCheckOutcome(left, { kind: "Unknown" }) || equalCheckOutcome(left, { kind: "Unimplemented" })) || (equalCheckOutcome(right, { kind: "Unknown" }) || equalCheckOutcome(right, { kind: "Unimplemented" }))) {
+        return checkUnresolved(conditionFlavor604);
     }
     if (equalCheckOutcome(left, { kind: "Null" }) || equalCheckOutcome(right, { kind: "Null" })) {
         return { kind: "Null" };
@@ -21201,6 +23655,12 @@ export function distinctNullsFinish(leftNull: BoolValue, rightNull: BoolValue): 
     if (rightNull.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (leftNull.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (rightNull.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (leftNull.kind === "Error") {
         const error: SqlError = leftNull.value;
         return { kind: "Error", value: error };
@@ -21224,7 +23684,7 @@ export function distinctNullsFinish(leftNull: BoolValue, rightNull: BoolValue): 
     return checkUnresolved(unresolvedFlavor);
 }
 export function caseGuardStops(value: CheckOutcome): boolean {
-    if (equalCheckOutcome(value, { kind: "Unknown" })) {
+    if ((equalCheckOutcome(value, { kind: "Unknown" }) || equalCheckOutcome(value, { kind: "Unimplemented" }))) {
         return true;
     }
     if (value.kind === "Error") {
@@ -21239,6 +23699,12 @@ export function minmaxNullsChooseRight(leftNull: BoolValue, rightNull: BoolValue
     }
     if (rightNull.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (leftNull.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (rightNull.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
     }
     if (leftNull.kind === "Error") {
         const error: SqlError = leftNull.value;
@@ -21276,6 +23742,9 @@ export function rowCompareFinish(value: Int4Value, strategy: number): BoolValue 
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
@@ -21308,6 +23777,12 @@ export function constantFinish(left: CheckOutcome, right: CheckOutcome): CheckOu
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (right.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (left.kind === "Error") {
         const error: SqlError = left.value;
         return { kind: "Error", value: error };
@@ -21316,8 +23791,25 @@ export function constantFinish(left: CheckOutcome, right: CheckOutcome): CheckOu
         const error: SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (equalCheckOutcome(left, { kind: "Unknown" }) || equalCheckOutcome(right, { kind: "Unknown" })) {
-        return checkUnresolved(unresolvedFlavor);
+    let conditionFlavor134: number = unresolvedFlavor;
+    if (left.kind === "Unknown") {
+        if (conditionFlavor134 < 1) {
+            conditionFlavor134 = langruntime.checkedI32(1);
+        }
+    }
+    if (left.kind === "Unimplemented") {
+        conditionFlavor134 = langruntime.checkedI32(2);
+    }
+    if (right.kind === "Unknown") {
+        if (conditionFlavor134 < 1) {
+            conditionFlavor134 = langruntime.checkedI32(1);
+        }
+    }
+    if (right.kind === "Unimplemented") {
+        conditionFlavor134 = langruntime.checkedI32(2);
+    }
+    if ((equalCheckOutcome(left, { kind: "Unknown" }) || equalCheckOutcome(left, { kind: "Unimplemented" })) || (equalCheckOutcome(right, { kind: "Unknown" }) || equalCheckOutcome(right, { kind: "Unimplemented" }))) {
+        return checkUnresolved(conditionFlavor134);
     }
     return { kind: "True" };
 }

@@ -21,6 +21,7 @@ export const goCheckDependencies: Record<string, readonly string[]> = {
   evalValueFromBool: ['EvalBool', 'EvalValue'],
   evalBoolCertain: ['EvalBool'],
   evalBoolUncertain: ['EvalBool'],
+  evalBoolUnimplemented: ['EvalBool'],
   evalBoolNot: ['EvalBool'],
   evalBoolAnd: ['EvalBool', 'evalBoolCertain', 'evalBoolUncertain'],
   evalBoolOr: ['EvalBool', 'evalBoolCertain', 'evalBoolUncertain'],

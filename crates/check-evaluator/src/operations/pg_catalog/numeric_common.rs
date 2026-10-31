@@ -17,14 +17,16 @@ fn numeric_common(left: NumericValue, right: NumericValue, multiple: bool) -> Nu
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = left { unresolved_flavor = 1; };
     if let NumericValue::Unknown = right { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let NumericValue::Unimplemented = right { unresolved_flavor = 2; };
     if let NumericValue::Error(error) = left {
         return NumericValue::Error(error);
     }
     if let NumericValue::Error(error) = right {
         return NumericValue::Error(error);
     }
-    if left == NumericValue::Unknown || right == NumericValue::Unknown {
-        return numeric_unresolved(unresolved_flavor);
+    let mut condition_flavor_28_4: i32 = unresolved_flavor; if let NumericValue::Unknown = left { if condition_flavor_28_4 < 1 { condition_flavor_28_4 = 1; }; }; if let NumericValue::Unimplemented = left { condition_flavor_28_4 = 2; }; if let NumericValue::Unknown = right { if condition_flavor_28_4 < 1 { condition_flavor_28_4 = 1; }; }; if let NumericValue::Unimplemented = right { condition_flavor_28_4 = 2; }; if (left == NumericValue::Unknown || left == NumericValue::Unimplemented) || (right == NumericValue::Unknown || right == NumericValue::Unimplemented) {
+        return numeric_unresolved(condition_flavor_28_4);
     }
     if left == NumericValue::Null || right == NumericValue::Null {
         return NumericValue::Null;
@@ -61,8 +63,8 @@ fn numeric_common(left: NumericValue, right: NumericValue, multiple: bool) -> Nu
                 if let NumericValue::Error(error) = remainder {
                     return NumericValue::Error(error);
                 }
-                if remainder == NumericValue::Unknown {
-                    return numeric_unresolved(unresolved_flavor);
+                let mut condition_flavor_66_16: i32 = unresolved_flavor; if let NumericValue::Unknown = remainder { if condition_flavor_66_16 < 1 { condition_flavor_66_16 = 1; }; }; if let NumericValue::Unimplemented = remainder { condition_flavor_66_16 = 2; }; if (remainder == NumericValue::Unknown || remainder == NumericValue::Unimplemented) {
+                    return numeric_unresolved(condition_flavor_66_16);
                 }
                 dividend = divisor.clone();
                 if let NumericValue::Value(value) = remainder {

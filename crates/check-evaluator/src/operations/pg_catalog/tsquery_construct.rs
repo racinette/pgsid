@@ -28,12 +28,15 @@ fn tsquery_join(left: TsqueryValue, right: TsqueryValue, distance: Int4Value, ki
     if let TsqueryValue::Unknown = left { unresolved_flavor = 1; };
     if let TsqueryValue::Unknown = right { unresolved_flavor = 1; };
     if let Int4Value::Unknown = distance { unresolved_flavor = 1; };
+    if let TsqueryValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let TsqueryValue::Unimplemented = right { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = distance { unresolved_flavor = 2; };
     if let TsqueryValue::Error(error) = left { return TsqueryValue::Error(error); };
     if let TsqueryValue::Error(error) = right { return TsqueryValue::Error(error); };
     if let Int4Value::Error(error) = distance { return TsqueryValue::Error(error); };
-    if let TsqueryValue::Unknown = left { return tsquery_unresolved(unresolved_flavor); };
-    if let TsqueryValue::Unknown = right { return tsquery_unresolved(unresolved_flavor); };
-    if distance == Int4Value::Unknown { return tsquery_unresolved(unresolved_flavor); };
+    let mut condition_flavor_37_4: i32 = unresolved_flavor; if let TsqueryValue::Unknown = left { if condition_flavor_37_4 < 1 { condition_flavor_37_4 = 1; }; }; if let TsqueryValue::Unknown = left { return tsquery_unresolved(condition_flavor_37_4); }; let mut condition_flavor_37_91: i32 = unresolved_flavor; if let TsqueryValue::Unimplemented = left { condition_flavor_37_91 = 2; }; if let TsqueryValue::Unimplemented = left { return tsquery_unresolved(condition_flavor_37_91); };
+    let mut condition_flavor_38_4: i32 = unresolved_flavor; if let TsqueryValue::Unknown = right { if condition_flavor_38_4 < 1 { condition_flavor_38_4 = 1; }; }; if let TsqueryValue::Unknown = right { return tsquery_unresolved(condition_flavor_38_4); }; let mut condition_flavor_38_92: i32 = unresolved_flavor; if let TsqueryValue::Unimplemented = right { condition_flavor_38_92 = 2; }; if let TsqueryValue::Unimplemented = right { return tsquery_unresolved(condition_flavor_38_92); };
+    let mut condition_flavor_39_4: i32 = unresolved_flavor; if let Int4Value::Unknown = distance { if condition_flavor_39_4 < 1 { condition_flavor_39_4 = 1; }; }; if let Int4Value::Unimplemented = distance { condition_flavor_39_4 = 2; }; if (distance == Int4Value::Unknown || distance == Int4Value::Unimplemented) { return tsquery_unresolved(condition_flavor_39_4); };
     if let TsqueryValue::Null = left { return TsqueryValue::Null; };
     if let TsqueryValue::Null = right { return TsqueryValue::Null; };
     if distance == Int4Value::Null { return TsqueryValue::Null; };

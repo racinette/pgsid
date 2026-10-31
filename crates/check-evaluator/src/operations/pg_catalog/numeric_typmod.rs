@@ -2,14 +2,16 @@ pub fn sql__pg_catalog__numeric__879l(input: NumericValue, modifier: Int4Value) 
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = input { unresolved_flavor = 1; };
     if let Int4Value::Unknown = modifier { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = modifier { unresolved_flavor = 2; };
     if let NumericValue::Error(error) = input {
         return NumericValue::Error(error);
     }
     if let Int4Value::Error(error) = modifier {
         return NumericValue::Error(error);
     }
-    if input == NumericValue::Unknown || modifier == Int4Value::Unknown {
-        return numeric_unresolved(unresolved_flavor);
+    let mut condition_flavor_13_4: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_13_4 = 2; }; if let Int4Value::Unknown = modifier { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let Int4Value::Unimplemented = modifier { condition_flavor_13_4 = 2; }; if (input == NumericValue::Unknown || input == NumericValue::Unimplemented) || (modifier == Int4Value::Unknown || modifier == Int4Value::Unimplemented) {
+        return numeric_unresolved(condition_flavor_13_4);
     }
     if input == NumericValue::Null || modifier == Int4Value::Null {
         return NumericValue::Null;

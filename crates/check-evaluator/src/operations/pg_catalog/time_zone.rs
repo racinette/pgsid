@@ -26,14 +26,16 @@ fn fixed_zone_timestamp(
     let mut unresolved_flavor: i32 = 0;
     if let IntervalValue::Unknown = zone { unresolved_flavor = 1; };
     if let TimestampValue::Unknown = input { unresolved_flavor = 1; };
+    if let IntervalValue::Unimplemented = zone { unresolved_flavor = 2; };
+    if let TimestampValue::Unimplemented = input { unresolved_flavor = 2; };
     if let IntervalValue::Error(error) = zone {
         return TimestampValue::Error(error);
     };
     if let TimestampValue::Error(error) = input {
         return TimestampValue::Error(error);
     };
-    if zone == IntervalValue::Unknown || input == TimestampValue::Unknown {
-        return timestamp_unresolved(unresolved_flavor);
+    let mut condition_flavor_37_4: i32 = unresolved_flavor; if let IntervalValue::Unknown = zone { if condition_flavor_37_4 < 1 { condition_flavor_37_4 = 1; }; }; if let IntervalValue::Unimplemented = zone { condition_flavor_37_4 = 2; }; if let TimestampValue::Unknown = input { if condition_flavor_37_4 < 1 { condition_flavor_37_4 = 1; }; }; if let TimestampValue::Unimplemented = input { condition_flavor_37_4 = 2; }; if (zone == IntervalValue::Unknown || zone == IntervalValue::Unimplemented) || (input == TimestampValue::Unknown || input == TimestampValue::Unimplemented) {
+        return timestamp_unresolved(condition_flavor_37_4);
     };
     if zone == IntervalValue::Null || input == TimestampValue::Null {
         return TimestampValue::Null;
@@ -65,6 +67,8 @@ pub fn sql__pg_catalog__timezone__lxij(
     let mut unresolved_flavor: i32 = 0;
     if let IntervalValue::Unknown = zone { unresolved_flavor = 1; };
     if let TimestampValue::Unknown = input { unresolved_flavor = 1; };
+    if let IntervalValue::Unimplemented = zone { unresolved_flavor = 2; };
+    if let TimestampValue::Unimplemented = input { unresolved_flavor = 2; };
     let result = fixed_zone_timestamp(zone, input, false);
     if let TimestampValue::Error(error) = result {
         return TimestamptzValue::Error(error);
@@ -87,14 +91,16 @@ pub fn sql__pg_catalog__timezone__5q6e(zone: IntervalValue, input: TimetzValue) 
     let mut unresolved_flavor: i32 = 0;
     if let IntervalValue::Unknown = zone { unresolved_flavor = 1; };
     if let TimetzValue::Unknown = input { unresolved_flavor = 1; };
+    if let IntervalValue::Unimplemented = zone { unresolved_flavor = 2; };
+    if let TimetzValue::Unimplemented = input { unresolved_flavor = 2; };
     if let IntervalValue::Error(error) = zone {
         return TimetzValue::Error(error);
     };
     if let TimetzValue::Error(error) = input {
         return TimetzValue::Error(error);
     };
-    if zone == IntervalValue::Unknown || input == TimetzValue::Unknown {
-        return timetz_unresolved(unresolved_flavor);
+    let mut condition_flavor_102_4: i32 = unresolved_flavor; if let IntervalValue::Unknown = zone { if condition_flavor_102_4 < 1 { condition_flavor_102_4 = 1; }; }; if let IntervalValue::Unimplemented = zone { condition_flavor_102_4 = 2; }; if let TimetzValue::Unknown = input { if condition_flavor_102_4 < 1 { condition_flavor_102_4 = 1; }; }; if let TimetzValue::Unimplemented = input { condition_flavor_102_4 = 2; }; if (zone == IntervalValue::Unknown || zone == IntervalValue::Unimplemented) || (input == TimetzValue::Unknown || input == TimetzValue::Unimplemented) {
+        return timetz_unresolved(condition_flavor_102_4);
     };
     if zone == IntervalValue::Null || input == TimetzValue::Null {
         return TimetzValue::Null;

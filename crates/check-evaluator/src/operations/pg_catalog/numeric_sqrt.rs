@@ -167,11 +167,12 @@ fn numeric_square_root(work: NumericWork) -> NumericValue {
 pub fn sql__pg_catalog__numeric_sqrt__t0uy(input: NumericValue) -> NumericValue {
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = input { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = input { unresolved_flavor = 2; };
     if let NumericValue::Error(error) = input {
         return NumericValue::Error(error);
     }
-    if input == NumericValue::Unknown {
-        return numeric_unresolved(unresolved_flavor);
+    let mut condition_flavor_174_4: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_174_4 < 1 { condition_flavor_174_4 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_174_4 = 2; }; if (input == NumericValue::Unknown || input == NumericValue::Unimplemented) {
+        return numeric_unresolved(condition_flavor_174_4);
     }
     if input == NumericValue::Null {
         return NumericValue::Null;

@@ -348,14 +348,16 @@ pub fn sql__pg_catalog__encode__bvkp(input: ByteaValue, format: TextValue) -> Te
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unknown = format { unresolved_flavor = 1; };
+    if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = format { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = input {
         return TextValue::Error(error);
     }
     if let TextValue::Error(error) = format {
         return TextValue::Error(error);
     }
-    if input == ByteaValue::Unknown || (format == TextValue::Unknown || format == TextValue::NonNull) {
-        return text_unresolved(unresolved_flavor);
+    let mut condition_flavor_359_4: i32 = unresolved_flavor; if let ByteaValue::Unknown = input { if condition_flavor_359_4 < 1 { condition_flavor_359_4 = 1; }; }; if let ByteaValue::Unimplemented = input { condition_flavor_359_4 = 2; }; if let TextValue::Unknown = format { if condition_flavor_359_4 < 1 { condition_flavor_359_4 = 1; }; }; if let TextValue::Unimplemented = format { condition_flavor_359_4 = 2; }; if (input == ByteaValue::Unknown || input == ByteaValue::Unimplemented) || ((format == TextValue::Unknown || format == TextValue::Unimplemented) || format == TextValue::NonNull) {
+        return text_unresolved(condition_flavor_359_4);
     }
     if input == ByteaValue::Null || format == TextValue::Null {
         return TextValue::Null;
@@ -398,14 +400,16 @@ pub fn sql__pg_catalog__decode__b6gt(input: TextValue, format: TextValue) -> Byt
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unknown = format { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = format { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
     if let TextValue::Error(error) = format {
         return ByteaValue::Error(error);
     }
-    if (input == TextValue::Unknown || input == TextValue::NonNull) || (format == TextValue::Unknown || format == TextValue::NonNull) {
-        return bytea_unresolved(unresolved_flavor);
+    let mut condition_flavor_411_4: i32 = unresolved_flavor; if let TextValue::Unknown = input { if condition_flavor_411_4 < 1 { condition_flavor_411_4 = 1; }; }; if let TextValue::Unimplemented = input { condition_flavor_411_4 = 2; }; if let TextValue::Unknown = format { if condition_flavor_411_4 < 1 { condition_flavor_411_4 = 1; }; }; if let TextValue::Unimplemented = format { condition_flavor_411_4 = 2; }; if ((input == TextValue::Unknown || input == TextValue::Unimplemented) || input == TextValue::NonNull) || ((format == TextValue::Unknown || format == TextValue::Unimplemented) || format == TextValue::NonNull) {
+        return bytea_unresolved(condition_flavor_411_4);
     }
     if input == TextValue::Null || format == TextValue::Null {
         return ByteaValue::Null;

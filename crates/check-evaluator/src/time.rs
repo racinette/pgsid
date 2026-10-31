@@ -48,6 +48,7 @@ fn clock_input_complete(text: &str) -> String {
 fn clock_grammar_normalized(input: TextValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Value(value) = input {
         let chars: Vec<char> = value.chars().collect();
         let mut start: usize = 0;
@@ -90,8 +91,8 @@ fn clock_grammar_normalized(input: TextValue) -> TextValue {
                     if let DateValue::Error(error) = parsed {
                         return TextValue::Error(error);
                     };
-                    if parsed == DateValue::Unknown {
-                        return text_unresolved(unresolved_flavor);
+                    let mut condition_flavor_94_20: i32 = unresolved_flavor; if let DateValue::Unknown = parsed { if condition_flavor_94_20 < 1 { condition_flavor_94_20 = 1; }; }; if let DateValue::Unimplemented = parsed { condition_flavor_94_20 = 2; }; if (parsed == DateValue::Unknown || parsed == DateValue::Unimplemented) {
+                        return text_unresolved(condition_flavor_94_20);
                     };
                     start = position + 1;
                     while start < end && date_text_space(chars[start]) {
@@ -203,6 +204,7 @@ fn clock_grammar_normalized(input: TextValue) -> TextValue {
 fn clock_input_text(raw_input: TextValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = raw_input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = raw_input { unresolved_flavor = 2; };
     let input = clock_grammar_normalized(raw_input);
     if let TextValue::Value(value) = input {
         let text = TimestampText {
@@ -318,6 +320,7 @@ fn clock_input_text(raw_input: TextValue) -> TextValue {
 pub fn time_from_text(input: TextValue) -> TimeValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     let parsed = parse_timestamp_text(clock_input_text(input), false);
     if let Int8Value::Error(error) = parsed {
         return TimeValue::Error(error);
@@ -334,6 +337,7 @@ pub fn time_from_text(input: TextValue) -> TimeValue {
 pub fn timetz_from_text(input: TextValue) -> TimetzValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     let normalized = clock_input_text(input);
     let local = parse_timestamp_text(normalized.clone(), false);
     let utc = parse_timestamp_text(normalized, true);

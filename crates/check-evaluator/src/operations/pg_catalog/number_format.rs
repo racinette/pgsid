@@ -1041,17 +1041,19 @@ pub fn sql__pg_catalog__to_char__c1f5(
     let mut unresolved_flavor: i32 = 0;
     if let Int4Value::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unknown = template { unresolved_flavor = 1; };
+    if let Int4Value::Unimplemented = input { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = template { unresolved_flavor = 2; };
     if let Int4Value::Error(error) = input {
         return TextValue::Error(error);
     };
     if let TextValue::Error(error) = template {
         return TextValue::Error(error);
     };
-    if input == Int4Value::Unknown
-        || template == TextValue::Unknown
+    let mut condition_flavor_1052_4: i32 = unresolved_flavor; if let Int4Value::Unknown = input { if condition_flavor_1052_4 < 1 { condition_flavor_1052_4 = 1; }; }; if let Int4Value::Unimplemented = input { condition_flavor_1052_4 = 2; }; if let TextValue::Unknown = template { if condition_flavor_1052_4 < 1 { condition_flavor_1052_4 = 1; }; }; if let TextValue::Unimplemented = template { condition_flavor_1052_4 = 2; }; if (input == Int4Value::Unknown || input == Int4Value::Unimplemented)
+        || (template == TextValue::Unknown || template == TextValue::Unimplemented)
         || template == TextValue::NonNull
     {
-        return text_unresolved(unresolved_flavor);
+        return text_unresolved(condition_flavor_1052_4);
     };
     if input == Int4Value::Null || template == TextValue::Null {
         return TextValue::Null;
@@ -1073,17 +1075,19 @@ pub fn sql__pg_catalog__to_char__ow74(
     let mut unresolved_flavor: i32 = 0;
     if let Int8Value::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unknown = template { unresolved_flavor = 1; };
+    if let Int8Value::Unimplemented = input { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = template { unresolved_flavor = 2; };
     if let Int8Value::Error(error) = input {
         return TextValue::Error(error);
     };
     if let TextValue::Error(error) = template {
         return TextValue::Error(error);
     };
-    if input == Int8Value::Unknown
-        || template == TextValue::Unknown
+    let mut condition_flavor_1086_4: i32 = unresolved_flavor; if let Int8Value::Unknown = input { if condition_flavor_1086_4 < 1 { condition_flavor_1086_4 = 1; }; }; if let Int8Value::Unimplemented = input { condition_flavor_1086_4 = 2; }; if let TextValue::Unknown = template { if condition_flavor_1086_4 < 1 { condition_flavor_1086_4 = 1; }; }; if let TextValue::Unimplemented = template { condition_flavor_1086_4 = 2; }; if (input == Int8Value::Unknown || input == Int8Value::Unimplemented)
+        || (template == TextValue::Unknown || template == TextValue::Unimplemented)
         || template == TextValue::NonNull
     {
-        return text_unresolved(unresolved_flavor);
+        return text_unresolved(condition_flavor_1086_4);
     };
     if input == Int8Value::Null || template == TextValue::Null {
         return TextValue::Null;
@@ -1427,17 +1431,19 @@ pub fn sql__pg_catalog__to_char__hftr(
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unknown = template { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = template { unresolved_flavor = 2; };
     if let NumericValue::Error(error) = input {
         return TextValue::Error(error);
     };
     if let TextValue::Error(error) = template {
         return TextValue::Error(error);
     };
-    if input == NumericValue::Unknown
-        || template == TextValue::Unknown
+    let mut condition_flavor_1442_4: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_1442_4 < 1 { condition_flavor_1442_4 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_1442_4 = 2; }; if let TextValue::Unknown = template { if condition_flavor_1442_4 < 1 { condition_flavor_1442_4 = 1; }; }; if let TextValue::Unimplemented = template { condition_flavor_1442_4 = 2; }; if (input == NumericValue::Unknown || input == NumericValue::Unimplemented)
+        || (template == TextValue::Unknown || template == TextValue::Unimplemented)
         || template == TextValue::NonNull
     {
-        return text_unresolved(unresolved_flavor);
+        return text_unresolved(condition_flavor_1442_4);
     };
     if input == NumericValue::Null || template == TextValue::Null {
         return TextValue::Null;
@@ -1720,17 +1726,19 @@ pub fn sql__pg_catalog__to_char__b68b(
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unknown = template { unresolved_flavor = 1; };
+    if let Float8Value::Unimplemented = input { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = template { unresolved_flavor = 2; };
     if let Float8Value::Error(error) = input {
         return TextValue::Error(error);
     };
     if let TextValue::Error(error) = template {
         return TextValue::Error(error);
     };
-    if input == Float8Value::Unknown
-        || template == TextValue::Unknown
+    let mut condition_flavor_1737_4: i32 = unresolved_flavor; if let Float8Value::Unknown = input { if condition_flavor_1737_4 < 1 { condition_flavor_1737_4 = 1; }; }; if let Float8Value::Unimplemented = input { condition_flavor_1737_4 = 2; }; if let TextValue::Unknown = template { if condition_flavor_1737_4 < 1 { condition_flavor_1737_4 = 1; }; }; if let TextValue::Unimplemented = template { condition_flavor_1737_4 = 2; }; if (input == Float8Value::Unknown || input == Float8Value::Unimplemented)
+        || (template == TextValue::Unknown || template == TextValue::Unimplemented)
         || template == TextValue::NonNull
     {
-        return text_unresolved(unresolved_flavor);
+        return text_unresolved(condition_flavor_1737_4);
     };
     if input == Float8Value::Null || template == TextValue::Null {
         return TextValue::Null;
@@ -1753,17 +1761,19 @@ pub fn sql__pg_catalog__to_char__1rcw(
     let mut unresolved_flavor: i32 = 0;
     if let Float4Value::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unknown = template { unresolved_flavor = 1; };
+    if let Float4Value::Unimplemented = input { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = template { unresolved_flavor = 2; };
     if let Float4Value::Error(error) = input {
         return TextValue::Error(error);
     };
     if let TextValue::Error(error) = template {
         return TextValue::Error(error);
     };
-    if input == Float4Value::Unknown
-        || template == TextValue::Unknown
+    let mut condition_flavor_1772_4: i32 = unresolved_flavor; if let Float4Value::Unknown = input { if condition_flavor_1772_4 < 1 { condition_flavor_1772_4 = 1; }; }; if let Float4Value::Unimplemented = input { condition_flavor_1772_4 = 2; }; if let TextValue::Unknown = template { if condition_flavor_1772_4 < 1 { condition_flavor_1772_4 = 1; }; }; if let TextValue::Unimplemented = template { condition_flavor_1772_4 = 2; }; if (input == Float4Value::Unknown || input == Float4Value::Unimplemented)
+        || (template == TextValue::Unknown || template == TextValue::Unimplemented)
         || template == TextValue::NonNull
     {
-        return text_unresolved(unresolved_flavor);
+        return text_unresolved(condition_flavor_1772_4);
     };
     if input == Float4Value::Null || template == TextValue::Null {
         return TextValue::Null;

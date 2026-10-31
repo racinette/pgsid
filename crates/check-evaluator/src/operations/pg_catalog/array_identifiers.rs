@@ -23,6 +23,8 @@ pub fn sql__pg_catalog__parse_ident__uh6p(
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let BoolValue::Unknown = strict { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let BoolValue::Unimplemented = strict { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return ArrayValue::Error(error);
     };

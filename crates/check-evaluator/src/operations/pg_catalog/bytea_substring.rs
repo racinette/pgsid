@@ -10,6 +10,9 @@ fn bytea_substring(
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
     if let Int4Value::Unknown = position { unresolved_flavor = 1; };
     if let Int4Value::Unknown = length { unresolved_flavor = 1; };
+    if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = position { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = length { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
@@ -19,11 +22,11 @@ fn bytea_substring(
     if let Int4Value::Error(error) = length {
         return ByteaValue::Error(error);
     }
-    if input == ByteaValue::Unknown
-        || position == Int4Value::Unknown
-        || length == Int4Value::Unknown
+    let mut condition_flavor_25_4: i32 = unresolved_flavor; if let ByteaValue::Unknown = input { if condition_flavor_25_4 < 1 { condition_flavor_25_4 = 1; }; }; if let ByteaValue::Unimplemented = input { condition_flavor_25_4 = 2; }; if let Int4Value::Unknown = position { if condition_flavor_25_4 < 1 { condition_flavor_25_4 = 1; }; }; if let Int4Value::Unimplemented = position { condition_flavor_25_4 = 2; }; if let Int4Value::Unknown = length { if condition_flavor_25_4 < 1 { condition_flavor_25_4 = 1; }; }; if let Int4Value::Unimplemented = length { condition_flavor_25_4 = 2; }; if (input == ByteaValue::Unknown || input == ByteaValue::Unimplemented)
+        || (position == Int4Value::Unknown || position == Int4Value::Unimplemented)
+        || (length == Int4Value::Unknown || length == Int4Value::Unimplemented)
     {
-        return bytea_unresolved(unresolved_flavor);
+        return bytea_unresolved(condition_flavor_25_4);
     }
     if input == ByteaValue::Null || position == Int4Value::Null || length == Int4Value::Null {
         return ByteaValue::Null;

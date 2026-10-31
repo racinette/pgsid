@@ -10,6 +10,7 @@ pub struct CompositeTextPayload {
 #[derive(Clone)]
 pub enum CompositeTextPlan {
     Unknown,
+    Unimplemented,
     Null,
     Error(SqlError),
     Value(CompositeTextPayload),

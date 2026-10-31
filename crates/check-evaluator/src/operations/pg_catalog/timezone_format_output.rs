@@ -10,8 +10,8 @@ pub(crate) fn format_accept_timezone(
         let raw = value.clone();
         facts = format_candidate_bounds(&input, raw, quote_all);
     };
-    if facts.status == CheckOutcome::Unknown
-        && (value == TextValue::Unknown || value == TextValue::NonNull)
+    if (facts.status == CheckOutcome::Unknown || facts.status == CheckOutcome::Unimplemented)
+        && ((value == TextValue::Unknown || value == TextValue::Unimplemented) || value == TextValue::NonNull)
     {
         let mut bounds = TextFormatBounds {
             status: CheckOutcome::Null,

@@ -69,6 +69,7 @@ pub fn sql__pg_catalog__timezone__ez14(
 ) -> TimetzValue {
     let mut unresolved_flavor: i32 = 0;
     if let TimetzValue::Unknown = input { unresolved_flavor = 1; };
+    if let TimetzValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TimetzValue::Error(error) = input {
         return TimetzValue::Error(error);
     };

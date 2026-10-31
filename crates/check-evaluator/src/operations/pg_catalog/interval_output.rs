@@ -70,6 +70,7 @@ pub fn interval_text_roundtrip_context(
 pub fn interval_output_context(input: IntervalValue, style: i32) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let IntervalValue::Unknown = input { unresolved_flavor = 1; };
+    if let IntervalValue::Unimplemented = input { unresolved_flavor = 2; };
     if let IntervalValue::Error(error) = input { return TextValue::Error(error); };
     if input == IntervalValue::Null { return TextValue::Null; };
     if let IntervalValue::Value(value) = input {

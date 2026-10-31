@@ -272,7 +272,7 @@ fn jsonb_storage_extents(
                             );
                             return sizes;
                         };
-                        if let BoolValue::Unknown = decision {
+                        if (decision == BoolValue::Unknown || decision == BoolValue::Unimplemented) {
                             uncertain = true;
                         };
                     };
@@ -287,7 +287,7 @@ fn jsonb_storage_extents(
                     );
                     return sizes;
                 };
-                if let BoolValue::Unknown = decision {
+                if (decision == BoolValue::Unknown || decision == BoolValue::Unimplemented) {
                     uncertain = true;
                 };
             };

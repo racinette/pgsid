@@ -121,6 +121,8 @@ fn range_compare_mode(left: RangeValue, right: RangeValue, exact: bool) -> Int4V
     let mut unresolved_flavor: i32 = 0;
     if let RangeValue::Unknown = left { unresolved_flavor = 1; };
     if let RangeValue::Unknown = right { unresolved_flavor = 1; };
+    if let RangeValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let RangeValue::Unimplemented = right { unresolved_flavor = 2; };
     if let RangeValue::Error(error) = left {
         return Int4Value::Error(error);
     };
@@ -154,6 +156,7 @@ pub fn sql__pg_catalog__range_cmp__8jgl(left: RangeValue, right: RangeValue) -> 
 fn range_order_boolean(input: Int4Value, strategy: i32) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let Int4Value::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Int4Value::Error(error) = input {
         return BoolValue::Error(error);
     };
@@ -300,6 +303,9 @@ fn range_payload_relation(left: &RangePayload, right: &RangePayload, strategy: i
             if let Int4Value::Error(error) = end {
                 return BoolValue::Error(error);
             };
+            let mut end_flavor: i32 = unresolved_flavor;
+            if let Int4Value::Unknown = end { if end_flavor < 1 { end_flavor = 1; }; };
+            if let Int4Value::Unimplemented = end { end_flavor = 2; };
             let mut known = false;
             if let Int4Value::Value(limit) = end {
                 known = true;
@@ -308,7 +314,7 @@ fn range_payload_relation(left: &RangePayload, right: &RangePayload, strategy: i
                 };
             };
             if known == false {
-                return bool_unresolved(unresolved_flavor);
+                return bool_unresolved(end_flavor);
             };
         };
         let reverse = range_endpoint_compare(right, false, left, false);
@@ -328,6 +334,8 @@ fn range_relation(left: RangeValue, right: RangeValue, strategy: i32) -> BoolVal
     let mut unresolved_flavor: i32 = 0;
     if let RangeValue::Unknown = left { unresolved_flavor = 1; };
     if let RangeValue::Unknown = right { unresolved_flavor = 1; };
+    if let RangeValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let RangeValue::Unimplemented = right { unresolved_flavor = 2; };
     if let RangeValue::Error(error) = left {
         return BoolValue::Error(error);
     };
@@ -358,6 +366,8 @@ fn range_contains_element(
     let mut unresolved_flavor: i32 = 0;
     if let RangeValue::Unknown = input { unresolved_flavor = 1; };
     if let ArrayElement::Unknown = element { unresolved_flavor = 1; };
+    if let RangeValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let ArrayElement::Unimplemented = element { unresolved_flavor = 2; };
     if element_first {
         if let ArrayElement::Error(error) = element {
             return BoolValue::Error(error);
@@ -375,8 +385,10 @@ fn range_contains_element(
     if let ArrayElement::Null = element {
         return BoolValue::Null;
     };
-    if let ArrayElement::Unknown = element {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_385_4: i32 = unresolved_flavor; if let ArrayElement::Unknown = element { if condition_flavor_385_4 < 1 { condition_flavor_385_4 = 1; }; }; if let ArrayElement::Unknown = element {
+        return bool_unresolved(condition_flavor_385_4);
+    }; let mut condition_flavor_387_7: i32 = unresolved_flavor; if let ArrayElement::Unimplemented = element { condition_flavor_387_7 = 2; }; if let ArrayElement::Unimplemented = element {
+        return bool_unresolved(condition_flavor_387_7);
     };
     if let RangeValue::Value(span) = input {
         if span.empty {
@@ -394,7 +406,7 @@ fn range_contains_element(
         if span.element_kind == 41 {
             element = range_prepare_profiled_bound(element, &bound_profile);
             if let ArrayElement::Error(error) = element { return BoolValue::Error(error); };
-            if let ArrayElement::Unknown = element { return bool_unresolved(unresolved_flavor); };
+            let mut condition_flavor_406_12: i32 = unresolved_flavor; if let ArrayElement::Unknown = element { if condition_flavor_406_12 < 1 { condition_flavor_406_12 = 1; }; }; if let ArrayElement::Unknown = element { return bool_unresolved(condition_flavor_406_12); }; let mut condition_flavor_406_99: i32 = unresolved_flavor; if let ArrayElement::Unimplemented = element { condition_flavor_406_99 = 2; }; if let ArrayElement::Unimplemented = element { return bool_unresolved(condition_flavor_406_99); };
         };
         let lower = span.bounds[0].clone();
         let upper = span.bounds[1].clone();
@@ -411,6 +423,9 @@ fn range_contains_element(
             if let Int4Value::Error(error) = comparison {
                 return BoolValue::Error(error);
             };
+            let mut comparison_flavor: i32 = unresolved_flavor;
+            if let Int4Value::Unknown = comparison { if comparison_flavor < 1 { comparison_flavor = 1; }; };
+            if let Int4Value::Unimplemented = comparison { comparison_flavor = 2; };
             let mut known = false;
             if let Int4Value::Value(order) = comparison {
                 known = true;
@@ -419,7 +434,7 @@ fn range_contains_element(
                 };
             };
             if known == false {
-                return bool_unresolved(unresolved_flavor);
+                return bool_unresolved(comparison_flavor);
             };
         };
         if has_upper {
@@ -427,6 +442,9 @@ fn range_contains_element(
             if let Int4Value::Error(error) = comparison {
                 return BoolValue::Error(error);
             };
+            let mut comparison_flavor: i32 = unresolved_flavor;
+            if let Int4Value::Unknown = comparison { if comparison_flavor < 1 { comparison_flavor = 1; }; };
+            if let Int4Value::Unimplemented = comparison { comparison_flavor = 2; };
             let mut known = false;
             if let Int4Value::Value(order) = comparison {
                 known = true;
@@ -435,7 +453,7 @@ fn range_contains_element(
                 };
             };
             if known == false {
-                return bool_unresolved(unresolved_flavor);
+                return bool_unresolved(comparison_flavor);
             };
         };
         return BoolValue::Value(true);

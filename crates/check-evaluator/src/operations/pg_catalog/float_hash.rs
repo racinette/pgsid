@@ -17,6 +17,7 @@ fn float_hash_bytes(bits: i64) -> Vec<HashByte> {
 pub fn sql__pg_catalog__hashfloat8__p4el(input: Float8Value, byte_order: i32) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float8Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Float8Value::Error(error) = input {
         return Int4Value::Error(error);
     };
@@ -45,14 +46,16 @@ pub fn sql__pg_catalog__hashfloat8extended__7sph(
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = input { unresolved_flavor = 1; };
     if let Int8Value::Unknown = seed { unresolved_flavor = 1; };
+    if let Float8Value::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int8Value::Unimplemented = seed { unresolved_flavor = 2; };
     if let Float8Value::Error(error) = input {
         return Int8Value::Error(error);
     };
     if let Int8Value::Error(error) = seed {
         return Int8Value::Error(error);
     };
-    if input == Float8Value::Unknown || seed == Int8Value::Unknown {
-        return int8_unresolved(unresolved_flavor);
+    let mut condition_flavor_57_4: i32 = unresolved_flavor; if let Float8Value::Unknown = input { if condition_flavor_57_4 < 1 { condition_flavor_57_4 = 1; }; }; if let Float8Value::Unimplemented = input { condition_flavor_57_4 = 2; }; if let Int8Value::Unknown = seed { if condition_flavor_57_4 < 1 { condition_flavor_57_4 = 1; }; }; if let Int8Value::Unimplemented = seed { condition_flavor_57_4 = 2; }; if (input == Float8Value::Unknown || input == Float8Value::Unimplemented) || (seed == Int8Value::Unknown || seed == Int8Value::Unimplemented) {
+        return int8_unresolved(condition_flavor_57_4);
     };
     if input == Float8Value::Null || seed == Int8Value::Null {
         return Int8Value::Null;

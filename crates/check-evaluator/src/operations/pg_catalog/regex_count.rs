@@ -9,6 +9,10 @@ fn regex_count_value(
     if let TextValue::Unknown = pattern { unresolved_flavor = 1; };
     if let Int4Value::Unknown = starting { unresolved_flavor = 1; };
     if let TextValue::Unknown = flags { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = subject { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = pattern { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = starting { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = flags { unresolved_flavor = 2; };
     if let TextValue::Error(error) = subject {
         return Int4Value::Error(error);
     }
@@ -21,12 +25,12 @@ fn regex_count_value(
     if let TextValue::Error(error) = flags {
         return Int4Value::Error(error);
     }
-    if (subject == TextValue::Unknown || subject == TextValue::NonNull)
-        || (pattern == TextValue::Unknown || pattern == TextValue::NonNull)
-        || starting == Int4Value::Unknown
-        || (flags == TextValue::Unknown || flags == TextValue::NonNull)
+    let mut condition_flavor_28_4: i32 = unresolved_flavor; if let TextValue::Unknown = subject { if condition_flavor_28_4 < 1 { condition_flavor_28_4 = 1; }; }; if let TextValue::Unimplemented = subject { condition_flavor_28_4 = 2; }; if let TextValue::Unknown = pattern { if condition_flavor_28_4 < 1 { condition_flavor_28_4 = 1; }; }; if let TextValue::Unimplemented = pattern { condition_flavor_28_4 = 2; }; if let Int4Value::Unknown = starting { if condition_flavor_28_4 < 1 { condition_flavor_28_4 = 1; }; }; if let Int4Value::Unimplemented = starting { condition_flavor_28_4 = 2; }; if let TextValue::Unknown = flags { if condition_flavor_28_4 < 1 { condition_flavor_28_4 = 1; }; }; if let TextValue::Unimplemented = flags { condition_flavor_28_4 = 2; }; if ((subject == TextValue::Unknown || subject == TextValue::Unimplemented) || subject == TextValue::NonNull)
+        || ((pattern == TextValue::Unknown || pattern == TextValue::Unimplemented) || pattern == TextValue::NonNull)
+        || (starting == Int4Value::Unknown || starting == Int4Value::Unimplemented)
+        || ((flags == TextValue::Unknown || flags == TextValue::Unimplemented) || flags == TextValue::NonNull)
     {
-        return int4_unresolved(unresolved_flavor);
+        return int4_unresolved(condition_flavor_28_4);
     }
     if subject == TextValue::Null
         || pattern == TextValue::Null

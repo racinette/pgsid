@@ -142,6 +142,9 @@ fn range_payload_set(left: &RangePayload, right: &RangePayload, strategy: i32) -
         if let BoolValue::Error(error) = overlap {
             return RangeValue::Error(error);
         };
+        let mut overlap_flavor: i32 = unresolved_flavor;
+        if let BoolValue::Unknown = overlap { if overlap_flavor < 1 { overlap_flavor = 1; }; };
+        if let BoolValue::Unimplemented = overlap { overlap_flavor = 2; };
         let mut known = false;
         if let BoolValue::Value(overlapping) = overlap {
             known = true;
@@ -153,8 +156,8 @@ fn range_payload_set(left: &RangePayload, right: &RangePayload, strategy: i32) -
                 if let BoolValue::Error(error) = adjacent {
                     return RangeValue::Error(error);
                 };
-                if let BoolValue::Unknown = adjacent {
-                    return range_unresolved(unresolved_flavor);
+                let mut condition_flavor_156_16: i32 = unresolved_flavor; if let BoolValue::Unknown = adjacent { if condition_flavor_156_16 < 1 { condition_flavor_156_16 = 1; }; }; if let BoolValue::Unimplemented = adjacent { condition_flavor_156_16 = 2; }; if (adjacent == BoolValue::Unknown || adjacent == BoolValue::Unimplemented) {
+                    return range_unresolved(condition_flavor_156_16);
                 };
                 if let BoolValue::Value(connected) = adjacent {
                     if connected == false {
@@ -164,7 +167,7 @@ fn range_payload_set(left: &RangePayload, right: &RangePayload, strategy: i32) -
             };
         };
         if known == false {
-            return range_unresolved(unresolved_flavor);
+            return range_unresolved(overlap_flavor);
         };
     };
     let lo = range_endpoint_compare(left, false, right, false);
@@ -199,6 +202,8 @@ fn range_set(left: RangeValue, right: RangeValue, strategy: i32) -> RangeValue {
     let mut unresolved_flavor: i32 = 0;
     if let RangeValue::Unknown = left { unresolved_flavor = 1; };
     if let RangeValue::Unknown = right { unresolved_flavor = 1; };
+    if let RangeValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let RangeValue::Unimplemented = right { unresolved_flavor = 2; };
     if let RangeValue::Error(error) = left {
         return RangeValue::Error(error);
     };

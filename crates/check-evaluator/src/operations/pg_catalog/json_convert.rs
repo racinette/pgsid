@@ -51,7 +51,8 @@ fn jsonb_pretty_context(input: JsonbValue, utf8: bool) -> TextValue {
 pub fn json_input_from_numeric(input: NumericValue) -> JsonbInput {
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = input { unresolved_flavor = 1; };
-    if let NumericValue::Unknown = input {
+    if let NumericValue::Unimplemented = input { unresolved_flavor = 2; };
+    if (input == NumericValue::Unknown || input == NumericValue::Unimplemented) {
         return JsonbInput::ScalarUnknown("1001000".to_owned());
     };
     let output = array_numeric_output(input);
@@ -70,6 +71,7 @@ pub fn json_input_from_numeric(input: NumericValue) -> JsonbInput {
 pub fn sql__pg_catalog__to_json__25lg(input: JsonbInput, utf8: bool) -> JsonValue {
     let mut unresolved_flavor: i32 = 0;
     if let JsonbInput::Unknown = input { unresolved_flavor = 1; };
+    if let JsonbInput::Unimplemented = input { unresolved_flavor = 2; };
     if let JsonbInput::JsonbNonNull(_maximum) = input {
         return JsonValue::NonNull;
     };
@@ -125,6 +127,7 @@ pub(crate) fn json_array_input_value(
 ) -> JsonValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoolValue::Unknown = pretty { unresolved_flavor = 1; };
+    if let BoolValue::Unimplemented = pretty { unresolved_flavor = 2; };
     if input.state == -2 {
         return JsonValue::Error(input.error);
     };
@@ -134,8 +137,8 @@ pub(crate) fn json_array_input_value(
     if input.state == 0 || pretty == BoolValue::Null {
         return JsonValue::Null;
     };
-    if input.state != 1 || pretty == BoolValue::Unknown {
-        return json_unresolved(unresolved_flavor);
+    let mut condition_flavor_140_4: i32 = unresolved_flavor; if let BoolValue::Unknown = pretty { if condition_flavor_140_4 < 1 { condition_flavor_140_4 = 1; }; }; if let BoolValue::Unimplemented = pretty { condition_flavor_140_4 = 2; }; if input.state != 1 || (pretty == BoolValue::Unknown || pretty == BoolValue::Unimplemented) {
+        return json_unresolved(condition_flavor_140_4);
     };
     if input.values.len() != input.elements.len() {
         return json_unresolved(unresolved_flavor);
@@ -204,8 +207,10 @@ pub(crate) fn json_array_input_value(
                 if let JsonValue::Error(error) = converted {
                     return JsonValue::Error(error);
                 };
-                if let JsonValue::Unknown = converted {
-                    return json_unresolved(unresolved_flavor);
+                let mut condition_flavor_210_16: i32 = unresolved_flavor; if let JsonValue::Unknown = converted { if condition_flavor_210_16 < 1 { condition_flavor_210_16 = 1; }; }; if let JsonValue::Unknown = converted {
+                    return json_unresolved(condition_flavor_210_16);
+                }; let mut condition_flavor_212_19: i32 = unresolved_flavor; if let JsonValue::Unimplemented = converted { condition_flavor_212_19 = 2; }; if let JsonValue::Unimplemented = converted {
+                    return json_unresolved(condition_flavor_212_19);
                 };
                 if let JsonValue::Null = converted {
                     output.push_str("null");
@@ -242,6 +247,7 @@ pub fn sql__pg_catalog__array_to_json__fydb(
 ) -> JsonValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoolValue::Unknown = pretty { unresolved_flavor = 1; };
+    if let BoolValue::Unimplemented = pretty { unresolved_flavor = 2; };
     if let JsonbArrayInputPlan::Value(value) = input {
         return json_array_input_value(value, pretty, utf8);
     };

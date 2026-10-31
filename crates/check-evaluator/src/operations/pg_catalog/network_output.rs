@@ -178,11 +178,12 @@ fn network_cidr_text(address: NetworkAddress) -> String {
 fn network_output(input: NetworkValue, mode: i32) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let NetworkValue::Unknown = input { unresolved_flavor = 1; };
+    if let NetworkValue::Unimplemented = input { unresolved_flavor = 2; };
     if let NetworkValue::Error(error) = input {
         return TextValue::Error(error);
     }
-    if input == NetworkValue::Unknown {
-        return text_unresolved(unresolved_flavor);
+    let mut condition_flavor_185_4: i32 = unresolved_flavor; if let NetworkValue::Unknown = input { if condition_flavor_185_4 < 1 { condition_flavor_185_4 = 1; }; }; if let NetworkValue::Unimplemented = input { condition_flavor_185_4 = 2; }; if (input == NetworkValue::Unknown || input == NetworkValue::Unimplemented) {
+        return text_unresolved(condition_flavor_185_4);
     }
     if input == NetworkValue::Null {
         return TextValue::Null;
@@ -218,11 +219,12 @@ pub fn sql__pg_catalog__abbrev__5tby(input: NetworkValue) -> TextValue {
 fn network_send(input: NetworkValue, cidr: bool) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let NetworkValue::Unknown = input { unresolved_flavor = 1; };
+    if let NetworkValue::Unimplemented = input { unresolved_flavor = 2; };
     if let NetworkValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
-    if input == NetworkValue::Unknown {
-        return bytea_unresolved(unresolved_flavor);
+    let mut condition_flavor_226_4: i32 = unresolved_flavor; if let NetworkValue::Unknown = input { if condition_flavor_226_4 < 1 { condition_flavor_226_4 = 1; }; }; if let NetworkValue::Unimplemented = input { condition_flavor_226_4 = 2; }; if (input == NetworkValue::Unknown || input == NetworkValue::Unimplemented) {
+        return bytea_unresolved(condition_flavor_226_4);
     }
     if input == NetworkValue::Null {
         return ByteaValue::Null;

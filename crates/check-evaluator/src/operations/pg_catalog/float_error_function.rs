@@ -151,6 +151,7 @@ fn musl_erfc(x: f64) -> f64 {
 fn float8_error_function(input: Float8Value, musl: bool, complement: bool) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float8Value::Unimplemented = input { unresolved_flavor = 2; };
     if input == Float8Value::UnspecifiedNan {
         return Float8Value::UnspecifiedNan;
     };
@@ -340,6 +341,7 @@ fn musl_tgamma(input: f64) -> f64 {
 pub fn sql__pg_catalog__gamma__t3sa(input: Float8Value, musl: bool) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float8Value::Unimplemented = input { unresolved_flavor = 2; };
     if input == Float8Value::UnspecifiedNan {
         return Float8Value::UnspecifiedNan;
     };
@@ -570,6 +572,7 @@ fn musl_sinpi_lgamma(input: f64) -> f64 {
 pub fn sql__pg_catalog__lgamma__rpzb(input: Float8Value, musl: bool) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float8Value::Unimplemented = input { unresolved_flavor = 2; };
     if input == Float8Value::UnspecifiedNan {
         return Float8Value::UnspecifiedNan;
     };

@@ -40,14 +40,16 @@ pub fn sql__pg_catalog__bpchareq__npys(left: TextValue, right: TextValue) -> Boo
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = left { unresolved_flavor = 1; };
     if let TextValue::Unknown = right { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TextValue::Error(error) = left {
         return BoolValue::Error(error);
     }
     if let TextValue::Error(error) = right {
         return BoolValue::Error(error);
     }
-    if (left == TextValue::Unknown || left == TextValue::NonNull) || (right == TextValue::Unknown || right == TextValue::NonNull) {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_51_4: i32 = unresolved_flavor; if let TextValue::Unknown = left { if condition_flavor_51_4 < 1 { condition_flavor_51_4 = 1; }; }; if let TextValue::Unimplemented = left { condition_flavor_51_4 = 2; }; if let TextValue::Unknown = right { if condition_flavor_51_4 < 1 { condition_flavor_51_4 = 1; }; }; if let TextValue::Unimplemented = right { condition_flavor_51_4 = 2; }; if ((left == TextValue::Unknown || left == TextValue::Unimplemented) || left == TextValue::NonNull) || ((right == TextValue::Unknown || right == TextValue::Unimplemented) || right == TextValue::NonNull) {
+        return bool_unresolved(condition_flavor_51_4);
     }
     if left == TextValue::Null || right == TextValue::Null {
         return BoolValue::Null;
@@ -65,14 +67,16 @@ pub fn sql__pg_catalog__bpcharge__o6oj(left: TextValue, right: TextValue) -> Boo
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = left { unresolved_flavor = 1; };
     if let TextValue::Unknown = right { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TextValue::Error(error) = left {
         return BoolValue::Error(error);
     }
     if let TextValue::Error(error) = right {
         return BoolValue::Error(error);
     }
-    if (left == TextValue::Unknown || left == TextValue::NonNull) || (right == TextValue::Unknown || right == TextValue::NonNull) {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_78_4: i32 = unresolved_flavor; if let TextValue::Unknown = left { if condition_flavor_78_4 < 1 { condition_flavor_78_4 = 1; }; }; if let TextValue::Unimplemented = left { condition_flavor_78_4 = 2; }; if let TextValue::Unknown = right { if condition_flavor_78_4 < 1 { condition_flavor_78_4 = 1; }; }; if let TextValue::Unimplemented = right { condition_flavor_78_4 = 2; }; if ((left == TextValue::Unknown || left == TextValue::Unimplemented) || left == TextValue::NonNull) || ((right == TextValue::Unknown || right == TextValue::Unimplemented) || right == TextValue::NonNull) {
+        return bool_unresolved(condition_flavor_78_4);
     }
     if left == TextValue::Null || right == TextValue::Null {
         return BoolValue::Null;
@@ -90,14 +94,16 @@ pub fn sql__pg_catalog__bpchargt__kxc4(left: TextValue, right: TextValue) -> Boo
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = left { unresolved_flavor = 1; };
     if let TextValue::Unknown = right { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TextValue::Error(error) = left {
         return BoolValue::Error(error);
     }
     if let TextValue::Error(error) = right {
         return BoolValue::Error(error);
     }
-    if (left == TextValue::Unknown || left == TextValue::NonNull) || (right == TextValue::Unknown || right == TextValue::NonNull) {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_105_4: i32 = unresolved_flavor; if let TextValue::Unknown = left { if condition_flavor_105_4 < 1 { condition_flavor_105_4 = 1; }; }; if let TextValue::Unimplemented = left { condition_flavor_105_4 = 2; }; if let TextValue::Unknown = right { if condition_flavor_105_4 < 1 { condition_flavor_105_4 = 1; }; }; if let TextValue::Unimplemented = right { condition_flavor_105_4 = 2; }; if ((left == TextValue::Unknown || left == TextValue::Unimplemented) || left == TextValue::NonNull) || ((right == TextValue::Unknown || right == TextValue::Unimplemented) || right == TextValue::NonNull) {
+        return bool_unresolved(condition_flavor_105_4);
     }
     if left == TextValue::Null || right == TextValue::Null {
         return BoolValue::Null;
@@ -115,14 +121,16 @@ pub fn sql__pg_catalog__bpcharle__0rch(left: TextValue, right: TextValue) -> Boo
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = left { unresolved_flavor = 1; };
     if let TextValue::Unknown = right { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TextValue::Error(error) = left {
         return BoolValue::Error(error);
     }
     if let TextValue::Error(error) = right {
         return BoolValue::Error(error);
     }
-    if (left == TextValue::Unknown || left == TextValue::NonNull) || (right == TextValue::Unknown || right == TextValue::NonNull) {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_132_4: i32 = unresolved_flavor; if let TextValue::Unknown = left { if condition_flavor_132_4 < 1 { condition_flavor_132_4 = 1; }; }; if let TextValue::Unimplemented = left { condition_flavor_132_4 = 2; }; if let TextValue::Unknown = right { if condition_flavor_132_4 < 1 { condition_flavor_132_4 = 1; }; }; if let TextValue::Unimplemented = right { condition_flavor_132_4 = 2; }; if ((left == TextValue::Unknown || left == TextValue::Unimplemented) || left == TextValue::NonNull) || ((right == TextValue::Unknown || right == TextValue::Unimplemented) || right == TextValue::NonNull) {
+        return bool_unresolved(condition_flavor_132_4);
     }
     if left == TextValue::Null || right == TextValue::Null {
         return BoolValue::Null;
@@ -140,14 +148,16 @@ pub fn sql__pg_catalog__bpcharlt__qrb5(left: TextValue, right: TextValue) -> Boo
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = left { unresolved_flavor = 1; };
     if let TextValue::Unknown = right { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TextValue::Error(error) = left {
         return BoolValue::Error(error);
     }
     if let TextValue::Error(error) = right {
         return BoolValue::Error(error);
     }
-    if (left == TextValue::Unknown || left == TextValue::NonNull) || (right == TextValue::Unknown || right == TextValue::NonNull) {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_159_4: i32 = unresolved_flavor; if let TextValue::Unknown = left { if condition_flavor_159_4 < 1 { condition_flavor_159_4 = 1; }; }; if let TextValue::Unimplemented = left { condition_flavor_159_4 = 2; }; if let TextValue::Unknown = right { if condition_flavor_159_4 < 1 { condition_flavor_159_4 = 1; }; }; if let TextValue::Unimplemented = right { condition_flavor_159_4 = 2; }; if ((left == TextValue::Unknown || left == TextValue::Unimplemented) || left == TextValue::NonNull) || ((right == TextValue::Unknown || right == TextValue::Unimplemented) || right == TextValue::NonNull) {
+        return bool_unresolved(condition_flavor_159_4);
     }
     if left == TextValue::Null || right == TextValue::Null {
         return BoolValue::Null;
@@ -165,14 +175,16 @@ pub fn sql__pg_catalog__bpcharne__qkuu(left: TextValue, right: TextValue) -> Boo
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = left { unresolved_flavor = 1; };
     if let TextValue::Unknown = right { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TextValue::Error(error) = left {
         return BoolValue::Error(error);
     }
     if let TextValue::Error(error) = right {
         return BoolValue::Error(error);
     }
-    if (left == TextValue::Unknown || left == TextValue::NonNull) || (right == TextValue::Unknown || right == TextValue::NonNull) {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_186_4: i32 = unresolved_flavor; if let TextValue::Unknown = left { if condition_flavor_186_4 < 1 { condition_flavor_186_4 = 1; }; }; if let TextValue::Unimplemented = left { condition_flavor_186_4 = 2; }; if let TextValue::Unknown = right { if condition_flavor_186_4 < 1 { condition_flavor_186_4 = 1; }; }; if let TextValue::Unimplemented = right { condition_flavor_186_4 = 2; }; if ((left == TextValue::Unknown || left == TextValue::Unimplemented) || left == TextValue::NonNull) || ((right == TextValue::Unknown || right == TextValue::Unimplemented) || right == TextValue::NonNull) {
+        return bool_unresolved(condition_flavor_186_4);
     }
     if left == TextValue::Null || right == TextValue::Null {
         return BoolValue::Null;

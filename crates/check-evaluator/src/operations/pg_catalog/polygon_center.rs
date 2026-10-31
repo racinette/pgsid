@@ -1,6 +1,7 @@
 fn polygon_circle(input: PolygonValue) -> CircleValue {
     let mut unresolved_flavor: i32 = 0;
     if let PolygonValue::Unknown = input { unresolved_flavor = 1; };
+    if let PolygonValue::Unimplemented = input { unresolved_flavor = 2; };
     if let PolygonValue::Error(error) = input {
         return CircleValue::Error(error);
     };

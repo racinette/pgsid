@@ -427,11 +427,12 @@ fn digest_sha512_hex(input: &str, short: bool) -> String {
 fn digest_sha512(input: ByteaValue, short: bool) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
-    if input == ByteaValue::Unknown {
-        return bytea_unresolved(unresolved_flavor);
+    let mut condition_flavor_434_4: i32 = unresolved_flavor; if let ByteaValue::Unknown = input { if condition_flavor_434_4 < 1 { condition_flavor_434_4 = 1; }; }; if let ByteaValue::Unimplemented = input { condition_flavor_434_4 = 2; }; if (input == ByteaValue::Unknown || input == ByteaValue::Unimplemented) {
+        return bytea_unresolved(condition_flavor_434_4);
     }
     if input == ByteaValue::Null {
         return ByteaValue::Null;

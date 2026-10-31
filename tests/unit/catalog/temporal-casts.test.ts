@@ -526,6 +526,7 @@ it('admits timestamp template overloads with conditional locale/casing and insta
         timeZone: 'UTC',
         timeLocale: 'C',
         defaultCollation: 'C',
+        defaultCtype: 'C',
       }),
     ).not.toContain('sql.codegen.checks.')
     expect(temporalArithmeticRequirements(item)?.some((r) => r.setting === 'lc_time')).toBe(true)
@@ -583,6 +584,7 @@ it('admits only text-template date/instant parsers with conditional context', ()
         timeZoneAbbreviations: 'Default',
         timeLocale: 'C',
         defaultCollation: 'C',
+        defaultCtype: 'C',
         serverEncoding: 'UTF8',
       }),
     ).not.toContain('sql.codegen.checks.')

@@ -75,6 +75,8 @@ fn jsonpath_method_double_value(
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = number { unresolved_flavor = 1; };
     if let TextValue::Unknown = text { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = number { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = text { unresolved_flavor = 2; };
     let mut input = text;
     if numeric {
         let copied = number.clone();
@@ -171,7 +173,7 @@ fn jsonpath_temporal_apply(
         if let Int4Value::Value(number) = converted {
             precision = number;
         };
-        if let Int4Value::Unknown = converted {
+        if (converted == Int4Value::Unknown || converted == Int4Value::Unimplemented) {
             return jsonpath_temporal_state(0, 0i64, 0, 0, true, false);
         };
     };

@@ -60,8 +60,8 @@ fn numeric_range_values(
     if let Int4Value::Error(error) = compared {
         return BoolValue::Error(error);
     }
-    if compared == Int4Value::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_63_4: i32 = unresolved_flavor; if let Int4Value::Unknown = compared { if condition_flavor_63_4 < 1 { condition_flavor_63_4 = 1; }; }; if let Int4Value::Unimplemented = compared { condition_flavor_63_4 = 2; }; if (compared == Int4Value::Unknown || compared == Int4Value::Unimplemented) {
+        return bool_unresolved(condition_flavor_63_4);
     }
     if let Int4Value::Value(order) = compared {
         if less {
@@ -85,6 +85,11 @@ pub fn sql__pg_catalog__in_range__fhht(
     if let NumericValue::Unknown = offset { unresolved_flavor = 1; };
     if let BoolValue::Unknown = subtract { unresolved_flavor = 1; };
     if let BoolValue::Unknown = less { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = value { unresolved_flavor = 2; };
+    if let NumericValue::Unimplemented = base { unresolved_flavor = 2; };
+    if let NumericValue::Unimplemented = offset { unresolved_flavor = 2; };
+    if let BoolValue::Unimplemented = subtract { unresolved_flavor = 2; };
+    if let BoolValue::Unimplemented = less { unresolved_flavor = 2; };
     if let NumericValue::Error(error) = value {
         return BoolValue::Error(error);
     }
@@ -100,13 +105,13 @@ pub fn sql__pg_catalog__in_range__fhht(
     if let BoolValue::Error(error) = less {
         return BoolValue::Error(error);
     }
-    if value == NumericValue::Unknown
-        || base == NumericValue::Unknown
-        || offset == NumericValue::Unknown
-        || subtract == BoolValue::Unknown
-        || less == BoolValue::Unknown
+    let mut condition_flavor_108_4: i32 = unresolved_flavor; if let NumericValue::Unknown = value { if condition_flavor_108_4 < 1 { condition_flavor_108_4 = 1; }; }; if let NumericValue::Unimplemented = value { condition_flavor_108_4 = 2; }; if let NumericValue::Unknown = base { if condition_flavor_108_4 < 1 { condition_flavor_108_4 = 1; }; }; if let NumericValue::Unimplemented = base { condition_flavor_108_4 = 2; }; if let NumericValue::Unknown = offset { if condition_flavor_108_4 < 1 { condition_flavor_108_4 = 1; }; }; if let NumericValue::Unimplemented = offset { condition_flavor_108_4 = 2; }; if let BoolValue::Unknown = subtract { if condition_flavor_108_4 < 1 { condition_flavor_108_4 = 1; }; }; if let BoolValue::Unimplemented = subtract { condition_flavor_108_4 = 2; }; if let BoolValue::Unknown = less { if condition_flavor_108_4 < 1 { condition_flavor_108_4 = 1; }; }; if let BoolValue::Unimplemented = less { condition_flavor_108_4 = 2; }; if (value == NumericValue::Unknown || value == NumericValue::Unimplemented)
+        || (base == NumericValue::Unknown || base == NumericValue::Unimplemented)
+        || (offset == NumericValue::Unknown || offset == NumericValue::Unimplemented)
+        || (subtract == BoolValue::Unknown || subtract == BoolValue::Unimplemented)
+        || (less == BoolValue::Unknown || less == BoolValue::Unimplemented)
     {
-        return bool_unresolved(unresolved_flavor);
+        return bool_unresolved(condition_flavor_108_4);
     }
     if value == NumericValue::Null
         || base == NumericValue::Null

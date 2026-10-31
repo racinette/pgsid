@@ -4,14 +4,16 @@ pub fn sql__pg_catalog__normalize__fhd2(input: TextValue, normal_form: TextValue
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unknown = normal_form { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = normal_form { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return TextValue::Error(error);
     }
     if let TextValue::Error(error) = normal_form {
         return TextValue::Error(error);
     }
-    if (input == TextValue::Unknown || input == TextValue::NonNull) || (normal_form == TextValue::Unknown || normal_form == TextValue::NonNull) {
-        return text_unresolved(unresolved_flavor);
+    let mut condition_flavor_15_4: i32 = unresolved_flavor; if let TextValue::Unknown = input { if condition_flavor_15_4 < 1 { condition_flavor_15_4 = 1; }; }; if let TextValue::Unimplemented = input { condition_flavor_15_4 = 2; }; if let TextValue::Unknown = normal_form { if condition_flavor_15_4 < 1 { condition_flavor_15_4 = 1; }; }; if let TextValue::Unimplemented = normal_form { condition_flavor_15_4 = 2; }; if ((input == TextValue::Unknown || input == TextValue::Unimplemented) || input == TextValue::NonNull) || ((normal_form == TextValue::Unknown || normal_form == TextValue::Unimplemented) || normal_form == TextValue::NonNull) {
+        return text_unresolved(condition_flavor_15_4);
     }
     if input == TextValue::Null || normal_form == TextValue::Null {
         return TextValue::Null;
@@ -32,14 +34,16 @@ pub fn sql__pg_catalog__is_normalized__pxj9(input: TextValue, normal_form: TextV
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unknown = normal_form { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = normal_form { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return BoolValue::Error(error);
     }
     if let TextValue::Error(error) = normal_form {
         return BoolValue::Error(error);
     }
-    if (input == TextValue::Unknown || input == TextValue::NonNull) || (normal_form == TextValue::Unknown || normal_form == TextValue::NonNull) {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_45_4: i32 = unresolved_flavor; if let TextValue::Unknown = input { if condition_flavor_45_4 < 1 { condition_flavor_45_4 = 1; }; }; if let TextValue::Unimplemented = input { condition_flavor_45_4 = 2; }; if let TextValue::Unknown = normal_form { if condition_flavor_45_4 < 1 { condition_flavor_45_4 = 1; }; }; if let TextValue::Unimplemented = normal_form { condition_flavor_45_4 = 2; }; if ((input == TextValue::Unknown || input == TextValue::Unimplemented) || input == TextValue::NonNull) || ((normal_form == TextValue::Unknown || normal_form == TextValue::Unimplemented) || normal_form == TextValue::NonNull) {
+        return bool_unresolved(condition_flavor_45_4);
     }
     if input == TextValue::Null || normal_form == TextValue::Null {
         return BoolValue::Null;
@@ -59,11 +63,12 @@ pub fn sql__pg_catalog__is_normalized__pxj9(input: TextValue, normal_form: TextV
 pub fn sql__pg_catalog__unicode_assigned__46hx(input: TextValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return BoolValue::Error(error);
     }
-    if (input == TextValue::Unknown || input == TextValue::NonNull) {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_70_4: i32 = unresolved_flavor; if let TextValue::Unknown = input { if condition_flavor_70_4 < 1 { condition_flavor_70_4 = 1; }; }; if let TextValue::Unimplemented = input { condition_flavor_70_4 = 2; }; if ((input == TextValue::Unknown || input == TextValue::Unimplemented) || input == TextValue::NonNull) {
+        return bool_unresolved(condition_flavor_70_4);
     }
     if input == TextValue::Null {
         return BoolValue::Null;

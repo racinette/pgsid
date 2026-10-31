@@ -24,6 +24,7 @@ pub(crate) fn multirange_binary_count(input: &MultirangePayload) -> Int4Value {
 pub(crate) fn multirange_binary_member(input: &MultirangePayload, index: Int4Value) -> RangeValue {
     let mut unresolved_flavor: i32 = 0;
     if let Int4Value::Unknown = index { unresolved_flavor = 1; };
+    if let Int4Value::Unimplemented = index { unresolved_flavor = 2; };
     if let Int4Value::Value(offset) = index {
         let position = usize::try_from(offset).unwrap_or(input.ranges.len());
         if position < input.ranges.len() {
@@ -42,6 +43,9 @@ pub(crate) fn multirange_binary_initial32(
     if let BoolValue::Unknown = state { unresolved_flavor = 1; };
     if let Int4Value::Unknown = count { unresolved_flavor = 1; };
     if let Int8Value::Unknown = seed { unresolved_flavor = 1; };
+    if let BoolValue::Unimplemented = state { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = count { unresolved_flavor = 2; };
+    if let Int8Value::Unimplemented = seed { unresolved_flavor = 2; };
     if let BoolValue::Error(error) = state {
         return Int4Value::Error(error);
     };

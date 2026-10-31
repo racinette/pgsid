@@ -2,6 +2,8 @@ fn integer_scalar_sum(state: Int8Value, input: Int8Value) -> Int8Value {
     let mut unresolved_flavor: i32 = 0;
     if let Int8Value::Unknown = state { unresolved_flavor = 1; };
     if let Int8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Int8Value::Unimplemented = state { unresolved_flavor = 2; };
+    if let Int8Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Int8Value::Error(error) = state {
         return Int8Value::Error(error);
     };

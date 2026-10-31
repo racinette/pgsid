@@ -203,16 +203,18 @@ pub fn sql__pg_catalog__extract__f4l3(units: TextValue, input: TimestampValue) -
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = units { unresolved_flavor = 1; };
     if let TimestampValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = units { unresolved_flavor = 2; };
+    if let TimestampValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = units {
         return NumericValue::Error(error);
     }
     if let TimestampValue::Error(error) = input {
         return NumericValue::Error(error);
     }
-    if (units == TextValue::Unknown || units == TextValue::NonNull)
-        || input == TimestampValue::Unknown
+    let mut condition_flavor_214_4: i32 = unresolved_flavor; if let TextValue::Unknown = units { if condition_flavor_214_4 < 1 { condition_flavor_214_4 = 1; }; }; if let TextValue::Unimplemented = units { condition_flavor_214_4 = 2; }; if let TimestampValue::Unknown = input { if condition_flavor_214_4 < 1 { condition_flavor_214_4 = 1; }; }; if let TimestampValue::Unimplemented = input { condition_flavor_214_4 = 2; }; if ((units == TextValue::Unknown || units == TextValue::Unimplemented) || units == TextValue::NonNull)
+        || (input == TimestampValue::Unknown || input == TimestampValue::Unimplemented)
     {
-        return numeric_unresolved(unresolved_flavor);
+        return numeric_unresolved(condition_flavor_214_4);
     }
     if units == TextValue::Null || input == TimestampValue::Null {
         return NumericValue::Null;

@@ -60,14 +60,16 @@ fn line_intersection(left: LineValue, right: LineValue) -> PointValue {
     let mut unresolved_flavor: i32 = 0;
     if let LineValue::Unknown = left { unresolved_flavor = 1; };
     if let LineValue::Unknown = right { unresolved_flavor = 1; };
+    if let LineValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let LineValue::Unimplemented = right { unresolved_flavor = 2; };
     if let LineValue::Error(error) = left {
         return PointValue::Error(error);
     };
     if let LineValue::Error(error) = right {
         return PointValue::Error(error);
     };
-    if left == LineValue::Unknown || right == LineValue::Unknown {
-        return point_unresolved(unresolved_flavor);
+    let mut condition_flavor_71_4: i32 = unresolved_flavor; if let LineValue::Unknown = left { if condition_flavor_71_4 < 1 { condition_flavor_71_4 = 1; }; }; if let LineValue::Unimplemented = left { condition_flavor_71_4 = 2; }; if let LineValue::Unknown = right { if condition_flavor_71_4 < 1 { condition_flavor_71_4 = 1; }; }; if let LineValue::Unimplemented = right { condition_flavor_71_4 = 2; }; if (left == LineValue::Unknown || left == LineValue::Unimplemented) || (right == LineValue::Unknown || right == LineValue::Unimplemented) {
+        return point_unresolved(condition_flavor_71_4);
     };
     if left == LineValue::Null || right == LineValue::Null {
         return PointValue::Null;
@@ -93,14 +95,16 @@ fn line_intersection_predicate(left: LineValue, right: LineValue, parallel: bool
     let mut unresolved_flavor: i32 = 0;
     if let LineValue::Unknown = left { unresolved_flavor = 1; };
     if let LineValue::Unknown = right { unresolved_flavor = 1; };
+    if let LineValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let LineValue::Unimplemented = right { unresolved_flavor = 2; };
     if let LineValue::Error(error) = left {
         return BoolValue::Error(error);
     };
     if let LineValue::Error(error) = right {
         return BoolValue::Error(error);
     };
-    if left == LineValue::Unknown || right == LineValue::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_106_4: i32 = unresolved_flavor; if let LineValue::Unknown = left { if condition_flavor_106_4 < 1 { condition_flavor_106_4 = 1; }; }; if let LineValue::Unimplemented = left { condition_flavor_106_4 = 2; }; if let LineValue::Unknown = right { if condition_flavor_106_4 < 1 { condition_flavor_106_4 = 1; }; }; if let LineValue::Unimplemented = right { condition_flavor_106_4 = 2; }; if (left == LineValue::Unknown || left == LineValue::Unimplemented) || (right == LineValue::Unknown || right == LineValue::Unimplemented) {
+        return bool_unresolved(condition_flavor_106_4);
     };
     if left == LineValue::Null || right == LineValue::Null {
         return BoolValue::Null;
@@ -109,8 +113,8 @@ fn line_intersection_predicate(left: LineValue, right: LineValue, parallel: bool
     if let PointValue::Error(error) = result {
         return BoolValue::Error(error);
     };
-    if result == PointValue::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_116_4: i32 = unresolved_flavor; if let PointValue::Unknown = result { if condition_flavor_116_4 < 1 { condition_flavor_116_4 = 1; }; }; if let PointValue::Unimplemented = result { condition_flavor_116_4 = 2; }; if (result == PointValue::Unknown || result == PointValue::Unimplemented) {
+        return bool_unresolved(condition_flavor_116_4);
     };
     make_bool_value((result == PointValue::Null) == parallel)
 }
@@ -131,14 +135,16 @@ fn line_perpendicular(left: LineValue, right: LineValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let LineValue::Unknown = left { unresolved_flavor = 1; };
     if let LineValue::Unknown = right { unresolved_flavor = 1; };
+    if let LineValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let LineValue::Unimplemented = right { unresolved_flavor = 2; };
     if let LineValue::Error(error) = left {
         return BoolValue::Error(error);
     };
     if let LineValue::Error(error) = right {
         return BoolValue::Error(error);
     };
-    if left == LineValue::Unknown || right == LineValue::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_146_4: i32 = unresolved_flavor; if let LineValue::Unknown = left { if condition_flavor_146_4 < 1 { condition_flavor_146_4 = 1; }; }; if let LineValue::Unimplemented = left { condition_flavor_146_4 = 2; }; if let LineValue::Unknown = right { if condition_flavor_146_4 < 1 { condition_flavor_146_4 = 1; }; }; if let LineValue::Unimplemented = right { condition_flavor_146_4 = 2; }; if (left == LineValue::Unknown || left == LineValue::Unimplemented) || (right == LineValue::Unknown || right == LineValue::Unimplemented) {
+        return bool_unresolved(condition_flavor_146_4);
     };
     if left == LineValue::Null || right == LineValue::Null {
         return BoolValue::Null;
@@ -187,14 +193,16 @@ pub fn sql__pg_catalog__line_distance__a9ql(left: LineValue, right: LineValue) -
     let mut unresolved_flavor: i32 = 0;
     if let LineValue::Unknown = left { unresolved_flavor = 1; };
     if let LineValue::Unknown = right { unresolved_flavor = 1; };
+    if let LineValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let LineValue::Unimplemented = right { unresolved_flavor = 2; };
     if let LineValue::Error(error) = left {
         return Float8Value::Error(error);
     };
     if let LineValue::Error(error) = right {
         return Float8Value::Error(error);
     };
-    if left == LineValue::Unknown || right == LineValue::Unknown {
-        return float8_unresolved(unresolved_flavor);
+    let mut condition_flavor_204_4: i32 = unresolved_flavor; if let LineValue::Unknown = left { if condition_flavor_204_4 < 1 { condition_flavor_204_4 = 1; }; }; if let LineValue::Unimplemented = left { condition_flavor_204_4 = 2; }; if let LineValue::Unknown = right { if condition_flavor_204_4 < 1 { condition_flavor_204_4 = 1; }; }; if let LineValue::Unimplemented = right { condition_flavor_204_4 = 2; }; if (left == LineValue::Unknown || left == LineValue::Unimplemented) || (right == LineValue::Unknown || right == LineValue::Unimplemented) {
+        return float8_unresolved(condition_flavor_204_4);
     };
     if left == LineValue::Null || right == LineValue::Null {
         return Float8Value::Null;
@@ -203,8 +211,8 @@ pub fn sql__pg_catalog__line_distance__a9ql(left: LineValue, right: LineValue) -
     if let PointValue::Error(error) = intersection {
         return Float8Value::Error(error);
     };
-    if intersection == PointValue::Unknown {
-        return float8_unresolved(unresolved_flavor);
+    let mut condition_flavor_214_4: i32 = unresolved_flavor; if let PointValue::Unknown = intersection { if condition_flavor_214_4 < 1 { condition_flavor_214_4 = 1; }; }; if let PointValue::Unimplemented = intersection { condition_flavor_214_4 = 2; }; if (intersection == PointValue::Unknown || intersection == PointValue::Unimplemented) {
+        return float8_unresolved(condition_flavor_214_4);
     };
     if intersection != PointValue::Null {
         return make_float8_bits(0i64);
@@ -272,7 +280,7 @@ fn line_project_point(point: PointValue, line: LineValue) -> LineProjection {
             distance: Float8Value::Error(error),
         };
     };
-    if point == PointValue::Unknown || line == LineValue::Unknown {
+    if (point == PointValue::Unknown || point == PointValue::Unimplemented) || (line == LineValue::Unknown || line == LineValue::Unimplemented) {
         return LineProjection {
             point: PointValue::Unknown,
             distance: Float8Value::Unknown,
@@ -344,14 +352,16 @@ pub fn sql__pg_catalog__on_pl__5c6f(point: PointValue, line: LineValue) -> BoolV
     let mut unresolved_flavor: i32 = 0;
     if let PointValue::Unknown = point { unresolved_flavor = 1; };
     if let LineValue::Unknown = line { unresolved_flavor = 1; };
+    if let PointValue::Unimplemented = point { unresolved_flavor = 2; };
+    if let LineValue::Unimplemented = line { unresolved_flavor = 2; };
     if let PointValue::Error(error) = point {
         return BoolValue::Error(error);
     };
     if let LineValue::Error(error) = line {
         return BoolValue::Error(error);
     };
-    if point == PointValue::Unknown || line == LineValue::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_363_4: i32 = unresolved_flavor; if let PointValue::Unknown = point { if condition_flavor_363_4 < 1 { condition_flavor_363_4 = 1; }; }; if let PointValue::Unimplemented = point { condition_flavor_363_4 = 2; }; if let LineValue::Unknown = line { if condition_flavor_363_4 < 1 { condition_flavor_363_4 = 1; }; }; if let LineValue::Unimplemented = line { condition_flavor_363_4 = 2; }; if (point == PointValue::Unknown || point == PointValue::Unimplemented) || (line == LineValue::Unknown || line == LineValue::Unimplemented) {
+        return bool_unresolved(condition_flavor_363_4);
     };
     if point == PointValue::Null || line == LineValue::Null {
         return BoolValue::Null;

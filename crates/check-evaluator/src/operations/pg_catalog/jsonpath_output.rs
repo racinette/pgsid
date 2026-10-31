@@ -133,6 +133,7 @@ fn jsonpath_print_level(level: i32) -> String {
 pub fn jsonpath_to_text(input: JsonpathValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let JsonpathValue::Unknown = input { unresolved_flavor = 1; };
+    if let JsonpathValue::Unimplemented = input { unresolved_flavor = 2; };
     if let JsonpathValue::Error(error) = input {
         return TextValue::Error(error);
     };

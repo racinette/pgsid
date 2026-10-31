@@ -474,6 +474,8 @@ fn jsonb_relation_values(
     let mut unresolved_flavor: i32 = 0;
     if let JsonbValue::Unknown = left { unresolved_flavor = 1; };
     if let JsonbValue::Unknown = right { unresolved_flavor = 1; };
+    if let JsonbValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let JsonbValue::Unimplemented = right { unresolved_flavor = 2; };
     if let JsonbValue::Error(error) = left {
         return BoolValue::Error(error);
     };
@@ -486,11 +488,15 @@ fn jsonb_relation_values(
     if let JsonbValue::Null = right {
         return BoolValue::Null;
     };
-    if let JsonbValue::Unknown = left {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_491_4: i32 = unresolved_flavor; if let JsonbValue::Unknown = left { if condition_flavor_491_4 < 1 { condition_flavor_491_4 = 1; }; }; if let JsonbValue::Unknown = left {
+        return bool_unresolved(condition_flavor_491_4);
+    }; let mut condition_flavor_493_7: i32 = unresolved_flavor; if let JsonbValue::Unimplemented = left { condition_flavor_493_7 = 2; }; if let JsonbValue::Unimplemented = left {
+        return bool_unresolved(condition_flavor_493_7);
     };
-    if let JsonbValue::Unknown = right {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_496_4: i32 = unresolved_flavor; if let JsonbValue::Unknown = right { if condition_flavor_496_4 < 1 { condition_flavor_496_4 = 1; }; }; if let JsonbValue::Unknown = right {
+        return bool_unresolved(condition_flavor_496_4);
+    }; let mut condition_flavor_498_7: i32 = unresolved_flavor; if let JsonbValue::Unimplemented = right { condition_flavor_498_7 = 2; }; if let JsonbValue::Unimplemented = right {
+        return bool_unresolved(condition_flavor_498_7);
     };
     let mut partial = false;
     if let JsonbValue::NonNull(_) = left {

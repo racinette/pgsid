@@ -5,11 +5,12 @@ pub fn sql__pg_catalog__bit_send__1fyo(input: BitValue) -> ByteaValue {
 pub fn sql__pg_catalog__varbit_send__yt0j(input: BitValue) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let BitValue::Unknown = input { unresolved_flavor = 1; };
+    if let BitValue::Unimplemented = input { unresolved_flavor = 2; };
     if let BitValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
-    if input == BitValue::Unknown {
-        return bytea_unresolved(unresolved_flavor);
+    let mut condition_flavor_12_4: i32 = unresolved_flavor; if let BitValue::Unknown = input { if condition_flavor_12_4 < 1 { condition_flavor_12_4 = 1; }; }; if let BitValue::Unimplemented = input { condition_flavor_12_4 = 2; }; if (input == BitValue::Unknown || input == BitValue::Unimplemented) {
+        return bytea_unresolved(condition_flavor_12_4);
     }
     if input == BitValue::Null {
         return ByteaValue::Null;

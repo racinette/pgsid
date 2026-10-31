@@ -21,14 +21,16 @@ fn text_binary_compare(left: TextValue, right: TextValue, trim_spaces: bool) -> 
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = left { unresolved_flavor = 1; };
     if let TextValue::Unknown = right { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TextValue::Error(error) = left {
         return Int4Value::Error(error);
     }
     if let TextValue::Error(error) = right {
         return Int4Value::Error(error);
     }
-    if (left == TextValue::Unknown || left == TextValue::NonNull) || (right == TextValue::Unknown || right == TextValue::NonNull) {
-        return int4_unresolved(unresolved_flavor);
+    let mut condition_flavor_32_4: i32 = unresolved_flavor; if let TextValue::Unknown = left { if condition_flavor_32_4 < 1 { condition_flavor_32_4 = 1; }; }; if let TextValue::Unimplemented = left { condition_flavor_32_4 = 2; }; if let TextValue::Unknown = right { if condition_flavor_32_4 < 1 { condition_flavor_32_4 = 1; }; }; if let TextValue::Unimplemented = right { condition_flavor_32_4 = 2; }; if ((left == TextValue::Unknown || left == TextValue::Unimplemented) || left == TextValue::NonNull) || ((right == TextValue::Unknown || right == TextValue::Unimplemented) || right == TextValue::NonNull) {
+        return int4_unresolved(condition_flavor_32_4);
     }
     if left == TextValue::Null || right == TextValue::Null {
         return Int4Value::Null;
@@ -46,11 +48,12 @@ fn text_binary_compare(left: TextValue, right: TextValue, trim_spaces: bool) -> 
 fn text_measure_value(value: TextValue, trim_spaces: bool, mode: i32) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = value { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = value { unresolved_flavor = 2; };
     if let TextValue::Error(error) = value {
         return Int4Value::Error(error);
     }
-    if (value == TextValue::Unknown || value == TextValue::NonNull) {
-        return int4_unresolved(unresolved_flavor);
+    let mut condition_flavor_55_4: i32 = unresolved_flavor; if let TextValue::Unknown = value { if condition_flavor_55_4 < 1 { condition_flavor_55_4 = 1; }; }; if let TextValue::Unimplemented = value { condition_flavor_55_4 = 2; }; if ((value == TextValue::Unknown || value == TextValue::Unimplemented) || value == TextValue::NonNull) {
+        return int4_unresolved(condition_flavor_55_4);
     }
     if value == TextValue::Null {
         return Int4Value::Null;
@@ -102,14 +105,16 @@ fn text_trim_value(
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = value { unresolved_flavor = 1; };
     if let TextValue::Unknown = set { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = value { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = set { unresolved_flavor = 2; };
     if let TextValue::Error(error) = value {
         return TextValue::Error(error);
     }
     if let TextValue::Error(error) = set {
         return TextValue::Error(error);
     }
-    if (value == TextValue::Unknown || value == TextValue::NonNull) || (set == TextValue::Unknown || set == TextValue::NonNull) {
-        return text_unresolved(unresolved_flavor);
+    let mut condition_flavor_116_4: i32 = unresolved_flavor; if let TextValue::Unknown = value { if condition_flavor_116_4 < 1 { condition_flavor_116_4 = 1; }; }; if let TextValue::Unimplemented = value { condition_flavor_116_4 = 2; }; if let TextValue::Unknown = set { if condition_flavor_116_4 < 1 { condition_flavor_116_4 = 1; }; }; if let TextValue::Unimplemented = set { condition_flavor_116_4 = 2; }; if ((value == TextValue::Unknown || value == TextValue::Unimplemented) || value == TextValue::NonNull) || ((set == TextValue::Unknown || set == TextValue::Unimplemented) || set == TextValue::NonNull) {
+        return text_unresolved(condition_flavor_116_4);
     }
     if value == TextValue::Null || set == TextValue::Null {
         return TextValue::Null;

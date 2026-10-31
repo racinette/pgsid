@@ -2,14 +2,16 @@ pub fn sql__pg_catalog__position__93b9(input: BitValue, pattern: BitValue) -> In
     let mut unresolved_flavor: i32 = 0;
     if let BitValue::Unknown = input { unresolved_flavor = 1; };
     if let BitValue::Unknown = pattern { unresolved_flavor = 1; };
+    if let BitValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let BitValue::Unimplemented = pattern { unresolved_flavor = 2; };
     if let BitValue::Error(error) = input {
         return Int4Value::Error(error);
     }
     if let BitValue::Error(error) = pattern {
         return Int4Value::Error(error);
     }
-    if input == BitValue::Unknown || pattern == BitValue::Unknown {
-        return int4_unresolved(unresolved_flavor);
+    let mut condition_flavor_13_4: i32 = unresolved_flavor; if let BitValue::Unknown = input { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let BitValue::Unimplemented = input { condition_flavor_13_4 = 2; }; if let BitValue::Unknown = pattern { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let BitValue::Unimplemented = pattern { condition_flavor_13_4 = 2; }; if (input == BitValue::Unknown || input == BitValue::Unimplemented) || (pattern == BitValue::Unknown || pattern == BitValue::Unimplemented) {
+        return int4_unresolved(condition_flavor_13_4);
     }
     if input == BitValue::Null || pattern == BitValue::Null {
         return Int4Value::Null;

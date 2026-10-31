@@ -4,6 +4,8 @@ pub fn sql__pg_catalog__int4_avg_combine__gmvg(left: ArrayValue, right: ArrayVal
     let mut unresolved_flavor: i32 = 0;
     if let ArrayValue::Unknown = left { unresolved_flavor = 1; };
     if let ArrayValue::Unknown = right { unresolved_flavor = 1; };
+    if let ArrayValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let ArrayValue::Unimplemented = right { unresolved_flavor = 2; };
     if let ArrayValue::Error(error) = left {
         return ArrayValue::Error(error);
     };

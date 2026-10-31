@@ -1,11 +1,12 @@
 fn text_hash_value(input: TextValue, trim_spaces: bool, byte_order: i32, utf8: bool) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return Int4Value::Error(error);
     }
-    if (input == TextValue::Unknown || input == TextValue::NonNull) {
-        return int4_unresolved(unresolved_flavor);
+    let mut condition_flavor_8_4: i32 = unresolved_flavor; if let TextValue::Unknown = input { if condition_flavor_8_4 < 1 { condition_flavor_8_4 = 1; }; }; if let TextValue::Unimplemented = input { condition_flavor_8_4 = 2; }; if ((input == TextValue::Unknown || input == TextValue::Unimplemented) || input == TextValue::NonNull) {
+        return int4_unresolved(condition_flavor_8_4);
     }
     if input == TextValue::Null {
         return Int4Value::Null;
@@ -38,14 +39,16 @@ fn text_hash_extended(
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let Int8Value::Unknown = seed { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int8Value::Unimplemented = seed { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return Int8Value::Error(error);
     }
     if let Int8Value::Error(error) = seed {
         return Int8Value::Error(error);
     }
-    if (input == TextValue::Unknown || input == TextValue::NonNull) || seed == Int8Value::Unknown {
-        return int8_unresolved(unresolved_flavor);
+    let mut condition_flavor_50_4: i32 = unresolved_flavor; if let TextValue::Unknown = input { if condition_flavor_50_4 < 1 { condition_flavor_50_4 = 1; }; }; if let TextValue::Unimplemented = input { condition_flavor_50_4 = 2; }; if let Int8Value::Unknown = seed { if condition_flavor_50_4 < 1 { condition_flavor_50_4 = 1; }; }; if let Int8Value::Unimplemented = seed { condition_flavor_50_4 = 2; }; if ((input == TextValue::Unknown || input == TextValue::Unimplemented) || input == TextValue::NonNull) || (seed == Int8Value::Unknown || seed == Int8Value::Unimplemented) {
+        return int8_unresolved(condition_flavor_50_4);
     }
     if input == TextValue::Null || seed == Int8Value::Null {
         return Int8Value::Null;

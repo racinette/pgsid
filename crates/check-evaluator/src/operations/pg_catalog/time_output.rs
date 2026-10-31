@@ -34,6 +34,7 @@ fn clock_output_time(time: i64) -> String {
 pub fn clock_time_to_text(input: TimeValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TimeValue::Unknown = input { unresolved_flavor = 1; };
+    if let TimeValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TimeValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -61,6 +62,7 @@ fn clock_output_offset_pair(value: i32) -> String {
 pub fn clock_timetz_to_text(input: TimetzValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TimetzValue::Unknown = input { unresolved_flavor = 1; };
+    if let TimetzValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TimetzValue::Error(error) = input {
         return TextValue::Error(error);
     };

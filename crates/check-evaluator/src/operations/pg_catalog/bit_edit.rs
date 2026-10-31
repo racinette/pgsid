@@ -12,14 +12,16 @@ pub fn sql__pg_catalog__bitcat__t5mn(left: BitValue, right: BitValue) -> BitValu
     let mut unresolved_flavor: i32 = 0;
     if let BitValue::Unknown = left { unresolved_flavor = 1; };
     if let BitValue::Unknown = right { unresolved_flavor = 1; };
+    if let BitValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let BitValue::Unimplemented = right { unresolved_flavor = 2; };
     if let BitValue::Error(error) = left {
         return BitValue::Error(error);
     }
     if let BitValue::Error(error) = right {
         return BitValue::Error(error);
     }
-    if left == BitValue::Unknown || right == BitValue::Unknown {
-        return bit_unresolved(unresolved_flavor);
+    let mut condition_flavor_23_4: i32 = unresolved_flavor; if let BitValue::Unknown = left { if condition_flavor_23_4 < 1 { condition_flavor_23_4 = 1; }; }; if let BitValue::Unimplemented = left { condition_flavor_23_4 = 2; }; if let BitValue::Unknown = right { if condition_flavor_23_4 < 1 { condition_flavor_23_4 = 1; }; }; if let BitValue::Unimplemented = right { condition_flavor_23_4 = 2; }; if (left == BitValue::Unknown || left == BitValue::Unimplemented) || (right == BitValue::Unknown || right == BitValue::Unimplemented) {
+        return bit_unresolved(condition_flavor_23_4);
     }
     if left == BitValue::Null || right == BitValue::Null {
         return BitValue::Null;
@@ -44,14 +46,16 @@ pub fn sql__pg_catalog__get_bit__ygqy(input: BitValue, position: Int4Value) -> I
     let mut unresolved_flavor: i32 = 0;
     if let BitValue::Unknown = input { unresolved_flavor = 1; };
     if let Int4Value::Unknown = position { unresolved_flavor = 1; };
+    if let BitValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = position { unresolved_flavor = 2; };
     if let BitValue::Error(error) = input {
         return Int4Value::Error(error);
     }
     if let Int4Value::Error(error) = position {
         return Int4Value::Error(error);
     }
-    if input == BitValue::Unknown || position == Int4Value::Unknown {
-        return int4_unresolved(unresolved_flavor);
+    let mut condition_flavor_57_4: i32 = unresolved_flavor; if let BitValue::Unknown = input { if condition_flavor_57_4 < 1 { condition_flavor_57_4 = 1; }; }; if let BitValue::Unimplemented = input { condition_flavor_57_4 = 2; }; if let Int4Value::Unknown = position { if condition_flavor_57_4 < 1 { condition_flavor_57_4 = 1; }; }; if let Int4Value::Unimplemented = position { condition_flavor_57_4 = 2; }; if (input == BitValue::Unknown || input == BitValue::Unimplemented) || (position == Int4Value::Unknown || position == Int4Value::Unimplemented) {
+        return int4_unresolved(condition_flavor_57_4);
     }
     if input == BitValue::Null || position == Int4Value::Null {
         return Int4Value::Null;
@@ -89,6 +93,9 @@ pub fn sql__pg_catalog__set_bit__2mfa(
     if let BitValue::Unknown = input { unresolved_flavor = 1; };
     if let Int4Value::Unknown = position { unresolved_flavor = 1; };
     if let Int4Value::Unknown = replacement { unresolved_flavor = 1; };
+    if let BitValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = position { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = replacement { unresolved_flavor = 2; };
     if let BitValue::Error(error) = input {
         return BitValue::Error(error);
     }
@@ -98,11 +105,11 @@ pub fn sql__pg_catalog__set_bit__2mfa(
     if let Int4Value::Error(error) = replacement {
         return BitValue::Error(error);
     }
-    if input == BitValue::Unknown
-        || position == Int4Value::Unknown
-        || replacement == Int4Value::Unknown
+    let mut condition_flavor_108_4: i32 = unresolved_flavor; if let BitValue::Unknown = input { if condition_flavor_108_4 < 1 { condition_flavor_108_4 = 1; }; }; if let BitValue::Unimplemented = input { condition_flavor_108_4 = 2; }; if let Int4Value::Unknown = position { if condition_flavor_108_4 < 1 { condition_flavor_108_4 = 1; }; }; if let Int4Value::Unimplemented = position { condition_flavor_108_4 = 2; }; if let Int4Value::Unknown = replacement { if condition_flavor_108_4 < 1 { condition_flavor_108_4 = 1; }; }; if let Int4Value::Unimplemented = replacement { condition_flavor_108_4 = 2; }; if (input == BitValue::Unknown || input == BitValue::Unimplemented)
+        || (position == Int4Value::Unknown || position == Int4Value::Unimplemented)
+        || (replacement == Int4Value::Unknown || replacement == Int4Value::Unimplemented)
     {
-        return bit_unresolved(unresolved_flavor);
+        return bit_unresolved(condition_flavor_108_4);
     }
     if input == BitValue::Null || position == Int4Value::Null || replacement == Int4Value::Null {
         return BitValue::Null;

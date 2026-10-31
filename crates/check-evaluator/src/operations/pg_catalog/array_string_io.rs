@@ -1,6 +1,7 @@
 fn array_string_field(input: &str, marker: TextValue, deterministic: bool) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = marker { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = marker { unresolved_flavor = 2; };
     if marker == TextValue::Null {
         return array_element_from_text(make_text_value(input));
     };
@@ -34,6 +35,9 @@ fn array_string_split(
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unknown = delimiter { unresolved_flavor = 1; };
     if let TextValue::Unknown = marker { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = delimiter { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = marker { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return ArrayValue::Error(error);
     };
@@ -160,6 +164,9 @@ fn array_string_join(
     if let ArrayArguments::Unknown = rendered { unresolved_flavor = 1; };
     if let TextValue::Unknown = delimiter { unresolved_flavor = 1; };
     if let TextValue::Unknown = marker { unresolved_flavor = 1; };
+    if let ArrayArguments::Unimplemented = rendered { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = delimiter { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = marker { unresolved_flavor = 2; };
     if input.state == -2 {
         return TextValue::Error(input.error);
     };

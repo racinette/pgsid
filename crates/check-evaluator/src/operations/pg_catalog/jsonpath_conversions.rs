@@ -17,6 +17,7 @@ fn jsonpath_conversion_kind(kind: i32) -> bool {
 fn jsonpath_conversion_integer_text(input: TextValue, wide: bool) -> NumericValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Value(value) = input {
         let characters: Vec<char> = value.chars().collect();
         let mut start: usize = 0;
@@ -104,6 +105,7 @@ fn jsonpath_conversion_integer_text(input: TextValue, wide: bool) -> NumericValu
 fn jsonpath_conversion_number_text(input: TextValue) -> NumericValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Value(value) = input {
         let parsed = scalar_numeric_from_text(TextValue::Value(value));
         if let NumericValue::Error(_) = parsed {
@@ -136,6 +138,8 @@ fn jsonpath_conversion_boolean_value(
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = number { unresolved_flavor = 1; };
     if let TextValue::Unknown = text { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = number { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = text { unresolved_flavor = 2; };
     if value_kind == 1 || value_kind == 2 {
         return BoolValue::Value(value_kind == 2);
     };
@@ -165,6 +169,8 @@ fn jsonpath_conversion_string_value(
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = number { unresolved_flavor = 1; };
     if let TextValue::Unknown = text { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = number { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = text { unresolved_flavor = 2; };
     if value_kind == 4 {
         return text;
     };
@@ -193,6 +199,8 @@ fn jsonpath_conversion_numeric_value(
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = number { unresolved_flavor = 1; };
     if let TextValue::Unknown = text { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = number { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = text { unresolved_flavor = 2; };
     if value_kind != 3 && value_kind != 4 {
         return NumericValue::Error(make_sql_error(JSONPATH_METHOD_NON_NUMERIC));
     };
@@ -221,8 +229,8 @@ fn jsonpath_conversion_numeric_value(
         if let NumericValue::Error(error) = converted {
             return NumericValue::Error(error);
         };
-        if let NumericValue::Unknown = converted {
-            return numeric_unresolved(unresolved_flavor);
+        let mut condition_flavor_232_8: i32 = unresolved_flavor; if let NumericValue::Unknown = converted { if condition_flavor_232_8 < 1 { condition_flavor_232_8 = 1; }; }; if let NumericValue::Unimplemented = converted { condition_flavor_232_8 = 2; }; if (converted == NumericValue::Unknown || converted == NumericValue::Unimplemented) {
+            return numeric_unresolved(condition_flavor_232_8);
         };
         let precision = sql__pg_catalog__int4__z4rh(jsonpath_execution_numeric(
             context,

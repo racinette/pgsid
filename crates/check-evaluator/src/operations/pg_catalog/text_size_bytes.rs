@@ -4,11 +4,12 @@ const SIZE_BYTES_NUMERIC_SYNTAX_ERROR: u32 = 3484946;
 pub fn sql__pg_catalog__pg_size_bytes__ggrt(input: TextValue) -> Int8Value {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return Int8Value::Error(error);
     }
-    if (input == TextValue::Unknown || input == TextValue::NonNull) {
-        return int8_unresolved(unresolved_flavor);
+    let mut condition_flavor_11_4: i32 = unresolved_flavor; if let TextValue::Unknown = input { if condition_flavor_11_4 < 1 { condition_flavor_11_4 = 1; }; }; if let TextValue::Unimplemented = input { condition_flavor_11_4 = 2; }; if ((input == TextValue::Unknown || input == TextValue::Unimplemented) || input == TextValue::NonNull) {
+        return int8_unresolved(condition_flavor_11_4);
     }
     if input == TextValue::Null {
         return Int8Value::Null;

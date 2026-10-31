@@ -79,6 +79,7 @@ fn jsonb_preorder(input: JsonbPayload) -> JsonbPayload {
 pub fn jsonb_rebuild(input: JsonbValue, admission: bool) -> JsonbValue {
     let mut unresolved_flavor: i32 = 0;
     if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
+    if let JsonbValue::Unimplemented = input { unresolved_flavor = 2; };
     if let JsonbValue::Value(value) = input {
         let normalized = jsonb_normalize_objects(jsonb_preorder(value));
         if admission {
@@ -86,8 +87,8 @@ pub fn jsonb_rebuild(input: JsonbValue, admission: bool) -> JsonbValue {
             if let BoolValue::Error(error) = admitted {
                 return JsonbValue::Error(error);
             };
-            if let BoolValue::Unknown = admitted {
-                return jsonb_unresolved(unresolved_flavor);
+            let mut condition_flavor_90_12: i32 = unresolved_flavor; if let BoolValue::Unknown = admitted { if condition_flavor_90_12 < 1 { condition_flavor_90_12 = 1; }; }; if let BoolValue::Unimplemented = admitted { condition_flavor_90_12 = 2; }; if (admitted == BoolValue::Unknown || admitted == BoolValue::Unimplemented) {
+                return jsonb_unresolved(condition_flavor_90_12);
             };
         };
         return JsonbValue::Value(normalized);
@@ -113,6 +114,7 @@ pub fn jsonb_shape_value(maximum: i64, shape: JsonbPayload) -> JsonbValue {
 pub fn jsonb_from_string(input: TextValue) -> JsonbValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return JsonbValue::Error(error);
     };

@@ -57,11 +57,12 @@ pub fn bit_payload_length(value: &str) -> i32 {
 pub fn bit_from_text(input: TextValue) -> BitValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return BitValue::Error(error);
     }
-    if (input == TextValue::Unknown || input == TextValue::NonNull) {
-        return bit_unresolved(unresolved_flavor);
+    let mut condition_flavor_64_4: i32 = unresolved_flavor; if let TextValue::Unknown = input { if condition_flavor_64_4 < 1 { condition_flavor_64_4 = 1; }; }; if let TextValue::Unimplemented = input { condition_flavor_64_4 = 2; }; if ((input == TextValue::Unknown || input == TextValue::Unimplemented) || input == TextValue::NonNull) {
+        return bit_unresolved(condition_flavor_64_4);
     }
     if input == TextValue::Null {
         return BitValue::Null;
@@ -75,11 +76,12 @@ pub fn bit_from_text(input: TextValue) -> BitValue {
 pub fn bit_to_text(input: BitValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let BitValue::Unknown = input { unresolved_flavor = 1; };
+    if let BitValue::Unimplemented = input { unresolved_flavor = 2; };
     if let BitValue::Error(error) = input {
         return TextValue::Error(error);
     }
-    if input == BitValue::Unknown {
-        return text_unresolved(unresolved_flavor);
+    let mut condition_flavor_83_4: i32 = unresolved_flavor; if let BitValue::Unknown = input { if condition_flavor_83_4 < 1 { condition_flavor_83_4 = 1; }; }; if let BitValue::Unimplemented = input { condition_flavor_83_4 = 2; }; if (input == BitValue::Unknown || input == BitValue::Unimplemented) {
+        return text_unresolved(condition_flavor_83_4);
     }
     if input == BitValue::Null {
         return TextValue::Null;

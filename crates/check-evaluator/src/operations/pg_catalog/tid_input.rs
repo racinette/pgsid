@@ -65,6 +65,7 @@ fn tid_input_offset(word: TidInputWord) -> Int4Value {
 pub fn tid_from_text(input: TextValue) -> TidValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input { return TidValue::Error(error); };
     if input == TextValue::Null { return TidValue::Null; };
     if let TextValue::Value(text) = input {

@@ -15,6 +15,8 @@ fn range_profiled_compare(
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = lower { unresolved_flavor = 1; };
     if let ArrayElement::Unknown = upper { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = lower { unresolved_flavor = 2; };
+    if let ArrayElement::Unimplemented = upper { unresolved_flavor = 2; };
     let pair = array_comparison_pair(lower.clone(), upper.clone(), false);
     if array_pair_requires_scalar(pair) == false {
         return pair;
@@ -161,6 +163,8 @@ fn range_builtin_compare(lower: ArrayElement, upper: ArrayElement, kind: i32) ->
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = lower { unresolved_flavor = 1; };
     if let ArrayElement::Unknown = upper { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = lower { unresolved_flavor = 2; };
+    if let ArrayElement::Unimplemented = upper { unresolved_flavor = 2; };
     if let ArrayElement::Null = lower {
         return make_int4_value(-1);
     };
@@ -342,6 +346,8 @@ fn range_profile_serialize(
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = lower { unresolved_flavor = 1; };
     if let ArrayElement::Unknown = upper { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = lower { unresolved_flavor = 2; };
+    if let ArrayElement::Unimplemented = upper { unresolved_flavor = 2; };
     let comparison = range_typed_compare(lower.clone(), upper.clone(), support.comparison, &bound_profile, &bound_profile);
     if let Int4Value::Error(error) = comparison {
         return RangeValue::Error(error);
@@ -395,6 +401,7 @@ fn range_profile_serialize(
 fn range_builtin_canonical(input: RangeValue) -> RangeValue {
     let mut unresolved_flavor: i32 = 0;
     if let RangeValue::Unknown = input { unresolved_flavor = 1; };
+    if let RangeValue::Unimplemented = input { unresolved_flavor = 2; };
     if let RangeValue::Value(value) = input {
         if value.empty {
             return RangeValue::Value(value);
@@ -549,6 +556,9 @@ pub fn range_construct_typed(
     if let ArrayElement::Unknown = lower { unresolved_flavor = 1; };
     if let ArrayElement::Unknown = upper { unresolved_flavor = 1; };
     if let TextValue::Unknown = flags { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = lower { unresolved_flavor = 2; };
+    if let ArrayElement::Unimplemented = upper { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = flags { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = lower {
         return RangeValue::Error(error);
     };
@@ -572,11 +582,15 @@ pub fn range_construct_typed(
         if valid == false {
             return RangeValue::Error(make_sql_error(RANGE_CONSTRUCTOR_FLAGS_ERROR));
         };
-        if let ArrayElement::Unknown = lower {
-            return range_unresolved(unresolved_flavor);
+        let mut condition_flavor_585_8: i32 = unresolved_flavor; if let ArrayElement::Unknown = lower { if condition_flavor_585_8 < 1 { condition_flavor_585_8 = 1; }; }; if let ArrayElement::Unknown = lower {
+            return range_unresolved(condition_flavor_585_8);
+        }; let mut condition_flavor_587_11: i32 = unresolved_flavor; if let ArrayElement::Unimplemented = lower { condition_flavor_587_11 = 2; }; if let ArrayElement::Unimplemented = lower {
+            return range_unresolved(condition_flavor_587_11);
         };
-        if let ArrayElement::Unknown = upper {
-            return range_unresolved(unresolved_flavor);
+        let mut condition_flavor_590_8: i32 = unresolved_flavor; if let ArrayElement::Unknown = upper { if condition_flavor_590_8 < 1 { condition_flavor_590_8 = 1; }; }; if let ArrayElement::Unknown = upper {
+            return range_unresolved(condition_flavor_590_8);
+        }; let mut condition_flavor_592_11: i32 = unresolved_flavor; if let ArrayElement::Unimplemented = upper { condition_flavor_592_11 = 2; }; if let ArrayElement::Unimplemented = upper {
+            return range_unresolved(condition_flavor_592_11);
         };
         if kind == 6 && (range_enum_definition_valid(enum_labels, enum_count) == false
             || range_enum_bound_valid(lower.clone(), enum_count) == false
@@ -589,10 +603,10 @@ pub fn range_construct_typed(
         if kind >= 41 && kind <= 44 {
             lower = range_prepare_profiled_bound(lower, &bound_profile);
             if let ArrayElement::Error(error) = lower { return RangeValue::Error(error); };
-            if let ArrayElement::Unknown = lower { return range_unresolved(unresolved_flavor); };
+            let mut condition_flavor_606_12: i32 = unresolved_flavor; if let ArrayElement::Unknown = lower { if condition_flavor_606_12 < 1 { condition_flavor_606_12 = 1; }; }; if let ArrayElement::Unknown = lower { return range_unresolved(condition_flavor_606_12); }; let mut condition_flavor_606_98: i32 = unresolved_flavor; if let ArrayElement::Unimplemented = lower { condition_flavor_606_98 = 2; }; if let ArrayElement::Unimplemented = lower { return range_unresolved(condition_flavor_606_98); };
             upper = range_prepare_profiled_bound(upper, &bound_profile);
             if let ArrayElement::Error(error) = upper { return RangeValue::Error(error); };
-            if let ArrayElement::Unknown = upper { return range_unresolved(unresolved_flavor); };
+            let mut condition_flavor_609_12: i32 = unresolved_flavor; if let ArrayElement::Unknown = upper { if condition_flavor_609_12 < 1 { condition_flavor_609_12 = 1; }; }; if let ArrayElement::Unknown = upper { return range_unresolved(condition_flavor_609_12); }; let mut condition_flavor_609_98: i32 = unresolved_flavor; if let ArrayElement::Unimplemented = upper { condition_flavor_609_98 = 2; }; if let ArrayElement::Unimplemented = upper { return range_unresolved(condition_flavor_609_98); };
         };
         let lo_inc = text.as_str() == "[]" || text.as_str() == "[)";
         let hi_inc = text.as_str() == "[]" || text.as_str() == "(]";

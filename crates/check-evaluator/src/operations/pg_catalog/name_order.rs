@@ -2,17 +2,19 @@ pub fn sql__pg_catalog__btnamecmp__9x5j(left: TextValue, right: TextValue) -> In
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = left { unresolved_flavor = 1; };
     if let TextValue::Unknown = right { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TextValue::Error(error) = left {
         return Int4Value::Error(error);
     };
     if let TextValue::Error(error) = right {
         return Int4Value::Error(error);
     };
-    if left == TextValue::Unknown || left == TextValue::NonNull {
-        return int4_unresolved(unresolved_flavor);
+    let mut condition_flavor_13_4: i32 = unresolved_flavor; if let TextValue::Unknown = left { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let TextValue::Unimplemented = left { condition_flavor_13_4 = 2; }; if (left == TextValue::Unknown || left == TextValue::Unimplemented) || left == TextValue::NonNull {
+        return int4_unresolved(condition_flavor_13_4);
     };
-    if right == TextValue::Unknown || right == TextValue::NonNull {
-        return int4_unresolved(unresolved_flavor);
+    let mut condition_flavor_16_4: i32 = unresolved_flavor; if let TextValue::Unknown = right { if condition_flavor_16_4 < 1 { condition_flavor_16_4 = 1; }; }; if let TextValue::Unimplemented = right { condition_flavor_16_4 = 2; }; if (right == TextValue::Unknown || right == TextValue::Unimplemented) || right == TextValue::NonNull {
+        return int4_unresolved(condition_flavor_16_4);
     };
     if let TextValue::Null = left {
         return Int4Value::Null;

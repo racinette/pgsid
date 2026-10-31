@@ -1,6 +1,7 @@
 pub fn array_boolean_output(input: BoolValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoolValue::Unknown = input { unresolved_flavor = 1; };
+    if let BoolValue::Unimplemented = input { unresolved_flavor = 2; };
     if let BoolValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -19,6 +20,7 @@ pub fn array_boolean_output(input: BoolValue) -> TextValue {
 pub fn array_numeric_output(input: NumericValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = input { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = input { unresolved_flavor = 2; };
     if let NumericValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -71,6 +73,7 @@ fn array_float_number_output(number: f64, negative: bool) -> TextValue {
 pub fn array_float4_output(input: Float4Value) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let Float4Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float4Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Float4Value::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -89,6 +92,7 @@ pub fn array_float4_output(input: Float4Value) -> TextValue {
 pub fn array_float8_output(input: Float8Value) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float8Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Float8Value::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -107,6 +111,7 @@ pub fn array_float8_output(input: Float8Value) -> TextValue {
 pub fn array_contextual_output(input: ArrayElement) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -177,6 +182,7 @@ pub fn finish_array_output(
 ) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayArguments::Unknown = rendered { unresolved_flavor = 1; };
+    if let ArrayArguments::Unimplemented = rendered { unresolved_flavor = 2; };
     if input.state == -2 {
         return TextValue::Error(input.error);
     };
@@ -201,7 +207,7 @@ pub fn finish_array_output(
         while pending < values.elements.len() {
             let text = array_element_to_text(values.elements[pending].clone());
             if text == TextValue::NonNull { partial = true; };
-            if text == TextValue::Unknown { return text_unresolved(unresolved_flavor); };
+            let mut condition_flavor_210_12: i32 = unresolved_flavor; if let TextValue::Unknown = text { if condition_flavor_210_12 < 1 { condition_flavor_210_12 = 1; }; }; if let TextValue::Unimplemented = text { condition_flavor_210_12 = 2; }; if (text == TextValue::Unknown || text == TextValue::Unimplemented) { return text_unresolved(condition_flavor_210_12); };
             if let TextValue::Error(error) = text { return TextValue::Error(error); };
             pending += 1;
         }
@@ -255,6 +261,10 @@ pub fn finish_array_output(
             };
             if is_null == false {
                 let text = array_element_to_text(element);
+                let mut text_flavor: i32 = unresolved_flavor;
+                if let TextValue::Unknown = text { if text_flavor < 1 { text_flavor = 1; }; };
+                if let TextValue::NonNull = text { if text_flavor < 1 { text_flavor = 1; }; };
+                if let TextValue::Unimplemented = text { text_flavor = 2; };
                 let mut known = false;
                 if let TextValue::Value(value) = text {
                     let escaped = array_output_quote(value.as_str(), delimiter);
@@ -262,7 +272,7 @@ pub fn finish_array_output(
                     known = true;
                 };
                 if known == false {
-                    return text_unresolved(unresolved_flavor);
+                    return text_unresolved(text_flavor);
                 };
             };
             position += 1;

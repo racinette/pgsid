@@ -58,7 +58,7 @@ pub(crate) fn array_quantifier_continues(
     if let CheckOutcome::Error(_) = result {
         return false;
     };
-    if result == CheckOutcome::Unknown && safe == false {
+    if (result == CheckOutcome::Unknown || result == CheckOutcome::Unimplemented) && safe == false {
         return false;
     };
     if any && result == CheckOutcome::True {
@@ -99,11 +99,13 @@ pub fn array_quantifier_finish(input: CheckOutcome, validity: CheckOutcome) -> B
     let mut unresolved_flavor: i32 = 0;
     if let CheckOutcome::Unknown = input { unresolved_flavor = 1; };
     if let CheckOutcome::Unknown = validity { unresolved_flavor = 1; };
+    if let CheckOutcome::Unimplemented = input { unresolved_flavor = 2; };
+    if let CheckOutcome::Unimplemented = validity { unresolved_flavor = 2; };
     if let CheckOutcome::Error(error) = validity {
         return BoolValue::Error(error);
     };
-    if validity == CheckOutcome::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_107_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = validity { if condition_flavor_107_4 < 1 { condition_flavor_107_4 = 1; }; }; if let CheckOutcome::Unimplemented = validity { condition_flavor_107_4 = 2; }; if (validity == CheckOutcome::Unknown || validity == CheckOutcome::Unimplemented) {
+        return bool_unresolved(condition_flavor_107_4);
     };
     bool_from_check(input)
 }

@@ -60,6 +60,7 @@ pub struct JsonpathPayload {
 #[derive(Clone)]
 pub enum JsonpathValue {
     Unknown,
+    Unimplemented,
     Null,
     Value(JsonpathPayload),
     StoredText(String),

@@ -34,6 +34,7 @@ struct JsonArrayPathCandidates {
 pub(crate) fn json_array_path_state(input: ArrayValue) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayValue::Error(error) = input {
         return Int4Value::Error(error);
     };
@@ -182,7 +183,7 @@ fn parse_json_array_path_document(input: &str, utf8: bool) -> JsonArrayPathDocum
             if let TextValue::Error(error) = decoded {
                 return json_array_path_empty(-2, error);
             };
-            if (decoded == TextValue::Unknown || decoded == TextValue::NonNull) {
+            if ((decoded == TextValue::Unknown || decoded == TextValue::Unimplemented) || decoded == TextValue::NonNull) {
                 return json_array_path_empty(-1, make_sql_error(0));
             };
         };
@@ -409,6 +410,8 @@ pub(crate) fn json_read_array_path(
     let mut unresolved_flavor: i32 = 0;
     if let JsonValue::Unknown = input { unresolved_flavor = 1; };
     if let ArrayValue::Unknown = path { unresolved_flavor = 1; };
+    if let JsonValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let ArrayValue::Unimplemented = path { unresolved_flavor = 2; };
     if let JsonValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -422,8 +425,8 @@ pub(crate) fn json_read_array_path(
     if path_state == Int4Value::Null {
         return TextValue::Null;
     };
-    if path_state == Int4Value::Unknown {
-        return text_unresolved(unresolved_flavor);
+    let mut condition_flavor_428_4: i32 = unresolved_flavor; if let Int4Value::Unknown = path_state { if condition_flavor_428_4 < 1 { condition_flavor_428_4 = 1; }; }; if let Int4Value::Unimplemented = path_state { condition_flavor_428_4 = 2; }; if (path_state == Int4Value::Unknown || path_state == Int4Value::Unimplemented) {
+        return text_unresolved(condition_flavor_428_4);
     };
     if let JsonValue::Value(value) = input {
         if let ArrayValue::Value(keys) = path {
@@ -432,6 +435,8 @@ pub(crate) fn json_read_array_path(
             while index < keys.elements.len() {
                 let key = keys.elements[index].clone();
                 if let ArrayElement::Unknown = key {
+                    uncertain = true;
+                }; if let ArrayElement::Unimplemented = key {
                     uncertain = true;
                 };
                 index += 1;

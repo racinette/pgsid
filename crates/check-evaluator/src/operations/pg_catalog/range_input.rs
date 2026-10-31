@@ -7,6 +7,7 @@ fn range_input_space(ch: char) -> bool {
 fn range_input_bound(input: TextValue, kind: i32, cidr: bool, name: bool, alias_mode: i32, utf8: bool, enum_labels: &str, enum_count: i32) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if kind == 6 {
         if let TextValue::Value(_) = input {
             if enum_count < 0 { return array_element_unresolved(unresolved_flavor); };
@@ -139,6 +140,7 @@ fn range_text_value(
 pub fn prepare_range_text(input: TextValue) -> RangeTextPlan {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return RangeTextPlan::Error(error);
     };
@@ -241,6 +243,7 @@ pub fn prepare_range_text(input: TextValue) -> RangeTextPlan {
 pub fn range_text_state(plan: RangeTextPlan) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let RangeTextPlan::Unknown = plan { unresolved_flavor = 1; };
+    if let RangeTextPlan::Unimplemented = plan { unresolved_flavor = 2; };
     if let RangeTextPlan::Error(error) = plan {
         return BoolValue::Error(error);
     };
@@ -297,6 +300,8 @@ pub fn range_text_bound_continues(input: ArrayElement) -> bool {
     };
     if let ArrayElement::Unknown = input {
         return false;
+    }; if let ArrayElement::Unimplemented = input {
+        return false;
     };
     true
 }
@@ -304,6 +309,7 @@ pub fn range_text_bound_continues(input: ArrayElement) -> bool {
 pub fn range_stored_text_bound(input: ArrayElement) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(_) = input {
         return array_element_unresolved(unresolved_flavor);
     };
@@ -319,6 +325,7 @@ pub fn range_stored_text_initial(
 ) -> RangeValue {
     let mut unresolved_flavor: i32 = 0;
     if let RangeTextPlan::Unknown = plan { unresolved_flavor = 1; };
+    if let RangeTextPlan::Unimplemented = plan { unresolved_flavor = 2; };
     let initial = range_text_initial(plan, type_name, element_type, kind, support);
     if let RangeValue::Error(_) = initial {
         return range_unresolved(unresolved_flavor);
@@ -339,6 +346,9 @@ pub fn finish_range_stored_text(
     if let RangeTextPlan::Unknown = plan { unresolved_flavor = 1; };
     if let ArrayElement::Unknown = lower { unresolved_flavor = 1; };
     if let ArrayElement::Unknown = upper { unresolved_flavor = 1; };
+    if let RangeTextPlan::Unimplemented = plan { unresolved_flavor = 2; };
+    if let ArrayElement::Unimplemented = lower { unresolved_flavor = 2; };
+    if let ArrayElement::Unimplemented = upper { unresolved_flavor = 2; };
     if range_text_needs_bounds(plan.clone()) == false {
         return range_stored_text_initial(plan, type_name, element_type, kind, support);
     };
@@ -368,6 +378,7 @@ pub fn range_text_initial(
 ) -> RangeValue {
     let mut unresolved_flavor: i32 = 0;
     if let RangeTextPlan::Unknown = plan { unresolved_flavor = 1; };
+    if let RangeTextPlan::Unimplemented = plan { unresolved_flavor = 2; };
     let state = range_text_state(plan.clone());
     if let BoolValue::Error(error) = state {
         return RangeValue::Error(error);
@@ -429,6 +440,9 @@ pub fn finish_range_stored_text_defined(
     if let RangeTextPlan::Unknown = plan { unresolved_flavor = 1; };
     if let ArrayElement::Unknown = lower { unresolved_flavor = 1; };
     if let ArrayElement::Unknown = upper { unresolved_flavor = 1; };
+    if let RangeTextPlan::Unimplemented = plan { unresolved_flavor = 2; };
+    if let ArrayElement::Unimplemented = lower { unresolved_flavor = 2; };
+    if let ArrayElement::Unimplemented = upper { unresolved_flavor = 2; };
     if range_text_needs_bounds(plan.clone()) == false {
         let initial = range_stored_text_initial(plan, type_name, element_type, kind, support);
         return range_with_enum_definition(initial, enum_labels, enum_count);
@@ -461,6 +475,9 @@ pub fn finish_range_stored_text_typed(plan: RangeTextPlan, type_name: &str, elem
     if let RangeTextPlan::Unknown = plan { unresolved_flavor = 1; };
     if let ArrayElement::Unknown = lower { unresolved_flavor = 1; };
     if let ArrayElement::Unknown = upper { unresolved_flavor = 1; };
+    if let RangeTextPlan::Unimplemented = plan { unresolved_flavor = 2; };
+    if let ArrayElement::Unimplemented = lower { unresolved_flavor = 2; };
+    if let ArrayElement::Unimplemented = upper { unresolved_flavor = 2; };
     if range_text_needs_bounds(plan.clone()) == false {
         return range_with_bound_profile(range_stored_text_initial(plan,type_name,element_type,kind,support),bound_profile);
     };
@@ -494,6 +511,7 @@ pub fn range_from_text_defined(
 ) -> RangeValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     let plan = prepare_range_text(input);
     if range_text_needs_bounds(plan.clone()) == false {
         let initial = range_text_initial(plan.clone(), type_name, element_type, kind, support);
@@ -511,16 +529,20 @@ pub fn range_from_text_defined(
     if let ArrayElement::Error(error) = lower {
         return RangeValue::Error(error);
     };
-    if let ArrayElement::Unknown = lower {
-        return range_unresolved(unresolved_flavor);
+    let mut condition_flavor_532_4: i32 = unresolved_flavor; if let ArrayElement::Unknown = lower { if condition_flavor_532_4 < 1 { condition_flavor_532_4 = 1; }; }; if let ArrayElement::Unknown = lower {
+        return range_unresolved(condition_flavor_532_4);
+    }; let mut condition_flavor_534_7: i32 = unresolved_flavor; if let ArrayElement::Unimplemented = lower { condition_flavor_534_7 = 2; }; if let ArrayElement::Unimplemented = lower {
+        return range_unresolved(condition_flavor_534_7);
     };
     let upper_text = range_text_bound(plan.clone(), true);
     let upper = range_input_bound(upper_text, kind, cidr, name, alias_mode, utf8, enum_labels, enum_count);
     if let ArrayElement::Error(error) = upper {
         return RangeValue::Error(error);
     };
-    if let ArrayElement::Unknown = upper {
-        return range_unresolved(unresolved_flavor);
+    let mut condition_flavor_542_4: i32 = unresolved_flavor; if let ArrayElement::Unknown = upper { if condition_flavor_542_4 < 1 { condition_flavor_542_4 = 1; }; }; if let ArrayElement::Unknown = upper {
+        return range_unresolved(condition_flavor_542_4);
+    }; let mut condition_flavor_544_7: i32 = unresolved_flavor; if let ArrayElement::Unimplemented = upper { condition_flavor_544_7 = 2; }; if let ArrayElement::Unimplemented = upper {
+        return range_unresolved(condition_flavor_544_7);
     };
     finish_range_text_defined(plan, type_name, element_type, kind, support, lower, upper, enum_labels, enum_count)
 }

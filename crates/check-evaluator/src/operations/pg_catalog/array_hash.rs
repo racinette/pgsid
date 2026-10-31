@@ -9,6 +9,7 @@ fn array_hash_word_low(value: i64) -> i64 {
 pub fn array_hash_cell32(nullness: BoolValue) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let BoolValue::Unknown = nullness { unresolved_flavor = 1; };
+    if let BoolValue::Unimplemented = nullness { unresolved_flavor = 2; };
     if let BoolValue::Error(error) = nullness {
         return Int4Value::Error(error);
     };
@@ -24,6 +25,7 @@ pub fn array_hash_cell32(nullness: BoolValue) -> Int4Value {
 pub fn array_hash_cell64(nullness: BoolValue) -> Int8Value {
     let mut unresolved_flavor: i32 = 0;
     if let BoolValue::Unknown = nullness { unresolved_flavor = 1; };
+    if let BoolValue::Unimplemented = nullness { unresolved_flavor = 2; };
     let state = array_hash_cell32(nullness);
     if let Int4Value::Error(error) = state {
         return Int8Value::Error(error);
@@ -45,6 +47,8 @@ pub fn array_hash_step32(left: Int4Value, right: Int4Value) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let Int4Value::Unknown = left { unresolved_flavor = 1; };
     if let Int4Value::Unknown = right { unresolved_flavor = 1; };
+    if let Int4Value::Unimplemented = left { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = right { unresolved_flavor = 2; };
     if let Int4Value::Error(error) = left {
         return Int4Value::Error(error);
     };
@@ -66,6 +70,8 @@ pub fn array_hash_step64(left: Int8Value, right: Int8Value) -> Int8Value {
     let mut unresolved_flavor: i32 = 0;
     if let Int8Value::Unknown = left { unresolved_flavor = 1; };
     if let Int8Value::Unknown = right { unresolved_flavor = 1; };
+    if let Int8Value::Unimplemented = left { unresolved_flavor = 2; };
+    if let Int8Value::Unimplemented = right { unresolved_flavor = 2; };
     if let Int8Value::Error(error) = left {
         return Int8Value::Error(error);
     };
@@ -94,6 +100,8 @@ pub fn array_hash_finish32(first: Int4Value, second: Int4Value) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let Int4Value::Unknown = first { unresolved_flavor = 1; };
     if let Int4Value::Unknown = second { unresolved_flavor = 1; };
+    if let Int4Value::Unimplemented = first { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = second { unresolved_flavor = 2; };
     if let Int4Value::Error(error) = first {
         return Int4Value::Error(error);
     };
@@ -110,6 +118,8 @@ pub fn array_hash_finish64(first: Int8Value, second: Int8Value) -> Int8Value {
     let mut unresolved_flavor: i32 = 0;
     if let Int8Value::Unknown = first { unresolved_flavor = 1; };
     if let Int8Value::Unknown = second { unresolved_flavor = 1; };
+    if let Int8Value::Unimplemented = first { unresolved_flavor = 2; };
+    if let Int8Value::Unimplemented = second { unresolved_flavor = 2; };
     if let Int8Value::Error(error) = first {
         return Int8Value::Error(error);
     };

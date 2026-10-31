@@ -14,8 +14,9 @@ type SqlInteger struct {
 	Error string
 }
 type EvalValue[T any] struct {
-	Certain bool
-	Value   T
+	Certain       bool
+	Value         T
+	Unimplemented bool
 }
 type SqlBoolean struct {
 	Value bool
@@ -29,6 +30,9 @@ func evalBoolCertain(value SqlBoolean) EvalBool {
 }
 func evalBoolUncertain() EvalBool {
 	return EvalBool{}
+}
+func evalBoolUnimplemented() EvalBool {
+	return EvalBool{Unimplemented: true}
 }
 
 type CheckOptional[T any] struct {
@@ -169,6 +173,8 @@ func checkRustOutcome(value checkruntime.CheckOutcome) EvalBool {
 		return evalBoolCertain(SqlBoolean{})
 	case checkruntime.CheckOutcomeUnknown:
 		return evalBoolUncertain()
+	case checkruntime.CheckOutcomeUnimplemented:
+		return evalBoolUnimplemented()
 	case checkruntime.CheckOutcomeError:
 		state := strings.ToUpper(strconv.FormatInt(int64(value.Error.State), 36))
 		for len(state) < 5 {

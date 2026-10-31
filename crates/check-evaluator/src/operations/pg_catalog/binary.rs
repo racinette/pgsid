@@ -2,14 +2,16 @@ pub fn sql__pg_catalog__byteaeq__z0yh(left: ByteaValue, right: ByteaValue) -> Bo
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = left { unresolved_flavor = 1; };
     if let ByteaValue::Unknown = right { unresolved_flavor = 1; };
+    if let ByteaValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let ByteaValue::Unimplemented = right { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = left {
         return BoolValue::Error(error);
     }
     if let ByteaValue::Error(error) = right {
         return BoolValue::Error(error);
     }
-    if left == ByteaValue::Unknown || right == ByteaValue::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_13_4: i32 = unresolved_flavor; if let ByteaValue::Unknown = left { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let ByteaValue::Unimplemented = left { condition_flavor_13_4 = 2; }; if let ByteaValue::Unknown = right { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let ByteaValue::Unimplemented = right { condition_flavor_13_4 = 2; }; if (left == ByteaValue::Unknown || left == ByteaValue::Unimplemented) || (right == ByteaValue::Unknown || right == ByteaValue::Unimplemented) {
+        return bool_unresolved(condition_flavor_13_4);
     }
     if left == ByteaValue::Null || right == ByteaValue::Null {
         return BoolValue::Null;
@@ -34,14 +36,16 @@ pub fn sql__pg_catalog__byteane__volo(left: ByteaValue, right: ByteaValue) -> Bo
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = left { unresolved_flavor = 1; };
     if let ByteaValue::Unknown = right { unresolved_flavor = 1; };
+    if let ByteaValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let ByteaValue::Unimplemented = right { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = left {
         return BoolValue::Error(error);
     }
     if let ByteaValue::Error(error) = right {
         return BoolValue::Error(error);
     }
-    if left == ByteaValue::Unknown || right == ByteaValue::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_47_4: i32 = unresolved_flavor; if let ByteaValue::Unknown = left { if condition_flavor_47_4 < 1 { condition_flavor_47_4 = 1; }; }; if let ByteaValue::Unimplemented = left { condition_flavor_47_4 = 2; }; if let ByteaValue::Unknown = right { if condition_flavor_47_4 < 1 { condition_flavor_47_4 = 1; }; }; if let ByteaValue::Unimplemented = right { condition_flavor_47_4 = 2; }; if (left == ByteaValue::Unknown || left == ByteaValue::Unimplemented) || (right == ByteaValue::Unknown || right == ByteaValue::Unimplemented) {
+        return bool_unresolved(condition_flavor_47_4);
     }
     if left == ByteaValue::Null || right == ByteaValue::Null {
         return BoolValue::Null;
@@ -65,6 +69,7 @@ pub fn sql__pg_catalog__byteane__volo(left: ByteaValue, right: ByteaValue) -> Bo
 pub fn text_wire_context(input: TextValue, utf8: bool) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input { return ByteaValue::Error(error); };
     if input == TextValue::Null { return ByteaValue::Null; };
     if let TextValue::Value(value) = input {
