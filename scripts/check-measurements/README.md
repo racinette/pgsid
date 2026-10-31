@@ -118,3 +118,15 @@ node --import tsx scripts/check-measurements/shapes.ts
 PGSID_CHECK_WORLDS_DIRECTORY=artifacts/check-shapes/worlds vitest run tests/sql-semantics/check-worlds.test.ts
 node --import tsx scripts/check-measurements/shapes.ts --summarize
 ```
+
+The origin inventory is exploratory as well. With an origin report requested, the
+Rust parity runtime records where each Unknown or Unimplemented result started:
+the evaluator helper call, or the generated line, that first left a value
+unresolved. Every unresolved result of every data-driven fixture is reported, so
+the inventory finds both Unimplemented deferrals to implement and Unknown results
+that name no database fact. The summary groups results by origin site:
+
+```sh
+PGSID_PARITY_DATA_DRIVEN=always PGSID_PARITY_ORIGINS=artifacts/check-origins.tsv vitest run tests/sql-semantics
+node --import tsx scripts/check-measurements/origins.ts artifacts/check-origins.tsv --rows 80
+```
