@@ -376,9 +376,9 @@ export function checkUnknownMessage(
   if (containsSignature(expression, temporalTimestampFormats)) {
     if (context.timeLocale === undefined)
       message += ' Localized temporal template names can require sql.codegen.checks.timeLocale.'
-    if (context.defaultCollation === undefined)
+    if (context.defaultCtype === undefined)
       message +=
-        ' Localized temporal template casing can require sql.codegen.checks.defaultCollation or an explicit C input collation.'
+        ' Localized temporal template casing can require sql.codegen.checks.defaultCtype or an explicit C input collation.'
   }
   if (containsSignature(expression, temporalTemplateParsers)) {
     if (context.timeZoneAbbreviations === undefined)

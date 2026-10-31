@@ -110,6 +110,7 @@ import {
   defaultCollation,
   isRegexArrayCallable,
   supportsBoundTextCallableCollation,
+  isCtypeCallable,
   isTextOrderingCallable,
   type BoundCollation,
 } from './collation.js'
@@ -2167,6 +2168,7 @@ const callDefaultCollation = (
     }
   return collation?.default &&
     (isTextOrderingCallable(signature) ||
+      isCtypeCallable(signature) ||
       metadata.args.includes('pg_catalog.anyarray') ||
       metadata.args.includes('pg_catalog.anycompatiblearray') ||
       isRegexArrayCallable(signature) ||

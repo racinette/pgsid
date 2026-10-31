@@ -71,7 +71,7 @@ describe('catalog CHECK lowering', () => {
       CONSTRAINT enabled_less CHECK (enabled < true),
       CONSTRAINT enabled_guard CHECK (enabled IS NOT NULL),
       CONSTRAINT ordinary_equality CHECK (plain = 'a'),
-      CONSTRAINT ordinary_collation CHECK (plain ~ '^a+$')
+      CONSTRAINT ordinary_collation CHECK (starts_with(plain, 'a'))
     )`)
     await pg.exec(`CREATE DOMAIN public.handle AS text COLLATE "C"
       CONSTRAINT handle_format CHECK (VALUE ~ '^a+$')`)

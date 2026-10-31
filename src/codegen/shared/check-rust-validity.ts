@@ -5,6 +5,7 @@ import { isRecordComparison, recordComparisonLayouts } from './check-record-comp
 import { rangeTypeProfile, multirangeTypeProfile } from '../../sql-semantics/range-profiles.js'
 import {
   isTextOrderingCallable,
+  isTextCasingCallable,
   supportsTextCallableCollation,
 } from '../../sql-semantics/collation.js'
 import {
@@ -348,6 +349,7 @@ export function rustCallCanFail(
   if (
     scalarComparisons.has(call.signature) ||
     isTextOrderingCallable(call.signature) ||
+    isTextCasingCallable(call.signature) ||
     arrayMetadata.has(call.signature)
   )
     return false

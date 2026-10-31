@@ -66,7 +66,6 @@ const unsupported = {
   custom_ordering: "det > 'a'",
   prefix: "starts_with(plain, 'a')",
   literal_prefix: "starts_with('abc', 'a')",
-  regex: "plain ~ '^a+$'",
 }
 
 describe('CHECK text collation', () => {

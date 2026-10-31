@@ -135,6 +135,7 @@ import {
   isIdentifierParseCallable,
   supportsTextCallableCollation,
   isTextOrderingCallable,
+  isCtypeCallable,
 } from '../../sql-semantics/collation.js'
 import { rustStringLiteral } from './rust-literals.js'
 import {
@@ -3879,8 +3880,11 @@ export function emitCheckRustEvaluator(
         call.kind !== 'cast' &&
         call.collationDefault === true &&
         isTextOrderingCallable(call.signature)
+      const defaultTextCtype =
+        call.kind !== 'cast' && call.collationDefault === true && isCtypeCallable(call.signature)
       const textCollation =
-        defaultTextOrdering && executionContext.defaultCollation === 'C'
+        (defaultTextOrdering && executionContext.defaultCollation === 'C') ||
+        (defaultTextCtype && executionContext.defaultCtype === 'C')
           ? 'C'
           : call.kind === 'cast'
             ? undefined
@@ -3897,7 +3901,8 @@ export function emitCheckRustEvaluator(
         !arrayRegex &&
         !xmlCast &&
         !supportsTextCallableCollation(call.signature, textCollation) &&
-        !defaultTextOrdering
+        !defaultTextOrdering &&
+        !defaultTextCtype
       )
         throw new UnsupportedCheckRustExpression(
           `Unsupported Rust CHECK text collation: ${call.signature}`,
@@ -4002,7 +4007,10 @@ export function emitCheckRustEvaluator(
         )
       for (const operand of operands) rustType(operand.type)
       if (folded) return folded
-      if (defaultTextOrdering && !supportsTextCallableCollation(call.signature, textCollation)) {
+      if (
+        (defaultTextOrdering || defaultTextCtype) &&
+        !supportsTextCallableCollation(call.signature, textCollation)
+      ) {
         const guard = fresh('ordering_context')
         destination.push(`let mut ${guard}: CheckOutcome = check_unknown();`)
         for (const operand of operands) {
