@@ -1,6 +1,7 @@
 const CONTAINER_BINARY_MISSING_SEND_ERROR: u32 = 6822435;
 
 pub(crate) fn array_binary_initial(input: &ArrayOutputPayload, support: i32) -> ByteaValue {
+    let unresolved_flavor: i32 = 0;
     if input.state == -2 {
         return ByteaValue::Error(input.error);
     };
@@ -12,7 +13,7 @@ pub(crate) fn array_binary_initial(input: &ArrayOutputPayload, support: i32) -> 
             return ByteaValue::Error(make_sql_error(CONTAINER_BINARY_MISSING_SEND_ERROR));
         };
         if support < 0 {
-            return ByteaValue::Unknown;
+            return bytea_unresolved(unresolved_flavor);
         };
         let mut result = ByteaValue::Unspecified(12);
         let mut index: usize = 0;
@@ -22,10 +23,12 @@ pub(crate) fn array_binary_initial(input: &ArrayOutputPayload, support: i32) -> 
         }
         return result;
     };
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }
 
 pub(crate) fn container_binary_missing(input: ArrayElement, absent: bool) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
     if let ArrayElement::Error(error) = input {
         return ByteaValue::Error(error);
     };
@@ -33,12 +36,12 @@ pub(crate) fn container_binary_missing(input: ArrayElement, absent: bool) -> Byt
         return ByteaValue::Null;
     };
     if let ArrayElement::Unknown = input {
-        return ByteaValue::Unknown;
+        return bytea_unresolved(unresolved_flavor);
     };
     if absent {
         return ByteaValue::Error(make_sql_error(CONTAINER_BINARY_MISSING_SEND_ERROR));
     };
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }
 
 pub(crate) fn container_binary_continues(input: ByteaValue) -> bool {
@@ -79,6 +82,9 @@ pub(crate) fn container_binary_append(
 }
 
 pub fn sql__pg_catalog__array_send__g245(input: ArrayValue, output: ByteaValue) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
+    if let ByteaValue::Unknown = output { unresolved_flavor = 1; };
     if let ArrayValue::Error(error) = input {
         return ByteaValue::Error(error);
     };
@@ -88,5 +94,5 @@ pub fn sql__pg_catalog__array_send__g245(input: ArrayValue, output: ByteaValue) 
     if let ArrayValue::Value(_) = input {
         return output;
     };
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }

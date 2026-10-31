@@ -1,4 +1,5 @@
 fn timezone_truncate_value(zone: &str, value: i64, code: i32) -> TimestamptzValue {
+    let unresolved_flavor: i32 = 0;
     let infinite = value == -9223372036854775808i64 || value == 9223372036854775807i64;
     let mut probe = value;
     if infinite {
@@ -6,7 +7,7 @@ fn timezone_truncate_value(zone: &str, value: i64, code: i32) -> TimestamptzValu
     }
     let profile = session_timezone_profile(zone, probe, false);
     if profile.valid == false {
-        return TimestamptzValue::Unknown;
+        return timestamptz_unresolved(unresolved_flavor);
     };
     if code <= 0 {
         if code == -1 {
@@ -28,13 +29,13 @@ fn timezone_truncate_value(zone: &str, value: i64, code: i32) -> TimestamptzValu
         if code >= 6 {
             let adjusted = session_timezone_profile(zone, result, true);
             if adjusted.valid == false {
-                return TimestamptzValue::Unknown;
+                return timestamptz_unresolved(unresolved_flavor);
             };
             final_offset = adjusted.seconds as i64;
         }
         return make_timestamptz_value(result - final_offset * 1000000i64);
     }
-    TimestamptzValue::Unknown
+    timestamptz_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__date_trunc__6323(
@@ -46,6 +47,10 @@ pub fn sql__pg_catalog__date_trunc__6323(
     utf8: bool,
     default_profile: bool,
 ) -> TimestamptzValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = units { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unknown = zone { unresolved_flavor = 1; };
     if let TextValue::Error(error) = units {
         return TimestamptzValue::Error(error);
     }
@@ -59,7 +64,7 @@ pub fn sql__pg_catalog__date_trunc__6323(
         || input == TimestamptzValue::Unknown
         || zone == TextValue::Unknown
     {
-        return TimestamptzValue::Unknown;
+        return timestamptz_unresolved(unresolved_flavor);
     }
     if units == TextValue::Null || input == TimestamptzValue::Null || zone == TextValue::Null {
         return TimestamptzValue::Null;
@@ -80,7 +85,7 @@ pub fn sql__pg_catalog__date_trunc__6323(
             };
         };
     };
-    TimestamptzValue::Unknown
+    timestamptz_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__date_trunc__7d7s(
@@ -90,6 +95,9 @@ pub fn sql__pg_catalog__date_trunc__7d7s(
     limit: i32,
     utf8: bool,
 ) -> TimestamptzValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = units { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = units {
         return TimestamptzValue::Error(error);
     };
@@ -97,7 +105,7 @@ pub fn sql__pg_catalog__date_trunc__7d7s(
         return TimestamptzValue::Error(error);
     };
     if units == TextValue::Unknown || input == TimestamptzValue::Unknown {
-        return TimestamptzValue::Unknown;
+        return timestamptz_unresolved(unresolved_flavor);
     };
     if units == TextValue::Null || input == TimestamptzValue::Null {
         return TimestamptzValue::Null;
@@ -132,5 +140,5 @@ pub fn sql__pg_catalog__date_trunc__7d7s(
             return timezone_truncate_value(session, value, code);
         };
     };
-    TimestamptzValue::Unknown
+    timestamptz_unresolved(unresolved_flavor)
 }

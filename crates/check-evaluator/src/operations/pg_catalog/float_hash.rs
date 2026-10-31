@@ -15,6 +15,8 @@ fn float_hash_bytes(bits: i64) -> Vec<HashByte> {
 }
 
 pub fn sql__pg_catalog__hashfloat8__p4el(input: Float8Value, byte_order: i32) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = input { unresolved_flavor = 1; };
     if let Float8Value::Error(error) = input {
         return Int4Value::Error(error);
     };
@@ -24,7 +26,7 @@ pub fn sql__pg_catalog__hashfloat8__p4el(input: Float8Value, byte_order: i32) ->
     if let Float8Value::Value(bits) = input {
         let value = float8_number(bits);
         if value != value {
-            return Int4Value::Unknown;
+            return int4_unresolved(unresolved_flavor);
         };
         if value == 0.0f64 {
             return Int4Value::Value(0);
@@ -32,7 +34,7 @@ pub fn sql__pg_catalog__hashfloat8__p4el(input: Float8Value, byte_order: i32) ->
         let bytes = float_hash_bytes(bits);
         return hash_native32(bytes, byte_order, 8);
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__hashfloat8extended__7sph(
@@ -40,6 +42,9 @@ pub fn sql__pg_catalog__hashfloat8extended__7sph(
     seed: Int8Value,
     byte_order: i32,
 ) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = seed { unresolved_flavor = 1; };
     if let Float8Value::Error(error) = input {
         return Int8Value::Error(error);
     };
@@ -47,7 +52,7 @@ pub fn sql__pg_catalog__hashfloat8extended__7sph(
         return Int8Value::Error(error);
     };
     if input == Float8Value::Unknown || seed == Int8Value::Unknown {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     };
     if input == Float8Value::Null || seed == Int8Value::Null {
         return Int8Value::Null;
@@ -56,7 +61,7 @@ pub fn sql__pg_catalog__hashfloat8extended__7sph(
         if let Int8Value::Value(salt) = seed {
             let value = float8_number(bits);
             if value != value {
-                return Int8Value::Unknown;
+                return int8_unresolved(unresolved_flavor);
             };
             if value == 0.0f64 {
                 return Int8Value::Value(salt);
@@ -65,7 +70,7 @@ pub fn sql__pg_catalog__hashfloat8extended__7sph(
             return hash_native64(bytes, salt, byte_order, 8);
         };
     };
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__hashfloat4__vwxf(input: Float4Value, byte_order: i32) -> Int4Value {

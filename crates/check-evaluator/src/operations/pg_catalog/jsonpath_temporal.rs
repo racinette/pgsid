@@ -420,6 +420,7 @@ fn jsonpath_temporal_convert_parsed(
 }
 
 fn jsonpath_temporal_render(input: JsonpathTemporalValue) -> TextValue {
+    let unresolved_flavor: i32 = 0;
     if input.kind < 0 {
         return TextValue::Null;
     };
@@ -427,7 +428,7 @@ fn jsonpath_temporal_render(input: JsonpathTemporalValue) -> TextValue {
         return TextValue::Error(make_sql_error(input.error));
     };
     if input.unknown {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     let mut output = String::new();
     let mut bc = false;
@@ -504,6 +505,7 @@ fn jsonpath_temporal_compare_mode(
     right: JsonpathTemporalValue,
     use_timezone: bool,
 ) -> Int4Value {
+    let unresolved_flavor: i32 = 0;
     if left.kind == right.kind {
         if left.kind == 3 {
             return sql__pg_catalog__timetz_cmp__wy50(
@@ -537,7 +539,7 @@ fn jsonpath_temporal_compare_mode(
     let right_clock = right.kind == 2 || right.kind == 3;
     if (left_calendar && right_calendar) || (left_clock && right_clock) {
         if use_timezone {
-            return Int4Value::Unknown;
+            return int4_unresolved(unresolved_flavor);
         };
         return Int4Value::Error(make_sql_error(JSONPATH_TEMPORAL_FEATURE));
     };

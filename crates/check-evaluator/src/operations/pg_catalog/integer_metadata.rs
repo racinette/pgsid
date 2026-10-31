@@ -1,9 +1,11 @@
 pub fn sql__pg_catalog__gist_translate_cmptype_common__ai1r(input: Int4Value) -> Int2Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = input { unresolved_flavor = 1; };
     if let Int4Value::Error(error) = input {
         return Int2Value::Error(error);
     }
     if input == Int4Value::Unknown {
-        return Int2Value::Unknown;
+        return int2_unresolved(unresolved_flavor);
     }
     if input == Int4Value::Null {
         return Int2Value::Null;
@@ -32,15 +34,17 @@ pub fn sql__pg_catalog__gist_translate_cmptype_common__ai1r(input: Int4Value) ->
         }
         return Int2Value::Value(0);
     }
-    Int2Value::Unknown
+    int2_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__pg_encoding_max_length__aj1r(input: Int4Value) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = input { unresolved_flavor = 1; };
     if let Int4Value::Error(error) = input {
         return Int4Value::Error(error);
     }
     if input == Int4Value::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if input == Int4Value::Null {
         return Int4Value::Null;
@@ -60,17 +64,19 @@ pub fn sql__pg_catalog__pg_encoding_max_length__aj1r(input: Int4Value) -> Int4Va
         }
         return Int4Value::Value(1);
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 const INTEGER_SIZE_UNITS: &[&str] = &["bytes", "kB", "MB", "GB", "TB", "PB"];
 
 pub fn sql__pg_catalog__pg_size_pretty__24qt(input: Int8Value) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = input { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = input {
         return TextValue::Error(error);
     }
     if input == Int8Value::Unknown {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if input == Int8Value::Null {
         return TextValue::Null;
@@ -103,5 +109,5 @@ pub fn sql__pg_catalog__pg_size_pretty__24qt(input: Int8Value) -> TextValue {
         output.push_str(INTEGER_SIZE_UNITS[unit]);
         return TextValue::Value(output);
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }

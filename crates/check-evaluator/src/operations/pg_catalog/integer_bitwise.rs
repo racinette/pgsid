@@ -44,6 +44,9 @@ fn integer_bits_combine(left: i64, right: i64, operation: i32) -> i64 {
 }
 
 fn integer_bitwise(left: Int8Value, right: Int8Value, operation: i32) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = left { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = right { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = left {
         return Int8Value::Error(error);
     }
@@ -54,7 +57,7 @@ fn integer_bitwise(left: Int8Value, right: Int8Value, operation: i32) -> Int8Val
         return Int8Value::Null;
     }
     if left == Int8Value::Unknown || right == Int8Value::Unknown {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     }
     if let Int8Value::Value(first) = left {
         if let Int8Value::Value(second) = right {
@@ -68,15 +71,17 @@ fn integer_bitwise(left: Int8Value, right: Int8Value, operation: i32) -> Int8Val
             }));
         }
     }
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 fn integer_complement(input: Int8Value) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = input { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = input {
         return Int8Value::Error(error);
     }
     if input == Int8Value::Unknown {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     }
     if input == Int8Value::Null {
         return Int8Value::Null;
@@ -84,10 +89,13 @@ fn integer_complement(input: Int8Value) -> Int8Value {
     if let Int8Value::Value(value) = input {
         return Int8Value::Value(-1i64 - value);
     }
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 fn integer_shift(input: Int8Value, amount: Int4Value, width: i32, left: bool) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = amount { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = input {
         return Int8Value::Error(error);
     }
@@ -98,7 +106,7 @@ fn integer_shift(input: Int8Value, amount: Int4Value, width: i32, left: bool) ->
         return Int8Value::Null;
     }
     if input == Int8Value::Unknown || amount == Int4Value::Unknown {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     }
     if let Int8Value::Value(value) = input {
         if let Int4Value::Value(distance) = amount {
@@ -131,15 +139,17 @@ fn integer_shift(input: Int8Value, amount: Int4Value, width: i32, left: bool) ->
             }));
         }
     }
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 fn integer_bits_int4(input: Int8Value) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = input { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = input {
         return Int4Value::Error(error);
     }
     if input == Int8Value::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if input == Int8Value::Null {
         return Int4Value::Null;
@@ -147,15 +157,17 @@ fn integer_bits_int4(input: Int8Value) -> Int4Value {
     if let Int8Value::Value(value) = input {
         return Int4Value::Value(value as i32);
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 fn integer_bits_int2(input: Int8Value) -> Int2Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = input { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = input {
         return Int2Value::Error(error);
     }
     if input == Int8Value::Unknown {
-        return Int2Value::Unknown;
+        return int2_unresolved(unresolved_flavor);
     }
     if input == Int8Value::Null {
         return Int2Value::Null;
@@ -170,7 +182,7 @@ fn integer_bits_int2(input: Int8Value) -> Int2Value {
         }
         return Int2Value::Value(remainder as i32);
     }
-    Int2Value::Unknown
+    int2_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__int2and__etfs(left: Int2Value, right: Int2Value) -> Int2Value {

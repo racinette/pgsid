@@ -1,4 +1,7 @@
 fn uuid_compare(left: UuidValue, right: UuidValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let UuidValue::Unknown = left { unresolved_flavor = 1; };
+    if let UuidValue::Unknown = right { unresolved_flavor = 1; };
     if let UuidValue::Error(error) = left {
         return Int4Value::Error(error);
     }
@@ -6,7 +9,7 @@ fn uuid_compare(left: UuidValue, right: UuidValue) -> Int4Value {
         return Int4Value::Error(error);
     }
     if left == UuidValue::Unknown || right == UuidValue::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if left == UuidValue::Null || right == UuidValue::Null {
         return Int4Value::Null;
@@ -28,7 +31,7 @@ fn uuid_compare(left: UuidValue, right: UuidValue) -> Int4Value {
             return Int4Value::Value(0);
         }
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__uuid_cmp__6t9k(left: UuidValue, right: UuidValue) -> Int4Value {
@@ -36,12 +39,15 @@ pub fn sql__pg_catalog__uuid_cmp__6t9k(left: UuidValue, right: UuidValue) -> Int
 }
 
 pub fn sql__pg_catalog__uuid_eq__6czo(left: UuidValue, right: UuidValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let UuidValue::Unknown = left { unresolved_flavor = 1; };
+    if let UuidValue::Unknown = right { unresolved_flavor = 1; };
     let result = uuid_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
     if result == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -49,16 +55,19 @@ pub fn sql__pg_catalog__uuid_eq__6czo(left: UuidValue, right: UuidValue) -> Bool
     if let Int4Value::Value(order) = result {
         return BoolValue::Value(order == 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__uuid_ne__n2xp(left: UuidValue, right: UuidValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let UuidValue::Unknown = left { unresolved_flavor = 1; };
+    if let UuidValue::Unknown = right { unresolved_flavor = 1; };
     let result = uuid_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
     if result == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -66,16 +75,19 @@ pub fn sql__pg_catalog__uuid_ne__n2xp(left: UuidValue, right: UuidValue) -> Bool
     if let Int4Value::Value(order) = result {
         return BoolValue::Value(order != 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__uuid_lt__50za(left: UuidValue, right: UuidValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let UuidValue::Unknown = left { unresolved_flavor = 1; };
+    if let UuidValue::Unknown = right { unresolved_flavor = 1; };
     let result = uuid_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
     if result == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -83,16 +95,19 @@ pub fn sql__pg_catalog__uuid_lt__50za(left: UuidValue, right: UuidValue) -> Bool
     if let Int4Value::Value(order) = result {
         return BoolValue::Value(order < 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__uuid_le__g9j5(left: UuidValue, right: UuidValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let UuidValue::Unknown = left { unresolved_flavor = 1; };
+    if let UuidValue::Unknown = right { unresolved_flavor = 1; };
     let result = uuid_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
     if result == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -100,16 +115,19 @@ pub fn sql__pg_catalog__uuid_le__g9j5(left: UuidValue, right: UuidValue) -> Bool
     if let Int4Value::Value(order) = result {
         return BoolValue::Value(order <= 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__uuid_gt__0fj1(left: UuidValue, right: UuidValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let UuidValue::Unknown = left { unresolved_flavor = 1; };
+    if let UuidValue::Unknown = right { unresolved_flavor = 1; };
     let result = uuid_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
     if result == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -117,16 +135,19 @@ pub fn sql__pg_catalog__uuid_gt__0fj1(left: UuidValue, right: UuidValue) -> Bool
     if let Int4Value::Value(order) = result {
         return BoolValue::Value(order > 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__uuid_ge__098n(left: UuidValue, right: UuidValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let UuidValue::Unknown = left { unresolved_flavor = 1; };
+    if let UuidValue::Unknown = right { unresolved_flavor = 1; };
     let result = uuid_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
     if result == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -134,15 +155,17 @@ pub fn sql__pg_catalog__uuid_ge__098n(left: UuidValue, right: UuidValue) -> Bool
     if let Int4Value::Value(order) = result {
         return BoolValue::Value(order >= 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn uuid_to_text(input: UuidValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let UuidValue::Unknown = input { unresolved_flavor = 1; };
     if let UuidValue::Error(error) = input {
         return TextValue::Error(error);
     }
     if input == UuidValue::Unknown {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if input == UuidValue::Null {
         return TextValue::Null;
@@ -170,5 +193,5 @@ pub fn uuid_to_text(input: UuidValue) -> TextValue {
         }
         return TextValue::Value(output);
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }

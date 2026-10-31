@@ -49,6 +49,13 @@ fn regex_replace_value(
     flags: TextValue,
     infer_occurrence: bool,
 ) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = subject { unresolved_flavor = 1; };
+    if let TextValue::Unknown = pattern { unresolved_flavor = 1; };
+    if let TextValue::Unknown = replacement { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = starting { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = occurrence { unresolved_flavor = 1; };
+    if let TextValue::Unknown = flags { unresolved_flavor = 1; };
     if let TextValue::Error(error) = subject {
         return TextValue::Error(error);
     }
@@ -74,7 +81,7 @@ fn regex_replace_value(
         || occurrence == Int4Value::Unknown
         || (flags == TextValue::Unknown || flags == TextValue::NonNull)
     {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if subject == TextValue::Null
         || pattern == TextValue::Null
@@ -123,18 +130,18 @@ fn regex_replace_value(
                                         ));
                                     }
                                     if let CaptureOutcome::Uncertain = found {
-                                        return TextValue::Unknown;
+                                        return text_unresolved(unresolved_flavor);
                                     }
                                     if let CaptureOutcome::NoMatch = found {
                                         break;
                                     }
                                     if let CaptureOutcome::Found(groups) = found {
                                         if groups.len() == 0 || matches == 2147483647 {
-                                            return TextValue::Unknown;
+                                            return text_unresolved(unresolved_flavor);
                                         }
                                         let whole = groups[0];
                                         if whole.matched == false {
-                                            return TextValue::Unknown;
+                                            return text_unresolved(unresolved_flavor);
                                         }
                                         matches = matches + 1;
                                         if selected == 0 || selected == matches {
@@ -174,7 +181,7 @@ fn regex_replace_value(
             }
         }
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__regexp_replace__q5ba(

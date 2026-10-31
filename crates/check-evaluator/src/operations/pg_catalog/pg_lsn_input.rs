@@ -1,6 +1,8 @@
 const PG_LSN_INPUT_ERROR: u32 = 3484946;
 
 pub fn pg_lsn_from_text(input: TextValue) -> PgLsnValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input { return PgLsnValue::Error(error); };
     if input == TextValue::Null { return PgLsnValue::Null; };
     if let TextValue::Value(text) = input {
@@ -27,5 +29,5 @@ pub fn pg_lsn_from_text(input: TextValue) -> PgLsnValue {
         if index == first { return PgLsnValue::Error(make_sql_error(PG_LSN_INPUT_ERROR)); };
         return make_pg_lsn_bits(integer_bits_value(IntegerBits { high: high, low: low }));
     };
-    PgLsnValue::Unknown
+    pg_lsn_unresolved(unresolved_flavor)
 }

@@ -35,10 +35,11 @@ pub(crate) fn jsonb_array_input_is_key(input: &JsonbArrayInputPayload) -> bool {
 }
 
 pub(crate) fn jsonb_array_input_element(input: &JsonbArrayInputPayload) -> ArrayElement {
+    let unresolved_flavor: i32 = 0;
     if input.position < input.elements.len() {
         return input.elements[input.position].clone();
     };
-    ArrayElement::Unknown
+    array_element_unresolved(unresolved_flavor)
 }
 
 pub(crate) fn append_jsonb_array_input(
@@ -58,6 +59,7 @@ pub(crate) fn append_jsonb_array_input(
 }
 
 pub(crate) fn jsonb_array_input_arguments(input: JsonbArrayInputPayload) -> JsonbArguments {
+    let unresolved_flavor: i32 = 0;
     if input.state == -2 {
         return JsonbArguments::Error(input.error);
     };
@@ -65,7 +67,7 @@ pub(crate) fn jsonb_array_input_arguments(input: JsonbArrayInputPayload) -> Json
         return JsonbArguments::Null;
     };
     if input.state != 1 || input.values.len() != input.elements.len() {
-        return JsonbArguments::Unknown;
+        return jsonb_arguments_unresolved(unresolved_flavor);
     };
     JsonbArguments::Values(JsonbArgumentPayload {
         values: input.values,

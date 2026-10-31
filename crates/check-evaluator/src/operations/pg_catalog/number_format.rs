@@ -914,8 +914,9 @@ fn number_format_prepare(template: &str, numeric_c: bool, monetary_c: bool) -> N
 // The template outcome before any value: an empty template gives an empty string, a syntax
 // error wins, and a template that reads an undeclared locale defers.
 fn number_format_template_state(format: &NumberFormat) -> TextValue {
+    let unresolved_flavor: i32 = 0;
     if format.error == 1 {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     if format.error != 0 {
         return TextValue::Error(make_sql_error(format.error));
@@ -964,6 +965,7 @@ fn number_format_int8(
     monetary_c: bool,
     wide: bool,
 ) -> TextValue {
+    let unresolved_flavor: i32 = 0;
     if template == "" {
         return make_text_value("");
     };
@@ -1013,12 +1015,12 @@ fn number_format_int8(
             scaled = value * factor;
         } else {
             if format.multi >= 10 {
-                return TextValue::Unknown;
+                return text_unresolved(unresolved_flavor);
             };
             let factor = number_format_power(format.multi);
             let product = value * factor;
             if product > 2147483647i64 || product < -2147483648i64 {
-                return TextValue::Unknown;
+                return text_unresolved(unresolved_flavor);
             };
             scaled = product;
         };
@@ -1036,6 +1038,9 @@ pub fn sql__pg_catalog__to_char__c1f5(
     numeric_c: bool,
     monetary_c: bool,
 ) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unknown = template { unresolved_flavor = 1; };
     if let Int4Value::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -1046,7 +1051,7 @@ pub fn sql__pg_catalog__to_char__c1f5(
         || template == TextValue::Unknown
         || template == TextValue::NonNull
     {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     if input == Int4Value::Null || template == TextValue::Null {
         return TextValue::Null;
@@ -1056,7 +1061,7 @@ pub fn sql__pg_catalog__to_char__c1f5(
             return number_format_int8(value as i64, format.as_str(), numeric_c, monetary_c, false);
         };
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__to_char__ow74(
@@ -1065,6 +1070,9 @@ pub fn sql__pg_catalog__to_char__ow74(
     numeric_c: bool,
     monetary_c: bool,
 ) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unknown = template { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -1075,7 +1083,7 @@ pub fn sql__pg_catalog__to_char__ow74(
         || template == TextValue::Unknown
         || template == TextValue::NonNull
     {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     if input == Int8Value::Null || template == TextValue::Null {
         return TextValue::Null;
@@ -1085,7 +1093,7 @@ pub fn sql__pg_catalog__to_char__ow74(
             return number_format_int8(value, format.as_str(), numeric_c, monetary_c, true);
         };
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 // numeric_out's spellings of NaN and infinity (the sign is separate).
@@ -1416,6 +1424,9 @@ pub fn sql__pg_catalog__to_char__hftr(
     numeric_c: bool,
     monetary_c: bool,
 ) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NumericValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unknown = template { unresolved_flavor = 1; };
     if let NumericValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -1426,7 +1437,7 @@ pub fn sql__pg_catalog__to_char__hftr(
         || template == TextValue::Unknown
         || template == TextValue::NonNull
     {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     if input == NumericValue::Null || template == TextValue::Null {
         return TextValue::Null;
@@ -1436,7 +1447,7 @@ pub fn sql__pg_catalog__to_char__hftr(
             return number_format_numeric(text.as_str(), format.as_str(), numeric_c, monetary_c);
         };
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 // The exact decimal expansion of a float magnitude, from the same decomposition float_output
@@ -1536,6 +1547,7 @@ fn number_format_float(
     numeric_c: bool,
     monetary_c: bool,
 ) -> TextValue {
+    let unresolved_flavor: i32 = 0;
     if template == "" {
         return make_text_value("");
     };
@@ -1614,7 +1626,7 @@ fn number_format_float(
         // pow(10, multi) is exact only through 10^22; float4 rounds it and the product to
         // single precision, as its float arithmetic does.
         if format.multi > 22 {
-            return TextValue::Unknown;
+            return text_unresolved(unresolved_flavor);
         };
         let mut factor = 1.0f64;
         let mut count: i32 = 0;
@@ -1705,6 +1717,9 @@ pub fn sql__pg_catalog__to_char__b68b(
     numeric_c: bool,
     monetary_c: bool,
 ) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unknown = template { unresolved_flavor = 1; };
     if let Float8Value::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -1715,7 +1730,7 @@ pub fn sql__pg_catalog__to_char__b68b(
         || template == TextValue::Unknown
         || template == TextValue::NonNull
     {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     if input == Float8Value::Null || template == TextValue::Null {
         return TextValue::Null;
@@ -1726,7 +1741,7 @@ pub fn sql__pg_catalog__to_char__b68b(
             return number_format_float(bits, false, format.as_str(), numeric_c, monetary_c);
         };
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__to_char__1rcw(
@@ -1735,6 +1750,9 @@ pub fn sql__pg_catalog__to_char__1rcw(
     numeric_c: bool,
     monetary_c: bool,
 ) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float4Value::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unknown = template { unresolved_flavor = 1; };
     if let Float4Value::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -1745,7 +1763,7 @@ pub fn sql__pg_catalog__to_char__1rcw(
         || template == TextValue::Unknown
         || template == TextValue::NonNull
     {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     if input == Float4Value::Null || template == TextValue::Null {
         return TextValue::Null;
@@ -1766,5 +1784,5 @@ pub fn sql__pg_catalog__to_char__1rcw(
             return number_format_float(bits as i64, true, format.as_str(), numeric_c, monetary_c);
         };
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }

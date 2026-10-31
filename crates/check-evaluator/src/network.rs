@@ -414,11 +414,13 @@ fn network_parse(value: &str, cidr: bool) -> NetworkValue {
 }
 
 pub fn network_from_text(input: TextValue) -> NetworkValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return NetworkValue::Error(error);
     }
     if (input == TextValue::Unknown || input == TextValue::NonNull) {
-        return NetworkValue::Unknown;
+        return network_unresolved(unresolved_flavor);
     }
     if input == TextValue::Null {
         return NetworkValue::Null;
@@ -426,15 +428,17 @@ pub fn network_from_text(input: TextValue) -> NetworkValue {
     if let TextValue::Value(value) = input {
         return network_parse(value.as_str(), false);
     }
-    NetworkValue::Unknown
+    network_unresolved(unresolved_flavor)
 }
 
 pub fn cidr_from_text(input: TextValue) -> NetworkValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return NetworkValue::Error(error);
     }
     if (input == TextValue::Unknown || input == TextValue::NonNull) {
-        return NetworkValue::Unknown;
+        return network_unresolved(unresolved_flavor);
     }
     if input == TextValue::Null {
         return NetworkValue::Null;
@@ -442,5 +446,5 @@ pub fn cidr_from_text(input: TextValue) -> NetworkValue {
     if let TextValue::Value(value) = input {
         return network_parse(value.as_str(), true);
     }
-    NetworkValue::Unknown
+    network_unresolved(unresolved_flavor)
 }

@@ -135,6 +135,9 @@ fn text_like_match(input: &str, pattern: &str, insensitive: bool) -> Int4Value {
 }
 
 fn text_like(input: TextValue, pattern: TextValue, insensitive: bool, negate: bool) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unknown = pattern { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return BoolValue::Error(error);
     }
@@ -142,7 +145,7 @@ fn text_like(input: TextValue, pattern: TextValue, insensitive: bool, negate: bo
         return BoolValue::Error(error);
     }
     if (input == TextValue::Unknown || input == TextValue::NonNull) || (pattern == TextValue::Unknown || pattern == TextValue::NonNull) {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if input == TextValue::Null || pattern == TextValue::Null {
         return BoolValue::Null;
@@ -158,7 +161,7 @@ fn text_like(input: TextValue, pattern: TextValue, insensitive: bool, negate: bo
             }
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__bpchariclike__apon(input: TextValue, pattern: TextValue) -> BoolValue {
@@ -193,6 +196,9 @@ pub fn sql__pg_catalog__textnlike__7ux0(input: TextValue, pattern: TextValue) ->
 }
 
 pub fn sql__pg_catalog__like_escape__xfrr(input: TextValue, escape: TextValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unknown = escape { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return TextValue::Error(error);
     }
@@ -200,7 +206,7 @@ pub fn sql__pg_catalog__like_escape__xfrr(input: TextValue, escape: TextValue) -
         return TextValue::Error(error);
     }
     if (input == TextValue::Unknown || input == TextValue::NonNull) || (escape == TextValue::Unknown || escape == TextValue::NonNull) {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if input == TextValue::Null || escape == TextValue::Null {
         return TextValue::Null;
@@ -242,5 +248,5 @@ pub fn sql__pg_catalog__like_escape__xfrr(input: TextValue, escape: TextValue) -
             return TextValue::Value(output);
         }
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }

@@ -118,6 +118,8 @@ fn money_hundred_words(value: i32) -> String {
     result
 }
 fn money_words(input: MoneyValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let MoneyValue::Unknown = input { unresolved_flavor = 1; };
     if let MoneyValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -189,7 +191,7 @@ fn money_words(input: MoneyValue) -> TextValue {
         }
         return make_text_value(output.as_str());
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__cash_words__atzl(input: MoneyValue) -> TextValue {
     money_words(input)

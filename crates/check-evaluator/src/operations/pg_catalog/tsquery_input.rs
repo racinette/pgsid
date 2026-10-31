@@ -104,6 +104,8 @@ fn tsquery_reduce(input: TsqueryBuild, operator: TsqueryOperator) -> TsqueryBuil
 }
 
 pub fn tsquery_from_text_context(input: TextValue, utf8: bool) -> TsqueryValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input { return TsqueryValue::Error(error); };
     if input == TextValue::Null { return TsqueryValue::Null; };
     if let TextValue::Value(source) = input {
@@ -132,7 +134,7 @@ pub fn tsquery_from_text_context(input: TextValue, utf8: bool) -> TsqueryValue {
                 if value == ':' || tsquery_delimiter(value) { return TsqueryValue::Error(make_sql_error(TSQUERY_SYNTAX_ERROR)); };
                 let token = tsquery_read_token(&text,index,utf8);
                 if token.state == 1 { return TsqueryValue::Error(make_sql_error(TSQUERY_SYNTAX_ERROR)); };
-                if token.state == 2 { return TsqueryValue::Unknown; };
+                if token.state == 2 { return tsquery_unresolved(unresolved_flavor); };
                 if token.state == 3 || pool >= 1048575 { return TsqueryValue::Error(make_sql_error(TSQUERY_PROGRAM_LIMIT)); };
                 pool = pool + tsvector_lexeme_bytes(token.text.as_str()) + 1;
                 index = token.end;
@@ -194,5 +196,5 @@ pub fn tsquery_from_text_context(input: TextValue, utf8: bool) -> TsqueryValue {
         if bytes < 0 { return TsqueryValue::Error(make_sql_error(TSQUERY_PROGRAM_LIMIT)); };
         return make_tsquery_value(TsqueryPayload {nodes:payload.nodes,root:root,native_bytes:bytes});
     };
-    TsqueryValue::Unknown
+    tsquery_unresolved(unresolved_flavor)
 }

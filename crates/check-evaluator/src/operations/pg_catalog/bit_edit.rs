@@ -9,6 +9,9 @@ fn bit_concat_length(left: i32, right: i32) -> Int4Value {
 }
 
 pub fn sql__pg_catalog__bitcat__t5mn(left: BitValue, right: BitValue) -> BitValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BitValue::Unknown = left { unresolved_flavor = 1; };
+    if let BitValue::Unknown = right { unresolved_flavor = 1; };
     if let BitValue::Error(error) = left {
         return BitValue::Error(error);
     }
@@ -16,7 +19,7 @@ pub fn sql__pg_catalog__bitcat__t5mn(left: BitValue, right: BitValue) -> BitValu
         return BitValue::Error(error);
     }
     if left == BitValue::Unknown || right == BitValue::Unknown {
-        return BitValue::Unknown;
+        return bit_unresolved(unresolved_flavor);
     }
     if left == BitValue::Null || right == BitValue::Null {
         return BitValue::Null;
@@ -34,10 +37,13 @@ pub fn sql__pg_catalog__bitcat__t5mn(left: BitValue, right: BitValue) -> BitValu
             return BitValue::Value(output);
         }
     }
-    BitValue::Unknown
+    bit_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__get_bit__ygqy(input: BitValue, position: Int4Value) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let BitValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = position { unresolved_flavor = 1; };
     if let BitValue::Error(error) = input {
         return Int4Value::Error(error);
     }
@@ -45,7 +51,7 @@ pub fn sql__pg_catalog__get_bit__ygqy(input: BitValue, position: Int4Value) -> I
         return Int4Value::Error(error);
     }
     if input == BitValue::Unknown || position == Int4Value::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if input == BitValue::Null || position == Int4Value::Null {
         return Int4Value::Null;
@@ -71,7 +77,7 @@ pub fn sql__pg_catalog__get_bit__ygqy(input: BitValue, position: Int4Value) -> I
             return Int4Value::Error(make_sql_error(BIT_ARRAY_SUBSCRIPT_ERROR));
         }
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__set_bit__2mfa(
@@ -79,6 +85,10 @@ pub fn sql__pg_catalog__set_bit__2mfa(
     position: Int4Value,
     replacement: Int4Value,
 ) -> BitValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BitValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = position { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = replacement { unresolved_flavor = 1; };
     if let BitValue::Error(error) = input {
         return BitValue::Error(error);
     }
@@ -92,7 +102,7 @@ pub fn sql__pg_catalog__set_bit__2mfa(
         || position == Int4Value::Unknown
         || replacement == Int4Value::Unknown
     {
-        return BitValue::Unknown;
+        return bit_unresolved(unresolved_flavor);
     }
     if input == BitValue::Null || position == Int4Value::Null || replacement == Int4Value::Null {
         return BitValue::Null;
@@ -127,5 +137,5 @@ pub fn sql__pg_catalog__set_bit__2mfa(
             }
         }
     }
-    BitValue::Unknown
+    bit_unresolved(unresolved_flavor)
 }

@@ -11,6 +11,8 @@ pub fn sql__pg_catalog__int2__15a3(input: Int4Value) -> Int2Value {
 }
 
 pub fn sql__pg_catalog__int8__mzac(input: Int4Value) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = input { unresolved_flavor = 1; };
     if let Int4Value::Error(error) = input {
         return Int8Value::Error(error);
     }
@@ -21,10 +23,12 @@ pub fn sql__pg_catalog__int8__mzac(input: Int4Value) -> Int8Value {
         let widened = payload as i64;
         return Int8Value::Value(widened);
     }
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__int4__5ywh(input: Int8Value) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = input { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = input {
         return Int4Value::Error(error);
     }
@@ -38,10 +42,12 @@ pub fn sql__pg_catalog__int4__5ywh(input: Int8Value) -> Int4Value {
         let narrowed = payload as i32;
         return Int4Value::Value(narrowed);
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__int2__gmpv(input: Int8Value) -> Int2Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = input { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = input {
         return Int2Value::Error(error);
     }
@@ -55,5 +61,5 @@ pub fn sql__pg_catalog__int2__gmpv(input: Int8Value) -> Int2Value {
         let narrowed = payload as i32;
         return Int2Value::Value(narrowed);
     }
-    Int2Value::Unknown
+    int2_unresolved(unresolved_flavor)
 }

@@ -12,6 +12,7 @@ fn range_endpoint_compare_mode(
     right_upper: bool,
     exact: bool,
 ) -> Int4Value {
+    let unresolved_flavor: i32 = 0;
     let mut li: usize = 0;
     let mut ri: usize = 0;
     let mut left_inc = left.lower_inclusive;
@@ -50,7 +51,7 @@ fn range_endpoint_compare_mode(
         return make_int4_value(1);
     };
     if left.element_kind == 6 && (left.enum_count != right.enum_count || left.enum_labels != right.enum_labels) {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     };
     let left_profile = left.bound_profile.clone();
     let right_profile = right.bound_profile.clone();
@@ -117,6 +118,9 @@ fn range_payload_compare_mode(left: &RangePayload, right: &RangePayload, exact: 
 }
 
 fn range_compare_mode(left: RangeValue, right: RangeValue, exact: bool) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeValue::Unknown = left { unresolved_flavor = 1; };
+    if let RangeValue::Unknown = right { unresolved_flavor = 1; };
     if let RangeValue::Error(error) = left {
         return Int4Value::Error(error);
     };
@@ -136,7 +140,7 @@ fn range_compare_mode(left: RangeValue, right: RangeValue, exact: bool) -> Int4V
             };
         };
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn range_order(left: RangeValue, right: RangeValue) -> Int4Value {
@@ -148,6 +152,8 @@ pub fn sql__pg_catalog__range_cmp__8jgl(left: RangeValue, right: RangeValue) -> 
 }
 
 fn range_order_boolean(input: Int4Value, strategy: i32) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = input { unresolved_flavor = 1; };
     if let Int4Value::Error(error) = input {
         return BoolValue::Error(error);
     };
@@ -172,10 +178,11 @@ fn range_order_boolean(input: Int4Value, strategy: i32) -> BoolValue {
         };
         return BoolValue::Value(order != 0);
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 fn range_bounds_adjacent(left: &RangePayload, right: &RangePayload) -> BoolValue {
+    let unresolved_flavor: i32 = 0;
     let a = left.bounds[1].clone();
     let b = right.bounds[0].clone();
     if let ArrayElement::Null = a {
@@ -185,7 +192,7 @@ fn range_bounds_adjacent(left: &RangePayload, right: &RangePayload) -> BoolValue
         return BoolValue::Value(false);
     };
     if left.element_kind == 6 && (left.enum_count != right.enum_count || left.enum_labels != right.enum_labels) {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     let left_profile = left.bound_profile.clone();
     let right_profile = right.bound_profile.clone();
@@ -198,7 +205,7 @@ fn range_bounds_adjacent(left: &RangePayload, right: &RangePayload) -> BoolValue
             return BoolValue::Value(left.upper_inclusive != right.lower_inclusive);
         };
         if order < 0 && left.support.canonical == 0 {
-            return BoolValue::Unknown;
+            return bool_unresolved(unresolved_flavor);
         };
         if order < 0
             && (left.support.canonical == 2
@@ -232,10 +239,11 @@ fn range_bounds_adjacent(left: &RangePayload, right: &RangePayload) -> BoolValue
         };
         return BoolValue::Value(false);
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 fn range_payload_relation(left: &RangePayload, right: &RangePayload, strategy: i32) -> BoolValue {
+    let unresolved_flavor: i32 = 0;
     if strategy == 6 {
         return range_payload_relation(right, left, 5);
     };
@@ -300,7 +308,7 @@ fn range_payload_relation(left: &RangePayload, right: &RangePayload, strategy: i
                 };
             };
             if known == false {
-                return BoolValue::Unknown;
+                return bool_unresolved(unresolved_flavor);
             };
         };
         let reverse = range_endpoint_compare(right, false, left, false);
@@ -313,10 +321,13 @@ fn range_payload_relation(left: &RangePayload, right: &RangePayload, strategy: i
         };
         return range_order_boolean(reverse, 4);
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 fn range_relation(left: RangeValue, right: RangeValue, strategy: i32) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeValue::Unknown = left { unresolved_flavor = 1; };
+    if let RangeValue::Unknown = right { unresolved_flavor = 1; };
     if let RangeValue::Error(error) = left {
         return BoolValue::Error(error);
     };
@@ -336,7 +347,7 @@ fn range_relation(left: RangeValue, right: RangeValue, strategy: i32) -> BoolVal
             };
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 fn range_contains_element(
@@ -344,6 +355,9 @@ fn range_contains_element(
     element: ArrayElement,
     element_first: bool,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeValue::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unknown = element { unresolved_flavor = 1; };
     if element_first {
         if let ArrayElement::Error(error) = element {
             return BoolValue::Error(error);
@@ -362,7 +376,7 @@ fn range_contains_element(
         return BoolValue::Null;
     };
     if let ArrayElement::Unknown = element {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if let RangeValue::Value(span) = input {
         if span.empty {
@@ -370,17 +384,17 @@ fn range_contains_element(
         };
         let kind = array_element_family(element.clone());
         if kind != 0 && kind != span.element_kind {
-            return BoolValue::Unknown;
+            return bool_unresolved(unresolved_flavor);
         };
         if span.element_kind == 6 && range_enum_bound_valid(element.clone(), span.enum_count) == false {
-            return BoolValue::Unknown;
+            return bool_unresolved(unresolved_flavor);
         };
         let mut element = element;
         let bound_profile = span.bound_profile.clone();
         if span.element_kind == 41 {
             element = range_prepare_profiled_bound(element, &bound_profile);
             if let ArrayElement::Error(error) = element { return BoolValue::Error(error); };
-            if let ArrayElement::Unknown = element { return BoolValue::Unknown; };
+            if let ArrayElement::Unknown = element { return bool_unresolved(unresolved_flavor); };
         };
         let lower = span.bounds[0].clone();
         let upper = span.bounds[1].clone();
@@ -405,7 +419,7 @@ fn range_contains_element(
                 };
             };
             if known == false {
-                return BoolValue::Unknown;
+                return bool_unresolved(unresolved_flavor);
             };
         };
         if has_upper {
@@ -421,12 +435,12 @@ fn range_contains_element(
                 };
             };
             if known == false {
-                return BoolValue::Unknown;
+                return bool_unresolved(unresolved_flavor);
             };
         };
         return BoolValue::Value(true);
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__range_lt__t1sv(left: RangeValue, right: RangeValue) -> BoolValue {

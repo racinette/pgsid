@@ -814,11 +814,13 @@ pub fn date_from_text(value: TextValue) -> DateValue {
 
 // The date order is the session DateStyle field order: 0 when unknown, 1 MDY, 2 DMY, 3 YMD.
 pub fn date_from_text_order(value: TextValue, date_order: i32) -> DateValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = value { unresolved_flavor = 1; };
     if let TextValue::Error(error) = value {
         return DateValue::Error(error);
     }
     if (value == TextValue::Unknown || value == TextValue::NonNull) {
-        return DateValue::Unknown;
+        return date_unresolved(unresolved_flavor);
     }
     if value == TextValue::Null {
         return DateValue::Null;
@@ -826,7 +828,7 @@ pub fn date_from_text_order(value: TextValue, date_order: i32) -> DateValue {
     if let TextValue::Value(text) = value {
         let chars: Vec<char> = text.chars().collect();
         if chars.len() > 128 {
-            return DateValue::Unknown;
+            return date_unresolved(unresolved_flavor);
         }
         let mut start = 0;
         let mut end = chars.len();
@@ -849,7 +851,7 @@ pub fn date_from_text_order(value: TextValue, date_order: i32) -> DateValue {
                 && date_text_space(chars[end - 3]) == false
                 && date_text_digit(chars[end - 3]) < 0
             {
-                return DateValue::Unknown;
+                return date_unresolved(unresolved_flavor);
             }
             end = end - 2;
         } else if end - start >= 2
@@ -860,7 +862,7 @@ pub fn date_from_text_order(value: TextValue, date_order: i32) -> DateValue {
                 && date_text_space(chars[end - 3]) == false
                 && date_text_digit(chars[end - 3]) < 0
             {
-                return DateValue::Unknown;
+                return date_unresolved(unresolved_flavor);
             }
             end = end - 2;
         }
@@ -901,7 +903,7 @@ pub fn date_from_text_order(value: TextValue, date_order: i32) -> DateValue {
                 index += 1;
             }
             if index == first {
-                return DateValue::Unknown;
+                return date_unresolved(unresolved_flavor);
             }
             if index != end {
                 return date_from_temporal_text(TextValue::Value(text.clone()), date_order);
@@ -949,10 +951,12 @@ pub fn date_from_text_order(value: TextValue, date_order: i32) -> DateValue {
         }
         return date_from_temporal_text(TextValue::Value(text.clone()), date_order);
     }
-    DateValue::Unknown
+    date_unresolved(unresolved_flavor)
 }
 
 fn date_from_temporal_text(value: TextValue, date_order: i32) -> DateValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = value { unresolved_flavor = 1; };
     let parsed = parse_temporal_text(value, false, true, date_order);
     if let Int8Value::Error(error) = parsed {
         return DateValue::Error(error);
@@ -963,10 +967,11 @@ fn date_from_temporal_text(value: TextValue, date_order: i32) -> DateValue {
             return make_date_value(narrow);
         }
     }
-    DateValue::Unknown
+    date_unresolved(unresolved_flavor)
 }
 
 pub fn date_from_ymd(year: i32, month: i32, day: i32) -> DateValue {
+    let unresolved_flavor: i32 = 0;
     let days = calendar_days_from_ymd(year, month, day);
     if let Int4Value::Error(error) = days {
         return DateValue::Error(error);
@@ -974,7 +979,7 @@ pub fn date_from_ymd(year: i32, month: i32, day: i32) -> DateValue {
     if let Int4Value::Value(value) = days {
         return make_date_value(value);
     }
-    DateValue::Unknown
+    date_unresolved(unresolved_flavor)
 }
 
 fn calendar_days_from_ymd(year: i32, month: i32, day: i32) -> Int4Value {

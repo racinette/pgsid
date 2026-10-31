@@ -9,6 +9,9 @@ fn interval_calendar_add(
     amount: IntervalValue,
     subtract: bool,
 ) -> TimestampValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestampValue::Unknown = input { unresolved_flavor = 1; };
+    if let IntervalValue::Unknown = amount { unresolved_flavor = 1; };
     if let TimestampValue::Error(error) = input {
         return TimestampValue::Error(error);
     };
@@ -16,7 +19,7 @@ fn interval_calendar_add(
         return TimestampValue::Error(error);
     };
     if input == TimestampValue::Unknown || amount == IntervalValue::Unknown {
-        return TimestampValue::Unknown;
+        return timestamp_unresolved(unresolved_flavor);
     };
     if input == TimestampValue::Null || amount == IntervalValue::Null {
         return TimestampValue::Null;
@@ -118,7 +121,7 @@ fn interval_calendar_add(
             };
         };
     };
-    TimestampValue::Unknown
+    timestamp_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__timestamp_pl_interval__zi2i(
     input: TimestampValue,
@@ -156,6 +159,9 @@ fn interval_calendar_date(
     amount: IntervalValue,
     subtract: bool,
 ) -> TimestampValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let DateValue::Unknown = input { unresolved_flavor = 1; };
+    if let IntervalValue::Unknown = amount { unresolved_flavor = 1; };
     if let DateValue::Error(error) = input {
         return TimestampValue::Error(error);
     };
@@ -163,7 +169,7 @@ fn interval_calendar_date(
         return TimestampValue::Error(error);
     };
     if input == DateValue::Unknown || amount == IntervalValue::Unknown {
-        return TimestampValue::Unknown;
+        return timestamp_unresolved(unresolved_flavor);
     };
     if input == DateValue::Null || amount == IntervalValue::Null {
         return TimestampValue::Null;
@@ -206,6 +212,9 @@ pub fn sql__pg_catalog__timestamp_mi__sntt(
     left: TimestampValue,
     right: TimestampValue,
 ) -> IntervalValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestampValue::Unknown = left { unresolved_flavor = 1; };
+    if let TimestampValue::Unknown = right { unresolved_flavor = 1; };
     if let TimestampValue::Error(error) = left {
         return IntervalValue::Error(error);
     };
@@ -213,7 +222,7 @@ pub fn sql__pg_catalog__timestamp_mi__sntt(
         return IntervalValue::Error(error);
     };
     if left == TimestampValue::Unknown || right == TimestampValue::Unknown {
-        return IntervalValue::Unknown;
+        return interval_unresolved(unresolved_flavor);
     };
     if left == TimestampValue::Null || right == TimestampValue::Null {
         return IntervalValue::Null;
@@ -237,9 +246,11 @@ pub fn sql__pg_catalog__timestamp_mi__sntt(
             return sql__pg_catalog__justify_hours__kx1s(make_interval_value(0, 0, a - b));
         };
     };
-    IntervalValue::Unknown
+    interval_unresolved(unresolved_flavor)
 }
 fn interval_calendar_local_payload(input: TimestamptzValue) -> TimestampValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
     if let TimestamptzValue::Error(error) = input {
         return TimestampValue::Error(error);
     };
@@ -249,7 +260,7 @@ fn interval_calendar_local_payload(input: TimestamptzValue) -> TimestampValue {
     if let TimestamptzValue::Value(value) = input {
         return TimestampValue::Value(value);
     };
-    TimestampValue::Unknown
+    timestamp_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__timestamptz_mi__av9n(
     left: TimestamptzValue,

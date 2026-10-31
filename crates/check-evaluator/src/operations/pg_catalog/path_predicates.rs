@@ -1,6 +1,7 @@
 fn path_bounds(path: &PathPayload) -> BoxValue {
+    let unresolved_flavor: i32 = 0;
     if path.points.len() == 0 {
-        return BoxValue::Unknown;
+        return box_unresolved(unresolved_flavor);
     };
     let first = path.points[0];
     let mut high_x = first.x;
@@ -41,6 +42,9 @@ fn path_bounds(path: &PathPayload) -> BoxValue {
     })
 }
 pub fn sql__pg_catalog__path_inter__6pqp(left: PathValue, right: PathValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PathValue::Unknown = left { unresolved_flavor = 1; };
+    if let PathValue::Unknown = right { unresolved_flavor = 1; };
     if let PathValue::Error(error) = left {
         return BoolValue::Error(error);
     };
@@ -48,10 +52,10 @@ pub fn sql__pg_catalog__path_inter__6pqp(left: PathValue, right: PathValue) -> B
         return BoolValue::Error(error);
     };
     if let PathValue::Unknown = left {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if let PathValue::Unknown = right {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if let PathValue::Null = left {
         return BoolValue::Null;
@@ -97,9 +101,10 @@ pub fn sql__pg_catalog__path_inter__6pqp(left: PathValue, right: PathValue) -> B
             return make_bool_value(false);
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 fn path_axis_crossing(x: f64, y: f64, previous_x: f64, previous_y: f64) -> Int4Value {
+    let unresolved_flavor: i32 = 0;
     if geometric_coordinate_equal(y, 0.0f64) {
         if geometric_coordinate_equal(x, 0.0f64) {
             return make_int4_value(2147483647);
@@ -173,9 +178,10 @@ fn path_axis_crossing(x: f64, y: f64, previous_x: f64, previous_y: f64) -> Int4V
         };
         return make_int4_value(2 * direction);
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 fn closed_path_contains(point: PointPayload, path: &PathPayload) -> BoolValue {
+    let unresolved_flavor: i32 = 0;
     let first = sql__pg_catalog__point_sub__o53k(
         PointValue::Value(path.points[0]),
         PointValue::Value(point),
@@ -218,21 +224,24 @@ fn closed_path_contains(point: PointPayload, path: &PathPayload) -> BoolValue {
                     crossing_known = true;
                 };
                 if crossing_known == false {
-                    return BoolValue::Unknown;
+                    return bool_unresolved(unresolved_flavor);
                 };
                 previous = current;
                 advanced = true;
             };
             if advanced == false {
-                return BoolValue::Unknown;
+                return bool_unresolved(unresolved_flavor);
             };
             index += 1;
         }
         return make_bool_value(total != 0);
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__on_ppath__8fo6(point: PointValue, input: PathValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PointValue::Unknown = point { unresolved_flavor = 1; };
+    if let PathValue::Unknown = input { unresolved_flavor = 1; };
     if let PointValue::Error(error) = point {
         return BoolValue::Error(error);
     };
@@ -240,10 +249,10 @@ pub fn sql__pg_catalog__on_ppath__8fo6(point: PointValue, input: PathValue) -> B
         return BoolValue::Error(error);
     };
     if point == PointValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if let PathValue::Unknown = input {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if point == PointValue::Null {
         return BoolValue::Null;
@@ -253,7 +262,7 @@ pub fn sql__pg_catalog__on_ppath__8fo6(point: PointValue, input: PathValue) -> B
     };
     if let PathValue::Value(path) = input {
         if path.points.len() == 0 {
-            return BoolValue::Unknown;
+            return bool_unresolved(unresolved_flavor);
         };
         if let PointValue::Value(position) = point {
             if path.closed {
@@ -293,7 +302,7 @@ pub fn sql__pg_catalog__on_ppath__8fo6(point: PointValue, input: PathValue) -> B
                     };
                 };
                 if compared == false {
-                    return BoolValue::Unknown;
+                    return bool_unresolved(unresolved_flavor);
                 };
                 previous = next;
                 index += 1;
@@ -301,7 +310,7 @@ pub fn sql__pg_catalog__on_ppath__8fo6(point: PointValue, input: PathValue) -> B
             return make_bool_value(false);
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__path_contain_pt__ltus(input: PathValue, point: PointValue) -> BoolValue {
     if let PathValue::Error(error) = input {

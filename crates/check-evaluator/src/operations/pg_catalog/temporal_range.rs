@@ -43,6 +43,7 @@ fn temporal_range_timestamp_value(
     subtract: bool,
     less: bool,
 ) -> BoolValue {
+    let unresolved_flavor: i32 = 0;
     let zero = IntervalPayload {
         months: 0,
         days: 0,
@@ -72,7 +73,7 @@ fn temporal_range_timestamp_value(
         };
         return make_bool_value(order >= 0);
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 fn temporal_range_interval_value(
     value: IntervalPayload,
@@ -114,6 +115,12 @@ pub fn sql__pg_catalog__in_range__f2o9(
     subtract: BoolValue,
     less: BoolValue,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let IntervalValue::Unknown = value { unresolved_flavor = 1; };
+    if let IntervalValue::Unknown = base { unresolved_flavor = 1; };
+    if let IntervalValue::Unknown = offset { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = subtract { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = less { unresolved_flavor = 1; };
     if let IntervalValue::Error(error) = value {
         return BoolValue::Error(error);
     };
@@ -135,7 +142,7 @@ pub fn sql__pg_catalog__in_range__f2o9(
         || subtract == BoolValue::Unknown
         || less == BoolValue::Unknown
     {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if value == IntervalValue::Null
         || base == IntervalValue::Null
@@ -158,7 +165,7 @@ pub fn sql__pg_catalog__in_range__f2o9(
             };
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__in_range__bs2r(
@@ -168,6 +175,12 @@ pub fn sql__pg_catalog__in_range__bs2r(
     subtract: BoolValue,
     less: BoolValue,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimeValue::Unknown = value { unresolved_flavor = 1; };
+    if let TimeValue::Unknown = base { unresolved_flavor = 1; };
+    if let IntervalValue::Unknown = offset { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = subtract { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = less { unresolved_flavor = 1; };
     if let TimeValue::Error(error) = value {
         return BoolValue::Error(error);
     };
@@ -189,7 +202,7 @@ pub fn sql__pg_catalog__in_range__bs2r(
         || subtract == BoolValue::Unknown
         || less == BoolValue::Unknown
     {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if value == TimeValue::Null
         || base == TimeValue::Null
@@ -218,7 +231,7 @@ pub fn sql__pg_catalog__in_range__bs2r(
             };
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__in_range__fn2k(
@@ -228,6 +241,12 @@ pub fn sql__pg_catalog__in_range__fn2k(
     subtract: BoolValue,
     less: BoolValue,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestampValue::Unknown = value { unresolved_flavor = 1; };
+    if let TimestampValue::Unknown = base { unresolved_flavor = 1; };
+    if let IntervalValue::Unknown = offset { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = subtract { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = less { unresolved_flavor = 1; };
     if let TimestampValue::Error(error) = value {
         return BoolValue::Error(error);
     };
@@ -249,7 +268,7 @@ pub fn sql__pg_catalog__in_range__fn2k(
         || subtract == BoolValue::Unknown
         || less == BoolValue::Unknown
     {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if value == TimestampValue::Null
         || base == TimestampValue::Null
@@ -272,7 +291,7 @@ pub fn sql__pg_catalog__in_range__fn2k(
             };
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__in_range__4yq8(
@@ -282,6 +301,12 @@ pub fn sql__pg_catalog__in_range__4yq8(
     subtract: BoolValue,
     less: BoolValue,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let DateValue::Unknown = value { unresolved_flavor = 1; };
+    if let DateValue::Unknown = base { unresolved_flavor = 1; };
+    if let IntervalValue::Unknown = offset { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = subtract { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = less { unresolved_flavor = 1; };
     if let DateValue::Error(error) = value {
         return BoolValue::Error(error);
     };
@@ -303,7 +328,7 @@ pub fn sql__pg_catalog__in_range__4yq8(
         || subtract == BoolValue::Unknown
         || less == BoolValue::Unknown
     {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if value == DateValue::Null
         || base == DateValue::Null
@@ -325,6 +350,12 @@ pub fn sql__pg_catalog__in_range__6ce3(
     subtract: BoolValue,
     less: BoolValue,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimetzValue::Unknown = value { unresolved_flavor = 1; };
+    if let TimetzValue::Unknown = base { unresolved_flavor = 1; };
+    if let IntervalValue::Unknown = offset { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = subtract { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = less { unresolved_flavor = 1; };
     if let TimetzValue::Error(error) = value {
         return BoolValue::Error(error);
     };
@@ -346,7 +377,7 @@ pub fn sql__pg_catalog__in_range__6ce3(
         || subtract == BoolValue::Unknown
         || less == BoolValue::Unknown
     {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if value == TimetzValue::Null
         || base == TimetzValue::Null
@@ -375,5 +406,5 @@ pub fn sql__pg_catalog__in_range__6ce3(
             };
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }

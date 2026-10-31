@@ -1,6 +1,10 @@
 const BIT_STRING_RIGHT_TRUNCATION: u32 = 3452545;
 
 fn bit_coerce(input: BitValue, width: Int4Value, explicit: BoolValue, varying: bool) -> BitValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BitValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = width { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = explicit { unresolved_flavor = 1; };
     if let BitValue::Error(error) = input {
         return BitValue::Error(error);
     }
@@ -11,7 +15,7 @@ fn bit_coerce(input: BitValue, width: Int4Value, explicit: BoolValue, varying: b
         return BitValue::Error(error);
     }
     if input == BitValue::Unknown || width == Int4Value::Unknown || explicit == BoolValue::Unknown {
-        return BitValue::Unknown;
+        return bit_unresolved(unresolved_flavor);
     }
     if input == BitValue::Null || width == Int4Value::Null || explicit == BoolValue::Null {
         return BitValue::Null;
@@ -49,7 +53,7 @@ fn bit_coerce(input: BitValue, width: Int4Value, explicit: BoolValue, varying: b
             }
         }
     }
-    BitValue::Unknown
+    bit_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__bit__eqck(

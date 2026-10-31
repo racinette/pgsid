@@ -78,11 +78,12 @@ fn timestamp_format_field(
     fill: bool,
     translated: bool,
 ) -> TextValue {
+    let unresolved_flavor: i32 = 0;
     if kind == 23 {
         return make_text_value("");
     };
     if fields.known == false && (kind < 10 || kind > 17) {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     let calendar = fields.calendar;
     let span = IntervalPayload {
@@ -163,7 +164,7 @@ fn timestamp_format_field(
     };
     if kind >= 44 && kind <= 47 {
         if translated && (fields.locale_c == false || fields.collation_c == false) {
-            return TextValue::Unknown;
+            return text_unresolved(unresolved_flavor);
         };
         let mut name = String::new();
         if kind == 44 || kind == 45 {
@@ -265,6 +266,7 @@ fn timestamp_format_field(
 }
 
 fn timestamp_format_render(fields: &TimestampFormatFields, format: &str) -> TextValue {
+    let unresolved_flavor: i32 = 0;
     let source = JsonpathTemporalSource {
         characters: format.chars().collect(),
     };
@@ -299,7 +301,7 @@ fn timestamp_format_render(fields: &TimestampFormatFields, format: &str) -> Text
                 position += 2;
             };
             if fields.known && (kind == 46 || kind == 47) && (fields.julian + 1i64) % 7i64 < 0i64 {
-                return TextValue::Unknown;
+                return text_unresolved(unresolved_flavor);
             };
             let field = timestamp_format_field(fields, kind, name, fill, translated);
             if let TextValue::Error(error) = field {
@@ -357,7 +359,7 @@ fn timestamp_format_render(fields: &TimestampFormatFields, format: &str) -> Text
     }
 
     if unknown {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     TextValue::Value(output)
 }
@@ -395,6 +397,9 @@ pub fn sql__pg_catalog__to_char__m86d(
     locale_c: bool,
     collation_c: bool,
 ) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestampValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unknown = template { unresolved_flavor = 1; };
     if let TimestampValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -402,7 +407,7 @@ pub fn sql__pg_catalog__to_char__m86d(
         return TextValue::Error(error);
     };
     if input == TimestampValue::Unknown || template == TextValue::Unknown {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     if input == TimestampValue::Null || template == TextValue::Null {
         return TextValue::Null;
@@ -423,5 +428,5 @@ pub fn sql__pg_catalog__to_char__m86d(
             return timestamp_format_render(&fields, format.as_str());
         };
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }

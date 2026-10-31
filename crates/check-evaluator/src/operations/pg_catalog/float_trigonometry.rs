@@ -4,6 +4,8 @@
 // odd and cosine even; arguments beyond the medium reduction range, which needs Payne-Hanek
 // reduction, defer.
 fn float8_trigonometry(input: Float8Value, fdlibm: bool, cosine: bool) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = input { unresolved_flavor = 1; };
     if input == Float8Value::UnspecifiedNan {
         return Float8Value::UnspecifiedNan;
     };
@@ -17,7 +19,7 @@ fn float8_trigonometry(input: Float8Value, fdlibm: bool, cosine: bool) -> Float8
             return Float8Value::Error(make_sql_error(FLOAT_CORE_RANGE));
         };
         if fdlibm == false || circle_math_high_word(magnitude) >= 1094263291 {
-            return Float8Value::Unknown;
+            return float8_unresolved(unresolved_flavor);
         };
         let mut result = circle_trigonometry(magnitude, cosine);
         if cosine == false && bits < 0i64 {
@@ -71,6 +73,8 @@ fn float8_degree_cosine(x: f64) -> f64 {
 // sind and cosd follow PostgreSQL's dsind and dcosd: reduce modulo 360 degrees, fold into the
 // first quadrant while tracking the sign, and splice exact endpoints at 30 and 60 degrees.
 fn float8_degree_trigonometry(input: Float8Value, fdlibm: bool, cosine: bool) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = input { unresolved_flavor = 1; };
     if input == Float8Value::UnspecifiedNan {
         return Float8Value::UnspecifiedNan;
     };
@@ -83,7 +87,7 @@ fn float8_degree_trigonometry(input: Float8Value, fdlibm: bool, cosine: bool) ->
             return Float8Value::Error(make_sql_error(FLOAT_CORE_RANGE));
         };
         if fdlibm == false {
-            return Float8Value::Unknown;
+            return float8_unresolved(unresolved_flavor);
         };
         let mut angle = float8_fmod_360(number);
         let mut sign = 1.0f64;
@@ -195,6 +199,8 @@ fn float8_tan_kernel(head: f64, tail: f64, odd: bool) -> f64 {
 // tan and cot follow PostgreSQL's dtan and dcot over musl's tan, which is odd in its argument,
 // so |x| is reduced and the sign restored; cot is 1/tan, infinite at zero as in PostgreSQL.
 fn float8_tangent(input: Float8Value, fdlibm: bool, cotangent: bool) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = input { unresolved_flavor = 1; };
     if input == Float8Value::UnspecifiedNan {
         return Float8Value::UnspecifiedNan;
     };
@@ -209,7 +215,7 @@ fn float8_tangent(input: Float8Value, fdlibm: bool, cotangent: bool) -> Float8Va
         };
         let high = circle_math_high_word(magnitude);
         if fdlibm == false || high >= 1094263291 {
-            return Float8Value::Unknown;
+            return float8_unresolved(unresolved_flavor);
         };
         let mut result = magnitude;
         if high <= 1072243195 {
@@ -260,6 +266,8 @@ fn float8_degree_cosine_q1(x: f64) -> f64 {
 // tand and cotd follow PostgreSQL's dtand and dcotd: the sine and cosine folds, a quotient scaled
 // by tan(45) or cot(45) so that 45 degrees is exactly one, and zero normalized to positive zero.
 fn float8_degree_tangent(input: Float8Value, fdlibm: bool, cotangent: bool) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = input { unresolved_flavor = 1; };
     if input == Float8Value::UnspecifiedNan {
         return Float8Value::UnspecifiedNan;
     };
@@ -272,7 +280,7 @@ fn float8_degree_tangent(input: Float8Value, fdlibm: bool, cotangent: bool) -> F
             return Float8Value::Error(make_sql_error(FLOAT_CORE_RANGE));
         };
         if fdlibm == false {
-            return Float8Value::Unknown;
+            return float8_unresolved(unresolved_flavor);
         };
         let mut angle = float8_fmod_360(number);
         let mut sign = 1.0f64;

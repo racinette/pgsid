@@ -75,6 +75,7 @@ fn float_output_decimal(work: NumericWork, negative: bool, threshold: i32) -> St
 }
 
 fn float_output_bits(bits: i64, single: bool, negative: bool, extra: i32, known: bool) -> TextValue {
+    let unresolved_flavor: i32 = 0;
     let mut unit = 4503599627370496i64; let mut bias: i32 = 1023;
     let mut width: i32 = 52; let mut special: i32 = 2047; let mut digits: i32 = 15;
     if single { unit = 8388608i64; bias = 127; width = 23; special = 255; digits = 6; };
@@ -88,7 +89,7 @@ fn float_output_bits(bits: i64, single: bool, negative: bool, extra: i32, known:
         if negative { return make_text_value("-0"); };
         return make_text_value("0");
     };
-    if known && (extra < -15 || extra > 3) { return TextValue::Unknown; };
+    if known && (extra < -15 || extra > 3) { return text_unresolved(unresolved_flavor); };
     let mut coefficient = mantissa; let mut power = 1-bias-width;
     if exponent > 0 { coefficient = coefficient+unit; power = exponent-bias-width; };
     let exact = float_output_dyadic(coefficient,power);
@@ -99,7 +100,7 @@ fn float_output_bits(bits: i64, single: bool, negative: bool, extra: i32, known:
         return TextValue::Value(text);
     };
     let shortest = float_output_shortest(exact.clone(),coefficient,power,mantissa,exponent,single);
-    if shortest.valid == false { return TextValue::Unknown; };
+    if shortest.valid == false { return text_unresolved(unresolved_flavor); };
     let text = float_output_decimal(shortest,negative,digits);
     if known { return TextValue::Value(text); };
     let first_value = float_output_rounded(exact.clone(),1);
@@ -107,10 +108,12 @@ fn float_output_bits(bits: i64, single: bool, negative: bool, extra: i32, known:
     let last_value = float_output_rounded(exact,digits);
     let last = float_output_decimal(last_value,negative,digits);
     if first == text && last == text { return TextValue::Value(text); };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn float8_output_context(input: Float8Value, extra: i32, known: bool) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = input { unresolved_flavor = 1; };
     if let Float8Value::Error(error) = input { return TextValue::Error(error); };
     if let Float8Value::Null = input { return TextValue::Null; };
     if let Float8Value::UnspecifiedNan = input { return make_text_value("NaN"); };
@@ -119,10 +122,12 @@ pub fn float8_output_context(input: Float8Value, extra: i32, known: bool) -> Tex
         if negative { magnitude = bits-(-9223372036854775808i64); };
         return float_output_bits(magnitude,false,negative,extra,known);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn float4_output_context(input: Float4Value, extra: i32, known: bool) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float4Value::Unknown = input { unresolved_flavor = 1; };
     if let Float4Value::Error(error) = input { return TextValue::Error(error); };
     if let Float4Value::Null = input { return TextValue::Null; };
     if let Float4Value::UnspecifiedNan = input { return make_text_value("NaN"); };
@@ -131,5 +136,5 @@ pub fn float4_output_context(input: Float4Value, extra: i32, known: bool) -> Tex
         if negative { magnitude = magnitude-(-2147483648i64); };
         return float_output_bits(magnitude,true,negative,extra,known);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }

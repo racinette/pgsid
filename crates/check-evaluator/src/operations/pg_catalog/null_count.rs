@@ -12,6 +12,9 @@ pub fn make_null_count_arguments() -> NullCountArguments {
 }
 
 fn null_count_step(input: Int4Value, nullness: BoolValue, count_nulls: bool) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = input { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = nullness { unresolved_flavor = 1; };
     if let Int4Value::Error(_) = input {
         return input;
     };
@@ -26,7 +29,7 @@ fn null_count_step(input: Int4Value, nullness: BoolValue, count_nulls: bool) -> 
             return input;
         };
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn append_null_count_argument(

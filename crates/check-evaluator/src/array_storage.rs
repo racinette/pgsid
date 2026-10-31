@@ -1,16 +1,21 @@
 pub fn array_bitmap_union(left: BoolValue, right: BoolValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoolValue::Unknown = left { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = right { unresolved_flavor = 1; };
     if left == BoolValue::Value(true) || right == BoolValue::Value(true) {
         return BoolValue::Value(true);
     };
     if left == BoolValue::Value(false) && right == BoolValue::Value(false) {
         return BoolValue::Value(false);
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn array_element_bitmap(input: ArrayElement) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
     if let ArrayElement::Unknown = input {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if let ArrayElement::Null = input {
         return BoolValue::Value(true);
@@ -39,13 +44,18 @@ pub fn array_reconstruction_bitmap(input: &ArrayPayload) -> BoolValue {
 }
 
 pub fn array_bitmap_choice(left: BoolValue, right: BoolValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoolValue::Unknown = left { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = right { unresolved_flavor = 1; };
     if left == right {
         return left;
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn array_null_bitmap(input: ArrayValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
     if let ArrayValue::Error(error) = input {
         return BoolValue::Error(error);
     };
@@ -55,7 +65,7 @@ pub fn array_null_bitmap(input: ArrayValue) -> BoolValue {
     if let ArrayValue::Value(value) = input {
         return value.null_bitmap;
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 #[derive(Clone, Copy)]
@@ -95,6 +105,9 @@ pub fn apply_tsvector_storage(input: TsvectorValue, plan: &TsvectorStoragePlan, 
 }
 
 pub fn advance_tsvector_storage(nullness: BoolValue, index: Int4Value) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoolValue::Unknown = nullness { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = index { unresolved_flavor = 1; };
     if let BoolValue::Error(error) = nullness { return Int4Value::Error(error); };
     if nullness == BoolValue::Value(true) { return index; };
     if nullness == BoolValue::Value(false) {
@@ -102,7 +115,7 @@ pub fn advance_tsvector_storage(nullness: BoolValue, index: Int4Value) -> Int4Va
             if value < 2147483647 { return make_int4_value(value + 1); };
         };
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn finish_tsvector_storage(input: ArrayElement, plan: &TsvectorStoragePlan, index: Int4Value) -> ArrayElement {
@@ -196,9 +209,10 @@ fn array_storage_child_path(path: &str, index: usize) -> String {
 }
 
 fn array_storage_missing_bitmap(input: &ArrayPayload) -> BoolValue {
+    let unresolved_flavor: i32 = 0;
     let elements = array_elements_bitmap(input);
     if elements == BoolValue::Value(true) { return elements; };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn forget_array_storage(input: ArrayElement) -> ArrayElement {

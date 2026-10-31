@@ -1,4 +1,7 @@
 fn circle_fuzzy_relation(left: Float8Value, right: Float8Value, mode: i32) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = left { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = right { unresolved_flavor = 1; };
     if let Float8Value::Error(error) = left {
         return BoolValue::Error(error);
     };
@@ -6,7 +9,7 @@ fn circle_fuzzy_relation(left: Float8Value, right: Float8Value, mode: i32) -> Bo
         return BoolValue::Error(error);
     };
     if left == Float8Value::Unknown || right == Float8Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if left == Float8Value::Null || right == Float8Value::Null {
         return BoolValue::Null;
@@ -32,9 +35,11 @@ fn circle_fuzzy_relation(left: Float8Value, right: Float8Value, mode: i32) -> Bo
             return make_bool_value(x <= y);
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 fn circle_edge(input: CircleValue, vertical: bool, low: bool) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let CircleValue::Unknown = input { unresolved_flavor = 1; };
     let center = circle_center_value(input);
     if let PointValue::Error(error) = center {
         return Float8Value::Error(error);
@@ -50,7 +55,7 @@ fn circle_edge(input: CircleValue, vertical: bool, low: bool) -> Float8Value {
         };
         return sql__pg_catalog__float8pl__g3ou(coordinate, radius);
     };
-    Float8Value::Unknown
+    float8_unresolved(unresolved_flavor)
 }
 fn circle_position_relation(
     left: CircleValue,
@@ -120,12 +125,15 @@ fn circle_clamp_distance(input: Float8Value) -> Float8Value {
     box_computed_scalar(input)
 }
 fn circle_distance_value(left: CircleValue, right: CircleValue) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let CircleValue::Unknown = left { unresolved_flavor = 1; };
+    if let CircleValue::Unknown = right { unresolved_flavor = 1; };
     let status = circle_pair_status(left, right);
     if let BoolValue::Error(error) = status {
         return Float8Value::Error(error);
     };
     if status == BoolValue::Unknown {
-        return Float8Value::Unknown;
+        return float8_unresolved(unresolved_flavor);
     };
     if status == BoolValue::Null {
         return Float8Value::Null;
@@ -139,6 +147,9 @@ fn circle_distance_value(left: CircleValue, right: CircleValue) -> Float8Value {
     circle_clamp_distance(sql__pg_catalog__float8mi__r1nu(distance, radii))
 }
 fn circle_point_status(input: CircleValue, point: PointValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let CircleValue::Unknown = input { unresolved_flavor = 1; };
+    if let PointValue::Unknown = point { unresolved_flavor = 1; };
     if let CircleValue::Error(error) = input {
         return BoolValue::Error(error);
     };
@@ -146,7 +157,7 @@ fn circle_point_status(input: CircleValue, point: PointValue) -> BoolValue {
         return BoolValue::Error(error);
     };
     if input == CircleValue::Unknown || point == PointValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if input == CircleValue::Null || point == PointValue::Null {
         return BoolValue::Null;
@@ -165,12 +176,15 @@ fn circle_has_point(input: CircleValue, point: PointValue) -> BoolValue {
     )
 }
 fn circle_point_distance(input: CircleValue, point: PointValue) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let CircleValue::Unknown = input { unresolved_flavor = 1; };
+    if let PointValue::Unknown = point { unresolved_flavor = 1; };
     let status = circle_point_status(input, point);
     if let BoolValue::Error(error) = status {
         return Float8Value::Error(error);
     };
     if status == BoolValue::Unknown {
-        return Float8Value::Unknown;
+        return float8_unresolved(unresolved_flavor);
     };
     if status == BoolValue::Null {
         return Float8Value::Null;
@@ -182,12 +196,15 @@ fn circle_point_distance(input: CircleValue, point: PointValue) -> Float8Value {
     ))
 }
 fn circle_arithmetic(input: CircleValue, point: PointValue, mode: i32) -> CircleValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let CircleValue::Unknown = input { unresolved_flavor = 1; };
+    if let PointValue::Unknown = point { unresolved_flavor = 1; };
     let status = circle_point_status(input, point);
     if let BoolValue::Error(error) = status {
         return CircleValue::Error(error);
     };
     if status == BoolValue::Unknown {
-        return CircleValue::Unknown;
+        return circle_unresolved(unresolved_flavor);
     };
     if status == BoolValue::Null {
         return CircleValue::Null;

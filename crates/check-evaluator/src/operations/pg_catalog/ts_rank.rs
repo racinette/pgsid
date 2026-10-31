@@ -114,14 +114,19 @@ fn ts_rank_calculate(weights: &TsRankWeightSet, document: &TsvectorPayload, quer
 }
 
 fn ts_rank_run(weights: ArrayValue, document: TsvectorValue, query: TsqueryValue, method: Int4Value, defaults: bool) -> Float4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayValue::Unknown = weights { unresolved_flavor = 1; };
+    if let TsvectorValue::Unknown = document { unresolved_flavor = 1; };
+    if let TsqueryValue::Unknown = query { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = method { unresolved_flavor = 1; };
     if let ArrayValue::Error(error) = weights { return Float4Value::Error(error); };
     if let TsvectorValue::Error(error) = document { return Float4Value::Error(error); };
     if let TsqueryValue::Error(error) = query { return Float4Value::Error(error); };
     if let Int4Value::Error(error) = method { return Float4Value::Error(error); };
-    if defaults == false { if let ArrayValue::Unknown = weights { return Float4Value::Unknown; }; };
-    if let TsvectorValue::Unknown = document { return Float4Value::Unknown; };
-    if let TsqueryValue::Unknown = query { return Float4Value::Unknown; };
-    if method == Int4Value::Unknown { return Float4Value::Unknown; };
+    if defaults == false { if let ArrayValue::Unknown = weights { return float4_unresolved(unresolved_flavor); }; };
+    if let TsvectorValue::Unknown = document { return float4_unresolved(unresolved_flavor); };
+    if let TsqueryValue::Unknown = query { return float4_unresolved(unresolved_flavor); };
+    if method == Int4Value::Unknown { return float4_unresolved(unresolved_flavor); };
     if defaults == false { if let ArrayValue::Null = weights { return Float4Value::Null; }; };
     if let TsvectorValue::Null = document { return Float4Value::Null; };
     if let TsqueryValue::Null = query { return Float4Value::Null; };
@@ -129,7 +134,7 @@ fn ts_rank_run(weights: ArrayValue, document: TsvectorValue, query: TsqueryValue
     let mut selected = ts_rank_defaults();
     if defaults == false {
         let parsed = ts_rank_read_weights(weights);
-        if let TsRankWeights::Unknown = parsed { return Float4Value::Unknown; };
+        if let TsRankWeights::Unknown = parsed { return float4_unresolved(unresolved_flavor); };
         if let TsRankWeights::Error(error) = parsed { return Float4Value::Error(error); };
         if let TsRankWeights::Value(value) = parsed { selected = value; };
     };
@@ -142,7 +147,7 @@ fn ts_rank_run(weights: ArrayValue, document: TsvectorValue, query: TsqueryValue
             };
         };
     };
-    Float4Value::Unknown
+    float4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__ts_rank__hfbf(weights: ArrayValue, document: TsvectorValue, query: TsqueryValue) -> Float4Value { ts_rank_run(weights,document,query,make_int4_value(0),false) }

@@ -1,4 +1,7 @@
 fn segment_pair_status(left: LsegValue, right: LsegValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let LsegValue::Unknown = left { unresolved_flavor = 1; };
+    if let LsegValue::Unknown = right { unresolved_flavor = 1; };
     if let LsegValue::Error(error) = left {
         return BoolValue::Error(error);
     };
@@ -6,7 +9,7 @@ fn segment_pair_status(left: LsegValue, right: LsegValue) -> BoolValue {
         return BoolValue::Error(error);
     };
     if left == LsegValue::Unknown || right == LsegValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if left == LsegValue::Null || right == LsegValue::Null {
         return BoolValue::Null;
@@ -14,6 +17,9 @@ fn segment_pair_status(left: LsegValue, right: LsegValue) -> BoolValue {
     make_bool_value(true)
 }
 fn segment_line_status(segment: LsegValue, line: LineValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let LsegValue::Unknown = segment { unresolved_flavor = 1; };
+    if let LineValue::Unknown = line { unresolved_flavor = 1; };
     if let LsegValue::Error(error) = segment {
         return BoolValue::Error(error);
     };
@@ -21,7 +27,7 @@ fn segment_line_status(segment: LsegValue, line: LineValue) -> BoolValue {
         return BoolValue::Error(error);
     };
     if segment == LsegValue::Unknown || line == LineValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if segment == LsegValue::Null || line == LineValue::Null {
         return BoolValue::Null;
@@ -29,6 +35,9 @@ fn segment_line_status(segment: LsegValue, line: LineValue) -> BoolValue {
     make_bool_value(true)
 }
 fn segment_point_status(segment: LsegValue, point: PointValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let LsegValue::Unknown = segment { unresolved_flavor = 1; };
+    if let PointValue::Unknown = point { unresolved_flavor = 1; };
     if let LsegValue::Error(error) = segment {
         return BoolValue::Error(error);
     };
@@ -36,7 +45,7 @@ fn segment_point_status(segment: LsegValue, point: PointValue) -> BoolValue {
         return BoolValue::Error(error);
     };
     if segment == LsegValue::Unknown || point == PointValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if segment == LsegValue::Null || point == PointValue::Null {
         return BoolValue::Null;
@@ -44,24 +53,31 @@ fn segment_point_status(segment: LsegValue, point: PointValue) -> BoolValue {
     make_bool_value(true)
 }
 fn segment_point_from_status(status: BoolValue) -> PointValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoolValue::Unknown = status { unresolved_flavor = 1; };
     if let BoolValue::Error(error) = status {
         return PointValue::Error(error);
     };
     if status == BoolValue::Null {
         return PointValue::Null;
     };
-    PointValue::Unknown
+    point_unresolved(unresolved_flavor)
 }
 fn segment_float_from_status(status: BoolValue) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoolValue::Unknown = status { unresolved_flavor = 1; };
     if let BoolValue::Error(error) = status {
         return Float8Value::Error(error);
     };
     if status == BoolValue::Null {
         return Float8Value::Null;
     };
-    Float8Value::Unknown
+    float8_unresolved(unresolved_flavor)
 }
 fn segment_raw_relation(left: Float8Value, right: Float8Value, equal: bool) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = left { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = right { unresolved_flavor = 1; };
     if let Float8Value::Error(error) = left {
         return BoolValue::Error(error);
     };
@@ -69,7 +85,7 @@ fn segment_raw_relation(left: Float8Value, right: Float8Value, equal: bool) -> B
         return BoolValue::Error(error);
     };
     if left == Float8Value::Unknown || right == Float8Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if left == Float8Value::Null || right == Float8Value::Null {
         return BoolValue::Null;
@@ -84,9 +100,12 @@ fn segment_raw_relation(left: Float8Value, right: Float8Value, equal: bool) -> B
             return make_bool_value(float8_number(a) < float8_number(b));
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 fn segment_contains_point(segment: LsegValue, point: PointValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let LsegValue::Unknown = segment { unresolved_flavor = 1; };
+    if let PointValue::Unknown = point { unresolved_flavor = 1; };
     let status = segment_point_status(segment, point);
     if status != BoolValue::Value(true) {
         return status;
@@ -114,9 +133,11 @@ fn segment_contains_point(segment: LsegValue, point: PointValue) -> BoolValue {
             };
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 fn segment_promote_line(segment: LsegValue) -> LineValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let LsegValue::Unknown = segment { unresolved_flavor = 1; };
     if let LsegValue::Error(error) = segment {
         return LineValue::Error(error);
     };
@@ -127,7 +148,7 @@ fn segment_promote_line(segment: LsegValue) -> LineValue {
     if let PointValue::Value(origin) = first {
         return line_from_origin_slope(origin, lseg_slope(segment, false));
     };
-    LineValue::Unknown
+    line_unresolved(unresolved_flavor)
 }
 fn segment_line_intersection(segment: LsegValue, line: LineValue) -> PointValue {
     let status = segment_line_status(segment, line);
@@ -180,11 +201,13 @@ fn segment_intersection(left: LsegValue, right: LsegValue) -> PointValue {
     intersection
 }
 fn segment_intersection_result(point: PointValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PointValue::Unknown = point { unresolved_flavor = 1; };
     if let PointValue::Error(error) = point {
         return BoolValue::Error(error);
     };
     if point == PointValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     make_bool_value(point != PointValue::Null)
 }
@@ -341,12 +364,13 @@ fn segment_nearest_pair(left: LsegValue, right: LsegValue) -> SegmentClosest {
     )
 }
 fn segment_closest_point(closest: SegmentClosest) -> PointValue {
+    let unresolved_flavor: i32 = 0;
     let distance = closest.distance;
     if let Float8Value::Error(error) = distance {
         return PointValue::Error(error);
     };
     if distance == Float8Value::Unknown {
-        return PointValue::Unknown;
+        return point_unresolved(unresolved_flavor);
     };
     if distance == Float8Value::Null {
         return PointValue::Null;
@@ -361,6 +385,8 @@ fn segment_closest_point(closest: SegmentClosest) -> PointValue {
     closest.point
 }
 fn segment_line_slope(input: LineValue) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let LineValue::Unknown = input { unresolved_flavor = 1; };
     if let LineValue::Error(error) = input {
         return Float8Value::Error(error);
     };
@@ -379,7 +405,7 @@ fn segment_line_slope(input: LineValue) -> Float8Value {
             sql__pg_catalog__float8um__3uy5(line_coefficient(value, 1)),
         );
     };
-    Float8Value::Unknown
+    float8_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__lseg_interpt__8i53(left: LsegValue, right: LsegValue) -> PointValue {
     segment_intersection(left, right)

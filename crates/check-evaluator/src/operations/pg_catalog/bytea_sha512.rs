@@ -425,11 +425,13 @@ fn digest_sha512_hex(input: &str, short: bool) -> String {
 }
 
 fn digest_sha512(input: ByteaValue, short: bool) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
     if let ByteaValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
     if input == ByteaValue::Unknown {
-        return ByteaValue::Unknown;
+        return bytea_unresolved(unresolved_flavor);
     }
     if input == ByteaValue::Null {
         return ByteaValue::Null;
@@ -438,7 +440,7 @@ fn digest_sha512(input: ByteaValue, short: bool) -> ByteaValue {
         let result = digest_sha512_hex(value.as_str(), short);
         return ByteaValue::Value(result);
     }
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__sha384__41g6(input: ByteaValue) -> ByteaValue {

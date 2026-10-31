@@ -11,6 +11,9 @@ fn point_same_value(left: PointPayload, right: PointPayload) -> bool {
         && (y == other_y || (y - other_y).abs() <= 0.000001f64)
 }
 fn point_same(left: PointValue, right: PointValue, negate: bool) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PointValue::Unknown = left { unresolved_flavor = 1; };
+    if let PointValue::Unknown = right { unresolved_flavor = 1; };
     if let PointValue::Error(error) = left {
         return BoolValue::Error(error);
     };
@@ -18,7 +21,7 @@ fn point_same(left: PointValue, right: PointValue, negate: bool) -> BoolValue {
         return BoolValue::Error(error);
     };
     if left == PointValue::Unknown || right == PointValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if left == PointValue::Null || right == PointValue::Null {
         return BoolValue::Null;
@@ -28,7 +31,7 @@ fn point_same(left: PointValue, right: PointValue, negate: bool) -> BoolValue {
             return make_bool_value(point_same_value(a, b) != negate);
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__point_eq__5be0(left: PointValue, right: PointValue) -> BoolValue {
     point_same(left, right, false)
@@ -37,6 +40,9 @@ pub fn sql__pg_catalog__point_ne__jppg(left: PointValue, right: PointValue) -> B
     point_same(left, right, true)
 }
 pub fn sql__pg_catalog__point__db27(x: Float8Value, y: Float8Value) -> PointValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = x { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = y { unresolved_flavor = 1; };
     if let Float8Value::Error(error) = x {
         return PointValue::Error(error);
     };
@@ -44,7 +50,7 @@ pub fn sql__pg_catalog__point__db27(x: Float8Value, y: Float8Value) -> PointValu
         return PointValue::Error(error);
     };
     if x == Float8Value::Unknown || y == Float8Value::Unknown {
-        return PointValue::Unknown;
+        return point_unresolved(unresolved_flavor);
     };
     if x == Float8Value::Null || y == Float8Value::Null {
         return PointValue::Null;
@@ -57,9 +63,11 @@ pub fn sql__pg_catalog__point__db27(x: Float8Value, y: Float8Value) -> PointValu
             return PointValue::Value(PointPayload { x: x_bits, y: y_bits, wire_known: precise });
         };
     };
-    PointValue::Unknown
+    point_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__point_send__kuoa(input: PointValue) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PointValue::Unknown = input { unresolved_flavor = 1; };
     if let PointValue::Error(error) = input {
         return ByteaValue::Error(error);
     };
@@ -74,5 +82,5 @@ pub fn sql__pg_catalog__point_send__kuoa(input: PointValue) -> ByteaValue {
         let y = binary_send_bits(Int8Value::Value(point.y), 8);
         return sql__pg_catalog__byteacat__zitv(x, y);
     };
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }

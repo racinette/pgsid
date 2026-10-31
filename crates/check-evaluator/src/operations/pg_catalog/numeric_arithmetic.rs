@@ -271,6 +271,9 @@ fn numeric_work_multiply(left: NumericWork, right: NumericWork) -> NumericValue 
 }
 
 fn numeric_arithmetic(left: NumericValue, right: NumericValue, mode: i32) -> NumericValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NumericValue::Unknown = left { unresolved_flavor = 1; };
+    if let NumericValue::Unknown = right { unresolved_flavor = 1; };
     if let NumericValue::Error(error) = left {
         return NumericValue::Error(error);
     }
@@ -278,7 +281,7 @@ fn numeric_arithmetic(left: NumericValue, right: NumericValue, mode: i32) -> Num
         return NumericValue::Error(error);
     }
     if left == NumericValue::Unknown || right == NumericValue::Unknown {
-        return NumericValue::Unknown;
+        return numeric_unresolved(unresolved_flavor);
     }
     if left == NumericValue::Null || right == NumericValue::Null {
         return NumericValue::Null;
@@ -288,7 +291,7 @@ fn numeric_arithmetic(left: NumericValue, right: NumericValue, mode: i32) -> Num
             let first = numeric_work_from_value(a.as_str());
             let second = numeric_work_from_value(b.as_str());
             if first.valid == false || second.valid == false {
-                return NumericValue::Unknown;
+                return numeric_unresolved(unresolved_flavor);
             }
             if first.special == 3 || second.special == 3 {
                 return make_numeric_value("NaN");
@@ -337,7 +340,7 @@ fn numeric_arithmetic(left: NumericValue, right: NumericValue, mode: i32) -> Num
             return numeric_work_add(first, second, mode == 1);
         }
     }
-    NumericValue::Unknown
+    numeric_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__numeric_add__o3d7(left: NumericValue, right: NumericValue) -> NumericValue {

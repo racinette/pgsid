@@ -1,7 +1,8 @@
 fn polygon_parse(value: &str) -> PolygonValue {
+    let unresolved_flavor: i32 = 0;
     let chars: Vec<char> = value.chars().collect();
     if chars.len() > 4096 {
-        return PolygonValue::Unknown;
+        return polygon_unresolved(unresolved_flavor);
     };
     let source = GeometryInputText { chars };
     let start = geometry_input_space(&source, 0);
@@ -29,9 +30,11 @@ fn polygon_parse(value: &str) -> PolygonValue {
             bounds: BoxValue::Unknown,
         });
     };
-    PolygonValue::Unknown
+    polygon_unresolved(unresolved_flavor)
 }
 pub fn polygon_from_text(input: TextValue) -> PolygonValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return PolygonValue::Error(error);
     };
@@ -41,5 +44,5 @@ pub fn polygon_from_text(input: TextValue) -> PolygonValue {
     if let TextValue::Value(value) = input {
         return polygon_parse(value.as_str());
     };
-    PolygonValue::Unknown
+    polygon_unresolved(unresolved_flavor)
 }

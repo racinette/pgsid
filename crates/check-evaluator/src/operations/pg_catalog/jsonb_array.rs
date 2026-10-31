@@ -121,11 +121,13 @@ pub(crate) fn jsonb_array_input_value(input: JsonbArrayInputPayload) -> JsonbVal
 }
 
 pub(crate) fn jsonb_array_key_input(input: ArrayValue) -> JsonbInput {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
     if let ArrayValue::Error(error) = input {
         return JsonbInput::Error(error);
     };
     if let ArrayValue::Unknown = input {
-        return JsonbInput::Unknown;
+        return jsonb_input_unresolved(unresolved_flavor);
     };
     if let ArrayValue::Null = input {
         return JsonbInput::Null;

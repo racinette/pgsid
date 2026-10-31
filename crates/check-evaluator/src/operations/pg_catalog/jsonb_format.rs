@@ -69,6 +69,9 @@ pub fn sql__pg_catalog__jsonb_strip_nulls__ruwp(
     input: JsonbValue,
     arrays: BoolValue,
 ) -> JsonbValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = arrays { unresolved_flavor = 1; };
     if let JsonbValue::Error(error) = input {
         return JsonbValue::Error(error);
     };
@@ -76,10 +79,10 @@ pub fn sql__pg_catalog__jsonb_strip_nulls__ruwp(
         return JsonbValue::Error(error);
     };
     if let JsonbValue::Unknown = input {
-        return JsonbValue::Unknown;
+        return jsonb_unresolved(unresolved_flavor);
     };
     if arrays == BoolValue::Unknown {
-        return JsonbValue::Unknown;
+        return jsonb_unresolved(unresolved_flavor);
     };
     if let JsonbValue::Null = input {
         return JsonbValue::Null;
@@ -99,7 +102,7 @@ pub fn sql__pg_catalog__jsonb_strip_nulls__ruwp(
             return jsonb_format_strip(value, remove);
         };
     };
-    JsonbValue::Unknown
+    jsonb_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__jsonb_pretty__gz4i(input: JsonbValue, utf8: bool) -> TextValue {

@@ -1,7 +1,8 @@
 fn timezone_local_name(session: &str) -> TextValue {
+    let unresolved_flavor: i32 = 0;
     let chars: Vec<char> = session.chars().collect();
     if chars.len() == 0 {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     if chars[0] == ':' {
         let mut name = String::new();
@@ -13,7 +14,7 @@ fn timezone_local_name(session: &str) -> TextValue {
         if find_zone_name(name.as_str(), false) < ZONE_NAMES.len() {
             return TextValue::Value(name);
         };
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     if timezone_digit(chars[0]) >= 0 || chars[0] == '+' || chars[0] == '-' || chars[0] == '.' {
         let mut index: usize = 0;
@@ -35,7 +36,7 @@ fn timezone_local_name(session: &str) -> TextValue {
             };
             return TextValue::Value(name);
         };
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     if find_zone_name(session, false) < ZONE_NAMES.len() {
         return TextValue::Value(session.to_owned());
@@ -66,6 +67,8 @@ pub fn sql__pg_catalog__timezone__ez14(
     utf8: bool,
     default_profile: bool,
 ) -> TimetzValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimetzValue::Unknown = input { unresolved_flavor = 1; };
     if let TimetzValue::Error(error) = input {
         return TimetzValue::Error(error);
     };
@@ -83,5 +86,5 @@ pub fn sql__pg_catalog__timezone__ez14(
             default_profile,
         );
     };
-    TimetzValue::Unknown
+    timetz_unresolved(unresolved_flavor)
 }

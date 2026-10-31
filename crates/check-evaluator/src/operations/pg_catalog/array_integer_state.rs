@@ -1,8 +1,9 @@
 const INTEGER_ARRAY_STATE_ERROR: u32 = 56966976;
 
 fn integer_array_state_valid(input: &ArrayPayload) -> BoolValue {
+    let unresolved_flavor: i32 = 0;
     if input.element_kind != 3 || input.element_type.as_str() != "pg_catalog.int8" {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if input.null_bitmap == BoolValue::Value(true)
         || input.dimensions.len() + input.elements.len() != 3
@@ -12,7 +13,7 @@ fn integer_array_state_valid(input: &ArrayPayload) -> BoolValue {
     if input.null_bitmap == BoolValue::Value(false) {
         return BoolValue::Value(true);
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 fn integer_state_adjust(input: Int8Value, delta: i64) -> Int8Value {
@@ -36,6 +37,9 @@ fn integer_state_adjust(input: Int8Value, delta: i64) -> Int8Value {
 }
 
 fn integer_state_transition(input: ArrayValue, amount: Int8Value, inverse: bool) -> ArrayValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = amount { unresolved_flavor = 1; };
     if let ArrayValue::Error(error) = input {
         return ArrayValue::Error(error);
     };
@@ -55,7 +59,7 @@ fn integer_state_transition(input: ArrayValue, amount: Int8Value, inverse: bool)
                 return ArrayValue::Error(error);
             };
             if validity != BoolValue::Value(true) || value.elements.len() != 2 {
-                return ArrayValue::Unknown;
+                return array_unresolved(unresolved_flavor);
             };
             let mut step = 1i64;
             let mut delta = increment;
@@ -78,7 +82,7 @@ fn integer_state_transition(input: ArrayValue, amount: Int8Value, inverse: bool)
             });
         };
     };
-    ArrayValue::Unknown
+    array_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__int2_avg_accum__7nj2(input: ArrayValue, amount: Int2Value) -> ArrayValue {
@@ -104,6 +108,8 @@ pub fn sql__pg_catalog__int4_avg_accum_inv__dt0r(
 }
 
 fn integer_state_sum(input: ArrayValue) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
     if let ArrayValue::Error(error) = input {
         return Int8Value::Error(error);
     };
@@ -116,7 +122,7 @@ fn integer_state_sum(input: ArrayValue) -> Int8Value {
             return Int8Value::Error(error);
         };
         if validity != BoolValue::Value(true) {
-            return Int8Value::Unknown;
+            return int8_unresolved(unresolved_flavor);
         };
         let count = array_element_to_int8(value.elements[0].clone());
         if count == Int8Value::Value(0i64) {
@@ -128,7 +134,7 @@ fn integer_state_sum(input: ArrayValue) -> Int8Value {
             };
         };
     };
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__int2int4_sum__8u9i(input: ArrayValue) -> Int8Value {
@@ -136,6 +142,8 @@ pub fn sql__pg_catalog__int2int4_sum__8u9i(input: ArrayValue) -> Int8Value {
 }
 
 pub fn sql__pg_catalog__int8_avg__pgr2(input: ArrayValue) -> NumericValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
     let sum = integer_state_sum(input.clone());
     if let Int8Value::Error(error) = sum {
         return NumericValue::Error(error);
@@ -144,7 +152,7 @@ pub fn sql__pg_catalog__int8_avg__pgr2(input: ArrayValue) -> NumericValue {
         return NumericValue::Null;
     };
     if sum == Int8Value::Unknown {
-        return NumericValue::Unknown;
+        return numeric_unresolved(unresolved_flavor);
     };
     if let ArrayValue::Value(value) = input {
         let count = array_element_to_int8(value.elements[0].clone());
@@ -152,5 +160,5 @@ pub fn sql__pg_catalog__int8_avg__pgr2(input: ArrayValue) -> NumericValue {
         let denominator = sql__pg_catalog__numeric__11bc(count);
         return sql__pg_catalog__numeric_div__pnzm(numerator, denominator);
     };
-    NumericValue::Unknown
+    numeric_unresolved(unresolved_flavor)
 }

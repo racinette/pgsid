@@ -345,6 +345,9 @@ fn bytea_escape_encode(value: &str) -> String {
 }
 
 pub fn sql__pg_catalog__encode__bvkp(input: ByteaValue, format: TextValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unknown = format { unresolved_flavor = 1; };
     if let ByteaValue::Error(error) = input {
         return TextValue::Error(error);
     }
@@ -352,7 +355,7 @@ pub fn sql__pg_catalog__encode__bvkp(input: ByteaValue, format: TextValue) -> Te
         return TextValue::Error(error);
     }
     if input == ByteaValue::Unknown || (format == TextValue::Unknown || format == TextValue::NonNull) {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if input == ByteaValue::Null || format == TextValue::Null {
         return TextValue::Null;
@@ -388,10 +391,13 @@ pub fn sql__pg_catalog__encode__bvkp(input: ByteaValue, format: TextValue) -> Te
             return TextValue::Error(make_sql_error(BYTEA_ENCODING_ERROR));
         }
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__decode__b6gt(input: TextValue, format: TextValue) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unknown = format { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
@@ -399,7 +405,7 @@ pub fn sql__pg_catalog__decode__b6gt(input: TextValue, format: TextValue) -> Byt
         return ByteaValue::Error(error);
     }
     if (input == TextValue::Unknown || input == TextValue::NonNull) || (format == TextValue::Unknown || format == TextValue::NonNull) {
-        return ByteaValue::Unknown;
+        return bytea_unresolved(unresolved_flavor);
     }
     if input == TextValue::Null || format == TextValue::Null {
         return ByteaValue::Null;
@@ -435,5 +441,5 @@ pub fn sql__pg_catalog__decode__b6gt(input: TextValue, format: TextValue) -> Byt
             return ByteaValue::Error(make_sql_error(BYTEA_ENCODING_ERROR));
         }
     }
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }

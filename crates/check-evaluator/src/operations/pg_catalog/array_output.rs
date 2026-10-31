@@ -1,4 +1,6 @@
 pub fn array_boolean_output(input: BoolValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoolValue::Unknown = input { unresolved_flavor = 1; };
     if let BoolValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -11,10 +13,12 @@ pub fn array_boolean_output(input: BoolValue) -> TextValue {
         };
         return make_text_value("f");
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn array_numeric_output(input: NumericValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NumericValue::Unknown = input { unresolved_flavor = 1; };
     if let NumericValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -27,10 +31,11 @@ pub fn array_numeric_output(input: NumericValue) -> TextValue {
             return TextValue::Value(numeric_work_text(work));
         };
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 fn array_float_number_output(number: f64, negative: bool) -> TextValue {
+    let unresolved_flavor: i32 = 0;
     if number != number {
         return make_text_value("NaN");
     };
@@ -60,10 +65,12 @@ fn array_float_number_output(number: f64, negative: bool) -> TextValue {
             return TextValue::Value(output);
         };
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn array_float4_output(input: Float4Value) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float4Value::Unknown = input { unresolved_flavor = 1; };
     if let Float4Value::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -76,10 +83,12 @@ pub fn array_float4_output(input: Float4Value) -> TextValue {
     if let Float4Value::Value(bits) = input {
         return array_float_number_output(float4_number(bits), bits < 0);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn array_float8_output(input: Float8Value) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = input { unresolved_flavor = 1; };
     if let Float8Value::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -92,17 +101,19 @@ pub fn array_float8_output(input: Float8Value) -> TextValue {
     if let Float8Value::Value(bits) = input {
         return array_float_number_output(float8_number(bits), bits < 0i64);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn array_contextual_output(input: ArrayElement) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
     if let ArrayElement::Error(error) = input {
         return TextValue::Error(error);
     };
     if let ArrayElement::Null = input {
         return TextValue::Null;
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn array_network_output(input: NetworkValue, cidr: bool) -> TextValue {
@@ -164,6 +175,8 @@ pub fn finish_array_output(
     rendered: ArrayArguments,
     box_delimiter: bool,
 ) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayArguments::Unknown = rendered { unresolved_flavor = 1; };
     if input.state == -2 {
         return TextValue::Error(input.error);
     };
@@ -171,14 +184,14 @@ pub fn finish_array_output(
         return TextValue::Null;
     };
     if input.state != 1 {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     if let ArrayArguments::Error(error) = rendered {
         return TextValue::Error(error);
     };
     if let ArrayArguments::Value(values) = rendered {
         if values.elements.len() != input.elements.len() {
-            return TextValue::Unknown;
+            return text_unresolved(unresolved_flavor);
         };
         if values.elements.len() == 0 {
             return make_text_value("{}");
@@ -188,7 +201,7 @@ pub fn finish_array_output(
         while pending < values.elements.len() {
             let text = array_element_to_text(values.elements[pending].clone());
             if text == TextValue::NonNull { partial = true; };
-            if text == TextValue::Unknown { return TextValue::Unknown; };
+            if text == TextValue::Unknown { return text_unresolved(unresolved_flavor); };
             if let TextValue::Error(error) = text { return TextValue::Error(error); };
             pending += 1;
         }
@@ -249,7 +262,7 @@ pub fn finish_array_output(
                     known = true;
                 };
                 if known == false {
-                    return TextValue::Unknown;
+                    return text_unresolved(unresolved_flavor);
                 };
             };
             position += 1;
@@ -269,5 +282,5 @@ pub fn finish_array_output(
         }
         return TextValue::Value(output);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }

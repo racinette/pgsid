@@ -1,6 +1,9 @@
 const UNICODE_INVALID_FORM: u32 = 3452619;
 
 pub fn sql__pg_catalog__normalize__fhd2(input: TextValue, normal_form: TextValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unknown = normal_form { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return TextValue::Error(error);
     }
@@ -8,7 +11,7 @@ pub fn sql__pg_catalog__normalize__fhd2(input: TextValue, normal_form: TextValue
         return TextValue::Error(error);
     }
     if (input == TextValue::Unknown || input == TextValue::NonNull) || (normal_form == TextValue::Unknown || normal_form == TextValue::NonNull) {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if input == TextValue::Null || normal_form == TextValue::Null {
         return TextValue::Null;
@@ -22,10 +25,13 @@ pub fn sql__pg_catalog__normalize__fhd2(input: TextValue, normal_form: TextValue
             return unicode_normalize_text(value, form);
         }
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__is_normalized__pxj9(input: TextValue, normal_form: TextValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unknown = normal_form { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return BoolValue::Error(error);
     }
@@ -33,7 +39,7 @@ pub fn sql__pg_catalog__is_normalized__pxj9(input: TextValue, normal_form: TextV
         return BoolValue::Error(error);
     }
     if (input == TextValue::Unknown || input == TextValue::NonNull) || (normal_form == TextValue::Unknown || normal_form == TextValue::NonNull) {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if input == TextValue::Null || normal_form == TextValue::Null {
         return BoolValue::Null;
@@ -47,15 +53,17 @@ pub fn sql__pg_catalog__is_normalized__pxj9(input: TextValue, normal_form: TextV
             return unicode_normalized_text(value, form);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__unicode_assigned__46hx(input: TextValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return BoolValue::Error(error);
     }
     if (input == TextValue::Unknown || input == TextValue::NonNull) {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if input == TextValue::Null {
         return BoolValue::Null;
@@ -63,7 +71,7 @@ pub fn sql__pg_catalog__unicode_assigned__46hx(input: TextValue) -> BoolValue {
     if let TextValue::Value(value) = input {
         return BoolValue::Value(unicode_text_assigned(value));
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__unicode_version__qw3z() -> TextValue {

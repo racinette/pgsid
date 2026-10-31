@@ -6,6 +6,9 @@ fn path_concat_fits(left: usize, right: usize) -> bool {
 }
 
 fn path_point_transform(input: PathValue, vector: PointValue, mode: i32) -> PathValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PathValue::Unknown = input { unresolved_flavor = 1; };
+    if let PointValue::Unknown = vector { unresolved_flavor = 1; };
     if let PathValue::Error(error) = input {
         return PathValue::Error(error);
     };
@@ -13,10 +16,10 @@ fn path_point_transform(input: PathValue, vector: PointValue, mode: i32) -> Path
         return PathValue::Error(error);
     };
     if let PathValue::Unknown = input {
-        return PathValue::Unknown;
+        return path_unresolved(unresolved_flavor);
     };
     if vector == PointValue::Unknown {
-        return PathValue::Unknown;
+        return path_unresolved(unresolved_flavor);
     };
     if let PathValue::Null = input {
         return PathValue::Null;
@@ -33,7 +36,7 @@ fn path_point_transform(input: PathValue, vector: PointValue, mode: i32) -> Path
                 return PathValue::Error(error);
             };
             if point == PointValue::Unknown || point == PointValue::Null {
-                return PathValue::Unknown;
+                return path_unresolved(unresolved_flavor);
             };
             if let PointValue::Value(payload) = point {
                 points[index] = payload;
@@ -45,7 +48,7 @@ fn path_point_transform(input: PathValue, vector: PointValue, mode: i32) -> Path
             points: points,
         });
     };
-    PathValue::Unknown
+    path_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__path_add_pt__9pue(input: PathValue, vector: PointValue) -> PathValue {
     path_point_transform(input, vector, 0)
@@ -60,6 +63,9 @@ pub fn sql__pg_catalog__path_div_pt__rwx4(input: PathValue, vector: PointValue) 
     path_point_transform(input, vector, 3)
 }
 pub fn sql__pg_catalog__path_add__7wkx(left: PathValue, right: PathValue) -> PathValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PathValue::Unknown = left { unresolved_flavor = 1; };
+    if let PathValue::Unknown = right { unresolved_flavor = 1; };
     if let PathValue::Error(error) = left {
         return PathValue::Error(error);
     };
@@ -67,10 +73,10 @@ pub fn sql__pg_catalog__path_add__7wkx(left: PathValue, right: PathValue) -> Pat
         return PathValue::Error(error);
     };
     if let PathValue::Unknown = left {
-        return PathValue::Unknown;
+        return path_unresolved(unresolved_flavor);
     };
     if let PathValue::Unknown = right {
-        return PathValue::Unknown;
+        return path_unresolved(unresolved_flavor);
     };
     if let PathValue::Null = left {
         return PathValue::Null;
@@ -98,5 +104,5 @@ pub fn sql__pg_catalog__path_add__7wkx(left: PathValue, right: PathValue) -> Pat
             });
         };
     };
-    PathValue::Unknown
+    path_unresolved(unresolved_flavor)
 }

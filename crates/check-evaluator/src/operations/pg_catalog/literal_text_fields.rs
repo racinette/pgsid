@@ -25,6 +25,8 @@ fn literal_text_fields_value(elements: Vec<ArrayElement>) -> ArrayValue {
 }
 
 pub fn literal_text_fields(input: TextValue, kind: i32) -> ArrayValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return ArrayValue::Error(error);
     };
@@ -82,7 +84,7 @@ pub fn literal_text_fields(input: TextValue, kind: i32) -> ArrayValue {
                     return ArrayValue::Error(error);
                 };
                 if let ArrayTextEvent::Unknown = event {
-                    return ArrayValue::Unknown;
+                    return array_unresolved(unresolved_flavor);
                 };
                 if let ArrayTextEvent::Null = event {
                     fields.push(ArrayElement::Null);
@@ -95,5 +97,5 @@ pub fn literal_text_fields(input: TextValue, kind: i32) -> ArrayValue {
             return literal_text_fields_value(fields);
         };
     };
-    ArrayValue::Unknown
+    array_unresolved(unresolved_flavor)
 }

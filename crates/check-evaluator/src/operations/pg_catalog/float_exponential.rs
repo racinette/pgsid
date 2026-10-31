@@ -964,6 +964,8 @@ fn musl_log(input: f64) -> f64 {
 // dexp: NaN and infinities are exact in any library; a finite result that overflows to infinity
 // or underflows to zero is out of range.
 pub fn sql__pg_catalog__dexp__we7o(input: Float8Value, musl: bool) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = input { unresolved_flavor = 1; };
     if input == Float8Value::UnspecifiedNan {
         return Float8Value::UnspecifiedNan;
     };
@@ -979,7 +981,7 @@ pub fn sql__pg_catalog__dexp__we7o(input: Float8Value, musl: bool) -> Float8Valu
             return make_float8_value(0.0f64);
         };
         if musl == false {
-            return Float8Value::Unknown;
+            return float8_unresolved(unresolved_flavor);
         };
         let result = musl_exp(number);
         if result.abs() == 1.0f64 / 0.0f64 || result == 0.0f64 {
@@ -997,6 +999,8 @@ pub fn sql__pg_catalog__exp__biel(input: Float8Value, musl: bool) -> Float8Value
 // dlog1: zero and negative arguments are invalid, NaN and infinity pass through, and results
 // only underflow to zero for an argument of exactly one.
 pub fn sql__pg_catalog__dlog1__6b2t(input: Float8Value, musl: bool) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = input { unresolved_flavor = 1; };
     if input == Float8Value::UnspecifiedNan {
         return Float8Value::UnspecifiedNan;
     };
@@ -1012,7 +1016,7 @@ pub fn sql__pg_catalog__dlog1__6b2t(input: Float8Value, musl: bool) -> Float8Val
             return input;
         };
         if musl == false {
-            return Float8Value::Unknown;
+            return float8_unresolved(unresolved_flavor);
         };
         return make_float8_value(musl_log(number));
     };
@@ -1074,6 +1078,8 @@ fn musl_log10(input: f64) -> f64 {
 
 // dlog10, which also serves log(float8): the same argument checks as dlog1.
 pub fn sql__pg_catalog__dlog10__uzhv(input: Float8Value, musl: bool) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = input { unresolved_flavor = 1; };
     if input == Float8Value::UnspecifiedNan {
         return Float8Value::UnspecifiedNan;
     };
@@ -1089,7 +1095,7 @@ pub fn sql__pg_catalog__dlog10__uzhv(input: Float8Value, musl: bool) -> Float8Va
             return input;
         };
         if musl == false {
-            return Float8Value::Unknown;
+            return float8_unresolved(unresolved_flavor);
         };
         return make_float8_value(musl_log10(number));
     };
@@ -1153,6 +1159,8 @@ fn musl_cbrt(x: f64) -> f64 {
 // dcbrt, which also serves cbrt(float8) and the ||/ operator: every argument has a root, and
 // PostgreSQL's overflow and underflow checks never fire for it.
 pub fn sql__pg_catalog__dcbrt__qu0u(input: Float8Value, musl: bool) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = input { unresolved_flavor = 1; };
     if input == Float8Value::UnspecifiedNan {
         return Float8Value::UnspecifiedNan;
     };
@@ -1165,7 +1173,7 @@ pub fn sql__pg_catalog__dcbrt__qu0u(input: Float8Value, musl: bool) -> Float8Val
             return input;
         };
         if musl == false {
-            return Float8Value::Unknown;
+            return float8_unresolved(unresolved_flavor);
         };
         return make_float8_value(musl_cbrt(number));
     };
@@ -1790,6 +1798,9 @@ pub fn sql__pg_catalog__dpow__anie(
     right: Float8Value,
     musl: bool,
 ) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = left { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = right { unresolved_flavor = 1; };
     if let Float8Value::Error(error) = left {
         return Float8Value::Error(error);
     };
@@ -1797,7 +1808,7 @@ pub fn sql__pg_catalog__dpow__anie(
         return Float8Value::Error(error);
     };
     if left == Float8Value::Unknown || right == Float8Value::Unknown {
-        return Float8Value::Unknown;
+        return float8_unresolved(unresolved_flavor);
     };
     if left == Float8Value::Null || right == Float8Value::Null {
         return Float8Value::Null;
@@ -1867,11 +1878,11 @@ pub fn sql__pg_catalog__dpow__anie(
                 return make_float8_value(0.0f64);
             };
             if musl == false {
-                return Float8Value::Unknown;
+                return float8_unresolved(unresolved_flavor);
             };
             let result = musl_pow(x, y);
             if result != result {
-                return Float8Value::Unknown;
+                return float8_unresolved(unresolved_flavor);
             };
             if result.abs() == infinity || (result == 0.0f64 && x != 0.0f64) {
                 return Float8Value::Error(make_sql_error(FLOAT_CORE_RANGE));
@@ -1879,7 +1890,7 @@ pub fn sql__pg_catalog__dpow__anie(
             return make_float8_value(result);
         };
     };
-    Float8Value::Unknown
+    float8_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__pow__hjab(

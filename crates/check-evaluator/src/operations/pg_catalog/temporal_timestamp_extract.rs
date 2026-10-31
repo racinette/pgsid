@@ -200,6 +200,9 @@ fn temporal_extract_timestamp_value(value: i64, unit: &str, projected: bool) -> 
 }
 
 pub fn sql__pg_catalog__extract__f4l3(units: TextValue, input: TimestampValue) -> NumericValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = units { unresolved_flavor = 1; };
+    if let TimestampValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = units {
         return NumericValue::Error(error);
     }
@@ -209,7 +212,7 @@ pub fn sql__pg_catalog__extract__f4l3(units: TextValue, input: TimestampValue) -
     if (units == TextValue::Unknown || units == TextValue::NonNull)
         || input == TimestampValue::Unknown
     {
-        return NumericValue::Unknown;
+        return numeric_unresolved(unresolved_flavor);
     }
     if units == TextValue::Null || input == TimestampValue::Null {
         return NumericValue::Null;
@@ -219,5 +222,5 @@ pub fn sql__pg_catalog__extract__f4l3(units: TextValue, input: TimestampValue) -
             return temporal_extract_timestamp(value, unit.as_str());
         }
     }
-    NumericValue::Unknown
+    numeric_unresolved(unresolved_flavor)
 }

@@ -6,6 +6,12 @@ pub fn sql__pg_catalog__in_range__o9l2(
     less: BoolValue,
     session: &str,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestamptzValue::Unknown = value { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unknown = base { unresolved_flavor = 1; };
+    if let IntervalValue::Unknown = offset { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = subtract { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = less { unresolved_flavor = 1; };
     if let TimestamptzValue::Error(error) = value {
         return BoolValue::Error(error);
     };
@@ -27,7 +33,7 @@ pub fn sql__pg_catalog__in_range__o9l2(
         || subtract == BoolValue::Unknown
         || less == BoolValue::Unknown
     {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if value == TimestamptzValue::Null
         || base == TimestamptzValue::Null
@@ -71,7 +77,7 @@ pub fn sql__pg_catalog__in_range__o9l2(
             };
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__overlaps__4sap(

@@ -1,7 +1,8 @@
 fn path_parse(value: &str) -> PathValue {
+    let unresolved_flavor: i32 = 0;
     let chars: Vec<char> = value.chars().collect();
     if chars.len() > 4096 {
-        return PathValue::Unknown;
+        return path_unresolved(unresolved_flavor);
     };
     let source = GeometryInputText { chars: chars };
     let mut commas: i32 = 0;
@@ -51,7 +52,7 @@ fn path_parse(value: &str) -> PathValue {
             return PathValue::Error(error);
         };
         if point == PointValue::Unknown {
-            return PathValue::Unknown;
+            return path_unresolved(unresolved_flavor);
         };
         if let PointValue::Value(payload) = point {
             points.push(payload);
@@ -85,6 +86,8 @@ fn path_parse(value: &str) -> PathValue {
     })
 }
 pub fn path_from_text(input: TextValue) -> PathValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return PathValue::Error(error);
     };
@@ -94,5 +97,5 @@ pub fn path_from_text(input: TextValue) -> PathValue {
     if let TextValue::Value(value) = input {
         return path_parse(value.as_str());
     };
-    PathValue::Unknown
+    path_unresolved(unresolved_flavor)
 }

@@ -1,6 +1,7 @@
 const TEMPORAL_CAST_RANGE: u32 = 3452552;
 
 fn session_timezone_fixed_offset(name: &str) -> Int4Value {
+    let unresolved_flavor: i32 = 0;
     let zone = find_zone_name(name, false);
     if zone < ZONE_NAMES.len() {
         let start = ZONE_OFFSET_STARTS[zone];
@@ -8,7 +9,7 @@ fn session_timezone_fixed_offset(name: &str) -> Int4Value {
         let mut index = ZONE_STARTS[zone];
         while index < ZONE_ENDS[zone] {
             if ZONE_OFFSET_SECONDS[start + ZONE_OFFSET_IDS[index]] != seconds {
-                return Int4Value::Unknown;
+                return int4_unresolved(unresolved_flavor);
             };
             index += 1;
         }
@@ -18,7 +19,7 @@ fn session_timezone_fixed_offset(name: &str) -> Int4Value {
                 || rules.standard != rules.daylight
                 || 0 - rules.standard != seconds
             {
-                return Int4Value::Unknown;
+                return int4_unresolved(unresolved_flavor);
             };
         };
         return make_int4_value(seconds);
@@ -26,16 +27,18 @@ fn session_timezone_fixed_offset(name: &str) -> Int4Value {
     let upper_name = timezone_lookup_ascii(name, true);
     let rules = parse_recurring_zone(upper_name.as_str());
     if rules.valid && rules.standard != rules.daylight {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     };
     let profile = session_timezone_profile(name, 0i64, false);
     if profile.valid {
         return make_int4_value(profile.seconds);
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timetz__qcb2(input: TimeValue, zone: &str) -> TimetzValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimeValue::Unknown = input { unresolved_flavor = 1; };
     if let TimeValue::Error(error) = input {
         return TimetzValue::Error(error);
     };
@@ -48,10 +51,12 @@ pub fn sql__pg_catalog__timetz__qcb2(input: TimeValue, zone: &str) -> TimetzValu
             return make_timetz_value(clock, 0 - seconds);
         };
     };
-    TimetzValue::Unknown
+    timetz_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timestamptz__m17a(input: TimestampValue, zone: &str) -> TimestamptzValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestampValue::Unknown = input { unresolved_flavor = 1; };
     if let TimestampValue::Error(error) = input {
         return TimestamptzValue::Error(error);
     };
@@ -70,10 +75,12 @@ pub fn sql__pg_catalog__timestamptz__m17a(input: TimestampValue, zone: &str) -> 
             return make_timestamptz_value(value - (profile.seconds as i64) * 1000000i64);
         };
     };
-    TimestamptzValue::Unknown
+    timestamptz_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timestamptz__6zge(input: DateValue, zone: &str) -> TimestamptzValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let DateValue::Unknown = input { unresolved_flavor = 1; };
     if let DateValue::Error(error) = input {
         return TimestamptzValue::Error(error);
     };
@@ -96,10 +103,12 @@ pub fn sql__pg_catalog__timestamptz__6zge(input: DateValue, zone: &str) -> Times
             return make_timestamptz_value(local - (profile.seconds as i64) * 1000000i64);
         };
     };
-    TimestamptzValue::Unknown
+    timestamptz_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timestamp__i0gp(input: TimestamptzValue, zone: &str) -> TimestampValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
     if let TimestamptzValue::Error(error) = input {
         return TimestampValue::Error(error);
     };
@@ -115,10 +124,12 @@ pub fn sql__pg_catalog__timestamp__i0gp(input: TimestamptzValue, zone: &str) -> 
             return make_timestamp_value(value + (profile.seconds as i64) * 1000000i64);
         };
     };
-    TimestampValue::Unknown
+    timestamp_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__date__h28y(input: TimestamptzValue, zone: &str) -> DateValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
     if let TimestamptzValue::Error(error) = input {
         return DateValue::Error(error);
     };
@@ -142,10 +153,12 @@ pub fn sql__pg_catalog__date__h28y(input: TimestamptzValue, zone: &str) -> DateV
             return DateValue::Value(day as i32);
         };
     };
-    DateValue::Unknown
+    date_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__time__az0x(input: TimestamptzValue, zone: &str) -> TimeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
     if let TimestamptzValue::Error(error) = input {
         return TimeValue::Error(error);
     };
@@ -166,10 +179,12 @@ pub fn sql__pg_catalog__time__az0x(input: TimestamptzValue, zone: &str) -> TimeV
             return make_time_value(clock);
         };
     };
-    TimeValue::Unknown
+    time_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timetz__sqdw(input: TimestamptzValue, zone: &str) -> TimetzValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
     if let TimestamptzValue::Error(error) = input {
         return TimetzValue::Error(error);
     };
@@ -190,7 +205,7 @@ pub fn sql__pg_catalog__timetz__sqdw(input: TimestamptzValue, zone: &str) -> Tim
             return make_timetz_value(clock, 0 - profile.seconds);
         };
     };
-    TimetzValue::Unknown
+    timetz_unresolved(unresolved_flavor)
 }
 
 // Timestamptz input without a zone takes the session time zone through the same local-time
@@ -206,6 +221,8 @@ pub fn timestamptz_from_text_context(
     limit: i32,
     utf8: bool,
 ) -> TimestamptzValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     let parsed = timestamptz_from_text_order(input.clone(), date_order);
     if parsed != TimestamptzValue::Unknown {
         return parsed;
@@ -217,7 +234,7 @@ pub fn timestamptz_from_text_context(
         {
             return sql__pg_catalog__timestamptz__m17a(local, zone);
         };
-        return TimestamptzValue::Unknown;
+        return timestamptz_unresolved(unresolved_flavor);
     };
     timestamptz_from_text_trailing_zone(input, date_order, zone, abbreviations, limit, utf8)
 }
@@ -244,6 +261,8 @@ fn timestamptz_from_text_trailing_zone(
     limit: i32,
     utf8: bool,
 ) -> TimestamptzValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Value(text) = input {
         let chars: Vec<char> = text.chars().collect();
         let mut zone_end = chars.len();
@@ -265,7 +284,7 @@ fn timestamptz_from_text_trailing_zone(
             zone_start = zone_start - 1;
         }
         if zone_start == 0 || (slash == false && (letters == false || abbreviations == false)) {
-            return TimestamptzValue::Unknown;
+            return timestamptz_unresolved(unresolved_flavor);
         };
         let mut name = String::new();
         let mut cursor = zone_start;
@@ -274,7 +293,7 @@ fn timestamptz_from_text_trailing_zone(
             cursor += 1;
         }
         if slash && find_zone_name(name.as_str(), false) >= ZONE_NAMES.len() {
-            return TimestamptzValue::Unknown;
+            return timestamptz_unresolved(unresolved_flavor);
         };
         let mut rest = String::new();
         cursor = 0;
@@ -289,17 +308,17 @@ fn timestamptz_from_text_trailing_zone(
             if slash {
                 return TimestamptzValue::Error(error);
             };
-            return TimestamptzValue::Unknown;
+            return timestamptz_unresolved(unresolved_flavor);
         };
         if zoned != TimestamptzValue::Unknown {
-            return TimestamptzValue::Unknown;
+            return timestamptz_unresolved(unresolved_flavor);
         };
         let local = timestamp_from_text_order(remainder, date_order);
         if let TimestampValue::Value(value) = local {
             if value <= -211813488000000000i64 + 86400000000i64
                 || value >= 9223371331200000000i64 - 86400000000i64
             {
-                return TimestamptzValue::Unknown;
+                return timestamptz_unresolved(unresolved_flavor);
             };
             if slash {
                 return sql__pg_catalog__timestamptz__m17a(local, name.as_str());
@@ -331,13 +350,15 @@ fn timestamptz_from_text_trailing_zone(
             };
         };
     };
-    TimestamptzValue::Unknown
+    timestamptz_unresolved(unresolved_flavor)
 }
 
 // Timetz text without a zone takes the session offset at the current date, as the time-to-timetz
 // cast does; only session zones with a single fixed offset resolve, since others depend on the
 // transaction date.
 pub fn timetz_from_text_context(input: TextValue, zone: &str) -> TimetzValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     let parsed = timetz_from_text(input.clone());
     if parsed != TimetzValue::Unknown {
         return parsed;
@@ -346,5 +367,5 @@ pub fn timetz_from_text_context(input: TextValue, zone: &str) -> TimetzValue {
     if let TimeValue::Value(_) = clock {
         return sql__pg_catalog__timetz__qcb2(clock, zone);
     };
-    TimetzValue::Unknown
+    timetz_unresolved(unresolved_flavor)
 }

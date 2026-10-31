@@ -1,16 +1,18 @@
 pub fn enum_to_text(input: EnumValue, labels: &str, count: i32) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let EnumValue::Unknown = input { unresolved_flavor = 1; };
     if let EnumValue::Error(error) = input {
         return TextValue::Error(error);
     }
     if input == EnumValue::Unknown {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if input == EnumValue::Null {
         return TextValue::Null;
     }
     if let EnumValue::Value(value) = input {
         if value.ordinal < 0 || value.ordinal >= count {
-            return TextValue::Unknown;
+            return text_unresolved(unresolved_flavor);
         }
         let chars: Vec<char> = labels.chars().collect();
         let mut index: usize = 0;
@@ -32,10 +34,13 @@ pub fn enum_to_text(input: EnumValue, labels: &str, count: i32) -> TextValue {
             return TextValue::Value(output);
         }
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__enum_eq__w63e(left: EnumValue, right: EnumValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let EnumValue::Unknown = left { unresolved_flavor = 1; };
+    if let EnumValue::Unknown = right { unresolved_flavor = 1; };
     if let EnumValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -43,7 +48,7 @@ pub fn sql__pg_catalog__enum_eq__w63e(left: EnumValue, right: EnumValue) -> Bool
         return BoolValue::Error(error);
     }
     if left == EnumValue::Unknown || right == EnumValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if left == EnumValue::Null || right == EnumValue::Null {
         return BoolValue::Null;
@@ -53,10 +58,13 @@ pub fn sql__pg_catalog__enum_eq__w63e(left: EnumValue, right: EnumValue) -> Bool
             return BoolValue::Value(left_value.ordinal == right_value.ordinal);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__enum_ne__tph2(left: EnumValue, right: EnumValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let EnumValue::Unknown = left { unresolved_flavor = 1; };
+    if let EnumValue::Unknown = right { unresolved_flavor = 1; };
     if let EnumValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -64,7 +72,7 @@ pub fn sql__pg_catalog__enum_ne__tph2(left: EnumValue, right: EnumValue) -> Bool
         return BoolValue::Error(error);
     }
     if left == EnumValue::Unknown || right == EnumValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if left == EnumValue::Null || right == EnumValue::Null {
         return BoolValue::Null;
@@ -74,10 +82,13 @@ pub fn sql__pg_catalog__enum_ne__tph2(left: EnumValue, right: EnumValue) -> Bool
             return BoolValue::Value(left_value.ordinal != right_value.ordinal);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__enum_cmp__hjt6(left: EnumValue, right: EnumValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let EnumValue::Unknown = left { unresolved_flavor = 1; };
+    if let EnumValue::Unknown = right { unresolved_flavor = 1; };
     if let EnumValue::Error(error) = left {
         return Int4Value::Error(error);
     }
@@ -85,7 +96,7 @@ pub fn sql__pg_catalog__enum_cmp__hjt6(left: EnumValue, right: EnumValue) -> Int
         return Int4Value::Error(error);
     }
     if left == EnumValue::Unknown || right == EnumValue::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if left == EnumValue::Null || right == EnumValue::Null {
         return Int4Value::Null;
@@ -101,7 +112,7 @@ pub fn sql__pg_catalog__enum_cmp__hjt6(left: EnumValue, right: EnumValue) -> Int
             return Int4Value::Value(0);
         }
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__enum_lt__5af2(left: EnumValue, right: EnumValue) -> BoolValue {
@@ -125,6 +136,9 @@ pub fn sql__pg_catalog__enum_ge__0b8h(left: EnumValue, right: EnumValue) -> Bool
 }
 
 pub fn sql__pg_catalog__enum_larger__em2s(left: EnumValue, right: EnumValue) -> EnumValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let EnumValue::Unknown = left { unresolved_flavor = 1; };
+    if let EnumValue::Unknown = right { unresolved_flavor = 1; };
     let comparison = sql__pg_catalog__enum_cmp__hjt6(left, right);
     if let Int4Value::Error(error) = comparison {
         return EnumValue::Error(error);
@@ -138,10 +152,13 @@ pub fn sql__pg_catalog__enum_larger__em2s(left: EnumValue, right: EnumValue) -> 
         }
         return right;
     }
-    EnumValue::Unknown
+    enum_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__enum_smaller__whhx(left: EnumValue, right: EnumValue) -> EnumValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let EnumValue::Unknown = left { unresolved_flavor = 1; };
+    if let EnumValue::Unknown = right { unresolved_flavor = 1; };
     let comparison = sql__pg_catalog__enum_cmp__hjt6(left, right);
     if let Int4Value::Error(error) = comparison {
         return EnumValue::Error(error);
@@ -155,30 +172,35 @@ pub fn sql__pg_catalog__enum_smaller__whhx(left: EnumValue, right: EnumValue) ->
         }
         return right;
     }
-    EnumValue::Unknown
+    enum_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__hashenum__z4zk(input: EnumValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let EnumValue::Unknown = input { unresolved_flavor = 1; };
     if let EnumValue::Error(error) = input {
         return Int4Value::Error(error);
     }
     if input == EnumValue::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if input == EnumValue::Null {
         return Int4Value::Null;
     }
     if let EnumValue::Value(value) = input {
         if value.label_oid == 0i64 {
-            return Int4Value::Unknown;
+            return int4_unresolved(unresolved_flavor);
         }
         let word = value.label_oid as i32;
         return sql__pg_catalog__hashint4__zr00(make_int4_value(word));
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__hashenumextended__18hh(input: EnumValue, seed: Int8Value) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let EnumValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = seed { unresolved_flavor = 1; };
     if let EnumValue::Error(error) = input {
         return Int8Value::Error(error);
     }
@@ -186,17 +208,17 @@ pub fn sql__pg_catalog__hashenumextended__18hh(input: EnumValue, seed: Int8Value
         return Int8Value::Error(error);
     }
     if input == EnumValue::Unknown || seed == Int8Value::Unknown {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     }
     if input == EnumValue::Null || seed == Int8Value::Null {
         return Int8Value::Null;
     }
     if let EnumValue::Value(value) = input {
         if value.label_oid == 0i64 {
-            return Int8Value::Unknown;
+            return int8_unresolved(unresolved_flavor);
         }
         let word = value.label_oid as i32;
         return sql__pg_catalog__hashint4extended__xf6v(make_int4_value(word), seed);
     }
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }

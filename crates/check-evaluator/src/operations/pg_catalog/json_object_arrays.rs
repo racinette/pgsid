@@ -2,8 +2,9 @@ const JSON_OBJECT_ARRAY_RANK: u32 = 3452630;
 const JSON_OBJECT_ARRAY_NULL: u32 = 3452548;
 
 fn json_object_array_known(keys: ArrayPayload, values: ArrayPayload, paired: bool) -> JsonValue {
+    let unresolved_flavor: i32 = 0;
     if keys.element_type != "pg_catalog.text" || keys.element_kind != 8 {
-        return JsonValue::Unknown;
+        return json_unresolved(unresolved_flavor);
     };
     let rank = keys.dimensions.len();
     if paired {
@@ -18,7 +19,7 @@ fn json_object_array_known(keys: ArrayPayload, values: ArrayPayload, paired: boo
         };
     } else {
         if values.element_type != "pg_catalog.text" || values.element_kind != 8 {
-            return JsonValue::Unknown;
+            return json_unresolved(unresolved_flavor);
         };
         if rank > 1 || rank != values.dimensions.len() {
             return JsonValue::Error(make_sql_error(JSON_OBJECT_ARRAY_RANK));
@@ -59,7 +60,7 @@ fn json_object_array_known(keys: ArrayPayload, values: ArrayPayload, paired: boo
             output.push_str(" : ");
         };
         if ready == false {
-            return JsonValue::Unknown;
+            return json_unresolved(unresolved_flavor);
         };
         let mut value = array_element_to_text(values.elements[index].clone());
         if paired {
@@ -80,7 +81,7 @@ fn json_object_array_known(keys: ArrayPayload, values: ArrayPayload, paired: boo
             ready = true;
         };
         if ready == false {
-            return JsonValue::Unknown;
+            return json_unresolved(unresolved_flavor);
         };
         index += 1;
     }
@@ -89,6 +90,8 @@ fn json_object_array_known(keys: ArrayPayload, values: ArrayPayload, paired: boo
 }
 
 pub fn sql__pg_catalog__json_object__fm30(input: ArrayValue) -> JsonValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
     if let ArrayValue::Error(error) = input {
         return JsonValue::Error(error);
     };
@@ -98,10 +101,13 @@ pub fn sql__pg_catalog__json_object__fm30(input: ArrayValue) -> JsonValue {
     if let ArrayValue::Value(value) = input {
         return json_object_array_known(value.clone(), value, true);
     };
-    JsonValue::Unknown
+    json_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__json_object__katl(keys: ArrayValue, values: ArrayValue) -> JsonValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayValue::Unknown = keys { unresolved_flavor = 1; };
+    if let ArrayValue::Unknown = values { unresolved_flavor = 1; };
     if let ArrayValue::Error(error) = keys {
         return JsonValue::Error(error);
     };
@@ -119,10 +125,12 @@ pub fn sql__pg_catalog__json_object__katl(keys: ArrayValue, values: ArrayValue) 
             return json_object_array_known(names, contents, false);
         };
     };
-    JsonValue::Unknown
+    json_unresolved(unresolved_flavor)
 }
 
 fn json_object_array_to_jsonb(input: JsonValue) -> JsonbValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonValue::Unknown = input { unresolved_flavor = 1; };
     if let JsonValue::Error(error) = input {
         return JsonbValue::Error(error);
     };
@@ -132,7 +140,7 @@ fn json_object_array_to_jsonb(input: JsonValue) -> JsonbValue {
     if let JsonValue::Value(value) = input {
         return jsonb_from_text(TextValue::Value(value.source));
     };
-    JsonbValue::Unknown
+    jsonb_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__jsonb_object__4dkp(input: ArrayValue) -> JsonbValue {

@@ -7,6 +7,10 @@ fn text_width_value(
     explicit: BoolValue,
     fixed: bool,
 ) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = modifier { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = explicit { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return TextValue::Error(error);
     }
@@ -20,7 +24,7 @@ fn text_width_value(
         || modifier == Int4Value::Unknown
         || explicit == BoolValue::Unknown
     {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if input == TextValue::Null || modifier == Int4Value::Null || explicit == BoolValue::Null {
         return TextValue::Null;
@@ -73,7 +77,7 @@ fn text_width_value(
             }
         }
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__bpchar__2uas(

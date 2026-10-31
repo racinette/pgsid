@@ -161,6 +161,8 @@ pub fn timestamptz_output_context(
     zone: &str,
     json: bool,
 ) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
     let state = timestamptz_output_without_context(input);
     if state != TextValue::NonNull {
         return state;
@@ -171,7 +173,7 @@ pub fn timestamptz_output_context(
     if let TimestamptzValue::Value(value) = input {
         let profile = session_timezone_profile(zone, value, false);
         if profile.valid == false {
-            return TextValue::Unknown;
+            return text_unresolved(unresolved_flavor);
         };
         let seconds = profile.seconds as i64;
         let local = value + seconds * 1000000i64;
@@ -204,7 +206,7 @@ pub fn timestamptz_output_context(
                 }
             };
             if rendered_known == false {
-                return TextValue::Unknown;
+                return text_unresolved(unresolved_flavor);
             };
         };
         if json || style == 1 {
@@ -223,7 +225,7 @@ pub fn timestamptz_output_context(
         };
         return TextValue::Value(output);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn jsonb_input_from_timestamptz_context(input: TimestamptzValue, zone: &str) -> JsonbInput {

@@ -13,11 +13,13 @@ fn bytea_hash_bytes(value: &str) -> Vec<HashByte> {
 }
 
 pub fn sql__pg_catalog__hashbytea__mypt(input: ByteaValue, byte_order: i32) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
     if let ByteaValue::Error(error) = input {
         return Int4Value::Error(error);
     }
     if input == ByteaValue::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if input == ByteaValue::Null {
         return Int4Value::Null;
@@ -26,7 +28,7 @@ pub fn sql__pg_catalog__hashbytea__mypt(input: ByteaValue, byte_order: i32) -> I
         let bytes = bytea_hash_bytes(value.as_str());
         return hash_native32(bytes, byte_order, 1);
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__hashbyteaextended__u1vz(
@@ -34,6 +36,9 @@ pub fn sql__pg_catalog__hashbyteaextended__u1vz(
     seed: Int8Value,
     byte_order: i32,
 ) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = seed { unresolved_flavor = 1; };
     if let ByteaValue::Error(error) = input {
         return Int8Value::Error(error);
     }
@@ -41,7 +46,7 @@ pub fn sql__pg_catalog__hashbyteaextended__u1vz(
         return Int8Value::Error(error);
     }
     if input == ByteaValue::Unknown || seed == Int8Value::Unknown {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     }
     if input == ByteaValue::Null || seed == Int8Value::Null {
         return Int8Value::Null;
@@ -52,15 +57,17 @@ pub fn sql__pg_catalog__hashbyteaextended__u1vz(
             return hash_native64(bytes, salt, byte_order, 1);
         }
     }
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 fn bytea_crc(input: ByteaValue, polynomial: i64) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
     if let ByteaValue::Error(error) = input {
         return Int8Value::Error(error);
     }
     if input == ByteaValue::Unknown {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     }
     if input == ByteaValue::Null {
         return Int8Value::Null;
@@ -89,7 +96,7 @@ fn bytea_crc(input: ByteaValue, polynomial: i64) -> Int8Value {
         let result = 4294967295i64 - crc;
         return Int8Value::Value(result);
     }
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__crc32__0obw(input: ByteaValue) -> Int8Value {

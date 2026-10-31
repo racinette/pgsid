@@ -39,6 +39,7 @@ fn jsonb_node_child(node: JsonbNode, child: usize) -> JsonbNode {
 }
 
 fn jsonb_scalar_ready(source: &JsonSyntaxSource, token: JsonReadToken, utf8: bool) -> BoolValue {
+    let unresolved_flavor: i32 = 0;
     let following = json_read_next_token(source, token.end);
     if following.start < source.characters.len() && source.characters[following.start] == '"' {
         let decoded = json_read_decode_string_context(source, following, utf8);
@@ -46,7 +47,7 @@ fn jsonb_scalar_ready(source: &JsonSyntaxSource, token: JsonReadToken, utf8: boo
             return BoolValue::Error(error);
         };
         if decoded == TextValue::Unknown || decoded == TextValue::NonNull {
-            return BoolValue::Unknown;
+            return bool_unresolved(unresolved_flavor);
         };
     };
     if following.syntax == JSON_SYNTAX_INVALID {
@@ -56,12 +57,13 @@ fn jsonb_scalar_ready(source: &JsonSyntaxSource, token: JsonReadToken, utf8: boo
 }
 
 fn jsonb_number_text(source: &JsonSyntaxSource, token: JsonReadToken, utf8: bool) -> TextValue {
+    let unresolved_flavor: i32 = 0;
     let ready = jsonb_scalar_ready(source, token, utf8);
     if let BoolValue::Error(error) = ready {
         return TextValue::Error(error);
     };
     if let BoolValue::Unknown = ready {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     let mut position = token.start;
     let negative = source.characters[position] == '-';
@@ -269,6 +271,8 @@ fn jsonb_normalize_objects(input: JsonbPayload) -> JsonbPayload {
 }
 
 fn jsonb_parse_text_context(input: TextValue, admission: bool, utf8: bool) -> JsonbValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return JsonbValue::Error(error);
     };
@@ -310,7 +314,7 @@ fn jsonb_parse_text_context(input: TextValue, admission: bool, utf8: bool) -> Js
                     return JsonbValue::Error(error);
                 };
                 if decoded == TextValue::Unknown || decoded == TextValue::NonNull {
-                    return JsonbValue::Unknown;
+                    return jsonb_unresolved(unresolved_flavor);
                 };
             };
             if token.syntax == JSON_SYNTAX_INVALID {
@@ -334,7 +338,7 @@ fn jsonb_parse_text_context(input: TextValue, admission: bool, utf8: bool) -> Js
                     return JsonbValue::Error(error);
                 };
                 if let BoolValue::Unknown = decision {
-                    return JsonbValue::Unknown;
+                    return jsonb_unresolved(unresolved_flavor);
                 };
             };
             let transition = json_syntax_step(frame.state, token.syntax);
@@ -354,7 +358,7 @@ fn jsonb_parse_text_context(input: TextValue, admission: bool, utf8: bool) -> Js
                         return JsonbValue::Error(error);
                     };
                     if let BoolValue::Unknown = decision {
-                        return JsonbValue::Unknown;
+                        return jsonb_unresolved(unresolved_flavor);
                     };
                 };
                 return JsonbValue::Value(normalized);
@@ -386,7 +390,7 @@ fn jsonb_parse_text_context(input: TextValue, admission: bool, utf8: bool) -> Js
                             return JsonbValue::Error(error);
                         };
                         if decoded == TextValue::Unknown || decoded == TextValue::NonNull {
-                            return JsonbValue::Unknown;
+                            return jsonb_unresolved(unresolved_flavor);
                         };
                     };
                     if admission && token.kind == JSON_READ_QUOTE {
@@ -395,7 +399,7 @@ fn jsonb_parse_text_context(input: TextValue, admission: bool, utf8: bool) -> Js
                             return JsonbValue::Error(error);
                         };
                         if let BoolValue::Unknown = ready {
-                            return JsonbValue::Unknown;
+                            return jsonb_unresolved(unresolved_flavor);
                         };
                         let size_text = decoded.clone();
                         if let TextValue::Value(text) = size_text {
@@ -416,7 +420,7 @@ fn jsonb_parse_text_context(input: TextValue, admission: bool, utf8: bool) -> Js
                                 return JsonbValue::Error(error);
                             };
                             if let BoolValue::Unknown = decision {
-                                return JsonbValue::Unknown;
+                                return jsonb_unresolved(unresolved_flavor);
                             };
                         };
                     };
@@ -480,7 +484,7 @@ fn jsonb_parse_text_context(input: TextValue, admission: bool, utf8: bool) -> Js
             position = token.end;
         }
     };
-    JsonbValue::Unknown
+    jsonb_unresolved(unresolved_flavor)
 }
 
 fn jsonb_quote(source: &JsonbPayload, begin: usize, end: usize) -> String {
@@ -525,9 +529,11 @@ struct JsonbOutputFrame {
 }
 
 fn jsonb_render(input: JsonbValue, require_order: bool, pretty: bool) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
     if let JsonbValue::NonNull(_maximum) = input {
         if pretty {
-            return TextValue::Unknown;
+            return text_unresolved(unresolved_flavor);
         };
         return TextValue::NonNull;
     };
@@ -581,7 +587,7 @@ fn jsonb_render(input: JsonbValue, require_order: bool, pretty: bool) -> TextVal
                             member = entry.next;
                         }
                         if unicode && nonempty > 1 {
-                            return TextValue::Unknown;
+                            return text_unresolved(unresolved_flavor);
                         };
                     };
                     if node.kind == 5 {
@@ -652,7 +658,7 @@ fn jsonb_render(input: JsonbValue, require_order: bool, pretty: bool) -> TextVal
         }
         return TextValue::Value(output);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn jsonb_to_pretty_text(input: JsonbValue) -> TextValue {

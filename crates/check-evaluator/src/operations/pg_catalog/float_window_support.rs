@@ -10,6 +10,12 @@ fn float_in_range(
     subtract: BoolValue,
     less: BoolValue,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = value { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = base { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = offset { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = subtract { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = less { unresolved_flavor = 1; };
     if let Float8Value::Error(error) = value {
         return BoolValue::Error(error);
     };
@@ -31,7 +37,7 @@ fn float_in_range(
         || subtract == BoolValue::Unknown
         || less == BoolValue::Unknown
     {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if value == Float8Value::Null
         || base == Float8Value::Null
@@ -84,7 +90,7 @@ fn float_in_range(
             };
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__in_range__t6r5(
@@ -164,6 +170,11 @@ pub fn sql__pg_catalog__width_bucket__wbi9(
     upper: Float8Value,
     count: Int4Value,
 ) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = operand { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = lower { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = upper { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = count { unresolved_flavor = 1; };
     if let Float8Value::Error(error) = operand {
         return Int4Value::Error(error);
     };
@@ -181,7 +192,7 @@ pub fn sql__pg_catalog__width_bucket__wbi9(
         || upper == Float8Value::Unknown
         || count == Int4Value::Unknown
     {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     };
     if operand == Float8Value::Null
         || lower == Float8Value::Null
@@ -207,7 +218,7 @@ pub fn sql__pg_catalog__width_bucket__wbi9(
             };
         };
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 // regr_count's transition function counts rows whose two arguments are both non-null; the
@@ -217,6 +228,10 @@ pub fn sql__pg_catalog__int8inc_float8_float8__naop(
     left: Float8Value,
     right: Float8Value,
 ) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = count { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = left { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = right { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = count {
         return Int8Value::Error(error);
     };
@@ -228,7 +243,7 @@ pub fn sql__pg_catalog__int8inc_float8_float8__naop(
     };
     if count == Int8Value::Unknown || left == Float8Value::Unknown || right == Float8Value::Unknown
     {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     };
     if count == Int8Value::Null || left == Float8Value::Null || right == Float8Value::Null {
         return Int8Value::Null;

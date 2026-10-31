@@ -1,9 +1,11 @@
 pub fn xid8_from_text(input: TextValue) -> Xid8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input { return Xid8Value::Error(error); };
     if input == TextValue::Null { return Xid8Value::Null; };
     if let TextValue::Value(text) = input {
         let chars: Vec<char> = text.chars().collect();
-        if chars.len() > 4096 { return Xid8Value::Unknown; };
+        if chars.len() > 4096 { return xid8_unresolved(unresolved_flavor); };
         let mut start: usize = 0;
         let mut end = chars.len();
         while start < end && oid_input_space(chars[start]) { start += 1; };
@@ -15,7 +17,7 @@ pub fn xid8_from_text(input: TextValue) -> Xid8Value {
         let mut radix = 10i64;
         if start + 1 < end && chars[start] == '0' {
             if chars[start + 1] == 'x' || chars[start + 1] == 'X' { radix = 16i64; start += 2; }
-            else if chars[start + 1] == 'b' || chars[start + 1] == 'B' { return Xid8Value::Unknown; }
+            else if chars[start + 1] == 'b' || chars[start + 1] == 'B' { return xid8_unresolved(unresolved_flavor); }
             else { radix = 8i64; };
         };
         let mut units = 0i64;
@@ -35,7 +37,7 @@ pub fn xid8_from_text(input: TextValue) -> Xid8Value {
             start += 1;
         };
         if digits == false {
-            if radix == 16i64 && start == end { return Xid8Value::Unknown; };
+            if radix == 16i64 && start == end { return xid8_unresolved(unresolved_flavor); };
             return Xid8Value::Error(SqlError { state: OID_INPUT_INVALID });
         };
         if overflow { return Xid8Value::Error(SqlError { state: SQLSTATE_NUMERIC_VALUE_OUT_OF_RANGE }); };
@@ -45,5 +47,5 @@ pub fn xid8_from_text(input: TextValue) -> Xid8Value {
         if negative && bits != -9223372036854775808i64 { bits = 0i64 - bits; };
         return make_xid8_bits(bits);
     };
-    Xid8Value::Unknown
+    xid8_unresolved(unresolved_flavor)
 }

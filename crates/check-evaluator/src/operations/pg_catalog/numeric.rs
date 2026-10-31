@@ -1,4 +1,7 @@
 fn numeric_compare(left: NumericValue, right: NumericValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let NumericValue::Unknown = left { unresolved_flavor = 1; };
+    if let NumericValue::Unknown = right { unresolved_flavor = 1; };
     if let NumericValue::Error(error) = left {
         return Int4Value::Error(error);
     }
@@ -6,7 +9,7 @@ fn numeric_compare(left: NumericValue, right: NumericValue) -> Int4Value {
         return Int4Value::Error(error);
     }
     if left == NumericValue::Unknown || right == NumericValue::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if left == NumericValue::Null || right == NumericValue::Null {
         return Int4Value::Null;
@@ -16,7 +19,7 @@ fn numeric_compare(left: NumericValue, right: NumericValue) -> Int4Value {
             let a = numeric_parts(left_value.as_str());
             let b = numeric_parts(right_value.as_str());
             if a.valid == false || b.valid == false {
-                return Int4Value::Unknown;
+                return int4_unresolved(unresolved_flavor);
             }
             if a.special < b.special {
                 return Int4Value::Value(-1);
@@ -75,16 +78,19 @@ fn numeric_compare(left: NumericValue, right: NumericValue) -> Int4Value {
             return Int4Value::Value(0);
         }
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__numeric_eq__fw7r(left: NumericValue, right: NumericValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NumericValue::Unknown = left { unresolved_flavor = 1; };
+    if let NumericValue::Unknown = right { unresolved_flavor = 1; };
     let result = numeric_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
     if result == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -92,16 +98,19 @@ pub fn sql__pg_catalog__numeric_eq__fw7r(left: NumericValue, right: NumericValue
     if let Int4Value::Value(order) = result {
         return BoolValue::Value(order == 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__numeric_ge__w8pw(left: NumericValue, right: NumericValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NumericValue::Unknown = left { unresolved_flavor = 1; };
+    if let NumericValue::Unknown = right { unresolved_flavor = 1; };
     let result = numeric_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
     if result == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -109,16 +118,19 @@ pub fn sql__pg_catalog__numeric_ge__w8pw(left: NumericValue, right: NumericValue
     if let Int4Value::Value(order) = result {
         return BoolValue::Value(order >= 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__numeric_gt__h1pi(left: NumericValue, right: NumericValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NumericValue::Unknown = left { unresolved_flavor = 1; };
+    if let NumericValue::Unknown = right { unresolved_flavor = 1; };
     let result = numeric_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
     if result == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -126,16 +138,19 @@ pub fn sql__pg_catalog__numeric_gt__h1pi(left: NumericValue, right: NumericValue
     if let Int4Value::Value(order) = result {
         return BoolValue::Value(order > 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__numeric_le__bbpc(left: NumericValue, right: NumericValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NumericValue::Unknown = left { unresolved_flavor = 1; };
+    if let NumericValue::Unknown = right { unresolved_flavor = 1; };
     let result = numeric_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
     if result == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -143,16 +158,19 @@ pub fn sql__pg_catalog__numeric_le__bbpc(left: NumericValue, right: NumericValue
     if let Int4Value::Value(order) = result {
         return BoolValue::Value(order <= 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__numeric_lt__zl16(left: NumericValue, right: NumericValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NumericValue::Unknown = left { unresolved_flavor = 1; };
+    if let NumericValue::Unknown = right { unresolved_flavor = 1; };
     let result = numeric_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
     if result == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -160,16 +178,19 @@ pub fn sql__pg_catalog__numeric_lt__zl16(left: NumericValue, right: NumericValue
     if let Int4Value::Value(order) = result {
         return BoolValue::Value(order < 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__numeric_ne__gyip(left: NumericValue, right: NumericValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NumericValue::Unknown = left { unresolved_flavor = 1; };
+    if let NumericValue::Unknown = right { unresolved_flavor = 1; };
     let result = numeric_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
     if result == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -177,5 +198,5 @@ pub fn sql__pg_catalog__numeric_ne__gyip(left: NumericValue, right: NumericValue
     if let Int4Value::Value(order) = result {
         return BoolValue::Value(order != 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }

@@ -53,6 +53,9 @@ fn bytea_bit_mask(position: i32) -> i32 {
 }
 
 pub fn sql__pg_catalog__get_byte__48am(input: ByteaValue, position: Int4Value) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = position { unresolved_flavor = 1; };
     if let ByteaValue::Error(error) = input {
         return Int4Value::Error(error);
     }
@@ -60,7 +63,7 @@ pub fn sql__pg_catalog__get_byte__48am(input: ByteaValue, position: Int4Value) -
         return Int4Value::Error(error);
     }
     if input == ByteaValue::Unknown || position == Int4Value::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if input == ByteaValue::Null || position == Int4Value::Null {
         return Int4Value::Null;
@@ -71,7 +74,7 @@ pub fn sql__pg_catalog__get_byte__48am(input: ByteaValue, position: Int4Value) -
                 return Int4Value::Error(make_sql_error(BYTEA_ARRAY_SUBSCRIPT_ERROR));
             };
         };
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     };
     if let ByteaValue::Value(value) = input {
         if let Int4Value::Value(offset) = position {
@@ -83,10 +86,13 @@ pub fn sql__pg_catalog__get_byte__48am(input: ByteaValue, position: Int4Value) -
             return Int4Value::Value(byte);
         }
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__get_bit__thv7(input: ByteaValue, position: Int8Value) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = position { unresolved_flavor = 1; };
     if let ByteaValue::Error(error) = input {
         return Int4Value::Error(error);
     }
@@ -94,7 +100,7 @@ pub fn sql__pg_catalog__get_bit__thv7(input: ByteaValue, position: Int8Value) ->
         return Int4Value::Error(error);
     }
     if input == ByteaValue::Unknown || position == Int8Value::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if input == ByteaValue::Null || position == Int8Value::Null {
         return Int4Value::Null;
@@ -116,7 +122,7 @@ pub fn sql__pg_catalog__get_bit__thv7(input: ByteaValue, position: Int8Value) ->
             return Int4Value::Value((byte / mask) % 2);
         }
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__set_byte__8mtw(
@@ -124,6 +130,10 @@ pub fn sql__pg_catalog__set_byte__8mtw(
     position: Int4Value,
     replacement: Int4Value,
 ) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = position { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = replacement { unresolved_flavor = 1; };
     if let ByteaValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
@@ -137,7 +147,7 @@ pub fn sql__pg_catalog__set_byte__8mtw(
         || position == Int4Value::Unknown
         || replacement == Int4Value::Unknown
     {
-        return ByteaValue::Unknown;
+        return bytea_unresolved(unresolved_flavor);
     }
     if input == ByteaValue::Null || position == Int4Value::Null || replacement == Int4Value::Null {
         return ByteaValue::Null;
@@ -158,7 +168,7 @@ pub fn sql__pg_catalog__set_byte__8mtw(
             }
         }
     }
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__set_bit__06f4(
@@ -166,6 +176,10 @@ pub fn sql__pg_catalog__set_bit__06f4(
     position: Int8Value,
     replacement: Int4Value,
 ) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = position { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = replacement { unresolved_flavor = 1; };
     if let ByteaValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
@@ -179,7 +193,7 @@ pub fn sql__pg_catalog__set_bit__06f4(
         || position == Int8Value::Unknown
         || replacement == Int4Value::Unknown
     {
-        return ByteaValue::Unknown;
+        return bytea_unresolved(unresolved_flavor);
     }
     if input == ByteaValue::Null || position == Int8Value::Null || replacement == Int4Value::Null {
         return ByteaValue::Null;
@@ -210,5 +224,5 @@ pub fn sql__pg_catalog__set_bit__06f4(
             }
         }
     }
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }

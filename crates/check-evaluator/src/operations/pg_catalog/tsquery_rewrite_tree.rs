@@ -63,6 +63,7 @@ struct TsqueryRewriteChildren { items: Vec<usize>, known: bool }
 struct TsqueryRewriteTask { node: usize, finish: bool }
 
 fn tsquery_rewrite_compare(tree: &TsqueryRewriteTree, left: usize, right: usize, utf8: bool) -> Int4Value {
+    let unresolved_flavor: i32 = 0;
     let mut tasks: Vec<TsqueryCompareFrame> = Vec::new();
     tasks.push(TsqueryCompareFrame {left:left,right:right,finish:false});
     let mut depth: usize = 1;
@@ -79,7 +80,7 @@ fn tsquery_rewrite_compare(tree: &TsqueryRewriteTree, left: usize, right: usize,
             if a.value.kind < b.value.kind { return make_int4_value(1); };
             if a.value.kind == 0 {
                 if a.value.text != b.value.text {
-                    if utf8 == false && (tsquery_ascii(a.value.text.as_str()) == false || tsquery_ascii(b.value.text.as_str()) == false) { return Int4Value::Unknown; };
+                    if utf8 == false && (tsquery_ascii(a.value.text.as_str()) == false || tsquery_ascii(b.value.text.as_str()) == false) { return int4_unresolved(unresolved_flavor); };
                     let ac = tsquery_legacy_crc(a.value.text.as_str());
                     let bc = tsquery_legacy_crc(b.value.text.as_str());
                     if ac > bc { return make_int4_value(-1); };

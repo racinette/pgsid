@@ -58,6 +58,9 @@ fn timetz_order(left: TimetzPayload, right: TimetzPayload) -> i32 {
 }
 
 fn time_value_order(left: TimeValue, right: TimeValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimeValue::Unknown = left { unresolved_flavor = 1; };
+    if let TimeValue::Unknown = right { unresolved_flavor = 1; };
     if let TimeValue::Error(error) = left {
         return Int4Value::Error(error);
     }
@@ -65,7 +68,7 @@ fn time_value_order(left: TimeValue, right: TimeValue) -> Int4Value {
         return Int4Value::Error(error);
     }
     if left == TimeValue::Unknown || right == TimeValue::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if left == TimeValue::Null || right == TimeValue::Null {
         return Int4Value::Null;
@@ -75,7 +78,7 @@ fn time_value_order(left: TimeValue, right: TimeValue) -> Int4Value {
             return make_int4_value(clock_order(a, b));
         };
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__time_cmp__rxkq(left: TimeValue, right: TimeValue) -> Int4Value {
@@ -95,12 +98,15 @@ pub fn sql__pg_catalog__time_gt__sf2e(left: TimeValue, right: TimeValue) -> Bool
 }
 
 pub fn sql__pg_catalog__time_larger__98xe(left: TimeValue, right: TimeValue) -> TimeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimeValue::Unknown = left { unresolved_flavor = 1; };
+    if let TimeValue::Unknown = right { unresolved_flavor = 1; };
     let order = time_value_order(left, right);
     if let Int4Value::Error(error) = order {
         return TimeValue::Error(error);
     }
     if order == Int4Value::Unknown {
-        return TimeValue::Unknown;
+        return time_unresolved(unresolved_flavor);
     }
     if order == Int4Value::Null {
         return TimeValue::Null;
@@ -111,7 +117,7 @@ pub fn sql__pg_catalog__time_larger__98xe(left: TimeValue, right: TimeValue) -> 
         }
         return right;
     };
-    TimeValue::Unknown
+    time_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__time_le__fpuk(left: TimeValue, right: TimeValue) -> BoolValue {
@@ -127,12 +133,15 @@ pub fn sql__pg_catalog__time_ne__1le4(left: TimeValue, right: TimeValue) -> Bool
 }
 
 pub fn sql__pg_catalog__time_smaller__a0k2(left: TimeValue, right: TimeValue) -> TimeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimeValue::Unknown = left { unresolved_flavor = 1; };
+    if let TimeValue::Unknown = right { unresolved_flavor = 1; };
     let order = time_value_order(left, right);
     if let Int4Value::Error(error) = order {
         return TimeValue::Error(error);
     }
     if order == Int4Value::Unknown {
-        return TimeValue::Unknown;
+        return time_unresolved(unresolved_flavor);
     }
     if order == Int4Value::Null {
         return TimeValue::Null;
@@ -143,10 +152,13 @@ pub fn sql__pg_catalog__time_smaller__a0k2(left: TimeValue, right: TimeValue) ->
         }
         return right;
     };
-    TimeValue::Unknown
+    time_unresolved(unresolved_flavor)
 }
 
 fn timetz_value_order(left: TimetzValue, right: TimetzValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimetzValue::Unknown = left { unresolved_flavor = 1; };
+    if let TimetzValue::Unknown = right { unresolved_flavor = 1; };
     if let TimetzValue::Error(error) = left {
         return Int4Value::Error(error);
     }
@@ -154,7 +166,7 @@ fn timetz_value_order(left: TimetzValue, right: TimetzValue) -> Int4Value {
         return Int4Value::Error(error);
     }
     if left == TimetzValue::Unknown || right == TimetzValue::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if left == TimetzValue::Null || right == TimetzValue::Null {
         return Int4Value::Null;
@@ -164,7 +176,7 @@ fn timetz_value_order(left: TimetzValue, right: TimetzValue) -> Int4Value {
             return make_int4_value(timetz_order(a, b));
         };
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timetz_cmp__wy50(left: TimetzValue, right: TimetzValue) -> Int4Value {
@@ -184,12 +196,15 @@ pub fn sql__pg_catalog__timetz_gt__4zis(left: TimetzValue, right: TimetzValue) -
 }
 
 pub fn sql__pg_catalog__timetz_larger__yvok(left: TimetzValue, right: TimetzValue) -> TimetzValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimetzValue::Unknown = left { unresolved_flavor = 1; };
+    if let TimetzValue::Unknown = right { unresolved_flavor = 1; };
     let order = timetz_value_order(left, right);
     if let Int4Value::Error(error) = order {
         return TimetzValue::Error(error);
     }
     if order == Int4Value::Unknown {
-        return TimetzValue::Unknown;
+        return timetz_unresolved(unresolved_flavor);
     }
     if order == Int4Value::Null {
         return TimetzValue::Null;
@@ -200,7 +215,7 @@ pub fn sql__pg_catalog__timetz_larger__yvok(left: TimetzValue, right: TimetzValu
         }
         return right;
     };
-    TimetzValue::Unknown
+    timetz_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timetz_le__a2hu(left: TimetzValue, right: TimetzValue) -> BoolValue {
@@ -216,12 +231,15 @@ pub fn sql__pg_catalog__timetz_ne__07by(left: TimetzValue, right: TimetzValue) -
 }
 
 pub fn sql__pg_catalog__timetz_smaller__5wru(left: TimetzValue, right: TimetzValue) -> TimetzValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimetzValue::Unknown = left { unresolved_flavor = 1; };
+    if let TimetzValue::Unknown = right { unresolved_flavor = 1; };
     let order = timetz_value_order(left, right);
     if let Int4Value::Error(error) = order {
         return TimetzValue::Error(error);
     }
     if order == Int4Value::Unknown {
-        return TimetzValue::Unknown;
+        return timetz_unresolved(unresolved_flavor);
     }
     if order == Int4Value::Null {
         return TimetzValue::Null;
@@ -232,10 +250,13 @@ pub fn sql__pg_catalog__timetz_smaller__5wru(left: TimetzValue, right: TimetzVal
         }
         return right;
     };
-    TimetzValue::Unknown
+    timetz_unresolved(unresolved_flavor)
 }
 
 fn interval_value_order(left: IntervalValue, right: IntervalValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let IntervalValue::Unknown = left { unresolved_flavor = 1; };
+    if let IntervalValue::Unknown = right { unresolved_flavor = 1; };
     if let IntervalValue::Error(error) = left {
         return Int4Value::Error(error);
     }
@@ -243,7 +264,7 @@ fn interval_value_order(left: IntervalValue, right: IntervalValue) -> Int4Value 
         return Int4Value::Error(error);
     }
     if left == IntervalValue::Unknown || right == IntervalValue::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if left == IntervalValue::Null || right == IntervalValue::Null {
         return Int4Value::Null;
@@ -253,7 +274,7 @@ fn interval_value_order(left: IntervalValue, right: IntervalValue) -> Int4Value 
             return make_int4_value(interval_order(a, b));
         };
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__interval_cmp__swxt(left: IntervalValue, right: IntervalValue) -> Int4Value {
@@ -276,12 +297,15 @@ pub fn sql__pg_catalog__interval_larger__vd9t(
     left: IntervalValue,
     right: IntervalValue,
 ) -> IntervalValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let IntervalValue::Unknown = left { unresolved_flavor = 1; };
+    if let IntervalValue::Unknown = right { unresolved_flavor = 1; };
     let order = interval_value_order(left, right);
     if let Int4Value::Error(error) = order {
         return IntervalValue::Error(error);
     }
     if order == Int4Value::Unknown {
-        return IntervalValue::Unknown;
+        return interval_unresolved(unresolved_flavor);
     }
     if order == Int4Value::Null {
         return IntervalValue::Null;
@@ -292,7 +316,7 @@ pub fn sql__pg_catalog__interval_larger__vd9t(
         }
         return right;
     };
-    IntervalValue::Unknown
+    interval_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__interval_le__ep4r(left: IntervalValue, right: IntervalValue) -> BoolValue {
@@ -311,12 +335,15 @@ pub fn sql__pg_catalog__interval_smaller__ns56(
     left: IntervalValue,
     right: IntervalValue,
 ) -> IntervalValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let IntervalValue::Unknown = left { unresolved_flavor = 1; };
+    if let IntervalValue::Unknown = right { unresolved_flavor = 1; };
     let order = interval_value_order(left, right);
     if let Int4Value::Error(error) = order {
         return IntervalValue::Error(error);
     }
     if order == Int4Value::Unknown {
-        return IntervalValue::Unknown;
+        return interval_unresolved(unresolved_flavor);
     }
     if order == Int4Value::Null {
         return IntervalValue::Null;
@@ -327,5 +354,5 @@ pub fn sql__pg_catalog__interval_smaller__ns56(
         }
         return right;
     };
-    IntervalValue::Unknown
+    interval_unresolved(unresolved_flavor)
 }

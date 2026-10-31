@@ -2,6 +2,8 @@ const BYTEA_OUTPUT_ALLOCATION_ERROR: u32 = 56966976;
 const BYTEA_OUTPUT_LIMIT_ERROR: u32 = 8584704;
 
 pub fn bytea_output_context(input: ByteaValue, format: i32, sql_text: bool) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
     if let ByteaValue::Error(error) = input { return TextValue::Error(error); };
     if input == ByteaValue::Null { return TextValue::Null; };
     if let ByteaValue::Value(value) = input {
@@ -21,7 +23,7 @@ pub fn bytea_output_context(input: ByteaValue, format: i32, sql_text: bool) -> T
             let mut maximum = 1073741822i64;
             if sql_text { maximum = 1073741819i64; };
             if hex_length <= maximum && escape_length <= maximum { return TextValue::NonNull; };
-            return TextValue::Unknown;
+            return text_unresolved(unresolved_flavor);
         };
         let mut length = hex_length;
         if format == 2 { length = escape_length; };
@@ -49,5 +51,5 @@ pub fn bytea_output_context(input: ByteaValue, format: i32, sql_text: bool) -> T
         }
         return TextValue::Value(output);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }

@@ -9,6 +9,8 @@ fn range_subdiff_integer(left: Int8Value, right: Int8Value, seconds: bool) -> Fl
 }
 
 fn range_subdiff_date(input: DateValue) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let DateValue::Unknown = input { unresolved_flavor = 1; };
     if let DateValue::Error(error) = input {
         return Int8Value::Error(error);
     };
@@ -18,10 +20,12 @@ fn range_subdiff_date(input: DateValue) -> Int8Value {
     if let DateValue::Value(value) = input {
         return Int8Value::Value(value as i64);
     };
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 fn range_subdiff_timestamp(input: TimestampValue) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestampValue::Unknown = input { unresolved_flavor = 1; };
     if let TimestampValue::Error(error) = input {
         return Int8Value::Error(error);
     };
@@ -31,10 +35,12 @@ fn range_subdiff_timestamp(input: TimestampValue) -> Int8Value {
     if let TimestampValue::Value(value) = input {
         return Int8Value::Value(value);
     };
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 fn range_subdiff_timestamptz(input: TimestamptzValue) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
     if let TimestamptzValue::Error(error) = input {
         return Int8Value::Error(error);
     };
@@ -44,7 +50,7 @@ fn range_subdiff_timestamptz(input: TimestamptzValue) -> Int8Value {
     if let TimestamptzValue::Value(value) = input {
         return Int8Value::Value(value);
     };
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__int4range_subdiff__e24d(left: Int4Value, right: Int4Value) -> Float8Value {

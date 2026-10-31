@@ -1,4 +1,6 @@
 fn temporal_hash_time_input(input: TimeValue) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimeValue::Unknown = input { unresolved_flavor = 1; };
     if let TimeValue::Error(error) = input {
         return Int8Value::Error(error);
     };
@@ -8,9 +10,11 @@ fn temporal_hash_time_input(input: TimeValue) -> Int8Value {
     if let TimeValue::Value(value) = input {
         return make_int8_value(value);
     };
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 fn temporal_hash_interval_input(input: IntervalValue) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let IntervalValue::Unknown = input { unresolved_flavor = 1; };
     if let IntervalValue::Error(error) = input {
         return Int8Value::Error(error);
     };
@@ -30,9 +34,12 @@ fn temporal_hash_interval_input(input: IntervalValue) -> Int8Value {
         };
         return make_int8_value(result);
     };
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 fn temporal_hash_timetz(input: TimetzValue, seed: Int8Value) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimetzValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = seed { unresolved_flavor = 1; };
     if let TimetzValue::Error(error) = input {
         return Int8Value::Error(error);
     };
@@ -40,7 +47,7 @@ fn temporal_hash_timetz(input: TimetzValue, seed: Int8Value) -> Int8Value {
         return Int8Value::Error(error);
     };
     if input == TimetzValue::Unknown || seed == Int8Value::Unknown {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     };
     if input == TimetzValue::Null || seed == Int8Value::Null {
         return Int8Value::Null;
@@ -50,9 +57,11 @@ fn temporal_hash_timetz(input: TimetzValue, seed: Int8Value) -> Int8Value {
         let zone_hash = sql__pg_catalog__hashint4extended__xf6v(make_int4_value(clock.zone), seed);
         return sql__pg_catalog__int8xor__4v56(time_hash, zone_hash);
     };
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 fn temporal_hash_narrow(input: Int8Value) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = input { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = input {
         return Int4Value::Error(error);
     };
@@ -62,7 +71,7 @@ fn temporal_hash_narrow(input: Int8Value) -> Int4Value {
     if let Int8Value::Value(value) = input {
         return make_int4_value(value as i32);
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__time_hash__yc41(input: TimeValue) -> Int4Value {
     sql__pg_catalog__hashint8__3wid(temporal_hash_time_input(input))

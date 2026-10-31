@@ -49,6 +49,7 @@ fn timestamp_calendar_microseconds(
     ordinal_day: i32,
     date_only: bool,
 ) -> Int8Value {
+    let unresolved_flavor: i32 = 0;
     let mut max_fraction: i32 = 999999;
     if allow_fraction_carry {
         max_fraction = 1000000;
@@ -99,7 +100,7 @@ fn timestamp_calendar_microseconds(
     if ordinal_day > 0 {
         let ordinal = calendar_from_ordinal(year, ordinal_day);
         if ordinal.known == false {
-            return Int8Value::Unknown;
+            return int8_unresolved(unresolved_flavor);
         }
         calendar_year = ordinal.year;
         calendar_month = ordinal.month;
@@ -115,7 +116,7 @@ fn timestamp_calendar_microseconds(
             return Int8Value::Value(date_wide);
         }
         if missing_timezone {
-            return Int8Value::Unknown;
+            return int8_unresolved(unresolved_flavor);
         }
         if (calendar_year == -4714 && calendar_month < 11)
             || (compact_clock == false && day_value < -2451546)
@@ -139,7 +140,7 @@ fn timestamp_calendar_microseconds(
         }
         return Int8Value::Value(microseconds);
     }
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 // ParseDateTime skips ASCII punctuation where a field would start; these characters never
@@ -183,8 +184,9 @@ fn temporal_number_after_clock(
     compact_clock: bool,
     year_overflow: bool,
 ) -> Int8Value {
+    let unresolved_flavor: i32 = 0;
     if year_overflow || compact_clock || hour == 24 {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     }
     if hour < 0 || hour > 24 || minute < 0 || minute > 59 || second < 0 || second > 60 {
         return Int8Value::Error(SqlError {
@@ -207,11 +209,13 @@ fn parse_temporal_text(
     date_only: bool,
     date_order: i32,
 ) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = value { unresolved_flavor = 1; };
     if let TextValue::Error(error) = value {
         return Int8Value::Error(error);
     }
     if (value == TextValue::Unknown || value == TextValue::NonNull) {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     }
     if value == TextValue::Null {
         return Int8Value::Null;
@@ -219,7 +223,7 @@ fn parse_temporal_text(
     if let TextValue::Value(input) = value {
         let chars: Vec<char> = input.chars().collect();
         if chars.len() > 128 {
-            return Int8Value::Unknown;
+            return int8_unresolved(unresolved_flavor);
         }
         // PostgreSQL reads BC or AD as an ordinary field anywhere after the first one, so the era
         // is blanked before the date and clock grammar runs, as is punctuation its lexer skips
@@ -281,11 +285,11 @@ fn parse_temporal_text(
                     }
                     // A trailing era after special words such as epoch is ignored, as before.
                     if (era_digit_before == false && era_trailing == false) || eras > 0 {
-                        return Int8Value::Unknown;
+                        return int8_unresolved(unresolved_flavor);
                     }
                     let era_previous = chars[era_index - 1];
                     if date_text_space(era_previous) == false && date_text_digit(era_previous) < 0 {
-                        return Int8Value::Unknown;
+                        return int8_unresolved(unresolved_flavor);
                     }
                     if era_end < chars.len() {
                         let era_next = chars[era_end];
@@ -293,7 +297,7 @@ fn parse_temporal_text(
                             && date_text_digit(era_next) < 0
                             && era_next != '+'
                         {
-                            return Int8Value::Unknown;
+                            return int8_unresolved(unresolved_flavor);
                         }
                     }
                     eras += 1;
@@ -405,7 +409,7 @@ fn parse_temporal_text(
             // A weekday's field mask makes PostgreSQL reject any delimited date after it.
             if delimited && julian_label == false && after < end {
                 if long_number {
-                    return Int8Value::Unknown;
+                    return int8_unresolved(unresolved_flavor);
                 }
                 return Int8Value::Error(SqlError {
                     state: INVALID_TIMESTAMP_TEXT,
@@ -427,7 +431,7 @@ fn parse_temporal_text(
             });
         }
         if ordinal.state == ORDINAL_DATE_DEFERRED {
-            return Int8Value::Unknown;
+            return int8_unresolved(unresolved_flavor);
         }
         let year_field = read_timestamp_number(&text, start, end);
         let mut year = year_field.value;
@@ -459,7 +463,7 @@ fn parse_temporal_text(
         {
             let compact_year = read_timestamp_number(&text, start, index - 4);
             if compact_year.overflow {
-                return Int8Value::Unknown;
+                return int8_unresolved(unresolved_flavor);
             }
             year = calendar_short_year(compact_year.value, compact_year.digits, bc);
             year_overflow = false;
@@ -473,7 +477,7 @@ fn parse_temporal_text(
                 // DecodeNumber; a one- or two-digit year maps into 1970-2069 unless BC is given.
                 let separator = text.chars[index];
                 if separator != '-' && separator != '/' && separator != '.' {
-                    return Int8Value::Unknown;
+                    return int8_unresolved(unresolved_flavor);
                 }
                 let second_field = read_timestamp_number(&text, index + 1, end);
                 index = second_field.next;
@@ -482,7 +486,7 @@ fn parse_temporal_text(
                     || index == end
                     || text.chars[index] != separator
                 {
-                    return Int8Value::Unknown;
+                    return int8_unresolved(unresolved_flavor);
                 }
                 let third_field = read_timestamp_number(&text, index + 1, end);
                 index = third_field.next;
@@ -490,7 +494,7 @@ fn parse_temporal_text(
                     || third_field.overflow
                     || (index < end && text.chars[index] == separator)
                 {
-                    return Int8Value::Unknown;
+                    return int8_unresolved(unresolved_flavor);
                 }
                 let mut short_year = third_field.value;
                 let mut year_digits = third_field.digits;
@@ -515,16 +519,16 @@ fn parse_temporal_text(
                     };
                 };
             } else if year_field.digits < 3 || index == end {
-                return Int8Value::Unknown;
+                return int8_unresolved(unresolved_flavor);
             } else {
                 let separator = text.chars[index];
                 if separator != '-' && separator != '/' && separator != '.' {
-                    return Int8Value::Unknown;
+                    return int8_unresolved(unresolved_flavor);
                 }
                 let month_field = read_timestamp_number(&text, index + 1, end);
                 index = month_field.next;
                 if month_field.digits < 1 || index == end || text.chars[index] != separator {
-                    return Int8Value::Unknown;
+                    return int8_unresolved(unresolved_flavor);
                 }
                 let day_field = read_timestamp_number(&text, index + 1, end);
                 index = day_field.next;
@@ -540,7 +544,7 @@ fn parse_temporal_text(
                             && month_field.value >= 1
                             && month_field.value <= 366)
                     {
-                        return Int8Value::Unknown;
+                        return int8_unresolved(unresolved_flavor);
                     }
                     return Int8Value::Error(SqlError {
                         state: INVALID_TIMESTAMP_TEXT,
@@ -556,7 +560,7 @@ fn parse_temporal_text(
                                     state: TIMESTAMP_FIELD_OVERFLOW,
                                 });
                             }
-                            return Int8Value::Unknown;
+                            return int8_unresolved(unresolved_flavor);
                         }
                         return Int8Value::Error(SqlError {
                             state: INVALID_TIMESTAMP_TEXT,
@@ -571,7 +575,7 @@ fn parse_temporal_text(
                                     state: TIMESTAMP_FIELD_OVERFLOW,
                                 });
                             }
-                            return Int8Value::Unknown;
+                            return int8_unresolved(unresolved_flavor);
                         }
                         return Int8Value::Error(SqlError {
                             state: INVALID_TIMESTAMP_TEXT,
@@ -670,7 +674,7 @@ fn parse_temporal_text(
                 zone_only = true;
             }
         } else if zone_only == false {
-            return Int8Value::Unknown;
+            return int8_unresolved(unresolved_flavor);
         }
         if zone_only && index < end {
             let zone_mark = text.chars[index].to_ascii_lowercase();
@@ -722,14 +726,14 @@ fn parse_temporal_text(
             let minutes = read_timestamp_number(&text, index + 1, end);
             index = minutes.next;
             if minutes.digits < 1 {
-                return Int8Value::Unknown;
+                return int8_unresolved(unresolved_flavor);
             }
             minute = minutes.value;
             if index < end && text.chars[index] == ':' {
                 let seconds = read_timestamp_number(&text, index + 1, end);
                 index = seconds.next;
                 if seconds.digits < 1 {
-                    return Int8Value::Unknown;
+                    return int8_unresolved(unresolved_flavor);
                 }
                 second = seconds.value;
                 fractional = true;
@@ -747,13 +751,13 @@ fn parse_temporal_text(
             // A number that is not a clock after a complete date is rejected in the field loop,
             // after earlier date overflow and zone errors.
             if year_overflow || deferred_zone {
-                return Int8Value::Unknown;
+                return int8_unresolved(unresolved_flavor);
             }
             return Int8Value::Error(SqlError {
                 state: INVALID_TIMESTAMP_TEXT,
             });
         } else if zone_only == false {
-            return Int8Value::Unknown;
+            return int8_unresolved(unresolved_flavor);
         }
         if julian_time >= 0i64 {
             if hours.digits > 0 {
@@ -771,7 +775,7 @@ fn parse_temporal_text(
             let digits = read_timestamp_number(&text, index + 1, end);
             index = digits.next;
             if digits.digits < 1 {
-                return Int8Value::Unknown;
+                return int8_unresolved(unresolved_flavor);
             }
             if digits.digits <= 6 {
                 fraction = digits.value;
@@ -836,26 +840,26 @@ fn parse_temporal_text(
             let zone_hour = read_timestamp_number(&text, index + 1, end);
             index = zone_hour.next;
             if zone_hour.digits < 1 || zone_hour.digits > 4 {
-                return Int8Value::Unknown;
+                return int8_unresolved(unresolved_flavor);
             }
             let mut hours = zone_hour.value;
             let mut minutes: i32 = 0;
             let mut seconds: i32 = 0;
             if index < end && text.chars[index] == ':' {
                 if zone_hour.digits > 2 {
-                    return Int8Value::Unknown;
+                    return int8_unresolved(unresolved_flavor);
                 }
                 let zone_minute = read_timestamp_number(&text, index + 1, end);
                 index = zone_minute.next;
                 if zone_minute.digits < 1 {
-                    return Int8Value::Unknown;
+                    return int8_unresolved(unresolved_flavor);
                 }
                 minutes = zone_minute.value;
                 if index < end && text.chars[index] == ':' {
                     let zone_second = read_timestamp_number(&text, index + 1, end);
                     index = zone_second.next;
                     if zone_second.digits < 1 {
-                        return Int8Value::Unknown;
+                        return int8_unresolved(unresolved_flavor);
                     }
                     seconds = zone_second.value;
                 }
@@ -878,13 +882,13 @@ fn parse_temporal_text(
         {
             return temporal_number_after_clock(hour, minute, second, compact_clock, year_overflow);
         } else if index != end {
-            return Int8Value::Unknown;
+            return int8_unresolved(unresolved_flavor);
         } else if with_timezone {
             missing_timezone = true;
         }
         if deferred_zone {
             if index != deferred_zone_end {
-                return Int8Value::Unknown;
+                return int8_unresolved(unresolved_flavor);
             }
             if offset < -57599 || offset > 57599 {
                 return Int8Value::Error(SqlError {
@@ -924,7 +928,7 @@ fn parse_temporal_text(
             let after_clock =
                 temporal_number_after_clock(hour, minute, second, compact_clock, year_overflow);
             if after_clock == Int8Value::Unknown {
-                return Int8Value::Unknown;
+                return int8_unresolved(unresolved_flavor);
             }
             if let Int8Value::Error(error) = after_clock {
                 if error.state == INVALID_TIMESTAMP_TEXT && (offset < -57599 || offset > 57599) {
@@ -936,7 +940,7 @@ fn parse_temporal_text(
             return after_clock;
         }
         if index != end {
-            return Int8Value::Unknown;
+            return int8_unresolved(unresolved_flavor);
         }
         if year_overflow {
             return Int8Value::Error(SqlError {
@@ -978,10 +982,12 @@ fn parse_temporal_text(
             date_only,
         );
     }
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 fn timestamp_from_microseconds(value: Int8Value) -> TimestampValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = value { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = value {
         return TimestampValue::Error(error);
     }
@@ -991,7 +997,7 @@ fn timestamp_from_microseconds(value: Int8Value) -> TimestampValue {
     if value == Int8Value::Null {
         return TimestampValue::Null;
     }
-    TimestampValue::Unknown
+    timestamp_unresolved(unresolved_flavor)
 }
 
 pub fn timestamp_from_calendar(

@@ -52,6 +52,9 @@ fn numeric_base_logarithm(base: NumericWork, input: NumericWork) -> NumericValue
 }
 
 pub fn sql__pg_catalog__numeric_log__8gwh(left: NumericValue, right: NumericValue) -> NumericValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NumericValue::Unknown = left { unresolved_flavor = 1; };
+    if let NumericValue::Unknown = right { unresolved_flavor = 1; };
     if let NumericValue::Error(error) = left {
         return NumericValue::Error(error);
     }
@@ -59,7 +62,7 @@ pub fn sql__pg_catalog__numeric_log__8gwh(left: NumericValue, right: NumericValu
         return NumericValue::Error(error);
     }
     if left == NumericValue::Unknown || right == NumericValue::Unknown {
-        return NumericValue::Unknown;
+        return numeric_unresolved(unresolved_flavor);
     }
     if left == NumericValue::Null || right == NumericValue::Null {
         return NumericValue::Null;
@@ -69,12 +72,12 @@ pub fn sql__pg_catalog__numeric_log__8gwh(left: NumericValue, right: NumericValu
             let first = numeric_work_from_value(base.as_str());
             let second = numeric_work_from_value(input.as_str());
             if first.valid == false || second.valid == false {
-                return NumericValue::Unknown;
+                return numeric_unresolved(unresolved_flavor);
             }
             return numeric_base_logarithm(first, second);
         }
     }
-    NumericValue::Unknown
+    numeric_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__log__94cu(left: NumericValue, right: NumericValue) -> NumericValue {

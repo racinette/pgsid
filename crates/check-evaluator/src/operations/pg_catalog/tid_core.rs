@@ -1,4 +1,7 @@
 fn tid_compare(left: TidValue, right: TidValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TidValue::Unknown = left { unresolved_flavor = 1; };
+    if let TidValue::Unknown = right { unresolved_flavor = 1; };
     if let TidValue::Error(error) = left {
         return Int4Value::Error(error);
     };
@@ -6,7 +9,7 @@ fn tid_compare(left: TidValue, right: TidValue) -> Int4Value {
         return Int4Value::Error(error);
     };
     if left == TidValue::Unknown || right == TidValue::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     };
     if left == TidValue::Null || right == TidValue::Null {
         return Int4Value::Null;
@@ -22,9 +25,12 @@ fn tid_compare(left: TidValue, right: TidValue) -> Int4Value {
             return Int4Value::Value(0);
         };
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 fn tid_relation(left: TidValue, right: TidValue, mode: i32) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TidValue::Unknown = left { unresolved_flavor = 1; };
+    if let TidValue::Unknown = right { unresolved_flavor = 1; };
     let comparison = tid_compare(left, right);
     if let Int4Value::Error(error) = comparison {
         return BoolValue::Error(error);
@@ -50,9 +56,12 @@ fn tid_relation(left: TidValue, right: TidValue, mode: i32) -> BoolValue {
         };
         return make_bool_value(order >= 0);
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 fn tid_select(left: TidValue, right: TidValue, larger: bool) -> TidValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TidValue::Unknown = left { unresolved_flavor = 1; };
+    if let TidValue::Unknown = right { unresolved_flavor = 1; };
     let comparison = tid_compare(left, right);
     if let Int4Value::Error(error) = comparison {
         return TidValue::Error(error);
@@ -66,11 +75,13 @@ fn tid_select(left: TidValue, right: TidValue, larger: bool) -> TidValue {
         };
         return right;
     };
-    TidValue::Unknown
+    tid_unresolved(unresolved_flavor)
 }
 
 
 pub fn tid_to_text(input: TidValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TidValue::Unknown = input { unresolved_flavor = 1; };
     if let TidValue::Error(error) = input { return TextValue::Error(error); };
     if input == TidValue::Null { return TextValue::Null; };
     if let TidValue::Value(value) = input {
@@ -82,9 +93,11 @@ pub fn tid_to_text(input: TidValue) -> TextValue {
         output.push(')');
         return TextValue::Value(output);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 fn tid_send(input: TidValue) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TidValue::Unknown = input { unresolved_flavor = 1; };
     if let TidValue::Error(error) = input { return ByteaValue::Error(error); };
     if input == TidValue::Null { return ByteaValue::Null; };
     if let TidValue::Value(value) = input {
@@ -97,7 +110,7 @@ fn tid_send(input: TidValue) -> ByteaValue {
         };
         return ByteaValue::Value(output);
     };
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__tidsend__o4ql(left: TidValue) -> ByteaValue {
@@ -123,6 +136,8 @@ fn tid_hash_bytes(value: i64) -> Vec<HashByte> {
     bytes
 }
 pub fn sql__pg_catalog__hashtid__li7j(left: TidValue, byte_order: i32) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TidValue::Unknown = left { unresolved_flavor = 1; };
     if let TidValue::Error(error) = left {
         return Int4Value::Error(error);
     };
@@ -133,7 +148,7 @@ pub fn sql__pg_catalog__hashtid__li7j(left: TidValue, byte_order: i32) -> Int4Va
         let bytes = tid_hash_bytes(value);
         return hash_native32(bytes, byte_order, 2);
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__hashtidextended__osxq(
@@ -141,6 +156,9 @@ pub fn sql__pg_catalog__hashtidextended__osxq(
     right: Int8Value,
     byte_order: i32,
 ) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TidValue::Unknown = left { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = right { unresolved_flavor = 1; };
     if let TidValue::Error(error) = left {
         return Int8Value::Error(error);
     };
@@ -148,7 +166,7 @@ pub fn sql__pg_catalog__hashtidextended__osxq(
         return Int8Value::Error(error);
     };
     if left == TidValue::Unknown || right == Int8Value::Unknown {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     };
     if left == TidValue::Null || right == Int8Value::Null {
         return Int8Value::Null;
@@ -159,7 +177,7 @@ pub fn sql__pg_catalog__hashtidextended__osxq(
             return hash_native64(bytes, seed, byte_order, 2);
         };
     };
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__tideq__ba7v(left: TidValue, right: TidValue) -> BoolValue {

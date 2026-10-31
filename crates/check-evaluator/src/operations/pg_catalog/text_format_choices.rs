@@ -1,4 +1,6 @@
 fn format_choice_value(original: ArrayElement, family: i32, choice: i32) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayElement::Unknown = original { unresolved_flavor = 1; };
     if family == 4 {
         let value = array_element_to_timestamp(original);
         return timestamp_output_context(value, choice);
@@ -54,7 +56,7 @@ fn format_choice_value(original: ArrayElement, family: i32, choice: i32) -> Text
         let value = array_element_to_circle(original);
         return geometry_circle_output_context(value, extra, true);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 fn format_choice_bounds(

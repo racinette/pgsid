@@ -52,9 +52,10 @@ fn xpath_sql_empty_namespaces() -> ArrayValue {
 }
 
 pub(crate) fn xpath_sql_array(input: XPathXmlResult) -> ArrayValue {
+    let unresolved_flavor: i32 = 0;
     if input.state == XPATH_RESULT_SQL_ERROR { return ArrayValue::Error(input.error); };
     if input.state < 0 { return ArrayValue::Error(make_sql_error(SQLSTATE_INVALID_XPATH)); };
-    if input.shaped == false { return ArrayValue::Unknown; };
+    if input.shaped == false { return array_unresolved(unresolved_flavor); };
     let mut elements: Vec<ArrayElement> = Vec::new(); let mut index: usize = 0;
     while index < input.values.len() {
         let cell = array_element_from_xml(input.values[index].clone()); elements.push(cell); index += 1;

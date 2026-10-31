@@ -1,4 +1,6 @@
 pub fn sql__pg_catalog__json_typeof__vzgr(input: JsonValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonValue::Unknown = input { unresolved_flavor = 1; };
     if let JsonValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -8,10 +10,12 @@ pub fn sql__pg_catalog__json_typeof__vzgr(input: JsonValue) -> TextValue {
     if let JsonValue::Value(value) = input {
         return json_kind_text(value.kind);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn json_to_text(input: JsonValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonValue::Unknown = input { unresolved_flavor = 1; };
     if let JsonValue::NonNull = input {
         return TextValue::NonNull;
     };
@@ -24,7 +28,7 @@ pub fn json_to_text(input: JsonValue) -> TextValue {
     if let JsonValue::Value(value) = input {
         return TextValue::Value(value.source);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__json_send__wrp3(input: JsonValue) -> ByteaValue {
@@ -47,6 +51,8 @@ pub fn json_send_context(input: JsonValue, client_utf8: bool) -> ByteaValue {
 const JSON_INVALID_TEXT: u32 = 3484946;
 
 pub fn json_from_text(input: TextValue) -> JsonValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return JsonValue::Error(error);
     };
@@ -60,5 +66,5 @@ pub fn json_from_text(input: TextValue) -> JsonValue {
         };
         return parsed;
     };
-    JsonValue::Unknown
+    json_unresolved(unresolved_flavor)
 }

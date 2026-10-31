@@ -3,11 +3,13 @@ pub fn sql__pg_catalog__bit_send__1fyo(input: BitValue) -> ByteaValue {
 }
 
 pub fn sql__pg_catalog__varbit_send__yt0j(input: BitValue) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BitValue::Unknown = input { unresolved_flavor = 1; };
     if let BitValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
     if input == BitValue::Unknown {
-        return ByteaValue::Unknown;
+        return bytea_unresolved(unresolved_flavor);
     }
     if input == BitValue::Null {
         return ByteaValue::Null;
@@ -38,5 +40,5 @@ pub fn sql__pg_catalog__varbit_send__yt0j(input: BitValue) -> ByteaValue {
         }
         return ByteaValue::Value(output);
     }
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }

@@ -315,6 +315,10 @@ fn timezone_explicit_interval(
     default_profile: bool,
     subtract: bool,
 ) -> TimestamptzValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
+    if let IntervalValue::Unknown = amount { unresolved_flavor = 1; };
+    if let TextValue::Unknown = zone { unresolved_flavor = 1; };
     if let TimestamptzValue::Error(error) = input {
         return TimestamptzValue::Error(error);
     };
@@ -329,7 +333,7 @@ fn timezone_explicit_interval(
         || zone == TextValue::Unknown
         || zone == TextValue::NonNull
     {
-        return TimestamptzValue::Unknown;
+        return timestamptz_unresolved(unresolved_flavor);
     };
     if input == TimestamptzValue::Null || amount == IntervalValue::Null || zone == TextValue::Null {
         return TimestamptzValue::Null;
@@ -341,7 +345,7 @@ fn timezone_explicit_interval(
     if let TextValue::Value(name) = selected {
         return timezone_interval_add(input, amount, name.as_str(), subtract);
     };
-    TimestamptzValue::Unknown
+    timestamptz_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__date_add__kklw(

@@ -1,7 +1,8 @@
 fn circle_parse(value: &str) -> CircleValue {
+    let unresolved_flavor: i32 = 0;
     let chars: Vec<char> = value.chars().collect();
     if chars.len() > 4096 {
-        return CircleValue::Unknown;
+        return circle_unresolved(unresolved_flavor);
     };
     let source = GeometryInputText { chars };
     let mut index = geometry_input_space(&source, 0);
@@ -22,7 +23,7 @@ fn circle_parse(value: &str) -> CircleValue {
         return CircleValue::Error(error);
     };
     if point == PointValue::Unknown {
-        return CircleValue::Unknown;
+        return circle_unresolved(unresolved_flavor);
     };
     index = center.end;
     if index < source.chars.len() && source.chars[index] == ',' {
@@ -34,7 +35,7 @@ fn circle_parse(value: &str) -> CircleValue {
         return CircleValue::Error(error);
     };
     if scalar == Float8Value::Unknown {
-        return CircleValue::Unknown;
+        return circle_unresolved(unresolved_flavor);
     };
     if let Float8Value::Value(bits) = scalar {
         if float8_number(bits) < 0.0f64 {
@@ -55,6 +56,8 @@ fn circle_parse(value: &str) -> CircleValue {
     circle_from_center_radius(point, scalar)
 }
 pub fn circle_from_text(input: TextValue) -> CircleValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return CircleValue::Error(error);
     };
@@ -64,5 +67,5 @@ pub fn circle_from_text(input: TextValue) -> CircleValue {
     if let TextValue::Value(value) = input {
         return circle_parse(value.as_str());
     };
-    CircleValue::Unknown
+    circle_unresolved(unresolved_flavor)
 }

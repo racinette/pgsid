@@ -87,11 +87,13 @@ fn ascii_encoding_text(value: String, encoding: i32) -> String {
 }
 
 pub fn sql__pg_catalog__to_ascii__culg(value: TextValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = value { unresolved_flavor = 1; };
     if let TextValue::Error(error) = value {
         return TextValue::Error(error);
     }
     if (value == TextValue::Unknown || value == TextValue::NonNull) {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if value == TextValue::Null {
         return TextValue::Null;
@@ -100,6 +102,9 @@ pub fn sql__pg_catalog__to_ascii__culg(value: TextValue) -> TextValue {
 }
 
 pub fn sql__pg_catalog__to_ascii__uqov(value: TextValue, encoding: Int4Value) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = value { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = encoding { unresolved_flavor = 1; };
     if let TextValue::Error(error) = value {
         return TextValue::Error(error);
     }
@@ -107,7 +112,7 @@ pub fn sql__pg_catalog__to_ascii__uqov(value: TextValue, encoding: Int4Value) ->
         return TextValue::Error(error);
     }
     if (value == TextValue::Unknown || value == TextValue::NonNull) || encoding == Int4Value::Unknown {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if value == TextValue::Null || encoding == Int4Value::Null {
         return TextValue::Null;
@@ -123,5 +128,5 @@ pub fn sql__pg_catalog__to_ascii__uqov(value: TextValue, encoding: Int4Value) ->
             return TextValue::Value(ascii_encoding_text(text, code));
         }
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }

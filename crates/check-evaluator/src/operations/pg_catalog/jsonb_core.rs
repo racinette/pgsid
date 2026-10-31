@@ -1,4 +1,6 @@
 pub fn sql__pg_catalog__jsonb_typeof__68xu(input: JsonbValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
     if let JsonbValue::NonNull(facts) = input {
         if facts.kind >= 0 {
             return json_kind_text(facts.kind);
@@ -28,7 +30,7 @@ pub fn sql__pg_catalog__jsonb_typeof__68xu(input: JsonbValue) -> TextValue {
     if let JsonbValue::Value(value) = input {
         return json_kind_text(value.nodes[value.root].kind);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__jsonb_send__8nmo(input: JsonbValue) -> ByteaValue {

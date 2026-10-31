@@ -119,9 +119,12 @@ fn bytea_like_match(input: &str, pattern: &str) -> Int4Value {
 }
 
 fn bytea_like(input: ByteaValue, pattern: ByteaValue, negate: bool) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let ByteaValue::Unknown = pattern { unresolved_flavor = 1; };
     if let ByteaValue::Error(error) = input { return BoolValue::Error(error); }
     if let ByteaValue::Error(error) = pattern { return BoolValue::Error(error); }
-    if input == ByteaValue::Unknown || pattern == ByteaValue::Unknown { return BoolValue::Unknown; }
+    if input == ByteaValue::Unknown || pattern == ByteaValue::Unknown { return bool_unresolved(unresolved_flavor); }
     if input == ByteaValue::Null || pattern == ByteaValue::Null { return BoolValue::Null; }
     if let ByteaValue::Value(value) = input {
         if let ByteaValue::Value(pat) = pattern {
@@ -133,7 +136,7 @@ fn bytea_like(input: ByteaValue, pattern: ByteaValue, negate: bool) -> BoolValue
             }
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__bytealike__jhpm(input: ByteaValue, pattern: ByteaValue) -> BoolValue {
@@ -150,9 +153,12 @@ pub fn sql__pg_catalog__notlike__cy7a(input: ByteaValue, pattern: ByteaValue) ->
 }
 
 pub fn sql__pg_catalog__like_escape__hk4j(input: ByteaValue, escape: ByteaValue) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let ByteaValue::Unknown = escape { unresolved_flavor = 1; };
     if let ByteaValue::Error(error) = input { return ByteaValue::Error(error); }
     if let ByteaValue::Error(error) = escape { return ByteaValue::Error(error); }
-    if input == ByteaValue::Unknown || escape == ByteaValue::Unknown { return ByteaValue::Unknown; }
+    if input == ByteaValue::Unknown || escape == ByteaValue::Unknown { return bytea_unresolved(unresolved_flavor); }
     if input == ByteaValue::Null || escape == ByteaValue::Null { return ByteaValue::Null; }
     if let ByteaValue::Value(value) = input {
         if let ByteaValue::Value(esc) = escape {
@@ -193,5 +199,5 @@ pub fn sql__pg_catalog__like_escape__hk4j(input: ByteaValue, escape: ByteaValue)
             return ByteaValue::Value(output);
         }
     }
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }

@@ -23,6 +23,10 @@ fn text_build_octets(value: &str) -> i64 {
 }
 
 fn text_padding(input: TextValue, length: Int4Value, fill: TextValue, right: bool) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = length { unresolved_flavor = 1; };
+    if let TextValue::Unknown = fill { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return TextValue::Error(error);
     }
@@ -33,7 +37,7 @@ fn text_padding(input: TextValue, length: Int4Value, fill: TextValue, right: boo
         return TextValue::Error(error);
     }
     if (input == TextValue::Unknown || input == TextValue::NonNull) || length == Int4Value::Unknown || (fill == TextValue::Unknown || fill == TextValue::NonNull) {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if input == TextValue::Null || length == Int4Value::Null || fill == TextValue::Null {
         return TextValue::Null;
@@ -88,7 +92,7 @@ fn text_padding(input: TextValue, length: Int4Value, fill: TextValue, right: boo
             }
         }
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__lpad__ezhf(
@@ -136,6 +140,9 @@ pub fn sql__pg_catalog__rpad__53f6(input: TextValue, length: Int4Value) -> TextV
 }
 
 pub fn sql__pg_catalog__repeat__f0fb(input: TextValue, length: Int4Value) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = length { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return TextValue::Error(error);
     }
@@ -143,7 +150,7 @@ pub fn sql__pg_catalog__repeat__f0fb(input: TextValue, length: Int4Value) -> Tex
         return TextValue::Error(error);
     }
     if (input == TextValue::Unknown || input == TextValue::NonNull) || length == Int4Value::Unknown {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if input == TextValue::Null || length == Int4Value::Null {
         return TextValue::Null;
@@ -176,7 +183,7 @@ pub fn sql__pg_catalog__repeat__f0fb(input: TextValue, length: Int4Value) -> Tex
             return TextValue::Value(output);
         }
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__translate__txpt(
@@ -184,6 +191,10 @@ pub fn sql__pg_catalog__translate__txpt(
     from: TextValue,
     to: TextValue,
 ) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unknown = from { unresolved_flavor = 1; };
+    if let TextValue::Unknown = to { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return TextValue::Error(error);
     }
@@ -194,7 +205,7 @@ pub fn sql__pg_catalog__translate__txpt(
         return TextValue::Error(error);
     }
     if (input == TextValue::Unknown || input == TextValue::NonNull) || (from == TextValue::Unknown || from == TextValue::NonNull) || (to == TextValue::Unknown || to == TextValue::NonNull) {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if input == TextValue::Null || from == TextValue::Null || to == TextValue::Null {
         return TextValue::Null;
@@ -228,5 +239,5 @@ pub fn sql__pg_catalog__translate__txpt(
             }
         }
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }

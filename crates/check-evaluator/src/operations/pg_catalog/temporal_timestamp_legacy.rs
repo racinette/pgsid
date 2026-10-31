@@ -1,9 +1,11 @@
 fn temporal_timestamp_legacy_value(number: NumericValue, unit: &str, time: i64) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let NumericValue::Unknown = number { unresolved_flavor = 1; };
     if let NumericValue::Error(error) = number {
         return Float8Value::Error(error);
     };
     if number == NumericValue::Unknown {
-        return Float8Value::Unknown;
+        return float8_unresolved(unresolved_flavor);
     };
     if number == NumericValue::Null {
         return Float8Value::Null;

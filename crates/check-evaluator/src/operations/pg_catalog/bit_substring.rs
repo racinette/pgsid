@@ -6,6 +6,10 @@ fn bit_substring(
     length: Int4Value,
     has_length: bool,
 ) -> BitValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BitValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = position { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = length { unresolved_flavor = 1; };
     if let BitValue::Error(error) = input {
         return BitValue::Error(error);
     }
@@ -17,7 +21,7 @@ fn bit_substring(
     }
     if input == BitValue::Unknown || position == Int4Value::Unknown || length == Int4Value::Unknown
     {
-        return BitValue::Unknown;
+        return bit_unresolved(unresolved_flavor);
     }
     if input == BitValue::Null || position == Int4Value::Null || length == Int4Value::Null {
         return BitValue::Null;
@@ -58,7 +62,7 @@ fn bit_substring(
             }
         }
     }
-    BitValue::Unknown
+    bit_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__substring__dfdi(input: BitValue, position: Int4Value) -> BitValue {

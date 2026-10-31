@@ -311,6 +311,9 @@ fn interval_format_field(span: IntervalPayload, kind: i32, fill: bool, lower: bo
 }
 
 pub fn sql__pg_catalog__to_char__0fwv(input: IntervalValue, template: TextValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let IntervalValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unknown = template { unresolved_flavor = 1; };
     if let IntervalValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -318,7 +321,7 @@ pub fn sql__pg_catalog__to_char__0fwv(input: IntervalValue, template: TextValue)
         return TextValue::Error(error);
     };
     if input == IntervalValue::Unknown || template == TextValue::Unknown {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     if input == IntervalValue::Null || template == TextValue::Null {
         return TextValue::Null;
@@ -423,5 +426,5 @@ pub fn sql__pg_catalog__to_char__0fwv(input: IntervalValue, template: TextValue)
             return TextValue::Value(output);
         };
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }

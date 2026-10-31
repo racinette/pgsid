@@ -28,6 +28,9 @@ fn jsonb_array_path_member(source: &JsonbPayload, root: usize, key: &JsonbExtrac
 }
 
 fn jsonb_array_path_select(input: JsonbValue, path: ArrayValue) -> JsonbValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayValue::Unknown = path { unresolved_flavor = 1; };
     if let JsonbValue::Error(error) = input {
         return JsonbValue::Error(error);
     };
@@ -42,7 +45,7 @@ fn jsonb_array_path_select(input: JsonbValue, path: ArrayValue) -> JsonbValue {
         return JsonbValue::Null;
     };
     if state == Int4Value::Unknown {
-        return JsonbValue::Unknown;
+        return jsonb_unresolved(unresolved_flavor);
     };
     let partial = input.clone();
     let partial_path = path.clone();
@@ -84,7 +87,7 @@ fn jsonb_array_path_select(input: JsonbValue, path: ArrayValue) -> JsonbValue {
                 } else if kind >= 0 || scalar {
                     return JsonbValue::Null;
                 } else {
-                    return JsonbValue::Unknown;
+                    return jsonb_unresolved(unresolved_flavor);
                 };
                 position += 1;
             }
@@ -137,7 +140,7 @@ fn jsonb_array_path_select(input: JsonbValue, path: ArrayValue) -> JsonbValue {
                     };
                 };
                 if known == false {
-                    return JsonbValue::Unknown;
+                    return jsonb_unresolved(unresolved_flavor);
                 };
                 if selected == 0 {
                     return JsonbValue::Null;
@@ -152,7 +155,7 @@ fn jsonb_array_path_select(input: JsonbValue, path: ArrayValue) -> JsonbValue {
             });
         };
     };
-    JsonbValue::Unknown
+    jsonb_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__jsonb_extract_path__6gn0(
@@ -195,6 +198,9 @@ fn jsonb_array_path_exists_key(source: &JsonbPayload, key: &JsonbExtractKey) -> 
 }
 
 fn jsonb_array_path_exists(input: JsonbValue, keys: ArrayValue, all: bool) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayValue::Unknown = keys { unresolved_flavor = 1; };
     if let JsonbValue::Error(error) = input {
         return BoolValue::Error(error);
     };
@@ -218,7 +224,7 @@ fn jsonb_array_path_exists(input: JsonbValue, keys: ArrayValue, all: bool) -> Bo
     if let JsonbValue::Value(value) = payload {
         if let ArrayValue::Value(queries) = keys {
             if queries.element_type != "pg_catalog.text" || queries.element_kind != 8 {
-                return BoolValue::Unknown;
+                return bool_unresolved(unresolved_flavor);
             };
             let mut uncertain = false;
             let mut position: usize = 0;
@@ -258,12 +264,12 @@ fn jsonb_array_path_exists(input: JsonbValue, keys: ArrayValue, all: bool) -> Bo
                 position += 1;
             }
             if uncertain {
-                return BoolValue::Unknown;
+                return bool_unresolved(unresolved_flavor);
             };
             return make_bool_value(all);
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__jsonb_exists_any__p8z3(input: JsonbValue, keys: ArrayValue) -> BoolValue {

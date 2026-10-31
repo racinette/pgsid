@@ -9,6 +9,9 @@ fn bytea_concat_length(left: i32, right: i32) -> Int4Value {
 }
 
 pub fn sql__pg_catalog__byteacat__zitv(left: ByteaValue, right: ByteaValue) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ByteaValue::Unknown = left { unresolved_flavor = 1; };
+    if let ByteaValue::Unknown = right { unresolved_flavor = 1; };
     if let ByteaValue::Error(error) = left {
         return ByteaValue::Error(error);
     }
@@ -16,7 +19,7 @@ pub fn sql__pg_catalog__byteacat__zitv(left: ByteaValue, right: ByteaValue) -> B
         return ByteaValue::Error(error);
     }
     if left == ByteaValue::Unknown || right == ByteaValue::Unknown {
-        return ByteaValue::Unknown;
+        return bytea_unresolved(unresolved_flavor);
     }
     if left == ByteaValue::Null || right == ByteaValue::Null {
         return ByteaValue::Null;
@@ -58,5 +61,5 @@ pub fn sql__pg_catalog__byteacat__zitv(left: ByteaValue, right: ByteaValue) -> B
             return ByteaValue::Value(output);
         }
     }
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }

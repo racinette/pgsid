@@ -92,6 +92,7 @@ pub(crate) fn format_should_render(input: &TextFormatState) -> bool {
 }
 
 pub(crate) fn format_array_count(input: &ArrayOutputPayload) -> Int4Value {
+    let unresolved_flavor: i32 = 0;
     if input.state == 0 {
         return Int4Value::Value(0);
     };
@@ -99,7 +100,7 @@ pub(crate) fn format_array_count(input: &ArrayOutputPayload) -> Int4Value {
         let size = input.elements.len() as i32;
         return Int4Value::Value(size);
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub(crate) fn format_argument_index(input: &TextFormatState) -> Int4Value {
@@ -195,6 +196,7 @@ pub(crate) fn make_format_input(input: TextFormatState) -> TextFormatInput {
 }
 
 fn format_finish(input: TextFormatInput) -> TextValue {
+    let unresolved_flavor: i32 = 0;
     if let TextFormatInput::Value(state) = input {
         if state.status == CheckOutcome::True {
             return format_finish_output(state.output);
@@ -207,7 +209,7 @@ fn format_finish(input: TextFormatInput) -> TextValue {
             return TextValue::Error(error);
         };
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__format__bz7w(input: TextFormatInput) -> TextValue {

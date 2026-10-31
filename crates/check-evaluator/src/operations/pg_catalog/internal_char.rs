@@ -1,4 +1,6 @@
 pub fn internal_char_from_text(input: TextValue) -> InternalCharValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input { return InternalCharValue::Error(error); };
     if input == TextValue::Null { return InternalCharValue::Null; };
     if let TextValue::Value(text) = input {
@@ -18,19 +20,25 @@ pub fn internal_char_from_text(input: TextValue) -> InternalCharValue {
         if code < 65536 { return make_internal_char_value(224 + code / 4096); };
         return make_internal_char_value(240 + code / 262144);
     };
-    InternalCharValue::Unknown
+    internal_char_unresolved(unresolved_flavor)
 }
 fn internal_char_compare(left: InternalCharValue, right: InternalCharValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let InternalCharValue::Unknown = left { unresolved_flavor = 1; };
+    if let InternalCharValue::Unknown = right { unresolved_flavor = 1; };
     if let InternalCharValue::Error(error) = left { return Int4Value::Error(error); };
     if let InternalCharValue::Error(error) = right { return Int4Value::Error(error); };
-    if left == InternalCharValue::Unknown || right == InternalCharValue::Unknown { return Int4Value::Unknown; };
+    if left == InternalCharValue::Unknown || right == InternalCharValue::Unknown { return int4_unresolved(unresolved_flavor); };
     if left == InternalCharValue::Null || right == InternalCharValue::Null { return Int4Value::Null; };
     if let InternalCharValue::Value(a) = left {
         if let InternalCharValue::Value(b) = right { return make_int4_value(a - b); };
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 fn internal_char_relation(left: InternalCharValue, right: InternalCharValue, mode: i32) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let InternalCharValue::Unknown = left { unresolved_flavor = 1; };
+    if let InternalCharValue::Unknown = right { unresolved_flavor = 1; };
     let result = internal_char_compare(left, right);
     if let Int4Value::Error(error) = result { return BoolValue::Error(error); };
     if result == Int4Value::Null { return BoolValue::Null; };
@@ -42,18 +50,22 @@ fn internal_char_relation(left: InternalCharValue, right: InternalCharValue, mod
         if mode == 4 { return make_bool_value(order > 0); };
         return make_bool_value(order >= 0);
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__int4__9xis(input: InternalCharValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let InternalCharValue::Unknown = input { unresolved_flavor = 1; };
     if let InternalCharValue::Error(error) = input { return Int4Value::Error(error); };
     if input == InternalCharValue::Null { return Int4Value::Null; };
     if let InternalCharValue::Value(octet) = input {
         if octet >= 128 { return make_int4_value(octet - 256); };
         return make_int4_value(octet);
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__char__ame0(input: Int4Value) -> InternalCharValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = input { unresolved_flavor = 1; };
     if let Int4Value::Error(error) = input { return InternalCharValue::Error(error); };
     if input == Int4Value::Null { return InternalCharValue::Null; };
     if let Int4Value::Value(value) = input {
@@ -61,17 +73,21 @@ pub fn sql__pg_catalog__char__ame0(input: Int4Value) -> InternalCharValue {
         if value < 0 { return make_internal_char_value(value + 256); };
         return make_internal_char_value(value);
     };
-    InternalCharValue::Unknown
+    internal_char_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__char__oiu0(input: TextValue) -> InternalCharValue { internal_char_from_text(input) }
 pub fn sql__pg_catalog__btcharcmp__gfia(left: InternalCharValue, right: InternalCharValue) -> Int4Value { internal_char_compare(left, right) }
 pub fn sql__pg_catalog__charsend__12ys(input: InternalCharValue) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let InternalCharValue::Unknown = input { unresolved_flavor = 1; };
     if let InternalCharValue::Error(error) = input { return ByteaValue::Error(error); };
     if input == InternalCharValue::Null { return ByteaValue::Null; };
     if let InternalCharValue::Value(octet) = input { return ByteaValue::Value(bytea_append_byte(String::new(), octet)); };
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__text__j1jh(input: InternalCharValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let InternalCharValue::Unknown = input { unresolved_flavor = 1; };
     if let InternalCharValue::Error(error) = input { return TextValue::Error(error); };
     if input == InternalCharValue::Null { return TextValue::Null; };
     if let InternalCharValue::Value(octet) = input {
@@ -86,26 +102,30 @@ pub fn sql__pg_catalog__text__j1jh(input: InternalCharValue) -> TextValue {
         };
         return TextValue::Value(output);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__bpchar__p75w(input: InternalCharValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let InternalCharValue::Unknown = input { unresolved_flavor = 1; };
     if let InternalCharValue::Error(error) = input { return TextValue::Error(error); };
     if input == InternalCharValue::Null { return TextValue::Null; };
     if let InternalCharValue::Value(octet) = input {
-        if octet == 0 || octet >= 128 { return TextValue::Unknown; };
+        if octet == 0 || octet >= 128 { return text_unresolved(unresolved_flavor); };
         let mut output = String::new();
         output.push(char::from_u32(octet as u32).unwrap_or(' '));
         return TextValue::Value(output);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 fn internal_char_hash_word(input: InternalCharValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let InternalCharValue::Unknown = input { unresolved_flavor = 1; };
     if let InternalCharValue::Error(error) = input { return Int4Value::Error(error); };
     if input == InternalCharValue::Null { return Int4Value::Null; };
     if let InternalCharValue::Value(octet) = input {
         if octet < 128 { return make_int4_value(octet); };
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__hashchar__j6eu(input: InternalCharValue) -> Int4Value { sql__pg_catalog__hashint4__zr00(internal_char_hash_word(input)) }
 pub fn sql__pg_catalog__hashcharextended__uyia(input: InternalCharValue, seed: Int8Value) -> Int8Value { sql__pg_catalog__hashint4extended__xf6v(internal_char_hash_word(input), seed) }

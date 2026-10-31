@@ -35,6 +35,8 @@ fn json_populate_array_length(input: JsonbInput) -> i32 {
 }
 
 fn json_populate_array_element(input: JsonbInput, position: i32, utf8: bool) -> JsonbInput {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbInput::Unknown = input { unresolved_flavor = 1; };
     let index = make_int4_value(position);
     let raw = input.clone();
     if let JsonbInput::Json(value) = raw {
@@ -54,10 +56,12 @@ fn json_populate_array_element(input: JsonbInput, position: i32, utf8: bool) -> 
         };
         return jsonb_input_from_jsonb(selected);
     };
-    JsonbInput::Unknown
+    jsonb_input_unresolved(unresolved_flavor)
 }
 
 fn json_populate_array_text_event(input: TextValue) -> ArrayTextEvent {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Value(text) = input {
         return ArrayTextEvent::Text(text);
     };
@@ -67,7 +71,7 @@ fn json_populate_array_text_event(input: TextValue) -> ArrayTextEvent {
     if let TextValue::Error(error) = input {
         return ArrayTextEvent::Error(error);
     };
-    ArrayTextEvent::Unknown
+    array_text_event_unresolved(unresolved_flavor)
 }
 
 pub(crate) fn prepare_json_populate_array(
@@ -219,12 +223,14 @@ pub(crate) fn json_populate_array_current(
     input: &JsonPopulateArrayPayload,
     index: Int4Value,
 ) -> JsonbInput {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = index { unresolved_flavor = 1; };
     if let Int4Value::Value(position) = index {
         if position >= 0 && position < input.values.len() as i32 {
             return input.values[usize::try_from(position).unwrap_or(0)].clone();
         };
     };
-    JsonbInput::Unknown
+    jsonb_input_unresolved(unresolved_flavor)
 }
 
 pub(crate) fn json_populate_array_has_event(
@@ -250,8 +256,10 @@ pub(crate) fn finish_json_populate_array(
     input: ArrayTextPayload,
     converted: ArrayArguments,
 ) -> ArrayValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayArguments::Unknown = converted { unresolved_flavor = 1; };
     if let ArrayArguments::Unknown = converted {
-        return ArrayValue::Unknown;
+        return array_unresolved(unresolved_flavor);
     };
     finish_domain_array_input(input, converted)
 }

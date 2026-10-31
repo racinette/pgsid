@@ -172,6 +172,9 @@ fn numeric_division_work(
 }
 
 fn numeric_division(left: NumericValue, right: NumericValue, mode: i32) -> NumericValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NumericValue::Unknown = left { unresolved_flavor = 1; };
+    if let NumericValue::Unknown = right { unresolved_flavor = 1; };
     if let NumericValue::Error(error) = left {
         return NumericValue::Error(error);
     }
@@ -179,7 +182,7 @@ fn numeric_division(left: NumericValue, right: NumericValue, mode: i32) -> Numer
         return NumericValue::Error(error);
     }
     if left == NumericValue::Unknown || right == NumericValue::Unknown {
-        return NumericValue::Unknown;
+        return numeric_unresolved(unresolved_flavor);
     }
     if left == NumericValue::Null || right == NumericValue::Null {
         return NumericValue::Null;
@@ -189,7 +192,7 @@ fn numeric_division(left: NumericValue, right: NumericValue, mode: i32) -> Numer
             let a = numeric_work_from_value(first.as_str());
             let b = numeric_work_from_value(second.as_str());
             if a.valid == false || b.valid == false {
-                return NumericValue::Unknown;
+                return numeric_unresolved(unresolved_flavor);
             }
             if a.special == 3 || b.special == 3 {
                 return NumericValue::Value("NaN".to_owned());
@@ -238,7 +241,7 @@ fn numeric_division(left: NumericValue, right: NumericValue, mode: i32) -> Numer
             return numeric_work_round(quotient, scale, round_mode);
         }
     }
-    NumericValue::Unknown
+    numeric_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__numeric_div__pnzm(left: NumericValue, right: NumericValue) -> NumericValue {

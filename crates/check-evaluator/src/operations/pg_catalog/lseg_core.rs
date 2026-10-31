@@ -1,4 +1,6 @@
 fn lseg_endpoint(input: LsegValue, second: bool) -> PointValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let LsegValue::Unknown = input { unresolved_flavor = 1; };
     if let LsegValue::Error(error) = input {
         return PointValue::Error(error);
     };
@@ -19,9 +21,12 @@ fn lseg_endpoint(input: LsegValue, second: bool) -> PointValue {
                 || (float8_number(x) == float8_number(x) && float8_number(y) == float8_number(y)),
         });
     };
-    PointValue::Unknown
+    point_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__lseg__l9bc(left: PointValue, right: PointValue) -> LsegValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let PointValue::Unknown = left { unresolved_flavor = 1; };
+    if let PointValue::Unknown = right { unresolved_flavor = 1; };
     if let PointValue::Error(error) = left {
         return LsegValue::Error(error);
     };
@@ -29,7 +34,7 @@ pub fn sql__pg_catalog__lseg__l9bc(left: PointValue, right: PointValue) -> LsegV
         return LsegValue::Error(error);
     };
     if left == PointValue::Unknown || right == PointValue::Unknown {
-        return LsegValue::Unknown;
+        return lseg_unresolved(unresolved_flavor);
     };
     if left == PointValue::Null || right == PointValue::Null {
         return LsegValue::Null;
@@ -45,9 +50,11 @@ pub fn sql__pg_catalog__lseg__l9bc(left: PointValue, right: PointValue) -> LsegV
             });
         };
     };
-    LsegValue::Unknown
+    lseg_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__lseg_send__kc2a(input: LsegValue) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let LsegValue::Unknown = input { unresolved_flavor = 1; };
     if let LsegValue::Error(error) = input {
         return ByteaValue::Error(error);
     };
@@ -62,9 +69,12 @@ pub fn sql__pg_catalog__lseg_send__kc2a(input: LsegValue) -> ByteaValue {
         let second = sql__pg_catalog__point_send__kuoa(lseg_endpoint(input, true));
         return sql__pg_catalog__byteacat__zitv(first, second);
     };
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }
 fn lseg_equal(left: LsegValue, right: LsegValue, different: bool) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let LsegValue::Unknown = left { unresolved_flavor = 1; };
+    if let LsegValue::Unknown = right { unresolved_flavor = 1; };
     if let LsegValue::Error(error) = left {
         return BoolValue::Error(error);
     };
@@ -72,7 +82,7 @@ fn lseg_equal(left: LsegValue, right: LsegValue, different: bool) -> BoolValue {
         return BoolValue::Error(error);
     };
     if left == LsegValue::Unknown || right == LsegValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if left == LsegValue::Null || right == LsegValue::Null {
         return BoolValue::Null;
@@ -93,6 +103,9 @@ fn lseg_length_value(input: LsegValue) -> Float8Value {
     sql__pg_catalog__point_distance__2haq(lseg_endpoint(input, false), lseg_endpoint(input, true))
 }
 fn lseg_length_relation(left: LsegValue, right: LsegValue, mode: i32) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let LsegValue::Unknown = left { unresolved_flavor = 1; };
+    if let LsegValue::Unknown = right { unresolved_flavor = 1; };
     if let LsegValue::Error(error) = left {
         return BoolValue::Error(error);
     };
@@ -100,7 +113,7 @@ fn lseg_length_relation(left: LsegValue, right: LsegValue, mode: i32) -> BoolVal
         return BoolValue::Error(error);
     };
     if left == LsegValue::Unknown || right == LsegValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if left == LsegValue::Null || right == LsegValue::Null {
         return BoolValue::Null;
@@ -131,9 +144,11 @@ fn lseg_length_relation(left: LsegValue, right: LsegValue, mode: i32) -> BoolVal
             return make_bool_value(x + 0.000001f64 >= y);
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 fn lseg_midpoint(input: LsegValue) -> PointValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let LsegValue::Unknown = input { unresolved_flavor = 1; };
     if let LsegValue::Error(error) = input {
         return PointValue::Error(error);
     };
@@ -152,7 +167,7 @@ fn lseg_midpoint(input: LsegValue) -> PointValue {
         );
         return point_arithmetic_result(x, y);
     };
-    PointValue::Unknown
+    point_unresolved(unresolved_flavor)
 }
 fn lseg_orientation(input: LsegValue, vertical: bool) -> BoolValue {
     if vertical {
@@ -164,6 +179,8 @@ fn lseg_orientation(input: LsegValue, vertical: bool) -> BoolValue {
     sql__pg_catalog__point_horiz__tsjw(lseg_endpoint(input, false), lseg_endpoint(input, true))
 }
 fn lseg_slope(input: LsegValue, inverse: bool) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let LsegValue::Unknown = input { unresolved_flavor = 1; };
     if inverse == false {
         return sql__pg_catalog__slope__xxph(
             lseg_endpoint(input, false),
@@ -189,9 +206,12 @@ fn lseg_slope(input: LsegValue, inverse: bool) -> Float8Value {
             sql__pg_catalog__float8mi__r1nu(make_float8_bits(value.y2), make_float8_bits(value.y1));
         return sql__pg_catalog__float8div__kumj(x, y);
     };
-    Float8Value::Unknown
+    float8_unresolved(unresolved_flavor)
 }
 fn lseg_direction_relation(left: LsegValue, right: LsegValue, perpendicular: bool) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let LsegValue::Unknown = left { unresolved_flavor = 1; };
+    if let LsegValue::Unknown = right { unresolved_flavor = 1; };
     if let LsegValue::Error(error) = left {
         return BoolValue::Error(error);
     };
@@ -199,7 +219,7 @@ fn lseg_direction_relation(left: LsegValue, right: LsegValue, perpendicular: boo
         return BoolValue::Error(error);
     };
     if left == LsegValue::Unknown || right == LsegValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if left == LsegValue::Null || right == LsegValue::Null {
         return BoolValue::Null;
@@ -222,7 +242,7 @@ fn lseg_direction_relation(left: LsegValue, right: LsegValue, perpendicular: boo
             ));
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__lseg_eq__n70t(left: LsegValue, right: LsegValue) -> BoolValue {
     lseg_equal(left, right, false)

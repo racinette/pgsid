@@ -102,6 +102,8 @@ fn xml_tree_write_node(tree: &XmlTree, node: usize) -> String {
 }
 
 pub fn xml_indent_utf8(input: XmlValue, document: bool, utf8: bool) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let XmlValue::Unknown = input { unresolved_flavor = 1; };
     if let XmlValue::Error(error) = input { return TextValue::Error(error); };
     if let XmlValue::Null = input { return TextValue::Null; };
     if let XmlValue::NonNull(knowledge) = input {
@@ -110,19 +112,19 @@ pub fn xml_indent_utf8(input: XmlValue, document: bool, utf8: bool) -> TextValue
             if document && actual.document == BoolValue::Value(false) { return TextValue::Error(make_sql_error(SQLSTATE_NOT_XML_DOCUMENT)); };
             if utf8 && actual.content == BoolValue::Value(true) && (document == false || actual.document == BoolValue::Value(true)) { return TextValue::NonNull; };
         };
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     if let XmlValue::RenderedText(value) = input {
         if document && xml_text_encoding_available(value.as_str(),utf8) && xml_well_formed(value.as_str(),true) == false {
             return TextValue::Error(make_sql_error(SQLSTATE_NOT_XML_DOCUMENT));
         };
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     if let XmlValue::Value(value) = input {
-        if xml_text_encoding_available(value.as_str(),utf8) == false { return TextValue::Unknown; };
+        if xml_text_encoding_available(value.as_str(),utf8) == false { return text_unresolved(unresolved_flavor); };
         if xml_well_formed(value.as_str(),document) == false { return TextValue::Error(make_sql_error(SQLSTATE_NOT_XML_DOCUMENT)); };
         let tree = xml_tree_parse(value.as_str(),document,false);
-        if tree.serialization_known == false { return TextValue::Unknown; };
+        if tree.serialization_known == false { return text_unresolved(unresolved_flavor); };
         let mut output = String::new();
         if tree.flags.document && tree.flags.declaration {
             let version = xml_tree_text(&tree,tree.flags.version);
@@ -140,8 +142,8 @@ pub fn xml_indent_utf8(input: XmlValue, document: bool, utf8: bool) -> TextValue
             if tree.flags.document && (document == false || node.next > 0) { output.push('\n'); };
             previous = true; cursor = node.next;
         }
-        if xml_text_encoding_available(output.as_str(),utf8) == false { return TextValue::Unknown; };
+        if xml_text_encoding_available(output.as_str(),utf8) == false { return text_unresolved(unresolved_flavor); };
         return TextValue::Value(output);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }

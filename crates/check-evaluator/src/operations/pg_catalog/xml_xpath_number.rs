@@ -35,6 +35,7 @@ fn xpath_power_context(input: &str) -> XPathPowers {
 }
 
 fn xpath_power_ten(profile: &XPathPowers, exponent: i32) -> Float8Value {
+    let unresolved_flavor: i32 = 0;
     if profile.bits.len() == 632 && exponent >= -323 && exponent <= 308 {
         let position = usize::try_from(exponent+323).unwrap_or(0);
         return make_float8_bits(profile.bits[position].bits);
@@ -46,7 +47,7 @@ fn xpath_power_ten(profile: &XPathPowers, exponent: i32) -> Float8Value {
     };
     if exponent > 308 { return make_float8_value(1.0f64/0.0f64); };
     if exponent < -323 { return make_float8_value(0.0f64); };
-    Float8Value::Unknown
+    float8_unresolved(unresolved_flavor)
 }
 
 fn xpath_number_parts(input: &str) -> XPathNumberParts {

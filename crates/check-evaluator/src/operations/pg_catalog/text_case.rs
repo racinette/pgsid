@@ -1,9 +1,11 @@
 fn text_case_value(input: TextValue, mode: i32) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return TextValue::Error(error);
     }
     if (input == TextValue::Unknown || input == TextValue::NonNull) {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if input == TextValue::Null {
         return TextValue::Null;
@@ -33,7 +35,7 @@ fn text_case_value(input: TextValue, mode: i32) -> TextValue {
         }
         return TextValue::Value(output);
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__casefold__bgkh(input: TextValue) -> TextValue {

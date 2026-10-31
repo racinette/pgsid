@@ -7,6 +7,12 @@ fn integer_in_range(
     subtract: BoolValue,
     less: BoolValue,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = value { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = base { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = offset { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = subtract { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = less { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = value {
         return BoolValue::Error(error);
     }
@@ -36,7 +42,7 @@ fn integer_in_range(
         || subtract == BoolValue::Unknown
         || less == BoolValue::Unknown
     {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if let Int8Value::Value(input) = value {
         if let Int8Value::Value(center) = base {
@@ -66,7 +72,7 @@ fn integer_in_range(
             }
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__in_range__l5vd(

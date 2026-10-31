@@ -176,11 +176,13 @@ fn network_cidr_text(address: NetworkAddress) -> String {
 }
 
 fn network_output(input: NetworkValue, mode: i32) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NetworkValue::Unknown = input { unresolved_flavor = 1; };
     if let NetworkValue::Error(error) = input {
         return TextValue::Error(error);
     }
     if input == NetworkValue::Unknown {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if input == NetworkValue::Null {
         return TextValue::Null;
@@ -197,7 +199,7 @@ fn network_output(input: NetworkValue, mode: i32) -> TextValue {
         }
         return TextValue::Value(output);
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__host__h4jb(input: NetworkValue) -> TextValue {
@@ -214,11 +216,13 @@ pub fn sql__pg_catalog__abbrev__5tby(input: NetworkValue) -> TextValue {
 }
 
 fn network_send(input: NetworkValue, cidr: bool) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NetworkValue::Unknown = input { unresolved_flavor = 1; };
     if let NetworkValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
     if input == NetworkValue::Unknown {
-        return ByteaValue::Unknown;
+        return bytea_unresolved(unresolved_flavor);
     }
     if input == NetworkValue::Null {
         return ByteaValue::Null;
@@ -255,7 +259,7 @@ fn network_send(input: NetworkValue, cidr: bool) -> ByteaValue {
         }
         return ByteaValue::Value(output);
     }
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__inet_send__z9ng(input: NetworkValue) -> ByteaValue {

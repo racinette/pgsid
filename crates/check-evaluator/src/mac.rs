@@ -279,11 +279,13 @@ pub fn mac_address_compare(left: MacAddress, right: MacAddress) -> i32 {
 }
 
 pub fn macaddr_from_text(input: TextValue) -> MacaddrValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return MacaddrValue::Error(error);
     }
     if (input == TextValue::Unknown || input == TextValue::NonNull) {
-        return MacaddrValue::Unknown;
+        return macaddr_unresolved(unresolved_flavor);
     }
     if input == TextValue::Null {
         return MacaddrValue::Null;
@@ -291,7 +293,7 @@ pub fn macaddr_from_text(input: TextValue) -> MacaddrValue {
     if let TextValue::Value(value) = input {
         let chars: Vec<char> = value.chars().collect();
         if chars.len() > 256 {
-            return MacaddrValue::Unknown;
+            return macaddr_unresolved(unresolved_flavor);
         }
         let text = MacText { chars };
         let parsed = macaddr_parse(&text);
@@ -300,15 +302,17 @@ pub fn macaddr_from_text(input: TextValue) -> MacaddrValue {
         }
         return MacaddrValue::Value(parsed.address);
     }
-    MacaddrValue::Unknown
+    macaddr_unresolved(unresolved_flavor)
 }
 
 pub fn macaddr8_from_text(input: TextValue) -> Macaddr8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return Macaddr8Value::Error(error);
     }
     if (input == TextValue::Unknown || input == TextValue::NonNull) {
-        return Macaddr8Value::Unknown;
+        return macaddr8_unresolved(unresolved_flavor);
     }
     if input == TextValue::Null {
         return Macaddr8Value::Null;
@@ -316,7 +320,7 @@ pub fn macaddr8_from_text(input: TextValue) -> Macaddr8Value {
     if let TextValue::Value(value) = input {
         let chars: Vec<char> = value.chars().collect();
         if chars.len() > 256 {
-            return Macaddr8Value::Unknown;
+            return macaddr8_unresolved(unresolved_flavor);
         }
         let text = MacText { chars };
         let parsed = macaddr8_parse(&text);
@@ -325,5 +329,5 @@ pub fn macaddr8_from_text(input: TextValue) -> Macaddr8Value {
         }
         return Macaddr8Value::Value(parsed.address);
     }
-    Macaddr8Value::Unknown
+    macaddr8_unresolved(unresolved_flavor)
 }

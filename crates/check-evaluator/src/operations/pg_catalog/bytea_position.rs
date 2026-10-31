@@ -1,4 +1,7 @@
 pub fn sql__pg_catalog__position__9w14(input: ByteaValue, pattern: ByteaValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let ByteaValue::Unknown = pattern { unresolved_flavor = 1; };
     if let ByteaValue::Error(error) = input {
         return Int4Value::Error(error);
     }
@@ -6,7 +9,7 @@ pub fn sql__pg_catalog__position__9w14(input: ByteaValue, pattern: ByteaValue) -
         return Int4Value::Error(error);
     }
     if input == ByteaValue::Unknown || pattern == ByteaValue::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if input == ByteaValue::Null || pattern == ByteaValue::Null {
         return Int4Value::Null;
@@ -44,5 +47,5 @@ pub fn sql__pg_catalog__position__9w14(input: ByteaValue, pattern: ByteaValue) -
             return Int4Value::Value(0);
         }
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }

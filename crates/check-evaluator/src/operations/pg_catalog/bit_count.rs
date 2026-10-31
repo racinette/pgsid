@@ -1,9 +1,11 @@
 pub fn sql__pg_catalog__bit_count__fri1(input: BitValue) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let BitValue::Unknown = input { unresolved_flavor = 1; };
     if let BitValue::Error(error) = input {
         return Int8Value::Error(error);
     }
     if input == BitValue::Unknown {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     }
     if input == BitValue::Null {
         return Int8Value::Null;
@@ -20,5 +22,5 @@ pub fn sql__pg_catalog__bit_count__fri1(input: BitValue) -> Int8Value {
         }
         return Int8Value::Value(count);
     }
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }

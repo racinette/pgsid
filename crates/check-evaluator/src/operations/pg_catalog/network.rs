@@ -1,6 +1,9 @@
 const SQLSTATE_INVALID_PARAMETER_VALUE: u32 = 3452619;
 
 fn network_compare(left: NetworkValue, right: NetworkValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let NetworkValue::Unknown = left { unresolved_flavor = 1; };
+    if let NetworkValue::Unknown = right { unresolved_flavor = 1; };
     if let NetworkValue::Error(error) = left {
         return Int4Value::Error(error);
     }
@@ -8,7 +11,7 @@ fn network_compare(left: NetworkValue, right: NetworkValue) -> Int4Value {
         return Int4Value::Error(error);
     }
     if left == NetworkValue::Unknown || right == NetworkValue::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if left == NetworkValue::Null || right == NetworkValue::Null {
         return Int4Value::Null;
@@ -41,16 +44,19 @@ fn network_compare(left: NetworkValue, right: NetworkValue) -> Int4Value {
             return Int4Value::Value(full_order);
         }
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__network_eq__i7hn(left: NetworkValue, right: NetworkValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NetworkValue::Unknown = left { unresolved_flavor = 1; };
+    if let NetworkValue::Unknown = right { unresolved_flavor = 1; };
     let result = network_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
     if result == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -58,16 +64,19 @@ pub fn sql__pg_catalog__network_eq__i7hn(left: NetworkValue, right: NetworkValue
     if let Int4Value::Value(order) = result {
         return BoolValue::Value(order == 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__network_ne__vmql(left: NetworkValue, right: NetworkValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NetworkValue::Unknown = left { unresolved_flavor = 1; };
+    if let NetworkValue::Unknown = right { unresolved_flavor = 1; };
     let result = network_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
     if result == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -75,16 +84,19 @@ pub fn sql__pg_catalog__network_ne__vmql(left: NetworkValue, right: NetworkValue
     if let Int4Value::Value(order) = result {
         return BoolValue::Value(order != 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__network_lt__0kbr(left: NetworkValue, right: NetworkValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NetworkValue::Unknown = left { unresolved_flavor = 1; };
+    if let NetworkValue::Unknown = right { unresolved_flavor = 1; };
     let result = network_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
     if result == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -92,16 +104,19 @@ pub fn sql__pg_catalog__network_lt__0kbr(left: NetworkValue, right: NetworkValue
     if let Int4Value::Value(order) = result {
         return BoolValue::Value(order < 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__network_le__n61s(left: NetworkValue, right: NetworkValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NetworkValue::Unknown = left { unresolved_flavor = 1; };
+    if let NetworkValue::Unknown = right { unresolved_flavor = 1; };
     let result = network_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
     if result == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -109,16 +124,19 @@ pub fn sql__pg_catalog__network_le__n61s(left: NetworkValue, right: NetworkValue
     if let Int4Value::Value(order) = result {
         return BoolValue::Value(order <= 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__network_gt__i6x7(left: NetworkValue, right: NetworkValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NetworkValue::Unknown = left { unresolved_flavor = 1; };
+    if let NetworkValue::Unknown = right { unresolved_flavor = 1; };
     let result = network_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
     if result == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -126,16 +144,19 @@ pub fn sql__pg_catalog__network_gt__i6x7(left: NetworkValue, right: NetworkValue
     if let Int4Value::Value(order) = result {
         return BoolValue::Value(order > 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__network_ge__q7pc(left: NetworkValue, right: NetworkValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NetworkValue::Unknown = left { unresolved_flavor = 1; };
+    if let NetworkValue::Unknown = right { unresolved_flavor = 1; };
     let result = network_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
     if result == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -143,10 +164,13 @@ pub fn sql__pg_catalog__network_ge__q7pc(left: NetworkValue, right: NetworkValue
     if let Int4Value::Value(order) = result {
         return BoolValue::Value(order >= 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 fn network_contains(left: NetworkValue, right: NetworkValue, strict: bool) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NetworkValue::Unknown = left { unresolved_flavor = 1; };
+    if let NetworkValue::Unknown = right { unresolved_flavor = 1; };
     if let NetworkValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -154,7 +178,7 @@ fn network_contains(left: NetworkValue, right: NetworkValue, strict: bool) -> Bo
         return BoolValue::Error(error);
     }
     if left == NetworkValue::Unknown || right == NetworkValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if left == NetworkValue::Null || right == NetworkValue::Null {
         return BoolValue::Null;
@@ -171,7 +195,7 @@ fn network_contains(left: NetworkValue, right: NetworkValue, strict: bool) -> Bo
             return BoolValue::Value(order == 0);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__network_sub__y7j2(left: NetworkValue, right: NetworkValue) -> BoolValue {
@@ -218,6 +242,9 @@ pub fn sql__pg_catalog__network_overlap__zbdv(
     left: NetworkValue,
     right: NetworkValue,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NetworkValue::Unknown = left { unresolved_flavor = 1; };
+    if let NetworkValue::Unknown = right { unresolved_flavor = 1; };
     if let NetworkValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -225,7 +252,7 @@ pub fn sql__pg_catalog__network_overlap__zbdv(
         return BoolValue::Error(error);
     }
     if left == NetworkValue::Unknown || right == NetworkValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if left == NetworkValue::Null || right == NetworkValue::Null {
         return BoolValue::Null;
@@ -243,7 +270,7 @@ pub fn sql__pg_catalog__network_overlap__zbdv(
             return BoolValue::Value(order == 0);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 fn network_result_address(family: usize, prefix: i32, words: Vec<NetworkWord>) -> NetworkAddress {
@@ -293,6 +320,9 @@ fn network_add_offset(address: NetworkAddress, offset: i64) -> NetworkValue {
 }
 
 pub fn sql__pg_catalog__inetpl__eu7x(left: NetworkValue, right: Int8Value) -> NetworkValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NetworkValue::Unknown = left { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = right { unresolved_flavor = 1; };
     if let NetworkValue::Error(error) = left {
         return NetworkValue::Error(error);
     }
@@ -300,7 +330,7 @@ pub fn sql__pg_catalog__inetpl__eu7x(left: NetworkValue, right: Int8Value) -> Ne
         return NetworkValue::Error(error);
     }
     if left == NetworkValue::Unknown || right == Int8Value::Unknown {
-        return NetworkValue::Unknown;
+        return network_unresolved(unresolved_flavor);
     }
     if left == NetworkValue::Null || right == Int8Value::Null {
         return NetworkValue::Null;
@@ -310,10 +340,13 @@ pub fn sql__pg_catalog__inetpl__eu7x(left: NetworkValue, right: Int8Value) -> Ne
             return network_add_offset(address, offset);
         }
     }
-    NetworkValue::Unknown
+    network_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__int8pl_inet__3uh7(left: Int8Value, right: NetworkValue) -> NetworkValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = left { unresolved_flavor = 1; };
+    if let NetworkValue::Unknown = right { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = left {
         return NetworkValue::Error(error);
     }
@@ -324,17 +357,20 @@ pub fn sql__pg_catalog__int8pl_inet__3uh7(left: Int8Value, right: NetworkValue) 
         return NetworkValue::Null;
     }
     if left == Int8Value::Unknown || right == NetworkValue::Unknown {
-        return NetworkValue::Unknown;
+        return network_unresolved(unresolved_flavor);
     }
     if let NetworkValue::Value(address) = right {
         if let Int8Value::Value(offset) = left {
             return network_add_offset(address, offset);
         }
     }
-    NetworkValue::Unknown
+    network_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__inetmi_int8__z4fj(left: NetworkValue, right: Int8Value) -> NetworkValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NetworkValue::Unknown = left { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = right { unresolved_flavor = 1; };
     if let NetworkValue::Error(error) = left {
         return NetworkValue::Error(error);
     }
@@ -342,7 +378,7 @@ pub fn sql__pg_catalog__inetmi_int8__z4fj(left: NetworkValue, right: Int8Value) 
         return NetworkValue::Error(error);
     }
     if left == NetworkValue::Unknown || right == Int8Value::Unknown {
-        return NetworkValue::Unknown;
+        return network_unresolved(unresolved_flavor);
     }
     if left == NetworkValue::Null || right == Int8Value::Null {
         return NetworkValue::Null;
@@ -357,10 +393,13 @@ pub fn sql__pg_catalog__inetmi_int8__z4fj(left: NetworkValue, right: Int8Value) 
             return network_add_offset(address, negated);
         }
     }
-    NetworkValue::Unknown
+    network_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__inetmi__jocm(left: NetworkValue, right: NetworkValue) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let NetworkValue::Unknown = left { unresolved_flavor = 1; };
+    if let NetworkValue::Unknown = right { unresolved_flavor = 1; };
     if let NetworkValue::Error(error) = left {
         return Int8Value::Error(error);
     }
@@ -368,7 +407,7 @@ pub fn sql__pg_catalog__inetmi__jocm(left: NetworkValue, right: NetworkValue) ->
         return Int8Value::Error(error);
     }
     if left == NetworkValue::Unknown || right == NetworkValue::Unknown {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     }
     if left == NetworkValue::Null || right == NetworkValue::Null {
         return Int8Value::Null;
@@ -431,7 +470,7 @@ pub fn sql__pg_catalog__inetmi__jocm(left: NetworkValue, right: NetworkValue) ->
             return Int8Value::Value(result);
         }
     }
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 fn network_max_bits(address: NetworkAddress) -> i32 {
@@ -502,6 +541,9 @@ fn network_mask(address: NetworkAddress, host: bool) -> NetworkAddress {
 }
 
 fn network_set_masklen(left: NetworkValue, right: Int4Value, clear_host: bool) -> NetworkValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NetworkValue::Unknown = left { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = right { unresolved_flavor = 1; };
     if let NetworkValue::Error(error) = left {
         return NetworkValue::Error(error);
     }
@@ -509,7 +551,7 @@ fn network_set_masklen(left: NetworkValue, right: Int4Value, clear_host: bool) -
         return NetworkValue::Error(error);
     }
     if left == NetworkValue::Unknown || right == Int4Value::Unknown {
-        return NetworkValue::Unknown;
+        return network_unresolved(unresolved_flavor);
     }
     if left == NetworkValue::Null || right == Int4Value::Null {
         return NetworkValue::Null;
@@ -539,15 +581,17 @@ fn network_set_masklen(left: NetworkValue, right: Int4Value, clear_host: bool) -
             return NetworkValue::Value(result);
         }
     }
-    NetworkValue::Unknown
+    network_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__family__2lcf(input: NetworkValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let NetworkValue::Unknown = input { unresolved_flavor = 1; };
     if let NetworkValue::Error(error) = input {
         return Int4Value::Error(error);
     }
     if input == NetworkValue::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if input == NetworkValue::Null {
         return Int4Value::Null;
@@ -558,15 +602,17 @@ pub fn sql__pg_catalog__family__2lcf(input: NetworkValue) -> Int4Value {
         }
         return Int4Value::Value(6);
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__masklen__kk20(input: NetworkValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let NetworkValue::Unknown = input { unresolved_flavor = 1; };
     if let NetworkValue::Error(error) = input {
         return Int4Value::Error(error);
     }
     if input == NetworkValue::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if input == NetworkValue::Null {
         return Int4Value::Null;
@@ -574,15 +620,17 @@ pub fn sql__pg_catalog__masklen__kk20(input: NetworkValue) -> Int4Value {
     if let NetworkValue::Value(address) = input {
         return Int4Value::Value(address.prefix);
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__network__o215(input: NetworkValue) -> NetworkValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NetworkValue::Unknown = input { unresolved_flavor = 1; };
     if let NetworkValue::Error(error) = input {
         return NetworkValue::Error(error);
     }
     if input == NetworkValue::Unknown {
-        return NetworkValue::Unknown;
+        return network_unresolved(unresolved_flavor);
     }
     if input == NetworkValue::Null {
         return NetworkValue::Null;
@@ -591,15 +639,17 @@ pub fn sql__pg_catalog__network__o215(input: NetworkValue) -> NetworkValue {
         let result = network_apply_prefix(address, address.prefix, false);
         return NetworkValue::Value(result);
     }
-    NetworkValue::Unknown
+    network_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__cidr__6idb(input: NetworkValue) -> NetworkValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NetworkValue::Unknown = input { unresolved_flavor = 1; };
     if let NetworkValue::Error(error) = input {
         return NetworkValue::Error(error);
     }
     if input == NetworkValue::Unknown {
-        return NetworkValue::Unknown;
+        return network_unresolved(unresolved_flavor);
     }
     if input == NetworkValue::Null {
         return NetworkValue::Null;
@@ -608,15 +658,17 @@ pub fn sql__pg_catalog__cidr__6idb(input: NetworkValue) -> NetworkValue {
         let result = network_apply_prefix(address, address.prefix, false);
         return NetworkValue::Value(result);
     }
-    NetworkValue::Unknown
+    network_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__broadcast__ilgu(input: NetworkValue) -> NetworkValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NetworkValue::Unknown = input { unresolved_flavor = 1; };
     if let NetworkValue::Error(error) = input {
         return NetworkValue::Error(error);
     }
     if input == NetworkValue::Unknown {
-        return NetworkValue::Unknown;
+        return network_unresolved(unresolved_flavor);
     }
     if input == NetworkValue::Null {
         return NetworkValue::Null;
@@ -625,15 +677,17 @@ pub fn sql__pg_catalog__broadcast__ilgu(input: NetworkValue) -> NetworkValue {
         let result = network_apply_prefix(address, address.prefix, true);
         return NetworkValue::Value(result);
     }
-    NetworkValue::Unknown
+    network_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__netmask__bt5i(input: NetworkValue) -> NetworkValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NetworkValue::Unknown = input { unresolved_flavor = 1; };
     if let NetworkValue::Error(error) = input {
         return NetworkValue::Error(error);
     }
     if input == NetworkValue::Unknown {
-        return NetworkValue::Unknown;
+        return network_unresolved(unresolved_flavor);
     }
     if input == NetworkValue::Null {
         return NetworkValue::Null;
@@ -642,15 +696,17 @@ pub fn sql__pg_catalog__netmask__bt5i(input: NetworkValue) -> NetworkValue {
         let result = network_mask(address, false);
         return NetworkValue::Value(result);
     }
-    NetworkValue::Unknown
+    network_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__hostmask__vz12(input: NetworkValue) -> NetworkValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NetworkValue::Unknown = input { unresolved_flavor = 1; };
     if let NetworkValue::Error(error) = input {
         return NetworkValue::Error(error);
     }
     if input == NetworkValue::Unknown {
-        return NetworkValue::Unknown;
+        return network_unresolved(unresolved_flavor);
     }
     if input == NetworkValue::Null {
         return NetworkValue::Null;
@@ -659,7 +715,7 @@ pub fn sql__pg_catalog__hostmask__vz12(input: NetworkValue) -> NetworkValue {
         let result = network_mask(address, true);
         return NetworkValue::Value(result);
     }
-    NetworkValue::Unknown
+    network_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__set_masklen__a6b0(left: NetworkValue, right: Int4Value) -> NetworkValue {
@@ -674,6 +730,9 @@ pub fn sql__pg_catalog__inet_same_family__ogv6(
     left: NetworkValue,
     right: NetworkValue,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NetworkValue::Unknown = left { unresolved_flavor = 1; };
+    if let NetworkValue::Unknown = right { unresolved_flavor = 1; };
     if let NetworkValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -681,7 +740,7 @@ pub fn sql__pg_catalog__inet_same_family__ogv6(
         return BoolValue::Error(error);
     }
     if left == NetworkValue::Unknown || right == NetworkValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if left == NetworkValue::Null || right == NetworkValue::Null {
         return BoolValue::Null;
@@ -691,10 +750,13 @@ pub fn sql__pg_catalog__inet_same_family__ogv6(
             return BoolValue::Value(a.family == b.family);
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__inet_merge__iflm(left: NetworkValue, right: NetworkValue) -> NetworkValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NetworkValue::Unknown = left { unresolved_flavor = 1; };
+    if let NetworkValue::Unknown = right { unresolved_flavor = 1; };
     if let NetworkValue::Error(error) = left {
         return NetworkValue::Error(error);
     }
@@ -702,7 +764,7 @@ pub fn sql__pg_catalog__inet_merge__iflm(left: NetworkValue, right: NetworkValue
         return NetworkValue::Error(error);
     }
     if left == NetworkValue::Unknown || right == NetworkValue::Unknown {
-        return NetworkValue::Unknown;
+        return network_unresolved(unresolved_flavor);
     }
     if left == NetworkValue::Null || right == NetworkValue::Null {
         return NetworkValue::Null;
@@ -729,10 +791,13 @@ pub fn sql__pg_catalog__inet_merge__iflm(left: NetworkValue, right: NetworkValue
             return NetworkValue::Value(result);
         }
     }
-    NetworkValue::Unknown
+    network_unresolved(unresolved_flavor)
 }
 
 fn network_bitwise(left: NetworkValue, right: NetworkValue, union: bool) -> NetworkValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NetworkValue::Unknown = left { unresolved_flavor = 1; };
+    if let NetworkValue::Unknown = right { unresolved_flavor = 1; };
     if let NetworkValue::Error(error) = left {
         return NetworkValue::Error(error);
     }
@@ -740,7 +805,7 @@ fn network_bitwise(left: NetworkValue, right: NetworkValue, union: bool) -> Netw
         return NetworkValue::Error(error);
     }
     if left == NetworkValue::Unknown || right == NetworkValue::Unknown {
-        return NetworkValue::Unknown;
+        return network_unresolved(unresolved_flavor);
     }
     if left == NetworkValue::Null || right == NetworkValue::Null {
         return NetworkValue::Null;
@@ -771,7 +836,7 @@ fn network_bitwise(left: NetworkValue, right: NetworkValue, union: bool) -> Netw
             return NetworkValue::Value(result);
         }
     }
-    NetworkValue::Unknown
+    network_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__inetand__qxb6(left: NetworkValue, right: NetworkValue) -> NetworkValue {
@@ -783,11 +848,13 @@ pub fn sql__pg_catalog__inetor__kw39(left: NetworkValue, right: NetworkValue) ->
 }
 
 pub fn sql__pg_catalog__inetnot__8bow(input: NetworkValue) -> NetworkValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NetworkValue::Unknown = input { unresolved_flavor = 1; };
     if let NetworkValue::Error(error) = input {
         return NetworkValue::Error(error);
     }
     if input == NetworkValue::Unknown {
-        return NetworkValue::Unknown;
+        return network_unresolved(unresolved_flavor);
     }
     if input == NetworkValue::Null {
         return NetworkValue::Null;
@@ -807,7 +874,7 @@ pub fn sql__pg_catalog__inetnot__8bow(input: NetworkValue) -> NetworkValue {
         let result = network_result_address(address.family, address.prefix, words);
         return NetworkValue::Value(result);
     }
-    NetworkValue::Unknown
+    network_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__network_cmp__7dun(left: NetworkValue, right: NetworkValue) -> Int4Value {
@@ -815,12 +882,15 @@ pub fn sql__pg_catalog__network_cmp__7dun(left: NetworkValue, right: NetworkValu
 }
 
 fn network_select(left: NetworkValue, right: NetworkValue, larger: bool) -> NetworkValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NetworkValue::Unknown = left { unresolved_flavor = 1; };
+    if let NetworkValue::Unknown = right { unresolved_flavor = 1; };
     let result = network_compare(left, right);
     if let Int4Value::Error(error) = result {
         return NetworkValue::Error(error);
     }
     if result == Int4Value::Unknown {
-        return NetworkValue::Unknown;
+        return network_unresolved(unresolved_flavor);
     }
     if result == Int4Value::Null {
         return NetworkValue::Null;
@@ -831,7 +901,7 @@ fn network_select(left: NetworkValue, right: NetworkValue, larger: bool) -> Netw
         }
         return right;
     }
-    NetworkValue::Unknown
+    network_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__network_larger__wb5u(
@@ -874,11 +944,13 @@ fn network_hash_bytes(address: NetworkAddress) -> Vec<HashByte> {
 }
 
 pub fn sql__pg_catalog__hashinet__fhly(input: NetworkValue, byte_order: i32) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let NetworkValue::Unknown = input { unresolved_flavor = 1; };
     if let NetworkValue::Error(error) = input {
         return Int4Value::Error(error);
     }
     if input == NetworkValue::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if input == NetworkValue::Null {
         return Int4Value::Null;
@@ -887,7 +959,7 @@ pub fn sql__pg_catalog__hashinet__fhly(input: NetworkValue, byte_order: i32) -> 
         let bytes = network_hash_bytes(address);
         return hash_native32(bytes, byte_order, 1);
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__hashinetextended__n7xh(
@@ -895,6 +967,9 @@ pub fn sql__pg_catalog__hashinetextended__n7xh(
     right: Int8Value,
     byte_order: i32,
 ) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let NetworkValue::Unknown = left { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = right { unresolved_flavor = 1; };
     if let NetworkValue::Error(error) = left {
         return Int8Value::Error(error);
     }
@@ -902,7 +977,7 @@ pub fn sql__pg_catalog__hashinetextended__n7xh(
         return Int8Value::Error(error);
     }
     if left == NetworkValue::Unknown || right == Int8Value::Unknown {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     }
     if left == NetworkValue::Null || right == Int8Value::Null {
         return Int8Value::Null;
@@ -913,5 +988,5 @@ pub fn sql__pg_catalog__hashinetextended__n7xh(
             return hash_native64(bytes, seed, byte_order, 1);
         }
     }
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }

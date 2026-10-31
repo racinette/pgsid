@@ -1,4 +1,7 @@
 pub fn sql__pg_catalog__btnamecmp__9x5j(left: TextValue, right: TextValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = left { unresolved_flavor = 1; };
+    if let TextValue::Unknown = right { unresolved_flavor = 1; };
     if let TextValue::Error(error) = left {
         return Int4Value::Error(error);
     };
@@ -6,10 +9,10 @@ pub fn sql__pg_catalog__btnamecmp__9x5j(left: TextValue, right: TextValue) -> In
         return Int4Value::Error(error);
     };
     if left == TextValue::Unknown || left == TextValue::NonNull {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     };
     if right == TextValue::Unknown || right == TextValue::NonNull {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     };
     if let TextValue::Null = left {
         return Int4Value::Null;
@@ -45,5 +48,5 @@ pub fn sql__pg_catalog__btnamecmp__9x5j(left: TextValue, right: TextValue) -> In
             return Int4Value::Value(0);
         };
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }

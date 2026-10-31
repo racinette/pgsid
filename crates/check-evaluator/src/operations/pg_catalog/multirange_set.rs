@@ -6,17 +6,21 @@ fn multirange_set_range_known(input: RangeValue) -> bool {
 }
 
 fn multirange_set_range_failure(input: RangeValue) -> MultirangeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeValue::Unknown = input { unresolved_flavor = 1; };
     if let RangeValue::Error(error) = input {
         return MultirangeValue::Error(error);
     };
-    MultirangeValue::Unknown
+    multirange_unresolved(unresolved_flavor)
 }
 
 fn multirange_set_boolean_failure(input: BoolValue) -> MultirangeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoolValue::Unknown = input { unresolved_flavor = 1; };
     if let BoolValue::Error(error) = input {
         return MultirangeValue::Error(error);
     };
-    MultirangeValue::Unknown
+    multirange_unresolved(unresolved_flavor)
 }
 
 fn multirange_set_result(input: &MultirangePayload, ranges: Vec<RangeValue>) -> MultirangeValue {
@@ -46,6 +50,9 @@ fn multirange_set_union(left: &MultirangePayload, right: &MultirangePayload) -> 
 }
 
 fn multirange_set_split(left: RangeValue, right: RangeValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeValue::Unknown = left { unresolved_flavor = 1; };
+    if let RangeValue::Unknown = right { unresolved_flavor = 1; };
     if let RangeValue::Error(error) = left {
         return BoolValue::Error(error);
     };
@@ -67,10 +74,13 @@ fn multirange_set_split(left: RangeValue, right: RangeValue) -> BoolValue {
             };
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 fn multirange_set_cut(left: RangeValue, right: RangeValue, upper: bool) -> RangeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeValue::Unknown = left { unresolved_flavor = 1; };
+    if let RangeValue::Unknown = right { unresolved_flavor = 1; };
     if let RangeValue::Error(error) = left {
         return RangeValue::Error(error);
     };
@@ -97,7 +107,7 @@ fn multirange_set_cut(left: RangeValue, right: RangeValue, upper: bool) -> Range
             );
         };
     };
-    RangeValue::Unknown
+    range_unresolved(unresolved_flavor)
 }
 
 fn multirange_set_difference(
@@ -229,6 +239,9 @@ fn multirange_set_intersection(
 }
 
 fn multirange_set(left: MultirangeValue, right: MultirangeValue, strategy: i32) -> MultirangeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let MultirangeValue::Unknown = left { unresolved_flavor = 1; };
+    if let MultirangeValue::Unknown = right { unresolved_flavor = 1; };
     if let MultirangeValue::Error(error) = left {
         return MultirangeValue::Error(error);
     };
@@ -244,7 +257,7 @@ fn multirange_set(left: MultirangeValue, right: MultirangeValue, strategy: i32) 
     if let MultirangeValue::Value(a) = left {
         if let MultirangeValue::Value(b) = right {
             if multirange_same_family(&a, &b) == false {
-                return MultirangeValue::Unknown;
+                return multirange_unresolved(unresolved_flavor);
             };
             if strategy == 3 && (a.ranges.len() == 0 || b.ranges.len() == 0) {
                 let empty: Vec<RangeValue> = Vec::new();
@@ -268,7 +281,7 @@ fn multirange_set(left: MultirangeValue, right: MultirangeValue, strategy: i32) 
             return multirange_set_difference(&a, &b);
         };
     };
-    MultirangeValue::Unknown
+    multirange_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__multirange_union__3oae(
@@ -293,6 +306,8 @@ pub fn sql__pg_catalog__multirange_minus__8qbr(
 }
 
 pub fn sql__pg_catalog__range_merge__f619(input: MultirangeValue) -> RangeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let MultirangeValue::Unknown = input { unresolved_flavor = 1; };
     if let MultirangeValue::Error(error) = input {
         return RangeValue::Error(error);
     };
@@ -327,7 +342,7 @@ pub fn sql__pg_catalog__range_merge__f619(input: MultirangeValue) -> RangeValue 
         if let RangeValue::Value(a) = first {
             if let RangeValue::Value(b) = last {
                 if payload.support.canonical == 0 {
-                    return RangeValue::Unknown;
+                    return range_unresolved(unresolved_flavor);
                 };
                 if payload.support.comparison == 0 {
                     let mut unbounded = false;
@@ -340,7 +355,7 @@ pub fn sql__pg_catalog__range_merge__f619(input: MultirangeValue) -> RangeValue 
                         unbounded = true;
                     };
                     if unbounded == false {
-                        return RangeValue::Unknown;
+                        return range_unresolved(unresolved_flavor);
                     };
                 };
                 return range_from_typed_bounds(
@@ -360,5 +375,5 @@ pub fn sql__pg_catalog__range_merge__f619(input: MultirangeValue) -> RangeValue 
             };
         };
     };
-    RangeValue::Unknown
+    range_unresolved(unresolved_flavor)
 }

@@ -4,6 +4,9 @@ pub fn sql__pg_catalog__date_part__g4hw(
     limit: i32,
     utf8: bool,
 ) -> Float8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = units { unresolved_flavor = 1; };
+    if let DateValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = units {
         return Float8Value::Error(error);
     };
@@ -18,13 +21,15 @@ pub fn sql__pg_catalog__date_part__g4hw(
         return Float8Value::Error(error);
     };
     if units == TextValue::Unknown || input == DateValue::Unknown {
-        return Float8Value::Unknown;
+        return float8_unresolved(unresolved_flavor);
     };
     let clipped = name_from_text_context(units, limit, utf8);
     sql__pg_catalog__date_part__nzwd(clipped, timestamp)
 }
 
 pub fn sql__pg_catalog__to_timestamp__kymq(input: Float8Value) -> TimestamptzValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = input { unresolved_flavor = 1; };
     if let Float8Value::Error(error) = input {
         return TimestamptzValue::Error(error);
     };
@@ -53,5 +58,5 @@ pub fn sql__pg_catalog__to_timestamp__kymq(input: Float8Value) -> TimestamptzVal
             return make_timestamptz_value(value);
         };
     };
-    TimestamptzValue::Unknown
+    timestamptz_unresolved(unresolved_flavor)
 }

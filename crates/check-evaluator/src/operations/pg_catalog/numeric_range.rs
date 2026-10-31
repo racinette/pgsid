@@ -5,11 +5,12 @@ fn numeric_range_values(
     subtract: bool,
     less: bool,
 ) -> BoolValue {
+    let unresolved_flavor: i32 = 0;
     let input = numeric_parts(value);
     let center = numeric_parts(base);
     let distance = numeric_parts(offset);
     if input.valid == false || center.valid == false || distance.valid == false {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if distance.special == 3 || distance.special == 0 || distance.sign < 0 {
         return BoolValue::Error(make_sql_error(INTEGER_INVALID_FRAME_SIZE));
@@ -60,7 +61,7 @@ fn numeric_range_values(
         return BoolValue::Error(error);
     }
     if compared == Int4Value::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if let Int4Value::Value(order) = compared {
         if less {
@@ -68,7 +69,7 @@ fn numeric_range_values(
         }
         return BoolValue::Value(order >= 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__in_range__fhht(
@@ -78,6 +79,12 @@ pub fn sql__pg_catalog__in_range__fhht(
     subtract: BoolValue,
     less: BoolValue,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NumericValue::Unknown = value { unresolved_flavor = 1; };
+    if let NumericValue::Unknown = base { unresolved_flavor = 1; };
+    if let NumericValue::Unknown = offset { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = subtract { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = less { unresolved_flavor = 1; };
     if let NumericValue::Error(error) = value {
         return BoolValue::Error(error);
     }
@@ -99,7 +106,7 @@ pub fn sql__pg_catalog__in_range__fhht(
         || subtract == BoolValue::Unknown
         || less == BoolValue::Unknown
     {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if value == NumericValue::Null
         || base == NumericValue::Null
@@ -126,5 +133,5 @@ pub fn sql__pg_catalog__in_range__fhht(
             }
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }

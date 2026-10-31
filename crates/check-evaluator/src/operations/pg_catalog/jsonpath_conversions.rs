@@ -15,6 +15,8 @@ fn jsonpath_conversion_kind(kind: i32) -> bool {
 }
 
 fn jsonpath_conversion_integer_text(input: TextValue, wide: bool) -> NumericValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Value(value) = input {
         let characters: Vec<char> = value.chars().collect();
         let mut start: usize = 0;
@@ -96,10 +98,12 @@ fn jsonpath_conversion_integer_text(input: TextValue, wide: bool) -> NumericValu
         };
         return NumericValue::Value(text_signed_number(number));
     };
-    NumericValue::Unknown
+    numeric_unresolved(unresolved_flavor)
 }
 
 fn jsonpath_conversion_number_text(input: TextValue) -> NumericValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Value(value) = input {
         let parsed = scalar_numeric_from_text(TextValue::Value(value));
         if let NumericValue::Error(_) = parsed {
@@ -113,7 +117,7 @@ fn jsonpath_conversion_number_text(input: TextValue) -> NumericValue {
             return NumericValue::Error(make_sql_error(JSONPATH_METHOD_NON_NUMERIC));
         };
     };
-    NumericValue::Unknown
+    numeric_unresolved(unresolved_flavor)
 }
 
 fn jsonpath_conversion_boolean_text(input: TextValue) -> BoolValue {
@@ -129,6 +133,9 @@ fn jsonpath_conversion_boolean_value(
     text: TextValue,
     value_kind: i32,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NumericValue::Unknown = number { unresolved_flavor = 1; };
+    if let TextValue::Unknown = text { unresolved_flavor = 1; };
     if value_kind == 1 || value_kind == 2 {
         return BoolValue::Value(value_kind == 2);
     };
@@ -145,7 +152,7 @@ fn jsonpath_conversion_boolean_value(
                 return BoolValue::Value(value != "0".to_owned());
             };
         };
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     BoolValue::Error(make_sql_error(JSONPATH_METHOD_NON_NUMERIC))
 }
@@ -155,6 +162,9 @@ fn jsonpath_conversion_string_value(
     text: TextValue,
     value_kind: i32,
 ) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NumericValue::Unknown = number { unresolved_flavor = 1; };
+    if let TextValue::Unknown = text { unresolved_flavor = 1; };
     if value_kind == 4 {
         return text;
     };
@@ -168,7 +178,7 @@ fn jsonpath_conversion_string_value(
         if let NumericValue::Value(value) = number {
             return TextValue::Value(value);
         };
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     TextValue::Error(make_sql_error(JSONPATH_METHOD_NON_NUMERIC))
 }
@@ -180,6 +190,9 @@ fn jsonpath_conversion_numeric_value(
     text: TextValue,
     value_kind: i32,
 ) -> NumericValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NumericValue::Unknown = number { unresolved_flavor = 1; };
+    if let TextValue::Unknown = text { unresolved_flavor = 1; };
     if value_kind != 3 && value_kind != 4 {
         return NumericValue::Error(make_sql_error(JSONPATH_METHOD_NON_NUMERIC));
     };
@@ -209,7 +222,7 @@ fn jsonpath_conversion_numeric_value(
             return NumericValue::Error(error);
         };
         if let NumericValue::Unknown = converted {
-            return NumericValue::Unknown;
+            return numeric_unresolved(unresolved_flavor);
         };
         let precision = sql__pg_catalog__int4__z4rh(jsonpath_execution_numeric(
             context,
@@ -249,7 +262,7 @@ fn jsonpath_conversion_numeric_value(
                 ));
             };
         };
-        return NumericValue::Unknown;
+        return numeric_unresolved(unresolved_flavor);
     };
     converted
 }

@@ -7,17 +7,21 @@ struct TsqueryRenderFrame {
 }
 
 pub fn sql__pg_catalog__numnode__7bkv(input: TsqueryValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TsqueryValue::Unknown = input { unresolved_flavor = 1; };
     if let TsqueryValue::Error(error) = input { return Int4Value::Error(error); };
     if let TsqueryValue::Null = input { return Int4Value::Null; };
     if let TsqueryValue::Value(value) = input { return make_int4_value(value.nodes.len() as i32); };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn tsquery_to_text(input: TsqueryValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TsqueryValue::Unknown = input { unresolved_flavor = 1; };
     if let TsqueryValue::Error(error) = input { return TextValue::Error(error); };
     if let TsqueryValue::Null = input { return TextValue::Null; };
     if let TsqueryValue::Value(value) = input { return tsquery_render(&value,value.root); };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 fn tsquery_render(value: &TsqueryPayload, root: usize) -> TextValue {
@@ -86,6 +90,8 @@ fn tsquery_render(value: &TsqueryPayload, root: usize) -> TextValue {
 }
 
 pub fn sql__pg_catalog__querytree__8aj6(input: TsqueryValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TsqueryValue::Unknown = input { unresolved_flavor = 1; };
     if let TsqueryValue::Error(error) = input { return TextValue::Error(error); };
     if let TsqueryValue::Null = input { return TextValue::Null; };
     if let TsqueryValue::Value(value) = input {
@@ -117,10 +123,12 @@ pub fn sql__pg_catalog__querytree__8aj6(input: TsqueryValue) -> TextValue {
         let rendered = TsqueryPayload {nodes:nodes,root:root,native_bytes:-1};
         return tsquery_render(&rendered,root);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__tsquerysend__0660(input: TsqueryValue, utf8: bool) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TsqueryValue::Unknown = input { unresolved_flavor = 1; };
     if let TsqueryValue::Error(error) = input { return ByteaValue::Error(error); };
     if let TsqueryValue::Null = input { return ByteaValue::Null; };
     if let TsqueryValue::Value(value) = input {
@@ -146,7 +154,7 @@ pub fn sql__pg_catalog__tsquerysend__0660(input: TsqueryValue, utf8: bool) -> By
                 let chars: Vec<char> = node.text.chars().collect();
                 let mut index: usize = 0;
                 while index < chars.len() {
-                    if utf8 == false && (chars[index] as i32) > 127 { return ByteaValue::Unknown; };
+                    if utf8 == false && (chars[index] as i32) > 127 { return bytea_unresolved(unresolved_flavor); };
                     output = bytea_utf8_character(output,chars[index]);
                     index += 1;
                 }
@@ -170,5 +178,5 @@ pub fn sql__pg_catalog__tsquerysend__0660(input: TsqueryValue, utf8: bool) -> By
         }
         return ByteaValue::Value(output);
     };
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }

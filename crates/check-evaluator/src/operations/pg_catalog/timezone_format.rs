@@ -5,6 +5,9 @@ pub fn sql__pg_catalog__to_char__ly1v(
     locale_c: bool,
     collation_c: bool,
 ) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unknown = template { unresolved_flavor = 1; };
     if let TimestamptzValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -12,7 +15,7 @@ pub fn sql__pg_catalog__to_char__ly1v(
         return TextValue::Error(error);
     };
     if input == TimestamptzValue::Unknown || template == TextValue::Unknown {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     if input == TimestamptzValue::Null || template == TextValue::Null {
         return TextValue::Null;
@@ -37,5 +40,5 @@ pub fn sql__pg_catalog__to_char__ly1v(
             return timestamp_format_render(&fields, format.as_str());
         };
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }

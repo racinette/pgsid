@@ -216,6 +216,9 @@ pub fn sql__pg_catalog__date_trunc__3i0u(
     units: TextValue,
     input: TimestampValue,
 ) -> TimestampValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = units { unresolved_flavor = 1; };
+    if let TimestampValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = units {
         return TimestampValue::Error(error);
     }
@@ -225,7 +228,7 @@ pub fn sql__pg_catalog__date_trunc__3i0u(
     if (units == TextValue::Unknown || units == TextValue::NonNull)
         || input == TimestampValue::Unknown
     {
-        return TimestampValue::Unknown;
+        return timestamp_unresolved(unresolved_flavor);
     }
     if units == TextValue::Null || input == TimestampValue::Null {
         return TimestampValue::Null;
@@ -240,5 +243,5 @@ pub fn sql__pg_catalog__date_trunc__3i0u(
             return truncated;
         }
     }
-    TimestampValue::Unknown
+    timestamp_unresolved(unresolved_flavor)
 }

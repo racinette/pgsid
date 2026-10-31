@@ -16,6 +16,9 @@ pub fn append_tsquery_storage(input: TsqueryStoragePlan, value: TsqueryValue) ->
 }
 
 pub fn tsquery_from_captured_text(input: TextValue, plan: &TsqueryStoragePlan, index: Int4Value) -> TsqueryValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = index { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input { return TsqueryValue::Error(error); };
     if let TextValue::Null = input { return TsqueryValue::Null; };
     if let TextValue::Value(text) = input {
@@ -30,10 +33,13 @@ pub fn tsquery_from_captured_text(input: TextValue, plan: &TsqueryStoragePlan, i
             };
         };
     };
-    TsqueryValue::Unknown
+    tsquery_unresolved(unresolved_flavor)
 }
 
 pub fn advance_tsquery_storage(nullness: BoolValue, index: Int4Value) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoolValue::Unknown = nullness { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = index { unresolved_flavor = 1; };
     if let BoolValue::Error(error) = nullness { return Int4Value::Error(error); };
     if nullness == BoolValue::Value(true) { return index; };
     if nullness == BoolValue::Value(false) {
@@ -41,13 +47,16 @@ pub fn advance_tsquery_storage(nullness: BoolValue, index: Int4Value) -> Int4Val
             if value < 2147483647 { return make_int4_value(value+1); };
         };
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn finish_tsquery_storage(input: ArrayElement, plan: &TsqueryStoragePlan, index: Int4Value) -> ArrayElement {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = index { unresolved_flavor = 1; };
     if let ArrayElement::Error(error) = input { return ArrayElement::Error(error); };
     if let Int4Value::Value(count) = index {
         if plan.valid && count >= 0 && usize::try_from(count).unwrap_or(0) == plan.entries.len() { return input; };
     };
-    ArrayElement::Unknown
+    array_element_unresolved(unresolved_flavor)
 }

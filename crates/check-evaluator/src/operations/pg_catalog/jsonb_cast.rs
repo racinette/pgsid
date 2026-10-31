@@ -1,6 +1,8 @@
 const JSONB_SCALAR_CAST_ERROR: u32 = 3452619;
 
 pub fn sql__pg_catalog__numeric__unkz(input: JsonbValue) -> NumericValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
     if let JsonbValue::Error(error) = input {
         return NumericValue::Error(error);
     };
@@ -11,7 +13,7 @@ pub fn sql__pg_catalog__numeric__unkz(input: JsonbValue) -> NumericValue {
         if facts.kind == 5 || facts.kind == 6 {
             return NumericValue::Error(make_sql_error(JSONB_SCALAR_CAST_ERROR));
         };
-        return NumericValue::Unknown;
+        return numeric_unresolved(unresolved_flavor);
     };
     if let JsonbValue::Value(value) = input {
         let root = value.nodes[value.root];
@@ -23,10 +25,12 @@ pub fn sql__pg_catalog__numeric__unkz(input: JsonbValue) -> NumericValue {
         };
         return NumericValue::Error(make_sql_error(JSONB_SCALAR_CAST_ERROR));
     };
-    NumericValue::Unknown
+    numeric_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__bool__k8bw(input: JsonbValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
     if let JsonbValue::Error(error) = input {
         return BoolValue::Error(error);
     };
@@ -37,7 +41,7 @@ pub fn sql__pg_catalog__bool__k8bw(input: JsonbValue) -> BoolValue {
         if facts.kind == 5 || facts.kind == 6 {
             return BoolValue::Error(make_sql_error(JSONB_SCALAR_CAST_ERROR));
         };
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if let JsonbValue::Value(value) = input {
         let root = value.nodes[value.root];
@@ -49,7 +53,7 @@ pub fn sql__pg_catalog__bool__k8bw(input: JsonbValue) -> BoolValue {
         };
         return BoolValue::Error(make_sql_error(JSONB_SCALAR_CAST_ERROR));
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__int2__0vdl(input: JsonbValue) -> Int2Value {

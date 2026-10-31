@@ -4,6 +4,9 @@ fn bytea_trim(
     trim_left: bool,
     trim_right: bool,
 ) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let ByteaValue::Unknown = pattern { unresolved_flavor = 1; };
     if let ByteaValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
@@ -11,7 +14,7 @@ fn bytea_trim(
         return ByteaValue::Error(error);
     }
     if input == ByteaValue::Unknown || pattern == ByteaValue::Unknown {
-        return ByteaValue::Unknown;
+        return bytea_unresolved(unresolved_flavor);
     }
     if input == ByteaValue::Null || pattern == ByteaValue::Null {
         return ByteaValue::Null;
@@ -63,7 +66,7 @@ fn bytea_trim(
             return ByteaValue::Value(output);
         }
     }
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__btrim__riux(input: ByteaValue, pattern: ByteaValue) -> ByteaValue {

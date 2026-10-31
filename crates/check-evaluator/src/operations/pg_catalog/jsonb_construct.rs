@@ -1,14 +1,16 @@
 const JSONB_BUILD_PARAMETER: u32 = 3452619;
 
 fn jsonb_build_key(input: JsonbInput) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbInput::Unknown = input { unresolved_flavor = 1; };
     if let JsonbInput::Error(error) = input {
         return TextValue::Error(error);
     };
     if let JsonbInput::ScalarUnknown(_) = input {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     if let JsonbInput::Unknown = input {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     };
     if let JsonbInput::Boolean(value) = input {
         if value {
@@ -38,6 +40,8 @@ fn jsonb_build_node(node: JsonbNode, next: usize, key_start: usize, key_end: usi
 }
 
 fn jsonb_build(input: JsonbArguments, object: bool) -> JsonbValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbArguments::Unknown = input { unresolved_flavor = 1; };
     if let JsonbArguments::Error(error) = input {
         return JsonbValue::Error(error);
     };
@@ -105,7 +109,7 @@ fn jsonb_build(input: JsonbArguments, object: bool) -> JsonbValue {
                     return JsonbValue::Error(error);
                 };
                 if key == TextValue::Unknown || key == TextValue::NonNull {
-                    return JsonbValue::Unknown;
+                    return jsonb_unresolved(unresolved_flavor);
                 };
                 if let TextValue::Value(text) = key {
                     let key_characters: Vec<char> = text.chars().collect();
@@ -157,7 +161,7 @@ fn jsonb_build(input: JsonbArguments, object: bool) -> JsonbValue {
                 return JsonbValue::Error(error);
             };
             if let JsonbValue::Unknown = converted {
-                return JsonbValue::Unknown;
+                return jsonb_unresolved(unresolved_flavor);
             };
             if let JsonbValue::Value(value) = converted {
                 if partial && spliced == false {
@@ -232,7 +236,7 @@ fn jsonb_build(input: JsonbArguments, object: bool) -> JsonbValue {
             true,
         );
     };
-    JsonbValue::Unknown
+    jsonb_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__jsonb_build_array__gfm5(input: JsonbArguments) -> JsonbValue {

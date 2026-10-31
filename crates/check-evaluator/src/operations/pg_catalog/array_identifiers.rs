@@ -20,6 +20,9 @@ pub fn sql__pg_catalog__parse_ident__uh6p(
     strict: BoolValue,
     utf8: bool,
 ) -> ArrayValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = strict { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return ArrayValue::Error(error);
     };
@@ -70,7 +73,7 @@ pub fn sql__pg_catalog__parse_ident__uh6p(
                     {
                         let character = characters[position];
                         if (character as i32) >= 128 && utf8 == false {
-                            return ArrayValue::Unknown;
+                            return array_unresolved(unresolved_flavor);
                         };
                         part.push(character.to_ascii_lowercase());
                         position += 1;
@@ -100,5 +103,5 @@ pub fn sql__pg_catalog__parse_ident__uh6p(
             }
         };
     };
-    ArrayValue::Unknown
+    array_unresolved(unresolved_flavor)
 }

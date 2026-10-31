@@ -1,4 +1,6 @@
 fn float_numeric_decimal(input: Float8Value, precision: usize) -> NumericValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Float8Value::Unknown = input { unresolved_flavor = 1; };
     if let Float8Value::Error(error) = input {
         return NumericValue::Error(error);
     }
@@ -51,10 +53,12 @@ fn float_numeric_decimal(input: Float8Value, precision: usize) -> NumericValue {
         };
         return NumericValue::Value(numeric_work_text(result));
     }
-    NumericValue::Unknown
+    numeric_unresolved(unresolved_flavor)
 }
 
 fn float_numeric_text(input: NumericValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NumericValue::Unknown = input { unresolved_flavor = 1; };
     if let NumericValue::Error(error) = input {
         return TextValue::Error(error);
     }
@@ -67,7 +71,7 @@ fn float_numeric_text(input: NumericValue) -> TextValue {
             return TextValue::Value(numeric_work_text(work));
         }
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__float4__90ur(input: NumericValue) -> Float4Value {

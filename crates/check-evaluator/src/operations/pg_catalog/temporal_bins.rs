@@ -1,4 +1,7 @@
 pub fn sql__pg_catalog__date_trunc__d8uf(units: TextValue, input: IntervalValue) -> IntervalValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = units { unresolved_flavor = 1; };
+    if let IntervalValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = units {
         return IntervalValue::Error(error);
     };
@@ -8,7 +11,7 @@ pub fn sql__pg_catalog__date_trunc__d8uf(units: TextValue, input: IntervalValue)
     if (units == TextValue::Unknown || units == TextValue::NonNull)
         || input == IntervalValue::Unknown
     {
-        return IntervalValue::Unknown;
+        return interval_unresolved(unresolved_flavor);
     };
     if units == TextValue::Null || input == IntervalValue::Null {
         return IntervalValue::Null;
@@ -64,13 +67,17 @@ pub fn sql__pg_catalog__date_trunc__d8uf(units: TextValue, input: IntervalValue)
             return make_interval_value(months, days, time);
         };
     };
-    IntervalValue::Unknown
+    interval_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__date_bin__67ed(
     stride: IntervalValue,
     input: TimestampValue,
     origin: TimestampValue,
 ) -> TimestampValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let IntervalValue::Unknown = stride { unresolved_flavor = 1; };
+    if let TimestampValue::Unknown = input { unresolved_flavor = 1; };
+    if let TimestampValue::Unknown = origin { unresolved_flavor = 1; };
     if let IntervalValue::Error(error) = stride {
         return TimestampValue::Error(error);
     };
@@ -84,7 +91,7 @@ pub fn sql__pg_catalog__date_bin__67ed(
         || input == TimestampValue::Unknown
         || origin == TimestampValue::Unknown
     {
-        return TimestampValue::Unknown;
+        return timestamp_unresolved(unresolved_flavor);
     };
     if stride == IntervalValue::Null
         || input == TimestampValue::Null
@@ -147,13 +154,17 @@ pub fn sql__pg_catalog__date_bin__67ed(
             };
         };
     };
-    TimestampValue::Unknown
+    timestamp_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__date_bin__0b5n(
     stride: IntervalValue,
     input: TimestamptzValue,
     origin: TimestamptzValue,
 ) -> TimestamptzValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let IntervalValue::Unknown = stride { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unknown = origin { unresolved_flavor = 1; };
     let source_time = interval_calendar_local_payload(input);
     let origin_time = interval_calendar_local_payload(origin);
     let result = sql__pg_catalog__date_bin__67ed(stride, source_time, origin_time);
@@ -166,5 +177,5 @@ pub fn sql__pg_catalog__date_bin__0b5n(
     if let TimestampValue::Value(timestamp) = result {
         return TimestamptzValue::Value(timestamp);
     };
-    TimestamptzValue::Unknown
+    timestamptz_unresolved(unresolved_flavor)
 }

@@ -18,11 +18,13 @@ fn uuid_hash_bytes(value: Uuid) -> Vec<HashByte> {
 }
 
 pub fn sql__pg_catalog__uuid_send__32nf(input: UuidValue) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let UuidValue::Unknown = input { unresolved_flavor = 1; };
     if let UuidValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
     if input == UuidValue::Unknown {
-        return ByteaValue::Unknown;
+        return bytea_unresolved(unresolved_flavor);
     }
     if input == UuidValue::Null {
         return ByteaValue::Null;
@@ -37,15 +39,17 @@ pub fn sql__pg_catalog__uuid_send__32nf(input: UuidValue) -> ByteaValue {
         }
         return ByteaValue::Value(output);
     }
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__uuid_hash__8nnn(input: UuidValue, byte_order: i32) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let UuidValue::Unknown = input { unresolved_flavor = 1; };
     if let UuidValue::Error(error) = input {
         return Int4Value::Error(error);
     }
     if input == UuidValue::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if input == UuidValue::Null {
         return Int4Value::Null;
@@ -54,7 +58,7 @@ pub fn sql__pg_catalog__uuid_hash__8nnn(input: UuidValue, byte_order: i32) -> In
         let bytes = uuid_hash_bytes(value);
         return hash_native32(bytes, byte_order, 1);
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__uuid_hash_extended__i59z(
@@ -62,6 +66,9 @@ pub fn sql__pg_catalog__uuid_hash_extended__i59z(
     right: Int8Value,
     byte_order: i32,
 ) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let UuidValue::Unknown = left { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = right { unresolved_flavor = 1; };
     if let UuidValue::Error(error) = left {
         return Int8Value::Error(error);
     }
@@ -69,7 +76,7 @@ pub fn sql__pg_catalog__uuid_hash_extended__i59z(
         return Int8Value::Error(error);
     }
     if left == UuidValue::Unknown || right == Int8Value::Unknown {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     }
     if left == UuidValue::Null || right == Int8Value::Null {
         return Int8Value::Null;
@@ -80,15 +87,17 @@ pub fn sql__pg_catalog__uuid_hash_extended__i59z(
             return hash_native64(bytes, seed, byte_order, 1);
         }
     }
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__uuid_extract_version__ydwe(input: UuidValue) -> Int2Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let UuidValue::Unknown = input { unresolved_flavor = 1; };
     if let UuidValue::Error(error) = input {
         return Int2Value::Error(error);
     }
     if input == UuidValue::Unknown {
-        return Int2Value::Unknown;
+        return int2_unresolved(unresolved_flavor);
     }
     if input == UuidValue::Null {
         return Int2Value::Null;
@@ -99,5 +108,5 @@ pub fn sql__pg_catalog__uuid_extract_version__ydwe(input: UuidValue) -> Int2Valu
         }
         return Int2Value::Value(value.word3 / 4096);
     }
-    Int2Value::Unknown
+    int2_unresolved(unresolved_flavor)
 }

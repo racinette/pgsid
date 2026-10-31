@@ -1,11 +1,13 @@
 const TEMPORAL_RANGE_ERROR: u32 = 3452552;
 
 pub fn sql__pg_catalog__date__bvna(left: TimestampValue) -> DateValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestampValue::Unknown = left { unresolved_flavor = 1; };
     if let TimestampValue::Error(error) = left {
         return DateValue::Error(error);
     }
     if left == TimestampValue::Unknown {
-        return DateValue::Unknown;
+        return date_unresolved(unresolved_flavor);
     }
     if left == TimestampValue::Null {
         return DateValue::Null;
@@ -26,10 +28,13 @@ pub fn sql__pg_catalog__date__bvna(left: TimestampValue) -> DateValue {
         }
         return DateValue::Value(days as i32);
     }
-    DateValue::Unknown
+    date_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__date_mi__f4wh(left: DateValue, right: DateValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let DateValue::Unknown = left { unresolved_flavor = 1; };
+    if let DateValue::Unknown = right { unresolved_flavor = 1; };
     if let DateValue::Error(error) = left {
         return Int4Value::Error(error);
     }
@@ -37,7 +42,7 @@ pub fn sql__pg_catalog__date_mi__f4wh(left: DateValue, right: DateValue) -> Int4
         return Int4Value::Error(error);
     }
     if left == DateValue::Unknown || right == DateValue::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if left == DateValue::Null || right == DateValue::Null {
         return Int4Value::Null;
@@ -54,10 +59,13 @@ pub fn sql__pg_catalog__date_mi__f4wh(left: DateValue, right: DateValue) -> Int4
             return Int4Value::Value(left_value - right_value);
         }
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__date_mii__l50u(left: DateValue, right: Int4Value) -> DateValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let DateValue::Unknown = left { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = right { unresolved_flavor = 1; };
     if let DateValue::Error(error) = left {
         return DateValue::Error(error);
     }
@@ -65,7 +73,7 @@ pub fn sql__pg_catalog__date_mii__l50u(left: DateValue, right: Int4Value) -> Dat
         return DateValue::Error(error);
     }
     if left == DateValue::Unknown || right == Int4Value::Unknown {
-        return DateValue::Unknown;
+        return date_unresolved(unresolved_flavor);
     }
     if left == DateValue::Null || right == Int4Value::Null {
         return DateValue::Null;
@@ -82,10 +90,13 @@ pub fn sql__pg_catalog__date_mii__l50u(left: DateValue, right: Int4Value) -> Dat
             return DateValue::Value(result as i32);
         }
     }
-    DateValue::Unknown
+    date_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__date_pli__pxlb(left: DateValue, right: Int4Value) -> DateValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let DateValue::Unknown = left { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = right { unresolved_flavor = 1; };
     if let DateValue::Error(error) = left {
         return DateValue::Error(error);
     }
@@ -93,7 +104,7 @@ pub fn sql__pg_catalog__date_pli__pxlb(left: DateValue, right: Int4Value) -> Dat
         return DateValue::Error(error);
     }
     if left == DateValue::Unknown || right == Int4Value::Unknown {
-        return DateValue::Unknown;
+        return date_unresolved(unresolved_flavor);
     }
     if left == DateValue::Null || right == Int4Value::Null {
         return DateValue::Null;
@@ -110,10 +121,13 @@ pub fn sql__pg_catalog__date_pli__pxlb(left: DateValue, right: Int4Value) -> Dat
             return DateValue::Value(result as i32);
         }
     }
-    DateValue::Unknown
+    date_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__integer_pl_date__fjuj(left: Int4Value, right: DateValue) -> DateValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = left { unresolved_flavor = 1; };
+    if let DateValue::Unknown = right { unresolved_flavor = 1; };
     if let Int4Value::Error(error) = left {
         return DateValue::Error(error);
     }
@@ -124,7 +138,7 @@ pub fn sql__pg_catalog__integer_pl_date__fjuj(left: Int4Value, right: DateValue)
         return DateValue::Null;
     }
     if left == Int4Value::Unknown || right == DateValue::Unknown {
-        return DateValue::Unknown;
+        return date_unresolved(unresolved_flavor);
     }
     if let Int4Value::Value(left_value) = left {
         if let DateValue::Value(right_value) = right {
@@ -138,15 +152,17 @@ pub fn sql__pg_catalog__integer_pl_date__fjuj(left: Int4Value, right: DateValue)
             return DateValue::Value(result as i32);
         }
     }
-    DateValue::Unknown
+    date_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timestamp__swxj(left: DateValue) -> TimestampValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let DateValue::Unknown = left { unresolved_flavor = 1; };
     if let DateValue::Error(error) = left {
         return TimestampValue::Error(error);
     }
     if left == DateValue::Unknown {
-        return TimestampValue::Unknown;
+        return timestamp_unresolved(unresolved_flavor);
     }
     if left == DateValue::Null {
         return TimestampValue::Null;
@@ -163,5 +179,5 @@ pub fn sql__pg_catalog__timestamp__swxj(left: DateValue) -> TimestampValue {
         }
         return TimestampValue::Value((left_value as i64) * 86400000000i64);
     }
-    TimestampValue::Unknown
+    timestamp_unresolved(unresolved_flavor)
 }

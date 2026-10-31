@@ -42,6 +42,9 @@ struct JsonStripFrame {
 }
 
 pub fn json_strip_nulls_context(input: JsonValue, arrays: BoolValue, utf8: bool) -> JsonValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonValue::Unknown = input { unresolved_flavor = 1; };
+    if let BoolValue::Unknown = arrays { unresolved_flavor = 1; };
     if let JsonValue::Error(error) = input {
         return JsonValue::Error(error);
     };
@@ -61,7 +64,7 @@ pub fn json_strip_nulls_context(input: JsonValue, arrays: BoolValue, utf8: bool)
                 return JsonValue::Error(document.error);
             };
             if document.state != 1 {
-                return JsonValue::Unknown;
+                return json_unresolved(unresolved_flavor);
             };
             let source = JsonSyntaxSource {
                 characters: document.characters,
@@ -104,7 +107,7 @@ pub fn json_strip_nulls_context(input: JsonValue, arrays: BoolValue, utf8: bool)
                             ready = true;
                         };
                         if ready == false {
-                            return JsonValue::Unknown;
+                            return json_unresolved(unresolved_flavor);
                         };
                     } else {
                         let mut position = node.start;
@@ -161,5 +164,5 @@ pub fn json_strip_nulls_context(input: JsonValue, arrays: BoolValue, utf8: bool)
             return make_json_value(output.as_str());
         };
     };
-    JsonValue::Unknown
+    json_unresolved(unresolved_flavor)
 }

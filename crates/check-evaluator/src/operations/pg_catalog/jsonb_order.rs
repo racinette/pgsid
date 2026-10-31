@@ -417,8 +417,9 @@ fn jsonb_order_shape_root(a: &JsonbPayload, b: &JsonbPayload) -> i32 {
 }
 
 fn jsonb_order_partial(a: JsonbKnowledge, b: JsonbKnowledge) -> Int4Value {
+    let unresolved_flavor: i32 = 0;
     if a.kind < 0 || b.kind < 0 {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     };
     if a.kind == 5 && b.kind < 5 {
         if a.length == 0 {
@@ -427,7 +428,7 @@ fn jsonb_order_partial(a: JsonbKnowledge, b: JsonbKnowledge) -> Int4Value {
         if a.length > 0 {
             return make_int4_value(1);
         };
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     };
     if a.kind < 5 && b.kind == 5 {
         if b.length == 0 {
@@ -436,7 +437,7 @@ fn jsonb_order_partial(a: JsonbKnowledge, b: JsonbKnowledge) -> Int4Value {
         if b.length > 0 {
             return make_int4_value(-1);
         };
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     };
     let first = jsonb_order_rank(a.kind);
     let second = jsonb_order_rank(b.kind);
@@ -466,10 +467,13 @@ fn jsonb_order_partial(a: JsonbKnowledge, b: JsonbKnowledge) -> Int4Value {
             return make_int4_value(0);
         };
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__jsonb_cmp__n2cx(left: JsonbValue, right: JsonbValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let JsonbValue::Unknown = left { unresolved_flavor = 1; };
+    if let JsonbValue::Unknown = right { unresolved_flavor = 1; };
     if let JsonbValue::Error(error) = left {
         return Int4Value::Error(error);
     }
@@ -477,10 +481,10 @@ pub fn sql__pg_catalog__jsonb_cmp__n2cx(left: JsonbValue, right: JsonbValue) -> 
         return Int4Value::Error(error);
     }
     if let JsonbValue::Unknown = left {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if let JsonbValue::Unknown = right {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if let JsonbValue::Null = left {
         return Int4Value::Null;
@@ -529,7 +533,7 @@ pub fn sql__pg_catalog__jsonb_cmp__n2cx(left: JsonbValue, right: JsonbValue) -> 
             return jsonb_order_walk(&a, &b);
         };
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__jsonb_lt__tn76(left: JsonbValue, right: JsonbValue) -> BoolValue {

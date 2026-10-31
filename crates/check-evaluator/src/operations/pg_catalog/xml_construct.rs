@@ -116,9 +116,10 @@ pub fn xml_concat_append(input: XmlConcatState, value: XmlValue) -> XmlConcatSta
 }
 
 pub fn xml_concat_finish(input: XmlConcatState) -> XmlValue {
+    let unresolved_flavor: i32 = 0;
     let status = input.status;
     if let CheckOutcome::Error(error) = status { return XmlValue::Error(error); };
-    if input.status == CheckOutcome::Unknown { return XmlValue::Unknown; };
+    if input.status == CheckOutcome::Unknown { return xml_unresolved(unresolved_flavor); };
     if input.has_value == false { return XmlValue::Null; };
     xml_constructor_output(input.version.as_str(),input.version_consistent,input.standalone,input.body.as_str())
 }
@@ -135,6 +136,9 @@ pub fn sql__pg_catalog__xmlconcat2__vnu3(left: XmlValue, right: XmlValue) -> Xml
 }
 
 pub fn xml_root(input: XmlValue, version: TextValue, standalone: i32) -> XmlValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let XmlValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unknown = version { unresolved_flavor = 1; };
     if let XmlValue::Error(error) = input { return XmlValue::Error(error); };
     if let TextValue::Error(error) = version { return XmlValue::Error(error); };
     if let XmlValue::Null = input { return XmlValue::Null; };
@@ -147,7 +151,7 @@ pub fn xml_root(input: XmlValue, version: TextValue, standalone: i32) -> XmlValu
         has_version = true;
         known_version = true;
     };
-    if known_version == false || standalone < 0 || standalone > 3 { return XmlValue::Unknown; };
+    if known_version == false || standalone < 0 || standalone > 3 { return xml_unresolved(unresolved_flavor); };
     if let XmlValue::Value(value) = input {
         let declaration = parse_xml_constructor_declaration(value.as_str());
         let mut selected = declaration.standalone;
@@ -156,10 +160,12 @@ pub fn xml_root(input: XmlValue, version: TextValue, standalone: i32) -> XmlValu
         if standalone == 2 { selected = -1; };
         return xml_constructor_output(supplied.as_str(),has_version,selected,declaration.body.as_str());
     };
-    XmlValue::Unknown
+    xml_unresolved(unresolved_flavor)
 }
 
 pub fn xml_make_processing_instruction(name: &str, content: TextValue, present: bool, mapped: bool) -> XmlValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = content { unresolved_flavor = 1; };
     let mut target = name.to_owned();
     if mapped == false { target = xml_constructor_name(name); };
     if let TextValue::Error(error) = content { return XmlValue::Error(error); };
@@ -173,7 +179,7 @@ pub fn xml_make_processing_instruction(name: &str, content: TextValue, present: 
     output.push_str(target.as_str());
     if present {
         if let TextValue::Null = content { return XmlValue::Null; };
-        if content == TextValue::Unknown || content == TextValue::NonNull { return XmlValue::Unknown; };
+        if content == TextValue::Unknown || content == TextValue::NonNull { return xml_unresolved(unresolved_flavor); };
         if let TextValue::Value(value) = content {
             let source = XmlSource { characters: value.as_str().chars().collect() };
             let mut index: usize = 0;

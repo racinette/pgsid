@@ -1,4 +1,5 @@
 pub fn bit_from_literal(value: &str) -> BitValue {
+    let unresolved_flavor: i32 = 0;
     let chars: Vec<char> = value.chars().collect();
     let mut index: usize = 0;
     let mut hexadecimal = false;
@@ -12,7 +13,7 @@ pub fn bit_from_literal(value: &str) -> BitValue {
         }
     }
     if chars.len() > 536870910 {
-        return BitValue::Unknown;
+        return bit_unresolved(unresolved_flavor);
     }
     let mut output = String::new();
     while index < chars.len() {
@@ -54,11 +55,13 @@ pub fn bit_payload_length(value: &str) -> i32 {
 }
 
 pub fn bit_from_text(input: TextValue) -> BitValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return BitValue::Error(error);
     }
     if (input == TextValue::Unknown || input == TextValue::NonNull) {
-        return BitValue::Unknown;
+        return bit_unresolved(unresolved_flavor);
     }
     if input == TextValue::Null {
         return BitValue::Null;
@@ -66,15 +69,17 @@ pub fn bit_from_text(input: TextValue) -> BitValue {
     if let TextValue::Value(value) = input {
         return bit_from_literal(value.as_str());
     }
-    BitValue::Unknown
+    bit_unresolved(unresolved_flavor)
 }
 
 pub fn bit_to_text(input: BitValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BitValue::Unknown = input { unresolved_flavor = 1; };
     if let BitValue::Error(error) = input {
         return TextValue::Error(error);
     }
     if input == BitValue::Unknown {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if input == BitValue::Null {
         return TextValue::Null;
@@ -82,5 +87,5 @@ pub fn bit_to_text(input: BitValue) -> TextValue {
     if let BitValue::Value(value) = input {
         return TextValue::Value(value);
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }

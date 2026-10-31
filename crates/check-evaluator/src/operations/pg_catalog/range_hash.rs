@@ -1,6 +1,9 @@
 const RANGE_HASH_UNDEFINED_FUNCTION: u32 = 6822435;
 
 pub fn range_hash_missing32(state: BoolValue, seed: Int8Value) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoolValue::Unknown = state { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = seed { unresolved_flavor = 1; };
     if let BoolValue::Error(error) = state {
         return Int4Value::Error(error);
     };
@@ -15,7 +18,7 @@ pub fn range_hash_missing32(state: BoolValue, seed: Int8Value) -> Int4Value {
             return Int4Value::Error(make_sql_error(RANGE_HASH_UNDEFINED_FUNCTION));
         };
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn range_hash_missing64(state: BoolValue, seed: Int8Value) -> Int8Value {
@@ -28,6 +31,11 @@ pub fn sql__pg_catalog__hash_range__ov3e(
     lower: Int4Value,
     upper: Int4Value,
 ) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = flags { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = lower { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = upper { unresolved_flavor = 1; };
     if let RangeValue::Error(error) = input {
         return Int4Value::Error(error);
     };
@@ -77,7 +85,7 @@ pub fn sql__pg_catalog__hash_range__ov3e(
             };
         };
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__hash_range_extended__axg0(
@@ -87,6 +95,12 @@ pub fn sql__pg_catalog__hash_range_extended__axg0(
     lower: Int8Value,
     upper: Int8Value,
 ) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = seed { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = flags { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = lower { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = upper { unresolved_flavor = 1; };
     if let RangeValue::Error(error) = input {
         return Int8Value::Error(error);
     };
@@ -100,7 +114,7 @@ pub fn sql__pg_catalog__hash_range_extended__axg0(
         return Int8Value::Null;
     };
     if let Int8Value::Unknown = seed {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     };
     if let Int8Value::Error(error) = flags {
         return Int8Value::Error(error);
@@ -149,5 +163,5 @@ pub fn sql__pg_catalog__hash_range_extended__axg0(
             };
         };
     };
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }

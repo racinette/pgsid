@@ -1,4 +1,6 @@
 fn oid_units(input: OidValue) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let OidValue::Unknown = input { unresolved_flavor = 1; };
     if let OidValue::Error(error) = input {
         return Int8Value::Error(error);
     };
@@ -8,9 +10,12 @@ fn oid_units(input: OidValue) -> Int8Value {
     if let OidValue::Value(value) = input {
         return Int8Value::Value(value);
     };
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 fn oid_compare(left: OidValue, right: OidValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let OidValue::Unknown = left { unresolved_flavor = 1; };
+    if let OidValue::Unknown = right { unresolved_flavor = 1; };
     if let OidValue::Error(error) = left {
         return Int4Value::Error(error);
     };
@@ -18,7 +23,7 @@ fn oid_compare(left: OidValue, right: OidValue) -> Int4Value {
         return Int4Value::Error(error);
     };
     if left == OidValue::Unknown || right == OidValue::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     };
     if left == OidValue::Null || right == OidValue::Null {
         return Int4Value::Null;
@@ -34,9 +39,12 @@ fn oid_compare(left: OidValue, right: OidValue) -> Int4Value {
             return Int4Value::Value(0);
         };
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 fn oid_relation(left: OidValue, right: OidValue, mode: i32) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let OidValue::Unknown = left { unresolved_flavor = 1; };
+    if let OidValue::Unknown = right { unresolved_flavor = 1; };
     let comparison = oid_compare(left, right);
     if let Int4Value::Error(error) = comparison {
         return BoolValue::Error(error);
@@ -62,9 +70,12 @@ fn oid_relation(left: OidValue, right: OidValue, mode: i32) -> BoolValue {
         };
         return make_bool_value(order >= 0);
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 fn oid_select(left: OidValue, right: OidValue, larger: bool) -> OidValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let OidValue::Unknown = left { unresolved_flavor = 1; };
+    if let OidValue::Unknown = right { unresolved_flavor = 1; };
     let comparison = oid_compare(left, right);
     if let Int4Value::Error(error) = comparison {
         return OidValue::Error(error);
@@ -78,10 +89,12 @@ fn oid_select(left: OidValue, right: OidValue, larger: bool) -> OidValue {
         };
         return right;
     };
-    OidValue::Unknown
+    oid_unresolved(unresolved_flavor)
 }
 
 pub fn oid_to_int4(input: OidValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let OidValue::Unknown = input { unresolved_flavor = 1; };
     if let OidValue::Error(error) = input { return Int4Value::Error(error); };
     if input == OidValue::Null { return Int4Value::Null; };
     if let OidValue::Value(value) = input {
@@ -89,9 +102,11 @@ pub fn oid_to_int4(input: OidValue) -> Int4Value {
         if signed > 2147483647i64 { signed = signed - 4294967296i64; };
         return make_int4_value(signed as i32);
     };
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 pub fn oid_from_int4(input: Int4Value) -> OidValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = input { unresolved_flavor = 1; };
     if let Int4Value::Error(error) = input { return OidValue::Error(error); };
     if input == Int4Value::Null { return OidValue::Null; };
     if let Int4Value::Value(value) = input {
@@ -99,7 +114,7 @@ pub fn oid_from_int4(input: Int4Value) -> OidValue {
         if units < 0i64 { units = units + 4294967296i64; };
         return make_oid_value(units);
     };
-    OidValue::Unknown
+    oid_unresolved(unresolved_flavor)
 }
 pub fn oid_to_text(input: OidValue) -> TextValue { int8_to_text(oid_units(input)) }
 
@@ -124,13 +139,15 @@ pub fn sql__pg_catalog__int8__egit(left: OidValue) -> Int8Value {
 }
 
 pub fn sql__pg_catalog__oid__h1d6(left: Int8Value) -> OidValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = left { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = left { return OidValue::Error(error); };
     if left == Int8Value::Null { return OidValue::Null; };
     if let Int8Value::Value(value) = left {
         if value < 0i64 || value > 4294967295i64 { return OidValue::Error(SqlError { state: SQLSTATE_NUMERIC_VALUE_OUT_OF_RANGE }); };
         return make_oid_value(value);
     };
-    OidValue::Unknown
+    oid_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__oideq__5dkx(left: OidValue, right: OidValue) -> BoolValue {

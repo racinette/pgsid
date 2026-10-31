@@ -1,4 +1,7 @@
 fn clock_scale_value(input: TimeValue, precision: Int4Value) -> TimeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimeValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = precision { unresolved_flavor = 1; };
     if let TimeValue::Error(error) = input {
         return TimeValue::Error(error);
     }
@@ -6,7 +9,7 @@ fn clock_scale_value(input: TimeValue, precision: Int4Value) -> TimeValue {
         return TimeValue::Error(error);
     }
     if input == TimeValue::Unknown || precision == Int4Value::Unknown {
-        return TimeValue::Unknown;
+        return time_unresolved(unresolved_flavor);
     }
     if input == TimeValue::Null || precision == Int4Value::Null {
         return TimeValue::Null;
@@ -25,12 +28,15 @@ fn clock_scale_value(input: TimeValue, precision: Int4Value) -> TimeValue {
             return make_time_value(((clock + scale / 2i64) / scale) * scale);
         }
     }
-    TimeValue::Unknown
+    time_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__time__bg2r(input: TimeValue, precision: Int4Value) -> TimeValue {
     clock_scale_value(input, precision)
 }
 pub fn sql__pg_catalog__timetz__7slr(input: TimetzValue, precision: Int4Value) -> TimetzValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimetzValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = precision { unresolved_flavor = 1; };
     if let TimetzValue::Error(error) = input {
         return TimetzValue::Error(error);
     }
@@ -38,7 +44,7 @@ pub fn sql__pg_catalog__timetz__7slr(input: TimetzValue, precision: Int4Value) -
         return TimetzValue::Error(error);
     }
     if input == TimetzValue::Unknown || precision == Int4Value::Unknown {
-        return TimetzValue::Unknown;
+        return timetz_unresolved(unresolved_flavor);
     }
     if input == TimetzValue::Null || precision == Int4Value::Null {
         return TimetzValue::Null;
@@ -52,9 +58,11 @@ pub fn sql__pg_catalog__timetz__7slr(input: TimetzValue, precision: Int4Value) -
             return make_timetz_value(time, clock.zone);
         }
     }
-    TimetzValue::Unknown
+    timetz_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__time__3gc2(input: TimestampValue) -> TimeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestampValue::Unknown = input { unresolved_flavor = 1; };
     if let TimestampValue::Error(error) = input {
         return TimeValue::Error(error);
     }
@@ -74,9 +82,11 @@ pub fn sql__pg_catalog__time__3gc2(input: TimestampValue) -> TimeValue {
         }
         return make_time_value(time);
     }
-    TimeValue::Unknown
+    time_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__isfinite__0u09(input: IntervalValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let IntervalValue::Unknown = input { unresolved_flavor = 1; };
     if let IntervalValue::Error(error) = input {
         return BoolValue::Error(error);
     }
@@ -86,13 +96,17 @@ pub fn sql__pg_catalog__isfinite__0u09(input: IntervalValue) -> BoolValue {
     if let IntervalValue::Value(span) = input {
         return BoolValue::Value(interval_special(span) == 0);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__make_time__6c3q(
     hour: Int4Value,
     minute: Int4Value,
     second: Float8Value,
 ) -> TimeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = hour { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = minute { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = second { unresolved_flavor = 1; };
     if let Int4Value::Error(error) = hour {
         return TimeValue::Error(error);
     }
@@ -104,7 +118,7 @@ pub fn sql__pg_catalog__make_time__6c3q(
     }
     if hour == Int4Value::Unknown || minute == Int4Value::Unknown || second == Float8Value::Unknown
     {
-        return TimeValue::Unknown;
+        return time_unresolved(unresolved_flavor);
     }
     if hour == Int4Value::Null || minute == Int4Value::Null || second == Float8Value::Null {
         return TimeValue::Null;
@@ -135,9 +149,12 @@ pub fn sql__pg_catalog__make_time__6c3q(
             }
         }
     }
-    TimeValue::Unknown
+    time_unresolved(unresolved_flavor)
 }
 fn clock_date_timestamp(date: DateValue, clock: TimeValue) -> TimestampValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let DateValue::Unknown = date { unresolved_flavor = 1; };
+    if let TimeValue::Unknown = clock { unresolved_flavor = 1; };
     if let DateValue::Error(error) = date {
         return TimestampValue::Error(error);
     }
@@ -145,7 +162,7 @@ fn clock_date_timestamp(date: DateValue, clock: TimeValue) -> TimestampValue {
         return TimestampValue::Error(error);
     }
     if date == DateValue::Unknown || clock == TimeValue::Unknown {
-        return TimestampValue::Unknown;
+        return timestamp_unresolved(unresolved_flavor);
     }
     if date == DateValue::Null || clock == TimeValue::Null {
         return TimestampValue::Null;
@@ -162,9 +179,12 @@ fn clock_date_timestamp(date: DateValue, clock: TimeValue) -> TimestampValue {
             return make_timestamp_value(midnight + time);
         }
     }
-    TimestampValue::Unknown
+    timestamp_unresolved(unresolved_flavor)
 }
 fn clock_date_timestamptz(date: DateValue, clock: TimetzValue) -> TimestamptzValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let DateValue::Unknown = date { unresolved_flavor = 1; };
+    if let TimetzValue::Unknown = clock { unresolved_flavor = 1; };
     if let DateValue::Error(error) = date {
         return TimestamptzValue::Error(error);
     }
@@ -172,7 +192,7 @@ fn clock_date_timestamptz(date: DateValue, clock: TimetzValue) -> TimestamptzVal
         return TimestamptzValue::Error(error);
     }
     if date == DateValue::Unknown || clock == TimetzValue::Unknown {
-        return TimestamptzValue::Unknown;
+        return timestamptz_unresolved(unresolved_flavor);
     }
     if date == DateValue::Null || clock == TimetzValue::Null {
         return TimestamptzValue::Null;
@@ -189,7 +209,7 @@ fn clock_date_timestamptz(date: DateValue, clock: TimetzValue) -> TimestamptzVal
             return make_timestamptz_value(midnight + time.time + (time.zone as i64) * 1000000i64);
         }
     }
-    TimestamptzValue::Unknown
+    timestamptz_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__timestamp__4biu(date: DateValue, clock: TimeValue) -> TimestampValue {
     clock_date_timestamp(date, clock)

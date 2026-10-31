@@ -1,4 +1,7 @@
 pub fn name_from_text_with_limit(input: TextValue, limit: Int4Value) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = limit { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input { return TextValue::Error(error); };
     if let Int4Value::Error(error) = limit { return TextValue::Error(error); };
     if input == TextValue::Null { return TextValue::Null; };
@@ -6,7 +9,7 @@ pub fn name_from_text_with_limit(input: TextValue, limit: Int4Value) -> TextValu
         let chars: Vec<char> = text.chars().collect();
         if chars.len() == 0 { return TextValue::Value(text); };
         if let Int4Value::Value(maximum) = limit {
-            if maximum < 0 { return TextValue::Unknown; };
+            if maximum < 0 { return text_unresolved(unresolved_flavor); };
             let mut output = String::new();
             let mut bytes: i32 = 0;
             let mut index: usize = 0;
@@ -24,10 +27,13 @@ pub fn name_from_text_with_limit(input: TextValue, limit: Int4Value) -> TextValu
             return TextValue::Value(output);
         };
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 pub fn name_from_text(input: TextValue) -> TextValue { name_from_text_with_limit(input, Int4Value::Unknown) }
 fn name_relation(left: TextValue, right: TextValue, mode: i32) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = left { unresolved_flavor = 1; };
+    if let TextValue::Unknown = right { unresolved_flavor = 1; };
     let order = text_binary_compare(left, right, false);
     if let Int4Value::Error(error) = order { return BoolValue::Error(error); };
     if order == Int4Value::Null { return BoolValue::Null; };
@@ -39,7 +45,7 @@ fn name_relation(left: TextValue, right: TextValue, mode: i32) -> BoolValue {
         if mode == 4 { return make_bool_value(value > 0); };
         return make_bool_value(value >= 0);
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__bpchar__8cer(input: TextValue) -> TextValue { input }
 pub fn sql__pg_catalog__hashname__vua3(input: TextValue, byte_order: i32, utf8: bool) -> Int4Value {
@@ -81,12 +87,14 @@ pub fn sql__pg_catalog__namesend__y7mk(input: TextValue) -> ByteaValue {
 }
 
 pub fn name_from_text_context(input: TextValue, limit: i32, utf8: bool) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Value(value) = input {
         if utf8 == false {
             let characters: Vec<char> = value.chars().collect();
             let mut position: usize = 0;
             while position < characters.len() {
-                if characters[position] as i32 >= 128 { return TextValue::Unknown; };
+                if characters[position] as i32 >= 128 { return text_unresolved(unresolved_flavor); };
                 position += 1;
             }
         };

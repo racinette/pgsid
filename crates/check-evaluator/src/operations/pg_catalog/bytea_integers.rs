@@ -1,9 +1,11 @@
 fn bytea_integer_value(input: ByteaValue, width: i32) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
     if let ByteaValue::Error(error) = input {
         return Int8Value::Error(error);
     }
     if input == ByteaValue::Unknown {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     }
     if input == ByteaValue::Null {
         return Int8Value::Null;
@@ -29,7 +31,7 @@ fn bytea_integer_value(input: ByteaValue, width: i32) -> Int8Value {
         }
         return Int8Value::Value(result);
     }
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 fn bytea_integer_send(value: i64, width: i32) -> String {
@@ -56,12 +58,14 @@ fn bytea_integer_send(value: i64, width: i32) -> String {
 }
 
 pub fn sql__pg_catalog__int2__hj0w(input: ByteaValue) -> Int2Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
     let result = bytea_integer_value(input, 2);
     if let Int8Value::Error(error) = result {
         return Int2Value::Error(error);
     }
     if result == Int8Value::Unknown {
-        return Int2Value::Unknown;
+        return int2_unresolved(unresolved_flavor);
     }
     if result == Int8Value::Null {
         return Int2Value::Null;
@@ -70,16 +74,18 @@ pub fn sql__pg_catalog__int2__hj0w(input: ByteaValue) -> Int2Value {
         let narrowed = value as i32;
         return Int2Value::Value(narrowed);
     }
-    Int2Value::Unknown
+    int2_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__int4__lvgc(input: ByteaValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
     let result = bytea_integer_value(input, 4);
     if let Int8Value::Error(error) = result {
         return Int4Value::Error(error);
     }
     if result == Int8Value::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if result == Int8Value::Null {
         return Int4Value::Null;
@@ -88,7 +94,7 @@ pub fn sql__pg_catalog__int4__lvgc(input: ByteaValue) -> Int4Value {
         let narrowed = value as i32;
         return Int4Value::Value(narrowed);
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__int8__ih14(input: ByteaValue) -> Int8Value {
@@ -96,11 +102,13 @@ pub fn sql__pg_catalog__int8__ih14(input: ByteaValue) -> Int8Value {
 }
 
 pub fn sql__pg_catalog__int2send__5wzj(input: Int2Value) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int2Value::Unknown = input { unresolved_flavor = 1; };
     if let Int2Value::Error(error) = input {
         return ByteaValue::Error(error);
     }
     if input == Int2Value::Unknown {
-        return ByteaValue::Unknown;
+        return bytea_unresolved(unresolved_flavor);
     }
     if input == Int2Value::Null {
         return ByteaValue::Null;
@@ -110,7 +118,7 @@ pub fn sql__pg_catalog__int2send__5wzj(input: Int2Value) -> ByteaValue {
         let output = bytea_integer_send(wide_value, 2);
         return ByteaValue::Value(output);
     }
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__bytea__mcxl(input: Int2Value) -> ByteaValue {
@@ -118,11 +126,13 @@ pub fn sql__pg_catalog__bytea__mcxl(input: Int2Value) -> ByteaValue {
 }
 
 pub fn sql__pg_catalog__int4send__fjzt(input: Int4Value) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = input { unresolved_flavor = 1; };
     if let Int4Value::Error(error) = input {
         return ByteaValue::Error(error);
     }
     if input == Int4Value::Unknown {
-        return ByteaValue::Unknown;
+        return bytea_unresolved(unresolved_flavor);
     }
     if input == Int4Value::Null {
         return ByteaValue::Null;
@@ -132,7 +142,7 @@ pub fn sql__pg_catalog__int4send__fjzt(input: Int4Value) -> ByteaValue {
         let output = bytea_integer_send(wide_value, 4);
         return ByteaValue::Value(output);
     }
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__bytea__4poi(input: Int4Value) -> ByteaValue {
@@ -140,11 +150,13 @@ pub fn sql__pg_catalog__bytea__4poi(input: Int4Value) -> ByteaValue {
 }
 
 pub fn sql__pg_catalog__int8send__pjz0(input: Int8Value) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = input { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = input {
         return ByteaValue::Error(error);
     }
     if input == Int8Value::Unknown {
-        return ByteaValue::Unknown;
+        return bytea_unresolved(unresolved_flavor);
     }
     if input == Int8Value::Null {
         return ByteaValue::Null;
@@ -154,7 +166,7 @@ pub fn sql__pg_catalog__int8send__pjz0(input: Int8Value) -> ByteaValue {
         let output = bytea_integer_send(wide_value, 8);
         return ByteaValue::Value(output);
     }
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__bytea__0om8(input: Int8Value) -> ByteaValue {
@@ -162,11 +174,13 @@ pub fn sql__pg_catalog__bytea__0om8(input: Int8Value) -> ByteaValue {
 }
 
 pub fn sql__pg_catalog__date_send__i2tv(input: DateValue) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let DateValue::Unknown = input { unresolved_flavor = 1; };
     if let DateValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
     if input == DateValue::Unknown {
-        return ByteaValue::Unknown;
+        return bytea_unresolved(unresolved_flavor);
     }
     if input == DateValue::Null {
         return ByteaValue::Null;
@@ -176,15 +190,17 @@ pub fn sql__pg_catalog__date_send__i2tv(input: DateValue) -> ByteaValue {
         let output = bytea_integer_send(wide_value, 4);
         return ByteaValue::Value(output);
     }
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timestamp_send__3syx(input: TimestampValue) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestampValue::Unknown = input { unresolved_flavor = 1; };
     if let TimestampValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
     if input == TimestampValue::Unknown {
-        return ByteaValue::Unknown;
+        return bytea_unresolved(unresolved_flavor);
     }
     if input == TimestampValue::Null {
         return ByteaValue::Null;
@@ -194,15 +210,17 @@ pub fn sql__pg_catalog__timestamp_send__3syx(input: TimestampValue) -> ByteaValu
         let output = bytea_integer_send(wide_value, 8);
         return ByteaValue::Value(output);
     }
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timestamptz_send__jyu1(input: TimestamptzValue) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
     if let TimestamptzValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
     if input == TimestamptzValue::Unknown {
-        return ByteaValue::Unknown;
+        return bytea_unresolved(unresolved_flavor);
     }
     if input == TimestamptzValue::Null {
         return ByteaValue::Null;
@@ -212,15 +230,17 @@ pub fn sql__pg_catalog__timestamptz_send__jyu1(input: TimestamptzValue) -> Bytea
         let output = bytea_integer_send(wide_value, 8);
         return ByteaValue::Value(output);
     }
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__boolsend__oo82(input: BoolValue) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoolValue::Unknown = input { unresolved_flavor = 1; };
     if let BoolValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
     if input == BoolValue::Unknown {
-        return ByteaValue::Unknown;
+        return bytea_unresolved(unresolved_flavor);
     }
     if input == BoolValue::Null {
         return ByteaValue::Null;
@@ -233,5 +253,5 @@ pub fn sql__pg_catalog__boolsend__oo82(input: BoolValue) -> ByteaValue {
         let output = bytea_append_byte(String::new(), byte);
         return ByteaValue::Value(output);
     }
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }

@@ -6,6 +6,13 @@ pub fn sql__pg_catalog__make_timestamp__n30u(
     minute: Int4Value,
     second: Float8Value,
 ) -> TimestampValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = year { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = month { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = day { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = hour { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = minute { unresolved_flavor = 1; };
+    if let Float8Value::Unknown = second { unresolved_flavor = 1; };
     if let Int4Value::Error(error) = year {
         return TimestampValue::Error(error);
     };
@@ -31,7 +38,7 @@ pub fn sql__pg_catalog__make_timestamp__n30u(
         || minute == Int4Value::Unknown
         || second == Float8Value::Unknown
     {
-        return TimestampValue::Unknown;
+        return timestamp_unresolved(unresolved_flavor);
     };
     if year == Int4Value::Null
         || month == Int4Value::Null
@@ -70,5 +77,5 @@ pub fn sql__pg_catalog__make_timestamp__n30u(
             };
         };
     };
-    TimestampValue::Unknown
+    timestamp_unresolved(unresolved_flavor)
 }

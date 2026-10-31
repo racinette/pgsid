@@ -54,11 +54,13 @@ fn mac_hash_bytes(address: MacAddress, size: i32) -> Vec<HashByte> {
 }
 
 pub fn macaddr_to_text(input: MacaddrValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let MacaddrValue::Unknown = input { unresolved_flavor = 1; };
     if let MacaddrValue::Error(error) = input {
         return TextValue::Error(error);
     }
     if input == MacaddrValue::Unknown {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if input == MacaddrValue::Null {
         return TextValue::Null;
@@ -67,15 +69,17 @@ pub fn macaddr_to_text(input: MacaddrValue) -> TextValue {
         let result = mac_output_text(address, 6);
         return TextValue::Value(result);
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__macaddr_send__fk4p(input: MacaddrValue) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let MacaddrValue::Unknown = input { unresolved_flavor = 1; };
     if let MacaddrValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
     if input == MacaddrValue::Unknown {
-        return ByteaValue::Unknown;
+        return bytea_unresolved(unresolved_flavor);
     }
     if input == MacaddrValue::Null {
         return ByteaValue::Null;
@@ -84,15 +88,17 @@ pub fn sql__pg_catalog__macaddr_send__fk4p(input: MacaddrValue) -> ByteaValue {
         let result = mac_output_bytes(address, 6);
         return ByteaValue::Value(result);
     }
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__hashmacaddr__ih2y(input: MacaddrValue, byte_order: i32) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let MacaddrValue::Unknown = input { unresolved_flavor = 1; };
     if let MacaddrValue::Error(error) = input {
         return Int4Value::Error(error);
     }
     if input == MacaddrValue::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if input == MacaddrValue::Null {
         return Int4Value::Null;
@@ -101,7 +107,7 @@ pub fn sql__pg_catalog__hashmacaddr__ih2y(input: MacaddrValue, byte_order: i32) 
         let bytes = mac_hash_bytes(address, 6);
         return hash_native32(bytes, byte_order, 1);
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__hashmacaddrextended__94rh(
@@ -109,6 +115,9 @@ pub fn sql__pg_catalog__hashmacaddrextended__94rh(
     right: Int8Value,
     byte_order: i32,
 ) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let MacaddrValue::Unknown = left { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = right { unresolved_flavor = 1; };
     if let MacaddrValue::Error(error) = left {
         return Int8Value::Error(error);
     }
@@ -116,7 +125,7 @@ pub fn sql__pg_catalog__hashmacaddrextended__94rh(
         return Int8Value::Error(error);
     }
     if left == MacaddrValue::Unknown || right == Int8Value::Unknown {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     }
     if left == MacaddrValue::Null || right == Int8Value::Null {
         return Int8Value::Null;
@@ -127,15 +136,17 @@ pub fn sql__pg_catalog__hashmacaddrextended__94rh(
             return hash_native64(bytes, seed, byte_order, 1);
         }
     }
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 pub fn macaddr8_to_text(input: Macaddr8Value) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Macaddr8Value::Unknown = input { unresolved_flavor = 1; };
     if let Macaddr8Value::Error(error) = input {
         return TextValue::Error(error);
     }
     if input == Macaddr8Value::Unknown {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if input == Macaddr8Value::Null {
         return TextValue::Null;
@@ -144,15 +155,17 @@ pub fn macaddr8_to_text(input: Macaddr8Value) -> TextValue {
         let result = mac_output_text(address, 8);
         return TextValue::Value(result);
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__macaddr8_send__qten(input: Macaddr8Value) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Macaddr8Value::Unknown = input { unresolved_flavor = 1; };
     if let Macaddr8Value::Error(error) = input {
         return ByteaValue::Error(error);
     }
     if input == Macaddr8Value::Unknown {
-        return ByteaValue::Unknown;
+        return bytea_unresolved(unresolved_flavor);
     }
     if input == Macaddr8Value::Null {
         return ByteaValue::Null;
@@ -161,15 +174,17 @@ pub fn sql__pg_catalog__macaddr8_send__qten(input: Macaddr8Value) -> ByteaValue 
         let result = mac_output_bytes(address, 8);
         return ByteaValue::Value(result);
     }
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__hashmacaddr8__72kw(input: Macaddr8Value, byte_order: i32) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Macaddr8Value::Unknown = input { unresolved_flavor = 1; };
     if let Macaddr8Value::Error(error) = input {
         return Int4Value::Error(error);
     }
     if input == Macaddr8Value::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if input == Macaddr8Value::Null {
         return Int4Value::Null;
@@ -178,7 +193,7 @@ pub fn sql__pg_catalog__hashmacaddr8__72kw(input: Macaddr8Value, byte_order: i32
         let bytes = mac_hash_bytes(address, 8);
         return hash_native32(bytes, byte_order, 1);
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__hashmacaddr8extended__63o8(
@@ -186,6 +201,9 @@ pub fn sql__pg_catalog__hashmacaddr8extended__63o8(
     right: Int8Value,
     byte_order: i32,
 ) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Macaddr8Value::Unknown = left { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = right { unresolved_flavor = 1; };
     if let Macaddr8Value::Error(error) = left {
         return Int8Value::Error(error);
     }
@@ -193,7 +211,7 @@ pub fn sql__pg_catalog__hashmacaddr8extended__63o8(
         return Int8Value::Error(error);
     }
     if left == Macaddr8Value::Unknown || right == Int8Value::Unknown {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     }
     if left == Macaddr8Value::Null || right == Int8Value::Null {
         return Int8Value::Null;
@@ -204,5 +222,5 @@ pub fn sql__pg_catalog__hashmacaddr8extended__63o8(
             return hash_native64(bytes, seed, byte_order, 1);
         }
     }
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }

@@ -1,4 +1,7 @@
 fn integer_scalar_sum(state: Int8Value, input: Int8Value) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = state { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = input { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = state {
         return Int8Value::Error(error);
     };
@@ -14,7 +17,7 @@ fn integer_scalar_sum(state: Int8Value, input: Int8Value) -> Int8Value {
     if let Int8Value::Value(value) = input {
         return integer_state_adjust(state, value);
     };
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__int2_sum__3feg(state: Int8Value, input: Int2Value) -> Int8Value {

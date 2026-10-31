@@ -6,6 +6,13 @@ fn regex_substring_value(
     flags: TextValue,
     subexpression: Int4Value,
 ) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = subject { unresolved_flavor = 1; };
+    if let TextValue::Unknown = pattern { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = starting { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = occurrence { unresolved_flavor = 1; };
+    if let TextValue::Unknown = flags { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = subexpression { unresolved_flavor = 1; };
     if let TextValue::Error(error) = subject {
         return TextValue::Error(error);
     }
@@ -31,7 +38,7 @@ fn regex_substring_value(
         || (flags == TextValue::Unknown || flags == TextValue::NonNull)
         || subexpression == Int4Value::Unknown
     {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if subject == TextValue::Null
         || pattern == TextValue::Null
@@ -108,7 +115,7 @@ fn regex_substring_value(
             }
         }
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__regexp_substr__8n0p(subject: TextValue, pattern: TextValue) -> TextValue {

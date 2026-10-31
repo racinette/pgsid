@@ -2,11 +2,13 @@ const SIZE_BYTES_PARAMETER_ERROR: u32 = 3452619;
 const SIZE_BYTES_NUMERIC_SYNTAX_ERROR: u32 = 3484946;
 
 pub fn sql__pg_catalog__pg_size_bytes__ggrt(input: TextValue) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Error(error) = input {
         return Int8Value::Error(error);
     }
     if (input == TextValue::Unknown || input == TextValue::NonNull) {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     }
     if input == TextValue::Null {
         return Int8Value::Null;
@@ -170,5 +172,5 @@ pub fn sql__pg_catalog__pg_size_bytes__ggrt(input: TextValue) -> Int8Value {
         }
         return numeric_integer_value(value);
     }
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }

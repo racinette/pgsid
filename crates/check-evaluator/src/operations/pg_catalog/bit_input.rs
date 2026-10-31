@@ -4,13 +4,15 @@ pub(crate) fn bit_from_text_modifier(
     varying: bool,
     utf8: bool,
 ) -> BitValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Value(value) = input {
         let characters: Vec<char> = value.chars().collect();
         let mut index: usize = 0;
         while index < characters.len() {
             let character = characters[index] as i32;
             if character > 127 && utf8 == false {
-                return BitValue::Unknown;
+                return bit_unresolved(unresolved_flavor);
             };
             index += 1;
         }

@@ -22,10 +22,12 @@ fn multirange_order_number(input: Int4Value) -> i32 {
 }
 
 fn multirange_order_failure(input: Int4Value) -> MultirangeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = input { unresolved_flavor = 1; };
     if let Int4Value::Error(error) = input {
         return MultirangeValue::Error(error);
     };
-    MultirangeValue::Unknown
+    multirange_unresolved(unresolved_flavor)
 }
 
 fn multirange_construct_median(
@@ -65,6 +67,7 @@ fn multirange_construct_median(
 }
 
 fn multirange_construct_normalize(input: MultirangePayload) -> MultirangeValue {
+    let unresolved_flavor: i32 = 0;
     let mut order: Vec<usize> = Vec::new();
     let mut index: usize = 0;
     while index < input.ranges.len() {
@@ -304,7 +307,7 @@ fn multirange_construct_normalize(input: MultirangePayload) -> MultirangeValue {
                             return MultirangeValue::Error(error);
                         };
                         if let BoolValue::Unknown = adjacent {
-                            return MultirangeValue::Unknown;
+                            return multirange_unresolved(unresolved_flavor);
                         };
                         if adjacent == BoolValue::Value(false) {
                             let before = range_payload_relation(&previous, &payload, 1);
@@ -312,7 +315,7 @@ fn multirange_construct_normalize(input: MultirangePayload) -> MultirangeValue {
                                 return MultirangeValue::Error(error);
                             };
                             if let BoolValue::Unknown = before {
-                                return MultirangeValue::Unknown;
+                                return multirange_unresolved(unresolved_flavor);
                             };
                             emit_member = before == BoolValue::Value(true);
                         };
@@ -322,7 +325,7 @@ fn multirange_construct_normalize(input: MultirangePayload) -> MultirangeValue {
                                 return MultirangeValue::Error(error);
                             };
                             if let RangeValue::Unknown = merged {
-                                return MultirangeValue::Unknown;
+                                return multirange_unresolved(unresolved_flavor);
                             };
                             let position = ranges.len() - 1;
                             ranges[position] = merged;
@@ -386,6 +389,8 @@ fn multirange_construct_single(
     element_type: &str,
     element_kind: i32,
 ) -> MultirangeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let RangeValue::Unknown = input { unresolved_flavor = 1; };
     let mut typed = range_require_type(input, range_type, element_type, element_kind);
     if let RangeValue::Value(payload) = typed {
         typed = make_coerced_range_value(payload);
@@ -411,7 +416,7 @@ fn multirange_construct_single(
             ranges: ranges,
         });
     };
-    MultirangeValue::Unknown
+    multirange_unresolved(unresolved_flavor)
 }
 
 fn multirange_construct_array(
@@ -451,6 +456,8 @@ pub fn multirange_construct_array_with_support(
     element_kind: i32,
     support: RangeSupport,
 ) -> MultirangeValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
     if let ArrayValue::Error(error) = input {
         return MultirangeValue::Error(error);
     };
@@ -459,7 +466,7 @@ pub fn multirange_construct_array_with_support(
     };
     if let ArrayValue::Value(payload) = input {
         if payload.element_type.as_str() != range_type || payload.element_kind != 42 {
-            return MultirangeValue::Unknown;
+            return multirange_unresolved(unresolved_flavor);
         };
         if payload.dimensions.len() > 1 {
             return MultirangeValue::Error(make_sql_error(MULTIRANGE_ARRAY_DIMENSIONS));
@@ -471,7 +478,7 @@ pub fn multirange_construct_array_with_support(
             let cell = payload.elements[index].clone();
             let family = array_element_family(cell.clone());
             if family != 0 && family != 42 {
-                return MultirangeValue::Unknown;
+                return multirange_unresolved(unresolved_flavor);
             };
             if let ArrayElement::Error(error) = cell {
                 return MultirangeValue::Error(error);
@@ -497,14 +504,14 @@ pub fn multirange_construct_array_with_support(
                     return MultirangeValue::Error(error);
                 };
                 if let RangeValue::Unknown = typed {
-                    return MultirangeValue::Unknown;
+                    return multirange_unresolved(unresolved_flavor);
                 };
                 ranges.push(typed);
             };
             index += 1;
         }
         if unknown {
-            return MultirangeValue::Unknown;
+            return multirange_unresolved(unresolved_flavor);
         };
         return multirange_construct_normalize(MultirangePayload {
             type_name: type_name.to_owned(),
@@ -515,7 +522,7 @@ pub fn multirange_construct_array_with_support(
             ranges: ranges,
         });
     };
-    MultirangeValue::Unknown
+    multirange_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__datemultirange__qjle() -> MultirangeValue {

@@ -1,4 +1,6 @@
 pub fn multirange_to_text(input: MultirangeValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let MultirangeValue::Unknown = input { unresolved_flavor = 1; };
     if let MultirangeValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -23,17 +25,19 @@ pub fn multirange_to_text(input: MultirangeValue) -> TextValue {
                 known = true;
             };
             if known == false {
-                return TextValue::Unknown;
+                return text_unresolved(unresolved_flavor);
             };
             index += 1;
         }
         output.push('}');
         return TextValue::Value(output);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn multirange_output_initial(input: MultirangeValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let MultirangeValue::Unknown = input { unresolved_flavor = 1; };
     if let MultirangeValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -43,7 +47,7 @@ pub fn multirange_output_initial(input: MultirangeValue) -> TextValue {
     if let MultirangeValue::Value(_payload) = input {
         return make_text_value("{");
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn multirange_output_continues(count: Int4Value, index: Int4Value, output: TextValue) -> bool {
@@ -62,6 +66,10 @@ pub fn multirange_output_append(
     member: TextValue,
     index: Int4Value,
 ) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = output { unresolved_flavor = 1; };
+    if let TextValue::Unknown = member { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = index { unresolved_flavor = 1; };
     if let TextValue::Error(error) = output {
         return TextValue::Error(error);
     };
@@ -83,7 +91,7 @@ pub fn multirange_output_append(
             };
         };
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 
 pub fn multirange_output_finish(input: TextValue) -> TextValue {

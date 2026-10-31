@@ -209,12 +209,16 @@ fn tsquery_rewrite_output(tree: &TsqueryRewriteTree) -> TsqueryValue {
 }
 
 pub fn sql__pg_catalog__ts_rewrite__2hpb(input: TsqueryValue, target: TsqueryValue, replacement: TsqueryValue, utf8: bool) -> TsqueryValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TsqueryValue::Unknown = input { unresolved_flavor = 1; };
+    if let TsqueryValue::Unknown = target { unresolved_flavor = 1; };
+    if let TsqueryValue::Unknown = replacement { unresolved_flavor = 1; };
     if let TsqueryValue::Error(error) = input { return TsqueryValue::Error(error); };
     if let TsqueryValue::Error(error) = target { return TsqueryValue::Error(error); };
     if let TsqueryValue::Error(error) = replacement { return TsqueryValue::Error(error); };
-    if let TsqueryValue::Unknown = input { return TsqueryValue::Unknown; };
-    if let TsqueryValue::Unknown = target { return TsqueryValue::Unknown; };
-    if let TsqueryValue::Unknown = replacement { return TsqueryValue::Unknown; };
+    if let TsqueryValue::Unknown = input { return tsquery_unresolved(unresolved_flavor); };
+    if let TsqueryValue::Unknown = target { return tsquery_unresolved(unresolved_flavor); };
+    if let TsqueryValue::Unknown = replacement { return tsquery_unresolved(unresolved_flavor); };
     if let TsqueryValue::Null = input { return TsqueryValue::Null; };
     if let TsqueryValue::Null = target { return TsqueryValue::Null; };
     if let TsqueryValue::Null = replacement { return TsqueryValue::Null; };
@@ -227,10 +231,10 @@ pub fn sql__pg_catalog__ts_rewrite__2hpb(input: TsqueryValue, target: TsqueryVal
                 nodes.push(TsqueryRewriteNode {value:TsqueryNode {kind:0,text:String::new(),weight:0,prefix:false,distance:0,left:0,right:0},children:empty,frozen:false});
                 let initial = TsqueryRewriteTree {nodes:nodes,root:0,known:true};
                 let mut tree = tsquery_rewrite_import(initial,a,true,utf8);
-                if tree.known == false { return TsqueryValue::Unknown; };
+                if tree.known == false { return tsquery_unresolved(unresolved_flavor); };
                 let root = tree.root;
                 tree = tsquery_rewrite_import(tree,b,true,utf8);
-                if tree.known == false { return TsqueryValue::Unknown; };
+                if tree.known == false { return tsquery_unresolved(unresolved_flavor); };
                 let pattern = tree.root;
                 let mut subst: usize = 0;
                 if c.nodes.len() != 0 {
@@ -242,12 +246,12 @@ pub fn sql__pg_catalog__ts_rewrite__2hpb(input: TsqueryValue, target: TsqueryVal
                     tree = TsqueryRewriteTree {nodes:nodes,root:root,known:true};
                 };
                 tree = tsquery_rewrite_visit(tree,root,pattern,subst,utf8);
-                if tree.known == false { return TsqueryValue::Unknown; };
+                if tree.known == false { return tsquery_unresolved(unresolved_flavor); };
                 if tree.root == 0 { return make_tsquery_value(make_tsquery_payload(8)); };
                 tree = tsquery_rewrite_binary(tree);
                 return tsquery_rewrite_output(&tree);
             };
         };
     };
-    TsqueryValue::Unknown
+    tsquery_unresolved(unresolved_flavor)
 }

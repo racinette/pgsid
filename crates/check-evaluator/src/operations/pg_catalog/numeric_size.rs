@@ -6,11 +6,13 @@ fn numeric_size_below(value: &str, limit: &str) -> bool {
 }
 
 pub fn sql__pg_catalog__pg_size_pretty__axtn(input: NumericValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let NumericValue::Unknown = input { unresolved_flavor = 1; };
     if let NumericValue::Error(error) = input {
         return TextValue::Error(error);
     }
     if input == NumericValue::Unknown {
-        return TextValue::Unknown;
+        return text_unresolved(unresolved_flavor);
     }
     if input == NumericValue::Null {
         return TextValue::Null;
@@ -18,7 +20,7 @@ pub fn sql__pg_catalog__pg_size_pretty__axtn(input: NumericValue) -> TextValue {
     if let NumericValue::Value(value) = input {
         let work = numeric_work_from_value(value.as_str());
         if work.valid == false {
-            return TextValue::Unknown;
+            return text_unresolved(unresolved_flavor);
         }
         let mut amount = numeric_work_text(work.clone());
         let mut unit: usize = 0;
@@ -75,5 +77,5 @@ pub fn sql__pg_catalog__pg_size_pretty__axtn(input: NumericValue) -> TextValue {
         amount.push_str(INTEGER_SIZE_UNITS[unit]);
         return TextValue::Value(amount);
     }
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }

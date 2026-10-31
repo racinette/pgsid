@@ -1,4 +1,7 @@
 pub fn sql__pg_catalog__date_cmp__u18z(left: DateValue, right: DateValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let DateValue::Unknown = left { unresolved_flavor = 1; };
+    if let DateValue::Unknown = right { unresolved_flavor = 1; };
     if let DateValue::Error(error) = left {
         return Int4Value::Error(error);
     }
@@ -6,7 +9,7 @@ pub fn sql__pg_catalog__date_cmp__u18z(left: DateValue, right: DateValue) -> Int
         return Int4Value::Error(error);
     }
     if left == DateValue::Unknown || right == DateValue::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if left == DateValue::Null || right == DateValue::Null {
         return Int4Value::Null;
@@ -16,10 +19,13 @@ pub fn sql__pg_catalog__date_cmp__u18z(left: DateValue, right: DateValue) -> Int
             return Int4Value::Value(temporal_compare(left_value as i64, right_value as i64));
         }
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__date_larger__xxhy(left: DateValue, right: DateValue) -> DateValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let DateValue::Unknown = left { unresolved_flavor = 1; };
+    if let DateValue::Unknown = right { unresolved_flavor = 1; };
     if let DateValue::Error(error) = left {
         return DateValue::Error(error);
     }
@@ -27,7 +33,7 @@ pub fn sql__pg_catalog__date_larger__xxhy(left: DateValue, right: DateValue) -> 
         return DateValue::Error(error);
     }
     if left == DateValue::Unknown || right == DateValue::Unknown {
-        return DateValue::Unknown;
+        return date_unresolved(unresolved_flavor);
     }
     if left == DateValue::Null || right == DateValue::Null {
         return DateValue::Null;
@@ -40,10 +46,13 @@ pub fn sql__pg_catalog__date_larger__xxhy(left: DateValue, right: DateValue) -> 
             return DateValue::Value(right_value);
         }
     }
-    DateValue::Unknown
+    date_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__date_smaller__e286(left: DateValue, right: DateValue) -> DateValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let DateValue::Unknown = left { unresolved_flavor = 1; };
+    if let DateValue::Unknown = right { unresolved_flavor = 1; };
     if let DateValue::Error(error) = left {
         return DateValue::Error(error);
     }
@@ -51,7 +60,7 @@ pub fn sql__pg_catalog__date_smaller__e286(left: DateValue, right: DateValue) ->
         return DateValue::Error(error);
     }
     if left == DateValue::Unknown || right == DateValue::Unknown {
-        return DateValue::Unknown;
+        return date_unresolved(unresolved_flavor);
     }
     if left == DateValue::Null || right == DateValue::Null {
         return DateValue::Null;
@@ -64,15 +73,17 @@ pub fn sql__pg_catalog__date_smaller__e286(left: DateValue, right: DateValue) ->
             return DateValue::Value(right_value);
         }
     }
-    DateValue::Unknown
+    date_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__hashdate__knfp(left: DateValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let DateValue::Unknown = left { unresolved_flavor = 1; };
     if let DateValue::Error(error) = left {
         return Int4Value::Error(error);
     }
     if left == DateValue::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if left == DateValue::Null {
         return Int4Value::Null;
@@ -80,10 +91,13 @@ pub fn sql__pg_catalog__hashdate__knfp(left: DateValue) -> Int4Value {
     if let DateValue::Value(left_value) = left {
         return sql__pg_catalog__hashint4__zr00(Int4Value::Value(left_value));
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__hashdateextended__863n(left: DateValue, right: Int8Value) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let DateValue::Unknown = left { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = right { unresolved_flavor = 1; };
     if let DateValue::Error(error) = left {
         return Int8Value::Error(error);
     }
@@ -91,7 +105,7 @@ pub fn sql__pg_catalog__hashdateextended__863n(left: DateValue, right: Int8Value
         return Int8Value::Error(error);
     }
     if left == DateValue::Unknown || right == Int8Value::Unknown {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     }
     if left == DateValue::Null || right == Int8Value::Null {
         return Int8Value::Null;
@@ -104,15 +118,17 @@ pub fn sql__pg_catalog__hashdateextended__863n(left: DateValue, right: Int8Value
             );
         }
     }
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__isfinite__2dqo(left: DateValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let DateValue::Unknown = left { unresolved_flavor = 1; };
     if let DateValue::Error(error) = left {
         return BoolValue::Error(error);
     }
     if left == DateValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if left == DateValue::Null {
         return BoolValue::Null;
@@ -120,15 +136,17 @@ pub fn sql__pg_catalog__isfinite__2dqo(left: DateValue) -> BoolValue {
     if let DateValue::Value(left_value) = left {
         return BoolValue::Value(left_value != -2147483647 - 1 && left_value != 2147483647);
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__isfinite__cdmf(left: TimestamptzValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestamptzValue::Unknown = left { unresolved_flavor = 1; };
     if let TimestamptzValue::Error(error) = left {
         return BoolValue::Error(error);
     }
     if left == TimestamptzValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if left == TimestamptzValue::Null {
         return BoolValue::Null;
@@ -138,15 +156,17 @@ pub fn sql__pg_catalog__isfinite__cdmf(left: TimestamptzValue) -> BoolValue {
             left_value != -9223372036854775808i64 && left_value != 9223372036854775807i64,
         );
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__isfinite__4zxx(left: TimestampValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestampValue::Unknown = left { unresolved_flavor = 1; };
     if let TimestampValue::Error(error) = left {
         return BoolValue::Error(error);
     }
     if left == TimestampValue::Unknown {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if left == TimestampValue::Null {
         return BoolValue::Null;
@@ -156,13 +176,16 @@ pub fn sql__pg_catalog__isfinite__4zxx(left: TimestampValue) -> BoolValue {
             left_value != -9223372036854775808i64 && left_value != 9223372036854775807i64,
         );
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timestamp_cmp__lpkm(
     left: TimestampValue,
     right: TimestampValue,
 ) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestampValue::Unknown = left { unresolved_flavor = 1; };
+    if let TimestampValue::Unknown = right { unresolved_flavor = 1; };
     if let TimestampValue::Error(error) = left {
         return Int4Value::Error(error);
     }
@@ -170,7 +193,7 @@ pub fn sql__pg_catalog__timestamp_cmp__lpkm(
         return Int4Value::Error(error);
     }
     if left == TimestampValue::Unknown || right == TimestampValue::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if left == TimestampValue::Null || right == TimestampValue::Null {
         return Int4Value::Null;
@@ -180,15 +203,17 @@ pub fn sql__pg_catalog__timestamp_cmp__lpkm(
             return Int4Value::Value(temporal_compare(left_value, right_value));
         }
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timestamp_hash__71nv(left: TimestampValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestampValue::Unknown = left { unresolved_flavor = 1; };
     if let TimestampValue::Error(error) = left {
         return Int4Value::Error(error);
     }
     if left == TimestampValue::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if left == TimestampValue::Null {
         return Int4Value::Null;
@@ -196,13 +221,16 @@ pub fn sql__pg_catalog__timestamp_hash__71nv(left: TimestampValue) -> Int4Value 
     if let TimestampValue::Value(left_value) = left {
         return sql__pg_catalog__hashint8__3wid(Int8Value::Value(left_value));
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timestamp_hash_extended__xc4h(
     left: TimestampValue,
     right: Int8Value,
 ) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestampValue::Unknown = left { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = right { unresolved_flavor = 1; };
     if let TimestampValue::Error(error) = left {
         return Int8Value::Error(error);
     }
@@ -210,7 +238,7 @@ pub fn sql__pg_catalog__timestamp_hash_extended__xc4h(
         return Int8Value::Error(error);
     }
     if left == TimestampValue::Unknown || right == Int8Value::Unknown {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     }
     if left == TimestampValue::Null || right == Int8Value::Null {
         return Int8Value::Null;
@@ -223,13 +251,16 @@ pub fn sql__pg_catalog__timestamp_hash_extended__xc4h(
             );
         }
     }
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timestamp_larger__utuv(
     left: TimestampValue,
     right: TimestampValue,
 ) -> TimestampValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestampValue::Unknown = left { unresolved_flavor = 1; };
+    if let TimestampValue::Unknown = right { unresolved_flavor = 1; };
     if let TimestampValue::Error(error) = left {
         return TimestampValue::Error(error);
     }
@@ -237,7 +268,7 @@ pub fn sql__pg_catalog__timestamp_larger__utuv(
         return TimestampValue::Error(error);
     }
     if left == TimestampValue::Unknown || right == TimestampValue::Unknown {
-        return TimestampValue::Unknown;
+        return timestamp_unresolved(unresolved_flavor);
     }
     if left == TimestampValue::Null || right == TimestampValue::Null {
         return TimestampValue::Null;
@@ -250,13 +281,16 @@ pub fn sql__pg_catalog__timestamp_larger__utuv(
             return TimestampValue::Value(right_value);
         }
     }
-    TimestampValue::Unknown
+    timestamp_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timestamp_smaller__5aln(
     left: TimestampValue,
     right: TimestampValue,
 ) -> TimestampValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestampValue::Unknown = left { unresolved_flavor = 1; };
+    if let TimestampValue::Unknown = right { unresolved_flavor = 1; };
     if let TimestampValue::Error(error) = left {
         return TimestampValue::Error(error);
     }
@@ -264,7 +298,7 @@ pub fn sql__pg_catalog__timestamp_smaller__5aln(
         return TimestampValue::Error(error);
     }
     if left == TimestampValue::Unknown || right == TimestampValue::Unknown {
-        return TimestampValue::Unknown;
+        return timestamp_unresolved(unresolved_flavor);
     }
     if left == TimestampValue::Null || right == TimestampValue::Null {
         return TimestampValue::Null;
@@ -277,13 +311,16 @@ pub fn sql__pg_catalog__timestamp_smaller__5aln(
             return TimestampValue::Value(right_value);
         }
     }
-    TimestampValue::Unknown
+    timestamp_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timestamptz_cmp__ca0r(
     left: TimestamptzValue,
     right: TimestamptzValue,
 ) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestamptzValue::Unknown = left { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unknown = right { unresolved_flavor = 1; };
     if let TimestamptzValue::Error(error) = left {
         return Int4Value::Error(error);
     }
@@ -291,7 +328,7 @@ pub fn sql__pg_catalog__timestamptz_cmp__ca0r(
         return Int4Value::Error(error);
     }
     if left == TimestamptzValue::Unknown || right == TimestamptzValue::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if left == TimestamptzValue::Null || right == TimestamptzValue::Null {
         return Int4Value::Null;
@@ -301,15 +338,17 @@ pub fn sql__pg_catalog__timestamptz_cmp__ca0r(
             return Int4Value::Value(temporal_compare(left_value, right_value));
         }
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timestamptz_hash__usaa(left: TimestamptzValue) -> Int4Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestamptzValue::Unknown = left { unresolved_flavor = 1; };
     if let TimestamptzValue::Error(error) = left {
         return Int4Value::Error(error);
     }
     if left == TimestamptzValue::Unknown {
-        return Int4Value::Unknown;
+        return int4_unresolved(unresolved_flavor);
     }
     if left == TimestamptzValue::Null {
         return Int4Value::Null;
@@ -317,13 +356,16 @@ pub fn sql__pg_catalog__timestamptz_hash__usaa(left: TimestamptzValue) -> Int4Va
     if let TimestamptzValue::Value(left_value) = left {
         return sql__pg_catalog__hashint8__3wid(Int8Value::Value(left_value));
     }
-    Int4Value::Unknown
+    int4_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timestamptz_hash_extended__veri(
     left: TimestamptzValue,
     right: Int8Value,
 ) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestamptzValue::Unknown = left { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = right { unresolved_flavor = 1; };
     if let TimestamptzValue::Error(error) = left {
         return Int8Value::Error(error);
     }
@@ -331,7 +373,7 @@ pub fn sql__pg_catalog__timestamptz_hash_extended__veri(
         return Int8Value::Error(error);
     }
     if left == TimestamptzValue::Unknown || right == Int8Value::Unknown {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     }
     if left == TimestamptzValue::Null || right == Int8Value::Null {
         return Int8Value::Null;
@@ -344,13 +386,16 @@ pub fn sql__pg_catalog__timestamptz_hash_extended__veri(
             );
         }
     }
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timestamptz_larger__63cv(
     left: TimestamptzValue,
     right: TimestamptzValue,
 ) -> TimestamptzValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestamptzValue::Unknown = left { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unknown = right { unresolved_flavor = 1; };
     if let TimestamptzValue::Error(error) = left {
         return TimestamptzValue::Error(error);
     }
@@ -358,7 +403,7 @@ pub fn sql__pg_catalog__timestamptz_larger__63cv(
         return TimestamptzValue::Error(error);
     }
     if left == TimestamptzValue::Unknown || right == TimestamptzValue::Unknown {
-        return TimestamptzValue::Unknown;
+        return timestamptz_unresolved(unresolved_flavor);
     }
     if left == TimestamptzValue::Null || right == TimestamptzValue::Null {
         return TimestamptzValue::Null;
@@ -371,13 +416,16 @@ pub fn sql__pg_catalog__timestamptz_larger__63cv(
             return TimestamptzValue::Value(right_value);
         }
     }
-    TimestamptzValue::Unknown
+    timestamptz_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__timestamptz_smaller__lbk9(
     left: TimestamptzValue,
     right: TimestamptzValue,
 ) -> TimestamptzValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TimestamptzValue::Unknown = left { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unknown = right { unresolved_flavor = 1; };
     if let TimestamptzValue::Error(error) = left {
         return TimestamptzValue::Error(error);
     }
@@ -385,7 +433,7 @@ pub fn sql__pg_catalog__timestamptz_smaller__lbk9(
         return TimestamptzValue::Error(error);
     }
     if left == TimestamptzValue::Unknown || right == TimestamptzValue::Unknown {
-        return TimestamptzValue::Unknown;
+        return timestamptz_unresolved(unresolved_flavor);
     }
     if left == TimestamptzValue::Null || right == TimestamptzValue::Null {
         return TimestamptzValue::Null;
@@ -398,5 +446,5 @@ pub fn sql__pg_catalog__timestamptz_smaller__lbk9(
             return TimestamptzValue::Value(right_value);
         }
     }
-    TimestamptzValue::Unknown
+    timestamptz_unresolved(unresolved_flavor)
 }

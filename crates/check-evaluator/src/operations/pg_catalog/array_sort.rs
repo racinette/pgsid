@@ -165,6 +165,8 @@ pub(crate) fn array_sort_element_at(
     index: Int4Value,
     right: bool,
 ) -> ArrayElement {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = index { unresolved_flavor = 1; };
     let mut row = input.left;
     if right {
         row = input.right;
@@ -177,7 +179,7 @@ pub(crate) fn array_sort_element_at(
     };
     let row_index = usize::try_from(row).unwrap_or(input.order.len());
     if row_index >= input.order.len() {
-        return ArrayElement::Unknown;
+        return array_element_unresolved(unresolved_flavor);
     };
     if let Int4Value::Value(column) = index {
         let offset = (input.order[row_index] as i32) * input.width + column;
@@ -186,7 +188,7 @@ pub(crate) fn array_sort_element_at(
             return input.elements[position].clone();
         };
     };
-    ArrayElement::Unknown
+    array_element_unresolved(unresolved_flavor)
 }
 
 pub(crate) fn array_sort_cell_pair(
@@ -633,6 +635,7 @@ fn array_sort_same_element(left: ArrayElement, right: ArrayElement) -> bool {
 }
 
 pub(crate) fn finish_array_sort(input: ArraySortPayload) -> ArrayValue {
+    let unresolved_flavor: i32 = 0;
     if input.state == -2 {
         return ArrayValue::Error(input.error);
     };
@@ -640,7 +643,7 @@ pub(crate) fn finish_array_sort(input: ArraySortPayload) -> ArrayValue {
         return ArrayValue::Null;
     };
     if input.state == -1 {
-        return ArrayValue::Unknown;
+        return array_unresolved(unresolved_flavor);
     };
     if input.state == 2 {
         return make_array_value(ArrayPayload {
@@ -711,7 +714,7 @@ pub(crate) fn finish_array_sort(input: ArraySortPayload) -> ArrayValue {
             start = end;
         }
     } else {
-        return ArrayValue::Unknown;
+        return array_unresolved(unresolved_flavor);
     };
     make_array_value(ArrayPayload {
         null_bitmap: input.null_bitmap,

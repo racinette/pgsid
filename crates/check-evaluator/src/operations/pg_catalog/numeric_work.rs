@@ -225,8 +225,9 @@ fn numeric_work_rounded(work: NumericWork, scale: i32, mode: i32) -> NumericWork
 }
 
 fn numeric_work_round(work: NumericWork, requested: i32, mode: i32) -> NumericValue {
+    let unresolved_flavor: i32 = 0;
     if work.valid == false {
-        return NumericValue::Unknown;
+        return numeric_unresolved(unresolved_flavor);
     }
     if work.special != 1 {
         return NumericValue::Value(numeric_work_text(work));

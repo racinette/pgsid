@@ -1,4 +1,7 @@
 pub fn sql__pg_catalog__int8pl__1v1h(left: Int8Value, right: Int8Value) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = left { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = right { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = left {
         return Int8Value::Error(error);
     }
@@ -9,7 +12,7 @@ pub fn sql__pg_catalog__int8pl__1v1h(left: Int8Value, right: Int8Value) -> Int8V
         return Int8Value::Null;
     }
     if left == Int8Value::Unknown || right == Int8Value::Unknown {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     }
     if let Int8Value::Value(left_value) = left {
         if let Int8Value::Value(right_value) = right {
@@ -22,10 +25,13 @@ pub fn sql__pg_catalog__int8pl__1v1h(left: Int8Value, right: Int8Value) -> Int8V
             return Int8Value::Value(left_value + right_value);
         }
     }
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__int8mi__jasl(left: Int8Value, right: Int8Value) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = left { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = right { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = left {
         return Int8Value::Error(error);
     }
@@ -36,7 +42,7 @@ pub fn sql__pg_catalog__int8mi__jasl(left: Int8Value, right: Int8Value) -> Int8V
         return Int8Value::Null;
     }
     if left == Int8Value::Unknown || right == Int8Value::Unknown {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     }
     if let Int8Value::Value(left_value) = left {
         if let Int8Value::Value(right_value) = right {
@@ -49,7 +55,7 @@ pub fn sql__pg_catalog__int8mi__jasl(left: Int8Value, right: Int8Value) -> Int8V
             return Int8Value::Value(left_value - right_value);
         }
     }
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__int8um__cthl(input: Int8Value) -> Int8Value {
@@ -120,6 +126,9 @@ pub fn sql__pg_catalog__int84mi__867a(left: Int8Value, right: Int4Value) -> Int8
 }
 
 pub fn sql__pg_catalog__int8mul__6t1m(left: Int8Value, right: Int8Value) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = left { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = right { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = left {
         return Int8Value::Error(error);
     }
@@ -130,7 +139,7 @@ pub fn sql__pg_catalog__int8mul__6t1m(left: Int8Value, right: Int8Value) -> Int8
         return Int8Value::Null;
     }
     if left == Int8Value::Unknown || right == Int8Value::Unknown {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     }
     if let Int8Value::Value(left_value) = left {
         if let Int8Value::Value(right_value) = right {
@@ -161,10 +170,13 @@ pub fn sql__pg_catalog__int8mul__6t1m(left: Int8Value, right: Int8Value) -> Int8
             return Int8Value::Value(left_value * right_value);
         }
     }
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__int8div__8s66(left: Int8Value, right: Int8Value) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = left { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = right { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = left {
         return Int8Value::Error(error);
     }
@@ -175,7 +187,7 @@ pub fn sql__pg_catalog__int8div__8s66(left: Int8Value, right: Int8Value) -> Int8
         return Int8Value::Null;
     }
     if left == Int8Value::Unknown || right == Int8Value::Unknown {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     }
     if let Int8Value::Value(left_value) = left {
         if let Int8Value::Value(right_value) = right {
@@ -188,10 +200,13 @@ pub fn sql__pg_catalog__int8div__8s66(left: Int8Value, right: Int8Value) -> Int8
             return Int8Value::Value(left_value / right_value);
         }
     }
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__int8mod__2t8f(left: Int8Value, right: Int8Value) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = left { unresolved_flavor = 1; };
+    if let Int8Value::Unknown = right { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = left {
         return Int8Value::Error(error);
     }
@@ -202,7 +217,7 @@ pub fn sql__pg_catalog__int8mod__2t8f(left: Int8Value, right: Int8Value) -> Int8
         return Int8Value::Null;
     }
     if left == Int8Value::Unknown || right == Int8Value::Unknown {
-        return Int8Value::Unknown;
+        return int8_unresolved(unresolved_flavor);
     }
     if let Int8Value::Value(left_value) = left {
         if let Int8Value::Value(right_value) = right {
@@ -215,7 +230,7 @@ pub fn sql__pg_catalog__int8mod__2t8f(left: Int8Value, right: Int8Value) -> Int8
             return Int8Value::Value(left_value % right_value);
         }
     }
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__int28mul__lmrp(left: Int2Value, right: Int8Value) -> Int8Value {

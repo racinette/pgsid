@@ -4,6 +4,10 @@ fn regex_boolean(
     flags: TextValue,
     negate: bool,
 ) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = subject { unresolved_flavor = 1; };
+    if let TextValue::Unknown = pattern { unresolved_flavor = 1; };
+    if let TextValue::Unknown = flags { unresolved_flavor = 1; };
     if let TextValue::Error(error) = subject {
         return BoolValue::Error(error);
     }
@@ -15,7 +19,7 @@ fn regex_boolean(
     }
     if (subject == TextValue::Unknown || subject == TextValue::NonNull) || (pattern == TextValue::Unknown || pattern == TextValue::NonNull) || (flags == TextValue::Unknown || flags == TextValue::NonNull)
     {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     }
     if subject == TextValue::Null || pattern == TextValue::Null || flags == TextValue::Null {
         return BoolValue::Null;
@@ -37,13 +41,13 @@ fn regex_boolean(
                     return BoolValue::Error(make_sql_error(SQLSTATE_INVALID_REGEX));
                 }
                 if result == MatchOutcome::Uncertain {
-                    return BoolValue::Unknown;
+                    return bool_unresolved(unresolved_flavor);
                 }
                 return BoolValue::Value((result != MatchOutcome::NoMatch) != negate);
             }
         }
     }
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 
 pub fn sql__pg_catalog__bpcharicregexeq__9nfg(subject: TextValue, pattern: TextValue) -> BoolValue {

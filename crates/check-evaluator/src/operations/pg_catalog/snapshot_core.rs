@@ -13,6 +13,8 @@ fn snapshot_text_append_fits(current: usize, digits: usize, separator: bool) -> 
     digits <= 1073741822 - position
 }
 pub fn snapshot_to_text(input: SnapshotValue) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let SnapshotValue::Unknown = input { unresolved_flavor = 1; };
     if let SnapshotValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -58,9 +60,11 @@ pub fn snapshot_to_text(input: SnapshotValue) -> TextValue {
         }
         return TextValue::Value(output);
     };
-    TextValue::Unknown
+    text_unresolved(unresolved_flavor)
 }
 fn snapshot_send(input: SnapshotValue) -> ByteaValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let SnapshotValue::Unknown = input { unresolved_flavor = 1; };
     if let SnapshotValue::Error(error) = input {
         return ByteaValue::Error(error);
     };
@@ -82,9 +86,11 @@ fn snapshot_send(input: SnapshotValue) -> ByteaValue {
         }
         return ByteaValue::Value(output);
     };
-    ByteaValue::Unknown
+    bytea_unresolved(unresolved_flavor)
 }
 fn snapshot_bound(input: SnapshotValue, maximum: bool) -> Int8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let SnapshotValue::Unknown = input { unresolved_flavor = 1; };
     if let SnapshotValue::Error(error) = input {
         return Int8Value::Error(error);
     };
@@ -97,9 +103,11 @@ fn snapshot_bound(input: SnapshotValue, maximum: bool) -> Int8Value {
         };
         return make_int8_value(payload.xmin);
     };
-    Int8Value::Unknown
+    int8_unresolved(unresolved_flavor)
 }
 fn snapshot_xid_bound(input: SnapshotValue, maximum: bool) -> Xid8Value {
+    let mut unresolved_flavor: i32 = 0;
+    if let SnapshotValue::Unknown = input { unresolved_flavor = 1; };
     let bound = snapshot_bound(input, maximum);
     if let Int8Value::Error(error) = bound {
         return Xid8Value::Error(error);
@@ -110,9 +118,12 @@ fn snapshot_xid_bound(input: SnapshotValue, maximum: bool) -> Xid8Value {
     if let Int8Value::Value(bits) = bound {
         return make_xid8_bits(bits);
     };
-    Xid8Value::Unknown
+    xid8_unresolved(unresolved_flavor)
 }
 fn snapshot_visible(value: Int8Value, snapshot: SnapshotValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = value { unresolved_flavor = 1; };
+    if let SnapshotValue::Unknown = snapshot { unresolved_flavor = 1; };
     if let Int8Value::Error(error) = value {
         return BoolValue::Error(error);
     };
@@ -120,10 +131,10 @@ fn snapshot_visible(value: Int8Value, snapshot: SnapshotValue) -> BoolValue {
         return BoolValue::Error(error);
     };
     if let Int8Value::Unknown = value {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if let SnapshotValue::Unknown = snapshot {
-        return BoolValue::Unknown;
+        return bool_unresolved(unresolved_flavor);
     };
     if let Int8Value::Null = value {
         return BoolValue::Null;
@@ -149,7 +160,7 @@ fn snapshot_visible(value: Int8Value, snapshot: SnapshotValue) -> BoolValue {
             return make_bool_value(true);
         };
     };
-    BoolValue::Unknown
+    bool_unresolved(unresolved_flavor)
 }
 pub fn sql__pg_catalog__pg_snapshot_send__ux8s(input: SnapshotValue) -> ByteaValue {
     snapshot_send(input)
