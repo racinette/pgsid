@@ -20,7 +20,7 @@ fn float8_trigonometry(input: Float8Value, fdlibm: bool, cosine: bool) -> Float8
             return Float8Value::Error(make_sql_error(FLOAT_CORE_RANGE));
         };
         if fdlibm == false || circle_math_high_word(magnitude) >= 1094263291 {
-            return float8_unresolved(unresolved_flavor);
+            return float8_unresolved(resolution_context(unresolved_flavor));
         };
         let mut result = circle_trigonometry(magnitude, cosine);
         if cosine == false && bits < 0i64 {
@@ -89,7 +89,7 @@ fn float8_degree_trigonometry(input: Float8Value, fdlibm: bool, cosine: bool) ->
             return Float8Value::Error(make_sql_error(FLOAT_CORE_RANGE));
         };
         if fdlibm == false {
-            return float8_unresolved(unresolved_flavor);
+            return float8_unresolved(resolution_context(unresolved_flavor));
         };
         let mut angle = float8_fmod_360(number);
         let mut sign = 1.0f64;
@@ -218,7 +218,7 @@ fn float8_tangent(input: Float8Value, fdlibm: bool, cotangent: bool) -> Float8Va
         };
         let high = circle_math_high_word(magnitude);
         if fdlibm == false || high >= 1094263291 {
-            return float8_unresolved(unresolved_flavor);
+            return float8_unresolved(resolution_context(unresolved_flavor));
         };
         let mut result = magnitude;
         if high <= 1072243195 {
@@ -284,7 +284,7 @@ fn float8_degree_tangent(input: Float8Value, fdlibm: bool, cotangent: bool) -> F
             return Float8Value::Error(make_sql_error(FLOAT_CORE_RANGE));
         };
         if fdlibm == false {
-            return float8_unresolved(unresolved_flavor);
+            return float8_unresolved(resolution_context(unresolved_flavor));
         };
         let mut angle = float8_fmod_360(number);
         let mut sign = 1.0f64;

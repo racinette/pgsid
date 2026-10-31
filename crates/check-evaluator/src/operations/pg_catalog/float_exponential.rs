@@ -982,7 +982,7 @@ pub fn sql__pg_catalog__dexp__we7o(input: Float8Value, musl: bool) -> Float8Valu
             return make_float8_value(0.0f64);
         };
         if musl == false {
-            return float8_unresolved(unresolved_flavor);
+            return float8_unresolved(resolution_context(unresolved_flavor));
         };
         let result = musl_exp(number);
         if result.abs() == 1.0f64 / 0.0f64 || result == 0.0f64 {
@@ -1018,7 +1018,7 @@ pub fn sql__pg_catalog__dlog1__6b2t(input: Float8Value, musl: bool) -> Float8Val
             return input;
         };
         if musl == false {
-            return float8_unresolved(unresolved_flavor);
+            return float8_unresolved(resolution_context(unresolved_flavor));
         };
         return make_float8_value(musl_log(number));
     };
@@ -1098,7 +1098,7 @@ pub fn sql__pg_catalog__dlog10__uzhv(input: Float8Value, musl: bool) -> Float8Va
             return input;
         };
         if musl == false {
-            return float8_unresolved(unresolved_flavor);
+            return float8_unresolved(resolution_context(unresolved_flavor));
         };
         return make_float8_value(musl_log10(number));
     };
@@ -1177,7 +1177,7 @@ pub fn sql__pg_catalog__dcbrt__qu0u(input: Float8Value, musl: bool) -> Float8Val
             return input;
         };
         if musl == false {
-            return float8_unresolved(unresolved_flavor);
+            return float8_unresolved(resolution_context(unresolved_flavor));
         };
         return make_float8_value(musl_cbrt(number));
     };
@@ -1884,7 +1884,7 @@ pub fn sql__pg_catalog__dpow__anie(
                 return make_float8_value(0.0f64);
             };
             if musl == false {
-                return float8_unresolved(unresolved_flavor);
+                return float8_unresolved(resolution_context(unresolved_flavor));
             };
             let result = musl_pow(x, y);
             if result != result {
@@ -1896,7 +1896,7 @@ pub fn sql__pg_catalog__dpow__anie(
             return make_float8_value(result);
         };
     };
-    float8_unresolved(unresolved_flavor)
+    let mut local_flavor_1899_4: i32 = unresolved_flavor; if let Float8Value::Unknown = known_right { if local_flavor_1899_4 < 1 { local_flavor_1899_4 = 1; }; }; if let Float8Value::Unimplemented = known_right { local_flavor_1899_4 = 2; }; if let Float8Value::Unknown = known_left { if local_flavor_1899_4 < 1 { local_flavor_1899_4 = 1; }; }; if let Float8Value::Unimplemented = known_left { local_flavor_1899_4 = 2; }; float8_unresolved(local_flavor_1899_4)
 }
 
 pub fn sql__pg_catalog__pow__hjab(

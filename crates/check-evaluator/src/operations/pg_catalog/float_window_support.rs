@@ -95,7 +95,7 @@ fn float_in_range(
             };
         };
     };
-    bool_unresolved(unresolved_flavor)
+    let mut local_flavor_98_4: i32 = unresolved_flavor; if let Float8Value::Unknown = known_offset { if local_flavor_98_4 < 1 { local_flavor_98_4 = 1; }; }; if let Float8Value::Unimplemented = known_offset { local_flavor_98_4 = 2; }; if let Float8Value::Unknown = known_base { if local_flavor_98_4 < 1 { local_flavor_98_4 = 1; }; }; if let Float8Value::Unimplemented = known_base { local_flavor_98_4 = 2; }; if let Float8Value::Unknown = known_value { if local_flavor_98_4 < 1 { local_flavor_98_4 = 1; }; }; if let Float8Value::Unimplemented = known_value { local_flavor_98_4 = 2; }; bool_unresolved(local_flavor_98_4)
 }
 
 pub fn sql__pg_catalog__in_range__t6r5(
@@ -227,7 +227,7 @@ pub fn sql__pg_catalog__width_bucket__wbi9(
             };
         };
     };
-    int4_unresolved(unresolved_flavor)
+    let mut local_flavor_230_4: i32 = unresolved_flavor; if let Float8Value::Unknown = known_upper { if local_flavor_230_4 < 1 { local_flavor_230_4 = 1; }; }; if let Float8Value::Unimplemented = known_upper { local_flavor_230_4 = 2; }; if let Float8Value::Unknown = known_lower { if local_flavor_230_4 < 1 { local_flavor_230_4 = 1; }; }; if let Float8Value::Unimplemented = known_lower { local_flavor_230_4 = 2; }; if let Float8Value::Unknown = known_operand { if local_flavor_230_4 < 1 { local_flavor_230_4 = 1; }; }; if let Float8Value::Unimplemented = known_operand { local_flavor_230_4 = 2; }; int4_unresolved(local_flavor_230_4)
 }
 
 // regr_count's transition function counts rows whose two arguments are both non-null; the

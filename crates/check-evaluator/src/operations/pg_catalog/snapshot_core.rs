@@ -122,7 +122,7 @@ fn snapshot_xid_bound(input: SnapshotValue, maximum: bool) -> Xid8Value {
     if let Int8Value::Value(bits) = bound {
         return make_xid8_bits(bits);
     };
-    xid8_unresolved(unresolved_flavor)
+    let mut local_flavor_125_4: i32 = unresolved_flavor; if let Int8Value::Unknown = bound { if local_flavor_125_4 < 1 { local_flavor_125_4 = 1; }; }; if let Int8Value::Unimplemented = bound { local_flavor_125_4 = 2; }; xid8_unresolved(local_flavor_125_4)
 }
 fn snapshot_visible(value: Int8Value, snapshot: SnapshotValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;

@@ -336,7 +336,7 @@ fn multirange_search_span(
                         };
                     };
                     if decided == false {
-                        return bool_unresolved(unresolved_flavor);
+                        let mut local_flavor_339_24: i32 = unresolved_flavor; if let Int4Value::Unknown = after { if local_flavor_339_24 < 1 { local_flavor_339_24 = 1; }; }; if let Int4Value::Unimplemented = after { local_flavor_339_24 = 2; }; return bool_unresolved(local_flavor_339_24);
                     };
                 };
             };
@@ -369,7 +369,7 @@ fn multirange_span_contains(input: &MultirangePayload, span: &RangePayload) -> B
         let hi = multirange_endpoint_order(range_copy_payload(span), true, last, true);
         return range_order_boolean(hi, 4);
     };
-    bool_unresolved(unresolved_flavor)
+    let mut local_flavor_372_4: i32 = unresolved_flavor; if let Int4Value::Unknown = lo { if local_flavor_372_4 < 1 { local_flavor_372_4 = 1; }; }; if let Int4Value::Unimplemented = lo { local_flavor_372_4 = 2; }; bool_unresolved(local_flavor_372_4)
 }
 
 fn multirange_span_relation(

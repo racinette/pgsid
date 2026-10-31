@@ -123,7 +123,7 @@ fn json_read_decode_string_context(
                         return TextValue::Error(make_sql_error(JSON_READ_ZERO));
                     };
                     if code > 127 && utf8 == false {
-                        return text_unresolved(unresolved_flavor);
+                        return text_unresolved(resolution_context(unresolved_flavor));
                     };
                     output.push(char::from_u32(code as u32).unwrap_or(' '));
                 };

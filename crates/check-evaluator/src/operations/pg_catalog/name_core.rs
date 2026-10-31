@@ -49,7 +49,7 @@ fn name_relation(left: TextValue, right: TextValue, mode: i32) -> BoolValue {
         if mode == 4 { return make_bool_value(value > 0); };
         return make_bool_value(value >= 0);
     };
-    bool_unresolved(unresolved_flavor)
+    let mut local_flavor_52_4: i32 = unresolved_flavor; if let Int4Value::Unknown = order { if local_flavor_52_4 < 1 { local_flavor_52_4 = 1; }; }; if let Int4Value::Unimplemented = order { local_flavor_52_4 = 2; }; bool_unresolved(local_flavor_52_4)
 }
 pub fn sql__pg_catalog__bpchar__8cer(input: TextValue) -> TextValue { input }
 pub fn sql__pg_catalog__hashname__vua3(input: TextValue, byte_order: i32, utf8: bool) -> Int4Value {
@@ -99,7 +99,7 @@ pub fn name_from_text_context(input: TextValue, limit: i32, utf8: bool) -> TextV
             let characters: Vec<char> = value.chars().collect();
             let mut position: usize = 0;
             while position < characters.len() {
-                if characters[position] as i32 >= 128 { return text_unresolved(unresolved_flavor); };
+                if characters[position] as i32 >= 128 { return text_unresolved(resolution_context(unresolved_flavor)); };
                 position += 1;
             }
         };

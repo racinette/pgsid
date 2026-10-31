@@ -46,7 +46,7 @@ fn regex_array_value(
                     return ArrayValue::Error(make_sql_error(REGEX_PARAMETER_ERROR));
                 };
                 if c_collation == false {
-                    return array_unresolved(unresolved_flavor);
+                    return array_unresolved(resolution_context(unresolved_flavor));
                 };
                 let characters = RegexArraySource {
                     characters: source.chars().collect(),

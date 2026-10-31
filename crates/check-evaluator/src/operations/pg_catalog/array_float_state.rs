@@ -68,7 +68,7 @@ fn float_state_arithmetic(left: Float8Value, right: Float8Value, operation: i32)
             return float_state_result(result);
         };
     };
-    float8_unresolved(unresolved_flavor)
+    let mut local_flavor_71_4: i32 = unresolved_flavor; if let Float8Value::Unknown = second { if local_flavor_71_4 < 1 { local_flavor_71_4 = 1; }; }; if let Float8Value::Unimplemented = second { local_flavor_71_4 = 2; }; if let Float8Value::Unknown = first { if local_flavor_71_4 < 1 { local_flavor_71_4 = 1; }; }; if let Float8Value::Unimplemented = first { local_flavor_71_4 = 2; }; float8_unresolved(local_flavor_71_4)
 }
 
 fn float_state_is_zero(input: Float8Value) -> bool {
@@ -185,7 +185,7 @@ fn float_array_final(input: ArrayValue, operation: i32) -> Float8Value {
                     let denominator = float_state_arithmetic(sxx, syy, 2);
                     return float_state_arithmetic(numerator, denominator, 3);
                 };
-                return float8_unresolved(unresolved_flavor);
+                let mut local_flavor_188_16: i32 = unresolved_flavor; if let Float8Value::Unknown = known_sxx { if local_flavor_188_16 < 1 { local_flavor_188_16 = 1; }; }; if let Float8Value::Unimplemented = known_sxx { local_flavor_188_16 = 2; }; if let Float8Value::Unknown = sxy { if local_flavor_188_16 < 1 { local_flavor_188_16 = 1; }; }; if let Float8Value::Unimplemented = sxy { local_flavor_188_16 = 2; }; if let Float8Value::Unknown = sxx { if local_flavor_188_16 < 1 { local_flavor_188_16 = 1; }; }; if let Float8Value::Unimplemented = sxx { local_flavor_188_16 = 2; }; if let Float8Value::Unknown = count { if local_flavor_188_16 < 1 { local_flavor_188_16 = 1; }; }; if let Float8Value::Unimplemented = count { local_flavor_188_16 = 2; }; if let BoolValue::Unknown = validity { if local_flavor_188_16 < 1 { local_flavor_188_16 = 1; }; }; if let BoolValue::Unimplemented = validity { local_flavor_188_16 = 2; }; return float8_unresolved(local_flavor_188_16);
             };
             if operation == 14 {
                 return float_state_arithmetic(sxy, sxx, 3);

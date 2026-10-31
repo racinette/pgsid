@@ -184,7 +184,7 @@ fn path_axis_crossing(x: f64, y: f64, previous_x: f64, previous_y: f64) -> Int4V
         };
         return make_int4_value(2 * direction);
     };
-    int4_unresolved(unresolved_flavor)
+    let mut local_flavor_187_4: i32 = unresolved_flavor; if let Float8Value::Unknown = known_difference { if local_flavor_187_4 < 1 { local_flavor_187_4 = 1; }; }; if let Float8Value::Unimplemented = known_difference { local_flavor_187_4 = 2; }; if let Float8Value::Unknown = difference { if local_flavor_187_4 < 1 { local_flavor_187_4 = 1; }; }; if let Float8Value::Unimplemented = difference { local_flavor_187_4 = 2; }; if let Float8Value::Unknown = second { if local_flavor_187_4 < 1 { local_flavor_187_4 = 1; }; }; if let Float8Value::Unimplemented = second { local_flavor_187_4 = 2; }; if let Float8Value::Unknown = first { if local_flavor_187_4 < 1 { local_flavor_187_4 = 1; }; }; if let Float8Value::Unimplemented = first { local_flavor_187_4 = 2; }; int4_unresolved(local_flavor_187_4)
 }
 fn closed_path_contains(point: PointPayload, path: &PathPayload) -> BoolValue {
     let unresolved_flavor: i32 = 0;
@@ -230,7 +230,7 @@ fn closed_path_contains(point: PointPayload, path: &PathPayload) -> BoolValue {
                     crossing_known = true;
                 };
                 if crossing_known == false {
-                    return bool_unresolved(unresolved_flavor);
+                    let mut local_flavor_233_20: i32 = unresolved_flavor; if let Int4Value::Unknown = cross { if local_flavor_233_20 < 1 { local_flavor_233_20 = 1; }; }; if let Int4Value::Unimplemented = cross { local_flavor_233_20 = 2; }; return bool_unresolved(local_flavor_233_20);
                 };
                 previous = current;
                 advanced = true;
@@ -242,7 +242,7 @@ fn closed_path_contains(point: PointPayload, path: &PathPayload) -> BoolValue {
         }
         return make_bool_value(total != 0);
     };
-    bool_unresolved(unresolved_flavor)
+    let mut local_flavor_245_4: i32 = unresolved_flavor; if let PointValue::Unknown = first { if local_flavor_245_4 < 1 { local_flavor_245_4 = 1; }; }; if let PointValue::Unimplemented = first { local_flavor_245_4 = 2; }; bool_unresolved(local_flavor_245_4)
 }
 pub fn sql__pg_catalog__on_ppath__8fo6(point: PointValue, input: PathValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
@@ -312,7 +312,7 @@ pub fn sql__pg_catalog__on_ppath__8fo6(point: PointValue, input: PathValue) -> B
                     };
                 };
                 if compared == false {
-                    return bool_unresolved(unresolved_flavor);
+                    let mut local_flavor_315_20: i32 = unresolved_flavor; if let Float8Value::Unknown = known_sum { if local_flavor_315_20 < 1 { local_flavor_315_20 = 1; }; }; if let Float8Value::Unimplemented = known_sum { local_flavor_315_20 = 2; }; if let Float8Value::Unknown = edge { if local_flavor_315_20 < 1 { local_flavor_315_20 = 1; }; }; if let Float8Value::Unimplemented = edge { local_flavor_315_20 = 2; }; if let Float8Value::Unknown = sum { if local_flavor_315_20 < 1 { local_flavor_315_20 = 1; }; }; if let Float8Value::Unimplemented = sum { local_flavor_315_20 = 2; }; if let Float8Value::Unknown = next { if local_flavor_315_20 < 1 { local_flavor_315_20 = 1; }; }; if let Float8Value::Unimplemented = next { local_flavor_315_20 = 2; }; if let Float8Value::Unknown = previous { if local_flavor_315_20 < 1 { local_flavor_315_20 = 1; }; }; if let Float8Value::Unimplemented = previous { local_flavor_315_20 = 2; }; return bool_unresolved(local_flavor_315_20);
                 };
                 previous = next;
                 index += 1;

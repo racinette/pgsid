@@ -206,7 +206,7 @@ fn geometric_hypot(first: Float8Value, second: Float8Value) -> Float8Value {
             return make_float8_value(result);
         };
     };
-    float8_unresolved(unresolved_flavor)
+    let mut local_flavor_209_4: i32 = unresolved_flavor; if let Float8Value::Unknown = known_second { if local_flavor_209_4 < 1 { local_flavor_209_4 = 1; }; }; if let Float8Value::Unimplemented = known_second { local_flavor_209_4 = 2; }; if let Float8Value::Unknown = known_first { if local_flavor_209_4 < 1 { local_flavor_209_4 = 1; }; }; if let Float8Value::Unimplemented = known_first { local_flavor_209_4 = 2; }; float8_unresolved(local_flavor_209_4)
 }
 fn point_measurement(left: PointValue, right: PointValue, slope: bool) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;

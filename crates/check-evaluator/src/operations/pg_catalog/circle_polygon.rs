@@ -66,7 +66,7 @@ pub fn sql__pg_catalog__polygon__9juc(
                 return polygon_unresolved(condition_flavor_65_12);
             };
             if fdlibm == false {
-                return polygon_unresolved(unresolved_flavor);
+                return polygon_unresolved(resolution_context(unresolved_flavor));
             };
             let mut points: Vec<PointPayload> = Vec::new();
             if let PointValue::Value(point) = first {

@@ -190,7 +190,7 @@ fn clock_date_timestamp(date: DateValue, clock: TimeValue) -> TimestampValue {
             return make_timestamp_value(midnight + time);
         }
     }
-    timestamp_unresolved(unresolved_flavor)
+    let mut local_flavor_193_4: i32 = unresolved_flavor; if let TimestampValue::Unknown = base { if local_flavor_193_4 < 1 { local_flavor_193_4 = 1; }; }; if let TimestampValue::Unimplemented = base { local_flavor_193_4 = 2; }; timestamp_unresolved(local_flavor_193_4)
 }
 fn clock_date_timestamptz(date: DateValue, clock: TimetzValue) -> TimestamptzValue {
     let mut unresolved_flavor: i32 = 0;
@@ -222,7 +222,7 @@ fn clock_date_timestamptz(date: DateValue, clock: TimetzValue) -> TimestamptzVal
             return make_timestamptz_value(midnight + time.time + (time.zone as i64) * 1000000i64);
         }
     }
-    timestamptz_unresolved(unresolved_flavor)
+    let mut local_flavor_225_4: i32 = unresolved_flavor; if let TimestampValue::Unknown = base { if local_flavor_225_4 < 1 { local_flavor_225_4 = 1; }; }; if let TimestampValue::Unimplemented = base { local_flavor_225_4 = 2; }; timestamptz_unresolved(local_flavor_225_4)
 }
 pub fn sql__pg_catalog__timestamp__4biu(date: DateValue, clock: TimeValue) -> TimestampValue {
     clock_date_timestamp(date, clock)

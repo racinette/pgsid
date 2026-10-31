@@ -1749,7 +1749,7 @@ pub fn sql__pg_catalog__to_char__b68b(
             return number_format_float(bits, false, format.as_str(), numeric_c, monetary_c);
         };
     };
-    text_unresolved(unresolved_flavor)
+    let mut local_flavor_1752_4: i32 = unresolved_flavor; if let Float8Value::Unknown = known { if local_flavor_1752_4 < 1 { local_flavor_1752_4 = 1; }; }; if let Float8Value::Unimplemented = known { local_flavor_1752_4 = 2; }; text_unresolved(local_flavor_1752_4)
 }
 
 pub fn sql__pg_catalog__to_char__1rcw(

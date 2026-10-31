@@ -222,7 +222,7 @@ fn array_storage_missing_bitmap(input: &ArrayPayload) -> BoolValue {
     let unresolved_flavor: i32 = 0;
     let elements = array_elements_bitmap(input);
     if elements == BoolValue::Value(true) { return elements; };
-    bool_unresolved(unresolved_flavor)
+    let mut local_flavor_225_4: i32 = unresolved_flavor; if let BoolValue::Unknown = elements { if local_flavor_225_4 < 1 { local_flavor_225_4 = 1; }; }; if let BoolValue::Unimplemented = elements { local_flavor_225_4 = 2; }; bool_unresolved(local_flavor_225_4)
 }
 
 pub fn forget_array_storage(input: ArrayElement) -> ArrayElement {

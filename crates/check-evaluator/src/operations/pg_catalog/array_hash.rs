@@ -33,7 +33,7 @@ pub fn array_hash_cell64(nullness: BoolValue) -> Int8Value {
     if let Int4Value::Value(value) = state {
         return Int8Value::Value(value as i64);
     };
-    int8_unresolved(unresolved_flavor)
+    let mut local_flavor_36_4: i32 = unresolved_flavor; if let Int4Value::Unknown = state { if local_flavor_36_4 < 1 { local_flavor_36_4 = 1; }; }; if let Int4Value::Unimplemented = state { local_flavor_36_4 = 2; }; int8_unresolved(local_flavor_36_4)
 }
 
 pub fn array_hash_requires_scalar32(input: Int4Value) -> bool {
@@ -111,7 +111,8 @@ pub fn array_hash_finish32(first: Int4Value, second: Int4Value) -> Int4Value {
     if first == second {
         return first;
     };
-    int4_unresolved(unresolved_flavor)
+    // Known alternatives differ only by the server's undeclared native byte order.
+    int4_unresolved(resolution_context(unresolved_flavor))
 }
 
 pub fn array_hash_finish64(first: Int8Value, second: Int8Value) -> Int8Value {
@@ -129,7 +130,8 @@ pub fn array_hash_finish64(first: Int8Value, second: Int8Value) -> Int8Value {
     if first == second {
         return first;
     };
-    int8_unresolved(unresolved_flavor)
+    // Known alternatives differ only by the server's undeclared native byte order.
+    int8_unresolved(resolution_context(unresolved_flavor))
 }
 
 pub fn sql__pg_catalog__hash_array__bk1m(input: Int4Value) -> Int4Value {

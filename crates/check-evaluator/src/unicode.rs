@@ -312,7 +312,7 @@ pub fn unicode_normalized_text(value: String, form: i32) -> BoolValue {
     if let TextValue::Value(text) = normalized {
         return BoolValue::Value(text == value);
     }
-    bool_unresolved(unresolved_flavor)
+    let mut local_flavor_315_4: i32 = unresolved_flavor; if let BoolValue::Unknown = input_size { if local_flavor_315_4 < 1 { local_flavor_315_4 = 1; }; }; if let BoolValue::Unimplemented = input_size { local_flavor_315_4 = 2; }; bool_unresolved(local_flavor_315_4)
 }
 
 pub fn unicode_text_assigned(value: String) -> bool {

@@ -61,5 +61,5 @@ pub fn sql__pg_catalog__to_timestamp__kymq(input: Float8Value) -> TimestamptzVal
             return make_timestamptz_value(value);
         };
     };
-    timestamptz_unresolved(unresolved_flavor)
+    let mut local_flavor_64_4: i32 = unresolved_flavor; if let Float8Value::Unknown = semantic { if local_flavor_64_4 < 1 { local_flavor_64_4 = 1; }; }; if let Float8Value::Unimplemented = semantic { local_flavor_64_4 = 2; }; timestamptz_unresolved(local_flavor_64_4)
 }

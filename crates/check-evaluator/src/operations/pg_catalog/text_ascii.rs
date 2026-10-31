@@ -30,7 +30,7 @@ pub fn ascii_context(input: TextValue, utf8: bool) -> Int4Value {
     if utf8 == false {
         if let Int4Value::Value(code) = value {
             if code > 127 {
-                return int4_unresolved(unresolved_flavor);
+                return int4_unresolved(resolution_context(unresolved_flavor));
             }
         }
     }

@@ -5574,6 +5574,13 @@ func CheckUnresolved(flavor int) CheckOutcome {
 	}
 	return CheckOutcome{Kind: CheckOutcomeUnimplemented}
 }
+func ResolutionContext(flavor int) int {
+	flavor = langruntime.CheckedI32(flavor)
+	if flavor == 2 {
+		return 2
+	}
+	return 1
+}
 
 type NumericLayout struct {
 	Valid   bool
@@ -7138,7 +7145,7 @@ func jsonReadDecodeStringContext(source *jsonSyntaxSource, token jsonReadToken, 
 						return TextValue{Kind: TextValueError, Error: MakeSqlError(jsonReadZero)}
 					}
 					if code > 127 && utf8 == false {
-						return TextUnresolved(unresolvedFlavor)
+						return TextUnresolved(ResolutionContext(unresolvedFlavor))
 					}
 					output = append(output, string(langruntime.CheckedChar(langruntime.CharacterFromI32(code, ' ')))...)
 				}
@@ -13576,6 +13583,10 @@ func RangeSupportValid(input RangeSupport, kind int) bool {
 func RangeSupportIsCidr(input RangeSupport) bool {
 	return input.Comparison == 100 || input.Comparison == 113
 }
+func RangeComparisonUnavailable(comparison int) bool {
+	comparison = langruntime.CheckedI32(comparison)
+	return comparison == 0 || comparison == 100 || comparison == 120 || comparison == 200 || (comparison > 300 && comparison < 330)
+}
 func RangeSupportJsonbUtf8(input RangeSupport) bool {
 	return input.Comparison == 12 || input.Comparison == 120
 }
@@ -19376,7 +19387,16 @@ func arrayStorageMissingBitmap(input *ArrayPayload) BoolValue {
 	if elements == (BoolValue{Kind: BoolValueValue, Value: true}) {
 		return elements
 	}
-	return BoolUnresolved(unresolvedFlavor)
+	localFlavor2254 := unresolvedFlavor
+	if elements.Kind == BoolValueUnknown {
+		if localFlavor2254 < 1 {
+			localFlavor2254 = langruntime.CheckedI32(1)
+		}
+	}
+	if elements.Kind == BoolValueUnimplemented {
+		localFlavor2254 = langruntime.CheckedI32(2)
+	}
+	return BoolUnresolved(localFlavor2254)
 }
 func ForgetArrayStorage(input ArrayElement) ArrayElement {
 	input = CopyArrayElement(input)
@@ -20037,7 +20057,6 @@ func HashNative32(bytes []HashByte, byteOrder int, unit int) Int4Value {
 	bytes = langruntime.CheckedStructs(bytes, CopyHashByte)
 	byteOrder = langruntime.CheckedI32(byteOrder)
 	unit = langruntime.CheckedIndex(unit)
-	unresolvedFlavor := 0
 	if byteOrder == 1 {
 		return Int4Value{Kind: Int4ValueValue, Value: HashBytes32(bytes)}
 	}
@@ -20052,13 +20071,12 @@ func HashNative32(bytes []HashByte, byteOrder int, unit int) Int4Value {
 	if byteOrder == 0 && little == big {
 		return Int4Value{Kind: Int4ValueValue, Value: little}
 	}
-	return Int4Unresolved(unresolvedFlavor)
+	return Int4Unresolved(1)
 }
 func HashNative64(bytes []HashByte, seed int64, byteOrder int, unit int) Int8Value {
 	bytes = langruntime.CheckedStructs(bytes, CopyHashByte)
 	byteOrder = langruntime.CheckedI32(byteOrder)
 	unit = langruntime.CheckedIndex(unit)
-	unresolvedFlavor := 0
 	if byteOrder == 1 {
 		return Int8Value{Kind: Int8ValueValue, Value: HashBytes64(bytes, seed)}
 	}
@@ -20073,7 +20091,7 @@ func HashNative64(bytes []HashByte, seed int64, byteOrder int, unit int) Int8Val
 	if byteOrder == 0 && little == big {
 		return Int8Value{Kind: Int8ValueValue, Value: little}
 	}
-	return Int8Unresolved(unresolvedFlavor)
+	return Int8Unresolved(1)
 }
 func TextNumber(value int, base int) string {
 	value = langruntime.CheckedI32(value)
@@ -21012,7 +21030,16 @@ func dateFromTemporalText(value TextValue, dateOrder int) DateValue {
 			return MakeDateValue(narrow)
 		}
 	}
-	return DateUnresolved(unresolvedFlavor)
+	localFlavor9724 := unresolvedFlavor
+	if parsed.Kind == Int8ValueUnknown {
+		if localFlavor9724 < 1 {
+			localFlavor9724 = langruntime.CheckedI32(1)
+		}
+	}
+	if parsed.Kind == Int8ValueUnimplemented {
+		localFlavor9724 = langruntime.CheckedI32(2)
+	}
+	return DateUnresolved(localFlavor9724)
 }
 func DateFromYmd(year int, month int, day int) DateValue {
 	year = langruntime.CheckedI32(year)
@@ -21028,7 +21055,16 @@ func DateFromYmd(year int, month int, day int) DateValue {
 		value := langruntime.CheckedI32(days.Value)
 		return MakeDateValue(value)
 	}
-	return DateUnresolved(unresolvedFlavor)
+	localFlavor9844 := unresolvedFlavor
+	if days.Kind == Int4ValueUnknown {
+		if localFlavor9844 < 1 {
+			localFlavor9844 = langruntime.CheckedI32(1)
+		}
+	}
+	if days.Kind == Int4ValueUnimplemented {
+		localFlavor9844 = langruntime.CheckedI32(2)
+	}
+	return DateUnresolved(localFlavor9844)
 }
 func calendarDaysFromYmd(year int, month int, day int) Int4Value {
 	year = langruntime.CheckedI32(year)
@@ -21183,7 +21219,16 @@ func timestampCalendarMicroseconds(year int, month int, day int, hour int, minut
 		}
 		return Int8Value{Kind: Int8ValueValue, Value: microseconds}
 	}
-	return Int8Unresolved(unresolvedFlavor)
+	localFlavor1434 := unresolvedFlavor
+	if days.Kind == Int4ValueUnknown {
+		if localFlavor1434 < 1 {
+			localFlavor1434 = langruntime.CheckedI32(1)
+		}
+	}
+	if days.Kind == Int4ValueUnimplemented {
+		localFlavor1434 = langruntime.CheckedI32(2)
+	}
+	return Int8Unresolved(localFlavor1434)
 }
 func temporalSkippedPunctuation(value rune) bool {
 	value = langruntime.CheckedChar(value)
@@ -22253,7 +22298,16 @@ func TimeFromText(input TextValue) TimeValue {
 		time := parsed.Value
 		return MakeTimeValue(time)
 	}
-	return TimeUnresolved(unresolvedFlavor)
+	localFlavor3344 := unresolvedFlavor
+	if parsed.Kind == Int8ValueUnknown {
+		if localFlavor3344 < 1 {
+			localFlavor3344 = langruntime.CheckedI32(1)
+		}
+	}
+	if parsed.Kind == Int8ValueUnimplemented {
+		localFlavor3344 = langruntime.CheckedI32(2)
+	}
+	return TimeUnresolved(localFlavor3344)
 }
 func TimetzFromText(input TextValue) TimetzValue {
 	unresolvedFlavor := 0
@@ -22285,7 +22339,24 @@ func TimetzFromText(input TextValue) TimetzValue {
 			return MakeTimetzValue(time, int(int32(zone)))
 		}
 	}
-	return TimetzUnresolved(unresolvedFlavor)
+	localFlavor3594 := unresolvedFlavor
+	if utc.Kind == Int8ValueUnknown {
+		if localFlavor3594 < 1 {
+			localFlavor3594 = langruntime.CheckedI32(1)
+		}
+	}
+	if utc.Kind == Int8ValueUnimplemented {
+		localFlavor3594 = langruntime.CheckedI32(2)
+	}
+	if local.Kind == Int8ValueUnknown {
+		if localFlavor3594 < 1 {
+			localFlavor3594 = langruntime.CheckedI32(1)
+		}
+	}
+	if local.Kind == Int8ValueUnimplemented {
+		localFlavor3594 = langruntime.CheckedI32(2)
+	}
+	return TimetzUnresolved(localFlavor3594)
 }
 
 const intervalInputSyntax = 3452551

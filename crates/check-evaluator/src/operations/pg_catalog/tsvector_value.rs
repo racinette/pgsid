@@ -159,7 +159,7 @@ fn tsvector_relation(left: TsvectorValue, right: TsvectorValue, mode: i32) -> Bo
         if mode == 4 { return make_bool_value(value > 0); };
         return make_bool_value(value >= 0);
     };
-    bool_unresolved(unresolved_flavor)
+    let mut local_flavor_162_4: i32 = unresolved_flavor; if let Int4Value::Unknown = order { if local_flavor_162_4 < 1 { local_flavor_162_4 = 1; }; }; if let Int4Value::Unimplemented = order { local_flavor_162_4 = 2; }; bool_unresolved(local_flavor_162_4)
 }
 pub fn sql__pg_catalog__tsvector_eq__aqk8(a: TsvectorValue,b: TsvectorValue)->BoolValue {tsvector_relation(a,b,0)}
 pub fn sql__pg_catalog__tsvector_ne__v0j3(a: TsvectorValue,b: TsvectorValue)->BoolValue {tsvector_relation(a,b,1)}

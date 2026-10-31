@@ -17,7 +17,7 @@ fn text_hash_value(input: TextValue, trim_spaces: bool, byte_order: i32, utf8: b
             let mut index: usize = 0;
             while index < chars.len() {
                 if chars[index] as i32 > 127 {
-                    return int4_unresolved(unresolved_flavor);
+                    return int4_unresolved(resolution_context(unresolved_flavor));
                 };
                 index += 1;
             }
@@ -60,7 +60,7 @@ fn text_hash_extended(
                 let mut index: usize = 0;
                 while index < chars.len() {
                     if chars[index] as i32 > 127 {
-                        return int8_unresolved(unresolved_flavor);
+                        return int8_unresolved(resolution_context(unresolved_flavor));
                     };
                     index += 1;
                 }

@@ -161,7 +161,7 @@ fn jsonpath_keyvalue_add_base(offset: NumericValue, identity: i64) -> NumericVal
         };
         return NumericValue::Value(text_signed_number(high * 4294967296i64 + low));
     };
-    numeric_unresolved(unresolved_flavor)
+    let mut local_flavor_164_4: i32 = unresolved_flavor; if let Int8Value::Unknown = converted { if local_flavor_164_4 < 1 { local_flavor_164_4 = 1; }; }; if let Int8Value::Unimplemented = converted { local_flavor_164_4 = 2; }; numeric_unresolved(local_flavor_164_4)
 }
 
 fn jsonpath_keyvalue_identity(

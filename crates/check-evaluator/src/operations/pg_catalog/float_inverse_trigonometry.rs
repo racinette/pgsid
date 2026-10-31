@@ -256,7 +256,7 @@ fn float8_inverse_trigonometry(input: Float8Value, fdlibm: bool, operation: i32)
             return Float8Value::Error(make_sql_error(FLOAT_CORE_RANGE));
         };
         if fdlibm == false {
-            return float8_unresolved(unresolved_flavor);
+            return float8_unresolved(resolution_context(unresolved_flavor));
         };
         if operation == 0 {
             return make_float8_value(float8_asin_kernel(number));
@@ -313,12 +313,12 @@ pub fn sql__pg_catalog__atan2__re5y(
                 return Float8Value::UnspecifiedNan;
             };
             if fdlibm == false {
-                return float8_unresolved(unresolved_flavor);
+                return float8_unresolved(resolution_context(unresolved_flavor));
             };
             return make_float8_value(float8_atan2_kernel(y, x));
         };
     };
-    float8_unresolved(unresolved_flavor)
+    let mut local_flavor_321_4: i32 = unresolved_flavor; if let Float8Value::Unknown = known_right { if local_flavor_321_4 < 1 { local_flavor_321_4 = 1; }; }; if let Float8Value::Unimplemented = known_right { local_flavor_321_4 = 2; }; if let Float8Value::Unknown = known_left { if local_flavor_321_4 < 1 { local_flavor_321_4 = 1; }; }; if let Float8Value::Unimplemented = known_left { local_flavor_321_4 = 2; }; float8_unresolved(local_flavor_321_4)
 }
 
 // The degree variants follow PostgreSQL's dasind, dacosd, datand and datan2d, which scale by
@@ -353,7 +353,7 @@ fn float8_inverse_degrees(input: Float8Value, fdlibm: bool, operation: i32) -> F
             return Float8Value::Error(make_sql_error(FLOAT_CORE_RANGE));
         };
         if fdlibm == false {
-            return float8_unresolved(unresolved_flavor);
+            return float8_unresolved(resolution_context(unresolved_flavor));
         };
         if operation == 0 {
             if number >= 0.0f64 {

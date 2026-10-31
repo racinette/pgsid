@@ -73,7 +73,7 @@ fn temporal_range_timestamp_value(
         };
         return make_bool_value(order >= 0);
     };
-    bool_unresolved(unresolved_flavor)
+    let mut local_flavor_76_4: i32 = unresolved_flavor; if let TimestampValue::Unknown = boundary { if local_flavor_76_4 < 1 { local_flavor_76_4 = 1; }; }; if let TimestampValue::Unimplemented = boundary { local_flavor_76_4 = 2; }; bool_unresolved(local_flavor_76_4)
 }
 fn temporal_range_interval_value(
     value: IntervalPayload,

@@ -24,7 +24,7 @@ pub fn money_from_captured_text(
             return make_money_value(value);
         };
     };
-    money_unresolved(unresolved_flavor)
+    let mut local_flavor_27_4: i32 = unresolved_flavor; if let EnumValue::Unknown = selected { if local_flavor_27_4 < 1 { local_flavor_27_4 = 1; }; }; if let EnumValue::Unimplemented = selected { local_flavor_27_4 = 2; }; money_unresolved(local_flavor_27_4)
 }
 
 fn scalar_input_digit(ch: char) -> i32 {

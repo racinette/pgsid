@@ -110,7 +110,7 @@ fn segment_raw_relation(left: Float8Value, right: Float8Value, equal: bool) -> B
             return make_bool_value(float8_number(a) < float8_number(b));
         };
     };
-    bool_unresolved(unresolved_flavor)
+    let mut local_flavor_113_4: i32 = unresolved_flavor; if let Float8Value::Unknown = second { if local_flavor_113_4 < 1 { local_flavor_113_4 = 1; }; }; if let Float8Value::Unimplemented = second { local_flavor_113_4 = 2; }; if let Float8Value::Unknown = first { if local_flavor_113_4 < 1 { local_flavor_113_4 = 1; }; }; if let Float8Value::Unimplemented = first { local_flavor_113_4 = 2; }; bool_unresolved(local_flavor_113_4)
 }
 fn segment_contains_point(segment: LsegValue, point: PointValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
@@ -145,7 +145,7 @@ fn segment_contains_point(segment: LsegValue, point: PointValue) -> BoolValue {
             };
         };
     };
-    bool_unresolved(unresolved_flavor)
+    let mut local_flavor_148_4: i32 = unresolved_flavor; if let Float8Value::Unknown = c { if local_flavor_148_4 < 1 { local_flavor_148_4 = 1; }; }; if let Float8Value::Unimplemented = c { local_flavor_148_4 = 2; }; if let Float8Value::Unknown = b { if local_flavor_148_4 < 1 { local_flavor_148_4 = 1; }; }; if let Float8Value::Unimplemented = b { local_flavor_148_4 = 2; }; if let Float8Value::Unknown = a { if local_flavor_148_4 < 1 { local_flavor_148_4 = 1; }; }; if let Float8Value::Unimplemented = a { local_flavor_148_4 = 2; }; if let Float8Value::Unknown = length { if local_flavor_148_4 < 1 { local_flavor_148_4 = 1; }; }; if let Float8Value::Unimplemented = length { local_flavor_148_4 = 2; }; if let Float8Value::Unknown = second { if local_flavor_148_4 < 1 { local_flavor_148_4 = 1; }; }; if let Float8Value::Unimplemented = second { local_flavor_148_4 = 2; }; if let Float8Value::Unknown = first { if local_flavor_148_4 < 1 { local_flavor_148_4 = 1; }; }; if let Float8Value::Unimplemented = first { local_flavor_148_4 = 2; }; if let BoolValue::Unknown = status { if local_flavor_148_4 < 1 { local_flavor_148_4 = 1; }; }; if let BoolValue::Unimplemented = status { local_flavor_148_4 = 2; }; bool_unresolved(local_flavor_148_4)
 }
 fn segment_promote_line(segment: LsegValue) -> LineValue {
     let mut unresolved_flavor: i32 = 0;
@@ -161,7 +161,7 @@ fn segment_promote_line(segment: LsegValue) -> LineValue {
     if let PointValue::Value(origin) = first {
         return line_from_origin_slope(origin, lseg_slope(segment, false));
     };
-    line_unresolved(unresolved_flavor)
+    let mut local_flavor_164_4: i32 = unresolved_flavor; if let PointValue::Unknown = first { if local_flavor_164_4 < 1 { local_flavor_164_4 = 1; }; }; if let PointValue::Unimplemented = first { local_flavor_164_4 = 2; }; line_unresolved(local_flavor_164_4)
 }
 fn segment_line_intersection(segment: LsegValue, line: LineValue) -> PointValue {
     let status = segment_line_status(segment, line);

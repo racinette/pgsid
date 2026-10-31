@@ -75,7 +75,7 @@ pub fn sql__pg_catalog__parse_ident__uh6p(
                     {
                         let character = characters[position];
                         if (character as i32) >= 128 && utf8 == false {
-                            return array_unresolved(unresolved_flavor);
+                            return array_unresolved(resolution_context(unresolved_flavor));
                         };
                         part.push(character.to_ascii_lowercase());
                         position += 1;

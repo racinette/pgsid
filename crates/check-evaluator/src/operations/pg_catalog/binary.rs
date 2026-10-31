@@ -29,7 +29,7 @@ pub fn sql__pg_catalog__byteaeq__z0yh(left: ByteaValue, right: ByteaValue) -> Bo
             return BoolValue::Value(a == b);
         }
     }
-    bool_unresolved(unresolved_flavor)
+    let mut local_flavor_32_4: i32 = unresolved_flavor; if let Int4Value::Unknown = right_length { if local_flavor_32_4 < 1 { local_flavor_32_4 = 1; }; }; if let Int4Value::Unimplemented = right_length { local_flavor_32_4 = 2; }; if let Int4Value::Unknown = left_length { if local_flavor_32_4 < 1 { local_flavor_32_4 = 1; }; }; if let Int4Value::Unimplemented = left_length { local_flavor_32_4 = 2; }; bool_unresolved(local_flavor_32_4)
 }
 
 pub fn sql__pg_catalog__byteane__volo(left: ByteaValue, right: ByteaValue) -> BoolValue {
@@ -63,7 +63,7 @@ pub fn sql__pg_catalog__byteane__volo(left: ByteaValue, right: ByteaValue) -> Bo
             return BoolValue::Value(a != b);
         }
     }
-    bool_unresolved(unresolved_flavor)
+    let mut local_flavor_66_4: i32 = unresolved_flavor; if let Int4Value::Unknown = right_length { if local_flavor_66_4 < 1 { local_flavor_66_4 = 1; }; }; if let Int4Value::Unimplemented = right_length { local_flavor_66_4 = 2; }; if let Int4Value::Unknown = left_length { if local_flavor_66_4 < 1 { local_flavor_66_4 = 1; }; }; if let Int4Value::Unimplemented = left_length { local_flavor_66_4 = 2; }; bool_unresolved(local_flavor_66_4)
 }
 
 pub fn text_wire_context(input: TextValue, utf8: bool) -> ByteaValue {
@@ -77,7 +77,7 @@ pub fn text_wire_context(input: TextValue, utf8: bool) -> ByteaValue {
         let mut index: usize = 0;
         while index < chars.len() {
             let code = chars[index] as i32;
-            if code == 0 || (utf8 == false && code > 127) { return bytea_unresolved(unresolved_flavor); };
+            if code == 0 || (utf8 == false && code > 127) { return bytea_unresolved(resolution_context(unresolved_flavor)); };
             index += 1;
         }
         return ByteaValue::Value(text_binary_hex(value.as_str(), false));

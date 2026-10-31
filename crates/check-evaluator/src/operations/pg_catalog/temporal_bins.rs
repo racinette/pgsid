@@ -185,5 +185,5 @@ pub fn sql__pg_catalog__date_bin__0b5n(
     if let TimestampValue::Value(timestamp) = result {
         return TimestamptzValue::Value(timestamp);
     };
-    timestamptz_unresolved(unresolved_flavor)
+    let mut local_flavor_188_4: i32 = unresolved_flavor; if let TimestampValue::Unknown = result { if local_flavor_188_4 < 1 { local_flavor_188_4 = 1; }; }; if let TimestampValue::Unimplemented = result { local_flavor_188_4 = 2; }; if let TimestampValue::Unknown = origin_time { if local_flavor_188_4 < 1 { local_flavor_188_4 = 1; }; }; if let TimestampValue::Unimplemented = origin_time { local_flavor_188_4 = 2; }; if let TimestampValue::Unknown = source_time { if local_flavor_188_4 < 1 { local_flavor_188_4 = 1; }; }; if let TimestampValue::Unimplemented = source_time { local_flavor_188_4 = 2; }; timestamptz_unresolved(local_flavor_188_4)
 }

@@ -20,7 +20,7 @@ fn float_arithmetic(left: Float8Value, right: Float8Value, mode: i32, single: bo
   if value==0.0f64 && a!=0.0f64 && ((mode==2 && b!=0.0f64) || (mode==3 && b.abs()!=infinity)) {return Float8Value::Error(make_sql_error(FLOAT_CORE_RANGE));}
   if value!=value {return Float8Value::UnspecifiedNan;};
   return make_float8_value(value);
- };};float8_unresolved(unresolved_flavor)
+ };};let mut local_flavor_23_5: i32 = unresolved_flavor; if let Float8Value::Unknown = known_right { if local_flavor_23_5 < 1 { local_flavor_23_5 = 1; }; }; if let Float8Value::Unimplemented = known_right { local_flavor_23_5 = 2; }; if let Float8Value::Unknown = known_left { if local_flavor_23_5 < 1 { local_flavor_23_5 = 1; }; }; if let Float8Value::Unimplemented = known_left { local_flavor_23_5 = 2; }; float8_unresolved(local_flavor_23_5)
 }
 
 

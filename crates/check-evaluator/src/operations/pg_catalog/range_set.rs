@@ -120,7 +120,7 @@ fn range_payload_difference(left: &RangePayload, right: &RangePayload) -> RangeV
             };
         };
     };
-    range_unresolved(unresolved_flavor)
+    let mut local_flavor_123_4: i32 = unresolved_flavor; if let Int4Value::Unknown = uu { if local_flavor_123_4 < 1 { local_flavor_123_4 = 1; }; }; if let Int4Value::Unimplemented = uu { local_flavor_123_4 = 2; }; if let Int4Value::Unknown = ul { if local_flavor_123_4 < 1 { local_flavor_123_4 = 1; }; }; if let Int4Value::Unimplemented = ul { local_flavor_123_4 = 2; }; if let Int4Value::Unknown = lu { if local_flavor_123_4 < 1 { local_flavor_123_4 = 1; }; }; if let Int4Value::Unimplemented = lu { local_flavor_123_4 = 2; }; if let Int4Value::Unknown = ll { if local_flavor_123_4 < 1 { local_flavor_123_4 = 1; }; }; if let Int4Value::Unimplemented = ll { local_flavor_123_4 = 2; }; range_unresolved(local_flavor_123_4)
 }
 
 fn range_payload_set(left: &RangePayload, right: &RangePayload, strategy: i32) -> RangeValue {
@@ -195,7 +195,7 @@ fn range_payload_set(left: &RangePayload, right: &RangePayload, strategy: i32) -
             return range_rebuild(left, lower, upper, lower_inc, upper_inc);
         };
     };
-    range_unresolved(unresolved_flavor)
+    let mut local_flavor_198_4: i32 = unresolved_flavor; if let Int4Value::Unknown = lo { if local_flavor_198_4 < 1 { local_flavor_198_4 = 1; }; }; if let Int4Value::Unimplemented = lo { local_flavor_198_4 = 2; }; range_unresolved(local_flavor_198_4)
 }
 
 fn range_set(left: RangeValue, right: RangeValue, strategy: i32) -> RangeValue {

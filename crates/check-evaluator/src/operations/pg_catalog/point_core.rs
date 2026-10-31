@@ -67,7 +67,7 @@ pub fn sql__pg_catalog__point__db27(x: Float8Value, y: Float8Value) -> PointValu
             return PointValue::Value(PointPayload { x: x_bits, y: y_bits, wire_known: precise });
         };
     };
-    point_unresolved(unresolved_flavor)
+    let mut local_flavor_70_4: i32 = unresolved_flavor; if let Float8Value::Unknown = known_y { if local_flavor_70_4 < 1 { local_flavor_70_4 = 1; }; }; if let Float8Value::Unimplemented = known_y { local_flavor_70_4 = 2; }; if let Float8Value::Unknown = known_x { if local_flavor_70_4 < 1 { local_flavor_70_4 = 1; }; }; if let Float8Value::Unimplemented = known_x { local_flavor_70_4 = 2; }; point_unresolved(local_flavor_70_4)
 }
 pub fn sql__pg_catalog__point_send__kuoa(input: PointValue) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;

@@ -62,7 +62,7 @@ fn numeric_bucket(value: &str, lower: &str, upper: &str, count: i32) -> Int4Valu
         let bucket = number as i32;
         return Int4Value::Value(bucket + 1);
     }
-    int4_unresolved(unresolved_flavor)
+    let mut local_flavor_65_4: i32 = unresolved_flavor; if let Int8Value::Unknown = integer { if local_flavor_65_4 < 1 { local_flavor_65_4 = 1; }; }; if let Int8Value::Unimplemented = integer { local_flavor_65_4 = 2; }; int4_unresolved(local_flavor_65_4)
 }
 
 pub fn sql__pg_catalog__width_bucket__mx75(

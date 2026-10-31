@@ -486,6 +486,8 @@ export async function runCheckParity(
   let goAssertionBytes = 0
   let goBatchFixtures = 0
   await mkdir(join(directory, 'go'), { recursive: true })
+  // An exploratory inventory of Unknown expectations that Unimplemented results now satisfy.
+  const flavorReport = process.env['PGSID_PARITY_FLAVOR_REPORT']
   const dataDrivenSetting = process.env['PGSID_PARITY_DATA_DRIVEN']
   const dataDriven =
     dataDrivenSetting === 'always' ||
@@ -644,7 +646,16 @@ fn checks_match_postgres() {
             Err(_) => "panic".to_string(),
         };
         // Until owners name the flavor, an Unknown expectation also admits Unimplemented.
-        if actual != expected && !(expected == "U" && actual == "I") {
+${
+  flavorReport
+    ? `        if expected == "U" && actual == "I" {
+            use std::io::Write;
+            let mut report = std::fs::OpenOptions::new().create(true).append(true).open(${rustStringLiteral(flavorReport)}).unwrap();
+            writeln!(report, "{}\\t{}\\t{}", ${rustStringLiteral(directory)}, names[check], fixture).unwrap();
+        }
+`
+    : ''
+}        if actual != expected && !(expected == "U" && actual == "I") {
             mismatches.push(format!("{} {}: expected {} got {}", names[check], fixture, expected, actual));
         }
     }

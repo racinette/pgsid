@@ -72,7 +72,7 @@ fn tsquery_compare(left: TsqueryValue, right: TsqueryValue, utf8: bool, exact: b
                     if an.kind < bn.kind { return make_int4_value(1); };
                     if an.kind == 0 {
                         if an.text != bn.text {
-                            if utf8 == false && (tsquery_ascii(an.text.as_str()) == false || tsquery_ascii(bn.text.as_str()) == false) { return int4_unresolved(unresolved_flavor); };
+                            if utf8 == false && (tsquery_ascii(an.text.as_str()) == false || tsquery_ascii(bn.text.as_str()) == false) { return int4_unresolved(resolution_context(unresolved_flavor)); };
                             let ac = tsquery_legacy_crc(an.text.as_str());
                             let bc = tsquery_legacy_crc(bn.text.as_str());
                             if ac > bc { return make_int4_value(-1); };
@@ -124,7 +124,7 @@ fn tsquery_relation(left: TsqueryValue, right: TsqueryValue, utf8: bool, mode: i
         if mode == 4 { return make_bool_value(value > 0); };
         return make_bool_value(value >= 0);
     };
-    bool_unresolved(unresolved_flavor)
+    let mut local_flavor_127_4: i32 = unresolved_flavor; if let Int4Value::Unknown = order { if local_flavor_127_4 < 1 { local_flavor_127_4 = 1; }; }; if let Int4Value::Unimplemented = order { local_flavor_127_4 = 2; }; bool_unresolved(local_flavor_127_4)
 }
 pub fn sql__pg_catalog__tsquery_eq__d4ao(a: TsqueryValue,b: TsqueryValue,utf8: bool)->BoolValue { tsquery_relation(a,b,utf8,0) }
 pub fn sql__pg_catalog__tsquery_ne__2lq4(a: TsqueryValue,b: TsqueryValue,utf8: bool)->BoolValue { tsquery_relation(a,b,utf8,1) }

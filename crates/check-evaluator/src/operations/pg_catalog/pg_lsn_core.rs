@@ -64,7 +64,7 @@ fn pg_lsn_relation(left: PgLsnValue, right: PgLsnValue, mode: i32) -> BoolValue 
         };
         return make_bool_value(order >= 0);
     };
-    bool_unresolved(unresolved_flavor)
+    let mut local_flavor_67_4: i32 = unresolved_flavor; if let Int4Value::Unknown = comparison { if local_flavor_67_4 < 1 { local_flavor_67_4 = 1; }; }; if let Int4Value::Unimplemented = comparison { local_flavor_67_4 = 2; }; bool_unresolved(local_flavor_67_4)
 }
 fn pg_lsn_select(left: PgLsnValue, right: PgLsnValue, larger: bool) -> PgLsnValue {
     let mut unresolved_flavor: i32 = 0;
@@ -85,7 +85,7 @@ fn pg_lsn_select(left: PgLsnValue, right: PgLsnValue, larger: bool) -> PgLsnValu
         };
         return right;
     };
-    pg_lsn_unresolved(unresolved_flavor)
+    let mut local_flavor_88_4: i32 = unresolved_flavor; if let Int4Value::Unknown = comparison { if local_flavor_88_4 < 1 { local_flavor_88_4 = 1; }; }; if let Int4Value::Unimplemented = comparison { local_flavor_88_4 = 2; }; pg_lsn_unresolved(local_flavor_88_4)
 }
 
 

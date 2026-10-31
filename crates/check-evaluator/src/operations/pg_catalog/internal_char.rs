@@ -55,7 +55,7 @@ fn internal_char_relation(left: InternalCharValue, right: InternalCharValue, mod
         if mode == 4 { return make_bool_value(order > 0); };
         return make_bool_value(order >= 0);
     };
-    bool_unresolved(unresolved_flavor)
+    let mut local_flavor_58_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if local_flavor_58_4 < 1 { local_flavor_58_4 = 1; }; }; if let Int4Value::Unimplemented = result { local_flavor_58_4 = 2; }; bool_unresolved(local_flavor_58_4)
 }
 pub fn sql__pg_catalog__int4__9xis(input: InternalCharValue) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;

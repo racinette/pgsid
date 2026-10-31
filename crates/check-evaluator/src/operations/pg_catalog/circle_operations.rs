@@ -37,7 +37,7 @@ fn circle_fuzzy_relation(left: Float8Value, right: Float8Value, mode: i32) -> Bo
             return make_bool_value(x <= y);
         };
     };
-    bool_unresolved(unresolved_flavor)
+    let mut local_flavor_40_4: i32 = unresolved_flavor; if let Float8Value::Unknown = second { if local_flavor_40_4 < 1 { local_flavor_40_4 = 1; }; }; if let Float8Value::Unimplemented = second { local_flavor_40_4 = 2; }; if let Float8Value::Unknown = first { if local_flavor_40_4 < 1 { local_flavor_40_4 = 1; }; }; if let Float8Value::Unimplemented = first { local_flavor_40_4 = 2; }; bool_unresolved(local_flavor_40_4)
 }
 fn circle_edge(input: CircleValue, vertical: bool, low: bool) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
@@ -58,7 +58,7 @@ fn circle_edge(input: CircleValue, vertical: bool, low: bool) -> Float8Value {
         };
         return sql__pg_catalog__float8pl__g3ou(coordinate, radius);
     };
-    float8_unresolved(unresolved_flavor)
+    let mut local_flavor_61_4: i32 = unresolved_flavor; if let PointValue::Unknown = center { if local_flavor_61_4 < 1 { local_flavor_61_4 = 1; }; }; if let PointValue::Unimplemented = center { local_flavor_61_4 = 2; }; float8_unresolved(local_flavor_61_4)
 }
 fn circle_position_relation(
     left: CircleValue,

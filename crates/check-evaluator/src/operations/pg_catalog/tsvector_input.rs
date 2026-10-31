@@ -84,12 +84,12 @@ fn tsvector_parse_text(input: TextValue, utf8: bool, stored: bool) -> TsvectorVa
             while index < chars.len() && reading {
                 let character = chars[index];
                 if character == '\0' { return tsvector_unresolved(unresolved_flavor); };
-                if (character as i32) >= 128 && utf8 == false { return tsvector_unresolved(unresolved_flavor); };
+                if (character as i32) >= 128 && utf8 == false { return tsvector_unresolved(resolution_context(unresolved_flavor)); };
                 if character == '\\' {
                     index += 1;
                     if index == chars.len() { return TsvectorValue::Error(make_sql_error(TSVECTOR_SYNTAX_ERROR)); };
                     let escaped = chars[index];
-                    if escaped == '\0' || ((escaped as i32) >= 128 && utf8 == false) { return tsvector_unresolved(unresolved_flavor); };
+                    if escaped == '\0' || ((escaped as i32) >= 128 && utf8 == false) { return tsvector_unresolved(resolution_context(unresolved_flavor)); };
                     word.push(escaped);
                     index += 1;
                     first = false;

@@ -19,7 +19,7 @@ fn float_transition_test(input: Float8Value, operation: i32) -> CheckOutcome {
             number != number || number.abs() == infinity,
         ));
     };
-    check_unresolved(unresolved_flavor)
+    let mut local_flavor_22_4: i32 = unresolved_flavor; if let Float8Value::Unknown = value { if local_flavor_22_4 < 1 { local_flavor_22_4 = 1; }; }; if let Float8Value::Unimplemented = value { local_flavor_22_4 = 2; }; check_unresolved(local_flavor_22_4)
 }
 
 fn float_transition_nan(input: Float8Value, condition: CheckOutcome) -> Float8Value {
@@ -41,7 +41,7 @@ fn float_transition_nan(input: Float8Value, condition: CheckOutcome) -> Float8Va
             return Float8Value::UnspecifiedNan;
         };
     };
-    float8_unresolved(unresolved_flavor)
+    let mut local_flavor_44_4: i32 = unresolved_flavor; if let Float8Value::Unknown = value { if local_flavor_44_4 < 1 { local_flavor_44_4 = 1; }; }; if let Float8Value::Unimplemented = value { local_flavor_44_4 = 2; }; float8_unresolved(local_flavor_44_4)
 }
 
 fn float_transition_output(
@@ -185,7 +185,7 @@ fn float_array_accumulate(
                 return ArrayValue::Error(make_sql_error(FLOAT_CORE_RANGE));
             };
             if overflow != CheckOutcome::False {
-                return array_unresolved(unresolved_flavor);
+                let mut local_flavor_188_16: i32 = unresolved_flavor; if let CheckOutcome::Unknown = x_infinite { if local_flavor_188_16 < 1 { local_flavor_188_16 = 1; }; }; if let CheckOutcome::Unimplemented = x_infinite { local_flavor_188_16 = 2; }; if let Float8Value::Unknown = scale { if local_flavor_188_16 < 1 { local_flavor_188_16 = 1; }; }; if let Float8Value::Unimplemented = scale { local_flavor_188_16 = 2; }; if let Float8Value::Unknown = correction { if local_flavor_188_16 < 1 { local_flavor_188_16 = 1; }; }; if let Float8Value::Unimplemented = correction { local_flavor_188_16 = 2; }; if let Float8Value::Unknown = square { if local_flavor_188_16 < 1 { local_flavor_188_16 = 1; }; }; if let Float8Value::Unimplemented = square { local_flavor_188_16 = 2; }; if let Float8Value::Unknown = denominator { if local_flavor_188_16 < 1 { local_flavor_188_16 = 1; }; }; if let Float8Value::Unimplemented = denominator { local_flavor_188_16 = 2; }; if let Float8Value::Unknown = tx { if local_flavor_188_16 < 1 { local_flavor_188_16 = 1; }; }; if let Float8Value::Unimplemented = tx { local_flavor_188_16 = 2; }; if let Float8Value::Unknown = old_sy { if local_flavor_188_16 < 1 { local_flavor_188_16 = 1; }; }; if let Float8Value::Unimplemented = old_sy { local_flavor_188_16 = 2; }; if let Float8Value::Unknown = sxx { if local_flavor_188_16 < 1 { local_flavor_188_16 = 1; }; }; if let Float8Value::Unimplemented = sxx { local_flavor_188_16 = 2; }; if let Float8Value::Unknown = sx { if local_flavor_188_16 < 1 { local_flavor_188_16 = 1; }; }; if let Float8Value::Unimplemented = sx { local_flavor_188_16 = 2; }; if let Float8Value::Unknown = n { if local_flavor_188_16 < 1 { local_flavor_188_16 = 1; }; }; if let Float8Value::Unimplemented = n { local_flavor_188_16 = 2; }; if let Float8Value::Unknown = old_sx { if local_flavor_188_16 < 1 { local_flavor_188_16 = 1; }; }; if let Float8Value::Unimplemented = old_sx { local_flavor_188_16 = 2; }; if let Float8Value::Unknown = old_n { if local_flavor_188_16 < 1 { local_flavor_188_16 = 1; }; }; if let Float8Value::Unimplemented = old_n { local_flavor_188_16 = 2; }; if let BoolValue::Unknown = validity { if local_flavor_188_16 < 1 { local_flavor_188_16 = 1; }; }; if let BoolValue::Unimplemented = validity { local_flavor_188_16 = 2; }; return array_unresolved(local_flavor_188_16);
             };
         } else {
             let special_x = float_transition_test(x, 3);
@@ -251,7 +251,7 @@ fn float_combine_variance(
         return Float8Value::Error(make_sql_error(FLOAT_CORE_RANGE));
     };
     if overflow != CheckOutcome::False {
-        return float8_unresolved(unresolved_flavor);
+        let mut local_flavor_254_8: i32 = unresolved_flavor; if let Float8Value::Unknown = result { if local_flavor_254_8 < 1 { local_flavor_254_8 = 1; }; }; if let Float8Value::Unimplemented = result { local_flavor_254_8 = 2; }; if let Float8Value::Unknown = sum { if local_flavor_254_8 < 1 { local_flavor_254_8 = 1; }; }; if let Float8Value::Unimplemented = sum { local_flavor_254_8 = 2; }; if let Float8Value::Unknown = correction { if local_flavor_254_8 < 1 { local_flavor_254_8 = 1; }; }; if let Float8Value::Unimplemented = correction { local_flavor_254_8 = 2; }; if let Float8Value::Unknown = product { if local_flavor_254_8 < 1 { local_flavor_254_8 = 1; }; }; if let Float8Value::Unimplemented = product { local_flavor_254_8 = 2; }; return float8_unresolved(local_flavor_254_8);
     };
     result
 }
@@ -298,14 +298,14 @@ fn float_array_combine(left: ArrayValue, right: ArrayValue, regression: bool) ->
                 return float_transition_copy(&second, regression);
             };
             if first_empty != CheckOutcome::False {
-                return array_unresolved(unresolved_flavor);
+                let mut local_flavor_301_16: i32 = unresolved_flavor; if let Float8Value::Unknown = n2 { if local_flavor_301_16 < 1 { local_flavor_301_16 = 1; }; }; if let Float8Value::Unimplemented = n2 { local_flavor_301_16 = 2; }; if let Float8Value::Unknown = n1 { if local_flavor_301_16 < 1 { local_flavor_301_16 = 1; }; }; if let Float8Value::Unimplemented = n1 { local_flavor_301_16 = 2; }; if let BoolValue::Unknown = second_valid { if local_flavor_301_16 < 1 { local_flavor_301_16 = 1; }; }; if let BoolValue::Unimplemented = second_valid { local_flavor_301_16 = 2; }; if let BoolValue::Unknown = first_valid { if local_flavor_301_16 < 1 { local_flavor_301_16 = 1; }; }; if let BoolValue::Unimplemented = first_valid { local_flavor_301_16 = 2; }; return array_unresolved(local_flavor_301_16);
             };
             let second_empty = float_transition_test(n2, 1);
             if second_empty == CheckOutcome::True {
                 return float_transition_copy(&first, regression);
             };
             if second_empty != CheckOutcome::False {
-                return array_unresolved(unresolved_flavor);
+                let mut local_flavor_308_16: i32 = unresolved_flavor; if let CheckOutcome::Unknown = first_empty { if local_flavor_308_16 < 1 { local_flavor_308_16 = 1; }; }; if let CheckOutcome::Unimplemented = first_empty { local_flavor_308_16 = 2; }; if let Float8Value::Unknown = n2 { if local_flavor_308_16 < 1 { local_flavor_308_16 = 1; }; }; if let Float8Value::Unimplemented = n2 { local_flavor_308_16 = 2; }; if let Float8Value::Unknown = n1 { if local_flavor_308_16 < 1 { local_flavor_308_16 = 1; }; }; if let Float8Value::Unimplemented = n1 { local_flavor_308_16 = 2; }; if let BoolValue::Unknown = second_valid { if local_flavor_308_16 < 1 { local_flavor_308_16 = 1; }; }; if let BoolValue::Unimplemented = second_valid { local_flavor_308_16 = 2; }; if let BoolValue::Unknown = first_valid { if local_flavor_308_16 < 1 { local_flavor_308_16 = 1; }; }; if let BoolValue::Unimplemented = first_valid { local_flavor_308_16 = 2; }; return array_unresolved(local_flavor_308_16);
             };
             let n = float_state_arithmetic(n1, n2, 0);
             let counts = float_state_arithmetic(n1, n2, 2);

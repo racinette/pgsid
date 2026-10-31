@@ -57,7 +57,7 @@ fn json_populate_array_element(input: JsonbInput, position: i32, utf8: bool) -> 
         };
         return jsonb_input_from_jsonb(selected);
     };
-    jsonb_input_unresolved(unresolved_flavor)
+    let mut local_flavor_60_4: i32 = unresolved_flavor; if let Int4Value::Unknown = index { if local_flavor_60_4 < 1 { local_flavor_60_4 = 1; }; }; if let Int4Value::Unimplemented = index { local_flavor_60_4 = 2; }; jsonb_input_unresolved(local_flavor_60_4)
 }
 
 fn json_populate_array_text_event(input: TextValue) -> ArrayTextEvent {
