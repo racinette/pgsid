@@ -78,6 +78,9 @@ function valueOptions(items: RustItem[]): {
         item.module === 'checks' ||
         item.name === 'evaluate_check' ||
         item.name.startsWith('evaluate_check_') ||
+        // Diagnostic checks return the runtime's evaluation result, so the runtime's own
+        // contract has to cover it even when no check in the group is diagnostic.
+        item.name === 'make_check_evaluation_result' ||
         item.name.startsWith('sql__')
       )
     )
