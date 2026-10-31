@@ -837,12 +837,12 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
   const typeIdentities = new Map(typeRows.map((t) => [t.oid, t.identity]))
   const typesByOid = new Map(typeRows.map((row) => [row.oid, row])),
     rowIdentities = storageRowIdentities(typesByOid)
-  const rowTrees = [
+  const coercionTrees = [
     ...constraintRows.map((c) => c.coercion_tree),
     ...domainRows.flatMap((d) => (d.check_exprs ?? []).map((c) => c.coercion_tree)),
-  ].filter(
-    (source): source is string =>
-      !!source && /\{(?:ROWEXPR|FUNCEXPR|ROWCOMPAREEXPR)\b/u.test(source),
+  ].filter((source): source is string => !!source)
+  const rowTrees = coercionTrees.filter((source) =>
+    /\{(?:ROWEXPR|FUNCEXPR|ROWCOMPAREEXPR)\b/u.test(source),
   )
   const capturedRowFunctions = await readStoredRowFunctions(
       pg,
@@ -878,9 +878,11 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
           )
         ).rows[0]
       : undefined
+  // Every captured scalar expression may carry a collation, including ones in trees with no
+  // row, function or row comparison.
   const rowCollationIds = [
     ...new Set(
-      rowTrees.flatMap((source) =>
+      coercionTrees.flatMap((source) =>
         [
           ...[
             ...source.matchAll(
