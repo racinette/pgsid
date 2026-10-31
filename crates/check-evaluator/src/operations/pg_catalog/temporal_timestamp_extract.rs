@@ -202,6 +202,7 @@ fn temporal_extract_timestamp_value(value: i64, unit: &str, projected: bool) -> 
 pub fn sql__pg_catalog__extract__f4l3(units: TextValue, input: TimestampValue) -> NumericValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = units { unresolved_flavor = 1; };
+    if let TextValue::NonNull = units { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TimestampValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unimplemented = units { unresolved_flavor = 2; };
     if let TimestampValue::Unimplemented = input { unresolved_flavor = 2; };

@@ -6,6 +6,7 @@
 fn float8_trigonometry(input: Float8Value, fdlibm: bool, cosine: bool) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unimplemented = input { unresolved_flavor = 2; };
     if input == Float8Value::UnspecifiedNan {
         return Float8Value::UnspecifiedNan;
@@ -76,6 +77,7 @@ fn float8_degree_cosine(x: f64) -> f64 {
 fn float8_degree_trigonometry(input: Float8Value, fdlibm: bool, cosine: bool) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unimplemented = input { unresolved_flavor = 2; };
     if input == Float8Value::UnspecifiedNan {
         return Float8Value::UnspecifiedNan;
@@ -203,6 +205,7 @@ fn float8_tan_kernel(head: f64, tail: f64, odd: bool) -> f64 {
 fn float8_tangent(input: Float8Value, fdlibm: bool, cotangent: bool) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unimplemented = input { unresolved_flavor = 2; };
     if input == Float8Value::UnspecifiedNan {
         return Float8Value::UnspecifiedNan;
@@ -271,6 +274,7 @@ fn float8_degree_cosine_q1(x: f64) -> f64 {
 fn float8_degree_tangent(input: Float8Value, fdlibm: bool, cotangent: bool) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unimplemented = input { unresolved_flavor = 2; };
     if input == Float8Value::UnspecifiedNan {
         return Float8Value::UnspecifiedNan;

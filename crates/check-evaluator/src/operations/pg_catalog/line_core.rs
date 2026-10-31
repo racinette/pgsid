@@ -1,6 +1,7 @@
 fn line_equal_product(left: i64, right: i64, ratio: Float8Value) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = ratio { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = ratio { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unimplemented = ratio { unresolved_flavor = 2; };
     let product = sql__pg_catalog__float8mul__d3nd(ratio, make_float8_bits(right));
     if let Float8Value::Error(error) = product {

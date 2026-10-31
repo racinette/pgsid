@@ -51,6 +51,7 @@ pub fn finish_domain_conversion(input: ArrayElement, result: CheckOutcome) -> Ar
 pub fn finish_xml_domain_conversion(input: XmlValue, result: CheckOutcome) -> XmlValue {
     let mut unresolved_flavor: i32 = 0;
     if let XmlValue::Unknown = input { unresolved_flavor = 1; };
+    if let XmlValue::NonNull(_knowledge) = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let CheckOutcome::Unknown = result { unresolved_flavor = 1; };
     if let XmlValue::Unimplemented = input { unresolved_flavor = 2; };
     if let CheckOutcome::Unimplemented = result { unresolved_flavor = 2; };

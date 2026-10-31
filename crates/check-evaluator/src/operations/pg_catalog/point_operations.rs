@@ -160,7 +160,9 @@ pub fn sql__pg_catalog__point_div__btbo(left: PointValue, right: PointValue) -> 
 fn geometric_hypot(first: Float8Value, second: Float8Value) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = first { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = first { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unknown = second { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = second { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unimplemented = first { unresolved_flavor = 2; };
     if let Float8Value::Unimplemented = second { unresolved_flavor = 2; };
     if let Float8Value::Error(error) = first {

@@ -6,6 +6,7 @@ const SQLSTATE_NOT_XML_DOCUMENT: u32 = 3452565;
 pub fn xml_from_storage_text(input: TextValue) -> XmlValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input { return XmlValue::Error(error); };
     if let TextValue::Null = input { return XmlValue::Null; };
@@ -27,6 +28,7 @@ fn xml_text_encoding_available(input: &str, utf8: bool) -> bool {
 pub fn xml_from_text_context(input: TextValue, mode: i32, utf8: bool) -> XmlValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input { return XmlValue::Error(error); };
     if let TextValue::Null = input { return XmlValue::Null; };
@@ -53,6 +55,7 @@ pub fn sql__pg_catalog__xml__8nn5(input: TextValue, mode: i32, utf8: bool) -> Xm
 pub fn xml_is_document_context(input: XmlValue, utf8: bool) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let XmlValue::Unknown = input { unresolved_flavor = 1; };
+    if let XmlValue::NonNull(_knowledge) = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let XmlValue::Unimplemented = input { unresolved_flavor = 2; };
     if utf8 { return xml_is_document_utf8(input); };
     let stored = input.clone();
@@ -69,6 +72,7 @@ pub fn xml_is_document_context(input: XmlValue, utf8: bool) -> BoolValue {
 pub fn xml_serialize_context(input: XmlValue, mode: i32, indent: bool, utf8: bool) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let XmlValue::Unknown = input { unresolved_flavor = 1; };
+    if let XmlValue::NonNull(_knowledge) = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let XmlValue::Unimplemented = input { unresolved_flavor = 2; };
     if let XmlValue::Error(error) = input { return TextValue::Error(error); };
     if let XmlValue::Null = input { return TextValue::Null; };
@@ -88,6 +92,7 @@ pub fn xml_serialize_context(input: XmlValue, mode: i32, indent: bool, utf8: boo
 pub fn sql__pg_catalog__xml_send__uur7(input: XmlValue, client_utf8: bool) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let XmlValue::Unknown = input { unresolved_flavor = 1; };
+    if let XmlValue::NonNull(_knowledge) = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let XmlValue::Unimplemented = input { unresolved_flavor = 2; };
     if let XmlValue::Error(error) = input { return ByteaValue::Error(error); };
     if let XmlValue::Null = input { return ByteaValue::Null; };
@@ -98,6 +103,7 @@ pub fn sql__pg_catalog__xml_send__uur7(input: XmlValue, client_utf8: bool) -> By
 pub fn xml_from_text_utf8(input: TextValue, document: bool) -> XmlValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input { return XmlValue::Error(error); };
     if let TextValue::Null = input { return XmlValue::Null; };
@@ -115,6 +121,7 @@ pub fn xml_from_text_utf8(input: TextValue, document: bool) -> XmlValue {
 pub fn xml_to_text(input: XmlValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let XmlValue::Unknown = input { unresolved_flavor = 1; };
+    if let XmlValue::NonNull(_knowledge) = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let XmlValue::Unimplemented = input { unresolved_flavor = 2; };
     if let XmlValue::NonNull(knowledge) = input {
         let checked = make_xml_knowledge(knowledge.document,knowledge.content);
@@ -135,6 +142,7 @@ pub fn sql__pg_catalog__text__03xf(input: XmlValue) -> TextValue {
 pub fn xml_to_output_text(input: XmlValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let XmlValue::Unknown = input { unresolved_flavor = 1; };
+    if let XmlValue::NonNull(_knowledge) = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let XmlValue::Unimplemented = input { unresolved_flavor = 2; };
     if let XmlValue::NonNull(knowledge) = input { return xml_to_text(make_xml_knowledge(knowledge.document,knowledge.content)); };
     if let XmlValue::Error(error) = input { return TextValue::Error(error); };
@@ -184,6 +192,7 @@ pub fn xml_to_output_text(input: XmlValue) -> TextValue {
 pub fn xml_to_bytea_utf8(input: XmlValue) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let XmlValue::Unknown = input { unresolved_flavor = 1; };
+    if let XmlValue::NonNull(_knowledge) = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let XmlValue::Unimplemented = input { unresolved_flavor = 2; };
     let output = xml_to_output_text(input);
     if let TextValue::Error(error) = output { return ByteaValue::Error(error); };
@@ -205,6 +214,7 @@ pub fn xml_to_bytea_utf8(input: XmlValue) -> ByteaValue {
 pub fn xml_is_document_utf8(input: XmlValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let XmlValue::Unknown = input { unresolved_flavor = 1; };
+    if let XmlValue::NonNull(_knowledge) = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let XmlValue::Unimplemented = input { unresolved_flavor = 2; };
     if let XmlValue::NonNull(knowledge) = input {
         let checked = make_xml_knowledge(knowledge.document,knowledge.content);
@@ -228,6 +238,7 @@ pub fn xml_is_document_utf8(input: XmlValue) -> BoolValue {
 pub fn sql__pg_catalog__xmltext__a36t(input: TextValue) -> XmlValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input { return XmlValue::Error(error); };
     if let TextValue::Null = input { return XmlValue::Null; };
@@ -253,6 +264,7 @@ pub fn sql__pg_catalog__xmltext__a36t(input: TextValue) -> XmlValue {
 pub fn sql__pg_catalog__xmlcomment__8j57(input: TextValue) -> XmlValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input { return XmlValue::Error(error); };
     if let TextValue::Null = input { return XmlValue::Null; };
@@ -278,7 +290,9 @@ const SQLSTATE_XML_VALIDATION_UNSUPPORTED: u32 = 466560;
 pub fn sql__pg_catalog__xmlvalidate__bvje(input: XmlValue, schema: TextValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let XmlValue::Unknown = input { unresolved_flavor = 1; };
+    if let XmlValue::NonNull(_knowledge) = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = schema { unresolved_flavor = 1; };
+    if let TextValue::NonNull = schema { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let XmlValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = schema { unresolved_flavor = 2; };
     if let XmlValue::Error(error) = input { return BoolValue::Error(error); };
@@ -294,6 +308,7 @@ pub fn sql__pg_catalog__xmlvalidate__bvje(input: XmlValue, schema: TextValue) ->
 pub fn sql__pg_catalog__xml_is_well_formed__wikq(input: TextValue, mode: i32) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input { return BoolValue::Error(error); };
     if let TextValue::Null = input { return BoolValue::Null; };

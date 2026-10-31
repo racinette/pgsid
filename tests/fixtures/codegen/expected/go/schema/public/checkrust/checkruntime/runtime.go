@@ -557,6 +557,11 @@ func XmlFromRenderedText(input TextValue) XmlValue {
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -622,6 +627,13 @@ func XmlIsNull(input XmlValue) BoolValue {
 	unresolvedFlavor := 0
 	if input.Kind == XmlValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == XmlValueNonNull {
+		knowledge := input.NonNull
+		_ = knowledge
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == XmlValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -1185,6 +1197,11 @@ func TextIsNull(value TextValue) BoolValue {
 	if value.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if value.Kind == TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if value.Kind == TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -1443,6 +1460,11 @@ func JsonFromCoercedText(input TextValue) JsonValue {
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -1463,6 +1485,11 @@ func JsonIsNull(input JsonValue) BoolValue {
 	unresolvedFlavor := 0
 	if input.Kind == JsonValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == JsonValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == JsonValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -1779,6 +1806,11 @@ func JsonbInputFromText(input TextValue) JsonbInput {
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -1799,6 +1831,11 @@ func JsonbInputFromJson(input JsonValue) JsonbInput {
 	unresolvedFlavor := 0
 	if input.Kind == JsonValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == JsonValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == JsonValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -1879,6 +1916,11 @@ func JsonbInputFromFloat4(input Float4Value) JsonbInput {
 	if input.Kind == Float4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == Float4ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == Float4ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -1903,6 +1945,11 @@ func JsonbInputFromFloat8(input Float8Value) JsonbInput {
 	unresolvedFlavor := 0
 	if input.Kind == Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -2219,6 +2266,13 @@ func ByteaIsNull(value ByteaValue) BoolValue {
 	unresolvedFlavor := 0
 	if value.Kind == ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if value.Kind == ByteaValueUnspecified {
+		width := langruntime.CheckedI32(value.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if value.Kind == ByteaValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -2573,6 +2627,11 @@ func Float4IsNull(value Float4Value) BoolValue {
 	if value.Kind == Float4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if value.Kind == Float4ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if value.Kind == Float4ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -2676,6 +2735,11 @@ func Float8IsNull(value Float8Value) BoolValue {
 	unresolvedFlavor := 0
 	if value.Kind == Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if value.Kind == Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if value.Kind == Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -3203,6 +3267,11 @@ func BoxIsNull(input BoxValue) BoolValue {
 	unresolvedFlavor := 0
 	if input.Kind == BoxValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == BoxValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == BoxValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -6152,6 +6221,11 @@ func NetworkFromText(input TextValue) NetworkValue {
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -6184,6 +6258,11 @@ func CidrFromText(input TextValue) NetworkValue {
 	unresolvedFlavor := 0
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -6448,6 +6527,11 @@ func MacaddrFromText(input TextValue) MacaddrValue {
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -6489,6 +6573,11 @@ func Macaddr8FromText(input TextValue) Macaddr8Value {
 	unresolvedFlavor := 0
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -6599,6 +6688,11 @@ func UuidFromText(input TextValue) UuidValue {
 	unresolvedFlavor := 0
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -7321,8 +7415,18 @@ func JsonReadFieldContext(input JsonValue, key TextValue, asText bool, utf8 bool
 	if input.Kind == JsonValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == JsonValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if key.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if key.Kind == TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == JsonValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -7389,6 +7493,11 @@ func JsonReadElementContext(input JsonValue, index Int4Value, asText bool, utf8 
 	if input.Kind == JsonValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == JsonValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if index.Kind == Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
@@ -7454,6 +7563,11 @@ func JsonReadLength(input JsonValue) Int4Value {
 	if input.Kind == JsonValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == JsonValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == JsonValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -7479,6 +7593,11 @@ func JsonReadInputScalar(input JsonValue, quoted bool, utf8 bool) TextValue {
 	unresolvedFlavor := 0
 	if input.Kind == JsonValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == JsonValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == JsonValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -7516,6 +7635,11 @@ func JsonReadObjectReady(input JsonValue, utf8 bool) CheckOutcome {
 	unresolvedFlavor := 0
 	if input.Kind == JsonValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == JsonValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == JsonValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -7922,6 +8046,11 @@ func JsonReadArrayPath(input JsonValue, path ArrayValue, asText bool, utf8 bool)
 	if input.Kind == JsonValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == JsonValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if path.Kind == ArrayValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
@@ -8068,6 +8197,11 @@ func JsonStripNullsContext(input JsonValue, arrays BoolValue, utf8 bool) JsonVal
 	unresolvedFlavor := 0
 	if input.Kind == JsonValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == JsonValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if arrays.Kind == BoolValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -8474,6 +8608,11 @@ func jsonbParseTextContext(input TextValue, admission bool, utf8 bool) JsonbValu
 	unresolvedFlavor := 0
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -9124,6 +9263,11 @@ func JsonbFromString(input TextValue) JsonbValue {
 	unresolvedFlavor := 0
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -10883,6 +11027,11 @@ func ArrayElementFromText(input TextValue) ArrayElement {
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -11017,6 +11166,11 @@ func ArrayElementFromJson(input JsonValue) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == JsonValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == JsonValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == JsonValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -11205,6 +11359,13 @@ func ArrayElementFromBytea(input ByteaValue) ArrayElement {
 	if input.Kind == ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == ByteaValueUnspecified {
+		width := langruntime.CheckedI32(input.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == ByteaValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -11385,6 +11546,11 @@ func ArrayElementFromFloat4(input Float4Value) ArrayElement {
 	if input.Kind == Float4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == Float4ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == Float4ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -11433,6 +11599,11 @@ func ArrayElementFromFloat8(input Float8Value) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -11740,6 +11911,11 @@ func ArrayElementFromBox(input BoxValue) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == BoxValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == BoxValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == BoxValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -12448,6 +12624,13 @@ func ArrayElementFromXml(input XmlValue) ArrayElement {
 	unresolvedFlavor := 0
 	if input.Kind == XmlValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == XmlValueNonNull {
+		knowledge := input.NonNull
+		_ = knowledge
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == XmlValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -15234,6 +15417,13 @@ func FinishXmlDomainConversion(input XmlValue, result CheckOutcome) XmlValue {
 	if input.Kind == XmlValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == XmlValueNonNull {
+		knowledge := input.NonNull
+		_ = knowledge
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if result.Kind == CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
@@ -17057,6 +17247,11 @@ func ParseArrayText(input TextValue, delimiter rune, nulls int) ArrayTextPlan {
 	unresolvedFlavor := 0
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -19734,6 +19929,11 @@ func BitFromText(input TextValue) BitValue {
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -20882,6 +21082,11 @@ func DateFromTextOrder(value TextValue, dateOrder int) DateValue {
 	if value.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if value.Kind == TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if value.Kind == TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -21014,6 +21219,11 @@ func dateFromTemporalText(value TextValue, dateOrder int) DateValue {
 	unresolvedFlavor := 0
 	if value.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if value.Kind == TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if value.Kind == TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -21202,7 +21412,7 @@ func timestampCalendarMicroseconds(year int, month int, day int, hour int, minut
 			return Int8Value{Kind: Int8ValueValue, Value: dateWide}
 		}
 		if missingTimezone {
-			return Int8Unresolved(unresolvedFlavor)
+			return Int8Unresolved(ResolutionContext(unresolvedFlavor))
 		}
 		if (calendarYear == langruntime.CheckedSignedNegate(4714) && calendarMonth < 11) || (compactClock == false && dayValue < langruntime.CheckedSignedNegate(2451546)) || dayValue > 106751983 {
 			return Int8Value{Kind: Int8ValueError, Error: SqlError{State: timestampFieldOverflow}}
@@ -21250,11 +21460,68 @@ func temporalNumberAfterClock(hour int, minute int, second int, compactClock boo
 func parseTimestampText(value TextValue, withTimezone bool) Int8Value {
 	return parseTemporalText(value, withTimezone, false, 0)
 }
+func temporalRelativeWord(input string) bool {
+	input = langruntime.CheckedString(input)
+	chars := []rune(input)
+	start := 0
+	end := len(chars)
+	for start < end && dateTextSpace(chars[start]) {
+		start = langruntime.CheckedAdd(start, 1)
+	}
+	for start < end && dateTextSpace(chars[langruntime.CheckedSubtract(end, 1)]) {
+		end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
+	}
+	word := langruntime.NewTextBuffer("")
+	for start < end {
+		word = append(word, string(langruntime.CheckedChar(langruntime.AsciiLowercase(chars[start])))...)
+		start = langruntime.CheckedAdd(start, 1)
+	}
+	return string(word) == "now" || string(word) == "today" || string(word) == "tomorrow" || string(word) == "yesterday"
+}
+func temporalZoneWord(text *timestampText, from int, end int) bool {
+	from = langruntime.CheckedIndex(from)
+	end = langruntime.CheckedIndex(end)
+	start := from
+	for start < end && dateTextSpace(text.chars[start]) {
+		start = langruntime.CheckedAdd(start, 1)
+	}
+	if start == end || englishDateLetter(text.chars[start]) == false {
+		return false
+	}
+	index := start
+	for index < end {
+		character := text.chars[index]
+		if englishDateLetter(character) == false && dateTextDigit(character) < 0 && character != '/' && character != '_' && character != '+' && character != '-' {
+			return false
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	word := englishDateWord(text, start, end)
+	if englishDateMonth(word) != 0 || englishDateWeekday(word) {
+		return false
+	}
+	keyword := 0
+	for keyword < len(temporalFieldWords) {
+		if word == temporalFieldWords[keyword] {
+			return false
+		}
+		keyword = langruntime.CheckedAdd(keyword, 1)
+	}
+	return true
+}
+
+var temporalFieldWords = []string{"ad", "allballs", "ago", "am", "at", "bc", "d", "epoch", "h", "infinity", "j", "jd", "julian", "m", "mm", "now", "on", "pm", "s", "t", "today", "tomorrow", "y", "yesterday", "z", "zulu"}
+
 func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool, dateOrder int) Int8Value {
 	dateOrder = langruntime.CheckedI32(dateOrder)
 	unresolvedFlavor := 0
 	if value.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if value.Kind == TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if value.Kind == TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -21283,6 +21550,9 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool, dateOr
 		chars := []rune(input)
 		if len(chars) > 128 {
 			return Int8Unresolved(unresolvedFlavor)
+		}
+		if temporalRelativeWord(input) {
+			return Int8Unresolved(ResolutionContext(unresolvedFlavor))
 		}
 		bc := false
 		eras := 0
@@ -21483,90 +21753,95 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool, dateOr
 			compactDay := readTimestampNumber(&text, langruntime.CheckedSubtract(index, 2), index)
 			month = langruntime.CheckedI32(compactMonth.value)
 			day = langruntime.CheckedI32(compactDay.value)
-		} else if (yearField.digits == 1 || yearField.digits == 2) && dateOrder > 0 && index < end {
-			separator := text.chars[index]
-			if separator != '-' && separator != '/' && separator != '.' {
-				return Int8Unresolved(unresolvedFlavor)
-			}
-			secondField := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
-			index = langruntime.CheckedIndex(secondField.next)
-			if secondField.digits < 1 || secondField.digits > 2 || index == end || text.chars[index] != separator {
-				return Int8Unresolved(unresolvedFlavor)
-			}
-			thirdField := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
-			index = langruntime.CheckedIndex(thirdField.next)
-			if thirdField.digits < 1 || thirdField.overflow || (index < end && text.chars[index] == separator) {
-				return Int8Unresolved(unresolvedFlavor)
-			}
-			shortYear := thirdField.value
-			yearDigits := thirdField.digits
-			if dateOrder == 1 {
-				month = langruntime.CheckedI32(yearField.value)
-				day = langruntime.CheckedI32(secondField.value)
-			} else if dateOrder == 2 {
-				day = langruntime.CheckedI32(yearField.value)
-				month = langruntime.CheckedI32(secondField.value)
-			} else {
-				shortYear = langruntime.CheckedI32(yearField.value)
-				yearDigits = langruntime.CheckedIndex(yearField.digits)
-				month = langruntime.CheckedI32(secondField.value)
-				day = langruntime.CheckedI32(thirdField.value)
-			}
-			year = langruntime.CheckedI32(shortYear)
-			if yearDigits <= 2 && bc == false {
-				if year < 70 {
-					year = langruntime.CheckedI32(langruntime.CheckedSignedAdd(year, 2000))
-				} else {
-					year = langruntime.CheckedI32(langruntime.CheckedSignedAdd(year, 1900))
-				}
-			}
-		} else if yearField.digits < 3 || index == end {
-			return Int8Unresolved(unresolvedFlavor)
 		} else {
-			separator := text.chars[index]
-			if separator != '-' && separator != '/' && separator != '.' {
-				return Int8Unresolved(unresolvedFlavor)
+			if (yearField.digits == 1 || yearField.digits == 2) && dateOrder == 0 && index < end {
+				return Int8Unresolved(ResolutionContext(unresolvedFlavor))
 			}
-			monthField := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
-			index = langruntime.CheckedIndex(monthField.next)
-			if monthField.digits < 1 || index == end || text.chars[index] != separator {
-				return Int8Unresolved(unresolvedFlavor)
-			}
-			dayField := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
-			index = langruntime.CheckedIndex(dayField.next)
-			if index < end && text.chars[index] == separator {
-				extraField := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
-				if dayField.digits == 0 || extraField.digits == 0 || extraField.overflow || yearOverflow || monthField.overflow || dayField.overflow || (monthField.digits == 3 && monthField.value >= 1 && monthField.value <= 366) {
+			if (yearField.digits == 1 || yearField.digits == 2) && dateOrder > 0 && index < end {
+				separator := text.chars[index]
+				if separator != '-' && separator != '/' && separator != '.' {
 					return Int8Unresolved(unresolvedFlavor)
 				}
-				return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampText}}
-			}
-			if monthField.digits == 3 && monthField.value >= 1 && monthField.value <= 366 {
-				if dayField.digits > 0 {
-					if yearOverflow || dayField.overflow {
-						if index == end {
-							return Int8Value{Kind: Int8ValueError, Error: SqlError{State: timestampFieldOverflow}}
-						}
-						return Int8Unresolved(unresolvedFlavor)
-					}
-					return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampText}}
+				secondField := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
+				index = langruntime.CheckedIndex(secondField.next)
+				if secondField.digits < 1 || secondField.digits > 2 || index == end || text.chars[index] != separator {
+					return Int8Unresolved(unresolvedFlavor)
 				}
-				ordinalDay = langruntime.CheckedI32(monthField.value)
+				thirdField := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
+				index = langruntime.CheckedIndex(thirdField.next)
+				if thirdField.digits < 1 || thirdField.overflow || (index < end && text.chars[index] == separator) {
+					return Int8Unresolved(unresolvedFlavor)
+				}
+				shortYear := thirdField.value
+				yearDigits := thirdField.digits
+				if dateOrder == 1 {
+					month = langruntime.CheckedI32(yearField.value)
+					day = langruntime.CheckedI32(secondField.value)
+				} else if dateOrder == 2 {
+					day = langruntime.CheckedI32(yearField.value)
+					month = langruntime.CheckedI32(secondField.value)
+				} else {
+					shortYear = langruntime.CheckedI32(yearField.value)
+					yearDigits = langruntime.CheckedIndex(yearField.digits)
+					month = langruntime.CheckedI32(secondField.value)
+					day = langruntime.CheckedI32(thirdField.value)
+				}
+				year = langruntime.CheckedI32(shortYear)
+				if yearDigits <= 2 && bc == false {
+					if year < 70 {
+						year = langruntime.CheckedI32(langruntime.CheckedSignedAdd(year, 2000))
+					} else {
+						year = langruntime.CheckedI32(langruntime.CheckedSignedAdd(year, 1900))
+					}
+				}
+			} else if yearField.digits < 3 || index == end {
+				return Int8Unresolved(unresolvedFlavor)
 			} else {
-				if dayField.digits < 1 {
-					if yearOverflow || monthField.overflow {
-						if index == end {
-							return Int8Value{Kind: Int8ValueError, Error: SqlError{State: timestampFieldOverflow}}
-						}
+				separator := text.chars[index]
+				if separator != '-' && separator != '/' && separator != '.' {
+					return Int8Unresolved(unresolvedFlavor)
+				}
+				monthField := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
+				index = langruntime.CheckedIndex(monthField.next)
+				if monthField.digits < 1 || index == end || text.chars[index] != separator {
+					return Int8Unresolved(unresolvedFlavor)
+				}
+				dayField := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
+				index = langruntime.CheckedIndex(dayField.next)
+				if index < end && text.chars[index] == separator {
+					extraField := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
+					if dayField.digits == 0 || extraField.digits == 0 || extraField.overflow || yearOverflow || monthField.overflow || dayField.overflow || (monthField.digits == 3 && monthField.value >= 1 && monthField.value <= 366) {
 						return Int8Unresolved(unresolvedFlavor)
 					}
 					return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampText}}
 				}
-				if monthField.overflow || dayField.overflow {
-					yearOverflow = true
+				if monthField.digits == 3 && monthField.value >= 1 && monthField.value <= 366 {
+					if dayField.digits > 0 {
+						if yearOverflow || dayField.overflow {
+							if index == end {
+								return Int8Value{Kind: Int8ValueError, Error: SqlError{State: timestampFieldOverflow}}
+							}
+							return Int8Unresolved(unresolvedFlavor)
+						}
+						return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampText}}
+					}
+					ordinalDay = langruntime.CheckedI32(monthField.value)
+				} else {
+					if dayField.digits < 1 {
+						if yearOverflow || monthField.overflow {
+							if index == end {
+								return Int8Value{Kind: Int8ValueError, Error: SqlError{State: timestampFieldOverflow}}
+							}
+							return Int8Unresolved(unresolvedFlavor)
+						}
+						return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampText}}
+					}
+					if monthField.overflow || dayField.overflow {
+						yearOverflow = true
+					}
+					month = langruntime.CheckedI32(monthField.value)
+					day = langruntime.CheckedI32(dayField.value)
 				}
-				month = langruntime.CheckedI32(monthField.value)
-				day = langruntime.CheckedI32(dayField.value)
 			}
 		}
 		if bc && julianDate == false {
@@ -21806,6 +22081,9 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool, dateOr
 		} else if index < end && deferredZone == false && hours.digits > 0 && dateTextDigit(text.chars[index]) >= 0 {
 			return temporalNumberAfterClock(hour, minute, second, compactClock, yearOverflow)
 		} else if index != end {
+			if temporalZoneWord(&text, index, end) {
+				return Int8Unresolved(ResolutionContext(unresolvedFlavor))
+			}
 			return Int8Unresolved(unresolvedFlavor)
 		} else if withTimezone {
 			missingTimezone = true
@@ -21863,6 +22141,9 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool, dateOr
 			return afterClock
 		}
 		if index != end {
+			if temporalZoneWord(&text, index, end) {
+				return Int8Unresolved(ResolutionContext(unresolvedFlavor))
+			}
 			return Int8Unresolved(unresolvedFlavor)
 		}
 		if yearOverflow {
@@ -22011,6 +22292,11 @@ func clockGrammarNormalized(input TextValue) TextValue {
 	unresolvedFlavor := 0
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -22169,6 +22455,11 @@ func clockInputText(rawInput TextValue) TextValue {
 	if rawInput.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if rawInput.Kind == TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if rawInput.Kind == TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -22207,7 +22498,7 @@ func clockInputText(rawInput TextValue) TextValue {
 		}
 		if digitCount == 0 {
 			if string(keyword) == "now" {
-				return TextUnresolved(unresolvedFlavor)
+				return TextUnresolved(ResolutionContext(unresolvedFlavor))
 			}
 			if string(keyword) == "allballs" {
 				return MakeTextValue("2000-01-01 00:00:00+00")
@@ -22283,6 +22574,11 @@ func TimeFromText(input TextValue) TimeValue {
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -22313,6 +22609,11 @@ func TimetzFromText(input TextValue) TimetzValue {
 	unresolvedFlavor := 0
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -22669,6 +22970,11 @@ func intervalUnitsFromText(input TextValue, fieldMask int, style int) IntervalVa
 	unresolvedFlavor := 0
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -23320,6 +23626,11 @@ func IntervalFromTextFieldsContext(input TextValue, fields Int4Value, style int)
 	unresolvedFlavor := 0
 	if input.Kind == TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if fields.Kind == Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)

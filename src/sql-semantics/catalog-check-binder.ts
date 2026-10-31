@@ -770,7 +770,20 @@ const commonEnumDomain = (args: readonly Bound[]): number | undefined => {
   const domain = args[0]?.enumDomain
   return domain !== undefined && args.every((arg) => arg.enumDomain === domain) ? domain : undefined
 }
-const unknown: Bound = { type: null, value: null }
+const unboundBinding: Bound = { type: null, value: null }
+const unbound = (): Bound => unboundBinding
+// Set while classifying an unbound expression: text callables then bind under any collation, so a
+// binding that succeeds shows the collation provider's behavior was the only obstacle.
+let assumeCollationProvider = false
+// Only provider-defined behavior needs the database: nondeterministic or foreign collations, and
+// ordering or character classification under a non-C collation. A conflict raises 42P22 and a
+// deterministic comparison is bytewise, so neither depends on the provider.
+const providerCollationAssumed = (signature: string, collation?: BoundCollation | null): boolean =>
+  assumeCollationProvider &&
+  !!collation &&
+  collation.identity !== 'conflict' &&
+  (collation.kind === 'other' ||
+    (collation.kind !== 'C' && (isTextOrderingCallable(signature) || isCtypeCallable(signature))))
 
 const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null => {
   if (type === 'pg_catalog.xml' && (literal.kind === 'null' || literal.kind === 'string'))
@@ -1446,6 +1459,7 @@ const candidate = (
           'pg_catalog.bpchar',
         ].includes(type),
       ) &&
+      !providerCollationAssumed(signature, collation) &&
       !supportsBoundTextCallableCollation(signature, collation) &&
       !isRegexArrayCallable(signature)
     )
@@ -2123,6 +2137,7 @@ const comparisonCandidate = (
         type,
       ),
     ) &&
+    !providerCollationAssumed(selected.signature, collation) &&
     !supportsBoundTextCallableCollation(selected.signature, collation)
   )
     return null
@@ -2382,7 +2397,7 @@ export function bindCatalogCheck(
     preparedInput?: string,
     site?: unknown,
   ): Bound => {
-    if (!operand.type?.startsWith('array:') || !operand.value) return unknown
+    if (!operand.type?.startsWith('array:') || !operand.value) return unbound()
     const sourceElementType = operand.type.slice(6) as ArrayElementType
     const sourceNames = strings(elementTypeName(sourceElementType)['names'])!
     const sourceDomain = domainElementDefinition(sourceElementType)
@@ -2447,7 +2462,7 @@ export function bindCatalogCheck(
         : undefined,
     ).expression
     if (converted.kind !== 'eval-scalar' || converted.expression.kind !== 'null-test')
-      return unknown
+      return unbound()
     const conversion = converted.expression.operand
     return {
       type,
@@ -2628,17 +2643,17 @@ export function bindCatalogCheck(
     target?: { type: ArrayElementType; name: Fields; modifiers?: readonly number[]; stored?: true },
   ): Bound => {
     const array = fields(fields(node)?.['A_ArrayExpr'])
-    if (!array) return unknown
+    if (!array) return unbound()
     const selected = arrayConstructorBindings?.get(node)
     const genericRecord =
       selected?.type === 'array:anonymous-record:[]' || target?.type === 'anonymous-record:[]'
     if (selected && !genericRecord) {
       const element = arrayLikeElementType(selected.type)!
-      if (target && target.type !== element) return unknown
+      if (target && target.type !== element) return unbound()
       target ??= { type: element, name: elementTypeName(element) }
     }
     const members = Array.isArray(array['elements']) ? array['elements'] : []
-    if (members.length === 0 && !target && !genericRecord) return unknown
+    if (members.length === 0 && !target && !genericRecord) return unbound()
     const args = members.map((member) =>
       fields(fields(member)?.['A_ArrayExpr'])
         ? bindArray(member, target)
@@ -2656,7 +2671,7 @@ export function bindCatalogCheck(
           'pg_catalog.name',
         ].includes(arrayElementBaseType(target.type)))
     )
-      return unknown
+      return unbound()
     const multidimensional =
       args.some((arg) => arg.nominalDomain === undefined && arg.type?.startsWith('array:')) ||
       members.some((member) => fields(fields(member)?.['A_ArrayExpr']))
@@ -2673,8 +2688,9 @@ export function bindCatalogCheck(
       !anonymousRecordProfile(target?.type ?? '') &&
       candidates.some((arg) => compositeProfile(arrayElementBaseType(arg.type ?? '')))
     )
-      return unknown
-    if (multidimensional && !target && candidates.every((arg) => arg.type === null)) return unknown
+      return unbound()
+    if (multidimensional && !target && candidates.every((arg) => arg.type === null))
+      return unbound()
     const genericMembers = genericRecord
       ? candidates.map((arg) =>
           arg.type
@@ -2699,7 +2715,7 @@ export function bindCatalogCheck(
           : commonType(candidates))
     const nominal =
       !genericRecord && !target && !multidimensional ? commonNominalDomain(args) : undefined
-    if (!inferred || (inferred.startsWith('array:') && !nominal)) return unknown
+    if (!inferred || (inferred.startsWith('array:') && !nominal)) return unbound()
     const identity = nominal ? (JSON.parse(nominal) as [string, string]) : null
     const element =
       identity && !inferred.startsWith('domain:')
@@ -2756,13 +2772,13 @@ export function bindCatalogCheck(
       }
       return value
     })
-    if (!operands.every((operand): operand is EvalExpression => operand !== null)) return unknown
+    if (!operands.every((operand): operand is EvalExpression => operand !== null)) return unbound()
     if (
       selected &&
       (selected.multidimensional !== multidimensional ||
         (!genericRecord && arrayLikeElementType(selected.type) !== element))
     )
-      return unknown
+      return unbound()
     const resultType = genericRecord ? type : (selected?.type ?? type)
     return {
       type: resultType,
@@ -2805,7 +2821,7 @@ export function bindCatalogCheck(
     )
   }
   const bindOwnerRow = (): Bound => {
-    if (!rowOwner) return unknown
+    if (!rowOwner) return unbound()
     const name = [rowOwner.schema, rowOwner.name]
         .map((s) => '"' + s.replaceAll('"', '""') + '"')
         .join('.'),
@@ -2813,12 +2829,12 @@ export function bindCatalogCheck(
       profile = type ? compositeProfile(type) : null,
       definition = profile?.graph.definitions.find((n) => n.identity === profile.identity)
     if (!type || !profile || !definition || definition.fields.length !== columns.length)
-      return unknown
+      return unbound()
     const operands: EvalExpression[] = []
     for (const [i, field] of definition.fields.entries()) {
-      if (field.name !== columns[i]?.name) return unknown
+      if (field.name !== columns[i]?.name) return unbound()
       const arg = bind({ ColumnRef: { fields: [{ String: { sval: field.name } }] } })
-      if (!arg.value || arg.type !== compositeFieldType(profile, field.type)) return unknown
+      if (!arg.value || arg.type !== compositeFieldType(profile, field.type)) return unbound()
       operands.push(arg.value)
     }
     return {
@@ -2888,13 +2904,13 @@ export function bindCatalogCheck(
         parent.value?.kind !== 'composite-constructor' ||
         !/^f[1-9][0-9]*$/.test(name)
       )
-        return unknown
+        return unbound()
       const index = Number(name.slice(1)) - 1,
         descriptor = anonymous[0]!.fields[index],
         row = anonymousSourceRow(source),
         raw = row?.['args'] ?? [],
         args = Array.isArray(raw) ? expandRowArguments(raw) : null
-      if (!descriptor || !args || index >= args.length) return unknown
+      if (!descriptor || !args || index >= args.length) return unbound()
       const selected = bind(args[index]),
         type = arrayElementBaseType(descriptor.type) as ScalarType,
         domain = domainElementDefinition(descriptor.type)
@@ -2915,7 +2931,7 @@ export function bindCatalogCheck(
     const index = root?.fields.findIndex((f) => f.name === name) ?? -1,
       field = root?.fields[index]
     const type = profile && field ? compositeFieldType(profile, field.type) : null
-    if (!parent.value || !type || !profile || !field) return unknown
+    if (!parent.value || !type || !profile || !field) return unbound()
     const declared = profile.graph.definitions.find((n) => n.identity === field.type),
       physical = compositePhysicalType(profile, field.type)
     const definition =
@@ -3014,7 +3030,7 @@ export function bindCatalogCheck(
   let nextCaseBinding = 0
   const quoteTextArgument = (raw: unknown, operand: Bound): Bound => {
     const source = boundType(operand)
-    if (!source || !operand.value) return unknown
+    if (!source || !operand.value) return unbound()
     const native = elementTypeName(source as ScalarType),
       names = strings(native['names'])
     let definition = compositeGraph?.definitions.find(
@@ -3075,7 +3091,7 @@ export function bindCatalogCheck(
   }
   const strictQuotedCall = (result: Bound, operand: Bound): Bound => {
     const type = boundType(operand)
-    if (!type || !operand.value || result.value?.kind !== 'call') return unknown
+    if (!type || !operand.value || result.value?.kind !== 'call') return unbound()
     let binding: string
     do binding = `__pgsid_quote_operand_${nextCaseBinding++}`
     while (columns.some((column) => column.name === binding))
@@ -3092,13 +3108,13 @@ export function bindCatalogCheck(
     }
     const outer = storedArguments
     let converted: Bound
-    storedArguments = (index) => (index === 0 ? reference : unknown)
+    storedArguments = (index) => (index === 0 ? reference : unbound())
     try {
       converted = quoteTextArgument({ PgsidStoredArgument: { index: 0 } }, reference)
     } finally {
       storedArguments = outer
     }
-    if (!converted.value) return unknown
+    if (!converted.value) return unbound()
     return {
       ...result,
       value: {
@@ -3153,7 +3169,7 @@ export function bindCatalogCheck(
       const outer = storedArguments
       storedArguments = (index) =>
         index >= selected.args.length
-          ? unknown
+          ? unbound()
           : bind(
               fields(fields(selected.args[index])?.['NamedArgExpr'])?.['arg'] ??
                 selected.args[index],
@@ -3190,8 +3206,8 @@ export function bindCatalogCheck(
     rowSite = node,
   ): Bound => {
     const wrapper = fields(node)
-    if (!wrapper) return unknown
-    if (fields(wrapper['PgsidStoredCaseTest'])) return storedCaseTest ?? unknown
+    if (!wrapper) return unbound()
+    if (fields(wrapper['PgsidStoredCaseTest'])) return storedCaseTest ?? unbound()
     const storedConstructor = fields(wrapper['PgsidStoredRow'])
     if (storedConstructor) {
       const type =
@@ -3215,7 +3231,7 @@ export function bindCatalogCheck(
         args.length > definition.attributeCount ||
         JSON.stringify(live) !== JSON.stringify(definition.fields.map((f) => f.position - 1))
       )
-        return unknown
+        return unbound()
       const bound = args.map((arg) => bind(arg)),
         physical = bound.map((arg) => materialize(arg, boundType(arg) ?? 'pg_catalog.text')),
         operands = definition.fields.map((field, index) => {
@@ -3235,7 +3251,7 @@ export function bindCatalogCheck(
           return operand === physical[position] ? operand : null
         })
       if (physical.some((arg) => arg === null) || operands.some((arg) => arg === null))
-        return unknown
+        return unbound()
       return {
         type,
         value: {
@@ -3259,9 +3275,9 @@ export function bindCatalogCheck(
         profile = type ? compositeProfile(type) : null,
         definition = profile?.graph.definitions.find((n) => n.identity === profile.identity),
         args = storedRecord['args']
-      if (!type || !profile || !definition) return unknown
+      if (!type || !profile || !definition) return unbound()
       if (args === null) return { type, value: { kind: 'composite-null', type } }
-      if (!Array.isArray(args) || args.length !== definition.fields.length) return unknown
+      if (!Array.isArray(args) || args.length !== definition.fields.length) return unbound()
       const operands = args.map((arg, index) => {
         const fieldType = compositeFieldType(profile, definition.fields[index]!.type)
         return fieldType
@@ -3285,7 +3301,7 @@ export function bindCatalogCheck(
               wholeRow: true,
             },
           }
-        : unknown
+        : unbound()
     }
     const storedRange = fields(wrapper['PgsidStoredRangeConstant']),
       storedMultirange = fields(wrapper['PgsidStoredMultirangeConstant'])
@@ -3300,7 +3316,7 @@ export function bindCatalogCheck(
             : null,
         profile = type ? (rangeTypeProfile(type) ?? multirangeTypeProfile(type)) : null,
         args = stored['args']
-      if (!type || !profile) return unknown
+      if (!type || !profile) return unbound()
       if (args === null)
         return {
           type,
@@ -3311,12 +3327,12 @@ export function bindCatalogCheck(
               : { kind: 'multirange', type: profile.multirangeType, value: null },
           },
         }
-      if (!Array.isArray(args)) return unknown
+      if (!Array.isArray(args)) return unbound()
       if (storedMultirange) {
         const operands = args.map((arg) => materialize(bind(arg), profile.rangeType))
         return operands.every((operand): operand is EvalExpression => operand !== null)
           ? { type, value: { kind: 'multirange-constant', type: profile.multirangeType, operands } }
-          : unknown
+          : unbound()
       }
       const empty = stored['empty'],
         lowerInclusive = stored['lowerInclusive'],
@@ -3328,7 +3344,7 @@ export function bindCatalogCheck(
         args.length !== (empty ? 0 : 2) ||
         (empty && (lowerInclusive || upperInclusive))
       )
-        return unknown
+        return unbound()
       const operands = args.map((arg) =>
         materialize(bind(arg), profile.elementType, profile.subtypeEnum),
       )
@@ -3344,14 +3360,14 @@ export function bindCatalogCheck(
               operands,
             },
           }
-        : unknown
+        : unbound()
     }
     const argument = fields(wrapper['PgsidStoredArgument'])
     if (argument) {
       const index = argument['index']
       return typeof index === 'number' && Number.isInteger(index) && index >= 0 && storedArguments
         ? storedArguments(index)
-        : unknown
+        : unbound()
     }
     const storedArrayConstant = fields(wrapper['PgsidStoredArrayConstant'])
     if (storedArrayConstant) {
@@ -3366,14 +3382,14 @@ export function bindCatalogCheck(
         dimensions.length > 6 ||
         typeof bitmap !== 'boolean'
       )
-        return unknown
+        return unbound()
       if (
         vector !== undefined &&
         (typeof vector !== 'string' ||
           !isCatalogVectorType(vector) ||
           arrayLikeElementType(vector) !== element)
       )
-        return unknown
+        return unbound()
       const type =
           vector !== undefined
             ? (vector as CatalogVectorType)
@@ -3387,9 +3403,9 @@ export function bindCatalogCheck(
                 compositeGraph,
               ),
         member = type && arrayLikeElementType(type)
-      if (!type || !member) return unknown
+      if (!type || !member) return unbound()
       if (raw === null) {
-        if (isCatalogVectorType(type)) return unknown
+        if (isCatalogVectorType(type)) return unbound()
         return {
           type,
           value: {
@@ -3405,7 +3421,7 @@ export function bindCatalogCheck(
           },
         }
       }
-      if (!Array.isArray(raw)) return unknown
+      if (!Array.isArray(raw)) return unbound()
       let count = dimensions.length ? 1 : 0
       const shape: { lower: number; length: number }[] = []
       for (const dimension of dimensions) {
@@ -3424,15 +3440,16 @@ export function bindCatalogCheck(
           lower + length > 2147483648 ||
           count * length > 2147483647
         )
-          return unknown
+          return unbound()
         count *= length
         shape.push({ lower, length })
       }
-      if (count !== raw.length) return unknown
+      if (count !== raw.length) return unbound()
       const base = arrayElementBaseType(member) as ScalarType,
         definition = base.startsWith('enum:') ? enums.find((e) => enumType(e) === base) : undefined,
         operands = raw.map((arg) => materialize(bind(arg), base, definition))
-      if (!operands.every((operand): operand is EvalExpression => operand !== null)) return unknown
+      if (!operands.every((operand): operand is EvalExpression => operand !== null))
+        return unbound()
       return {
         type,
         collation: arrayElementCollation(member),
@@ -3459,14 +3476,14 @@ export function bindCatalogCheck(
         !Array.isArray(args) ||
         typeof storedArray['multidimensional'] !== 'boolean'
       )
-        return unknown
+        return unbound()
       if (
         vector !== undefined &&
         (typeof vector !== 'string' ||
           !isCatalogVectorType(vector) ||
           arrayLikeElementType(vector) !== element)
       )
-        return unknown
+        return unbound()
       const type =
           vector !== undefined
             ? (vector as CatalogVectorType)
@@ -3480,7 +3497,7 @@ export function bindCatalogCheck(
                 compositeGraph,
               ),
         member = type && arrayLikeElementType(type)
-      if (!type || !member) return unknown
+      if (!type || !member) return unbound()
       if (vector !== undefined) {
         const multidimensional = storedArray['multidimensional'],
           operands = args.map((arg) => {
@@ -3502,7 +3519,7 @@ export function bindCatalogCheck(
                 operands,
               },
             }
-          : unknown
+          : unbound()
       }
       const result = bindArray(
         { A_ArrayExpr: { elements: args } },
@@ -3511,14 +3528,14 @@ export function bindCatalogCheck(
       return result.value?.kind === 'array-constructor' &&
         result.value.multidimensional === storedArray['multidimensional']
         ? { ...result, type, value: { ...result.value, type } }
-        : unknown
+        : unbound()
     }
     const storedArrayCoercion = fields(wrapper['PgsidStoredArrayCoercion'])
     if (storedArrayCoercion) {
       const source = storedArrayCoercion['source'],
         target = storedArrayCoercion['target'],
         operand = bind(storedArrayCoercion['arg'])
-      if (typeof source !== 'string' || typeof target !== 'string') return unknown
+      if (typeof source !== 'string' || typeof target !== 'string') return unbound()
       const sourceArray = catalogArrayType(
           source + '[]',
           undefined,
@@ -3549,7 +3566,7 @@ export function bindCatalogCheck(
             arrayLikeElementType(operand.type) !== sourceElement)) ||
         !operand.value
       )
-        return unknown
+        return unbound()
       const sourceValue =
           operand.type === sourceArray
             ? operand.value
@@ -3582,7 +3599,7 @@ export function bindCatalogCheck(
           compositeGraph,
         ).expression
       if (converted.kind !== 'eval-scalar' || converted.expression.kind !== 'null-test')
-        return unknown
+        return unbound()
       const conversion = converted.expression.operand,
         convertedType =
           conversion.kind === 'certain'
@@ -3592,7 +3609,7 @@ export function bindCatalogCheck(
               : 'type' in conversion
                 ? conversion.type
                 : null
-      if (!sourceValue || convertedType !== arrayElementBaseType(targetElement)) return unknown
+      if (!sourceValue || convertedType !== arrayElementBaseType(targetElement)) return unbound()
       return {
         type: targetArray,
         collation: operand.collation,
@@ -3608,7 +3625,7 @@ export function bindCatalogCheck(
     }
     const storedJsonpath = wrapper['PgsidStoredJsonpath']
     if (storedJsonpath !== undefined) {
-      if (!validJsonpathConstantStorage(storedJsonpath)) return unknown
+      if (!validJsonpathConstantStorage(storedJsonpath)) return unbound()
       const expression = {
         kind: 'jsonpath' as const,
         type: 'pg_catalog.jsonpath' as const,
@@ -3621,7 +3638,7 @@ export function bindCatalogCheck(
     }
     const storedAddressBit = wrapper['PgsidStoredAddressBit']
     if (storedAddressBit !== undefined) {
-      if (!validAddressBitConstantStorage(storedAddressBit)) return unknown
+      if (!validAddressBitConstantStorage(storedAddressBit)) return unbound()
       const type = storedAddressBit.type,
         value = storedAddressBit.value
       return {
@@ -3639,7 +3656,7 @@ export function bindCatalogCheck(
     }
     const storedVector = wrapper['PgsidStoredTsvector']
     if (storedVector !== undefined) {
-      if (!validStoredTsvectorValue(storedVector)) return unknown
+      if (!validStoredTsvectorValue(storedVector)) return unbound()
       return {
         type: 'pg_catalog.tsvector',
         value: {
@@ -3656,7 +3673,7 @@ export function bindCatalogCheck(
     }
     const storedQuery = wrapper['PgsidStoredTsquery']
     if (storedQuery !== undefined) {
-      if (!validTsqueryConstantStorage(storedQuery)) return unknown
+      if (!validTsqueryConstantStorage(storedQuery)) return unbound()
       return {
         type: 'pg_catalog.tsquery',
         value: {
@@ -3673,7 +3690,7 @@ export function bindCatalogCheck(
     }
     const storedSnapshot = wrapper['PgsidStoredSnapshot']
     if (storedSnapshot !== undefined) {
-      if (!validSnapshotConstantStorage(storedSnapshot)) return unknown
+      if (!validSnapshotConstantStorage(storedSnapshot)) return unbound()
       return {
         type: storedSnapshot.type,
         value: { kind: 'certain', expression: { ...storedSnapshot, kind: 'snapshot-storage' } },
@@ -3681,7 +3698,7 @@ export function bindCatalogCheck(
     }
     const storedAclitem = wrapper['PgsidStoredAclitem']
     if (storedAclitem !== undefined) {
-      if (!validAclitemConstantKnowledge(storedAclitem)) return unknown
+      if (!validAclitemConstantKnowledge(storedAclitem)) return unbound()
       return {
         type: 'pg_catalog.aclitem',
         value: {
@@ -3697,7 +3714,7 @@ export function bindCatalogCheck(
     }
     const storedAliasZero = wrapper['PgsidStoredOidAliasZero']
     if (storedAliasZero !== undefined) {
-      if (typeof storedAliasZero !== 'string' || !isOidAliasType(storedAliasZero)) return unknown
+      if (typeof storedAliasZero !== 'string' || !isOidAliasType(storedAliasZero)) return unbound()
       return {
         type: storedAliasZero,
         value: {
@@ -3708,7 +3725,7 @@ export function bindCatalogCheck(
     }
     const storedSystem = wrapper['PgsidStoredSystem']
     if (storedSystem !== undefined) {
-      if (!validSystemConstantStorage(storedSystem)) return unknown
+      if (!validSystemConstantStorage(storedSystem)) return unbound()
       return {
         type: storedSystem.type,
         value: { kind: 'certain', expression: { ...storedSystem, kind: 'system-storage' } },
@@ -3716,7 +3733,7 @@ export function bindCatalogCheck(
     }
     const storedGeometry = wrapper['PgsidStoredGeometry']
     if (storedGeometry !== undefined) {
-      if (!validGeometryConstantStorage(storedGeometry)) return unknown
+      if (!validGeometryConstantStorage(storedGeometry)) return unbound()
       return {
         type: storedGeometry.type,
         value: { kind: 'certain', expression: { ...storedGeometry, kind: 'geometry-storage' } },
@@ -3724,7 +3741,7 @@ export function bindCatalogCheck(
     }
     const storedTextLike = wrapper['PgsidStoredTextLike']
     if (storedTextLike !== undefined) {
-      if (!validTextLikeConstantStorage(storedTextLike)) return unknown
+      if (!validTextLikeConstantStorage(storedTextLike)) return unbound()
       const type = storedTextLike.type
       return {
         type,
@@ -3751,7 +3768,7 @@ export function bindCatalogCheck(
     }
     const storedBinary = wrapper['PgsidStoredBinary']
     if (storedBinary !== undefined) {
-      if (!validBinaryConstantStorage(storedBinary)) return unknown
+      if (!validBinaryConstantStorage(storedBinary)) return unbound()
       const type = storedBinary.type,
         value = storedBinary.value
       return {
@@ -3767,7 +3784,7 @@ export function bindCatalogCheck(
     }
     const storedTemporal = wrapper['PgsidStoredTemporal']
     if (storedTemporal !== undefined) {
-      if (!validTemporalConstantStorage(storedTemporal)) return unknown
+      if (!validTemporalConstantStorage(storedTemporal)) return unbound()
       return {
         type: storedTemporal.type,
         value: { kind: 'certain', expression: { ...storedTemporal, kind: 'temporal-storage' } },
@@ -3780,7 +3797,7 @@ export function bindCatalogCheck(
         storedXml.includes('\0') ||
         /[\uD800-\uDFFF]/u.test(storedXml)
       )
-        return unknown
+        return unbound()
       return {
         type: 'pg_catalog.xml',
         value: {
@@ -3803,7 +3820,7 @@ export function bindCatalogCheck(
         BigInt(storedMoney) < -9223372036854775808n ||
         BigInt(storedMoney) > 9223372036854775807n
       )
-        return unknown
+        return unbound()
       return {
         type: 'pg_catalog.money',
         value: {
@@ -3826,7 +3843,7 @@ export function bindCatalogCheck(
         typeof bits !== 'string' ||
         !(type === 'pg_catalog.float4' ? /^[0-9a-f]{8}$/u : /^[0-9a-f]{16}$/u).test(bits)
       )
-        return unknown
+        return unbound()
       return {
         type,
         value: { kind: 'certain', expression: { kind: 'float', type, bits, exact: true } },
@@ -3835,7 +3852,7 @@ export function bindCatalogCheck(
     const annotation = fields(wrapper['PgsidStoredCollation'])
     if (annotation) {
       const collation = storedCollation(annotation['collation'])
-      if (!collation) return unknown
+      if (!collation) return unbound()
       return {
         ...bind(annotation['arg']),
         collation: { ...collation, ...(annotation['explicit'] === true ? { explicit: true } : {}) },
@@ -3853,7 +3870,7 @@ export function bindCatalogCheck(
         operand.type !== source.type ||
         operand.nominalDomain !== source.nominalDomain
       )
-        return unknown
+        return unbound()
       if (storedCoercion['kind'] === 'relabel')
         return source.type === target.type
           ? {
@@ -3862,9 +3879,9 @@ export function bindCatalogCheck(
               nominalDomain: target.nominalDomain,
               enumDomain: target.enumDomain,
             }
-          : unknown
+          : unbound()
       if (storedCoercion['kind'] === 'domain') {
-        if (!target.nominalDomain || source.type !== target.type) return unknown
+        if (!target.nominalDomain || source.type !== target.type) return unbound()
         const names = catalogTypeNames(storedCoercion['type'] as string)
         return names
           ? bind({
@@ -3874,10 +3891,10 @@ export function bindCatalogCheck(
                 __pgsid_native_domain: true,
               },
             })
-          : unknown
+          : unbound()
       }
       if (storedCoercion['kind'] === 'row') {
-        if (!compositeProfile(source.type) || !compositeProfile(target.type)) return unknown
+        if (!compositeProfile(source.type) || !compositeProfile(target.type)) return unbound()
         const mapping = compositeStructuralMapping(source.type, target.type, true)
         return {
           type: target.type,
@@ -3889,7 +3906,7 @@ export function bindCatalogCheck(
           },
         }
       }
-      return unknown
+      return unbound()
     }
     const storedCast = fields(wrapper['PgsidStoredCast'])
     if (storedCast) {
@@ -3912,7 +3929,7 @@ export function bindCatalogCheck(
               conversion.implementation !== storedCast['signature']
             : storedCast['kind'] !== 'io' || (conversion && conversion.method !== 'i'))
       )
-        return unknown
+        return unbound()
       const names = storedCast['type'] as string
       const parsed = fields(parseSync(`SELECT NULL::${names}`).stmts?.[0]?.stmt),
         targets = fields(parsed?.['SelectStmt'])?.['targetList'],
@@ -3920,14 +3937,14 @@ export function bindCatalogCheck(
           ? fields(fields(fields(targets[0])?.['ResTarget'])?.['val'])
           : null,
         typeName = fields(cast?.['TypeCast'])?.['typeName']
-      return typeName ? bind({ TypeCast: { arg: storedCast['arg'], typeName } }) : unknown
+      return typeName ? bind({ TypeCast: { arg: storedCast['arg'], typeName } }) : unbound()
     }
     const storedRowCompare = fields(wrapper['PgsidStoredRowCompare'])
     if (storedRowCompare) {
       const strategy = storedRowCompare['strategy'],
         raw = storedRowCompare['pairs']
       if (![1, 2, 4, 5].includes(strategy as number) || !Array.isArray(raw) || raw.length < 2)
-        return unknown
+        return unbound()
       const pairs: Extract<EvalExpression, { kind: 'row-compare' }>['pairs'][number][] = []
       for (const item of raw) {
         const pair = fields(item),
@@ -3941,7 +3958,7 @@ export function bindCatalogCheck(
           value.call.kind !== 'function' ||
           value.operands.length !== 2
         )
-          return unknown
+          return unbound()
         pairs.push({
           comparison: value.call,
           operands: value.operands as [EvalExpression, EvalExpression],
@@ -3971,7 +3988,7 @@ export function bindCatalogCheck(
         typeof storedScalarArray['any'] !== 'boolean' ||
         collation === undefined
       )
-        return unknown
+        return unbound()
       const subject = bind(nodes[0]),
         array = bind(nodes[1]),
         element = arrayLikeElementType(array.type),
@@ -3987,7 +4004,7 @@ export function bindCatalogCheck(
             base,
             definition,
           )
-      if (!subject.value || !array.value || !element || !base || !dummy) return unknown
+      if (!subject.value || !array.value || !element || !base || !dummy) return unbound()
       const resolved = candidate(
         'operator',
         selected.item.name,
@@ -4001,7 +4018,7 @@ export function bindCatalogCheck(
         selected.signature,
       )
       if (!resolved || resolved.operands[0] !== subject.value || resolved.operands[1] !== dummy)
-        return unknown
+        return unbound()
       return {
         type: 'pg_catalog.bool',
         value: {
@@ -4038,7 +4055,7 @@ export function bindCatalogCheck(
           ? nodes.length < selected.item.args.length
           : selected.item.args.length !== nodes.length)
       )
-        return unknown
+        return unbound()
       const args = nodes.map((node, index) => {
           let arg = bind(node)
           if (variadic) {
@@ -4092,6 +4109,7 @@ export function bindCatalogCheck(
             'pg_catalog.name',
           ].includes(type),
         ) &&
+          !providerCollationAssumed(selected.signature, collation) &&
           !supportsBoundTextCallableCollation(selected.signature, collation)) ||
         (polymorphic
           ? !resolved ||
@@ -4105,12 +4123,12 @@ export function bindCatalogCheck(
                 !arg.value || arg.type !== catalogScalarType(selected.item.args[index]!),
             ))
       )
-        return unknown
+        return unbound()
       const quoteArgument =
         isNullableQuote(selected.item) && selected.item.args[0] === 'pg_catalog.anyelement'
           ? quoteTextArgument(nodes[0], args[0]!)
           : undefined
-      if (quoteArgument && !quoteArgument.value) return unknown
+      if (quoteArgument && !quoteArgument.value) return unbound()
       const result: Bound = {
         ...carrier!,
         type,
@@ -4163,7 +4181,7 @@ export function bindCatalogCheck(
         value?.kind !== 'call' ||
         value.operands.length !== 2
       )
-        return unknown
+        return unbound()
       const operands = value.operands as [EvalExpression, EvalExpression]
       if (storedComparison['kind'] === 'distinct')
         return carrier.type === 'pg_catalog.bool'
@@ -4177,7 +4195,7 @@ export function bindCatalogCheck(
                 comparison: value.call,
               },
             }
-          : unknown
+          : unbound()
       const first = operands[0],
         firstType =
           first.kind === 'certain'
@@ -4193,7 +4211,7 @@ export function bindCatalogCheck(
             ...carrier,
             value: { kind: 'nullif', type: carrier.type, operands, comparison: value.call },
           }
-        : unknown
+        : unbound()
     }
     const xml = fields(wrapper['XmlExpr']),
       serialized = fields(wrapper['XmlSerialize'])
@@ -4214,7 +4232,7 @@ export function bindCatalogCheck(
           (captured !== undefined &&
             (!Array.isArray(captured) || captured.length !== rawNamed.length))
         )
-          return unknown
+          return unbound()
         const named: { name: string; mapped: boolean; implicit: boolean }[] = [],
           operands: EvalExpression[] = [],
           inputEnums: EnumInfo[] = []
@@ -4225,18 +4243,18 @@ export function bindCatalogCheck(
             type = boundType(bound) ?? 'pg_catalog.text',
             value = materialize(bound, type),
             definition = arrayOutputEnum(type)
-          if (!value) return unknown
+          if (!value) return unbound()
           operands.push(value)
           if (definition && !inputEnums.some((d) => enumType(d) === enumType(definition)))
             inputEnums.push(definition)
           if (index < rawNamed.length) {
-            if (!target) return unknown
+            if (!target) return unbound()
             const explicit = target['name'],
               columns = strings(fields(fields(raw)?.['ColumnRef'])?.['fields']),
               original = typeof explicit === 'string' ? explicit : columns?.at(-1),
               mapped = Array.isArray(captured) ? captured[index] : undefined,
               selected = typeof mapped === 'string' ? mapped : original
-            if (typeof selected !== 'string') return unknown
+            if (typeof selected !== 'string') return unbound()
             if (
               literalOrigin === 'stored' &&
               typeof mapped !== 'string' &&
@@ -4244,7 +4262,7 @@ export function bindCatalogCheck(
                 selected.includes(':') ||
                 /^xml/iu.test(selected))
             )
-              return unknown
+              return unbound()
             named.push({
               name: selected,
               mapped: typeof mapped === 'string',
@@ -4258,7 +4276,7 @@ export function bindCatalogCheck(
           typeof capturedName !== 'string' &&
           /_x[0-9A-F]{5,6}_/u.test(name as string)
         )
-          return unknown
+          return unbound()
         return {
           type: 'pg_catalog.xml',
           value: {
@@ -4325,10 +4343,10 @@ export function bindCatalogCheck(
                   operands,
                 },
               }
-            : unknown
+            : unbound()
         }
         if (operation === 'IS_XMLROOT') {
-          if (raw.length !== 3) return unknown
+          if (raw.length !== 3) return unbound()
           const operand = argument(raw[0], 'pg_catalog.xml'),
             version = argument(raw[1], 'pg_catalog.text'),
             standalone = bind(raw[2])
@@ -4345,17 +4363,17 @@ export function bindCatalogCheck(
                   standalone: mode,
                 },
               }
-            : unknown
+            : unbound()
         }
         const name = xml?.['name'],
           mapped = xml?.['__pgsid_mapped_name']
-        if (typeof name !== 'string' || raw.length > 1) return unknown
+        if (typeof name !== 'string' || raw.length > 1) return unbound()
         if (
           literalOrigin === 'stored' &&
           typeof mapped !== 'string' &&
           /_x[0-9A-F]{5,6}_/u.test(name)
         )
-          return unknown
+          return unbound()
         const operand = raw.length ? argument(raw[0], 'pg_catalog.text') : null
         return !raw.length || operand
           ? {
@@ -4369,18 +4387,18 @@ export function bindCatalogCheck(
                 mapped: typeof mapped === 'string',
               },
             }
-          : unknown
+          : unbound()
       }
       const raw = serialized ? serialized['expr'] : Array.isArray(args) ? args[0] : undefined
       const xmlInput = Boolean(serialized) || operation === 'IS_DOCUMENT'
       const operand = argument(raw, xmlInput ? 'pg_catalog.xml' : 'pg_catalog.text')
-      if (!operand) return unknown
+      if (!operand) return unbound()
       if (operation === 'IS_DOCUMENT')
         return {
           type: 'pg_catalog.bool',
           value: { kind: 'xml-operation', type: 'pg_catalog.bool', operation: 'document', operand },
         }
-      if (operation !== 'IS_XMLPARSE' && !serialized) return unknown
+      if (operation !== 'IS_XMLPARSE' && !serialized) return unbound()
       const option = (serialized ?? xml)?.['xmloption'],
         mode =
           option === 'XMLOPTION_DOCUMENT'
@@ -4388,7 +4406,7 @@ export function bindCatalogCheck(
             : option === 'XMLOPTION_CONTENT'
               ? 'content'
               : null
-      if (!mode) return unknown
+      if (!mode) return unbound()
       if (!serialized)
         return {
           type: 'pg_catalog.xml',
@@ -4402,10 +4420,10 @@ export function bindCatalogCheck(
         }
       const typeName = fields(serialized['typeName']),
         names = strings(typeName?.['names'])
-      if (!names || (names.length > 1 && names[0] !== 'pg_catalog')) return unknown
+      if (!names || (names.length > 1 && names[0] !== 'pg_catalog')) return unbound()
       const type = catalogScalarType(names.at(-1)!)
       if (!type || !['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type))
-        return unknown
+        return unbound()
       const value: EvalExpression = {
         kind: 'xml-operation',
         type: 'pg_catalog.text',
@@ -4433,14 +4451,14 @@ export function bindCatalogCheck(
     if (row) {
       const raw = row['args'] ?? []
       const args = Array.isArray(raw) ? expandRowArguments(raw) : null
-      if (!args) return unknown
+      if (!args) return unbound()
       const descriptors: AnonymousRecordField[] = [],
         operands: EvalExpression[] = []
       for (const arg of args) {
         const bound = bind(arg),
           type = nominalScalarType(bound) ?? 'pg_catalog.text'
         const value = materialize(bound, boundType(bound) ?? type)
-        if (!value) return unknown
+        if (!value) return unbound()
         const definition = arrayOutputEnum(type)
         const comparisonContext = anonymousComparisonContext(type, compositeGraph)
         descriptors.push({
@@ -4508,7 +4526,7 @@ export function bindCatalogCheck(
           if (items0.length === 1 && firstString === 0) {
             const name = fields(fields(items0[0])?.['String'])?.['sval'],
               selected = rowFieldBindings?.get(indirection)
-            if (typeof name !== 'string') return unknown
+            if (typeof name !== 'string') return unbound()
             if (ownerRowReference(indirection['arg']) && columns.some((c) => c.name === name))
               return bind({ ColumnRef: { fields: [{ String: { sval: name } }] } })
             const parent = bind(indirection['arg'])
@@ -4516,16 +4534,16 @@ export function bindCatalogCheck(
             return selected?.kind === 'function' &&
               (selected.names.length === 1 || selected.names[0] === 'pg_catalog')
               ? bindCall('function', selected.names.at(-1)!, [indirection['arg']])
-              : unknown
+              : unbound()
           }
         }
       }
       const operand = bind(indirection['arg'])
-      if (!isArrayLikeType(operand.type) || !operand.value) return unknown
+      if (!isArrayLikeType(operand.type) || !operand.value) return unbound()
       const items = indirection['indirection']
-      if (!Array.isArray(items) || items.length === 0 || items.length > 6) return unknown
+      if (!Array.isArray(items) || items.length === 0 || items.length > 6) return unbound()
       const indices = items.map((item) => fields(fields(item)?.['A_Indices']))
-      if (indices.some((item) => !item)) return unknown
+      if (indices.some((item) => !item)) return unbound()
       const slice = indices.some((item) => item!['is_slice'] === true)
       const coerceIndex = (node: unknown): EvalExpression | null => {
         const bound = bind(node),
@@ -4558,9 +4576,9 @@ export function bindCatalogCheck(
       const upper: (EvalExpression | null)[] = [],
         lower: (EvalExpression | null)[] = []
       for (const item of indices) {
-        if (!item) return unknown
+        if (!item) return unbound()
         const high = item['uidx'] ? coerceIndex(item['uidx']) : null
-        if ((item['uidx'] && !high) || (!slice && !high)) return unknown
+        if ((item['uidx'] && !high) || (!slice && !high)) return unbound()
         upper.push(high)
         if (slice) {
           const low = item['lidx']
@@ -4575,7 +4593,7 @@ export function bindCatalogCheck(
                     value: '1',
                   },
                 }
-          if (item['lidx'] && !low) return unknown
+          if (item['lidx'] && !low) return unbound()
           lower.push(low)
         }
       }
@@ -4627,20 +4645,20 @@ export function bindCatalogCheck(
       const nodes = minmax['args']
       const operation =
         minmax['op'] === 'IS_GREATEST' ? 'greatest' : minmax['op'] === 'IS_LEAST' ? 'least' : null
-      if (!operation || !Array.isArray(nodes) || !nodes.length) return unknown
+      if (!operation || !Array.isArray(nodes) || !nodes.length) return unbound()
       const args = nodes.map((arg) => bind(arg))
-      if (args.some((arg) => !arg.value && !arg.literal)) return unknown
+      if (args.some((arg) => !arg.value && !arg.literal)) return unbound()
       const type = commonType(args)
-      if (!type) return unknown
+      if (!type) return unbound()
       const definition = resultEnum(type, args)
       const operands = args.map((arg, index) =>
         type === 'pg_catalog.bool' && arg.type === 'pg_catalog.bool'
           ? { kind: 'check' as const, type, expression: lower(nodes[index]) }
           : coerceBound(arg, type, nodes[index], definition),
       )
-      if (!operands.every((value): value is EvalExpression => value !== null)) return unknown
+      if (!operands.every((value): value is EvalExpression => value !== null)) return unbound()
       const capturedCollation = storedCollation(minmax['__pgsid_inputCollation'])
-      if (capturedCollation === undefined) return unknown
+      if (capturedCollation === undefined) return unbound()
       const collation = Object.hasOwn(minmax, '__pgsid_inputCollation')
         ? (capturedCollation ?? undefined)
         : type.startsWith('array:')
@@ -4658,7 +4676,7 @@ export function bindCatalogCheck(
         operation === 'greatest' ? '<' : '>',
         operands.length > 1 && !allNull,
       )
-      if (!resolved || resolved.item.args[0] !== resolved.item.args[1]) return unknown
+      if (!resolved || resolved.item.args[0] !== resolved.item.args[1]) return unbound()
       const comparisonType = [
         'pg_catalog.anyenum',
         'pg_catalog.anyarray',
@@ -4669,7 +4687,7 @@ export function bindCatalogCheck(
         ? type
         : resolved.item.args[0]!
       if (comparisonType !== type && builtinCast(type, comparisonType)?.method !== 'b')
-        return unknown
+        return unbound()
       return {
         type,
         enum: type.startsWith('enum:') ? definition : undefined,
@@ -4696,10 +4714,10 @@ export function bindCatalogCheck(
     const coalesce = fields(wrapper['CoalesceExpr'])
     if (coalesce) {
       const nodes = coalesce['args']
-      if (!Array.isArray(nodes) || !nodes.length) return unknown
+      if (!Array.isArray(nodes) || !nodes.length) return unbound()
       const args = nodes.map((arg) => bind(arg))
-      if (args.some((arg) => arg.unknownField)) return unknown
-      if (args.some((arg) => !arg.value && !arg.literal)) return unknown
+      if (args.some((arg) => arg.unknownField)) return unbound()
+      if (args.some((arg) => !arg.value && !arg.literal)) return unbound()
       const coercedType = args.some(
         (arg) =>
           arg.type?.startsWith('array:') ||
@@ -4736,7 +4754,7 @@ export function bindCatalogCheck(
           (other) => other !== type && !(textTypes.includes(type) && textTypes.includes(other)),
         )
       )
-        return unknown
+        return unbound()
       const definition = resultEnum(type, args)
       const operands = args.map((arg, index): EvalExpression | null =>
         type === 'pg_catalog.bool' && arg.type === 'pg_catalog.bool'
@@ -4747,7 +4765,7 @@ export function bindCatalogCheck(
               ? materialize(arg, type, definition)
               : materializeInteger(arg, type),
       )
-      if (!operands.every((value): value is EvalExpression => value !== null)) return unknown
+      if (!operands.every((value): value is EvalExpression => value !== null)) return unbound()
       return {
         type,
         ...(definition && type.startsWith('enum:') ? { enum: definition } : {}),
@@ -4769,15 +4787,16 @@ export function bindCatalogCheck(
     const caseExpression = fields(wrapper['CaseExpr'])
     if (caseExpression) {
       const args = caseExpression['args']
-      if (!Array.isArray(args) || !args.length) return unknown
+      if (!Array.isArray(args) || !args.length) return unbound()
       const branches = args.map((item) => fields(fields(item)?.['CaseWhen']))
-      if (branches.some((branch) => !branch || !branch['expr'] || !branch['result'])) return unknown
+      if (branches.some((branch) => !branch || !branch['expr'] || !branch['result']))
+        return unbound()
       const results = branches.map((branch) => bind(branch!['result']))
       const otherwise = caseExpression['defresult']
         ? bind(caseExpression['defresult'])
         : ({ type: null, value: null, literal: { kind: 'null', value: null } } as Bound)
       const arms = [...results, otherwise]
-      if (arms.some((arm) => arm.unknownField)) return unknown
+      if (arms.some((arm) => arm.unknownField)) return unbound()
       const coercedType = arms.some(
         (arm) =>
           arm.type?.startsWith('array:') ||
@@ -4814,7 +4833,7 @@ export function bindCatalogCheck(
         bitType === undefined &&
         typed.some((other) => other !== type)
       )
-        return unknown
+        return unbound()
       const definition = resultEnum(type, arms)
       const values = arms.map((arm, index) =>
         coercedType !== undefined
@@ -4828,7 +4847,7 @@ export function bindCatalogCheck(
             ? materialize(arm, type, definition)
             : materializeInteger(arm, type),
       )
-      if (type !== 'pg_catalog.bool' && values.some((value) => !value)) return unknown
+      if (type !== 'pg_catalog.bool' && values.some((value) => !value)) return unbound()
       const collation = type.startsWith('array:')
         ? arrayCollations(arms.map((arm) => arm.collation))
         : [
@@ -4845,7 +4864,7 @@ export function bindCatalogCheck(
         []
       let conditions: EvalExpression[]
       if (scrutinee && caseExpression['__pgsid_stored'] === true) {
-        if (!scrutinee.type || !scrutinee.value) return unknown
+        if (!scrutinee.type || !scrutinee.value) return unbound()
         let binding: string
         do binding = `__pgsid_case_operand_${nextCaseBinding++}`
         while (columns.some((column) => column.name === binding))
@@ -4877,14 +4896,14 @@ export function bindCatalogCheck(
           matches.find((match) => match.type)?.type ??
           (scrutinee.literal?.kind === 'integer' ? 'pg_catalog.int4' : 'pg_catalog.text')
         const value = materialize(scrutinee, compareType)
-        if (!value) return unknown
+        if (!value) return unbound()
         const resolved = matches.map((match) =>
           candidate('operator', '=', [
             { ...scrutinee, type: compareType, value, literal: undefined },
             match,
           ]),
         )
-        if (resolved.some((match) => !match)) return unknown
+        if (resolved.some((match) => !match)) return unbound()
         simple = { expression: resolved[0]!.operands[0]! }
         equalities = resolved.map((match) => ({
           kind: 'operator',
@@ -4968,7 +4987,7 @@ export function bindCatalogCheck(
             'pg_catalog.name',
           ].includes(target ?? '')
           ? { ...operand, unknownField: undefined }
-          : unknown
+          : unbound()
       }
       if (
         names?.at(-1) === 'record' &&
@@ -4976,7 +4995,7 @@ export function bindCatalogCheck(
         Array.isArray(bounds) &&
         bounds.length > 0
       ) {
-        if (Array.isArray(castType?.['typmods']) && castType['typmods'].length) return unknown
+        if (Array.isArray(castType?.['typmods']) && castType['typmods'].length) return unbound()
         const element = 'anonymous-record:[]' as const,
           type = arrayType(element),
           constructor = fields(fields(cast['arg'])?.['A_ArrayExpr']),
@@ -4994,7 +5013,7 @@ export function bindCatalogCheck(
         }
         if (operand.literal?.kind === 'null') {
           const value = materialize(operand, type)
-          return value ? { type, value } : unknown
+          return value ? { type, value } : unbound()
         }
         if (
           operand.literal?.kind === 'string' ||
@@ -5025,7 +5044,7 @@ export function bindCatalogCheck(
           if (operand.value)
             return { type, value: { kind: 'text-to-array', ...common, operand: operand.value } }
         }
-        return unknown
+        return unbound()
       }
       if (
         names?.at(-1) === 'record' &&
@@ -5083,7 +5102,7 @@ export function bindCatalogCheck(
         }
       }
       if (Array.isArray(bounds) && bounds.length) {
-        if (!names) return unknown
+        if (!names) return unbound()
         const compositeElement = catalogCompositeType(
           names.map((name) => '"' + name.replaceAll('"', '""') + '"').join('.'),
           compositeGraph,
@@ -5095,7 +5114,7 @@ export function bindCatalogCheck(
             names.length === 2 ? d.schema === names[0] && d.name === names[1] : d.name === names[0],
           )
         ) {
-          if (Array.isArray(castType?.['typmods']) && castType['typmods'].length) return unknown
+          if (Array.isArray(castType?.['typmods']) && castType['typmods'].length) return unbound()
           if (fields(fields(cast['arg'])?.['A_ArrayExpr']))
             return bindArray(cast['arg'], {
               type: compositeElement,
@@ -5130,7 +5149,7 @@ export function bindCatalogCheck(
             )
           if (operand.literal?.kind === 'null') {
             const value = materialize(operand, type)
-            return value ? { type, value } : unknown
+            return value ? { type, value } : unbound()
           }
           if (
             operand.literal?.kind === 'string' ||
@@ -5184,7 +5203,7 @@ export function bindCatalogCheck(
             }
             const inputConversion = conversion(false),
               storedInputConversion = conversion(true)
-            if (!inputConversion || !storedInputConversion) return unknown
+            if (!inputConversion || !storedInputConversion) return unbound()
             const common = {
               type,
               elementType: compositeElement,
@@ -5213,9 +5232,9 @@ export function bindCatalogCheck(
                 : operand.value
                   ? { kind: 'text-to-array', ...common, operand: operand.value }
                   : null
-            return value ? { type, value } : unknown
+            return value ? { type, value } : unbound()
           }
-          return unknown
+          return unbound()
         }
         const definitions = enums.filter((item) =>
           names.length === 2
@@ -5244,10 +5263,10 @@ export function bindCatalogCheck(
             rangeTypes,
           ) ??
           domainArray?.slice(6)
-        if (!element || element.startsWith('array:')) return unknown
+        if (!element || element.startsWith('array:')) return unbound()
         const type = arrayType(element as ArrayElementType)
         if (element.startsWith('domain:')) {
-          if (Array.isArray(castType?.['typmods']) && castType['typmods'].length) return unknown
+          if (Array.isArray(castType?.['typmods']) && castType['typmods'].length) return unbound()
           const constructor = fields(fields(cast['arg'])?.['A_ArrayExpr'])
           if (
             constructor &&
@@ -5312,7 +5331,7 @@ export function bindCatalogCheck(
                 compositeGraph,
               ).expression
               if (parsed.kind !== 'eval-scalar' || parsed.expression.kind !== 'null-test')
-                return unknown
+                return unbound()
               inputConversion = parsed.expression.operand
               const nominal = domainElementDefinition(element)!
               const targetDomain = domains.find(
@@ -5322,7 +5341,7 @@ export function bindCatalogCheck(
               const visited = new Set<number>()
               let layer = targetDomain
               while (layer) {
-                if (visited.has(layer.oid)) return unknown
+                if (visited.has(layer.oid)) return unbound()
                 visited.add(layer.oid)
                 layers.push(layer)
                 layer = domains.find((item) => item.oid === layer!.baseTypeOid)
@@ -5331,10 +5350,10 @@ export function bindCatalogCheck(
                 .reverse()
                 .map((item) => item.baseTypeMod)
                 .filter((modifier) => modifier !== -1)
-              if (modifiers.some((modifier) => modifier === undefined)) return unknown
+              if (modifiers.some((modifier) => modifier === undefined)) return unbound()
               if (modifiers.length) {
                 if (inputConversion.kind !== 'text-to-array' || inputConversion.conversion)
-                  return unknown
+                  return unbound()
                 const scalarType = baseType.slice(6) as ScalarType
                 let converted: EvalExpression = {
                   kind: 'input',
@@ -5343,7 +5362,7 @@ export function bindCatalogCheck(
                 }
                 for (const modifier of modifiers) {
                   const modified = modifyScalar(converted, scalarType, modifier!, false)
-                  if (!modified) return unknown
+                  if (!modified) return unbound()
                   converted = modified
                 }
                 inputConversion = { ...inputConversion, conversion: converted }
@@ -5362,7 +5381,7 @@ export function bindCatalogCheck(
                   ])
                 : undefined,
             ).value
-            if (mapping?.kind !== 'array-domain-coerce') return unknown
+            if (mapping?.kind !== 'array-domain-coerce') return unbound()
             const baseEnum = baseType.startsWith('enum:')
               ? enums.find((item) => enumType(item) === baseType)
               : undefined
@@ -5407,9 +5426,9 @@ export function bindCatalogCheck(
                   value,
                   collation: arrayElementCollation(element as ArrayElementType, operand),
                 }
-              : unknown
+              : unbound()
           }
-          if (!operand.type?.startsWith('array:') || !operand.value) return unknown
+          if (!operand.type?.startsWith('array:') || !operand.value) return unbound()
           const domain = domainElementDefinition(element)!
           const targetDomain = domains.find(
             (item) => item.schema === domain.schema && item.name === domain.name,
@@ -5420,7 +5439,7 @@ export function bindCatalogCheck(
             targetDomain &&
             domainNeedsContext(targetDomain)
           )
-            return unknown
+            return unbound()
           return bindArrayElementCoercion(
             operand,
             type,
@@ -5444,18 +5463,18 @@ export function bindCatalogCheck(
         let modifier = -1
         if (values.length) {
           if (!values.every((value) => typeof value === 'number' && Number.isInteger(value)))
-            return unknown
+            return unbound()
           const width = values[0] as number
           if (element === 'pg_catalog."varchar"' || element === 'pg_catalog.bpchar') {
-            if (values.length !== 1 || width < 1 || width > 10485760) return unknown
+            if (values.length !== 1 || width < 1 || width > 10485760) return unbound()
             modifier = width + 4
           } else if (element === 'pg_catalog."bit"' || element === 'pg_catalog.varbit') {
-            if (values.length !== 1 || width < 1 || width > 2147483640) return unknown
+            if (values.length !== 1 || width < 1 || width > 2147483640) return unbound()
             modifier = width
           } else if (element === 'pg_catalog."numeric"') {
             const scale = (values[1] ?? 0) as number
             if (values.length > 2 || width < 1 || width > 1000 || scale < -1000 || scale > 1000)
-              return unknown
+              return unbound()
             modifier = width * 65536 + (scale < 0 ? scale + 2048 : scale) + 4
           } else if (
             [
@@ -5465,7 +5484,7 @@ export function bindCatalogCheck(
               'pg_catalog.timestamptz',
             ].includes(element)
           ) {
-            if (values.length !== 1 || width < 0) return unknown
+            if (values.length !== 1 || width < 0) return unbound()
             modifier = Math.min(width, 6)
           } else if (element === 'pg_catalog."interval"') {
             const precision = (values[1] ?? 65535) as number
@@ -5476,9 +5495,9 @@ export function bindCatalogCheck(
               ) ||
               precision < 0
             )
-              return unknown
+              return unbound()
             modifier = width * 65536 + (precision === 65535 ? 65535 : Math.min(precision, 6))
-          } else return unknown
+          } else return unbound()
         }
         let bound: Bound
         const constructor = fields(fields(cast['arg'])?.['A_ArrayExpr'])
@@ -5534,7 +5553,7 @@ export function bindCatalogCheck(
                 collation: arrayElementCollation(element as ArrayElementType, operand),
                 ...(definition ? { enum: definition } : {}),
               }
-            : unknown
+            : unbound()
         }
         if (!bound.value || modifier < 0) return bound
         return {
@@ -5594,7 +5613,7 @@ export function bindCatalogCheck(
               operand: text,
             }
         }
-        return value ? { type, value, enum: definition } : unknown
+        return value ? { type, value, enum: definition } : unbound()
       }
       const castDomains = domains.filter((domain) =>
         names?.length === 2
@@ -5602,14 +5621,14 @@ export function bindCatalogCheck(
           : names?.length === 1 && domain.name === names[0],
       )
       if (castDomains.length && !(names?.length === 1 && catalogScalarType(names[0]!) !== null)) {
-        if (castDomains.length !== 1) return unknown
+        if (castDomains.length !== 1) return unbound()
         const target = castDomains[0]!
         const identity = JSON.stringify([target.schema, target.name])
         if (
           domainStack.has(identity) ||
           (Array.isArray(castType?.['typmods']) && castType['typmods'].length)
         )
-          return unknown
+          return unbound()
         const operand = castOperand(),
           native = cast['__pgsid_native_domain'] === true
         if (!native && operand.nominalDomain === identity) return operand
@@ -5617,7 +5636,7 @@ export function bindCatalogCheck(
         let layer: DomainInfo | undefined = target
         const visited = new Set<number>()
         while (layer) {
-          if (visited.has(layer.oid)) return unknown
+          if (visited.has(layer.oid)) return unbound()
           visited.add(layer.oid)
           chain.push(layer)
           layer = domains.find((item) => item.oid === layer!.baseTypeOid)
@@ -5646,9 +5665,9 @@ export function bindCatalogCheck(
             sourceRow = compositeProfile(operand.type ?? '')
           if (targetRow && sourceRow && targetRow.identity !== sourceRow.identity) {
             if (selectedRowCoercion(operand.type!, scalarType, 'e', 0, rowSite)?.kind !== 'io')
-              return unknown
+              return unbound()
           }
-          if (chain.some((item) => item.baseTypeMod === undefined)) return unknown
+          if (chain.some((item) => item.baseTypeMod === undefined)) return unbound()
           if (
             !native &&
             literalOrigin === 'stored' &&
@@ -5656,7 +5675,7 @@ export function bindCatalogCheck(
             modifierNeedsContext(scalarType) &&
             chain.some((item) => item.baseTypeMod !== -1)
           )
-            return unknown
+            return unbound()
           const memberModifiers = [...chain]
             .reverse()
             .map((item) => item.baseTypeMod!)
@@ -5669,7 +5688,7 @@ export function bindCatalogCheck(
           const base = native
             ? operand.type === scalarType
               ? operand
-              : unknown
+              : unbound()
             : pushModifiers
               ? bindArray(cast['arg'], {
                   type: scalarType.slice(6) as ArrayElementType,
@@ -5692,7 +5711,7 @@ export function bindCatalogCheck(
                   undefined,
                   rowSite,
                 )
-          if (!base.value || base.type !== scalarType) return unknown
+          if (!base.value || base.type !== scalarType) return unbound()
           let value: EvalExpression = base.value
           for (const item of [...chain].reverse()) {
             if (native) continue
@@ -5702,7 +5721,7 @@ export function bindCatalogCheck(
               if (pushModifiers) continue
               if (castInput) {
                 if (preparedArrayDomainInput === identity) continue
-                return unknown
+                return unbound()
               }
               value = {
                 kind: 'array-typmod',
@@ -5714,7 +5733,7 @@ export function bindCatalogCheck(
               continue
             }
             const modified = modifyScalar(value, scalarType, modifier, !(castInput ?? false))
-            if (!modified) return unknown
+            if (!modified) return unbound()
             value = modified
           }
           const checks: { name: string; expression: EvalBoolExpression }[] = []
@@ -5824,7 +5843,7 @@ export function bindCatalogCheck(
                 : value,
           }
         }
-        return unknown
+        return unbound()
       }
       const capturedName = names?.map((part) => '"' + part.replaceAll('"', '""') + '"').join('.')
       const composite =
@@ -5832,7 +5851,7 @@ export function bindCatalogCheck(
           ? catalogCompositeType(capturedName, compositeGraph, rangeTypes)
           : null
       if (composite) {
-        if (Array.isArray(castType?.['typmods']) && castType['typmods'].length) return unknown
+        if (Array.isArray(castType?.['typmods']) && castType['typmods'].length) return unbound()
         const profile = compositeProfile(composite)!
         const definition = profile.graph.definitions.find(
           (node) => node.identity === profile.identity,
@@ -5846,7 +5865,7 @@ export function bindCatalogCheck(
             (!captured && literalOrigin === 'stored') ||
             (captured && captured.type !== profile.identity)
           )
-            return unknown
+            return unbound()
           if (
             captured &&
             (!Number.isInteger(captured.members) ||
@@ -5867,18 +5886,18 @@ export function bindCatalogCheck(
                   captured.live.includes(field.position),
               ))
           )
-            return unknown
+            return unbound()
           const args =
             captured?.source && expanded?.length === captured.members
               ? captured.live.map((position) => expanded[position] ?? { A_Const: { isnull: true } })
               : expanded
-          if (!args || args.length !== definition.fields.length) return unknown
+          if (!args || args.length !== definition.fields.length) return unbound()
           const operands: EvalExpression[] = []
           const projectable: (boolean | null)[] = []
           for (const [index, field] of definition.fields.entries()) {
             const declared = profile.graph.definitions.find((node) => node.identity === field.type)
             const type = compositeFieldType(profile, field.type)
-            if (!declared || !type) return unknown
+            if (!declared || !type) return unbound()
             const targetName =
               declared.kind === 'd'
                 ? { names: [declared.schema, declared.name].map((sval) => ({ String: { sval } })) }
@@ -5888,7 +5907,7 @@ export function bindCatalogCheck(
               undefined,
               false,
             )
-            if (!value.value || value.type !== type) return unknown
+            if (!value.value || value.type !== type) return unbound()
             let operand = value.value
             if (field.typeMod !== -1 && rowFieldBindings?.get(args[index])?.kind !== 'scalar') {
               if (type.startsWith('array:'))
@@ -5901,7 +5920,7 @@ export function bindCatalogCheck(
                 }
               else {
                 const modified = modifyScalar(operand, type, field.typeMod, true)
-                if (!modified) return unknown
+                if (!modified) return unbound()
                 operand = modified
               }
             }
@@ -5929,8 +5948,8 @@ export function bindCatalogCheck(
               if (live >= 0) physicalOperands.push(operands[live]!)
               else {
                 const hidden = captured.omitted.find((f) => f.position === position),
-                  bound = hidden ? bind(hidden.expression) : unknown
-                if (!bound.value) return unknown
+                  bound = hidden ? bind(hidden.expression) : unbound()
+                if (!bound.value) return unbound()
                 physicalOperands.push(bound.value)
               }
             }
@@ -5976,7 +5995,7 @@ export function bindCatalogCheck(
                 'pg_catalog.text',
               )
             : operand.value
-          if (!input) return unknown
+          if (!input) return unbound()
           const stored =
             literalOrigin === 'stored' &&
             (operand.literal?.kind === 'string' ||
@@ -5986,7 +6005,7 @@ export function bindCatalogCheck(
             const declared = profile.graph.definitions.find((node) => node.identity === field.type)
             const physical = compositePhysicalType(profile, field.type)
             const type = compositeFieldType(profile, field.type)
-            if (!declared || !physical || !type) return unknown
+            if (!declared || !physical || !type) return unbound()
             const target = stored
               ? elementTypeName(type)
               : declared.kind === 'd'
@@ -6029,7 +6048,7 @@ export function bindCatalogCheck(
               compositeGraph,
             ).expression
             if (converted.kind !== 'eval-scalar' || converted.expression.kind !== 'null-test')
-              return unknown
+              return unbound()
             let value = converted.expression.operand
             if (
               !stored &&
@@ -6066,7 +6085,7 @@ export function bindCatalogCheck(
               if (type.startsWith('array:')) {
                 const element = type.slice(6) as ArrayElementType
                 const conversion = builtinCast(element, element)
-                if (!conversion?.implementation) return unknown
+                if (!conversion?.implementation) return unbound()
                 value = {
                   kind: 'array-coerce',
                   type: type as ArrayType,
@@ -6079,7 +6098,7 @@ export function bindCatalogCheck(
                 }
               } else {
                 const modified = modifyScalar(value, type, field.typeMod, false)
-                if (!modified) return unknown
+                if (!modified) return unbound()
                 value = modified
               }
             }
@@ -6115,7 +6134,7 @@ export function bindCatalogCheck(
           : null
         if (coercion?.kind === 'io' && operand.value) {
           const value = compositeIoOperand(operand.value, composite)
-          return value ? { type: composite, value } : unknown
+          return value ? { type: composite, value } : unbound()
         }
         const mapping = coercion?.kind === 'row' ? coercion.mapping : null
         return mapping && operand.value
@@ -6123,14 +6142,14 @@ export function bindCatalogCheck(
               type: composite,
               value: { kind: 'composite-coerce', type: composite, operand: operand.value, mapping },
             }
-          : unknown
+          : unbound()
       }
       const captured = capturedName
         ? catalogBaseScalarType(capturedName, undefined, domains, rangeTypes)
         : null
-      if (!captured && names && names.length > 1 && names[0] !== 'pg_catalog') return unknown
+      if (!captured && names && names.length > 1 && names[0] !== 'pg_catalog') return unbound()
       const type = captured ?? (names ? catalogScalarType(names.at(-1)!) : null)
-      if (!type) return unknown
+      if (!type) return unbound()
       const modifiers = castType?.['typmods']
       if (
         (type === 'pg_catalog."json"' ||
@@ -6139,9 +6158,9 @@ export function bindCatalogCheck(
         Array.isArray(modifiers) &&
         modifiers.length
       )
-        return unknown
+        return unbound()
       if (type === 'pg_catalog."numeric"' && Array.isArray(modifiers) && modifiers.length) {
-        if (modifiers.length > 2) return unknown
+        if (modifiers.length > 2) return unbound()
         const values = modifiers.map((modifier) => {
           const integer = fields(fields(fields(modifier)?.['A_Const'])?.['ival'])
           return integer ? (integer['ival'] ?? 0) : undefined
@@ -6158,11 +6177,11 @@ export function bindCatalogCheck(
           scale < -1000 ||
           scale > 1000
         )
-          return unknown
+          return unbound()
         const operand = bind({ TypeCast: { ...cast, typeName: { ...castType, typmods: [] } } })
         const conversion = builtinCast(type, type)
         if (!operand.value || conversion?.method !== 'f' || !conversion.implementation)
-          return unknown
+          return unbound()
         const modifier = precision * 65536 + (scale < 0 ? scale + 2048 : scale) + 4
         return {
           type,
@@ -6180,7 +6199,7 @@ export function bindCatalogCheck(
         }
       }
       if (type === 'pg_catalog."interval"' && Array.isArray(modifiers) && modifiers.length) {
-        if (modifiers.length > 2) return unknown
+        if (modifiers.length > 2) return unbound()
         const values = modifiers.map((modifier) => {
           const integer = fields(fields(fields(modifier)?.['A_Const'])?.['ival'])
           return integer ? (integer['ival'] ?? 0) : undefined
@@ -6197,7 +6216,7 @@ export function bindCatalogCheck(
           !Number.isInteger(precision) ||
           precision < 0
         )
-          return unknown
+          return unbound()
         const modifier = range * 65536 + (precision === 65535 ? 65535 : Math.min(precision, 6))
         const original = castOperand()
         if (original.literal?.kind === 'string' && original.literal.value !== null)
@@ -6208,7 +6227,7 @@ export function bindCatalogCheck(
         const operand = bind({ TypeCast: { ...cast, typeName: { ...castType, typmods: [] } } })
         const conversion = builtinCast(type, type)
         if (!operand.value || conversion?.method !== 'f' || !conversion.implementation)
-          return unknown
+          return unbound()
         return {
           type,
           value: {
@@ -6232,12 +6251,12 @@ export function bindCatalogCheck(
         Array.isArray(modifiers) &&
         modifiers.length
       ) {
-        if (modifiers.length !== 1) return unknown
+        if (modifiers.length !== 1) return unbound()
         const constant = fields(fields(modifiers[0])?.['A_Const'])
         const integer = fields(constant?.['ival'])
         const precision = integer ? (integer['ival'] ?? 0) : undefined
         if (typeof precision !== 'number' || !Number.isInteger(precision) || precision < 0)
-          return unknown
+          return unbound()
         const operand = bind({
           TypeCast: {
             ...cast,
@@ -6246,7 +6265,7 @@ export function bindCatalogCheck(
         })
         const conversion = builtinCast(type, type)
         if (!operand.value || conversion?.method !== 'f' || !conversion.implementation)
-          return unknown
+          return unbound()
         return {
           type,
           value: {
@@ -6274,16 +6293,16 @@ export function bindCatalogCheck(
         })
         return constructed.value?.kind === 'array-constructor'
           ? { ...constructed, type, value: { ...constructed.value, type } }
-          : unknown
+          : unbound()
       }
       let operand = castOperand()
       const source = boundType(operand)
       if (type === 'pg_catalog.xml') {
-        if (Array.isArray(modifiers) && modifiers.length) return unknown
+        if (Array.isArray(modifiers) && modifiers.length) return unbound()
         if (source === type) return operand
         if (operand.literal) {
           const value = literalValue(operand.literal, type)
-          if (!value || value.kind !== 'xml') return unknown
+          if (!value || value.kind !== 'xml') return unbound()
           const captured = xmlConstantBindings?.get(cast['arg'])
           return {
             type,
@@ -6310,7 +6329,7 @@ export function bindCatalogCheck(
             type,
             value: { kind: 'xml-operation', type, operation: 'cast', operand: operand.value },
           }
-        return unknown
+        return unbound()
       }
       if (
         source === 'pg_catalog.xml' &&
@@ -6356,7 +6375,7 @@ export function bindCatalogCheck(
             item.args[0] === 'pg_catalog.anyarray' &&
             item.result === 'pg_catalog.cstring',
         )
-        if (!output) return unknown
+        if (!output) return unbound()
         const definition = arrayOutputEnum(source)
         operand = {
           type: 'pg_catalog.text',
@@ -6389,7 +6408,7 @@ export function bindCatalogCheck(
           !metadata.strict ||
           metadata.volatility !== 'i'
         )
-          return unknown
+          return unbound()
         return {
           type,
           value: {
@@ -6511,7 +6530,7 @@ export function bindCatalogCheck(
             source !== 'pg_catalog.timestamptz' &&
             source !== 'pg_catalog.aclitem')
         )
-          return unknown
+          return unbound()
         operand = {
           type: 'pg_catalog.text',
           collation: defaultCollation,
@@ -6528,7 +6547,7 @@ export function bindCatalogCheck(
         const modifiers = castType?.['typmods']
         let width: number | null = null
         if (Array.isArray(modifiers) && modifiers.length) {
-          if (modifiers.length !== 1) return unknown
+          if (modifiers.length !== 1) return unbound()
           const constant = fields(fields(modifiers[0])?.['A_Const'])
           const length = fields(constant?.['ival'])?.['ival']
           if (
@@ -6537,7 +6556,7 @@ export function bindCatalogCheck(
             length <= 0 ||
             length > 10485760
           )
-            return unknown
+            return unbound()
           width = length
         }
         let value = materialize(operand, type)
@@ -6557,11 +6576,11 @@ export function bindCatalogCheck(
               implementation.args.length !== 1 ||
               implementation.volatility !== 'i'
             )
-              return unknown
+              return unbound()
             const argument = catalogScalarType(implementation.args[0]!)
             const result = catalogScalarType(implementation.result)
             const converted = argument ? implicitOperand(operand, argument) : null
-            if (!result || !converted) return unknown
+            if (!result || !converted) return unbound()
             value = {
               kind: 'call',
               call: { kind: 'function', signature: conversion.implementation, type: result },
@@ -6569,7 +6588,7 @@ export function bindCatalogCheck(
             }
             if (result !== type) {
               if (!isBinaryTextRelabel(result, type) || builtinCast(result, type)?.method !== 'b')
-                return unknown
+                return unbound()
               value = {
                 kind: 'call',
                 call: { kind: 'cast', signature: null, type },
@@ -6578,11 +6597,11 @@ export function bindCatalogCheck(
             }
           }
         }
-        if (!value) return unknown
+        if (!value) return unbound()
         const collation = operand.collation ?? defaultCollation
         if (width === null) return { type, value, collation }
         const conversion = builtinCast(type, type)
-        if (conversion?.method !== 'f' || !conversion.implementation) return unknown
+        if (conversion?.method !== 'f' || !conversion.implementation) return unbound()
         return {
           type,
           collation,
@@ -6611,7 +6630,7 @@ export function bindCatalogCheck(
         const modifiers = castType?.['typmods']
         let width = -1
         if (Array.isArray(modifiers) && modifiers.length) {
-          if (modifiers.length !== 1) return unknown
+          if (modifiers.length !== 1) return unbound()
           const constant = fields(fields(modifiers[0])?.['A_Const'])
           const length = fields(constant?.['ival'])?.['ival']
           if (
@@ -6620,16 +6639,16 @@ export function bindCatalogCheck(
             length <= 0 ||
             length > 2147483640
           )
-            return unknown
+            return unbound()
           width = length
         }
         let value: EvalExpression | null = null
         const source = boundType(operand)
         if (isIntegerType(source)) {
           const conversion = source ? builtinCast(source, type) : null
-          if (conversion?.method !== 'f' || !conversion.implementation) return unknown
+          if (conversion?.method !== 'f' || !conversion.implementation) return unbound()
           const input = materialize(operand, source!)
-          if (!input) return unknown
+          if (!input) return unbound()
           return {
             type,
             value: {
@@ -6655,10 +6674,10 @@ export function bindCatalogCheck(
         } else if (operand.type === 'pg_catalog."bit"' || operand.type === 'pg_catalog.varbit') {
           value = materialize(operand, type)
         }
-        if (!value) return unknown
+        if (!value) return unbound()
         if (width === -1) return { type, value }
         const conversion = builtinCast(type, type)
-        if (conversion?.method !== 'f' || !conversion.implementation) return unknown
+        if (conversion?.method !== 'f' || !conversion.implementation) return unbound()
         return {
           type,
           value: {
@@ -6693,7 +6712,7 @@ export function bindCatalogCheck(
                 operands: [operand.value],
               },
             }
-          : unknown
+          : unbound()
       }
       if (
         (operand.type === 'pg_catalog."bit"' || operand.type === 'pg_catalog.varbit') &&
@@ -6711,9 +6730,9 @@ export function bindCatalogCheck(
         operand.value
       ) {
         const conversion = builtinCast(operand.type, type)
-        if (conversion?.method !== 'f' || !conversion.implementation) return unknown
+        if (conversion?.method !== 'f' || !conversion.implementation) return unbound()
         const implementation = builtinMetadata(conversion.implementation)
-        if (implementation.kind !== 'function' || implementation.args.length !== 1) return unknown
+        if (implementation.kind !== 'function' || implementation.args.length !== 1) return unbound()
         const value = materialize(operand, implementation.args[0]! as ScalarType)
         return value
           ? {
@@ -6725,7 +6744,7 @@ export function bindCatalogCheck(
                 operands: [value],
               },
             }
-          : unknown
+          : unbound()
       }
       if (operand.type === 'pg_catalog.uuid' && type === 'pg_catalog.text' && operand.value)
         return {
@@ -6741,7 +6760,7 @@ export function bindCatalogCheck(
               collation: defaultCollation,
               value: { kind: 'io-to-text', type, operand: operand.value, output },
             }
-          : unknown
+          : unbound()
       }
       if (
         type === 'pg_catalog.bytea' &&
@@ -6754,7 +6773,7 @@ export function bindCatalogCheck(
           operand.type === 'pg_catalog.bpchar'
             ? operand.value
             : materialize(operand, 'pg_catalog.text')
-        return text ? { type, value: { kind: 'text-to-bytea', type, operand: text } } : unknown
+        return text ? { type, value: { kind: 'text-to-bytea', type, operand: text } } : unbound()
       }
       if (
         isIntegerType(type) &&
@@ -6795,7 +6814,7 @@ export function bindCatalogCheck(
         operand.value
       ) {
         const text = materialize(operand, 'pg_catalog.text')
-        return text ? { type, value: { kind: 'text-to-float', type, operand: text } } : unknown
+        return text ? { type, value: { kind: 'text-to-float', type, operand: text } } : unbound()
       }
       if (
         (isRangeType(type) || isMultirangeType(type)) &&
@@ -6824,7 +6843,7 @@ export function bindCatalogCheck(
         operand.value
       ) {
         const text = materialize(operand, 'pg_catalog.text')
-        return text ? { type, value: { kind: 'text-to-point', type, operand: text } } : unknown
+        return text ? { type, value: { kind: 'text-to-point', type, operand: text } } : unbound()
       }
       if (
         isCatalogVectorType(type) &&
@@ -6840,7 +6859,7 @@ export function bindCatalogCheck(
           operand.type === 'pg_catalog.bpchar' || operand.type === 'pg_catalog.name'
             ? operand.value
             : materialize(operand, 'pg_catalog.text')
-        return text ? { type, value: { kind: 'text-to-vector', type, operand: text } } : unknown
+        return text ? { type, value: { kind: 'text-to-vector', type, operand: text } } : unbound()
       }
       if (
         type === 'pg_catalog.line' &&
@@ -6848,7 +6867,7 @@ export function bindCatalogCheck(
         operand.value
       ) {
         const text = materialize(operand, 'pg_catalog.text')
-        return text ? { type, value: { kind: 'text-to-line', type, operand: text } } : unknown
+        return text ? { type, value: { kind: 'text-to-line', type, operand: text } } : unbound()
       }
       if (
         type === 'pg_catalog.lseg' &&
@@ -6856,7 +6875,7 @@ export function bindCatalogCheck(
         operand.value
       ) {
         const text = materialize(operand, 'pg_catalog.text')
-        return text ? { type, value: { kind: 'text-to-lseg', type, operand: text } } : unknown
+        return text ? { type, value: { kind: 'text-to-lseg', type, operand: text } } : unbound()
       }
       if (
         type === 'pg_catalog.tsvector' &&
@@ -6869,7 +6888,7 @@ export function bindCatalogCheck(
           operand.type === 'pg_catalog.bpchar'
             ? operand.value
             : materialize(operand, 'pg_catalog.text')
-        return text ? { type, value: { kind: 'text-to-tsvector', type, operand: text } } : unknown
+        return text ? { type, value: { kind: 'text-to-tsvector', type, operand: text } } : unbound()
       }
       if (
         type === 'pg_catalog.tsquery' &&
@@ -6882,7 +6901,7 @@ export function bindCatalogCheck(
           operand.type === 'pg_catalog.bpchar'
             ? operand.value
             : materialize(operand, 'pg_catalog.text')
-        return text ? { type, value: { kind: 'text-to-tsquery', type, operand: text } } : unknown
+        return text ? { type, value: { kind: 'text-to-tsquery', type, operand: text } } : unbound()
       }
       if (
         type === 'pg_catalog.aclitem' &&
@@ -6895,7 +6914,7 @@ export function bindCatalogCheck(
           operand.type === 'pg_catalog.bpchar'
             ? operand.value
             : materialize(operand, 'pg_catalog.text')
-        return text ? { type, value: { kind: 'text-to-aclitem', type, operand: text } } : unknown
+        return text ? { type, value: { kind: 'text-to-aclitem', type, operand: text } } : unbound()
       }
       if (
         type === 'pg_catalog.money' &&
@@ -6903,7 +6922,7 @@ export function bindCatalogCheck(
         operand.value
       ) {
         const text = materialize(operand, 'pg_catalog.text')
-        return text ? { type, value: { kind: 'text-to-money', type, operand: text } } : unknown
+        return text ? { type, value: { kind: 'text-to-money', type, operand: text } } : unbound()
       }
       if (
         type === 'pg_catalog.xid' &&
@@ -6911,7 +6930,7 @@ export function bindCatalogCheck(
         operand.value
       ) {
         const text = materialize(operand, 'pg_catalog.text')
-        return text ? { type, value: { kind: 'text-to-xid', type, operand: text } } : unknown
+        return text ? { type, value: { kind: 'text-to-xid', type, operand: text } } : unbound()
       }
       if (
         type === 'pg_catalog.cid' &&
@@ -6919,7 +6938,7 @@ export function bindCatalogCheck(
         operand.value
       ) {
         const text = materialize(operand, 'pg_catalog.text')
-        return text ? { type, value: { kind: 'text-to-cid', type, operand: text } } : unknown
+        return text ? { type, value: { kind: 'text-to-cid', type, operand: text } } : unbound()
       }
       if (
         type === 'pg_catalog.pg_lsn' &&
@@ -6927,7 +6946,7 @@ export function bindCatalogCheck(
         operand.value
       ) {
         const text = materialize(operand, 'pg_catalog.text')
-        return text ? { type, value: { kind: 'text-to-pg_lsn', type, operand: text } } : unknown
+        return text ? { type, value: { kind: 'text-to-pg_lsn', type, operand: text } } : unbound()
       }
       if (
         type === 'pg_catalog.tid' &&
@@ -6935,7 +6954,7 @@ export function bindCatalogCheck(
         operand.value
       ) {
         const text = materialize(operand, 'pg_catalog.text')
-        return text ? { type, value: { kind: 'text-to-tid', type, operand: text } } : unknown
+        return text ? { type, value: { kind: 'text-to-tid', type, operand: text } } : unbound()
       }
       if (
         (type === 'pg_catalog."json"' ||
@@ -6953,7 +6972,7 @@ export function bindCatalogCheck(
           operand.type === 'pg_catalog.bpchar' || operand.type === 'pg_catalog.name'
             ? operand.value
             : materialize(operand, 'pg_catalog.text')
-        return text ? { type, value: { kind: 'text-to-json', type, operand: text } } : unknown
+        return text ? { type, value: { kind: 'text-to-json', type, operand: text } } : unbound()
       }
       if (
         isSnapshotType(type) &&
@@ -6969,7 +6988,7 @@ export function bindCatalogCheck(
           operand.type === 'pg_catalog.bpchar' || operand.type === 'pg_catalog.name'
             ? operand.value
             : materialize(operand, 'pg_catalog.text')
-        return text ? { type, value: { kind: 'text-to-snapshot', type, operand: text } } : unknown
+        return text ? { type, value: { kind: 'text-to-snapshot', type, operand: text } } : unbound()
       }
       if (
         type === 'pg_catalog.xid8' &&
@@ -6977,7 +6996,7 @@ export function bindCatalogCheck(
         operand.value
       ) {
         const text = materialize(operand, 'pg_catalog.text')
-        return text ? { type, value: { kind: 'text-to-xid8', type, operand: text } } : unknown
+        return text ? { type, value: { kind: 'text-to-xid8', type, operand: text } } : unbound()
       }
       if (
         isOidType(type) &&
@@ -6986,7 +7005,7 @@ export function bindCatalogCheck(
         operand.value
       ) {
         const text = materialize(operand, 'pg_catalog.text')
-        return text ? { type, value: { kind: 'text-to-oid', type, operand: text } } : unknown
+        return text ? { type, value: { kind: 'text-to-oid', type, operand: text } } : unbound()
       }
       if (
         type === 'pg_catalog.polygon' &&
@@ -6994,7 +7013,7 @@ export function bindCatalogCheck(
         operand.value
       ) {
         const text = materialize(operand, 'pg_catalog.text')
-        return text ? { type, value: { kind: 'text-to-polygon', type, operand: text } } : unknown
+        return text ? { type, value: { kind: 'text-to-polygon', type, operand: text } } : unbound()
       }
       if (
         type === 'pg_catalog.path' &&
@@ -7002,7 +7021,7 @@ export function bindCatalogCheck(
         operand.value
       ) {
         const text = materialize(operand, 'pg_catalog.text')
-        return text ? { type, value: { kind: 'text-to-path', type, operand: text } } : unknown
+        return text ? { type, value: { kind: 'text-to-path', type, operand: text } } : unbound()
       }
       if (
         type === 'pg_catalog.circle' &&
@@ -7010,7 +7029,7 @@ export function bindCatalogCheck(
         operand.value
       ) {
         const text = materialize(operand, 'pg_catalog.text')
-        return text ? { type, value: { kind: 'text-to-circle', type, operand: text } } : unknown
+        return text ? { type, value: { kind: 'text-to-circle', type, operand: text } } : unbound()
       }
       if (
         type === 'pg_catalog.box' &&
@@ -7018,7 +7037,7 @@ export function bindCatalogCheck(
         operand.value
       ) {
         const text = materialize(operand, 'pg_catalog.text')
-        return text ? { type, value: { kind: 'text-to-box', type, operand: text } } : unknown
+        return text ? { type, value: { kind: 'text-to-box', type, operand: text } } : unbound()
       }
       if (
         type === 'pg_catalog.uuid' &&
@@ -7026,7 +7045,7 @@ export function bindCatalogCheck(
         operand.value
       ) {
         const text = materialize(operand, 'pg_catalog.text')
-        return text ? { type, value: { kind: 'text-to-uuid', type, operand: text } } : unknown
+        return text ? { type, value: { kind: 'text-to-uuid', type, operand: text } } : unbound()
       }
       if (isMacType(operand.type) && type === 'pg_catalog.text' && operand.value)
         return {
@@ -7045,7 +7064,7 @@ export function bindCatalogCheck(
                 operands: [operand.value],
               },
             }
-          : unknown
+          : unbound()
       }
       if (
         (type === 'pg_catalog.macaddr' || type === 'pg_catalog.macaddr8') &&
@@ -7053,7 +7072,7 @@ export function bindCatalogCheck(
         operand.value
       ) {
         const text = materialize(operand, 'pg_catalog.text')
-        return text ? { type, value: { kind: 'text-to-mac', type, operand: text } } : unknown
+        return text ? { type, value: { kind: 'text-to-mac', type, operand: text } } : unbound()
       }
       if (operand.type === 'pg_catalog.cidr' && type === 'pg_catalog.inet' && operand.value)
         return { type, value: materialize(operand, type) }
@@ -7068,7 +7087,7 @@ export function bindCatalogCheck(
                 operands: [operand.value],
               },
             }
-          : unknown
+          : unbound()
       }
       if (operand.type && operand.value && isBinaryBitRelabel(operand.type, type))
         return { type, value: materialize(operand, type) }
@@ -7088,7 +7107,7 @@ export function bindCatalogCheck(
         operand.value
       ) {
         const text = materialize(operand, 'pg_catalog.text')
-        return text ? { type, value: { kind: 'text-to-network', type, operand: text } } : unknown
+        return text ? { type, value: { kind: 'text-to-network', type, operand: text } } : unbound()
       }
       if (
         (type === 'pg_catalog."time"' || type === 'pg_catalog.timetz') &&
@@ -7096,7 +7115,7 @@ export function bindCatalogCheck(
         operand.value
       ) {
         const text = materialize(operand, 'pg_catalog.text')
-        return text ? { type, value: { kind: 'text-to-clock', type, operand: text } } : unknown
+        return text ? { type, value: { kind: 'text-to-clock', type, operand: text } } : unbound()
       }
       if (
         type === 'pg_catalog."interval"' &&
@@ -7104,7 +7123,7 @@ export function bindCatalogCheck(
         operand.value
       ) {
         const text = materialize(operand, 'pg_catalog.text')
-        return text ? { type, value: { kind: 'text-to-interval', type, operand: text } } : unknown
+        return text ? { type, value: { kind: 'text-to-interval', type, operand: text } } : unbound()
       }
       if (type === 'pg_catalog.date' && operand.type === 'pg_catalog.text' && operand.value)
         return {
@@ -7161,7 +7180,7 @@ export function bindCatalogCheck(
         operand.type ?? (operand.literal?.kind === 'integer' ? 'pg_catalog.int4' : null)
       if (conversionSource) {
         const value = materialize(operand, conversionSource)
-        if (!value) return unknown
+        if (!value) return unbound()
         const conversion = builtinCast(conversionSource, type)
         if (conversion?.method === 'b' && (isOidType(conversionSource) || isOidType(type)))
           return {
@@ -7184,7 +7203,7 @@ export function bindCatalogCheck(
               !isTemporalContextCast(implementation)) ||
             !result
           )
-            return unknown
+            return unbound()
           const argumentType = catalogScalarType(implementation.args[0]!)
           const internalCharPhysicalCast =
             conversionSource === 'pg_catalog.bpchar' &&
@@ -7197,7 +7216,7 @@ export function bindCatalogCheck(
               : argumentType
                 ? implicitOperand(operand, argumentType)
                 : null
-          if (!argument) return unknown
+          if (!argument) return unbound()
           let converted: EvalExpression = {
             kind: 'call',
             call: {
@@ -7208,7 +7227,7 @@ export function bindCatalogCheck(
             operands: [argument],
           }
           if (result !== type) {
-            if (builtinCast(result, type)?.method !== 'b') return unknown
+            if (builtinCast(result, type)?.method !== 'b') return unbound()
             converted = {
               kind: 'call',
               call: { kind: 'cast', signature: null, type },
@@ -7229,7 +7248,7 @@ export function bindCatalogCheck(
           }
         }
       }
-      return unknown
+      return unbound()
     }
     const constant = fields(wrapper['A_Const'])
     if (constant) {
@@ -7339,7 +7358,7 @@ export function bindCatalogCheck(
       const booleanNode = fields(constant['boolval'])
       if (booleanNode) {
         const boolean = booleanNode['boolval'] ?? false
-        if (typeof boolean !== 'boolean') return unknown
+        if (typeof boolean !== 'boolean') return unbound()
         return {
           type: 'pg_catalog.bool',
           value: {
@@ -7352,7 +7371,7 @@ export function bindCatalogCheck(
           },
         }
       }
-      return unknown
+      return unbound()
     }
     const reference = fields(wrapper['ColumnRef']),
       names = strings(reference?.['fields'])
@@ -7374,7 +7393,7 @@ export function bindCatalogCheck(
               },
             },
           ])
-        : unknown
+        : unbound()
     }
     if (names?.length === 1) {
       const column = columns.find((item) => item.name === names[0])
@@ -7486,20 +7505,20 @@ export function bindCatalogCheck(
           !left.length ||
           left.length !== right.length
         )
-          return unknown
+          return unbound()
         if ([...left, ...right].some((value) => fields(value)?.['RowExpr'] !== undefined))
-          return unknown
+          return unbound()
         const names = strings(operator['name'])
-        if (!names || (names.length > 1 && names[0] !== 'pg_catalog')) return unknown
+        if (!names || (names.length > 1 && names[0] !== 'pg_catalog')) return unbound()
         const name = names.at(-1)!
         if (left.length === 1)
           return bind({ A_Expr: { ...operator, lexpr: left[0], rexpr: right[0] } })
         const distinct = operator['kind'] !== 'AEXPR_OP'
-        if (!distinct && !['=', '<>', '<', '<=', '>', '>='].includes(name)) return unknown
+        if (!distinct && !['=', '<>', '<', '<=', '>', '>='].includes(name)) return unbound()
         const pairs = left.map((node, index) =>
           comparisonCandidate([bind(node), bind(right[index])], distinct ? '=' : name),
         )
-        if (pairs.some((pair) => !pair)) return unknown
+        if (pairs.some((pair) => !pair)) return unbound()
         if (distinct || name === '=' || name === '<>') {
           const operands = pairs.map((pair, index): EvalExpression =>
             distinct
@@ -7558,10 +7577,10 @@ export function bindCatalogCheck(
                 entry.strategy !== entries[0]!.strategy,
             )
           )
-            return unknown
+            return unbound()
           const entry = entries[0]!
           if (entry.strategy === 3 || (strategy !== undefined && strategy !== entry.strategy))
-            return unknown
+            return unbound()
           strategy = entry.strategy
           const comparator = builtinMetadata(entry.comparator!)
           if (
@@ -7569,7 +7588,7 @@ export function bindCatalogCheck(
             comparator.result !== 'pg_catalog.int4' ||
             comparator.args.some((type, index) => type !== pair!.item.args[index])
           )
-            return unknown
+            return unbound()
           comparisons.push({
             operands: [pair!.operands[0]!, pair!.operands[1]!],
             comparison: {
@@ -7582,7 +7601,7 @@ export function bindCatalogCheck(
           })
         }
         return strategy === undefined
-          ? unknown
+          ? unbound()
           : {
               type: 'pg_catalog.bool',
               value: { kind: 'row-compare', type: 'pg_catalog.bool', strategy, pairs: comparisons },
@@ -7597,7 +7616,7 @@ export function bindCatalogCheck(
     ) {
       const bounds = fields(fields(operator['rexpr'])?.['List'])?.['items']
       if (!Array.isArray(bounds) || bounds.length !== 2 || operator['lexpr'] === undefined)
-        return unknown
+        return unbound()
       const negated = String(operator['kind']).startsWith('AEXPR_NOT_')
       const symmetric = String(operator['kind']).endsWith('_SYM')
       const compare = (name: string, bound: unknown): unknown => ({
@@ -7635,9 +7654,9 @@ export function bindCatalogCheck(
     }
     if (operator && ['AEXPR_OP_ANY', 'AEXPR_OP_ALL'].includes(String(operator['kind']))) {
       const names = strings(operator['name'])
-      if (!names || (names.length > 1 && names[0] !== 'pg_catalog')) return unknown
+      if (!names || (names.length > 1 && names[0] !== 'pg_catalog')) return unbound()
       const name = names.at(-1)
-      if (!name) return unknown
+      if (!name) return unbound()
       const subject = bind(operator['lexpr'])
       const array = bind(operator['rexpr'])
       const inferred = boundType(subject) ?? 'pg_catalog.text'
@@ -7646,7 +7665,7 @@ export function bindCatalogCheck(
         (array.literal && !inferred.startsWith('array:')
           ? arrayType(inferred as ArrayElementType)
           : null)
-      if (!isArrayLikeType(sourceType)) return unknown
+      if (!isArrayLikeType(sourceType)) return unbound()
       const sourceElement = arrayLikeElementType(sourceType)!
       const baseElement = arrayElementBaseType(sourceElement) as ScalarType
       const definition = array.enum ?? subject.enum
@@ -7656,7 +7675,7 @@ export function bindCatalogCheck(
         baseElement,
         definition,
       )
-      if (!value || !dummy) return unknown
+      if (!value || !dummy) return unbound()
       const collation =
         arrayCollations([subject.collation, array.collation]) ??
         arrayElementCollation(sourceElement)
@@ -7668,7 +7687,7 @@ export function bindCatalogCheck(
         name,
         false,
       )
-      if (!resolved || resolved.item.result !== 'pg_catalog.bool') return unknown
+      if (!resolved || resolved.item.result !== 'pg_catalog.bool') return unbound()
       const element =
         resolved.item.args[1] === 'pg_catalog.record'
           ? (compositeProfile(baseElement) || anonymousRecordProfile(baseElement)) && baseElement
@@ -7681,7 +7700,7 @@ export function bindCatalogCheck(
                 : resolved.item.args[1] === 'pg_catalog.anyrange'
                   ? isRangeType(baseElement) && baseElement
                   : catalogScalarType(resolved.item.args[1]!)
-      if (!element || (element.startsWith('array:') && element !== baseElement)) return unknown
+      if (!element || (element.startsWith('array:') && element !== baseElement)) return unbound()
       const targetElement = element === baseElement ? sourceElement : (element as ArrayElementType)
       const operand =
         element === baseElement
@@ -7692,7 +7711,7 @@ export function bindCatalogCheck(
               operator['rexpr'],
               definition,
             )
-      if (!operand) return unknown
+      if (!operand) return unbound()
       return {
         type: 'pg_catalog.bool',
         value: {
@@ -7713,12 +7732,12 @@ export function bindCatalogCheck(
     }
     if (operator && operator['kind'] === 'AEXPR_IN') {
       const names = strings(operator['name'])
-      if (!names || (names.length > 1 && names[0] !== 'pg_catalog')) return unknown
+      if (!names || (names.length > 1 && names[0] !== 'pg_catalog')) return unbound()
       const name = names.at(-1)
       const operation = name === '=' ? 'or' : name === '<>' ? 'and' : null
-      if (!operation) return unknown
+      if (!operation) return unbound()
       const list = fields(fields(operator['rexpr'])?.['List'])?.['items']
-      if (!Array.isArray(list) || list.length === 0) return unknown
+      if (!Array.isArray(list) || list.length === 0) return unbound()
       const array = { members: list }
       const subject = bind(operator['lexpr'])
       const members = array.members.map((member) => bind(member))
@@ -7730,7 +7749,7 @@ export function bindCatalogCheck(
           : 'pg_catalog.text')
       const definition = subject.enum ?? members.find((member) => member.enum)?.enum
       const value = materialize(subject, type, definition)
-      if (!value) return unknown
+      if (!value) return unbound()
       const collation = type.startsWith('array:')
         ? arrayCollations([subject, ...members].map((member) => member.collation))
         : combineCollations([subject, ...members].map((member) => member.collation))
@@ -7747,9 +7766,9 @@ export function bindCatalogCheck(
           },
         ]),
       )
-      if (resolved.some((member) => !member)) return unknown
+      if (resolved.some((member) => !member)) return unbound()
       const first = resolved[0]!
-      if (resolved.some((member) => member!.signature !== first.signature)) return unknown
+      if (resolved.some((member) => member!.signature !== first.signature)) return unbound()
       const withColumns = array.members.map(containsColumn)
       const constants = resolved.flatMap((member, index) =>
         !withColumns[index] ? [member!.operands[1]!] : [],
@@ -7816,7 +7835,7 @@ export function bindCatalogCheck(
       }
       const resolved = comparisonCandidate(nodes.map((node) => bind(node)))
       if (!resolved || resolved.item.result !== 'pg_catalog.bool' || resolved.operands.length !== 2)
-        return unknown
+        return unbound()
       const comparison = {
         kind: 'operator' as const,
         signature: resolved.signature,
@@ -7842,7 +7861,7 @@ export function bindCatalogCheck(
                     ? resolved.operands[0]!.type
                     : null
               : catalogScalarType(resolved.item.args[0]!)
-        if (!type) return unknown
+        if (!type) return unbound()
         const resultType = type as ScalarType
         return {
           type: resultType,
@@ -7869,9 +7888,9 @@ export function bindCatalogCheck(
     }
     if (operator && ['AEXPR_OP', 'AEXPR_LIKE', 'AEXPR_ILIKE'].includes(String(operator['kind']))) {
       const names = strings(operator['name'])
-      if (names && names.length > 1 && names[0] !== 'pg_catalog') return unknown
+      if (names && names.length > 1 && names[0] !== 'pg_catalog') return unbound()
       const name = names?.at(-1)
-      if (!name || operator['rexpr'] === undefined) return unknown
+      if (!name || operator['rexpr'] === undefined) return unbound()
       if (operator['lexpr'] === undefined) return bindCall('operator', name, [operator['rexpr']])
       return bindCall('operator', name, [operator['lexpr'], operator['rexpr']])
     }
@@ -7890,8 +7909,8 @@ export function bindCatalogCheck(
               selected.names,
               (args0 as unknown[]) ?? [],
               call['func_variadic'] === true,
-            ) ?? unknown)
-          : unknown
+            ) ?? unbound())
+          : unbound()
       let boundArgs: readonly Bound[] | undefined
       if (selected?.kind === 'cast' && Array.isArray(args0) && args0.length === 1) {
         if (
@@ -7903,7 +7922,7 @@ export function bindCatalogCheck(
           call['over'] ||
           call['agg_within_group']
         )
-          return unknown
+          return unbound()
         return bind(
           { TypeCast: { arg: args0[0], typeName: selected.typeName } },
           undefined,
@@ -7926,7 +7945,7 @@ export function bindCatalogCheck(
             call['over'] ||
             call['agg_within_group']
           )
-            return unknown
+            return unbound()
           return bind({ ColumnRef: { fields: [{ String: { sval: selected.name } }] } })
         }
         const parent = bind(args0[0])
@@ -7943,16 +7962,16 @@ export function bindCatalogCheck(
               call['agg_within_group'] ||
               fields(fields(args0[0])?.['NamedArgExpr'])
             )
-              return unknown
+              return unbound()
             return projectField(parent, selected.name, args0[0])
           }
           if (selected?.kind === 'function') {
-            if (selected.names.length > 1 && selected.names[0] !== 'pg_catalog') return unknown
+            if (selected.names.length > 1 && selected.names[0] !== 'pg_catalog') return unbound()
           } else if (
             literalOrigin === 'source' &&
             (rowFieldBindings || hasField(parent, names[0]!))
           )
-            return unknown
+            return unbound()
         }
       }
       if (names?.length === 2 && Array.isArray(call['args'] ?? [])) {
@@ -7963,7 +7982,7 @@ export function bindCatalogCheck(
         )
         if (captured) return captured
       }
-      if (names && names.length > 1 && names[0] !== 'pg_catalog') return unknown
+      if (names && names.length > 1 && names[0] !== 'pg_catalog') return unbound()
       const name = names?.at(-1)
       const args = call['args'] ?? []
       if (name && Array.isArray(args))
@@ -7972,7 +7991,7 @@ export function bindCatalogCheck(
     const nullTest = fields(wrapper['NullTest'])
     if (nullTest) {
       if (nullTest['nulltesttype'] !== 'IS_NULL' && nullTest['nulltesttype'] !== 'IS_NOT_NULL')
-        return unknown
+        return unbound()
       const names = strings(fields(fields(nullTest['arg'])?.['ColumnRef'])?.['fields'])
       const column = names?.length === 1 ? columns.find((item) => item.name === names[0]) : null
       if (
@@ -8002,7 +8021,7 @@ export function bindCatalogCheck(
       }
       const operand = bind(nullTest['arg'])
       const value = operand.value ?? materialize(operand, boundType(operand) ?? 'pg_catalog.text')
-      if (!value) return unknown
+      if (!value) return unbound()
       return {
         type: 'pg_catalog.bool',
         value: {
@@ -8014,7 +8033,7 @@ export function bindCatalogCheck(
         },
       }
     }
-    return unknown
+    return unbound()
   }
   const bindRangeCall = (
     names: readonly string[],
@@ -8030,10 +8049,10 @@ export function bindCatalogCheck(
     const sqlName = names.map(quote).join('.')
     const castType = catalogBaseScalarType(sqlName, undefined, domains, rangeTypes)
     if (!candidates.size && !isRangeType(castType) && !isMultirangeType(castType)) return null
-    if (!rangeTypes.some((p) => p.callables !== undefined)) return unknown
+    if (!rangeTypes.some((p) => p.callables !== undefined)) return unbound()
     const actualNodes = nodes.map((node) => fields(fields(node)?.['NamedArgExpr'])?.['arg'] ?? node)
     const args = actualNodes.map((node) => bind(node))
-    if (args.some((arg) => !arg.value && !arg.literal)) return unknown
+    if (args.some((arg) => !arg.value && !arg.literal)) return unbound()
     const rawType = (type: string): string => {
       const domain = domainElementDefinition(type)
       if (domain) return [domain.schema, domain.name].map(quote).join('.')
@@ -8074,13 +8093,13 @@ export function bindCatalogCheck(
           typeName: { names: names.map((sval) => ({ String: { sval } })) },
         },
       })
-    if (selection.kind !== 'call') return unknown
+    if (selection.kind !== 'call') return unbound()
     const callable = selection.callable,
       profile = catalogRangeDefinitions(rangeTypes).find(
         (p) => p.identity === callable.result || p.multirange === callable.result,
       )
     const type = catalogBaseScalarType(callable.result, undefined, domains, rangeTypes)
-    const unavailable: Bound = unknown
+    const unavailable: Bound = unbound()
     const implementation = profile ? rangeConstructorImplementation(profile, callable) : null
     if (!implementation || !type || (!isRangeType(type) && !isMultirangeType(type)))
       return unavailable
@@ -8262,13 +8281,13 @@ export function bindCatalogCheck(
         ].includes(name)
       )
     )
-      return unknown
+      return unbound()
     const enumArgument = args.find((arg) => arg.enum)
     if (enumArgument?.type)
       args = args.map((arg, index) =>
         arg.value || arg.literal ? arg : bind(nodes[index], enumArgument.type!),
       )
-    if (args.some((arg) => !arg.value && !arg.literal)) return unknown
+    if (args.some((arg) => !arg.value && !arg.literal)) return unbound()
     args = args.map((arg) =>
       arg.type?.startsWith('array:enum:') ? { ...arg, enum: resultEnum(arg.type, [arg]) } : arg,
     )
@@ -8383,7 +8402,7 @@ export function bindCatalogCheck(
         | 'pg_catalog.circle'
         | 'pg_catalog.box'
       const value = materialize(args[0]!, type)
-      return value ? { type, value } : unknown
+      return value ? { type, value } : unbound()
     }
     if (
       kind === 'function' &&
@@ -8497,7 +8516,7 @@ export function bindCatalogCheck(
           if (isSnapshotType(type))
             return text
               ? { type, value: { kind: 'text-to-snapshot', type, operand: text } }
-              : unknown
+              : unbound()
           return text
             ? type === 'pg_catalog.bytea'
               ? { type, value: { kind: 'text-to-bytea', type, operand: text } }
@@ -8601,12 +8620,12 @@ export function bindCatalogCheck(
                                                             operand: text,
                                                           },
                                                         }
-            : unknown
+            : unbound()
         }
         const value = materialize(operand, type)
-        return value ? { type, value } : unknown
+        return value ? { type, value } : unbound()
       }
-      return unknown
+      return unbound()
     }
     const type =
       resolved.resultType ??
@@ -8618,7 +8637,7 @@ export function bindCatalogCheck(
       isNullableQuote(resolved.item) && resolved.item.args[0] === 'pg_catalog.anyelement'
         ? quoteTextArgument(nodes[0], { ...args[0]!, value: resolved.operands[0]! })
         : undefined
-    if (quoteArgument && !quoteArgument.value) return unknown
+    if (quoteArgument && !quoteArgument.value) return unbound()
     const outputEnum =
       resolved.item.schema === 'pg_catalog' && resolved.item.name === 'array_to_string'
         ? arrayOutputEnum(boundType(args[0]!) ?? '')
@@ -8811,9 +8830,24 @@ export function bindCatalogCheck(
       }
     }
     const value = bind(node)
-    return value.type === 'pg_catalog.bool' && value.value
-      ? { kind: 'eval-scalar', expression: value.value }
-      : { kind: 'uncertain', ...(runtimeOpaque(node) ? { preparation: 'runtime' as const } : {}) }
+    if (value.type === 'pg_catalog.bool' && value.value)
+      return { kind: 'eval-scalar', expression: value.value }
+    return {
+      kind: 'uncertain',
+      ...(runtimeOpaque(node) ? { preparation: 'runtime' as const } : {}),
+      ...(collationProviderOnly(node) ? { reason: 'context' as const } : {}),
+    }
+  }
+  // An expression that binds once collation behavior is assumed needs only the collation provider.
+  const collationProviderOnly = (node: unknown): boolean => {
+    if (assumeCollationProvider) return false
+    assumeCollationProvider = true
+    try {
+      const value = bind(node)
+      return value.type === 'pg_catalog.bool' && value.value !== null
+    } finally {
+      assumeCollationProvider = false
+    }
   }
   const hasMoneyArrayElement = (type: string): boolean => {
     let base = arrayElementBaseType(type)
@@ -8952,7 +8986,7 @@ export function bindCatalogCheck(
     if (!base?.nominalDomain) return result
     const nominal = nominalScalarType(base)
     const inputConversion = nominal ? compositeConversion(nominal, false) : null
-    if (!inputConversion || result.value?.kind !== 'call') return unknown
+    if (!inputConversion || result.value?.kind !== 'call') return unbound()
     return { ...result, value: { ...result.value, inputConversion } }
   }
   const attachContainerInput = (value: unknown): unknown => {

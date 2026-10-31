@@ -564,6 +564,7 @@ pub fn range_construct_typed(
     if let ArrayElement::Unknown = lower { unresolved_flavor = 1; };
     if let ArrayElement::Unknown = upper { unresolved_flavor = 1; };
     if let TextValue::Unknown = flags { unresolved_flavor = 1; };
+    if let TextValue::NonNull = flags { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ArrayElement::Unimplemented = lower { unresolved_flavor = 2; };
     if let ArrayElement::Unimplemented = upper { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = flags { unresolved_flavor = 2; };

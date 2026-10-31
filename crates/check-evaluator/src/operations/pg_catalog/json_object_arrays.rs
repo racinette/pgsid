@@ -134,6 +134,7 @@ pub fn sql__pg_catalog__json_object__katl(keys: ArrayValue, values: ArrayValue) 
 fn json_object_array_to_jsonb(input: JsonValue) -> JsonbValue {
     let mut unresolved_flavor: i32 = 0;
     if let JsonValue::Unknown = input { unresolved_flavor = 1; };
+    if let JsonValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let JsonValue::Unimplemented = input { unresolved_flavor = 2; };
     if let JsonValue::Error(error) = input {
         return JsonbValue::Error(error);

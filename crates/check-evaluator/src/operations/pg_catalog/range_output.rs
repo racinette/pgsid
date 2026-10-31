@@ -40,7 +40,9 @@ pub fn range_format_text(input: RangeValue, lower: TextValue, upper: TextValue) 
     let mut unresolved_flavor: i32 = 0;
     if let RangeValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unknown = lower { unresolved_flavor = 1; };
+    if let TextValue::NonNull = lower { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = upper { unresolved_flavor = 1; };
+    if let TextValue::NonNull = upper { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let RangeValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = lower { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = upper { unresolved_flavor = 2; };

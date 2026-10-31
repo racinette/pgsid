@@ -17,6 +17,7 @@ fn jsonpath_conversion_kind(kind: i32) -> bool {
 fn jsonpath_conversion_integer_text(input: TextValue, wide: bool) -> NumericValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Value(value) = input {
         let characters: Vec<char> = value.chars().collect();
@@ -105,6 +106,7 @@ fn jsonpath_conversion_integer_text(input: TextValue, wide: bool) -> NumericValu
 fn jsonpath_conversion_number_text(input: TextValue) -> NumericValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Value(value) = input {
         let parsed = scalar_numeric_from_text(TextValue::Value(value));
@@ -138,6 +140,7 @@ fn jsonpath_conversion_boolean_value(
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = number { unresolved_flavor = 1; };
     if let TextValue::Unknown = text { unresolved_flavor = 1; };
+    if let TextValue::NonNull = text { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let NumericValue::Unimplemented = number { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = text { unresolved_flavor = 2; };
     if value_kind == 1 || value_kind == 2 {
@@ -169,6 +172,7 @@ fn jsonpath_conversion_string_value(
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = number { unresolved_flavor = 1; };
     if let TextValue::Unknown = text { unresolved_flavor = 1; };
+    if let TextValue::NonNull = text { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let NumericValue::Unimplemented = number { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = text { unresolved_flavor = 2; };
     if value_kind == 4 {
@@ -199,6 +203,7 @@ fn jsonpath_conversion_numeric_value(
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = number { unresolved_flavor = 1; };
     if let TextValue::Unknown = text { unresolved_flavor = 1; };
+    if let TextValue::NonNull = text { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let NumericValue::Unimplemented = number { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = text { unresolved_flavor = 2; };
     if value_kind != 3 && value_kind != 4 {

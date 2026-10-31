@@ -11,6 +11,7 @@ fn money_text_digit(value: i64, digit: i64) -> Int8Value {
 pub fn money_from_text_context(input: TextValue, c_locale: bool) -> MoneyValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if c_locale == false { return money_from_text(input); };
     if let TextValue::Error(error) = input { return MoneyValue::Error(error); };

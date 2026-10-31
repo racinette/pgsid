@@ -337,6 +337,7 @@ pub fn sql__pg_catalog__jsonb_delete__cow2(input: JsonbValue, key: TextValue) ->
     let mut unresolved_flavor: i32 = 0;
     if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unknown = key { unresolved_flavor = 1; };
+    if let TextValue::NonNull = key { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let JsonbValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = key { unresolved_flavor = 2; };
     if let JsonbValue::Error(error) = input {

@@ -25,8 +25,10 @@ fn text_build_octets(value: &str) -> i64 {
 fn text_padding(input: TextValue, length: Int4Value, fill: TextValue, right: bool) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Int4Value::Unknown = length { unresolved_flavor = 1; };
     if let TextValue::Unknown = fill { unresolved_flavor = 1; };
+    if let TextValue::NonNull = fill { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let Int4Value::Unimplemented = length { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = fill { unresolved_flavor = 2; };
@@ -145,6 +147,7 @@ pub fn sql__pg_catalog__rpad__53f6(input: TextValue, length: Int4Value) -> TextV
 pub fn sql__pg_catalog__repeat__f0fb(input: TextValue, length: Int4Value) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Int4Value::Unknown = length { unresolved_flavor = 1; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let Int4Value::Unimplemented = length { unresolved_flavor = 2; };
@@ -198,8 +201,11 @@ pub fn sql__pg_catalog__translate__txpt(
 ) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = from { unresolved_flavor = 1; };
+    if let TextValue::NonNull = from { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = to { unresolved_flavor = 1; };
+    if let TextValue::NonNull = to { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = from { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = to { unresolved_flavor = 2; };

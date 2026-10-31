@@ -57,6 +57,7 @@ pub fn catalog_vector_to_text(input: ArrayValue, oid: bool) -> TextValue {
 pub fn catalog_vector_from_text(input: TextValue, oid: bool) -> ArrayValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input { return ArrayValue::Error(error); };
     if let TextValue::Null = input { return ArrayValue::Null; };

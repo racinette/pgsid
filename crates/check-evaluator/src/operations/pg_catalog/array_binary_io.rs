@@ -88,6 +88,7 @@ pub fn sql__pg_catalog__array_send__g245(input: ArrayValue, output: ByteaValue) 
     let mut unresolved_flavor: i32 = 0;
     if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
     if let ByteaValue::Unknown = output { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = output { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ArrayValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ByteaValue::Unimplemented = output { unresolved_flavor = 2; };
     if let ArrayValue::Error(error) = input {

@@ -1,7 +1,9 @@
 pub fn sql__pg_catalog__byteaeq__z0yh(left: ByteaValue, right: ByteaValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = left { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unknown = right { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unimplemented = left { unresolved_flavor = 2; };
     if let ByteaValue::Unimplemented = right { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = left {
@@ -35,7 +37,9 @@ pub fn sql__pg_catalog__byteaeq__z0yh(left: ByteaValue, right: ByteaValue) -> Bo
 pub fn sql__pg_catalog__byteane__volo(left: ByteaValue, right: ByteaValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = left { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unknown = right { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unimplemented = left { unresolved_flavor = 2; };
     if let ByteaValue::Unimplemented = right { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = left {
@@ -69,6 +73,7 @@ pub fn sql__pg_catalog__byteane__volo(left: ByteaValue, right: ByteaValue) -> Bo
 pub fn text_wire_context(input: TextValue, utf8: bool) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input { return ByteaValue::Error(error); };
     if input == TextValue::Null { return ByteaValue::Null; };

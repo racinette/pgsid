@@ -314,6 +314,7 @@ pub fn sql__pg_catalog__to_char__0fwv(input: IntervalValue, template: TextValue)
     let mut unresolved_flavor: i32 = 0;
     if let IntervalValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unknown = template { unresolved_flavor = 1; };
+    if let TextValue::NonNull = template { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let IntervalValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = template { unresolved_flavor = 2; };
     if let IntervalValue::Error(error) = input {

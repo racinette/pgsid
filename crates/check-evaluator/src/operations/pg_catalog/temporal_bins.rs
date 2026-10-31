@@ -1,6 +1,7 @@
 pub fn sql__pg_catalog__date_trunc__d8uf(units: TextValue, input: IntervalValue) -> IntervalValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = units { unresolved_flavor = 1; };
+    if let TextValue::NonNull = units { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let IntervalValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unimplemented = units { unresolved_flavor = 2; };
     if let IntervalValue::Unimplemented = input { unresolved_flavor = 2; };

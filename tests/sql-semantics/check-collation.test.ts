@@ -131,9 +131,24 @@ describe('CHECK text collation', () => {
         expect(prepareCheckRust(plan.expression).kind, group.name).toBe('supported')
   })
 
-  it.each(Object.entries(unsupported))('keeps %s uncertain', (_name, sql) => {
+  // Provider-defined collation behavior needs the database; conflicts and bytewise deterministic
+  // operations do not.
+  const providerDependent = new Set([
+    'nondeterministic',
+    'nondeterministic_peers',
+    'nondeterministic_ne',
+    'nondeterministic_in',
+    'explicit_unknown',
+    'foreign_c',
+    'custom_ordering',
+  ])
+  it.each(Object.entries(unsupported))('keeps %s uncertain', (name, sql) => {
     const expression = bind(sql)
-    expect(expression).toEqual({ kind: 'uncertain' })
+    expect(expression).toEqual(
+      providerDependent.has(name)
+        ? { kind: 'uncertain', reason: 'context' }
+        : { kind: 'uncertain' },
+    )
   })
 
   it('retains default ordering for resolution through declared execution context', () => {

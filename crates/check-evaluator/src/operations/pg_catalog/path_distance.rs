@@ -10,7 +10,9 @@ fn path_segment(first: PointPayload, second: PointPayload) -> LsegValue {
 fn path_min_distance(current: Float8Value, candidate: Float8Value, first: bool) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = current { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = current { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unknown = candidate { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = candidate { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unimplemented = current { unresolved_flavor = 2; };
     if let Float8Value::Unimplemented = candidate { unresolved_flavor = 2; };
     if let Float8Value::Error(error) = candidate {

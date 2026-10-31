@@ -7,6 +7,7 @@ fn range_input_space(ch: char) -> bool {
 fn range_input_bound(input: TextValue, kind: i32, cidr: bool, name: bool, alias_mode: i32, utf8: bool, enum_labels: &str, enum_count: i32) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if kind == 6 {
         if let TextValue::Value(_) = input {
@@ -140,6 +141,7 @@ fn range_text_value(
 pub fn prepare_range_text(input: TextValue) -> RangeTextPlan {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return RangeTextPlan::Error(error);
@@ -511,6 +513,7 @@ pub fn range_from_text_defined(
 ) -> RangeValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     let plan = prepare_range_text(input);
     if range_text_needs_bounds(plan.clone()) == false {

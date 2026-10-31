@@ -37,6 +37,7 @@ fn interval_scaled(input: IntervalValue, factor: Float8Value, divide: bool) -> I
     let mut unresolved_flavor: i32 = 0;
     if let IntervalValue::Unknown = input { unresolved_flavor = 1; };
     if let Float8Value::Unknown = factor { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = factor { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let IntervalValue::Unimplemented = input { unresolved_flavor = 2; };
     if let Float8Value::Unimplemented = factor { unresolved_flavor = 2; };
     if let IntervalValue::Error(error) = input {
@@ -297,6 +298,7 @@ pub fn sql__pg_catalog__make_interval__nlc1(
     if let Int4Value::Unknown = hours { unresolved_flavor = 1; };
     if let Int4Value::Unknown = minutes { unresolved_flavor = 1; };
     if let Float8Value::Unknown = seconds { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = seconds { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Int4Value::Unimplemented = years { unresolved_flavor = 2; };
     if let Int4Value::Unimplemented = months { unresolved_flavor = 2; };
     if let Int4Value::Unimplemented = weeks { unresolved_flavor = 2; };

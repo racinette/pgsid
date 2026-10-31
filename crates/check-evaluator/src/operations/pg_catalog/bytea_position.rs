@@ -1,7 +1,9 @@
 pub fn sql__pg_catalog__position__9w14(input: ByteaValue, pattern: ByteaValue) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unknown = pattern { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = pattern { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ByteaValue::Unimplemented = pattern { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = input {

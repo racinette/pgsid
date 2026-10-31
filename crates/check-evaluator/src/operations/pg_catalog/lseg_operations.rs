@@ -85,7 +85,9 @@ fn segment_float_from_status(status: BoolValue) -> Float8Value {
 fn segment_raw_relation(left: Float8Value, right: Float8Value, equal: bool) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = left { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unknown = right { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unimplemented = left { unresolved_flavor = 2; };
     if let Float8Value::Unimplemented = right { unresolved_flavor = 2; };
     if let Float8Value::Error(error) = left {

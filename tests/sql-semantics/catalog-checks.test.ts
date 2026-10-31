@@ -470,7 +470,8 @@ func TestMixedChecks(t *testing.T) {
         type: 'check',
         definition: `CHECK ((email COLLATE public."C") ~ '^a+$')`,
       })?.expression,
-    ).toEqual({ kind: 'uncertain' })
+      // A user collation named C is a catalog definition, not the builtin C behavior.
+    ).toEqual({ kind: 'uncertain', reason: 'context' })
     expect(plans.get('with_unknown')?.expression).toMatchObject({
       kind: 'eval-boolean-logic',
       operation: 'and',

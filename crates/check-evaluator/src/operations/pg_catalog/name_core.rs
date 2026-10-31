@@ -1,6 +1,7 @@
 pub fn name_from_text_with_limit(input: TextValue, limit: Int4Value) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Int4Value::Unknown = limit { unresolved_flavor = 1; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let Int4Value::Unimplemented = limit { unresolved_flavor = 2; };
@@ -35,7 +36,9 @@ pub fn name_from_text(input: TextValue) -> TextValue { name_from_text_with_limit
 fn name_relation(left: TextValue, right: TextValue, mode: i32) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = left { unresolved_flavor = 1; };
+    if let TextValue::NonNull = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = right { unresolved_flavor = 1; };
+    if let TextValue::NonNull = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = left { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = right { unresolved_flavor = 2; };
     let order = text_binary_compare(left, right, false);
@@ -93,6 +96,7 @@ pub fn sql__pg_catalog__namesend__y7mk(input: TextValue) -> ByteaValue {
 pub fn name_from_text_context(input: TextValue, limit: i32, utf8: bool) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Value(value) = input {
         if utf8 == false {

@@ -44,7 +44,9 @@ pub fn sql__pg_catalog__point_ne__jppg(left: PointValue, right: PointValue) -> B
 pub fn sql__pg_catalog__point__db27(x: Float8Value, y: Float8Value) -> PointValue {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = x { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = x { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unknown = y { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = y { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unimplemented = x { unresolved_flavor = 2; };
     if let Float8Value::Unimplemented = y { unresolved_flavor = 2; };
     if let Float8Value::Error(error) = x {

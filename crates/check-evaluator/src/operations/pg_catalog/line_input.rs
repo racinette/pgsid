@@ -3,8 +3,11 @@ const LINE_POINTS_ARGUMENT: u32 = 3452619;
 fn line_from_scalars(first: Float8Value, second: Float8Value, third: Float8Value) -> LineValue {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = first { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = first { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unknown = second { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = second { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unknown = third { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = third { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unimplemented = first { unresolved_flavor = 2; };
     if let Float8Value::Unimplemented = second { unresolved_flavor = 2; };
     if let Float8Value::Unimplemented = third { unresolved_flavor = 2; };
@@ -63,6 +66,7 @@ fn line_origin_coordinate(point: PointPayload, horizontal: bool) -> Float8Value 
 fn line_from_origin_slope(origin: PointPayload, gradient: Float8Value) -> LineValue {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = gradient { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = gradient { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unimplemented = gradient { unresolved_flavor = 2; };
     if let Float8Value::Error(error) = gradient {
         return LineValue::Error(error);
@@ -327,6 +331,7 @@ fn geometry_read_pair(source: &GeometryInputText, begin: usize) -> GeometryInput
 pub fn line_from_text(input: TextValue) -> LineValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return LineValue::Error(error);

@@ -27,6 +27,7 @@ fn literal_text_fields_value(elements: Vec<ArrayElement>) -> ArrayValue {
 pub fn literal_text_fields(input: TextValue, kind: i32) -> ArrayValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return ArrayValue::Error(error);

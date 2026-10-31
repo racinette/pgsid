@@ -57,7 +57,9 @@ fn polygon_paths_overlap(
 ) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoxValue::Unknown = a_bounds { unresolved_flavor = 1; };
+    if let BoxValue::NonNull = a_bounds { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let BoxValue::Unknown = b_bounds { unresolved_flavor = 1; };
+    if let BoxValue::NonNull = b_bounds { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let BoxValue::Unimplemented = a_bounds { unresolved_flavor = 2; };
     if let BoxValue::Unimplemented = b_bounds { unresolved_flavor = 2; };
     if a.points.len() == 0 || b.points.len() == 0 { return bool_unresolved(unresolved_flavor); };

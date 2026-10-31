@@ -228,6 +228,7 @@ fn jsonpath_number_node(next: usize, begin: usize, end: usize) -> JsonpathNode {
 pub fn jsonpath_from_coerced_source_utf8(input: TextValue) -> JsonpathValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return JsonpathValue::Error(error);
@@ -249,6 +250,7 @@ pub fn jsonpath_from_coerced_source_utf8(input: TextValue) -> JsonpathValue {
 pub fn jsonpath_from_stored_text(input: TextValue) -> JsonpathValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return JsonpathValue::Error(error);

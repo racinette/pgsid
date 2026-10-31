@@ -140,7 +140,9 @@ pub fn sql__pg_catalog__xmlconcat2__vnu3(left: XmlValue, right: XmlValue) -> Xml
 pub fn xml_root(input: XmlValue, version: TextValue, standalone: i32) -> XmlValue {
     let mut unresolved_flavor: i32 = 0;
     if let XmlValue::Unknown = input { unresolved_flavor = 1; };
+    if let XmlValue::NonNull(_knowledge) = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = version { unresolved_flavor = 1; };
+    if let TextValue::NonNull = version { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let XmlValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = version { unresolved_flavor = 2; };
     if let XmlValue::Error(error) = input { return XmlValue::Error(error); };
@@ -170,6 +172,7 @@ pub fn xml_root(input: XmlValue, version: TextValue, standalone: i32) -> XmlValu
 pub fn xml_make_processing_instruction(name: &str, content: TextValue, present: bool, mapped: bool) -> XmlValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = content { unresolved_flavor = 1; };
+    if let TextValue::NonNull = content { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = content { unresolved_flavor = 2; };
     let mut target = name.to_owned();
     if mapped == false { target = xml_constructor_name(name); };

@@ -64,6 +64,7 @@ fn aclitem_mode_character(character: char) -> bool {
 pub fn aclitem_from_text_context(input: TextValue, limit: i32, utf8: bool) -> AclitemValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input { return AclitemValue::Error(error); };
     if let TextValue::Null = input { return AclitemValue::Null; };
@@ -150,6 +151,7 @@ fn aclitem_privilege(name: &str) -> i64 {
 fn aclitem_privileges(input: TextValue) -> Int8Value {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input { return Int8Value::Error(error); };
     if let TextValue::Null = input { return Int8Value::Null; };
@@ -185,6 +187,7 @@ pub fn sql__pg_catalog__makeaclitem__ab9i(grantee: OidValue, grantor: OidValue, 
     if let OidValue::Unknown = grantee { unresolved_flavor = 1; };
     if let OidValue::Unknown = grantor { unresolved_flavor = 1; };
     if let TextValue::Unknown = privileges { unresolved_flavor = 1; };
+    if let TextValue::NonNull = privileges { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let BoolValue::Unknown = grantable { unresolved_flavor = 1; };
     if let OidValue::Unimplemented = grantee { unresolved_flavor = 2; };
     if let OidValue::Unimplemented = grantor { unresolved_flavor = 2; };

@@ -1,7 +1,9 @@
 fn bytea_compare(left: ByteaValue, right: ByteaValue) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = left { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unknown = right { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unimplemented = left { unresolved_flavor = 2; };
     if let ByteaValue::Unimplemented = right { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = left {
@@ -52,7 +54,9 @@ pub fn sql__pg_catalog__byteacmp__2x4q(left: ByteaValue, right: ByteaValue) -> I
 pub fn sql__pg_catalog__bytealt__be6e(left: ByteaValue, right: ByteaValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = left { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unknown = right { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unimplemented = left { unresolved_flavor = 2; };
     if let ByteaValue::Unimplemented = right { unresolved_flavor = 2; };
     let result = bytea_compare(left, right);
@@ -74,7 +78,9 @@ pub fn sql__pg_catalog__bytealt__be6e(left: ByteaValue, right: ByteaValue) -> Bo
 pub fn sql__pg_catalog__byteale__vi7d(left: ByteaValue, right: ByteaValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = left { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unknown = right { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unimplemented = left { unresolved_flavor = 2; };
     if let ByteaValue::Unimplemented = right { unresolved_flavor = 2; };
     let result = bytea_compare(left, right);
@@ -96,7 +102,9 @@ pub fn sql__pg_catalog__byteale__vi7d(left: ByteaValue, right: ByteaValue) -> Bo
 pub fn sql__pg_catalog__byteagt__221r(left: ByteaValue, right: ByteaValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = left { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unknown = right { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unimplemented = left { unresolved_flavor = 2; };
     if let ByteaValue::Unimplemented = right { unresolved_flavor = 2; };
     let result = bytea_compare(left, right);
@@ -118,7 +126,9 @@ pub fn sql__pg_catalog__byteagt__221r(left: ByteaValue, right: ByteaValue) -> Bo
 pub fn sql__pg_catalog__byteage__paor(left: ByteaValue, right: ByteaValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = left { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unknown = right { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unimplemented = left { unresolved_flavor = 2; };
     if let ByteaValue::Unimplemented = right { unresolved_flavor = 2; };
     let result = bytea_compare(left, right);
@@ -140,7 +150,9 @@ pub fn sql__pg_catalog__byteage__paor(left: ByteaValue, right: ByteaValue) -> Bo
 pub fn sql__pg_catalog__bytea_larger__iqg1(left: ByteaValue, right: ByteaValue) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = left { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unknown = right { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unimplemented = left { unresolved_flavor = 2; };
     if let ByteaValue::Unimplemented = right { unresolved_flavor = 2; };
     let result = bytea_compare(left.clone(), right.clone());
@@ -165,7 +177,9 @@ pub fn sql__pg_catalog__bytea_larger__iqg1(left: ByteaValue, right: ByteaValue) 
 pub fn sql__pg_catalog__bytea_smaller__iook(left: ByteaValue, right: ByteaValue) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = left { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unknown = right { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unimplemented = left { unresolved_flavor = 2; };
     if let ByteaValue::Unimplemented = right { unresolved_flavor = 2; };
     let result = bytea_compare(left.clone(), right.clone());
@@ -190,6 +204,7 @@ pub fn sql__pg_catalog__bytea_smaller__iook(left: ByteaValue, right: ByteaValue)
 fn bytea_length(input: ByteaValue) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = input {
         return Int4Value::Error(error);
@@ -235,6 +250,7 @@ pub fn sql__pg_catalog__bit_length__gryu(input: ByteaValue) -> Int4Value {
 pub fn sql__pg_catalog__bit_count__u0pl(input: ByteaValue) -> Int8Value {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = input {
         return Int8Value::Error(error);
@@ -267,6 +283,7 @@ pub fn sql__pg_catalog__bit_count__u0pl(input: ByteaValue) -> Int8Value {
 pub fn sql__pg_catalog__reverse__w0od(input: ByteaValue) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = input {
         return ByteaValue::Error(error);

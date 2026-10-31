@@ -73,6 +73,7 @@ fn array_float_number_output(number: f64, negative: bool) -> TextValue {
 pub fn array_float4_output(input: Float4Value) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let Float4Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float4Value::UnspecifiedNan = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float4Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Float4Value::Error(error) = input {
         return TextValue::Error(error);
@@ -92,6 +93,7 @@ pub fn array_float4_output(input: Float4Value) -> TextValue {
 pub fn array_float8_output(input: Float8Value) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Float8Value::Error(error) = input {
         return TextValue::Error(error);

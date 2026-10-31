@@ -757,6 +757,7 @@ pub fn sql__pg_catalog__jsonb_set_lax__lecq(
     if let JsonbValue::Unknown = replacement { unresolved_flavor = 1; };
     if let BoolValue::Unknown = create { unresolved_flavor = 1; };
     if let TextValue::Unknown = treatment { unresolved_flavor = 1; };
+    if let TextValue::NonNull = treatment { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let JsonbValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayValue::Unimplemented = path { unresolved_flavor = 2; };
     if let JsonbValue::Unimplemented = replacement { unresolved_flavor = 2; };

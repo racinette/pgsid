@@ -243,6 +243,7 @@ fn float8_atan2_kernel(y: f64, x: f64) -> f64 {
 fn float8_inverse_trigonometry(input: Float8Value, fdlibm: bool, operation: i32) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unimplemented = input { unresolved_flavor = 2; };
     if input == Float8Value::UnspecifiedNan {
         return Float8Value::UnspecifiedNan;
@@ -288,7 +289,9 @@ pub fn sql__pg_catalog__atan2__re5y(
 ) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = left { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unknown = right { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unimplemented = left { unresolved_flavor = 2; };
     if let Float8Value::Unimplemented = right { unresolved_flavor = 2; };
     if let Float8Value::Error(error) = left {
@@ -340,6 +343,7 @@ fn float8_acosd_q1(x: f64) -> f64 {
 fn float8_inverse_degrees(input: Float8Value, fdlibm: bool, operation: i32) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unimplemented = input { unresolved_flavor = 2; };
     if input == Float8Value::UnspecifiedNan {
         return Float8Value::UnspecifiedNan;

@@ -202,6 +202,7 @@ fn clock_fields_numeric_value(
 fn clock_fields_numeric(units: TextValue, input: ClockFieldInput) -> NumericValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = units { unresolved_flavor = 1; };
+    if let TextValue::NonNull = units { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = units { unresolved_flavor = 2; };
     if let TextValue::Error(error) = units {
         return NumericValue::Error(error);
@@ -231,6 +232,7 @@ fn clock_fields_numeric(units: TextValue, input: ClockFieldInput) -> NumericValu
 fn clock_fields_legacy(units: TextValue, input: ClockFieldInput) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = units { unresolved_flavor = 1; };
+    if let TextValue::NonNull = units { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = units { unresolved_flavor = 2; };
     let interval_value = input.value;
     let number = clock_fields_numeric(units.clone(), input);

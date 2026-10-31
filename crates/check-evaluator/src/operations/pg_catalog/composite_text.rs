@@ -67,6 +67,7 @@ fn composite_text_read(input: CompositeTextPayload) -> CompositeTextPlan {
 pub fn prepare_composite_text(input: TextValue, expected: i32) -> CompositeTextPlan {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return CompositeTextPlan::Error(error);
@@ -247,7 +248,9 @@ pub fn composite_output_matches(input: CompositeValue, type_name: &str, fields: 
 pub fn append_composite_output(input: TextValue, field: TextValue, first: bool) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = field { unresolved_flavor = 1; };
+    if let TextValue::NonNull = field { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = field { unresolved_flavor = 2; };
     if input == TextValue::NonNull {

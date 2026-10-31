@@ -122,6 +122,7 @@ fn money_float_scale(
     let mut unresolved_flavor: i32 = 0;
     if let MoneyValue::Unknown = input { unresolved_flavor = 1; };
     if let Float8Value::Unknown = factor { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = factor { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let MoneyValue::Unimplemented = input { unresolved_flavor = 2; };
     if let Float8Value::Unimplemented = factor { unresolved_flavor = 2; };
     if reverse {

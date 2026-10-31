@@ -290,6 +290,11 @@ func AclitemFromTextContext(input checkruntime.TextValue, limit int, utf8 bool) 
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -452,6 +457,11 @@ func aclitemPrivileges(input checkruntime.TextValue) checkruntime.Int8Value {
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -511,6 +521,11 @@ func MakeaclitemAb9i(grantee checkruntime.OidValue, grantor checkruntime.OidValu
 	}
 	if privileges.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if privileges.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if grantable.Kind == checkruntime.BoolValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -1280,6 +1295,13 @@ func ArraySendG245(input checkruntime.ArrayValue, output checkruntime.ByteaValue
 	if output.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if output.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(output.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.ArrayValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -1755,8 +1777,18 @@ func floatStateArithmetic(left checkruntime.Float8Value, right checkruntime.Floa
 	if left.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -2063,6 +2095,11 @@ func floatTransitionTest(input checkruntime.Float8Value, operation int) checkrun
 	if input.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -2097,6 +2134,11 @@ func floatTransitionNan(input checkruntime.Float8Value, condition checkruntime.C
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if condition.Kind == checkruntime.CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -2169,8 +2211,18 @@ func floatArrayAccumulate(input checkruntime.ArrayValue, y checkruntime.Float8Va
 	if y.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if y.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if x.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if x.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.ArrayValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -2430,20 +2482,50 @@ func floatCombineVariance(first checkruntime.Float8Value, second checkruntime.Fl
 	if first.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if first.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if second.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if second.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if counts.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if counts.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if tx.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if tx.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if ty.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if ty.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if n.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if n.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if first.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -2954,6 +3036,11 @@ func ParseIdentUh6p(input checkruntime.TextValue, strict checkruntime.BoolValue,
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if strict.Kind == checkruntime.BoolValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -3603,6 +3690,11 @@ func ArrayFloat4Output(input checkruntime.Float4Value) checkruntime.TextValue {
 	if input.Kind == checkruntime.Float4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.Float4ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.Float4ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -3626,6 +3718,11 @@ func ArrayFloat8Output(input checkruntime.Float8Value) checkruntime.TextValue {
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -4584,6 +4681,11 @@ func arrayStringField(input string, marker checkruntime.TextValue, deterministic
 	if marker.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if marker.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if marker.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -4615,11 +4717,26 @@ func arrayStringSplit(input checkruntime.TextValue, delimiter checkruntime.TextV
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if delimiter.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if delimiter.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if marker.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if marker.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -4746,8 +4863,18 @@ func arrayStringJoin(input checkruntime.ArrayOutputPayload, rendered checkruntim
 	if delimiter.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if delimiter.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if marker.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if marker.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if rendered.Kind == checkruntime.ArrayArgumentsUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -6490,8 +6617,22 @@ func ByteaeqZ0yh(left checkruntime.ByteaValue, right checkruntime.ByteaValue) ch
 	if left.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(left.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(right.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.ByteaValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -6575,8 +6716,22 @@ func ByteaneVolo(left checkruntime.ByteaValue, right checkruntime.ByteaValue) ch
 	if left.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(left.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(right.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.ByteaValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -6659,6 +6814,11 @@ func TextWireContext(input checkruntime.TextValue, utf8 bool) checkruntime.Bytea
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -7974,6 +8134,11 @@ func BitFromTextModifier(input checkruntime.TextValue, width int, varying bool, 
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -9018,6 +9183,11 @@ func boxEndpoint(input checkruntime.BoxValue, low bool) checkruntime.PointValue 
 	if input.Kind == checkruntime.BoxValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.BoxValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.BoxValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -9073,6 +9243,11 @@ func boxDimension(input checkruntime.BoxValue, vertical bool) checkruntime.Float
 	if input.Kind == checkruntime.BoxValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.BoxValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.BoxValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -9103,6 +9278,11 @@ func boxMidpoint(input checkruntime.BoxValue) checkruntime.PointValue {
 	if input.Kind == checkruntime.BoxValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.BoxValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.BoxValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -9127,8 +9307,18 @@ func boxPairStatus(left checkruntime.BoxValue, right checkruntime.BoxValue) chec
 	if left.Kind == checkruntime.BoxValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.BoxValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.BoxValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.BoxValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.BoxValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -9186,8 +9376,18 @@ func boxAreaRelation(left checkruntime.BoxValue, right checkruntime.BoxValue, mo
 	if left.Kind == checkruntime.BoxValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.BoxValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.BoxValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.BoxValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.BoxValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -9280,6 +9480,11 @@ func boxBinary(input checkruntime.BoxValue) checkruntime.ByteaValue {
 	if input.Kind == checkruntime.BoxValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.BoxValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.BoxValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -9310,8 +9515,18 @@ func boxCentersDistance(left checkruntime.BoxValue, right checkruntime.BoxValue)
 	if left.Kind == checkruntime.BoxValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.BoxValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.BoxValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.BoxValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.BoxValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -9388,6 +9603,11 @@ func BoxFromText(input checkruntime.TextValue) checkruntime.BoxValue {
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -9433,8 +9653,18 @@ func boxSpatialRelation(left checkruntime.BoxValue, right checkruntime.BoxValue,
 	if left.Kind == checkruntime.BoxValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.BoxValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.BoxValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.BoxValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.BoxValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -9510,14 +9740,34 @@ func boxFromScalars(highX checkruntime.Float8Value, highY checkruntime.Float8Val
 	if highX.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if highX.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if highY.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if highY.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if lowX.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if lowX.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if lowY.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if lowY.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if highX.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -9643,8 +9893,18 @@ func boxMerge(left checkruntime.BoxValue, right checkruntime.BoxValue, intersect
 	if left.Kind == checkruntime.BoxValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.BoxValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.BoxValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.BoxValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.BoxValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -9691,6 +9951,11 @@ func boxPointStatus(input checkruntime.BoxValue, point checkruntime.PointValue) 
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.BoxValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.BoxValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if point.Kind == checkruntime.PointValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -9739,6 +10004,11 @@ func boxSegmentStatus(input checkruntime.BoxValue, segment checkruntime.LsegValu
 	if input.Kind == checkruntime.BoxValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.BoxValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if segment.Kind == checkruntime.LsegValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
@@ -9786,6 +10056,11 @@ func boxArithmetic(input checkruntime.BoxValue, point checkruntime.PointValue, m
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.BoxValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.BoxValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if point.Kind == checkruntime.PointValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -9879,6 +10154,11 @@ func boxContainsPoint(input checkruntime.BoxValue, point checkruntime.PointValue
 	if input.Kind == checkruntime.BoxValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.BoxValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if point.Kind == checkruntime.PointValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
@@ -9927,6 +10207,11 @@ func boxCorner(input checkruntime.BoxValue, highX bool, highY bool) checkruntime
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.BoxValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.BoxValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.BoxValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -10111,6 +10396,11 @@ func boxCrossLine(input checkruntime.BoxValue, line checkruntime.LineValue) chec
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.BoxValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.BoxValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if line.Kind == checkruntime.LineValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -10347,8 +10637,22 @@ func ByteacatZitv(left checkruntime.ByteaValue, right checkruntime.ByteaValue) c
 	if left.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(left.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(right.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.ByteaValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -10455,8 +10759,22 @@ func byteaCompare(left checkruntime.ByteaValue, right checkruntime.ByteaValue) c
 	if left.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(left.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(right.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.ByteaValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -10533,8 +10851,22 @@ func BytealtBe6e(left checkruntime.ByteaValue, right checkruntime.ByteaValue) ch
 	if left.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(left.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(right.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.ByteaValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -10573,8 +10905,22 @@ func BytealeVi7d(left checkruntime.ByteaValue, right checkruntime.ByteaValue) ch
 	if left.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(left.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(right.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.ByteaValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -10613,8 +10959,22 @@ func Byteagt221r(left checkruntime.ByteaValue, right checkruntime.ByteaValue) ch
 	if left.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(left.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(right.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.ByteaValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -10653,8 +11013,22 @@ func ByteagePaor(left checkruntime.ByteaValue, right checkruntime.ByteaValue) ch
 	if left.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(left.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(right.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.ByteaValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -10693,8 +11067,22 @@ func ByteaLargerIqg1(left checkruntime.ByteaValue, right checkruntime.ByteaValue
 	if left.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(left.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(right.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.ByteaValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -10736,8 +11124,22 @@ func ByteaSmallerIook(left checkruntime.ByteaValue, right checkruntime.ByteaValu
 	if left.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(left.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(right.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.ByteaValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -10778,6 +11180,13 @@ func byteaLength(input checkruntime.ByteaValue) checkruntime.Int4Value {
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(input.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.ByteaValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -10837,6 +11246,13 @@ func BitCountU0pl(input checkruntime.ByteaValue) checkruntime.Int8Value {
 	if input.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(input.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.ByteaValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -10882,6 +11298,13 @@ func ReverseW0od(input checkruntime.ByteaValue) checkruntime.ByteaValue {
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(input.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.ByteaValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -10976,6 +11399,13 @@ func GetByte48am(input checkruntime.ByteaValue, position checkruntime.Int4Value)
 	if input.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(input.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if position.Kind == checkruntime.Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
@@ -11045,6 +11475,13 @@ func GetBitThv7(input checkruntime.ByteaValue, position checkruntime.Int8Value) 
 	if input.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(input.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if position.Kind == checkruntime.Int8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
@@ -11110,6 +11547,13 @@ func SetByte8mtw(input checkruntime.ByteaValue, position checkruntime.Int4Value,
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(input.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if position.Kind == checkruntime.Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -11194,6 +11638,13 @@ func SetBit06f4(input checkruntime.ByteaValue, position checkruntime.Int8Value, 
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(input.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if position.Kind == checkruntime.Int8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -11627,8 +12078,20 @@ func EncodeBvkp(input checkruntime.ByteaValue, format checkruntime.TextValue) ch
 	if input.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(input.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if format.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if format.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.ByteaValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -11707,8 +12170,18 @@ func DecodeB6gt(input checkruntime.TextValue, format checkruntime.TextValue) che
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if format.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if format.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -11805,6 +12278,13 @@ func HashbyteaMypt(input checkruntime.ByteaValue, byteOrder int) checkruntime.In
 	if input.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(input.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.ByteaValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -11839,6 +12319,13 @@ func HashbyteaextendedU1vz(input checkruntime.ByteaValue, seed checkruntime.Int8
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(input.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if seed.Kind == checkruntime.Int8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -11894,6 +12381,13 @@ func byteaCrc(input checkruntime.ByteaValue, polynomial int64) checkruntime.Int8
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(input.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.ByteaValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -11955,6 +12449,11 @@ func ByteaFromText(input checkruntime.TextValue) checkruntime.ByteaValue {
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -12013,6 +12512,13 @@ func byteaIntegerValue(input checkruntime.ByteaValue, width int) checkruntime.In
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(input.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.ByteaValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -12089,6 +12595,13 @@ func Int2Hj0w(input checkruntime.ByteaValue) checkruntime.Int2Value {
 	if input.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(input.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.ByteaValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -12123,6 +12636,13 @@ func Int4Lvgc(input checkruntime.ByteaValue) checkruntime.Int4Value {
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(input.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.ByteaValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -12535,8 +13055,22 @@ func byteaLike(input checkruntime.ByteaValue, pattern checkruntime.ByteaValue, n
 	if input.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(input.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if pattern.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if pattern.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(pattern.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.ByteaValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -12610,8 +13144,22 @@ func LikeEscapeHk4j(input checkruntime.ByteaValue, escape checkruntime.ByteaValu
 	if input.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(input.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if escape.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if escape.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(escape.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.ByteaValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -12808,6 +13356,13 @@ func Md5Vpfl(input checkruntime.ByteaValue) checkruntime.TextValue {
 	if input.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(input.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.ByteaValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -12841,6 +13396,11 @@ func Md5Kt50(input checkruntime.TextValue) checkruntime.TextValue {
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -12887,6 +13447,13 @@ func ByteaOutputContext(input checkruntime.ByteaValue, format int, sqlText bool)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(input.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.ByteaValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -12971,8 +13538,22 @@ func byteaOverlay(input checkruntime.ByteaValue, replacement checkruntime.ByteaV
 	if input.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(input.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if replacement.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if replacement.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(replacement.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if position.Kind == checkruntime.Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -13084,8 +13665,22 @@ func Position9w14(input checkruntime.ByteaValue, pattern checkruntime.ByteaValue
 	if input.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(input.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if pattern.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if pattern.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(pattern.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.ByteaValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -13367,6 +13962,13 @@ func digestSha256(input checkruntime.ByteaValue, short bool) checkruntime.ByteaV
 	if input.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(input.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.ByteaValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -13616,6 +14218,13 @@ func digestSha512(input checkruntime.ByteaValue, short bool) checkruntime.ByteaV
 	if input.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(input.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.ByteaValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -13658,6 +14267,13 @@ func byteaSubstring(input checkruntime.ByteaValue, position checkruntime.Int4Val
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(input.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if position.Kind == checkruntime.Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -13776,8 +14392,22 @@ func byteaTrim(input checkruntime.ByteaValue, pattern checkruntime.ByteaValue, t
 	if input.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(input.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if pattern.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if pattern.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(pattern.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.ByteaValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -14197,6 +14827,11 @@ func CatalogVectorFromText(input checkruntime.TextValue, oid bool) checkruntime.
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -14789,8 +15424,18 @@ func BpchareqNpys(left checkruntime.TextValue, right checkruntime.TextValue) che
 	if left.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -14844,8 +15489,18 @@ func BpchargeO6oj(left checkruntime.TextValue, right checkruntime.TextValue) che
 	if left.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -14899,8 +15554,18 @@ func BpchargtKxc4(left checkruntime.TextValue, right checkruntime.TextValue) che
 	if left.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -14954,8 +15619,18 @@ func Bpcharle0rch(left checkruntime.TextValue, right checkruntime.TextValue) che
 	if left.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -15009,8 +15684,18 @@ func BpcharltQrb5(left checkruntime.TextValue, right checkruntime.TextValue) che
 	if left.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -15064,8 +15749,18 @@ func BpcharneQkuu(left checkruntime.TextValue, right checkruntime.TextValue) che
 	if left.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -15118,6 +15813,11 @@ func TextVc4r(input checkruntime.TextValue) checkruntime.TextValue {
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -15232,6 +15932,11 @@ func circleFromCenterRadius(center checkruntime.PointValue, radius checkruntime.
 	}
 	if radius.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if radius.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if center.Kind == checkruntime.PointValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -15733,6 +16438,11 @@ func CircleFromText(input checkruntime.TextValue) checkruntime.CircleValue {
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -15755,8 +16465,18 @@ func circleFuzzyRelation(left checkruntime.Float8Value, right checkruntime.Float
 	if left.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -16630,6 +17350,11 @@ func clockFieldsNumeric(units checkruntime.TextValue, input clockFieldInput) che
 	if units.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if units.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if units.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -16671,6 +17396,11 @@ func clockFieldsLegacy(units checkruntime.TextValue, input clockFieldInput) chec
 	unresolvedFlavor := 0
 	if units.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if units.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if units.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -16782,6 +17512,13 @@ func RecordSendYv22(input checkruntime.CompositeValue, output checkruntime.Bytea
 	}
 	if output.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if output.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(output.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.CompositeValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -16916,6 +17653,11 @@ func RecordAnonymousInput(input checkruntime.TextValue) checkruntime.CompositeVa
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -16951,6 +17693,11 @@ func RecordArrayFromText(input checkruntime.TextValue, nulls int) checkruntime.A
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -17204,6 +17951,11 @@ func PrepareCompositeText(input checkruntime.TextValue, expected int) checkrunti
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -17413,8 +18165,18 @@ func AppendCompositeOutput(input checkruntime.TextValue, field checkruntime.Text
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if field.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if field.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -18512,8 +19274,18 @@ func floatArithmetic(left checkruntime.Float8Value, right checkruntime.Float8Val
 	if left.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -18644,8 +19416,18 @@ func Float4largerBpdf(left checkruntime.Float4Value, right checkruntime.Float4Va
 	if left.Kind == checkruntime.Float4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.Float4ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.Float4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.Float4ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.Float4ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -18696,8 +19478,18 @@ func Float4smaller1d11(left checkruntime.Float4Value, right checkruntime.Float4V
 	if left.Kind == checkruntime.Float4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.Float4ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.Float4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.Float4ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.Float4ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -18783,8 +19575,18 @@ func Float8largerB58s(left checkruntime.Float8Value, right checkruntime.Float8Va
 	if left.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -18835,8 +19637,18 @@ func Float8smallerSp3n(left checkruntime.Float8Value, right checkruntime.Float8V
 	if left.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -18904,6 +19716,11 @@ func float4Widen(input checkruntime.Float4Value) checkruntime.Float8Value {
 	if input.Kind == checkruntime.Float4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.Float4ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.Float4ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -18931,6 +19748,11 @@ func float8Narrow(input checkruntime.Float8Value) checkruntime.Float4Value {
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -18966,8 +19788,18 @@ func float8Compare(left checkruntime.Float8Value, right checkruntime.Float8Value
 	if left.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -19055,6 +19887,11 @@ func float8Integer(input checkruntime.Float8Value) checkruntime.Int8Value {
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -19299,6 +20136,11 @@ func Int2Pv8l(input checkruntime.Float4Value) checkruntime.Int2Value {
 	if input.Kind == checkruntime.Float4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.Float4ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.Float4ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -19332,6 +20174,11 @@ func Int4Tbuy(input checkruntime.Float4Value) checkruntime.Int4Value {
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.Float4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.Float4ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.Float4ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -19373,6 +20220,11 @@ func Int268cf(input checkruntime.Float8Value) checkruntime.Int2Value {
 	if input.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -19406,6 +20258,11 @@ func Int4Nc79(input checkruntime.Float8Value) checkruntime.Int4Value {
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -19534,6 +20391,11 @@ func float8ErrorFunction(input checkruntime.Float8Value, musl bool, complement b
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -19667,6 +20529,11 @@ func GammaT3sa(input checkruntime.Float8Value, musl bool) checkruntime.Float8Val
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -19833,6 +20700,11 @@ func LgammaRpzb(input checkruntime.Float8Value, musl bool) checkruntime.Float8Va
 	if input.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -19992,6 +20864,11 @@ func DexpWe7o(input checkruntime.Float8Value, musl bool) checkruntime.Float8Valu
 	if input.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -20028,6 +20905,11 @@ func Dlog16b2t(input checkruntime.Float8Value, musl bool) checkruntime.Float8Val
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -20099,6 +20981,11 @@ func Dlog10Uzhv(input checkruntime.Float8Value, musl bool) checkruntime.Float8Va
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -20174,6 +21061,11 @@ func DcbrtQu0u(input checkruntime.Float8Value, musl bool) checkruntime.Float8Val
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -20391,8 +21283,18 @@ func DpowAnie(left checkruntime.Float8Value, right checkruntime.Float8Value, mus
 	if left.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -20557,6 +21459,11 @@ func Hashfloat8P4el(input checkruntime.Float8Value, byteOrder int) checkruntime.
 	if input.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -20586,6 +21493,11 @@ func Hashfloat8extended7sph(input checkruntime.Float8Value, seed checkruntime.In
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if seed.Kind == checkruntime.Int8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -20914,6 +21826,11 @@ func float8Hyperbolic(input checkruntime.Float8Value, musl bool, operation int) 
 	if input.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -21204,6 +22121,11 @@ func Float4FromText(input checkruntime.TextValue) checkruntime.Float4Value {
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -21239,6 +22161,11 @@ func Float8FromText(input checkruntime.TextValue) checkruntime.Float8Value {
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -21490,6 +22417,11 @@ func float8InverseTrigonometry(input checkruntime.Float8Value, fdlibm bool, oper
 	if input.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -21532,8 +22464,18 @@ func Atan2Re5y(left checkruntime.Float8Value, right checkruntime.Float8Value, fd
 	if left.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -21626,6 +22568,11 @@ func float8InverseDegrees(input checkruntime.Float8Value, fdlibm bool, operation
 	if input.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -21710,6 +22657,11 @@ func floatNumericDecimal(input checkruntime.Float8Value, precision int) checkrun
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -22017,6 +22969,11 @@ func Float8OutputContext(input checkruntime.Float8Value, extra int, known bool) 
 	if input.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -22046,6 +23003,11 @@ func Float4OutputContext(input checkruntime.Float4Value, extra int, known bool) 
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.Float4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.Float4ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.Float4ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -22211,6 +23173,11 @@ func Float4sendUk42(input checkruntime.Float4Value) checkruntime.ByteaValue {
 	if input.Kind == checkruntime.Float4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.Float4ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.Float4ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -22235,6 +23202,11 @@ func Float8send3bqt(input checkruntime.Float8Value) checkruntime.ByteaValue {
 	if input.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -22258,6 +23230,11 @@ func float8Trigonometry(input checkruntime.Float8Value, fdlibm bool, cosine bool
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -22323,6 +23300,11 @@ func float8DegreeTrigonometry(input checkruntime.Float8Value, fdlibm bool, cosin
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -22435,6 +23417,11 @@ func float8Tangent(input checkruntime.Float8Value, fdlibm bool, cotangent bool) 
 	if input.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -22496,6 +23483,11 @@ func float8DegreeTangent(input checkruntime.Float8Value, fdlibm bool, cotangent 
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -22559,11 +23551,26 @@ func floatInRange(value checkruntime.Float8Value, base checkruntime.Float8Value,
 	if value.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if value.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if base.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if base.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if offset.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if offset.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if subtract.Kind == checkruntime.BoolValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -22777,11 +23784,26 @@ func WidthBucketWbi9(operand checkruntime.Float8Value, lower checkruntime.Float8
 	if operand.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if operand.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if lower.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if lower.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if upper.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if upper.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if count.Kind == checkruntime.Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -22904,8 +23926,18 @@ func Int8incFloat8Float8Naop(count checkruntime.Int8Value, left checkruntime.Flo
 	if left.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if count.Kind == checkruntime.Int8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -25564,6 +26596,11 @@ func InternalCharFromText(input checkruntime.TextValue) checkruntime.InternalCha
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -26546,6 +27583,11 @@ func ToChar0fwv(input checkruntime.IntervalValue, template checkruntime.TextValu
 	if template.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if template.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.IntervalValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -26702,6 +27744,11 @@ func intervalScaled(input checkruntime.IntervalValue, factor checkruntime.Float8
 	}
 	if factor.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if factor.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.IntervalValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -27021,6 +28068,11 @@ func MakeIntervalNlc1(years checkruntime.Int4Value, months checkruntime.Int4Valu
 	}
 	if seconds.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if seconds.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if years.Kind == checkruntime.Int4ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -28499,6 +29551,11 @@ func JsonTypeofVzgr(input checkruntime.JsonValue) checkruntime.TextValue {
 	if input.Kind == checkruntime.JsonValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.JsonValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.JsonValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -28519,6 +29576,11 @@ func JsonToText(input checkruntime.JsonValue) checkruntime.TextValue {
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.JsonValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.JsonValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.JsonValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -28562,6 +29624,11 @@ func JsonFromText(input checkruntime.TextValue) checkruntime.JsonValue {
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -28781,6 +29848,11 @@ func jsonObjectArrayToJsonb(input checkruntime.JsonValue) checkruntime.JsonbValu
 	if input.Kind == checkruntime.JsonValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.JsonValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.JsonValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -28916,6 +29988,11 @@ func jsonPopulateArrayTextEvent(input checkruntime.TextValue) checkruntime.Array
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -29218,6 +30295,11 @@ func jsonPopulateCalendarText(input checkruntime.TextValue) checkruntime.TextVal
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -30417,6 +31499,11 @@ func JsonbInputFromJsonContext(input checkruntime.JsonValue, utf8 bool) checkrun
 	if input.Kind == checkruntime.JsonValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.JsonValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.JsonValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -30510,6 +31597,11 @@ func jsonbFloatOutputInput(input checkruntime.TextValue) checkruntime.JsonbInput
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -30735,6 +31827,11 @@ func GeometryBoxOutputContext(input checkruntime.BoxValue, extra int, known bool
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.BoxValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.BoxValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.BoxValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -31300,6 +32397,11 @@ func JsonbDeleteCow2(input checkruntime.JsonbValue, key checkruntime.TextValue) 
 	if key.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if key.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.JsonbValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -31645,6 +32747,11 @@ func JsonbObjectField4uf3(input checkruntime.JsonbValue, key checkruntime.TextVa
 	if key.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if key.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.JsonbValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -31919,6 +33026,11 @@ func JsonbExistsF8f8(input checkruntime.JsonbValue, key checkruntime.TextValue) 
 	}
 	if key.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if key.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.JsonbValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -33735,6 +34847,11 @@ func JsonbSetLaxLecq(input checkruntime.JsonbValue, path checkruntime.ArrayValue
 	}
 	if treatment.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if treatment.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.JsonbValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -37687,6 +38804,11 @@ func JsonpathFromCoercedSourceUtf8(input checkruntime.TextValue) checkruntime.Js
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -37713,6 +38835,11 @@ func JsonpathFromStoredText(input checkruntime.TextValue) checkruntime.JsonpathV
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -37733,6 +38860,11 @@ func lineEqualProduct(left int64, right int64, ratio checkruntime.Float8Value) c
 	unresolvedFlavor := 0
 	if ratio.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if ratio.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if ratio.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -37921,11 +39053,26 @@ func lineFromScalars(first checkruntime.Float8Value, second checkruntime.Float8V
 	if first.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if first.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if second.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if second.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if third.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if third.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if first.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -38039,6 +39186,11 @@ func lineFromOriginSlope(origin checkruntime.PointPayload, gradient checkruntime
 	unresolvedFlavor := 0
 	if gradient.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if gradient.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if gradient.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -38335,6 +39487,11 @@ func LineFromText(input checkruntime.TextValue) checkruntime.LineValue {
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -38885,6 +40042,11 @@ func LiteralTextFields(input checkruntime.TextValue, kind int) checkruntime.Arra
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -39476,6 +40638,11 @@ func LsegFromText(input checkruntime.TextValue) checkruntime.LsegValue {
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -39679,8 +40846,18 @@ func segmentRawRelation(left checkruntime.Float8Value, right checkruntime.Float8
 	if left.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -41691,6 +42868,11 @@ func moneyFloatScale(input checkruntime.MoneyValue, factor checkruntime.Float8Va
 	if factor.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if factor.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.MoneyValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -41868,6 +43050,11 @@ func MoneyFromText(input checkruntime.TextValue) checkruntime.MoneyValue {
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -42029,6 +43216,11 @@ func MoneyFromTextContext(input checkruntime.TextValue, cLocale bool) checkrunti
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -44141,7 +45333,11 @@ func multirangeTextAdvance(input checkruntime.MultirangeTextPayload) checkruntim
 func PrepareMultirangeText(input checkruntime.TextValue) checkruntime.MultirangeTextPayload {
 	characters := []rune{}
 	ranges := []checkruntime.RangeValue{}
-	initial := multirangeTextPayload(characters, 0, "", false, ranges, langruntime.CheckedSignedNegate(1), checkruntime.MakeSqlError(rangeInputSyntax))
+	unresolvedState := langruntime.CheckedSignedNegate(1)
+	if input.Kind == checkruntime.TextValueUnimplemented {
+		unresolvedState = langruntime.CheckedI32(langruntime.CheckedSignedNegate(3))
+	}
+	initial := multirangeTextPayload(characters, 0, "", false, ranges, unresolvedState, checkruntime.MakeSqlError(rangeInputSyntax))
 	if input.Kind == checkruntime.TextValueError {
 		error := input.Error
 		return multirangeTextFailure(initial, error)
@@ -44180,6 +45376,10 @@ func AppendMultirangeText(input checkruntime.MultirangeTextPayload, member check
 		error := member.Error
 		return multirangeTextFailure(input, error)
 	}
+	memberState := langruntime.CheckedSignedNegate(1)
+	if member.Kind == checkruntime.RangeValueUnimplemented {
+		memberState = langruntime.CheckedI32(langruntime.CheckedSignedNegate(3))
+	}
 	if member.Kind == checkruntime.RangeValueValue {
 		payload := checkruntime.CopyRangePayload(member.Value)
 		ranges := input.Ranges
@@ -44189,10 +45389,16 @@ func AppendMultirangeText(input checkruntime.MultirangeTextPayload, member check
 		}
 		return multirangeTextAdvance(multirangeTextPayload(input.Characters, input.Position, "", true, ranges, 1, input.Error))
 	}
-	return multirangeTextPayload(input.Characters, input.Position, input.Member, input.Started, input.Ranges, langruntime.CheckedSignedNegate(1), input.Error)
+	return multirangeTextPayload(input.Characters, input.Position, input.Member, input.Started, input.Ranges, memberState, input.Error)
 }
 func FinishMultirangeText(input checkruntime.MultirangeTextPayload, typeName string, rangeType string, elementType string, elementKind int, support checkruntime.RangeSupport) checkruntime.MultirangeValue {
 	unresolvedFlavor := 0
+	if input.State == langruntime.CheckedSignedNegate(1) {
+		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.State == langruntime.CheckedSignedNegate(3) {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	if input.State == langruntime.CheckedSignedNegate(2) {
 		return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueError, Error: input.Error}
 	}
@@ -44379,8 +45585,18 @@ func MultirangeOutputAppend(output checkruntime.TextValue, member checkruntime.T
 	if output.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if output.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if member.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if member.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if index.Kind == checkruntime.Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -44834,6 +46050,11 @@ func NameFromTextWithLimit(input checkruntime.TextValue, limit checkruntime.Int4
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if limit.Kind == checkruntime.Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
@@ -44899,8 +46120,18 @@ func nameRelation(left checkruntime.TextValue, right checkruntime.TextValue, mod
 	if left.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -45035,6 +46266,11 @@ func NameFromTextContext(input checkruntime.TextValue, limit int, utf8 bool) che
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -45059,8 +46295,18 @@ func Btnamecmp9x5j(left checkruntime.TextValue, right checkruntime.TextValue) ch
 	if left.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -48024,6 +49270,11 @@ func ToCharC1f5(input checkruntime.Int4Value, template checkruntime.TextValue, n
 	if template.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if template.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.Int4ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -48077,6 +49328,11 @@ func ToCharOw74(input checkruntime.Int8Value, template checkruntime.TextValue, n
 	}
 	if template.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if template.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.Int8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -48429,6 +49685,11 @@ func ToCharHftr(input checkruntime.NumericValue, template checkruntime.TextValue
 	if template.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if template.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.NumericValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -48717,8 +49978,18 @@ func ToCharB68b(input checkruntime.Float8Value, template checkruntime.TextValue,
 	if input.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if template.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if template.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -48781,8 +50052,18 @@ func ToChar1rcw(input checkruntime.Float4Value, template checkruntime.TextValue,
 	if input.Kind == checkruntime.Float4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.Float4ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if template.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if template.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.Float4ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -53126,6 +54407,11 @@ func OidAliasFromText(input checkruntime.TextValue, dash bool, grammar int) chec
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -53284,6 +54570,11 @@ func RegclassWqix(input checkruntime.TextValue) checkruntime.OidValue {
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -53612,6 +54903,11 @@ func OidFromText(input checkruntime.TextValue) checkruntime.OidValue {
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -54067,8 +55363,18 @@ func pathMinDistance(current checkruntime.Float8Value, candidate checkruntime.Fl
 	if current.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if current.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if candidate.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if candidate.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if current.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -54419,6 +55725,11 @@ func PathFromText(input checkruntime.TextValue) checkruntime.PathValue {
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -55563,6 +56874,11 @@ func PgLsnFromText(input checkruntime.TextValue) checkruntime.PgLsnValue {
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -55685,8 +57001,18 @@ func PointDb27(x checkruntime.Float8Value, y checkruntime.Float8Value) checkrunt
 	if x.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if x.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if y.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if y.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if x.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -55958,6 +57284,11 @@ func PointFromText(input checkruntime.TextValue) checkruntime.PointValue {
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -56176,8 +57507,18 @@ func geometricHypot(first checkruntime.Float8Value, second checkruntime.Float8Va
 	if first.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if first.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if second.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if second.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if first.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -56695,6 +58036,11 @@ func Polygon6ij1(input checkruntime.BoxValue) checkruntime.PolygonValue {
 	if input.Kind == checkruntime.BoxValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.BoxValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.BoxValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -57064,6 +58410,11 @@ func PolygonFromText(input checkruntime.TextValue) checkruntime.PolygonValue {
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -57200,8 +58551,18 @@ func polygonPathsOverlap(a *checkruntime.PathPayload, b *checkruntime.PathPayloa
 	if aBounds.Kind == checkruntime.BoxValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if aBounds.Kind == checkruntime.BoxValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if bBounds.Kind == checkruntime.BoxValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if bBounds.Kind == checkruntime.BoxValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if aBounds.Kind == checkruntime.BoxValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -57596,8 +58957,22 @@ func rangeBinaryAppend(output checkruntime.ByteaValue, bound checkruntime.ByteaV
 	if output.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if output.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(output.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if bound.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if bound.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(bound.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if output.Kind == checkruntime.ByteaValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -57638,8 +59013,22 @@ func RangeSendB1w5(input checkruntime.RangeValue, lower checkruntime.ByteaValue,
 	if lower.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if lower.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(lower.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if upper.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if upper.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(upper.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.RangeValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -58938,6 +60327,11 @@ func RangeConstructTyped(typeName string, elementType string, kind int, lower ch
 	if flags.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if flags.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if lower.Kind == checkruntime.ArrayElementUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -59390,6 +60784,11 @@ func rangeInputBound(input checkruntime.TextValue, kind int, cidr bool, name boo
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -59523,6 +60922,11 @@ func PrepareRangeText(input checkruntime.TextValue) checkruntime.RangeTextPlan {
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -59932,6 +61336,11 @@ func RangeFromTextDefined(input checkruntime.TextValue, typeName string, element
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -60067,8 +61476,18 @@ func RangeFormatText(input checkruntime.RangeValue, lower checkruntime.TextValue
 	if lower.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if lower.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if upper.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if upper.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.RangeValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -60799,6 +62218,11 @@ func MoneyFromCapturedText(input checkruntime.TextValue, texts string, units str
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -60848,6 +62272,11 @@ func ScalarIntegerFromText(input checkruntime.TextValue, bits int) checkruntime.
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -60955,6 +62384,11 @@ func ScalarBooleanFromText(input checkruntime.TextValue) checkruntime.BoolValue 
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -60996,6 +62430,11 @@ func ScalarEnumFromText(input checkruntime.TextValue, labels string, count int) 
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -61035,6 +62474,11 @@ func ScalarNumericFromText(input checkruntime.TextValue) checkruntime.NumericVal
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -61158,6 +62602,11 @@ func scalarBooleanWord(input checkruntime.TextValue) checkruntime.BoolValue {
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -61839,6 +63288,11 @@ func SnapshotFromText(input checkruntime.TextValue) checkruntime.SnapshotValue {
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -62643,6 +64097,11 @@ func DateTruncD8uf(units checkruntime.TextValue, input checkruntime.IntervalValu
 	unresolvedFlavor := 0
 	if units.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if units.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.IntervalValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -63892,6 +65351,11 @@ func ExtractQjml(units checkruntime.TextValue, input checkruntime.DateValue) che
 	if units.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if units.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.DateValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
@@ -64088,6 +65552,11 @@ func DateTrunc3i0u(units checkruntime.TextValue, input checkruntime.TimestampVal
 	unresolvedFlavor := 0
 	if units.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if units.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TimestampValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -65694,6 +67163,11 @@ func DatePartG4hw(units checkruntime.TextValue, input checkruntime.DateValue, li
 	if units.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if units.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.DateValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
@@ -65746,6 +67220,11 @@ func ToTimestampKymq(input checkruntime.Float8Value) checkruntime.TimestamptzVal
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.Float8ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -66843,6 +68322,11 @@ func ExtractF4l3(units checkruntime.TextValue, input checkruntime.TimestampValue
 	if units.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if units.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TimestampValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
@@ -67005,6 +68489,11 @@ func LengthEhpe(value checkruntime.TextValue) checkruntime.Int4Value {
 	if value.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if value.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if value.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -67045,8 +68534,18 @@ func TexteqAet8(left checkruntime.TextValue, right checkruntime.TextValue) check
 	if left.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -67099,8 +68598,18 @@ func Textne1urq(left checkruntime.TextValue, right checkruntime.TextValue) check
 	if left.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -67153,8 +68662,18 @@ func TextLtZinq(left checkruntime.TextValue, right checkruntime.TextValue) check
 	if left.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -67207,8 +68726,18 @@ func TextLeWb3z(left checkruntime.TextValue, right checkruntime.TextValue) check
 	if left.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -67261,8 +68790,18 @@ func TextGtRb7n(left checkruntime.TextValue, right checkruntime.TextValue) check
 	if left.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -67315,8 +68854,18 @@ func StartsWith6ctf(text checkruntime.TextValue, prefix checkruntime.TextValue) 
 	if text.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if text.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if prefix.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if prefix.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if text.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -67369,8 +68918,18 @@ func TextGeT8pg(left checkruntime.TextValue, right checkruntime.TextValue) check
 	if left.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -67423,6 +68982,11 @@ func Ascii7m47(input checkruntime.TextValue) checkruntime.Int4Value {
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -67460,6 +69024,11 @@ func AsciiContext(input checkruntime.TextValue, utf8 bool) checkruntime.Int4Valu
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -67516,6 +69085,11 @@ func textCaseValue(input checkruntime.TextValue, mode int) checkruntime.TextValu
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -68600,6 +70174,11 @@ func textHashValue(input checkruntime.TextValue, trimSpaces bool, byteOrder int,
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -68645,6 +70224,11 @@ func textHashExtended(input checkruntime.TextValue, seed checkruntime.Int8Value,
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if seed.Kind == checkruntime.Int8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -68755,6 +70339,11 @@ func QuoteIdentOutputContext(input checkruntime.TextValue, quoteAll int, sqlText
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -68958,8 +70547,18 @@ func textLike(input checkruntime.TextValue, pattern checkruntime.TextValue, inse
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if pattern.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if pattern.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -69050,8 +70649,18 @@ func LikeEscapeXfrr(input checkruntime.TextValue, escape checkruntime.TextValue)
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if escape.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if escape.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -69172,8 +70781,18 @@ func BpcharLargerClri(left checkruntime.TextValue, right checkruntime.TextValue)
 	if left.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -69215,8 +70834,18 @@ func BpcharPatternGeDv6p(left checkruntime.TextValue, right checkruntime.TextVal
 	if left.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -69255,8 +70884,18 @@ func BpcharPatternGtTnmi(left checkruntime.TextValue, right checkruntime.TextVal
 	if left.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -69295,8 +70934,18 @@ func BpcharPatternLe5vh3(left checkruntime.TextValue, right checkruntime.TextVal
 	if left.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -69335,8 +70984,18 @@ func BpcharPatternLt5798(left checkruntime.TextValue, right checkruntime.TextVal
 	if left.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -69375,8 +71034,18 @@ func BpcharSmaller0mnx(left checkruntime.TextValue, right checkruntime.TextValue
 	if left.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -69430,8 +71099,18 @@ func TextLargerSsmm(left checkruntime.TextValue, right checkruntime.TextValue) c
 	if left.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -69473,8 +71152,18 @@ func TextPatternGeV6bi(left checkruntime.TextValue, right checkruntime.TextValue
 	if left.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -69513,8 +71202,18 @@ func TextPatternGt99dz(left checkruntime.TextValue, right checkruntime.TextValue
 	if left.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -69553,8 +71252,18 @@ func TextPatternLeDpvx(left checkruntime.TextValue, right checkruntime.TextValue
 	if left.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -69593,8 +71302,18 @@ func TextPatternLtQftf(left checkruntime.TextValue, right checkruntime.TextValue
 	if left.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -69633,8 +71352,18 @@ func TextSmallerT2nd(left checkruntime.TextValue, right checkruntime.TextValue) 
 	if left.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -69701,11 +71430,21 @@ func textPadding(input checkruntime.TextValue, length checkruntime.Int4Value, fi
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if length.Kind == checkruntime.Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
 	if fill.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if fill.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -69853,6 +71592,11 @@ func RepeatF0fb(input checkruntime.TextValue, length checkruntime.Int4Value) che
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if length.Kind == checkruntime.Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
@@ -69930,11 +71674,26 @@ func TranslateTxpt(input checkruntime.TextValue, from checkruntime.TextValue, to
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if from.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if from.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if to.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if to.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -70037,6 +71796,11 @@ func QuoteLiteralOutput(input checkruntime.TextValue, sqlText bool) checkruntime
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -70138,8 +71902,18 @@ func TextcatS76e(left checkruntime.TextValue, right checkruntime.TextValue) chec
 	if left.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -70197,8 +71971,18 @@ func StrposEb1n(left checkruntime.TextValue, right checkruntime.TextValue) check
 	if left.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -70264,8 +72048,18 @@ func textOverlayValue(input checkruntime.TextValue, replacement checkruntime.Tex
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if replacement.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if replacement.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if position.Kind == checkruntime.Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -70384,11 +72178,26 @@ func ReplaceGz9l(input checkruntime.TextValue, from checkruntime.TextValue, to c
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if from.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if from.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if to.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if to.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -70491,8 +72300,18 @@ func SplitPartDoxr(input checkruntime.TextValue, separator checkruntime.TextValu
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if separator.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if separator.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if field.Kind == checkruntime.Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -70622,8 +72441,18 @@ func similarPatternValue(pattern checkruntime.TextValue, escape checkruntime.Tex
 	if pattern.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if pattern.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if escape.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if escape.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if pattern.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -70789,6 +72618,11 @@ func PgSizeBytesGgrt(input checkruntime.TextValue) checkruntime.Int8Value {
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -70975,6 +72809,11 @@ func textSubstringValue(input checkruntime.TextValue, position checkruntime.Int4
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if position.Kind == checkruntime.Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
@@ -71069,6 +72908,11 @@ func textSideValue(input checkruntime.TextValue, length checkruntime.Int4Value, 
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if length.Kind == checkruntime.Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -71176,6 +73020,11 @@ func Reverse5pr1(input checkruntime.TextValue) checkruntime.TextValue {
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -71278,6 +73127,11 @@ func ToAsciiCulg(value checkruntime.TextValue) checkruntime.TextValue {
 	if value.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if value.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if value.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -71306,6 +73160,11 @@ func ToAsciiUqov(value checkruntime.TextValue, encoding checkruntime.Int4Value) 
 	unresolvedFlavor := 0
 	if value.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if value.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if encoding.Kind == checkruntime.Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -71388,6 +73247,11 @@ func UnistrN58m(input checkruntime.TextValue) checkruntime.TextValue {
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -71497,6 +73361,11 @@ func textWidthValue(input checkruntime.TextValue, modifier checkruntime.Int4Valu
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if modifier.Kind == checkruntime.Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -71638,8 +73507,18 @@ func textBinaryCompare(left checkruntime.TextValue, right checkruntime.TextValue
 	if left.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -71694,6 +73573,11 @@ func textMeasureValue(value checkruntime.TextValue, trimSpaces bool, mode int) c
 	unresolvedFlavor := 0
 	if value.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if value.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if value.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -71760,8 +73644,18 @@ func textTrimValue(value checkruntime.TextValue, set checkruntime.TextValue, tri
 	if value.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if value.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if set.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if set.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if value.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -72291,6 +74185,11 @@ func TidFromText(input checkruntime.TextValue) checkruntime.TidValue {
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -72980,6 +74879,11 @@ func MakeTime6c3q(hour checkruntime.Int4Value, minute checkruntime.Int4Value, se
 	}
 	if second.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if second.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if hour.Kind == checkruntime.Int4ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -74515,6 +76419,11 @@ func MakeTimestampN30u(year checkruntime.Int4Value, month checkruntime.Int4Value
 	if second.Kind == checkruntime.Float8ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if second.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if year.Kind == checkruntime.Int4ValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -74981,6 +76890,11 @@ func ToCharM86d(input checkruntime.TimestampValue, template checkruntime.TextVal
 	}
 	if template.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if template.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TimestampValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -77521,6 +79435,11 @@ func TsqueryFromTextContext(input checkruntime.TextValue, utf8 bool) checkruntim
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -79449,6 +81368,11 @@ func TsqueryFromCapturedText(input checkruntime.TextValue, plan *TsqueryStorageP
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if index.Kind == checkruntime.Int4ValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
@@ -79637,6 +81561,11 @@ func tsvectorParseText(input checkruntime.TextValue, utf8 bool, stored bool) che
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -79809,6 +81738,11 @@ func TsvectorFromStoredTextContext(input checkruntime.TextValue, utf8 bool) chec
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -79832,6 +81766,11 @@ func TsvectorFromStoredTextNativeContext(input checkruntime.TextValue, utf8 bool
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -80146,6 +82085,11 @@ func TsDeleteY2kd(input checkruntime.TsvectorValue, selector checkruntime.TextVa
 	}
 	if selector.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if selector.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TsvectorValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -81924,6 +83868,11 @@ func Xid8FromText(input checkruntime.TextValue) checkruntime.Xid8Value {
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -82011,6 +83960,11 @@ func xmlWellFormedValue(input checkruntime.TextValue, document bool) checkruntim
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -82245,8 +84199,20 @@ func XmlRoot(input checkruntime.XmlValue, version checkruntime.TextValue, standa
 	if input.Kind == checkruntime.XmlValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.XmlValueNonNull {
+		knowledge := input.NonNull
+		_ = knowledge
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if version.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if version.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.XmlValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -82302,6 +84268,11 @@ func XmlMakeProcessingInstruction(name string, content checkruntime.TextValue, p
 	unresolvedFlavor := 0
 	if content.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if content.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if content.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -83565,8 +85536,18 @@ func XmlElementAppend(left checkruntime.TextValue, right checkruntime.TextValue)
 	if left.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if left.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if right.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if right.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if left.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -83621,6 +85602,11 @@ func XmlElementAttribute(name string, mapped bool, implicit bool, input checkrun
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -83696,8 +85682,18 @@ func XmlElementFinish(name string, mapped bool, attributes checkruntime.TextValu
 	if attributes.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if attributes.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if content.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if content.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if validity.Kind == checkruntime.CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -83764,6 +85760,11 @@ func XmlForestFinish(content checkruntime.TextValue, validity checkruntime.Check
 	unresolvedFlavor := 0
 	if content.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if content.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if validity.Kind == checkruntime.CheckOutcomeUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -83884,6 +85885,13 @@ func XmlValueBinary(input checkruntime.ByteaValue, mode int) checkruntime.TextVa
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.ByteaValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.ByteaValueUnspecified {
+		width := langruntime.CheckedI32(input.Unspecified)
+		_ = width
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.ByteaValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -84571,6 +86579,13 @@ func XmlIndentUtf8(input checkruntime.XmlValue, document bool, utf8 bool) checkr
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.XmlValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.XmlValueNonNull {
+		knowledge := input.NonNull
+		_ = knowledge
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.XmlValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -86592,6 +88607,11 @@ func XmlFromStorageText(input checkruntime.TextValue) checkruntime.XmlValue {
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -86628,6 +88648,11 @@ func XmlFromTextContext(input checkruntime.TextValue, mode int, utf8 bool) check
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -86668,6 +88693,13 @@ func XmlIsDocumentContext(input checkruntime.XmlValue, utf8 bool) checkruntime.B
 	if input.Kind == checkruntime.XmlValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.XmlValueNonNull {
+		knowledge := input.NonNull
+		_ = knowledge
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.XmlValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -86695,6 +88727,13 @@ func XmlSerializeContext(input checkruntime.XmlValue, mode int, indent bool, utf
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.XmlValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.XmlValueNonNull {
+		knowledge := input.NonNull
+		_ = knowledge
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.XmlValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -86739,6 +88778,13 @@ func XmlSendUur7(input checkruntime.XmlValue, clientUtf8 bool) checkruntime.Byte
 	if input.Kind == checkruntime.XmlValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.XmlValueNonNull {
+		knowledge := input.NonNull
+		_ = knowledge
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.XmlValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -86758,6 +88804,11 @@ func XmlFromTextUtf8(input checkruntime.TextValue, document bool) checkruntime.X
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -86786,6 +88837,13 @@ func XmlToText(input checkruntime.XmlValue) checkruntime.TextValue {
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.XmlValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.XmlValueNonNull {
+		knowledge := input.NonNull
+		_ = knowledge
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.XmlValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -86821,6 +88879,13 @@ func XmlToOutputText(input checkruntime.XmlValue) checkruntime.TextValue {
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.XmlValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.XmlValueNonNull {
+		knowledge := input.NonNull
+		_ = knowledge
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.XmlValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -86894,6 +88959,13 @@ func XmlToByteaUtf8(input checkruntime.XmlValue) checkruntime.ByteaValue {
 	if input.Kind == checkruntime.XmlValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.XmlValueNonNull {
+		knowledge := input.NonNull
+		_ = knowledge
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.XmlValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -86923,6 +88995,13 @@ func XmlIsDocumentUtf8(input checkruntime.XmlValue) checkruntime.BoolValue {
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.XmlValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.XmlValueNonNull {
+		knowledge := input.NonNull
+		_ = knowledge
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.XmlValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -86960,6 +89039,11 @@ func XmltextA36t(input checkruntime.TextValue) checkruntime.XmlValue {
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -87002,6 +89086,11 @@ func Xmlcomment8j57(input checkruntime.TextValue) checkruntime.XmlValue {
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -87037,8 +89126,20 @@ func XmlvalidateBvje(input checkruntime.XmlValue, schema checkruntime.TextValue)
 	if input.Kind == checkruntime.XmlValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.XmlValueNonNull {
+		knowledge := input.NonNull
+		_ = knowledge
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
 	if schema.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if schema.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.XmlValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -87086,6 +89187,11 @@ func XmlIsWellFormedWikq(input checkruntime.TextValue, mode int) checkruntime.Bo
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == checkruntime.TextValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)

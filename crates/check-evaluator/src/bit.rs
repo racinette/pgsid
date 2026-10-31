@@ -57,6 +57,7 @@ pub fn bit_payload_length(value: &str) -> i32 {
 pub fn bit_from_text(input: TextValue) -> BitValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return BitValue::Error(error);

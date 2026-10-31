@@ -319,6 +319,7 @@ fn timezone_explicit_interval(
     if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
     if let IntervalValue::Unknown = amount { unresolved_flavor = 1; };
     if let TextValue::Unknown = zone { unresolved_flavor = 1; };
+    if let TextValue::NonNull = zone { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TimestamptzValue::Unimplemented = input { unresolved_flavor = 2; };
     if let IntervalValue::Unimplemented = amount { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = zone { unresolved_flavor = 2; };

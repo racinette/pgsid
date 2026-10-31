@@ -39,7 +39,9 @@ fn bpchar_codepoint_compare(left: &str, right: &str) -> i32 {
 pub fn sql__pg_catalog__bpchareq__npys(left: TextValue, right: TextValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = left { unresolved_flavor = 1; };
+    if let TextValue::NonNull = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = right { unresolved_flavor = 1; };
+    if let TextValue::NonNull = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = left { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TextValue::Error(error) = left {
@@ -66,7 +68,9 @@ pub fn sql__pg_catalog__bpchareq__npys(left: TextValue, right: TextValue) -> Boo
 pub fn sql__pg_catalog__bpcharge__o6oj(left: TextValue, right: TextValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = left { unresolved_flavor = 1; };
+    if let TextValue::NonNull = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = right { unresolved_flavor = 1; };
+    if let TextValue::NonNull = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = left { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TextValue::Error(error) = left {
@@ -93,7 +97,9 @@ pub fn sql__pg_catalog__bpcharge__o6oj(left: TextValue, right: TextValue) -> Boo
 pub fn sql__pg_catalog__bpchargt__kxc4(left: TextValue, right: TextValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = left { unresolved_flavor = 1; };
+    if let TextValue::NonNull = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = right { unresolved_flavor = 1; };
+    if let TextValue::NonNull = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = left { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TextValue::Error(error) = left {
@@ -120,7 +126,9 @@ pub fn sql__pg_catalog__bpchargt__kxc4(left: TextValue, right: TextValue) -> Boo
 pub fn sql__pg_catalog__bpcharle__0rch(left: TextValue, right: TextValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = left { unresolved_flavor = 1; };
+    if let TextValue::NonNull = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = right { unresolved_flavor = 1; };
+    if let TextValue::NonNull = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = left { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TextValue::Error(error) = left {
@@ -147,7 +155,9 @@ pub fn sql__pg_catalog__bpcharle__0rch(left: TextValue, right: TextValue) -> Boo
 pub fn sql__pg_catalog__bpcharlt__qrb5(left: TextValue, right: TextValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = left { unresolved_flavor = 1; };
+    if let TextValue::NonNull = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = right { unresolved_flavor = 1; };
+    if let TextValue::NonNull = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = left { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TextValue::Error(error) = left {
@@ -174,7 +184,9 @@ pub fn sql__pg_catalog__bpcharlt__qrb5(left: TextValue, right: TextValue) -> Boo
 pub fn sql__pg_catalog__bpcharne__qkuu(left: TextValue, right: TextValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = left { unresolved_flavor = 1; };
+    if let TextValue::NonNull = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = right { unresolved_flavor = 1; };
+    if let TextValue::NonNull = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = left { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TextValue::Error(error) = left {

@@ -9,7 +9,9 @@ fn similar_pattern_capacity_fits(bytes: i64) -> bool {
 fn similar_pattern_value(pattern: TextValue, escape: TextValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = pattern { unresolved_flavor = 1; };
+    if let TextValue::NonNull = pattern { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = escape { unresolved_flavor = 1; };
+    if let TextValue::NonNull = escape { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = pattern { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = escape { unresolved_flavor = 2; };
     if let TextValue::Error(error) = pattern {

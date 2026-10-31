@@ -55,6 +55,7 @@ fn bytea_bit_mask(position: i32) -> i32 {
 pub fn sql__pg_catalog__get_byte__48am(input: ByteaValue, position: Int4Value) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Int4Value::Unknown = position { unresolved_flavor = 1; };
     if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };
     if let Int4Value::Unimplemented = position { unresolved_flavor = 2; };
@@ -94,6 +95,7 @@ pub fn sql__pg_catalog__get_byte__48am(input: ByteaValue, position: Int4Value) -
 pub fn sql__pg_catalog__get_bit__thv7(input: ByteaValue, position: Int8Value) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Int8Value::Unknown = position { unresolved_flavor = 1; };
     if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };
     if let Int8Value::Unimplemented = position { unresolved_flavor = 2; };
@@ -136,6 +138,7 @@ pub fn sql__pg_catalog__set_byte__8mtw(
 ) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Int4Value::Unknown = position { unresolved_flavor = 1; };
     if let Int4Value::Unknown = replacement { unresolved_flavor = 1; };
     if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };
@@ -185,6 +188,7 @@ pub fn sql__pg_catalog__set_bit__06f4(
 ) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Int8Value::Unknown = position { unresolved_flavor = 1; };
     if let Int4Value::Unknown = replacement { unresolved_flavor = 1; };
     if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };

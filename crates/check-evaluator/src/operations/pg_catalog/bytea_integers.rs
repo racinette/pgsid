@@ -1,6 +1,7 @@
 fn bytea_integer_value(input: ByteaValue, width: i32) -> Int8Value {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = input {
         return Int8Value::Error(error);
@@ -61,6 +62,7 @@ fn bytea_integer_send(value: i64, width: i32) -> String {
 pub fn sql__pg_catalog__int2__hj0w(input: ByteaValue) -> Int2Value {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };
     let result = bytea_integer_value(input, 2);
     if let Int8Value::Error(error) = result {
@@ -82,6 +84,7 @@ pub fn sql__pg_catalog__int2__hj0w(input: ByteaValue) -> Int2Value {
 pub fn sql__pg_catalog__int4__lvgc(input: ByteaValue) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };
     let result = bytea_integer_value(input, 4);
     if let Int8Value::Error(error) = result {

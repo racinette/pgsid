@@ -203,6 +203,7 @@ fn polygon_box_corner(value: BoxPayload, high_x: bool, high_y: bool) -> PointPay
 pub fn sql__pg_catalog__polygon__6ij1(input: BoxValue) -> PolygonValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoxValue::Unknown = input { unresolved_flavor = 1; };
+    if let BoxValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let BoxValue::Unimplemented = input { unresolved_flavor = 2; };
     if let BoxValue::Error(error) = input {
         return PolygonValue::Error(error);

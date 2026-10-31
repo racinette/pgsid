@@ -35,7 +35,7 @@ function legacyRegexOperand(value: EvalExpression): SqlExpression | null {
 export type EvalBoolExpression =
   | { kind: 'eval-scalar'; expression: EvalExpression }
   | { kind: 'certain'; expression: SqlExpression }
-  | { kind: 'uncertain'; preparation?: 'runtime' }
+  | { kind: 'uncertain'; preparation?: 'runtime'; reason?: 'context' }
   | {
       kind: 'eval-boolean-logic'
       operation: 'and' | 'or' | 'not'

@@ -37,6 +37,7 @@ fn text_codepoint_before(left: &str, right: &str) -> bool {
 pub fn sql__pg_catalog__length__ehpe(value: TextValue) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = value { unresolved_flavor = 1; };
+    if let TextValue::NonNull = value { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = value { unresolved_flavor = 2; };
     if let TextValue::Error(error) = value {
         return Int4Value::Error(error);
@@ -63,7 +64,9 @@ pub fn sql__pg_catalog__length__ehpe(value: TextValue) -> Int4Value {
 pub fn sql__pg_catalog__texteq__aet8(left: TextValue, right: TextValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = left { unresolved_flavor = 1; };
+    if let TextValue::NonNull = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = right { unresolved_flavor = 1; };
+    if let TextValue::NonNull = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = left { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TextValue::Error(error) = left {
@@ -89,7 +92,9 @@ pub fn sql__pg_catalog__texteq__aet8(left: TextValue, right: TextValue) -> BoolV
 pub fn sql__pg_catalog__textne__1urq(left: TextValue, right: TextValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = left { unresolved_flavor = 1; };
+    if let TextValue::NonNull = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = right { unresolved_flavor = 1; };
+    if let TextValue::NonNull = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = left { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TextValue::Error(error) = left {
@@ -115,7 +120,9 @@ pub fn sql__pg_catalog__textne__1urq(left: TextValue, right: TextValue) -> BoolV
 pub fn sql__pg_catalog__text_lt__zinq(left: TextValue, right: TextValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = left { unresolved_flavor = 1; };
+    if let TextValue::NonNull = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = right { unresolved_flavor = 1; };
+    if let TextValue::NonNull = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = left { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TextValue::Error(error) = left {
@@ -141,7 +148,9 @@ pub fn sql__pg_catalog__text_lt__zinq(left: TextValue, right: TextValue) -> Bool
 pub fn sql__pg_catalog__text_le__wb3z(left: TextValue, right: TextValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = left { unresolved_flavor = 1; };
+    if let TextValue::NonNull = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = right { unresolved_flavor = 1; };
+    if let TextValue::NonNull = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = left { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TextValue::Error(error) = left {
@@ -169,7 +178,9 @@ pub fn sql__pg_catalog__text_le__wb3z(left: TextValue, right: TextValue) -> Bool
 pub fn sql__pg_catalog__text_gt__rb7n(left: TextValue, right: TextValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = left { unresolved_flavor = 1; };
+    if let TextValue::NonNull = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = right { unresolved_flavor = 1; };
+    if let TextValue::NonNull = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = left { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TextValue::Error(error) = left {
@@ -195,7 +206,9 @@ pub fn sql__pg_catalog__text_gt__rb7n(left: TextValue, right: TextValue) -> Bool
 pub fn sql__pg_catalog__starts_with__6ctf(text: TextValue, prefix: TextValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = text { unresolved_flavor = 1; };
+    if let TextValue::NonNull = text { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = prefix { unresolved_flavor = 1; };
+    if let TextValue::NonNull = prefix { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = text { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = prefix { unresolved_flavor = 2; };
     if let TextValue::Error(error) = text {
@@ -221,7 +234,9 @@ pub fn sql__pg_catalog__starts_with__6ctf(text: TextValue, prefix: TextValue) ->
 pub fn sql__pg_catalog__text_ge__t8pg(left: TextValue, right: TextValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = left { unresolved_flavor = 1; };
+    if let TextValue::NonNull = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = right { unresolved_flavor = 1; };
+    if let TextValue::NonNull = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = left { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TextValue::Error(error) = left {

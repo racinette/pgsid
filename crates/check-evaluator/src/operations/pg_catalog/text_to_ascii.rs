@@ -89,6 +89,7 @@ fn ascii_encoding_text(value: String, encoding: i32) -> String {
 pub fn sql__pg_catalog__to_ascii__culg(value: TextValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = value { unresolved_flavor = 1; };
+    if let TextValue::NonNull = value { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = value { unresolved_flavor = 2; };
     if let TextValue::Error(error) = value {
         return TextValue::Error(error);
@@ -105,6 +106,7 @@ pub fn sql__pg_catalog__to_ascii__culg(value: TextValue) -> TextValue {
 pub fn sql__pg_catalog__to_ascii__uqov(value: TextValue, encoding: Int4Value) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = value { unresolved_flavor = 1; };
+    if let TextValue::NonNull = value { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Int4Value::Unknown = encoding { unresolved_flavor = 1; };
     if let TextValue::Unimplemented = value { unresolved_flavor = 2; };
     if let Int4Value::Unimplemented = encoding { unresolved_flavor = 2; };

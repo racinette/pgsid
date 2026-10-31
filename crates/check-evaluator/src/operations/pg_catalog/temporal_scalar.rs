@@ -6,6 +6,7 @@ pub fn sql__pg_catalog__date_part__g4hw(
 ) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = units { unresolved_flavor = 1; };
+    if let TextValue::NonNull = units { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let DateValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unimplemented = units { unresolved_flavor = 2; };
     if let DateValue::Unimplemented = input { unresolved_flavor = 2; };
@@ -32,6 +33,7 @@ pub fn sql__pg_catalog__date_part__g4hw(
 pub fn sql__pg_catalog__to_timestamp__kymq(input: Float8Value) -> TimestamptzValue {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Float8Value::Error(error) = input {
         return TimestamptzValue::Error(error);

@@ -487,6 +487,7 @@ pub fn array_element_to_date(input: ArrayElement) -> DateValue {
 pub fn array_element_from_text(input: TextValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if input == TextValue::NonNull { return ArrayElement::TextNonNull; };
     if let TextValue::Error(error) = input {
@@ -585,6 +586,7 @@ pub fn array_element_to_numeric(input: ArrayElement) -> NumericValue {
 pub fn array_element_from_json(input: JsonValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let JsonValue::Unknown = input { unresolved_flavor = 1; };
+    if let JsonValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let JsonValue::Unimplemented = input { unresolved_flavor = 2; };
     if let JsonValue::NonNull = input {
         return ArrayElement::JsonNonNull;
@@ -725,6 +727,7 @@ pub fn array_element_to_bit(input: ArrayElement) -> BitValue {
 pub fn array_element_from_bytea(input: ByteaValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = input {
         return ArrayElement::Error(error);
@@ -859,6 +862,7 @@ pub fn array_element_to_uuid(input: ArrayElement) -> UuidValue {
 pub fn array_element_from_float4(input: Float4Value) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let Float4Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float4Value::UnspecifiedNan = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float4Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Float4Value::Error(error) = input {
         return ArrayElement::Error(error);
@@ -897,6 +901,7 @@ pub fn array_element_to_float4(input: ArrayElement) -> Float4Value {
 pub fn array_element_from_float8(input: Float8Value) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Float8Value::Error(error) = input {
         return ArrayElement::Error(error);
@@ -1127,6 +1132,7 @@ pub fn array_element_to_lseg(input: ArrayElement) -> LsegValue {
 pub fn array_element_from_box(input: BoxValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let BoxValue::Unknown = input { unresolved_flavor = 1; };
+    if let BoxValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let BoxValue::Unimplemented = input { unresolved_flavor = 2; };
     if let BoxValue::Error(error) = input {
         return ArrayElement::Error(error);
@@ -1652,6 +1658,7 @@ pub fn array_element_to_multirange(input: ArrayElement) -> MultirangeValue {
 pub fn array_element_from_xml(input: XmlValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let XmlValue::Unknown = input { unresolved_flavor = 1; };
+    if let XmlValue::NonNull(_knowledge) = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let XmlValue::Unimplemented = input { unresolved_flavor = 2; };
     if let XmlValue::NonNull(knowledge) = input {
         let checked = make_xml_knowledge(knowledge.document,knowledge.content);

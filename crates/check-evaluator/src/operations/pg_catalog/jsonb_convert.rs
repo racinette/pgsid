@@ -235,6 +235,7 @@ pub fn jsonb_input_from_timestamptz(input: TimestamptzValue) -> JsonbInput {
 pub fn jsonb_input_from_json_context(input: JsonValue, utf8: bool) -> JsonbInput {
     let mut unresolved_flavor: i32 = 0;
     if let JsonValue::Unknown = input { unresolved_flavor = 1; };
+    if let JsonValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let JsonValue::Unimplemented = input { unresolved_flavor = 2; };
     if utf8 == false {
         return jsonb_input_from_json(input);

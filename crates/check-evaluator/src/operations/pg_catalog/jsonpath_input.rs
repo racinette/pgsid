@@ -17,6 +17,7 @@ fn jsonpath_regex_literal(pattern: &str, flags: i32, c_collation: bool) -> BoolV
 pub fn jsonpath_from_text(input: TextValue, c_collation: bool, utf8: bool) -> JsonpathValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return JsonpathValue::Error(error);
@@ -86,6 +87,7 @@ pub fn jsonpath_from_text_utf8(input: TextValue, c_collation: bool) -> JsonpathV
 pub fn jsonpath_validate_utf8(input: TextValue, c_collation: bool) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     let result = jsonpath_from_text_utf8(input, c_collation);
     if let JsonpathValue::Error(error) = result {

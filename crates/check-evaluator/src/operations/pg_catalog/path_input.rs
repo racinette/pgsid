@@ -88,6 +88,7 @@ fn path_parse(value: &str) -> PathValue {
 pub fn path_from_text(input: TextValue) -> PathValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return PathValue::Error(error);

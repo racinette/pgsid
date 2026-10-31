@@ -74,7 +74,9 @@ pub fn multirange_output_append(
 ) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = output { unresolved_flavor = 1; };
+    if let TextValue::NonNull = output { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = member { unresolved_flavor = 1; };
+    if let TextValue::NonNull = member { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Int4Value::Unknown = index { unresolved_flavor = 1; };
     if let TextValue::Unimplemented = output { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = member { unresolved_flavor = 2; };

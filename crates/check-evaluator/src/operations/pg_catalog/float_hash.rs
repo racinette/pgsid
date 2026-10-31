@@ -17,6 +17,7 @@ fn float_hash_bytes(bits: i64) -> Vec<HashByte> {
 pub fn sql__pg_catalog__hashfloat8__p4el(input: Float8Value, byte_order: i32) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Float8Value::Error(error) = input {
         return Int4Value::Error(error);
@@ -45,6 +46,7 @@ pub fn sql__pg_catalog__hashfloat8extended__7sph(
 ) -> Int8Value {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Int8Value::Unknown = seed { unresolved_flavor = 1; };
     if let Float8Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Int8Value::Unimplemented = seed { unresolved_flavor = 2; };
