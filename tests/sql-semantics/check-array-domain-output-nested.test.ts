@@ -402,12 +402,15 @@ it('retains scalar output context requirements inside nested arrays and uses the
   const pg = await PGlite.create()
   const directory = await mkdtemp(join(tmpdir(), 'pgsid-nested-output-scalars-'))
   try {
+    // Integral coordinates print the same under every extra_float_digits setting, so only the
+    // fractional box depends on the output context.
     const profiles = [
-      ['box', "'(1,1),(0,0)'", true],
+      ['box', "'(1.23456789012345,1),(0,0)'", true],
       ['double precision', "'1.23456789012345'", true],
       ['timestamp', "'2000-01-01 12:34:56'", true],
       ['bytea', String.raw`'\x0001ff'`, true],
       ['double precision', "'NaN'", false],
+      ['box', "'(1,1),(0,0)'", false],
     ] as const
     for (const [index, [type]] of profiles.entries())
       await pg.exec(`CREATE DOMAIN scalar_group_${index} AS ${type}[];
