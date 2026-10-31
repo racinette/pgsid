@@ -18106,6 +18106,16 @@ func IntervalPlTimestamp3uks(amount checkruntime.IntervalValue, input checkrunti
 		error := amount.Error
 		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
 	}
+	if input.Kind == checkruntime.TimestampValueError {
+		error := input.Error
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+	}
+	if amount.Kind == checkruntime.IntervalValueNull {
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}
+	}
+	if input.Kind == checkruntime.TimestampValueNull {
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}
+	}
 	return intervalCalendarAdd(input, amount, false)
 }
 func intervalCalendarDate(input checkruntime.DateValue, amount checkruntime.IntervalValue, subtract bool) checkruntime.TimestampValue {
@@ -18136,6 +18146,16 @@ func IntervalPlDateTgwh(amount checkruntime.IntervalValue, input checkruntime.Da
 	if amount.Kind == checkruntime.IntervalValueError {
 		error := amount.Error
 		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+	}
+	if input.Kind == checkruntime.DateValueError {
+		error := input.Error
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+	}
+	if amount.Kind == checkruntime.IntervalValueNull {
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}
+	}
+	if input.Kind == checkruntime.DateValueNull {
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}
 	}
 	return intervalCalendarDate(input, amount, false)
 }
@@ -34013,11 +34033,11 @@ func Int8plInet3uh7(left checkruntime.Int8Value, right checkruntime.NetworkValue
 		error := right.Error
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueError, Error: error}
 	}
-	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}) {
-		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
-	}
 	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) || right == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}) {
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}
+	}
+	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}) {
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
 	}
 	if right.Kind == checkruntime.NetworkValueValue {
 		address := right.Value
@@ -41107,6 +41127,16 @@ func PathContainPtLtus(input checkruntime.PathValue, point checkruntime.PointVal
 		error := input.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
+	if point.Kind == checkruntime.PointValueError {
+		error := point.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if input.Kind == checkruntime.PathValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if point.Kind == checkruntime.PointValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
 	return OnPpath8fo6(point, input)
 }
 
@@ -41359,6 +41389,20 @@ func PgLsnSendR284(left checkruntime.PgLsnValue) checkruntime.ByteaValue {
 	return Int8sendPjz0(pgLsnBits(left))
 }
 func NumericPlPgLsnJhoo(left checkruntime.NumericValue, right checkruntime.PgLsnValue) checkruntime.PgLsnValue {
+	if left.Kind == checkruntime.NumericValueError {
+		error := left.Error
+		return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueError, Error: error}
+	}
+	if right.Kind == checkruntime.PgLsnValueError {
+		error := right.Error
+		return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueError, Error: error}
+	}
+	if left.Kind == checkruntime.NumericValueNull {
+		return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueNull}
+	}
+	if right.Kind == checkruntime.PgLsnValueNull {
+		return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueNull}
+	}
 	return pgLsnAdjust(right, left, false)
 }
 func PgLsn8qf1(left checkruntime.NumericValue) checkruntime.PgLsnValue {
@@ -46640,11 +46684,11 @@ func IntegerPlDateFjuj(left checkruntime.Int4Value, right checkruntime.DateValue
 		error := right.Error
 		return checkruntime.DateValue{Kind: checkruntime.DateValueError, Error: error}
 	}
-	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) {
-		return checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}
-	}
 	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) {
 		return checkruntime.DateValue{Kind: checkruntime.DateValueNull}
+	}
+	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) {
+		return checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}
 	}
 	if left.Kind == checkruntime.Int4ValueValue {
 		leftValue := langruntime.CheckedI32(left.Value)
@@ -47678,12 +47722,32 @@ func IntervalPlTimeCdi6(amount checkruntime.IntervalValue, input checkruntime.Ti
 		error := amount.Error
 		return checkruntime.TimeValue{Kind: checkruntime.TimeValueError, Error: error}
 	}
+	if input.Kind == checkruntime.TimeValueError {
+		error := input.Error
+		return checkruntime.TimeValue{Kind: checkruntime.TimeValueError, Error: error}
+	}
+	if amount.Kind == checkruntime.IntervalValueNull {
+		return checkruntime.TimeValue{Kind: checkruntime.TimeValueNull}
+	}
+	if input.Kind == checkruntime.TimeValueNull {
+		return checkruntime.TimeValue{Kind: checkruntime.TimeValueNull}
+	}
 	return TimePlIntervalOsxy(input, amount)
 }
 func IntervalPlTimetz0g00(amount checkruntime.IntervalValue, input checkruntime.TimetzValue) checkruntime.TimetzValue {
 	if amount.Kind == checkruntime.IntervalValueError {
 		error := amount.Error
 		return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TimetzValueError {
+		error := input.Error
+		return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueError, Error: error}
+	}
+	if amount.Kind == checkruntime.IntervalValueNull {
+		return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueNull}
+	}
+	if input.Kind == checkruntime.TimetzValueNull {
+		return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueNull}
 	}
 	return TimetzPlIntervalWmqy(input, amount)
 }
@@ -51237,12 +51301,34 @@ func LpadEzhf(input checkruntime.TextValue, length checkruntime.Int4Value, fill 
 	return textPadding(input, length, fill, false)
 }
 func LpadLqi7(input checkruntime.TextValue, length checkruntime.Int4Value) checkruntime.TextValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if length.Kind == checkruntime.Int4ValueError {
+		error := length.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || length == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
 	return textPadding(input, length, checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: " "}, false)
 }
 func RpadBw5z(input checkruntime.TextValue, length checkruntime.Int4Value, fill checkruntime.TextValue) checkruntime.TextValue {
 	return textPadding(input, length, fill, true)
 }
 func Rpad53f6(input checkruntime.TextValue, length checkruntime.Int4Value) checkruntime.TextValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if length.Kind == checkruntime.Int4ValueError {
+		error := length.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || length == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
 	return textPadding(input, length, checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: " "}, true)
 }
 func RepeatF0fb(input checkruntime.TextValue, length checkruntime.Int4Value) checkruntime.TextValue {
@@ -53499,6 +53585,16 @@ func TimedatePlLhsk(clock checkruntime.TimeValue, date checkruntime.DateValue) c
 		error := clock.Error
 		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
 	}
+	if date.Kind == checkruntime.DateValueError {
+		error := date.Error
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+	}
+	if clock.Kind == checkruntime.TimeValueNull {
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}
+	}
+	if date.Kind == checkruntime.DateValueNull {
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}
+	}
 	return clockDateTimestamp(date, clock)
 }
 func TimestamptzZcph(date checkruntime.DateValue, clock checkruntime.TimetzValue) checkruntime.TimestamptzValue {
@@ -53511,6 +53607,16 @@ func TimetzdatePl1ycq(clock checkruntime.TimetzValue, date checkruntime.DateValu
 	if clock.Kind == checkruntime.TimetzValueError {
 		error := clock.Error
 		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueError, Error: error}
+	}
+	if date.Kind == checkruntime.DateValueError {
+		error := date.Error
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueError, Error: error}
+	}
+	if clock.Kind == checkruntime.TimetzValueNull {
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueNull}
+	}
+	if date.Kind == checkruntime.DateValueNull {
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueNull}
 	}
 	return clockDateTimestamptz(date, clock)
 }

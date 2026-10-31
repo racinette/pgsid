@@ -201,6 +201,16 @@ pub fn sql__pg_catalog__timedate_pl__lhsk(clock: TimeValue, date: DateValue) -> 
     if let TimeValue::Error(error) = clock {
         return TimestampValue::Error(error);
     }
+    if let DateValue::Error(error) = date {
+        return TimestampValue::Error(error);
+    }
+    // The SQL body is one strict operator on the arguments, so a NULL decides beside an unknown.
+    if let TimeValue::Null = clock {
+        return TimestampValue::Null;
+    }
+    if let DateValue::Null = date {
+        return TimestampValue::Null;
+    }
     clock_date_timestamp(date, clock)
 }
 pub fn sql__pg_catalog__timestamptz__zcph(date: DateValue, clock: TimetzValue) -> TimestamptzValue {
@@ -218,6 +228,16 @@ pub fn sql__pg_catalog__timetzdate_pl__1ycq(
 ) -> TimestamptzValue {
     if let TimetzValue::Error(error) = clock {
         return TimestamptzValue::Error(error);
+    }
+    if let DateValue::Error(error) = date {
+        return TimestamptzValue::Error(error);
+    }
+    // The SQL body is one strict operator on the arguments, so a NULL decides beside an unknown.
+    if let TimetzValue::Null = clock {
+        return TimestamptzValue::Null;
+    }
+    if let DateValue::Null = date {
+        return TimestamptzValue::Null;
     }
     clock_date_timestamptz(date, clock)
 }

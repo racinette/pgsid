@@ -139,6 +139,16 @@ pub fn sql__pg_catalog__interval_pl_timestamp__3uks(
     if let IntervalValue::Error(error) = amount {
         return TimestampValue::Error(error);
     };
+    if let TimestampValue::Error(error) = input {
+        return TimestampValue::Error(error);
+    };
+    // The SQL body is one strict operator on the arguments, so a NULL decides beside an unknown.
+    if let IntervalValue::Null = amount {
+        return TimestampValue::Null;
+    };
+    if let TimestampValue::Null = input {
+        return TimestampValue::Null;
+    };
     interval_calendar_add(input, amount, false)
 }
 fn interval_calendar_date(
@@ -179,6 +189,16 @@ pub fn sql__pg_catalog__interval_pl_date__tgwh(
 ) -> TimestampValue {
     if let IntervalValue::Error(error) = amount {
         return TimestampValue::Error(error);
+    };
+    if let DateValue::Error(error) = input {
+        return TimestampValue::Error(error);
+    };
+    // The SQL body is one strict operator on the arguments, so a NULL decides beside an unknown.
+    if let IntervalValue::Null = amount {
+        return TimestampValue::Null;
+    };
+    if let DateValue::Null = input {
+        return TimestampValue::Null;
     };
     interval_calendar_date(input, amount, false)
 }

@@ -120,11 +120,11 @@ pub fn sql__pg_catalog__integer_pl_date__fjuj(left: Int4Value, right: DateValue)
     if let DateValue::Error(error) = right {
         return DateValue::Error(error);
     }
-    if left == Int4Value::Unknown || right == DateValue::Unknown {
-        return DateValue::Unknown;
-    }
     if left == Int4Value::Null || right == DateValue::Null {
         return DateValue::Null;
+    }
+    if left == Int4Value::Unknown || right == DateValue::Unknown {
+        return DateValue::Unknown;
     }
     if let Int4Value::Value(left_value) = left {
         if let DateValue::Value(right_value) = right {

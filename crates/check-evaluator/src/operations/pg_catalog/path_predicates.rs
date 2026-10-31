@@ -307,5 +307,15 @@ pub fn sql__pg_catalog__path_contain_pt__ltus(input: PathValue, point: PointValu
     if let PathValue::Error(error) = input {
         return BoolValue::Error(error);
     };
+    if let PointValue::Error(error) = point {
+        return BoolValue::Error(error);
+    };
+    // The SQL body is one strict call on the arguments, so a NULL decides beside an unknown.
+    if let PathValue::Null = input {
+        return BoolValue::Null;
+    };
+    if let PointValue::Null = point {
+        return BoolValue::Null;
+    };
     sql__pg_catalog__on_ppath__8fo6(point, input)
 }
