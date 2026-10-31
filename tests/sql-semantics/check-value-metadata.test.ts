@@ -366,3 +366,113 @@ it('uses concrete argument types and resolved collation facts without inventing 
     await rm(directory, { recursive: true, force: true })
   }
 }, 240_000)
+
+it('decides untyped and indeterminate collation arguments as PostgreSQL resolves them', async () => {
+  const pg = await PGlite.create(),
+    directory = await mkdtemp(join(tmpdir(), 'pgsid-collation-unresolved-'))
+  try {
+    // An unknown-typed literal and an implicit collation conflict both carry no collation, so
+    // PostgreSQL returns NULL whatever the argument value is. Neither is decided yet: untyped
+    // literals leave the call unbound, and a conflict binds but defers its result.
+    const forms = [
+      { name: 'untyped_literal', operand: `'x'`, columns: [] as string[] },
+      { name: 'untyped_null', operand: 'NULL', columns: [] as string[] },
+      { name: 'indeterminate', operand: 'c||p', columns: ['c', 'p'] },
+    ].flatMap((f) =>
+      [
+        {
+          suffix: 'value',
+          test: `pg_collation_for(${f.operand}) COLLATE "C" IS NOT DISTINCT FROM expected`,
+        },
+        { suffix: 'nullness', test: `pg_collation_for(${f.operand}) IS NULL` },
+        { suffix: 'nonnull', test: `pg_collation_for(${f.operand}) IS NOT NULL` },
+      ].map((t) => ({
+        ...f,
+        name: f.name + '_' + t.suffix,
+        expression: `CASE WHEN bypass THEN true ELSE ${t.test} END`,
+      })),
+    )
+    for (const f of forms)
+      await pg.exec(
+        `CREATE TABLE unresolved_${f.name}(c text COLLATE "C",p text COLLATE "POSIX",expected text COLLATE "C",bypass bool,CHECK(${f.expression}))`,
+      )
+    const catalog = await snapshotCatalog(pg),
+      plans: Parameters<typeof prepareCheckRustGroup>[0][number][] = []
+    for (const f of forms)
+      for (const origin of ['source', 'stored'] as const) {
+        const t = catalog.tables.find((t) => t.name === 'unresolved_' + f.name)!
+        plans.push({
+          identity: {
+            schema: 'public',
+            kind: 'table',
+            owner: t.name,
+            constraint: f.name + '_' + origin,
+          },
+          expression: portableCheckAtoms(
+            lowerTableCheck(
+              t,
+              t.constraints[0]!,
+              catalog.enums,
+              catalog.domains,
+              origin,
+              catalog.rangeTypes,
+              catalog.compositeTypeGraph,
+              origin === 'source' ? `CHECK(${f.expression})` : undefined,
+            )!.expression,
+          ),
+        })
+      }
+    const group = prepareCheckRustGroup(plans)
+    for (const [i, check] of group.checks.entries())
+      expect(check.kind, plans[i]!.identity.constraint + JSON.stringify(check)).toBe('supported')
+    const fixtures: { name: string; row: Row; expected: Outcome }[] = []
+    for (const f of forms) {
+      const cells: Input[] = f.columns.length
+        ? [known(null), known('x'), { kind: 'Unknown' }]
+        : [known(null)]
+      for (const cell of cells)
+        for (const bypass of [false, true]) {
+          const row: Row = { c: cell, p: known('y'), expected: known(null), bypass: known(bypass) }
+          let native: Outcome = { kind: 'True' }
+          try {
+            await pg.query(`INSERT INTO unresolved_${f.name} VALUES($1,$2,NULL,$3)`, [
+              cell.kind === 'Value' ? cell.value : null,
+              'y',
+              bypass,
+            ])
+          } catch (e) {
+            native = fail((e as { code: string }).code)
+          }
+          // PostgreSQL decides every row; only bypassed rows are decided here.
+          expect(native.kind === 'True' || native.kind === 'Error' || native.kind === 'False').toBe(
+            true,
+          )
+          const expected: Outcome = bypass ? native : { kind: 'Unknown' }
+          for (const origin of ['source', 'stored'])
+            fixtures.push({ name: f.name + '_' + origin, row, expected })
+        }
+      if (f.columns.length)
+        for (const origin of ['source', 'stored'])
+          fixtures.push({
+            name: f.name + '_' + origin,
+            row: {
+              c: fail('22012') as Input,
+              p: known('y'),
+              expected: known(null),
+              bypass: known(false),
+            },
+            expected: fail('22012'),
+          })
+    }
+    await runCheckParity(
+      directory,
+      'collation_unresolved',
+      group,
+      plans.map((p) => p.identity.constraint),
+      fixtures,
+    )
+  } finally {
+    await pg.close()
+    await rm(directory, { recursive: true, force: true })
+  }
+}, 240_000)
