@@ -141,11 +141,13 @@ it('requires CRC encoding only for reached rewrite sorting and preserves strict 
       for (const bypass of [false, true]) {
         const expected: Outcome = bypass
           ? { kind: 'True' }
-          : args.some((a) => a.kind === 'Error')
+          : // ts_rewrite is strict: every argument is evaluated, then a NULL decides the
+            // result whatever the unknown arguments hold.
+            args.some((a) => a.kind === 'Error')
             ? (error as Outcome)
-            : args.some((a) => a.kind === 'Unknown')
-              ? { kind: 'Unknown' }
-              : { kind: 'Null' }
+            : args.some((a) => a.kind === 'Null')
+              ? { kind: 'Null' }
+              : { kind: 'Unknown' }
         for (const name of Object.keys(definitions))
           for (const origin of ['source', 'stored'])
             fixtures.push({

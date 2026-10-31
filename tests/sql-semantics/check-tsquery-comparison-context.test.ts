@@ -129,7 +129,9 @@ it('retains count/size/structure decisions and term containment without reading 
             ? a
             : b?.kind === 'Error'
               ? b
-              : a?.kind === 'Null' && b?.kind === 'Null'
+              : // The comparisons are strict, so a NULL operand decides the result whatever
+                // the unknown operand holds.
+                a?.kind === 'Null' || b?.kind === 'Null'
                 ? { kind: 'Null' }
                 : { kind: 'Unknown' }
         for (const name of Object.keys(definitions))
