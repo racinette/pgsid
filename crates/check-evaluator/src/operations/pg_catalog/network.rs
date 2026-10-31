@@ -320,11 +320,11 @@ pub fn sql__pg_catalog__int8pl_inet__3uh7(left: Int8Value, right: NetworkValue) 
     if let NetworkValue::Error(error) = right {
         return NetworkValue::Error(error);
     }
-    if left == Int8Value::Unknown || right == NetworkValue::Unknown {
-        return NetworkValue::Unknown;
-    }
     if left == Int8Value::Null || right == NetworkValue::Null {
         return NetworkValue::Null;
+    }
+    if left == Int8Value::Unknown || right == NetworkValue::Unknown {
+        return NetworkValue::Unknown;
     }
     if let NetworkValue::Value(address) = right {
         if let Int8Value::Value(offset) = left {

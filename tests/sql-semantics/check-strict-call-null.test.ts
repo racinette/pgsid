@@ -121,6 +121,17 @@ const profiles: Profile[] = [
     ],
     literals: ["'\\x00'", "'\\x00'"],
   },
+  // Strict SQL-body wrappers skip the emitter guard, so their operations decide NULL themselves.
+  ...(['lpad', 'rpad'] as const).map((name) => ({
+    name,
+    types: ['text', 'int4'] as [string, string],
+    sql: `${name}(a,b)`,
+    values: [
+      { kind: 'Value', value: 'x' },
+      { kind: 'Value', value: 3 },
+    ] as [Input, Input],
+    literals: ["'x'", '3'] as [string, string],
+  })),
   {
     name: 'point',
     types: ['point', 'point'],
@@ -211,6 +222,8 @@ it('uses catalog strictness across scalar and container calls without discarding
       { name: 'json_later_context', sql: "row_to_json(ROW(n,decode('01','hex')))" },
       { name: 'json_later_error', sql: 'row_to_json(ROW(n,1/d))' },
       { name: 'literal_null', sql: 'lpad(NULL::text,n/d,u)' },
+      // The inlined body translates the escape before substring's own strictness check.
+      { name: 'escape_before_null', sql: `substring(t COLLATE "C",u,'xx')` },
     ]
     for (const p of profiles)
       await pg.exec(
@@ -219,6 +232,13 @@ it('uses catalog strictness across scalar and container calls without discarding
     await pg.exec(
       `CREATE TABLE strict_nested(t text,u text,n int,m int,d int,bypass bool,${nested.map((f) => `CONSTRAINT "${f.name}" CHECK(CASE WHEN bypass THEN true ELSE (${f.sql}) IS NULL END)`).join(',')})`,
     )
+    await pg.exec(
+      `CREATE TABLE strict_escape(t text,u text,CHECK(substring(t COLLATE "C",u,'xx') IS NULL))`,
+    )
+    await expect(pg.exec("INSERT INTO strict_escape VALUES(NULL,'x')")).rejects.toMatchObject({
+      code: '22025',
+    })
+    await pg.exec('INSERT INTO strict_escape VALUES(NULL,NULL)')
     const catalog = await snapshotCatalog(pg)
     const contexts: Record<string, CheckExecutionContext> = {
       declared: {
@@ -406,16 +426,24 @@ it('uses catalog strictness across scalar and container calls without discarding
                           f.name === 'domain' ? error('23514') : { kind: 'True' },
                         ],
                       ]
-                    : f.name === 'literal_null'
+                    : f.name === 'escape_before_null'
                       ? [
-                          [base, { kind: 'True' }],
-                          [{ ...base, n: unknown }, { kind: 'True' }],
+                          [base, error('22025')],
+                          [{ ...base, t: unknown }, error('22025')],
+                          [{ ...base, u: unknown }, { kind: 'Unknown' }],
+                          [{ ...base, u: nil }, { kind: 'True' }],
+                          [{ ...base, t: unknown, u: nil }, { kind: 'True' }],
                         ]
-                      : [
-                          [base, error('22012')],
-                          [{ ...base, n: unknown }, { kind: 'Unknown' }],
-                          [{ ...base, n: nil }, { kind: 'True' }],
-                        ]
+                      : f.name === 'literal_null'
+                        ? [
+                            [base, { kind: 'True' }],
+                            [{ ...base, n: unknown }, { kind: 'True' }],
+                          ]
+                        : [
+                            [base, error('22012')],
+                            [{ ...base, n: unknown }, { kind: 'Unknown' }],
+                            [{ ...base, n: nil }, { kind: 'True' }],
+                          ]
       for (const [row, expected] of cases) {
         add(f.name, row, expected)
         add(f.name, { ...row, bypass: { kind: 'Value', value: true } }, { kind: 'True' })

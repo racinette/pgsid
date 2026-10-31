@@ -23,15 +23,26 @@ pub fn sql__pg_catalog__substring__knrk(
     if let TextValue::Error(error) = escape {
         return TextValue::Error(error);
     }
-    if (subject == TextValue::Unknown || subject == TextValue::NonNull)
-        || (pattern == TextValue::Unknown || pattern == TextValue::NonNull)
+    // A CHECK runs the inlined body, substring($1, similar_to_escape($2, $3)), so the escape
+    // translation runs before the outer strictness check: a NULL subject still raises an
+    // invalid escape, while a NULL pattern or escape skips the translation.
+    if pattern == TextValue::Null || escape == TextValue::Null {
+        return TextValue::Null;
+    }
+    if (pattern == TextValue::Unknown || pattern == TextValue::NonNull)
         || (escape == TextValue::Unknown || escape == TextValue::NonNull)
     {
         return TextValue::Unknown;
     }
-    if subject == TextValue::Null || pattern == TextValue::Null || escape == TextValue::Null {
+    let translated = sql__pg_catalog__similar_to_escape__9vor(pattern, escape);
+    if let TextValue::Error(error) = translated {
+        return TextValue::Error(error);
+    }
+    if subject == TextValue::Null {
         return TextValue::Null;
     }
-    let translated = sql__pg_catalog__similar_to_escape__9vor(pattern, escape);
+    if subject == TextValue::Unknown || subject == TextValue::NonNull {
+        return TextValue::Unknown;
+    }
     sql__pg_catalog__substring__qwhf(subject, translated)
 }

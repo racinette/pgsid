@@ -169,6 +169,19 @@ pub fn sql__pg_catalog__pg_lsn_send__r284(left: PgLsnValue) -> ByteaValue {
 }
 
 pub fn sql__pg_catalog__numeric_pl_pg_lsn__jhoo(left: NumericValue, right: PgLsnValue) -> PgLsnValue {
+    if let NumericValue::Error(error) = left {
+        return PgLsnValue::Error(error);
+    }
+    if let PgLsnValue::Error(error) = right {
+        return PgLsnValue::Error(error);
+    }
+    // The SQL body is one strict operator on the arguments, so a NULL decides beside an unknown.
+    if let NumericValue::Null = left {
+        return PgLsnValue::Null;
+    }
+    if let PgLsnValue::Null = right {
+        return PgLsnValue::Null;
+    }
     pg_lsn_adjust(right, left, false)
 }
 

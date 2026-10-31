@@ -95,6 +95,16 @@ pub fn sql__pg_catalog__interval_pl_time__cdi6(
     if let IntervalValue::Error(error) = amount {
         return TimeValue::Error(error);
     };
+    if let TimeValue::Error(error) = input {
+        return TimeValue::Error(error);
+    };
+    // The SQL body is one strict operator on the arguments, so a NULL decides beside an unknown.
+    if let IntervalValue::Null = amount {
+        return TimeValue::Null;
+    };
+    if let TimeValue::Null = input {
+        return TimeValue::Null;
+    };
     sql__pg_catalog__time_pl_interval__osxy(input, amount)
 }
 pub fn sql__pg_catalog__interval_pl_timetz__0g00(
@@ -103,6 +113,16 @@ pub fn sql__pg_catalog__interval_pl_timetz__0g00(
 ) -> TimetzValue {
     if let IntervalValue::Error(error) = amount {
         return TimetzValue::Error(error);
+    };
+    if let TimetzValue::Error(error) = input {
+        return TimetzValue::Error(error);
+    };
+    // The SQL body is one strict operator on the arguments, so a NULL decides beside an unknown.
+    if let IntervalValue::Null = amount {
+        return TimetzValue::Null;
+    };
+    if let TimetzValue::Null = input {
+        return TimetzValue::Null;
     };
     sql__pg_catalog__timetz_pl_interval__wmqy(input, amount)
 }

@@ -100,6 +100,16 @@ pub fn sql__pg_catalog__lpad__ezhf(
 }
 
 pub fn sql__pg_catalog__lpad__lqi7(input: TextValue, length: Int4Value) -> TextValue {
+    if let TextValue::Error(error) = input {
+        return TextValue::Error(error);
+    }
+    if let Int4Value::Error(error) = length {
+        return TextValue::Error(error);
+    }
+    // The SQL body is one strict call on the arguments, so a NULL decides beside an unknown.
+    if input == TextValue::Null || length == Int4Value::Null {
+        return TextValue::Null;
+    }
     text_padding(input, length, TextValue::Value(" ".to_owned()), false)
 }
 
@@ -112,6 +122,16 @@ pub fn sql__pg_catalog__rpad__bw5z(
 }
 
 pub fn sql__pg_catalog__rpad__53f6(input: TextValue, length: Int4Value) -> TextValue {
+    if let TextValue::Error(error) = input {
+        return TextValue::Error(error);
+    }
+    if let Int4Value::Error(error) = length {
+        return TextValue::Error(error);
+    }
+    // The SQL body is one strict call on the arguments, so a NULL decides beside an unknown.
+    if input == TextValue::Null || length == Int4Value::Null {
+        return TextValue::Null;
+    }
     text_padding(input, length, TextValue::Value(" ".to_owned()), true)
 }
 

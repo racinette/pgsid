@@ -18328,6 +18328,16 @@ export function intervalPlTimestamp3uks(amount: checkruntime.IntervalValue, inpu
         const error: checkruntime.SqlError = amount.value;
         return { kind: "Error", value: error };
     }
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (amount.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
     return intervalCalendarAdd(input, amount, false);
 }
 function intervalCalendarDate(input: checkruntime.DateValue, amount: checkruntime.IntervalValue, subtract: boolean): checkruntime.TimestampValue {
@@ -18359,6 +18369,16 @@ export function intervalPlDateTgwh(amount: checkruntime.IntervalValue, input: ch
     if (amount.kind === "Error") {
         const error: checkruntime.SqlError = amount.value;
         return { kind: "Error", value: error };
+    }
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (amount.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
     }
     return intervalCalendarDate(input, amount, false);
 }
@@ -34367,11 +34387,11 @@ export function int8plInet3uh7(left: checkruntime.Int8Value, right: checkruntime
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalNetworkValue(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt8Value(left, { kind: "Null" }) || checkruntime.equalNetworkValue(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalNetworkValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (right.kind === "Value") {
         const address: checkruntime.NetworkAddress = right.value;
@@ -41506,6 +41526,16 @@ export function pathContainPtLtus(input: checkruntime.PathValue, point: checkrun
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
     }
+    if (point.kind === "Error") {
+        const error: checkruntime.SqlError = point.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (point.kind === "Null") {
+        return { kind: "Null" };
+    }
     return onPpath8fo6(point, input);
 }
 const pgLsnSpecialError = 466560;
@@ -41764,6 +41794,20 @@ export function pgLsnSendR284(left: checkruntime.PgLsnValue): checkruntime.Bytea
     return int8sendPjz0(pgLsnBits(left));
 }
 export function numericPlPgLsnJhoo(left: checkruntime.NumericValue, right: checkruntime.PgLsnValue): checkruntime.PgLsnValue {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (right.kind === "Null") {
+        return { kind: "Null" };
+    }
     return pgLsnAdjust(right, left, false);
 }
 export function pgLsn8qf1(left: checkruntime.NumericValue): checkruntime.PgLsnValue {
@@ -47072,11 +47116,11 @@ export function integerPlDateFjuj(left: checkruntime.Int4Value, right: checkrunt
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalDateValue(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt4Value(left, { kind: "Null" }) || checkruntime.equalDateValue(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalDateValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: number = langruntime.checkedI32(left.value);
@@ -48120,12 +48164,32 @@ export function intervalPlTimeCdi6(amount: checkruntime.IntervalValue, input: ch
         const error: checkruntime.SqlError = amount.value;
         return { kind: "Error", value: error };
     }
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (amount.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
     return timePlIntervalOsxy(input, amount);
 }
 export function intervalPlTimetz0g00(amount: checkruntime.IntervalValue, input: checkruntime.TimetzValue): checkruntime.TimetzValue {
     if (amount.kind === "Error") {
         const error: checkruntime.SqlError = amount.value;
         return { kind: "Error", value: error };
+    }
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (amount.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
     }
     return timetzPlIntervalWmqy(input, amount);
 }
@@ -51721,12 +51785,34 @@ export function lpadEzhf(input: checkruntime.TextValue, length: checkruntime.Int
     return textPadding(input, length, fill, false);
 }
 export function lpadLqi7(input: checkruntime.TextValue, length: checkruntime.Int4Value): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (length.kind === "Error") {
+        const error: checkruntime.SqlError = length.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" }) || checkruntime.equalInt4Value(length, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
     return textPadding(input, length, { kind: "Value", value: " " }, false);
 }
 export function rpadBw5z(input: checkruntime.TextValue, length: checkruntime.Int4Value, fill: checkruntime.TextValue): checkruntime.TextValue {
     return textPadding(input, length, fill, true);
 }
 export function rpad53f6(input: checkruntime.TextValue, length: checkruntime.Int4Value): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (length.kind === "Error") {
+        const error: checkruntime.SqlError = length.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" }) || checkruntime.equalInt4Value(length, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
     return textPadding(input, length, { kind: "Value", value: " " }, true);
 }
 export function repeatF0fb(input: checkruntime.TextValue, length: checkruntime.Int4Value): checkruntime.TextValue {
@@ -54021,6 +54107,16 @@ export function timedatePlLhsk(clock: checkruntime.TimeValue, date: checkruntime
         const error: checkruntime.SqlError = clock.value;
         return { kind: "Error", value: error };
     }
+    if (date.kind === "Error") {
+        const error: checkruntime.SqlError = date.value;
+        return { kind: "Error", value: error };
+    }
+    if (clock.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (date.kind === "Null") {
+        return { kind: "Null" };
+    }
     return clockDateTimestamp(date, clock);
 }
 export function timestamptzZcph(date: checkruntime.DateValue, clock: checkruntime.TimetzValue): checkruntime.TimestamptzValue {
@@ -54033,6 +54129,16 @@ export function timetzdatePl1ycq(clock: checkruntime.TimetzValue, date: checkrun
     if (clock.kind === "Error") {
         const error: checkruntime.SqlError = clock.value;
         return { kind: "Error", value: error };
+    }
+    if (date.kind === "Error") {
+        const error: checkruntime.SqlError = date.value;
+        return { kind: "Error", value: error };
+    }
+    if (clock.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (date.kind === "Null") {
+        return { kind: "Null" };
     }
     return clockDateTimestamptz(date, clock);
 }
