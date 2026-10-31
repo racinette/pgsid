@@ -697,7 +697,7 @@ pub fn array_comparison_owned_probe()->BoolValue {
    let mut characters=value.characters;characters[0]='x';
    cells[0]=ArrayElement::Jsonb(JsonbPayload{root:value.root,nodes:value.nodes,characters:characters});
   };
-  let changed=ArrayComparisonPayload{left:cells,right:snapshot.right,limit:snapshot.limit,state:snapshot.state,error:snapshot.error,tail:snapshot.tail,value:snapshot.value};
+  let changed=ArrayComparisonPayload{left:cells,right:snapshot.right,limit:snapshot.limit,state:snapshot.state,error:snapshot.error,tail:snapshot.tail,value:snapshot.value,flavor:snapshot.flavor};
   let left=array_element_to_jsonb(array_comparison_element_at(&changed,make_int4_value(0),false));
   let right=array_element_to_jsonb(array_comparison_element_at(&changed,make_int4_value(0),true));
   if jsonb_to_text(left)==jsonb_to_text(original.clone()) {return BoolValue::Value(false);};

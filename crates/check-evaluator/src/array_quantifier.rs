@@ -26,7 +26,11 @@ pub fn prepare_array_quantifier(
             error: make_sql_error(0),
             tail: 0,
             value: 0,
+            flavor: 2,
         };
+    };
+    if let ArrayValue::Unknown = input {
+        return array_comparison_unresolved(1, 0);
     };
     array_comparison_state(-1, make_sql_error(0), 0)
 }
@@ -37,7 +41,7 @@ pub(crate) fn array_quantifier_initial(input: &ArrayComparisonPayload, any: bool
         return CheckOutcome::Error(input.error);
     };
     if input.state == -1 {
-        return check_unresolved(unresolved_flavor);
+        return check_unresolved(array_comparison_flavor(input, unresolved_flavor));
     };
     if input.state == 0 {
         return CheckOutcome::Null;

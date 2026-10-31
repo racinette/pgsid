@@ -22,6 +22,8 @@ fn jsonb_deferred_range_input(nullness: BoolValue, category: i32, key: bool) -> 
         if category == 2 && key {
             return JsonbInput::ConvertedError(make_sql_error(JSONB_BUILD_PARAMETER));
         };
+        // The conversion runs a catalog-selected cast or output function, a database fact.
+        return jsonb_input_unresolved(resolution_context(unresolved_flavor));
     };
     jsonb_input_unresolved(unresolved_flavor)
 }

@@ -1222,7 +1222,7 @@ func ArrayBinaryInitial(input *checkruntime.ArrayOutputPayload, support int) che
 		}
 		return result
 	}
-	return checkruntime.ByteaUnresolved(unresolvedFlavor)
+	return checkruntime.ByteaUnresolved(checkruntime.ArrayOutputFlavor(input.State, unresolvedFlavor))
 }
 func ContainerBinaryMissing(input checkruntime.ArrayElement, absent bool) checkruntime.ByteaValue {
 	unresolvedFlavor := 0
@@ -3818,7 +3818,7 @@ func FinishArrayOutput(input checkruntime.ArrayOutputPayload, rendered checkrunt
 		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
 	}
 	if input.State != 1 {
-		return checkruntime.TextUnresolved(unresolvedFlavor)
+		return checkruntime.TextUnresolved(checkruntime.ArrayOutputFlavor(input.State, unresolvedFlavor))
 	}
 	if rendered.Kind == checkruntime.ArrayArgumentsError {
 		error := rendered.Error
@@ -4892,7 +4892,7 @@ func arrayStringJoin(input checkruntime.ArrayOutputPayload, rendered checkruntim
 		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
 	}
 	if input.State != 1 {
-		return checkruntime.TextUnresolved(unresolvedFlavor)
+		return checkruntime.TextUnresolved(checkruntime.ArrayOutputFlavor(input.State, unresolvedFlavor))
 	}
 	if rendered.Kind == checkruntime.ArrayArgumentsError {
 		error := rendered.Error
@@ -17548,7 +17548,7 @@ func recordComparisonState(state int, error checkruntime.SqlError) checkruntime.
 	state = langruntime.CheckedI32(state)
 	left := []checkruntime.ArrayElement{}
 	right := []checkruntime.ArrayElement{}
-	return checkruntime.ArrayComparisonPayload{Left: left, Right: right, Limit: 0, State: state, Error: error, Tail: 0, Value: 0}
+	return checkruntime.ArrayComparisonPayload{Left: left, Right: right, Limit: 0, State: state, Error: error, Tail: 0, Value: 0, Flavor: 2}
 }
 func PrepareRecordComparison(left checkruntime.CompositeValue, right checkruntime.CompositeValue, leftType string, rightType string, leftCount int, rightCount int) checkruntime.ArrayComparisonPayload {
 	left = checkruntime.CopyCompositeValue(left)
@@ -17565,17 +17565,21 @@ func PrepareRecordComparison(left checkruntime.CompositeValue, right checkruntim
 		error := right.Error
 		return recordComparisonState(langruntime.CheckedSignedNegate(2), error)
 	}
+	deferredFlavor := 0
 	if left.Kind == checkruntime.CompositeValueUnknown {
-		return recordComparisonState(langruntime.CheckedSignedNegate(1), checkruntime.MakeSqlError(0))
-	}
-	if left.Kind == checkruntime.CompositeValueUnimplemented {
-		return recordComparisonState(langruntime.CheckedSignedNegate(1), checkruntime.MakeSqlError(0))
+		deferredFlavor = langruntime.CheckedI32(1)
 	}
 	if right.Kind == checkruntime.CompositeValueUnknown {
-		return recordComparisonState(langruntime.CheckedSignedNegate(1), checkruntime.MakeSqlError(0))
+		deferredFlavor = langruntime.CheckedI32(1)
+	}
+	if left.Kind == checkruntime.CompositeValueUnimplemented {
+		deferredFlavor = langruntime.CheckedI32(2)
 	}
 	if right.Kind == checkruntime.CompositeValueUnimplemented {
-		return recordComparisonState(langruntime.CheckedSignedNegate(1), checkruntime.MakeSqlError(0))
+		deferredFlavor = langruntime.CheckedI32(2)
+	}
+	if deferredFlavor > 0 {
+		return checkruntime.ArrayComparisonUnresolved(deferredFlavor, 0)
 	}
 	if left.Kind == checkruntime.CompositeValueNull {
 		return recordComparisonState(0, checkruntime.MakeSqlError(0))
@@ -17598,7 +17602,7 @@ func PrepareRecordComparison(left checkruntime.CompositeValue, right checkruntim
 			if len(a.Fields) != len(b.Fields) {
 				tail = langruntime.CheckedIndex(1)
 			}
-			return checkruntime.ArrayComparisonPayload{Left: a.Fields, Right: b.Fields, Limit: limit, State: 1, Error: checkruntime.MakeSqlError(0), Tail: tail, Value: 0}
+			return checkruntime.ArrayComparisonPayload{Left: a.Fields, Right: b.Fields, Limit: limit, State: 1, Error: checkruntime.MakeSqlError(0), Tail: tail, Value: 0, Flavor: 2}
 		}
 	}
 	return recordComparisonState(langruntime.CheckedSignedNegate(1), checkruntime.MakeSqlError(0))
@@ -17762,7 +17766,7 @@ func recordHashState(state int, error checkruntime.SqlError) checkruntime.ArrayC
 	state = langruntime.CheckedI32(state)
 	left := []checkruntime.ArrayElement{}
 	right := []checkruntime.ArrayElement{}
-	return checkruntime.ArrayComparisonPayload{Left: left, Right: right, Limit: 0, State: state, Error: error, Tail: 0, Value: 0}
+	return checkruntime.ArrayComparisonPayload{Left: left, Right: right, Limit: 0, State: state, Error: error, Tail: 0, Value: 0, Flavor: 2}
 }
 func PrepareRecordHash(input checkruntime.CompositeValue, seed checkruntime.Int8Value, typeName string, count int) checkruntime.ArrayComparisonPayload {
 	checked := checkruntime.CompositeFromCoercedValue(input)
@@ -17788,7 +17792,7 @@ func PrepareRecordHash(input checkruntime.CompositeValue, seed checkruntime.Int8
 			expected := langruntime.IndexFromI32(count, langruntime.CheckedAdd(len(value.Fields), 1))
 			if value.TypeName == typeName && len(value.Fields) == expected {
 				right := []checkruntime.ArrayElement{}
-				return checkruntime.ArrayComparisonPayload{Left: value.Fields, Right: right, Limit: expected, State: 1, Error: checkruntime.MakeSqlError(0), Tail: 0, Value: 0}
+				return checkruntime.ArrayComparisonPayload{Left: value.Fields, Right: right, Limit: expected, State: 1, Error: checkruntime.MakeSqlError(0), Tail: 0, Value: 0, Flavor: 2}
 			}
 		}
 	}
@@ -18714,7 +18718,7 @@ func EnumToText(input checkruntime.EnumValue, labels string, count int) checkrun
 	if input.Kind == checkruntime.EnumValueValue {
 		value := input.Value
 		if value.Ordinal < 0 || value.Ordinal >= count {
-			return checkruntime.TextUnresolved(unresolvedFlavor)
+			return checkruntime.TextUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		chars := []rune(labels)
 		index := 0
@@ -35028,6 +35032,7 @@ func jsonbDeferredRangeInput(nullness checkruntime.BoolValue, category int, key 
 		if category == 2 && key {
 			return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputConvertedError, ConvertedError: checkruntime.MakeSqlError(jsonbBuildParameter)}
 		}
+		return checkruntime.JsonbInputUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 	}
 	return checkruntime.JsonbInputUnresolved(unresolvedFlavor)
 }
@@ -70055,7 +70060,7 @@ func FormatArrayCount(input *checkruntime.ArrayOutputPayload) checkruntime.Int4V
 		size := int(int32(len(input.Elements)))
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: size}
 	}
-	return checkruntime.Int4Unresolved(unresolvedFlavor)
+	return checkruntime.Int4Unresolved(checkruntime.ArrayOutputFlavor(input.State, unresolvedFlavor))
 }
 func FormatArgumentIndex(input *TextFormatState) checkruntime.Int4Value {
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedSubtract(input.Request, 1)}

@@ -100,7 +100,7 @@ pub(crate) fn format_array_count(input: &ArrayOutputPayload) -> Int4Value {
         let size = input.elements.len() as i32;
         return Int4Value::Value(size);
     };
-    int4_unresolved(unresolved_flavor)
+    int4_unresolved(array_output_flavor(input.state, unresolved_flavor))
 }
 
 pub(crate) fn format_argument_index(input: &TextFormatState) -> Int4Value {

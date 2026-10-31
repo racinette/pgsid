@@ -15820,6 +15820,15 @@ func ArrayValidityPossible(input CheckOutcome) CheckOutcome {
 	}
 	return CheckOutcome{Kind: CheckOutcomeTrue}
 }
+func ArrayValidityPossibleUnder(input CheckOutcome, guard CheckOutcome) CheckOutcome {
+	if input.Kind == CheckOutcomeError {
+		if guard == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
+			return CheckUnresolved(1)
+		}
+		return CheckUnresolved(2)
+	}
+	return ArrayValidityPossible(input)
+}
 func ArrayConstructorFromValidity(input ArrayValue, validity CheckOutcome) ArrayValue {
 	unresolvedFlavor := 0
 	if input.Kind == ArrayValueUnknown {
@@ -15928,6 +15937,15 @@ func AppendArrayCastConversion(input ArrayOutputPayload, element ArrayElement, v
 	}
 	return AppendArrayConversion(input, element, true)
 }
+func ArrayOutputFlavor(state int, flavor int) int {
+	if state == langruntime.CheckedSignedNegate(1) || flavor == 2 {
+		return 2
+	}
+	if state == langruntime.CheckedSignedNegate(3) {
+		return 1
+	}
+	return flavor
+}
 func MakeArrayConversion() ArrayOutputPayload {
 	dimensions := []ArrayDimension{}
 	elements := []ArrayElement{}
@@ -15945,8 +15963,13 @@ func AppendArrayConversion(input ArrayOutputPayload, element ArrayElement, unkno
 	}
 	if state == 1 && unknownValid == false {
 		if element.Kind == ArrayElementUnknown {
+			state = langruntime.CheckedI32(langruntime.CheckedSignedNegate(3))
+		}
+		if element.Kind == ArrayElementUnimplemented {
 			state = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
 		}
+	}
+	if state == langruntime.CheckedSignedNegate(3) && unknownValid == false {
 		if element.Kind == ArrayElementUnimplemented {
 			state = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
 		}
@@ -15966,7 +15989,7 @@ func ArrayConversionArguments(input ArrayOutputPayload, elementType string, elem
 		return ArrayArguments{Kind: ArrayArgumentsError, Error: input.Error}
 	}
 	if input.State != 1 {
-		return ArrayArgumentsUnresolved(unresolvedFlavor)
+		return ArrayArgumentsUnresolved(ArrayOutputFlavor(input.State, unresolvedFlavor))
 	}
 	return ArrayArguments{Kind: ArrayArgumentsValue, Value: ArrayPayload{NullBitmap: input.NullBitmap, ElementType: elementType, ElementKind: elementKind, Dimensions: input.Dimensions, Elements: input.Elements}}
 }
@@ -15978,6 +16001,9 @@ func PrepareArrayOutput(input ArrayValue) ArrayOutputPayload {
 	}
 	state := langruntime.CheckedSignedNegate(1)
 	error := MakeSqlError(0)
+	if input.Kind == ArrayValueUnknown {
+		state = langruntime.CheckedI32(langruntime.CheckedSignedNegate(3))
+	}
 	if input.Kind == ArrayValueNull {
 		state = langruntime.CheckedI32(0)
 	}
@@ -17968,17 +17994,18 @@ const arrayComparisonUndefined = 6822435
 const arrayComparisonTypeMismatch = 6822148
 
 type ArrayComparisonPayload struct {
-	Left  []ArrayElement
-	Right []ArrayElement
-	Limit int
-	State int
-	Error SqlError
-	Tail  int
-	Value int
+	Left   []ArrayElement
+	Right  []ArrayElement
+	Limit  int
+	State  int
+	Error  SqlError
+	Tail   int
+	Value  int
+	Flavor int
 }
 
 func CopyArrayComparisonPayload(value ArrayComparisonPayload) ArrayComparisonPayload {
-	return ArrayComparisonPayload{Left: langruntime.CheckedStructs(value.Left, CopyArrayElement), Right: langruntime.CheckedStructs(value.Right, CopyArrayElement), Limit: langruntime.CheckedIndex(value.Limit), State: langruntime.CheckedI32(value.State), Error: value.Error, Tail: langruntime.CheckedI32(value.Tail), Value: langruntime.CheckedI32(value.Value)}
+	return ArrayComparisonPayload{Left: langruntime.CheckedStructs(value.Left, CopyArrayElement), Right: langruntime.CheckedStructs(value.Right, CopyArrayElement), Limit: langruntime.CheckedIndex(value.Limit), State: langruntime.CheckedI32(value.State), Error: value.Error, Tail: langruntime.CheckedI32(value.Tail), Value: langruntime.CheckedI32(value.Value), Flavor: langruntime.CheckedI32(value.Flavor)}
 }
 
 type ArrayComparisonPlanKind uint8
@@ -17999,12 +18026,26 @@ func CopyArrayComparisonPlan(value ArrayComparisonPlan) ArrayComparisonPlan {
 	}
 	panic("unknown enum variant")
 }
+func ArrayComparisonUnresolved(flavor int, value int) ArrayComparisonPayload {
+	left := []ArrayElement{}
+	right := []ArrayElement{}
+	return ArrayComparisonPayload{Left: left, Right: right, Limit: 0, State: langruntime.CheckedSignedNegate(1), Error: MakeSqlError(0), Tail: 0, Value: value, Flavor: flavor}
+}
+func ArrayComparisonFlavor(input *ArrayComparisonPayload, flavor int) int {
+	if flavor == 2 || input.Flavor == 2 {
+		return 2
+	}
+	if input.Flavor == 1 {
+		return 1
+	}
+	return flavor
+}
 func arrayComparisonState(state int, error SqlError, value int) ArrayComparisonPayload {
 	state = langruntime.CheckedI32(state)
 	value = langruntime.CheckedI32(value)
 	left := []ArrayElement{}
 	right := []ArrayElement{}
-	return ArrayComparisonPayload{Left: left, Right: right, Limit: 0, State: state, Error: error, Tail: 0, Value: value}
+	return ArrayComparisonPayload{Left: left, Right: right, Limit: 0, State: state, Error: error, Tail: 0, Value: value, Flavor: 2}
 }
 func arrayShapeOrder(left *ArrayPayload, right *ArrayPayload) int {
 	if len(left.Elements) < len(right.Elements) {
@@ -18052,17 +18093,21 @@ func PrepareArrayComparison(left ArrayValue, right ArrayValue, equality bool, av
 		error := right.Error
 		return arrayComparisonState(langruntime.CheckedSignedNegate(2), error, 0)
 	}
+	deferredFlavor := 0
 	if left.Kind == ArrayValueUnknown {
-		return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
-	}
-	if left.Kind == ArrayValueUnimplemented {
-		return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
+		deferredFlavor = langruntime.CheckedI32(1)
 	}
 	if right.Kind == ArrayValueUnknown {
-		return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
+		deferredFlavor = langruntime.CheckedI32(1)
+	}
+	if left.Kind == ArrayValueUnimplemented {
+		deferredFlavor = langruntime.CheckedI32(2)
 	}
 	if right.Kind == ArrayValueUnimplemented {
-		return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
+		deferredFlavor = langruntime.CheckedI32(2)
+	}
+	if deferredFlavor > 0 {
+		return ArrayComparisonUnresolved(deferredFlavor, 0)
 	}
 	if left.Kind == ArrayValueNull {
 		return arrayComparisonState(0, MakeSqlError(0), 0)
@@ -18088,7 +18133,7 @@ func PrepareArrayComparison(left ArrayValue, right ArrayValue, equality bool, av
 			if len(b.Elements) < limit {
 				limit = langruntime.CheckedIndex(len(b.Elements))
 			}
-			return ArrayComparisonPayload{Left: a.Elements, Right: b.Elements, Limit: limit, State: 1, Error: MakeSqlError(0), Tail: tail, Value: 0}
+			return ArrayComparisonPayload{Left: a.Elements, Right: b.Elements, Limit: limit, State: 1, Error: MakeSqlError(0), Tail: tail, Value: 0, Flavor: 2}
 		}
 	}
 	return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
@@ -18099,7 +18144,7 @@ func ArrayComparisonInitial(input *ArrayComparisonPayload) Int4Value {
 		return Int4Value{Kind: Int4ValueError, Error: input.Error}
 	}
 	if input.State == langruntime.CheckedSignedNegate(1) {
-		return Int4Unresolved(unresolvedFlavor)
+		return Int4Unresolved(ArrayComparisonFlavor(input, unresolvedFlavor))
 	}
 	if input.State == 0 {
 		return Int4Value{Kind: Int4ValueNull}
@@ -18311,7 +18356,7 @@ func PrepareArrayMembership(left ArrayValue, right ArrayValue, reverse bool, ava
 	right = CopyArrayValue(right)
 	payload := PrepareArrayComparison(left, right, false, available)
 	if payload.State == 1 && reverse {
-		return ArrayComparisonPayload{Left: payload.Right, Right: payload.Left, Limit: payload.Limit, State: payload.State, Error: payload.Error, Tail: payload.Tail, Value: payload.Value}
+		return ArrayComparisonPayload{Left: payload.Right, Right: payload.Left, Limit: payload.Limit, State: payload.State, Error: payload.Error, Tail: payload.Tail, Value: payload.Value, Flavor: payload.Flavor}
 	}
 	return payload
 }
@@ -18322,7 +18367,7 @@ func ArrayMembershipInitial(input *ArrayComparisonPayload, all bool) BoolValue {
 		return BoolValue{Kind: BoolValueError, Error: input.Error}
 	}
 	if input.State == langruntime.CheckedSignedNegate(1) {
-		return BoolUnresolved(unresolvedFlavor)
+		return BoolUnresolved(ArrayComparisonFlavor(input, unresolvedFlavor))
 	}
 	if input.State == 0 {
 		return BoolValue{Kind: BoolValueNull}
@@ -18456,8 +18501,8 @@ func FinishArrayCoercion(input ArrayOutputPayload, converted ArrayArguments, bin
 	if input.State == langruntime.CheckedSignedNegate(2) {
 		return ArrayValue{Kind: ArrayValueError, Error: input.Error}
 	}
-	if input.State == langruntime.CheckedSignedNegate(1) {
-		return ArrayUnresolved(unresolvedFlavor)
+	if input.State == langruntime.CheckedSignedNegate(1) || input.State == langruntime.CheckedSignedNegate(3) {
+		return ArrayUnresolved(ArrayOutputFlavor(input.State, unresolvedFlavor))
 	}
 	if input.State == 0 {
 		return ArrayValue{Kind: ArrayValueNull}
@@ -18503,17 +18548,21 @@ func PrepareArrayBucket(needle ArrayElement, input ArrayValue, available bool) A
 		error := input.Error
 		return arrayComparisonState(langruntime.CheckedSignedNegate(2), error, 0)
 	}
+	deferredFlavor := 0
 	if needle.Kind == ArrayElementUnknown {
-		return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
-	}
-	if needle.Kind == ArrayElementUnimplemented {
-		return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
+		deferredFlavor = langruntime.CheckedI32(1)
 	}
 	if input.Kind == ArrayValueUnknown {
-		return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
+		deferredFlavor = langruntime.CheckedI32(1)
+	}
+	if needle.Kind == ArrayElementUnimplemented {
+		deferredFlavor = langruntime.CheckedI32(2)
 	}
 	if input.Kind == ArrayValueUnimplemented {
-		return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
+		deferredFlavor = langruntime.CheckedI32(2)
+	}
+	if deferredFlavor > 0 {
+		return ArrayComparisonUnresolved(deferredFlavor, 0)
 	}
 	if needle.Kind == ArrayElementNull {
 		return arrayComparisonState(0, MakeSqlError(0), 0)
@@ -18558,7 +18607,7 @@ func PrepareArrayBucket(needle ArrayElement, input ArrayValue, available bool) A
 		needles := []ArrayElement{}
 		langruntime.CheckedAdd(len(needles), 1)
 		needles = append(needles, CopyArrayElement(needle))
-		return ArrayComparisonPayload{Limit: len(array.Elements), Left: array.Elements, Right: needles, State: 1, Error: MakeSqlError(0), Tail: 0, Value: 0}
+		return ArrayComparisonPayload{Limit: len(array.Elements), Left: array.Elements, Right: needles, State: 1, Error: MakeSqlError(0), Tail: 0, Value: 0, Flavor: 2}
 	}
 	return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
 }
@@ -18713,14 +18762,18 @@ func PrepareArraySearch(input ArrayValue, needle ArrayElement, start Int4Value, 
 		if needle.Kind == ArrayElementNull {
 			needleNull = true
 		}
+		needleFlavor := 0
 		if needle.Kind == ArrayElementUnknown {
 			needleUnknown = true
+			needleFlavor = langruntime.CheckedI32(1)
 		}
 		if needle.Kind == ArrayElementUnimplemented {
 			needleUnknown = true
+			needleFlavor = langruntime.CheckedI32(2)
 		}
 		knownNull := false
 		unknownNull := false
+		cellFlavor := 0
 		position := 0
 		for position < len(array.Elements) {
 			element := CopyArrayElement(array.Elements[position])
@@ -18729,29 +18782,40 @@ func PrepareArraySearch(input ArrayValue, needle ArrayElement, start Int4Value, 
 			}
 			if element.Kind == ArrayElementUnknown {
 				unknownNull = true
+				if cellFlavor < 1 {
+					cellFlavor = langruntime.CheckedI32(1)
+				}
 			}
 			if element.Kind == ArrayElementUnimplemented {
 				unknownNull = true
+				cellFlavor = langruntime.CheckedI32(2)
 			}
 			position = langruntime.CheckedAdd(position, 1)
+		}
+		searchFlavor := needleFlavor
+		if (needleNull || needleUnknown) && cellFlavor > searchFlavor {
+			searchFlavor = langruntime.CheckedI32(cellFlavor)
 		}
 		if needleNull && knownNull == false && unknownNull == false {
 			return arrayComparisonState(2, MakeSqlError(0), 0)
 		}
 		if provided {
-			if start == (Int4Value{Kind: Int4ValueUnknown}) || start == (Int4Value{Kind: Int4ValueUnimplemented}) {
+			if start == (Int4Value{Kind: Int4ValueUnknown}) {
+				return ArrayComparisonUnresolved(1, 0)
+			}
+			if start == (Int4Value{Kind: Int4ValueUnimplemented}) {
 				return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
 			}
 			if start == (Int4Value{Kind: Int4ValueNull}) {
 				if knownNull == false && (needleUnknown || (needleNull && unknownNull)) {
-					return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
+					return ArrayComparisonUnresolved(searchFlavor, 0)
 				}
 				return arrayComparisonState(langruntime.CheckedSignedNegate(2), MakeSqlError(arraySearchNullStart), 0)
 			}
 		}
 		if available == false {
 			if knownNull == false && (needleUnknown || (needleNull && unknownNull)) {
-				return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
+				return ArrayComparisonUnresolved(searchFlavor, 0)
 			}
 			return arrayComparisonState(langruntime.CheckedSignedNegate(2), MakeSqlError(arrayComparisonUndefined), 0)
 		}
@@ -18772,7 +18836,7 @@ func PrepareArraySearch(input ArrayValue, needle ArrayElement, start Int4Value, 
 		needles := []ArrayElement{}
 		langruntime.CheckedAdd(len(needles), 1)
 		needles = append(needles, CopyArrayElement(needle))
-		return ArrayComparisonPayload{Limit: len(array.Elements), Left: array.Elements, Right: needles, State: 1, Error: MakeSqlError(0), Tail: lower, Value: int(int32(offset))}
+		return ArrayComparisonPayload{Limit: len(array.Elements), Left: array.Elements, Right: needles, State: 1, Error: MakeSqlError(0), Tail: lower, Value: int(int32(offset)), Flavor: 2}
 	}
 	return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
 }
@@ -18783,7 +18847,7 @@ func ArraySearchInitial(input *ArrayComparisonPayload) Int4Value {
 		return Int4Value{Kind: Int4ValueError, Error: input.Error}
 	}
 	if input.State == langruntime.CheckedSignedNegate(1) {
-		return Int4Unresolved(unresolvedFlavor)
+		return Int4Unresolved(ArrayComparisonFlavor(input, unresolvedFlavor))
 	}
 	return Int4Value{Kind: Int4ValueNull}
 }
@@ -18945,7 +19009,7 @@ func PrepareArrayRewrite(input ArrayValue, needle ArrayElement, replacement Arra
 		queries = append(queries, CopyArrayElement(needle))
 		langruntime.CheckedAdd(len(queries), 1)
 		queries = append(queries, CopyArrayElement(replacement))
-		return ArrayComparisonPayload{Limit: len(array.Elements), Left: array.Elements, Right: queries, State: 1, Error: MakeSqlError(0), Tail: 0, Value: 0}
+		return ArrayComparisonPayload{Limit: len(array.Elements), Left: array.Elements, Right: queries, State: 1, Error: MakeSqlError(0), Tail: 0, Value: 0, Flavor: 2}
 	}
 	return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
 }
@@ -19085,7 +19149,7 @@ func FinishArrayRewrite(original ArrayValue, plan *ArrayComparisonPayload, value
 		return ArrayValue{Kind: ArrayValueError, Error: plan.Error}
 	}
 	if plan.State == langruntime.CheckedSignedNegate(1) {
-		return ArrayUnresolved(unresolvedFlavor)
+		return ArrayUnresolved(ArrayComparisonFlavor(plan, unresolvedFlavor))
 	}
 	if plan.State == 0 {
 		return ArrayValue{Kind: ArrayValueNull}
@@ -19186,14 +19250,21 @@ func PrepareArrayHash(input ArrayValue, seed Int8Value, available bool) ArrayCom
 		error := seed.Error
 		return arrayComparisonState(langruntime.CheckedSignedNegate(2), error, 1)
 	}
+	deferredFlavor := 0
 	if input.Kind == ArrayValueUnknown {
-		return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 1)
+		deferredFlavor = langruntime.CheckedI32(1)
+	}
+	if seed == (Int8Value{Kind: Int8ValueUnknown}) {
+		deferredFlavor = langruntime.CheckedI32(1)
 	}
 	if input.Kind == ArrayValueUnimplemented {
-		return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 1)
+		deferredFlavor = langruntime.CheckedI32(2)
 	}
-	if seed == (Int8Value{Kind: Int8ValueUnknown}) || seed == (Int8Value{Kind: Int8ValueUnimplemented}) {
-		return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 1)
+	if seed == (Int8Value{Kind: Int8ValueUnimplemented}) {
+		deferredFlavor = langruntime.CheckedI32(2)
+	}
+	if deferredFlavor > 0 {
+		return ArrayComparisonUnresolved(deferredFlavor, 1)
 	}
 	if input.Kind == ArrayValueNull {
 		return arrayComparisonState(0, MakeSqlError(0), 1)
@@ -19208,7 +19279,7 @@ func PrepareArrayHash(input ArrayValue, seed Int8Value, available bool) ArrayCom
 		value := CopyArrayPayload(input.Value)
 		limit := len(value.Elements)
 		right := []ArrayElement{}
-		return ArrayComparisonPayload{Left: value.Elements, Right: right, Limit: limit, State: 1, Error: MakeSqlError(0), Tail: 0, Value: 1}
+		return ArrayComparisonPayload{Left: value.Elements, Right: right, Limit: limit, State: 1, Error: MakeSqlError(0), Tail: 0, Value: 1, Flavor: 2}
 	}
 	return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 1)
 }
@@ -19777,7 +19848,10 @@ func PrepareArrayQuantifier(scalar BoolValue, input ArrayValue, strict bool) Arr
 			return arrayComparisonState(0, MakeSqlError(0), 0)
 		}
 		right := []ArrayElement{}
-		return ArrayComparisonPayload{Left: value.Elements, Right: right, Limit: limit, State: 1, Error: MakeSqlError(0), Tail: 0, Value: 0}
+		return ArrayComparisonPayload{Left: value.Elements, Right: right, Limit: limit, State: 1, Error: MakeSqlError(0), Tail: 0, Value: 0, Flavor: 2}
+	}
+	if input.Kind == ArrayValueUnknown {
+		return ArrayComparisonUnresolved(1, 0)
 	}
 	return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
 }
@@ -19787,7 +19861,7 @@ func ArrayQuantifierInitial(input *ArrayComparisonPayload, any bool) CheckOutcom
 		return CheckOutcome{Kind: CheckOutcomeError, Error: input.Error}
 	}
 	if input.State == langruntime.CheckedSignedNegate(1) {
-		return CheckUnresolved(unresolvedFlavor)
+		return CheckUnresolved(ArrayComparisonFlavor(input, unresolvedFlavor))
 	}
 	if input.State == 0 {
 		return CheckOutcome{Kind: CheckOutcomeNull}
@@ -21512,6 +21586,20 @@ func temporalZoneWord(text *timestampText, from int, end int) bool {
 
 var temporalFieldWords = []string{"ad", "allballs", "ago", "am", "at", "bc", "d", "epoch", "h", "infinity", "j", "jd", "julian", "m", "mm", "now", "on", "pm", "s", "t", "today", "tomorrow", "y", "yesterday", "z", "zulu"}
 
+func temporalTextAnyOrder(input string, withTimezone bool, dateOnly bool) Int8Value {
+	input = langruntime.CheckedString(input)
+	monthFirst := parseTemporalText(TextValue{Kind: TextValueValue, Value: langruntime.CheckedString(input)}, withTimezone, dateOnly, 1)
+	dayFirst := parseTemporalText(TextValue{Kind: TextValueValue, Value: langruntime.CheckedString(input)}, withTimezone, dateOnly, 2)
+	yearFirst := parseTemporalText(TextValue{Kind: TextValueValue, Value: langruntime.CheckedString(input)}, withTimezone, dateOnly, 3)
+	if monthFirst == dayFirst && dayFirst == yearFirst {
+		return monthFirst
+	}
+	flavor := 1
+	if monthFirst == (Int8Value{Kind: Int8ValueUnimplemented}) || dayFirst == (Int8Value{Kind: Int8ValueUnimplemented}) || yearFirst == (Int8Value{Kind: Int8ValueUnimplemented}) {
+		flavor = langruntime.CheckedI32(2)
+	}
+	return Int8Unresolved(flavor)
+}
 func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool, dateOrder int) Int8Value {
 	dateOrder = langruntime.CheckedI32(dateOrder)
 	unresolvedFlavor := 0
@@ -21718,6 +21806,9 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool, dateOr
 			return Int8Value{Kind: Int8ValueError, Error: SqlError{State: timestampFieldOverflow}}
 		}
 		if ordinal.state == ordinalDateDeferred {
+			if dateOrder == 0 {
+				return temporalTextAnyOrder(langruntime.CheckedString(input), withTimezone, dateOnly)
+			}
 			return Int8Unresolved(unresolvedFlavor)
 		}
 		yearField := readTimestampNumber(&text, start, end)
@@ -21755,7 +21846,7 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool, dateOr
 			day = langruntime.CheckedI32(compactDay.value)
 		} else {
 			if (yearField.digits == 1 || yearField.digits == 2) && dateOrder == 0 && index < end {
-				return Int8Unresolved(ResolutionContext(unresolvedFlavor))
+				return temporalTextAnyOrder(langruntime.CheckedString(input), withTimezone, dateOnly)
 			}
 			if (yearField.digits == 1 || yearField.digits == 2) && dateOrder > 0 && index < end {
 				separator := text.chars[index]

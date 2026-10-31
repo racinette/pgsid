@@ -15862,6 +15862,15 @@ export function arrayValidityPossible(input: CheckOutcome): CheckOutcome {
     }
     return { kind: "True" };
 }
+export function arrayValidityPossibleUnder(input: CheckOutcome, guard: CheckOutcome): CheckOutcome {
+    if (input.kind === "Error") {
+        if (equalCheckOutcome(guard, { kind: "Unknown" })) {
+            return checkUnresolved(1);
+        }
+        return checkUnresolved(2);
+    }
+    return arrayValidityPossible(input);
+}
 export function arrayConstructorFromValidity(input: ArrayValue, validity: CheckOutcome): ArrayValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
@@ -15970,6 +15979,15 @@ export function appendArrayCastConversion(input: ArrayOutputPayload, element: Ar
     }
     return appendArrayConversion(input, element, true);
 }
+export function arrayOutputFlavor(state: number, flavor: number): number {
+    if (state === langruntime.checkedSignedNegate(1) || flavor === 2) {
+        return 2;
+    }
+    if (state === langruntime.checkedSignedNegate(3)) {
+        return 1;
+    }
+    return flavor;
+}
 export function makeArrayConversion(): ArrayOutputPayload {
     const dimensions: ArrayDimension[] = [];
     const elements: ArrayElement[] = [];
@@ -15987,8 +16005,13 @@ export function appendArrayConversion(input: ArrayOutputPayload, element: ArrayE
     }
     if (state === 1 && unknownValid === false) {
         if (element.kind === "Unknown") {
+            state = langruntime.checkedI32(langruntime.checkedSignedNegate(3));
+        }
+        if (element.kind === "Unimplemented") {
             state = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
         }
+    }
+    if (state === langruntime.checkedSignedNegate(3) && unknownValid === false) {
         if (element.kind === "Unimplemented") {
             state = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
         }
@@ -16007,7 +16030,7 @@ export function arrayConversionArguments(input: ArrayOutputPayload, elementType:
         return { kind: "Error", value: input.error };
     }
     if (!(input.state === 1)) {
-        return arrayArgumentsUnresolved(unresolvedFlavor);
+        return arrayArgumentsUnresolved(arrayOutputFlavor(input.state, unresolvedFlavor));
     }
     return { kind: "Value", value: { nullBitmap: input.nullBitmap, elementType: elementType, elementKind: elementKind, dimensions: input.dimensions, elements: input.elements } };
 }
@@ -16019,6 +16042,9 @@ export function prepareArrayOutput(input: ArrayValue): ArrayOutputPayload {
     }
     let state: number = langruntime.checkedSignedNegate(1);
     let error: SqlError = makeSqlError(0);
+    if (input.kind === "Unknown") {
+        state = langruntime.checkedI32(langruntime.checkedSignedNegate(3));
+    }
     if (input.kind === "Null") {
         state = langruntime.checkedI32(0);
     }
@@ -17949,9 +17975,10 @@ export interface ArrayComparisonPayload {
     error: SqlError;
     tail: number;
     value: number;
+    flavor: number;
 }
 export function copyArrayComparisonPayload(value: ArrayComparisonPayload): ArrayComparisonPayload {
-    return { left: langruntime.checkedStructs(value.left, copyArrayElement), right: langruntime.checkedStructs(value.right, copyArrayElement), limit: langruntime.checkedIndex(value.limit), state: langruntime.checkedI32(value.state), error: value.error, tail: langruntime.checkedI32(value.tail), value: langruntime.checkedI32(value.value) };
+    return { left: langruntime.checkedStructs(value.left, copyArrayElement), right: langruntime.checkedStructs(value.right, copyArrayElement), limit: langruntime.checkedIndex(value.limit), state: langruntime.checkedI32(value.state), error: value.error, tail: langruntime.checkedI32(value.tail), value: langruntime.checkedI32(value.value), flavor: langruntime.checkedI32(value.flavor) };
 }
 export type ArrayComparisonPlan = {
     kind: "Value";
@@ -17962,12 +17989,26 @@ export function copyArrayComparisonPlan(value: ArrayComparisonPlan): ArrayCompar
         case "Value": return { kind: "Value", value: copyArrayComparisonPayload(value.value) };
     }
 }
+export function arrayComparisonUnresolved(flavor: number, value: number): ArrayComparisonPayload {
+    const left: ArrayElement[] = [];
+    const right: ArrayElement[] = [];
+    return { left: left, right: right, limit: 0, state: langruntime.checkedSignedNegate(1), error: makeSqlError(0), tail: 0, value: value, flavor: flavor };
+}
+export function arrayComparisonFlavor(input: ArrayComparisonPayload, flavor: number): number {
+    if (flavor === 2 || input.flavor === 2) {
+        return 2;
+    }
+    if (input.flavor === 1) {
+        return 1;
+    }
+    return flavor;
+}
 function arrayComparisonState(state: number, error: SqlError, value: number): ArrayComparisonPayload {
     state = langruntime.checkedI32(state);
     value = langruntime.checkedI32(value);
     const left: ArrayElement[] = [];
     const right: ArrayElement[] = [];
-    return { left: left, right: right, limit: 0, state: state, error: error, tail: 0, value: value };
+    return { left: left, right: right, limit: 0, state: state, error: error, tail: 0, value: value, flavor: 2 };
 }
 function arrayShapeOrder(left: ArrayPayload, right: ArrayPayload): number {
     if (left.elements.length < right.elements.length) {
@@ -18017,17 +18058,21 @@ export function prepareArrayComparison(left: ArrayValue, right: ArrayValue, equa
         const error: SqlError = right.value;
         return arrayComparisonState(langruntime.checkedSignedNegate(2), error, 0);
     }
+    let deferredFlavor: number = 0;
     if (left.kind === "Unknown") {
-        return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
-    }
-    if (left.kind === "Unimplemented") {
-        return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
+        deferredFlavor = langruntime.checkedI32(1);
     }
     if (right.kind === "Unknown") {
-        return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
+        deferredFlavor = langruntime.checkedI32(1);
+    }
+    if (left.kind === "Unimplemented") {
+        deferredFlavor = langruntime.checkedI32(2);
     }
     if (right.kind === "Unimplemented") {
-        return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
+        deferredFlavor = langruntime.checkedI32(2);
+    }
+    if (deferredFlavor > 0) {
+        return arrayComparisonUnresolved(deferredFlavor, 0);
     }
     if (left.kind === "Null") {
         return arrayComparisonState(0, makeSqlError(0), 0);
@@ -18053,7 +18098,7 @@ export function prepareArrayComparison(left: ArrayValue, right: ArrayValue, equa
             if (b.elements.length < limit) {
                 limit = langruntime.checkedIndex(b.elements.length);
             }
-            return { left: a.elements, right: b.elements, limit: limit, state: 1, error: makeSqlError(0), tail: tail, value: 0 };
+            return { left: a.elements, right: b.elements, limit: limit, state: 1, error: makeSqlError(0), tail: tail, value: 0, flavor: 2 };
         }
     }
     return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
@@ -18064,7 +18109,7 @@ export function arrayComparisonInitial(input: ArrayComparisonPayload): Int4Value
         return { kind: "Error", value: input.error };
     }
     if (input.state === langruntime.checkedSignedNegate(1)) {
-        return int4Unresolved(unresolvedFlavor);
+        return int4Unresolved(arrayComparisonFlavor(input, unresolvedFlavor));
     }
     if (input.state === 0) {
         return { kind: "Null" };
@@ -18279,7 +18324,7 @@ export function prepareArrayMembership(left: ArrayValue, right: ArrayValue, reve
     available = langruntime.checkedBool(available);
     const payload: ArrayComparisonPayload = prepareArrayComparison(left, right, false, available);
     if (payload.state === 1 && reverse) {
-        return { left: payload.right, right: payload.left, limit: payload.limit, state: payload.state, error: payload.error, tail: payload.tail, value: payload.value };
+        return { left: payload.right, right: payload.left, limit: payload.limit, state: payload.state, error: payload.error, tail: payload.tail, value: payload.value, flavor: payload.flavor };
     }
     return payload;
 }
@@ -18291,7 +18336,7 @@ export function arrayMembershipInitial(input: ArrayComparisonPayload, all: boole
         return { kind: "Error", value: input.error };
     }
     if (input.state === langruntime.checkedSignedNegate(1)) {
-        return boolUnresolved(unresolvedFlavor);
+        return boolUnresolved(arrayComparisonFlavor(input, unresolvedFlavor));
     }
     if (input.state === 0) {
         return { kind: "Null" };
@@ -18430,8 +18475,8 @@ export function finishArrayCoercion(input: ArrayOutputPayload, converted: ArrayA
     if (input.state === langruntime.checkedSignedNegate(2)) {
         return { kind: "Error", value: input.error };
     }
-    if (input.state === langruntime.checkedSignedNegate(1)) {
-        return arrayUnresolved(unresolvedFlavor);
+    if (input.state === langruntime.checkedSignedNegate(1) || input.state === langruntime.checkedSignedNegate(3)) {
+        return arrayUnresolved(arrayOutputFlavor(input.state, unresolvedFlavor));
     }
     if (input.state === 0) {
         return { kind: "Null" };
@@ -18474,17 +18519,21 @@ export function prepareArrayBucket(needle: ArrayElement, input: ArrayValue, avai
         const error: SqlError = input.value;
         return arrayComparisonState(langruntime.checkedSignedNegate(2), error, 0);
     }
+    let deferredFlavor: number = 0;
     if (needle.kind === "Unknown") {
-        return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
-    }
-    if (needle.kind === "Unimplemented") {
-        return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
+        deferredFlavor = langruntime.checkedI32(1);
     }
     if (input.kind === "Unknown") {
-        return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
+        deferredFlavor = langruntime.checkedI32(1);
+    }
+    if (needle.kind === "Unimplemented") {
+        deferredFlavor = langruntime.checkedI32(2);
     }
     if (input.kind === "Unimplemented") {
-        return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
+        deferredFlavor = langruntime.checkedI32(2);
+    }
+    if (deferredFlavor > 0) {
+        return arrayComparisonUnresolved(deferredFlavor, 0);
     }
     if (needle.kind === "Null") {
         return arrayComparisonState(0, makeSqlError(0), 0);
@@ -18528,7 +18577,7 @@ export function prepareArrayBucket(needle: ArrayElement, input: ArrayValue, avai
         }
         let needles: ArrayElement[] = [];
         langruntime.pushStruct(needles, needle, copyArrayElement);
-        return { limit: array.elements.length, left: array.elements, right: needles, state: 1, error: makeSqlError(0), tail: 0, value: 0 };
+        return { limit: array.elements.length, left: array.elements, right: needles, state: 1, error: makeSqlError(0), tail: 0, value: 0, flavor: 2 };
     }
     return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
 }
@@ -18685,14 +18734,18 @@ export function prepareArraySearch(input: ArrayValue, needle: ArrayElement, star
         if (needle.kind === "Null") {
             needleNull = langruntime.checkedBool(true);
         }
+        let needleFlavor: number = 0;
         if (needle.kind === "Unknown") {
             needleUnknown = langruntime.checkedBool(true);
+            needleFlavor = langruntime.checkedI32(1);
         }
         if (needle.kind === "Unimplemented") {
             needleUnknown = langruntime.checkedBool(true);
+            needleFlavor = langruntime.checkedI32(2);
         }
         let knownNull: boolean = false;
         let unknownNull: boolean = false;
+        let cellFlavor: number = 0;
         let position: number = 0;
         while (position < array.elements.length) {
             const element: ArrayElement = copyArrayElement(langruntime.indexStruct(array.elements, langruntime.checkedIndex(position), copyArrayElement));
@@ -18701,29 +18754,40 @@ export function prepareArraySearch(input: ArrayValue, needle: ArrayElement, star
             }
             if (element.kind === "Unknown") {
                 unknownNull = langruntime.checkedBool(true);
+                if (cellFlavor < 1) {
+                    cellFlavor = langruntime.checkedI32(1);
+                }
             }
             if (element.kind === "Unimplemented") {
                 unknownNull = langruntime.checkedBool(true);
+                cellFlavor = langruntime.checkedI32(2);
             }
             position = langruntime.checkedAdd(position, 1);
+        }
+        let searchFlavor: number = needleFlavor;
+        if ((needleNull || needleUnknown) && cellFlavor > searchFlavor) {
+            searchFlavor = langruntime.checkedI32(cellFlavor);
         }
         if (needleNull && knownNull === false && unknownNull === false) {
             return arrayComparisonState(2, makeSqlError(0), 0);
         }
         if (provided) {
-            if ((equalInt4Value(start, { kind: "Unknown" }) || equalInt4Value(start, { kind: "Unimplemented" }))) {
+            if (equalInt4Value(start, { kind: "Unknown" })) {
+                return arrayComparisonUnresolved(1, 0);
+            }
+            if (equalInt4Value(start, { kind: "Unimplemented" })) {
                 return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
             }
             if (equalInt4Value(start, { kind: "Null" })) {
                 if (knownNull === false && (needleUnknown || (needleNull && unknownNull))) {
-                    return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
+                    return arrayComparisonUnresolved(searchFlavor, 0);
                 }
                 return arrayComparisonState(langruntime.checkedSignedNegate(2), makeSqlError(arraySearchNullStart), 0);
             }
         }
         if (available === false) {
             if (knownNull === false && (needleUnknown || (needleNull && unknownNull))) {
-                return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
+                return arrayComparisonUnresolved(searchFlavor, 0);
             }
             return arrayComparisonState(langruntime.checkedSignedNegate(2), makeSqlError(arrayComparisonUndefined), 0);
         }
@@ -18743,7 +18807,7 @@ export function prepareArraySearch(input: ArrayValue, needle: ArrayElement, star
         }
         let needles: ArrayElement[] = [];
         langruntime.pushStruct(needles, needle, copyArrayElement);
-        return { limit: array.elements.length, left: array.elements, right: needles, state: 1, error: makeSqlError(0), tail: lower, value: Number(BigInt.asIntN(32, langruntime.checkedI64(offset))) };
+        return { limit: array.elements.length, left: array.elements, right: needles, state: 1, error: makeSqlError(0), tail: lower, value: Number(BigInt.asIntN(32, langruntime.checkedI64(offset))), flavor: 2 };
     }
     return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
 }
@@ -18754,7 +18818,7 @@ export function arraySearchInitial(input: ArrayComparisonPayload): Int4Value {
         return { kind: "Error", value: input.error };
     }
     if (input.state === langruntime.checkedSignedNegate(1)) {
-        return int4Unresolved(unresolvedFlavor);
+        return int4Unresolved(arrayComparisonFlavor(input, unresolvedFlavor));
     }
     return { kind: "Null" };
 }
@@ -18917,7 +18981,7 @@ export function prepareArrayRewrite(input: ArrayValue, needle: ArrayElement, rep
         let queries: ArrayElement[] = [];
         langruntime.pushStruct(queries, needle, copyArrayElement);
         langruntime.pushStruct(queries, replacement, copyArrayElement);
-        return { limit: array.elements.length, left: array.elements, right: queries, state: 1, error: makeSqlError(0), tail: 0, value: 0 };
+        return { limit: array.elements.length, left: array.elements, right: queries, state: 1, error: makeSqlError(0), tail: 0, value: 0, flavor: 2 };
     }
     return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
 }
@@ -19060,7 +19124,7 @@ export function finishArrayRewrite(original: ArrayValue, plan: ArrayComparisonPa
         return { kind: "Error", value: plan.error };
     }
     if (plan.state === langruntime.checkedSignedNegate(1)) {
-        return arrayUnresolved(unresolvedFlavor);
+        return arrayUnresolved(arrayComparisonFlavor(plan, unresolvedFlavor));
     }
     if (plan.state === 0) {
         return { kind: "Null" };
@@ -19150,14 +19214,21 @@ export function prepareArrayHash(input: ArrayValue, seed: Int8Value, available: 
         const error: SqlError = seed.value;
         return arrayComparisonState(langruntime.checkedSignedNegate(2), error, 1);
     }
+    let deferredFlavor: number = 0;
     if (input.kind === "Unknown") {
-        return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 1);
+        deferredFlavor = langruntime.checkedI32(1);
+    }
+    if (equalInt8Value(seed, { kind: "Unknown" })) {
+        deferredFlavor = langruntime.checkedI32(1);
     }
     if (input.kind === "Unimplemented") {
-        return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 1);
+        deferredFlavor = langruntime.checkedI32(2);
     }
-    if ((equalInt8Value(seed, { kind: "Unknown" }) || equalInt8Value(seed, { kind: "Unimplemented" }))) {
-        return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 1);
+    if (equalInt8Value(seed, { kind: "Unimplemented" })) {
+        deferredFlavor = langruntime.checkedI32(2);
+    }
+    if (deferredFlavor > 0) {
+        return arrayComparisonUnresolved(deferredFlavor, 1);
     }
     if (input.kind === "Null") {
         return arrayComparisonState(0, makeSqlError(0), 1);
@@ -19172,7 +19243,7 @@ export function prepareArrayHash(input: ArrayValue, seed: Int8Value, available: 
         const value: ArrayPayload = copyArrayPayload(input.value);
         const limit: number = value.elements.length;
         const right: ArrayElement[] = [];
-        return { left: value.elements, right: right, limit: limit, state: 1, error: makeSqlError(0), tail: 0, value: 1 };
+        return { left: value.elements, right: right, limit: limit, state: 1, error: makeSqlError(0), tail: 0, value: 1, flavor: 2 };
     }
     return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 1);
 }
@@ -19719,7 +19790,10 @@ export function prepareArrayQuantifier(scalar: BoolValue, input: ArrayValue, str
             return arrayComparisonState(0, makeSqlError(0), 0);
         }
         const right: ArrayElement[] = [];
-        return { left: value.elements, right: right, limit: limit, state: 1, error: makeSqlError(0), tail: 0, value: 0 };
+        return { left: value.elements, right: right, limit: limit, state: 1, error: makeSqlError(0), tail: 0, value: 0, flavor: 2 };
+    }
+    if (input.kind === "Unknown") {
+        return arrayComparisonUnresolved(1, 0);
     }
     return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
 }
@@ -19729,7 +19803,7 @@ export function arrayQuantifierInitial(input: ArrayComparisonPayload, any: boole
         return { kind: "Error", value: input.error };
     }
     if (input.state === langruntime.checkedSignedNegate(1)) {
-        return checkUnresolved(unresolvedFlavor);
+        return checkUnresolved(arrayComparisonFlavor(input, unresolvedFlavor));
     }
     if (input.state === 0) {
         return { kind: "Null" };
@@ -21497,6 +21571,22 @@ function temporalZoneWord(text: TimestampText, from: number, end: number): boole
     return true;
 }
 const temporalFieldWords: ReadonlyArray<string> = ["ad", "allballs", "ago", "am", "at", "bc", "d", "epoch", "h", "infinity", "j", "jd", "julian", "m", "mm", "now", "on", "pm", "s", "t", "today", "tomorrow", "y", "yesterday", "z", "zulu"];
+function temporalTextAnyOrder(input: string, withTimezone: boolean, dateOnly: boolean): Int8Value {
+    input = langruntime.checkedString(input);
+    withTimezone = langruntime.checkedBool(withTimezone);
+    dateOnly = langruntime.checkedBool(dateOnly);
+    const monthFirst: Int8Value = parseTemporalText({ kind: "Value", value: langruntime.checkedString(input) }, withTimezone, dateOnly, 1);
+    const dayFirst: Int8Value = parseTemporalText({ kind: "Value", value: langruntime.checkedString(input) }, withTimezone, dateOnly, 2);
+    const yearFirst: Int8Value = parseTemporalText({ kind: "Value", value: langruntime.checkedString(input) }, withTimezone, dateOnly, 3);
+    if (equalInt8Value(monthFirst, dayFirst) && equalInt8Value(dayFirst, yearFirst)) {
+        return monthFirst;
+    }
+    let flavor: number = 1;
+    if (equalInt8Value(monthFirst, { kind: "Unimplemented" }) || equalInt8Value(dayFirst, { kind: "Unimplemented" }) || equalInt8Value(yearFirst, { kind: "Unimplemented" })) {
+        flavor = langruntime.checkedI32(2);
+    }
+    return int8Unresolved(flavor);
+}
 function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: boolean, dateOrder: number): Int8Value {
     withTimezone = langruntime.checkedBool(withTimezone);
     dateOnly = langruntime.checkedBool(dateOnly);
@@ -21705,6 +21795,9 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
             return { kind: "Error", value: { state: timestampFieldOverflow } };
         }
         if (ordinal.state === ordinalDateDeferred) {
+            if (dateOrder === 0) {
+                return temporalTextAnyOrder(langruntime.checkedString(input), withTimezone, dateOnly);
+            }
             return int8Unresolved(unresolvedFlavor);
         }
         const yearField: TimestampNumber = readTimestampNumber(text, start, end);
@@ -21745,7 +21838,7 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
         }
         else {
             if ((yearField.digits === 1 || yearField.digits === 2) && dateOrder === 0 && index < end) {
-                return int8Unresolved(resolutionContext(unresolvedFlavor));
+                return temporalTextAnyOrder(langruntime.checkedString(input), withTimezone, dateOnly);
             }
             if ((yearField.digits === 1 || yearField.digits === 2) && dateOrder > 0 && index < end) {
                 const separator: string = langruntime.indexChar(text.chars, langruntime.checkedIndex(index));

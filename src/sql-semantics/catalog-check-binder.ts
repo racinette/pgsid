@@ -771,7 +771,19 @@ const commonEnumDomain = (args: readonly Bound[]): number | undefined => {
   return domain !== undefined && args.every((arg) => arg.enumDomain === domain) ? domain : undefined
 }
 const unboundBinding: Bound = { type: null, value: null }
-const unbound = (): Bound => unboundBinding
+// What left the current lowering unbound: a missing or inconsistent database fact, or anything else.
+let unboundObstacles = { context: false, other: false }
+// Whether a nested binding of the node being bound came back unbound, so that an unbound result of
+// the node only passes that obstacle on.
+let unboundChild = false
+const unbound = (): Bound => {
+  if (!unboundChild) unboundObstacles.other = true
+  return unboundBinding
+}
+const unboundContext = (): Bound => {
+  unboundObstacles.context = true
+  return unboundBinding
+}
 // Set while classifying an unbound expression: text callables then bind under any collation, so a
 // binding that succeeds shows the collation provider's behavior was the only obstacle.
 let assumeCollationProvider = false
@@ -2262,7 +2274,7 @@ export function bindCatalogCheck(
   >,
 ): { expression: EvalBoolExpression; inputs: readonly string[] } {
   if (rowCoercionContext && !rowCoercionContext.complete)
-    return { expression: { kind: 'uncertain' }, inputs: [] }
+    return { expression: { kind: 'uncertain', reason: 'context' }, inputs: [] }
   rowCoercionSites ??= rowCoercionContext
     ? alignStoredRowCoercions(root, rowCoercionContext, compositeGraph)
     : undefined
@@ -2273,7 +2285,8 @@ export function bindCatalogCheck(
     literalOrigin === 'stored' && coercionContext
       ? alignStoredDomainCoercions(root, coercionContext, domains)
       : undefined
-  if (storedCoercions === null) return { expression: { kind: 'uncertain' }, inputs: [] }
+  if (storedCoercions === null)
+    return { expression: { kind: 'uncertain', reason: 'context' }, inputs: [] }
   const modifierNeedsContext = (type: string): boolean => {
     const base = arrayElementBaseType(type.startsWith('array:') ? type.slice(6) : type)
     const conversion = builtinCast(base, base)
@@ -3188,7 +3201,15 @@ export function bindCatalogCheck(
         value: { kind: 'check', type: 'pg_catalog.bool', expression: selected.expression },
       }
     }
-    const result = bindNode(node, expectedType, implicitDomainInput, rowSite)
+    const parentChild = unboundChild
+    unboundChild = false
+    let result: Bound
+    try {
+      result = bindNode(node, expectedType, implicitDomainInput, rowSite)
+    } finally {
+      unboundChild = parentChild
+    }
+    if (result.value === null && result.type === null) unboundChild = true
     if (capturedExpressions?.has(node))
       capturedExpressions.set(node, {
         expression:
@@ -5439,7 +5460,7 @@ export function bindCatalogCheck(
             targetDomain &&
             domainNeedsContext(targetDomain)
           )
-            return unbound()
+            return unboundContext()
           return bindArrayElementCoercion(
             operand,
             type,
@@ -5667,7 +5688,7 @@ export function bindCatalogCheck(
             if (selectedRowCoercion(operand.type!, scalarType, 'e', 0, rowSite)?.kind !== 'io')
               return unbound()
           }
-          if (chain.some((item) => item.baseTypeMod === undefined)) return unbound()
+          if (chain.some((item) => item.baseTypeMod === undefined)) return unboundContext()
           if (
             !native &&
             literalOrigin === 'stored' &&
@@ -5675,7 +5696,7 @@ export function bindCatalogCheck(
             modifierNeedsContext(scalarType) &&
             chain.some((item) => item.baseTypeMod !== -1)
           )
-            return unbound()
+            return unboundContext()
           const memberModifiers = [...chain]
             .reverse()
             .map((item) => item.baseTypeMod!)
@@ -8829,13 +8850,26 @@ export function bindCatalogCheck(
         return result.expression
       }
     }
-    const value = bind(node)
+    const outer = unboundObstacles
+    unboundObstacles = { context: false, other: false }
+    let value: Bound, obstacles: typeof unboundObstacles
+    try {
+      value = bind(node)
+    } finally {
+      obstacles = unboundObstacles
+      unboundObstacles = {
+        context: outer.context || obstacles.context,
+        other: outer.other || obstacles.other,
+      }
+    }
     if (value.type === 'pg_catalog.bool' && value.value)
       return { kind: 'eval-scalar', expression: value.value }
     return {
       kind: 'uncertain',
       ...(runtimeOpaque(node) ? { preparation: 'runtime' as const } : {}),
-      ...(collationProviderOnly(node) ? { reason: 'context' as const } : {}),
+      ...((obstacles.context && !obstacles.other) || collationProviderOnly(node)
+        ? { reason: 'context' as const }
+        : {}),
     }
   }
   // An expression that binds once collation behavior is assumed needs only the collation provider.

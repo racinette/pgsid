@@ -12,8 +12,9 @@ pub fn enum_to_text(input: EnumValue, labels: &str, count: i32) -> TextValue {
         return TextValue::Null;
     }
     if let EnumValue::Value(value) = input {
+        // An ordinal outside the captured labels names a label only the database knows.
         if value.ordinal < 0 || value.ordinal >= count {
-            return text_unresolved(unresolved_flavor);
+            return text_unresolved(resolution_context(unresolved_flavor));
         }
         let chars: Vec<char> = labels.chars().collect();
         let mut index: usize = 0;

@@ -267,6 +267,24 @@ const TEMPORAL_FIELD_WORDS: &[&str] = &[
     "m", "mm", "now", "on", "pm", "s", "t", "today", "tomorrow", "y", "yesterday", "z", "zulu",
 ];
 
+// DateStyle offers three field orders, so a result all of them agree on does not depend on it.
+fn temporal_text_any_order(input: String, with_timezone: bool, date_only: bool) -> Int8Value {
+    let month_first = parse_temporal_text(TextValue::Value(input.clone()), with_timezone, date_only, 1);
+    let day_first = parse_temporal_text(TextValue::Value(input.clone()), with_timezone, date_only, 2);
+    let year_first = parse_temporal_text(TextValue::Value(input.clone()), with_timezone, date_only, 3);
+    if month_first == day_first && day_first == year_first {
+        return month_first;
+    }
+    let mut flavor: i32 = 1;
+    if month_first == Int8Value::Unimplemented
+        || day_first == Int8Value::Unimplemented
+        || year_first == Int8Value::Unimplemented
+    {
+        flavor = 2;
+    }
+    int8_unresolved(flavor)
+}
+
 fn parse_temporal_text(
     value: TextValue,
     with_timezone: bool,
@@ -500,6 +518,9 @@ fn parse_temporal_text(
             });
         }
         if ordinal.state == ORDINAL_DATE_DEFERRED {
+            if date_order == 0 {
+                return temporal_text_any_order(input.clone(), with_timezone, date_only);
+            }
             return int8_unresolved(unresolved_flavor);
         }
         let year_field = read_timestamp_number(&text, start, end);
@@ -543,7 +564,7 @@ fn parse_temporal_text(
         } else {
             // A short first field's role follows the session DateStyle order, which was not declared.
             if (year_field.digits == 1 || year_field.digits == 2) && date_order == 0 && index < end {
-                return int8_unresolved(resolution_context(unresolved_flavor));
+                return temporal_text_any_order(input.clone(), with_timezone, date_only);
             }
             if (year_field.digits == 1 || year_field.digits == 2) && date_order > 0 && index < end {
                 // A short first field takes its role from the session field order, as in
