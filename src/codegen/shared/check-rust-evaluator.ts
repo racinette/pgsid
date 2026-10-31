@@ -927,11 +927,11 @@ export function emitCheckRustEvaluator(
       preparationLines = outer
     }
   }
-  const prepareOpaque = (): void => {
+  const prepareOpaque = (flavor: 1 | 2): void => {
     if (!preparationOnly) return
     const status = fresh('opaque_preparation')
     preparationLines.push(
-      `let ${status} = check_unknown();`,
+      `let ${status} = check_unresolved(${flavor});`,
       `${preparationState} = array_validity_finish(${preparationState}, ${status});`,
     )
   }
@@ -1190,7 +1190,7 @@ export function emitCheckRustEvaluator(
     )
     for (const probe of rustExpressionValidityProbes(nodes, executionContext)) {
       if (probe.kind === 'uncertain') {
-        lines.push(`${potential} = check_unknown();`)
+        lines.push(`${potential} = check_unresolved(${probe.reason === 'context' ? 1 : 2});`)
         continue
       }
       if (constantScalarExpression(probe)) continue
@@ -4638,18 +4638,20 @@ export function emitCheckRustEvaluator(
               ? 'C'
               : (call.collation ?? executionContext.defaultCollation)
         const hashContext = scalar ? nativeHashContext(scalar) : null
-        const deferred =
-          !scalar ||
-          scalar.kind !== 'function' ||
-          !scalar.strict ||
-          scalar.returnsSet ||
-          scalar.volatility !== 'i' ||
-          scalar.result !== call.type ||
-          !checkRustCallableNames().has(scalar.rustName) ||
-          (['pg_catalog.text', 'pg_catalog.bpchar', 'pg_catalog.name'].includes(
-            scalar.args[0] ?? '',
-          ) &&
-            !supportsTextCallableCollation(selected!, effectiveCollation))
+        const portableHash =
+          !!scalar &&
+          scalar.kind === 'function' &&
+          scalar.strict &&
+          !scalar.returnsSet &&
+          scalar.volatility === 'i' &&
+          scalar.result === call.type &&
+          checkRustCallableNames().has(scalar.rustName)
+        // A text hash that waits only on the collation provider names a database fact.
+        const contextHash =
+          ['pg_catalog.text', 'pg_catalog.bpchar', 'pg_catalog.name'].includes(
+            scalar?.args[0] ?? '',
+          ) && !supportsTextCallableCollation(selected!, effectiveCollation)
+        const deferred = !portableHash || contextHash
         let leafType = arrayElementBaseType(elementType)
         while (leafType.startsWith('array:')) leafType = arrayElementBaseType(leafType.slice(6))
         let capturedLeaf = arrayHashPlan
@@ -4783,7 +4785,10 @@ export function emitCheckRustEvaluator(
               body.push(`    ${hash} = ${scalar.rustName}(${args.join(', ')});`)
               callables.add(scalar.rustName)
             }
-          } else body.push(`    ${hash} = ${extended ? 'int8' : 'int4'}_unknown();`)
+          } else
+            body.push(
+              `    ${hash} = ${extended ? 'int8' : 'int4'}_unresolved(${portableHash && contextHash ? 1 : 2});`,
+            )
           body.push(
             '};',
             `${results[position]} = array_hash_step${width}(${results[position]}, ${hash});`,
@@ -5034,7 +5039,7 @@ export function emitCheckRustEvaluator(
                 lines.push(...body.map((line) => '        ' + line))
               } catch (error) {
                 if (!(error instanceof UnsupportedCheckRustExpression)) throw error
-                lines.push(`        ${hash}=${extended ? 'int8' : 'int4'}_unknown();`)
+                lines.push(`        ${hash}=${extended ? 'int8' : 'int4'}_unresolved(2);`)
               }
               lines.push('    }', `    ${totals[i]}=array_hash_step${width}(${totals[i]},${hash});`)
             }
@@ -5204,7 +5209,23 @@ export function emitCheckRustEvaluator(
                   comparisonProfileScope = outer
                   comparisonCollationInvalid = outerInvalid
                 }
-              } else scalarLines.push(`${compared}=int4_unknown();`)
+              } else {
+                // A record field comparison defers on database state only when its portable
+                // comparator lacks the collation provider.
+                const contextField =
+                  field.identity === other.identity &&
+                  !!selected &&
+                  !!selectedType &&
+                  !!otherType &&
+                  metadata?.kind === 'function' &&
+                  metadata.strict &&
+                  !metadata.returnsSet &&
+                  metadata.volatility === 'i' &&
+                  checkRustCallableNames().has(metadata.rustName) &&
+                  text &&
+                  !supportsTextCallableCollation(selected, collation)
+                scalarLines.push(`${compared}=int4_unresolved(${contextField ? 1 : 2});`)
+              }
               lines.push(
                 `if array_pair_requires_scalar(${pair}) {`,
                 ...indent(scalarLines),
@@ -5303,18 +5324,23 @@ export function emitCheckRustEvaluator(
               'pg_catalog.name',
             ].includes(type),
           )
-          const deferred =
-            !actual ||
-            actual.kind !== 'function' ||
-            !actual.strict ||
-            actual.returnsSet ||
-            actual.volatility !== 'i' ||
-            !checkRustCallableNames().has(actual.rustName) ||
-            (text && !supportsTextCallableCollation(selected!, effectiveCollation)) ||
+          const portableElement =
+            !!actual &&
+            actual.kind === 'function' &&
+            actual.strict &&
+            !actual.returnsSet &&
+            actual.volatility === 'i' &&
+            checkRustCallableNames().has(actual.rustName)
+          // Ordering that waits only on the collation provider or the undeclared jsonb ordering
+          // context names a database fact; any other deferral is an implementation gap.
+          const contextOrdering =
+            (!!text && !supportsTextCallableCollation(selected!, effectiveCollation)) ||
             (!equality &&
               arrayElementBaseType(elementType) === 'pg_catalog.jsonb' &&
               (executionContext.defaultCollation !== 'C' ||
                 executionContext.serverEncoding !== 'UTF8'))
+          const deferred = !portableElement || contextOrdering
+          const orderFlavor = portableElement && contextOrdering ? 1 : 2
           const emitElement = (selected: string, scalar: ReturnType<typeof builtinMetadata>) => {
             const baseType = arrayElementBaseType(elementType)
             const prefix = rustValuePrefix(rustType(elementType))
@@ -5389,8 +5415,10 @@ export function emitCheckRustEvaluator(
               (!text || supportsTextCallableCollation(defaults.equality, effectiveCollation))
             ) {
               const compared = emitElement(defaults.equality, eq)
-              scalarLines.push(`${result} = array_order_from_equality(${compared.name});`)
-            } else scalarLines.push(`${result} = int4_unknown();`)
+              scalarLines.push(
+                `${result} = array_order_from_equality(${compared.name}, ${orderFlavor});`,
+              )
+            } else scalarLines.push(`${result} = int4_unresolved(${orderFlavor});`)
           }
         }
         if (arrayBucket) {
@@ -6799,8 +6827,9 @@ export function emitCheckRustEvaluator(
           used,
         )
       if (node.expression.kind === 'uncertain') {
-        if (node.expression.preparation !== 'runtime') prepareOpaque()
-        return { name: bind('bool_unknown()'), type: 'pg_catalog.bool' }
+        const flavor = node.expression.reason === 'context' ? 1 : 2
+        if (node.expression.preparation !== 'runtime') prepareOpaque(flavor)
+        return { name: bind(`bool_unresolved(${flavor})`), type: 'pg_catalog.bool' }
       }
       const outcome = emit(node.expression)
       bindings.push(...outcome.lines)
@@ -6901,14 +6930,17 @@ export function emitCheckRustEvaluator(
       return { name: item.rustName, type: node.type }
     }
     if (node.kind === 'uncertain') {
+      const flavor = node.reason === 'context' ? 1 : 2
       if (node.preparation === 'constant') {
         const status = fresh('unavailable_constant')
-        preparationLines.push(`let ${status} = check_unknown();`, ...preparationFinishLines(status))
+        preparationLines.push(
+          `let ${status} = check_unresolved(${flavor});`,
+          ...preparationFinishLines(status),
+        )
       }
-      prepareOpaque()
+      prepareOpaque(flavor)
       const kind = rustType(node.type)
-      const helper = rustValuePrefix(kind) + '_unknown'
-      return { name: bind(`${helper}()`), type: node.type }
+      return { name: bind(`${rustValuePrefix(kind)}_unresolved(${flavor})`), type: node.type }
     }
     if (node.kind === 'bit-to-text') {
       const operand = emitScalar(node.operand, bindings, used)
@@ -9546,7 +9578,7 @@ export function emitCheckRustEvaluator(
       } catch (error) {
         if (!(error instanceof UnsupportedCheckRustExpression)) throw error
         comparisonLines.length = 0
-        comparisonLines.push(`${pair} = bool_unknown();`)
+        comparisonLines.push(`${pair} = bool_unresolved(2);`)
         appendArrayValidity({ name: pair, type: node.type }, safe, comparisonLines)
       } finally {
         arrayValidityScope = outer
@@ -10181,7 +10213,7 @@ export function emitCheckRustEvaluator(
     }
     if (node.kind === 'uncertain') {
       const name = fresh('unknown_result')
-      if (node.preparation !== 'runtime') prepareOpaque()
+      if (node.preparation !== 'runtime') prepareOpaque(node.reason === 'context' ? 1 : 2)
       // An unbound expression is unimplemented unless its binder found it needs database context.
       return {
         lines: [`let ${name} = check_unresolved(${node.reason === 'context' ? 1 : 2});`],

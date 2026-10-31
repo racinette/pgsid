@@ -18320,10 +18320,13 @@ func ArrayOrderStep(input Int4Value) Int4Value {
 	}
 	return input
 }
-func ArrayOrderFromEquality(input BoolValue) Int4Value {
-	unresolvedFlavor := 0
+func ArrayOrderFromEquality(input BoolValue, deferredFlavor int) Int4Value {
+	deferredFlavor = langruntime.CheckedI32(deferredFlavor)
+	unresolvedFlavor := deferredFlavor
 	if input.Kind == BoolValueUnknown {
-		unresolvedFlavor = langruntime.CheckedI32(1)
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if input.Kind == BoolValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)

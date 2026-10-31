@@ -3066,7 +3066,12 @@ export function bindCatalogCheck(
         ((selected.method === 'b' && ordinary?.method !== 'b') ||
           (selected.method === 'f' && selected.function !== ordinary?.implementation)))
     if (unavailable) {
-      const absent: EvalExpression = { kind: 'uncertain', type: 'pg_catalog.text' }
+      // The output runs a catalog-selected cast or a type the snapshot does not describe.
+      const absent: EvalExpression = {
+        kind: 'uncertain',
+        type: 'pg_catalog.text',
+        reason: 'context',
+      }
       return {
         type: 'pg_catalog.text',
         collation: defaultCollation,

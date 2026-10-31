@@ -2514,9 +2514,11 @@ pub fn array_order_step(input: Int4Value) -> Int4Value {
     input
 }
 
-pub fn array_order_from_equality(input: BoolValue) -> Int4Value {
-    let mut unresolved_flavor: i32 = 0;
-    if let BoolValue::Unknown = input { unresolved_flavor = 1; };
+// Equal elements order as equal; otherwise the order waits on whatever deferred the comparator,
+// whose flavor the caller passes.
+pub fn array_order_from_equality(input: BoolValue, deferred_flavor: i32) -> Int4Value {
+    let mut unresolved_flavor: i32 = deferred_flavor;
+    if let BoolValue::Unknown = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let BoolValue::Unimplemented = input { unresolved_flavor = 2; };
     if let BoolValue::Error(error) = input {
         return Int4Value::Error(error);
