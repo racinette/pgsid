@@ -879,10 +879,10 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
         ).rows[0]
       : undefined
   // Every captured scalar expression may carry a collation, including ones in trees with no
-  // row, function or row comparison.
+  // row, function or row comparison, and the captured function defaults.
   const rowCollationIds = [
     ...new Set(
-      coercionTrees.flatMap((source) =>
+      [...coercionTrees, ...capturedRowFunctions.sources].flatMap((source) =>
         [
           ...[
             ...source.matchAll(
