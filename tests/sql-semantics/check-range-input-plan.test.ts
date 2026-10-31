@@ -45,7 +45,7 @@ it('separates range grammar from ordered subtype input, skips omitted domain bou
         path: 'tests/range_input_plan.rs',
         source: String.raw`
 fn range_input_plan_bound(input:TextValue,domain:bool)->ArrayElement {
- let parsed=range_input_bound(input,2);
+ let parsed=range_input_bound(input,2,false,false,0,false,"",0);
  if domain {
   if let ArrayElement::Null=parsed {return ArrayElement::Error(make_sql_error(3505682));};
   if let ArrayElement::Int4(number)=parsed {

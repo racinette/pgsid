@@ -94,7 +94,7 @@ const DATA_DRIVEN_FIXTURES = 20000
 // Every suite writes its Go code under one module path: the build cache keys packages by import
 // path and content (paths are trimmed), so suites sharing a runtime reuse its compiled packages,
 // while each suite keeps its own directory.
-const goParityModule = 'pgsidparity'
+export const goParityModule = 'pgsidparity'
 export type Outcome =
   { kind: 'True' | 'False' | 'Null' | 'Unknown' } | { kind: 'Error'; value: { state: number } }
 

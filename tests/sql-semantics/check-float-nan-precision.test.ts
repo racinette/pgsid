@@ -12,6 +12,7 @@ import { prepareCheckRustGroup } from '../../src/codegen/shared/check-rust-sourc
 import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
 import {
+  goParityModule,
   runCheckParity,
   type Input,
   type Outcome,
@@ -173,7 +174,7 @@ describe('known NaN values with unavailable binary precision', () => {
     await writeFile(
       join(directory, 'go/defaults/values_test.go'),
       `package defaults
-import("testing"; r "nanprecision/checkruntime")
+import("testing"; r "${goParityModule}/checkruntime")
 func TestZeroFloatValuesRemainUnknown(t *testing.T) {
  var single r.Float4Value
  var double r.Float8Value
