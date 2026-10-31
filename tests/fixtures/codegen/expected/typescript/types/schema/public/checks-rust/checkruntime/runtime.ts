@@ -18286,10 +18286,13 @@ export function arrayOrderStep(input: Int4Value): Int4Value {
     }
     return input;
 }
-export function arrayOrderFromEquality(input: BoolValue): Int4Value {
-    let unresolvedFlavor: number = 0;
+export function arrayOrderFromEquality(input: BoolValue, deferredFlavor: number): Int4Value {
+    deferredFlavor = langruntime.checkedI32(deferredFlavor);
+    let unresolvedFlavor: number = deferredFlavor;
     if (input.kind === "Unknown") {
-        unresolvedFlavor = langruntime.checkedI32(1);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);

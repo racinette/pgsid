@@ -93,7 +93,7 @@ export type EvalExpression =
   | { kind: 'check'; type: 'pg_catalog.bool'; expression: EvalBoolExpression }
   | { kind: 'input'; type: ScalarType; name: string; enum?: EnumDefinition }
   | { kind: 'certain'; expression: SqlExpression }
-  | { kind: 'uncertain'; type: string; preparation?: 'constant' }
+  | { kind: 'uncertain'; type: string; preparation?: 'constant'; reason?: 'context' }
   | {
       kind: 'domain-cast'
       type: ScalarType

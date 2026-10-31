@@ -59,6 +59,12 @@ const signatures = <Ast>(bindings: readonly SqlBindingGroup<Ast>[]): Set<string>
   )
 const go = signatures(goSqlBackend.bindings)
 const typescript = signatures(typescriptSqlBackend.bindings)
+// A builtin that is not immutable reads session or database state when it runs.
+const uncertainCall = (signature: string, type: string): EvalExpression =>
+  builtinMetadata(signature).volatility === 'i'
+    ? { kind: 'uncertain', type }
+    : { kind: 'uncertain', type, reason: 'context' }
+
 const portable = (signature: string, rustNames: ReadonlySet<string>, rust: boolean): boolean => {
   if (enumEqualityOperation(signature) !== null) return true
   const metadata = builtinMetadata(signature)
@@ -277,7 +283,9 @@ export function portableCheckAtoms(
     if (value.kind === 'call')
       return value.call.signature !== null && portable(value.call.signature, rustNames, rust)
         ? { ...value, operands: value.operands.map(scalar) }
-        : { kind: 'uncertain', type: value.call.type }
+        : value.call.signature !== null
+          ? uncertainCall(value.call.signature, value.call.type)
+          : { kind: 'uncertain', type: value.call.type }
     if (
       value.kind === 'boolean-logic' ||
       value.kind === 'coalesce' ||
