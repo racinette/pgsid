@@ -61,6 +61,7 @@ pub fn jsonb_input_from_interval_context(input: IntervalValue, style: i32) -> Js
 fn jsonb_float_output_input(input: TextValue) -> JsonbInput {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input { return JsonbInput::Error(error); };
     if let TextValue::Null = input { return JsonbInput::Null; };
@@ -242,6 +243,7 @@ pub fn geometry_lseg_output_context(input: LsegValue, extra: i32, known: bool) -
 pub fn geometry_box_output_context(input: BoxValue, extra: i32, known: bool) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoxValue::Unknown = input { unresolved_flavor = 1; };
+    if let BoxValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let BoxValue::Unimplemented = input { unresolved_flavor = 2; };
     if let BoxValue::Error(error) = input {
         return TextValue::Error(error);

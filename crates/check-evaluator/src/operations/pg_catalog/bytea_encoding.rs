@@ -347,7 +347,9 @@ fn bytea_escape_encode(value: &str) -> String {
 pub fn sql__pg_catalog__encode__bvkp(input: ByteaValue, format: TextValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = format { unresolved_flavor = 1; };
+    if let TextValue::NonNull = format { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = format { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = input {
@@ -399,7 +401,9 @@ pub fn sql__pg_catalog__encode__bvkp(input: ByteaValue, format: TextValue) -> Te
 pub fn sql__pg_catalog__decode__b6gt(input: TextValue, format: TextValue) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = format { unresolved_flavor = 1; };
+    if let TextValue::NonNull = format { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = format { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {

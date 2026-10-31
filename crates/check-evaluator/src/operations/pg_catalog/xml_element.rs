@@ -23,7 +23,9 @@ pub fn xml_element_value_escape(input: TextValue, escape: bool) -> TextValue {
 pub fn xml_element_append(left: TextValue, right: TextValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = left { unresolved_flavor = 1; };
+    if let TextValue::NonNull = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = right { unresolved_flavor = 1; };
+    if let TextValue::NonNull = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = left { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TextValue::Error(error) = left { return TextValue::Error(error); };
@@ -58,6 +60,7 @@ fn xml_element_character_reference(code: i32) -> String {
 pub fn xml_element_attribute(name: &str, mapped: bool, implicit: bool, input: TextValue, utf8: bool) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Value(value) = input {
         if xml_text_encoding_available(value.as_str(),utf8) == false { return text_unresolved(resolution_context(unresolved_flavor)); };
@@ -111,7 +114,9 @@ pub fn xml_forest_part(name: &str, mapped: bool, implicit: bool, input: TextValu
 pub fn xml_element_finish(name: &str, mapped: bool, attributes: TextValue, content: TextValue, validity: CheckOutcome) -> XmlValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = attributes { unresolved_flavor = 1; };
+    if let TextValue::NonNull = attributes { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = content { unresolved_flavor = 1; };
+    if let TextValue::NonNull = content { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let CheckOutcome::Unknown = validity { unresolved_flavor = 1; };
     if let TextValue::Unimplemented = attributes { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = content { unresolved_flavor = 2; };
@@ -145,6 +150,7 @@ pub fn xml_element_finish(name: &str, mapped: bool, attributes: TextValue, conte
 pub fn xml_forest_finish(content: TextValue, validity: CheckOutcome) -> XmlValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = content { unresolved_flavor = 1; };
+    if let TextValue::NonNull = content { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let CheckOutcome::Unknown = validity { unresolved_flavor = 1; };
     if let TextValue::Unimplemented = content { unresolved_flavor = 2; };
     if let CheckOutcome::Unimplemented = validity { unresolved_flavor = 2; };
@@ -206,6 +212,7 @@ pub fn xml_value_timestamptz(input: TimestamptzValue) -> TextValue {
 pub fn xml_value_binary(input: ByteaValue, mode: i32) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = input { return TextValue::Error(error); };
     if let ByteaValue::Null = input { return TextValue::Null; };

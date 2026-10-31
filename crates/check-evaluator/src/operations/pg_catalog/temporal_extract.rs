@@ -161,6 +161,7 @@ fn temporal_extract_date(value: i32, code: i32) -> NumericValue {
 pub fn sql__pg_catalog__extract__qjml(units: TextValue, input: DateValue) -> NumericValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = units { unresolved_flavor = 1; };
+    if let TextValue::NonNull = units { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let DateValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unimplemented = units { unresolved_flavor = 2; };
     if let DateValue::Unimplemented = input { unresolved_flavor = 2; };

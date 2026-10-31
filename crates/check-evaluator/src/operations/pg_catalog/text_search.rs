@@ -33,7 +33,9 @@ fn text_search_range(search: &TextSearchState, from: usize, end: usize) -> Strin
 pub fn sql__pg_catalog__textcat__s76e(left: TextValue, right: TextValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = left { unresolved_flavor = 1; };
+    if let TextValue::NonNull = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = right { unresolved_flavor = 1; };
+    if let TextValue::NonNull = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = left { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TextValue::Error(error) = left {
@@ -66,7 +68,9 @@ pub fn sql__pg_catalog__textcat__s76e(left: TextValue, right: TextValue) -> Text
 pub fn sql__pg_catalog__strpos__eb1n(left: TextValue, right: TextValue) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = left { unresolved_flavor = 1; };
+    if let TextValue::NonNull = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = right { unresolved_flavor = 1; };
+    if let TextValue::NonNull = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = left { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TextValue::Error(error) = left {
@@ -115,7 +119,9 @@ fn text_overlay_value(
 ) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = replacement { unresolved_flavor = 1; };
+    if let TextValue::NonNull = replacement { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Int4Value::Unknown = position { unresolved_flavor = 1; };
     if let Int4Value::Unknown = length { unresolved_flavor = 1; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
@@ -212,8 +218,11 @@ pub fn sql__pg_catalog__replace__gz9l(
 ) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = from { unresolved_flavor = 1; };
+    if let TextValue::NonNull = from { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = to { unresolved_flavor = 1; };
+    if let TextValue::NonNull = to { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = from { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = to { unresolved_flavor = 2; };
@@ -285,7 +294,9 @@ pub fn sql__pg_catalog__split_part__doxr(
 ) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = separator { unresolved_flavor = 1; };
+    if let TextValue::NonNull = separator { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Int4Value::Unknown = field { unresolved_flavor = 1; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = separator { unresolved_flavor = 2; };

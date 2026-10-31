@@ -175,6 +175,7 @@ fn digest_md5_hex(input: &str) -> String {
 pub fn sql__pg_catalog__md5__vpfl(input: ByteaValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = input {
         return TextValue::Error(error);
@@ -195,6 +196,7 @@ pub fn sql__pg_catalog__md5__vpfl(input: ByteaValue) -> TextValue {
 pub fn sql__pg_catalog__md5__kt50(input: TextValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return TextValue::Error(error);

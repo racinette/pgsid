@@ -1,6 +1,7 @@
 fn text_hash_value(input: TextValue, trim_spaces: bool, byte_order: i32, utf8: bool) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return Int4Value::Error(error);
@@ -38,6 +39,7 @@ fn text_hash_extended(
 ) -> Int8Value {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Int8Value::Unknown = seed { unresolved_flavor = 1; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let Int8Value::Unimplemented = seed { unresolved_flavor = 2; };

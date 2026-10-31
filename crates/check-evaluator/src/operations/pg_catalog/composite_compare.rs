@@ -131,6 +131,7 @@ pub(crate) fn finish_record_comparison(
 pub fn record_anonymous_input(input: TextValue) -> CompositeValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return CompositeValue::Error(error);
@@ -162,6 +163,7 @@ fn record_array_input_with_nulls(input: TextValue, nulls: i32) -> ArrayValue {
 pub fn record_array_from_text(input: TextValue, nulls: i32) -> ArrayValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if nulls == 0 || nulls == 1 {
         return record_array_input_with_nulls(input, nulls);

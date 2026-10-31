@@ -137,7 +137,9 @@ fn text_like_match(input: &str, pattern: &str, insensitive: bool) -> Int4Value {
 fn text_like(input: TextValue, pattern: TextValue, insensitive: bool, negate: bool) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = pattern { unresolved_flavor = 1; };
+    if let TextValue::NonNull = pattern { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = pattern { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
@@ -200,7 +202,9 @@ pub fn sql__pg_catalog__textnlike__7ux0(input: TextValue, pattern: TextValue) ->
 pub fn sql__pg_catalog__like_escape__xfrr(input: TextValue, escape: TextValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = escape { unresolved_flavor = 1; };
+    if let TextValue::NonNull = escape { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = escape { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {

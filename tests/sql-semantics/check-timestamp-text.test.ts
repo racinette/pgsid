@@ -343,7 +343,7 @@ describe('Rust text-to-timestamp CHECK casts', () => {
         await pg.exec('ROLLBACK')
       }
       const wrapped = { raw, anchor: runtime.makeTimestampValue(0n), skip }
-      expect(evaluate(wrapped)[0].result).toEqual(result)
+      expect(evaluate(wrapped)[0].result, String(raw)).toEqual(result)
       cases.push({
         name: `${raw ?? 'NULL'}:${skip}`,
         table: rows,

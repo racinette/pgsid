@@ -252,6 +252,7 @@ pub fn sql__pg_catalog__timezone__9nbk(
 ) -> TimestamptzValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = zone { unresolved_flavor = 1; };
+    if let TextValue::NonNull = zone { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TimestampValue::Unknown = value { unresolved_flavor = 1; };
     if let TextValue::Unimplemented = zone { unresolved_flavor = 2; };
     if let TimestampValue::Unimplemented = value { unresolved_flavor = 2; };
@@ -327,6 +328,7 @@ pub fn sql__pg_catalog__timezone__blof(
 ) -> TimestampValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = zone { unresolved_flavor = 1; };
+    if let TextValue::NonNull = zone { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TimestamptzValue::Unknown = value { unresolved_flavor = 1; };
     if let TextValue::Unimplemented = zone { unresolved_flavor = 2; };
     if let TimestamptzValue::Unimplemented = value { unresolved_flavor = 2; };
@@ -435,6 +437,7 @@ pub fn sql__pg_catalog__timezone__nsm6(
 ) -> TimetzValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = zone { unresolved_flavor = 1; };
+    if let TextValue::NonNull = zone { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TimetzValue::Unknown = value { unresolved_flavor = 1; };
     if let TextValue::Unimplemented = zone { unresolved_flavor = 2; };
     if let TimetzValue::Unimplemented = value { unresolved_flavor = 2; };

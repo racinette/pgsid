@@ -49,8 +49,10 @@ pub fn sql__pg_catalog__date_trunc__6323(
 ) -> TimestamptzValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = units { unresolved_flavor = 1; };
+    if let TextValue::NonNull = units { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unknown = zone { unresolved_flavor = 1; };
+    if let TextValue::NonNull = zone { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = units { unresolved_flavor = 2; };
     if let TimestamptzValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = zone { unresolved_flavor = 2; };
@@ -100,6 +102,7 @@ pub fn sql__pg_catalog__date_trunc__7d7s(
 ) -> TimestamptzValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = units { unresolved_flavor = 1; };
+    if let TextValue::NonNull = units { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unimplemented = units { unresolved_flavor = 2; };
     if let TimestamptzValue::Unimplemented = input { unresolved_flavor = 2; };

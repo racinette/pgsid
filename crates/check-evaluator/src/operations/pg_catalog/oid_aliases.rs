@@ -5,6 +5,7 @@ const OID_ALIAS_INVALID_TYPE: u32 = 6819553;
 pub fn oid_alias_from_text(input: TextValue, dash: bool, grammar: i32) -> OidValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input { return OidValue::Error(error); };
     if input == TextValue::Null { return OidValue::Null; };
@@ -93,6 +94,7 @@ pub fn sql__pg_catalog__to_regtype__t5ks(input: TextValue) -> OidValue { oid_ali
 pub fn sql__pg_catalog__regclass__wqix(input: TextValue) -> OidValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input { return OidValue::Error(error); };
     if input == TextValue::Null { return OidValue::Null; };

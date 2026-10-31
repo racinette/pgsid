@@ -281,6 +281,7 @@ pub fn mac_address_compare(left: MacAddress, right: MacAddress) -> i32 {
 pub fn macaddr_from_text(input: TextValue) -> MacaddrValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return MacaddrValue::Error(error);
@@ -309,6 +310,7 @@ pub fn macaddr_from_text(input: TextValue) -> MacaddrValue {
 pub fn macaddr8_from_text(input: TextValue) -> Macaddr8Value {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return Macaddr8Value::Error(error);

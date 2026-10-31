@@ -18,6 +18,7 @@ pub fn append_tsquery_storage(input: TsqueryStoragePlan, value: TsqueryValue) ->
 pub fn tsquery_from_captured_text(input: TextValue, plan: &TsqueryStoragePlan, index: Int4Value) -> TsqueryValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Int4Value::Unknown = index { unresolved_flavor = 1; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let Int4Value::Unimplemented = index { unresolved_flavor = 2; };

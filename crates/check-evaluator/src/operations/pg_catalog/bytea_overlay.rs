@@ -7,7 +7,9 @@ fn bytea_overlay(
 ) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unknown = replacement { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = replacement { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Int4Value::Unknown = position { unresolved_flavor = 1; };
     if let Int4Value::Unknown = length { unresolved_flavor = 1; };
     if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };

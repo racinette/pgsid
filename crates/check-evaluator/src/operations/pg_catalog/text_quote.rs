@@ -11,6 +11,7 @@ fn quote_literal_capacity(bytes: i64, sql_text: bool) -> bool {
 pub(crate) fn quote_literal_output(input: TextValue, sql_text: bool) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return TextValue::Error(error);

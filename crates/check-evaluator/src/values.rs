@@ -385,6 +385,7 @@ pub fn make_xml_value(source: &str) -> XmlValue {
 pub fn xml_from_rendered_text(input: TextValue) -> XmlValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input { return XmlValue::Error(error); };
     if let TextValue::Null = input { return XmlValue::Null; };
@@ -421,6 +422,7 @@ pub fn make_xml_non_null(document: BoolValue) -> XmlValue {
 pub fn xml_is_null(input: XmlValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let XmlValue::Unknown = input { unresolved_flavor = 1; };
+    if let XmlValue::NonNull(_knowledge) = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let XmlValue::Unimplemented = input { unresolved_flavor = 2; };
     if let XmlValue::NonNull(knowledge) = input {
         let checked = make_xml_knowledge(knowledge.document,knowledge.content);
@@ -888,6 +890,7 @@ pub fn int8_is_null(value: Int8Value) -> BoolValue {
 pub fn text_is_null(value: TextValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = value { unresolved_flavor = 1; };
+    if let TextValue::NonNull = value { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = value { unresolved_flavor = 2; };
     if let TextValue::Error(error) = value {
         return BoolValue::Error(error);
@@ -1053,6 +1056,7 @@ pub fn make_json_value(source: &str) -> JsonValue {
 pub fn json_from_coerced_text(input: TextValue) -> JsonValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return JsonValue::Error(error);
@@ -1069,6 +1073,7 @@ pub fn json_from_coerced_text(input: TextValue) -> JsonValue {
 pub fn json_is_null(input: JsonValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let JsonValue::Unknown = input { unresolved_flavor = 1; };
+    if let JsonValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let JsonValue::Unimplemented = input { unresolved_flavor = 2; };
     if let JsonValue::Error(error) = input {
         return BoolValue::Error(error);
@@ -1240,6 +1245,7 @@ pub fn jsonb_input_from_numeric(input: NumericValue) -> JsonbInput {
 pub fn jsonb_input_from_text(input: TextValue) -> JsonbInput {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return JsonbInput::Error(error);
@@ -1256,6 +1262,7 @@ pub fn jsonb_input_from_text(input: TextValue) -> JsonbInput {
 pub fn jsonb_input_from_json(input: JsonValue) -> JsonbInput {
     let mut unresolved_flavor: i32 = 0;
     if let JsonValue::Unknown = input { unresolved_flavor = 1; };
+    if let JsonValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let JsonValue::Unimplemented = input { unresolved_flavor = 2; };
     if let JsonValue::Error(error) = input {
         return JsonbInput::Error(error);
@@ -1324,6 +1331,7 @@ fn jsonb_input_float(number: f64) -> JsonbInput {
 pub fn jsonb_input_from_float4(input: Float4Value) -> JsonbInput {
     let mut unresolved_flavor: i32 = 0;
     if let Float4Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float4Value::UnspecifiedNan = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float4Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Float4Value::Error(error) = input {
         return JsonbInput::Error(error);
@@ -1344,6 +1352,7 @@ pub fn jsonb_input_from_float4(input: Float4Value) -> JsonbInput {
 pub fn jsonb_input_from_float8(input: Float8Value) -> JsonbInput {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Float8Value::Error(error) = input {
         return JsonbInput::Error(error);
@@ -1562,6 +1571,7 @@ pub fn bytea_null() -> ByteaValue {
 pub fn bytea_is_null(value: ByteaValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = value { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = value { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unimplemented = value { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = value {
         return BoolValue::Error(error);
@@ -1804,6 +1814,7 @@ pub fn make_float4_value(value: f64) -> Float4Value {
 pub fn float4_is_null(value: Float4Value) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let Float4Value::Unknown = value { unresolved_flavor = 1; };
+    if let Float4Value::UnspecifiedNan = value { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float4Value::Unimplemented = value { unresolved_flavor = 2; };
     if let Float4Value::Error(error) = value {
         return BoolValue::Error(error);
@@ -1869,6 +1880,7 @@ pub fn make_float8_value(value: f64) -> Float8Value {
 pub fn float8_is_null(value: Float8Value) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = value { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = value { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unimplemented = value { unresolved_flavor = 2; };
     if let Float8Value::Error(error) = value {
         return BoolValue::Error(error);
@@ -2238,6 +2250,7 @@ pub fn make_box_bits(high_x: i64, high_y: i64, low_x: i64, low_y: i64) -> BoxVal
 pub fn box_is_null(input: BoxValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoxValue::Unknown = input { unresolved_flavor = 1; };
+    if let BoxValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let BoxValue::Unimplemented = input { unresolved_flavor = 2; };
     if let BoxValue::Error(error) = input {
         return BoolValue::Error(error);

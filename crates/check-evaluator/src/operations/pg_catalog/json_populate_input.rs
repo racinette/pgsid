@@ -113,6 +113,7 @@ fn json_populate_calendar_alpha(character: char) -> bool {
 fn json_populate_calendar_text(input: TextValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Value(text) = input {
         let characters: Vec<char> = text.chars().collect();

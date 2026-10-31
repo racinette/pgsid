@@ -106,6 +106,7 @@ pub fn sql__pg_catalog__ts_delete__y2kd(input: TsvectorValue, selector: TextValu
     let mut unresolved_flavor: i32 = 0;
     if let TsvectorValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unknown = selector { unresolved_flavor = 1; };
+    if let TextValue::NonNull = selector { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TsvectorValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = selector { unresolved_flavor = 2; };
     if let TsvectorValue::Error(error) = input { return TsvectorValue::Error(error); };

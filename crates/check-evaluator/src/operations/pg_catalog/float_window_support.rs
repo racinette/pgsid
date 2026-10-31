@@ -12,8 +12,11 @@ fn float_in_range(
 ) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = value { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = value { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unknown = base { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = base { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unknown = offset { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = offset { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let BoolValue::Unknown = subtract { unresolved_flavor = 1; };
     if let BoolValue::Unknown = less { unresolved_flavor = 1; };
     if let Float8Value::Unimplemented = value { unresolved_flavor = 2; };
@@ -177,8 +180,11 @@ pub fn sql__pg_catalog__width_bucket__wbi9(
 ) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = operand { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = operand { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unknown = lower { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = lower { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unknown = upper { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = upper { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Int4Value::Unknown = count { unresolved_flavor = 1; };
     if let Float8Value::Unimplemented = operand { unresolved_flavor = 2; };
     if let Float8Value::Unimplemented = lower { unresolved_flavor = 2; };
@@ -240,7 +246,9 @@ pub fn sql__pg_catalog__int8inc_float8_float8__naop(
     let mut unresolved_flavor: i32 = 0;
     if let Int8Value::Unknown = count { unresolved_flavor = 1; };
     if let Float8Value::Unknown = left { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unknown = right { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Int8Value::Unimplemented = count { unresolved_flavor = 2; };
     if let Float8Value::Unimplemented = left { unresolved_flavor = 2; };
     if let Float8Value::Unimplemented = right { unresolved_flavor = 2; };

@@ -596,6 +596,11 @@ export function xmlFromRenderedText(input: TextValue): XmlValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -661,6 +666,12 @@ export function xmlIsNull(input: XmlValue): BoolValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        const knowledge: XmlKnowledge = input.value;
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -1236,6 +1247,11 @@ export function textIsNull(value: TextValue): BoolValue {
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (value.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -1490,6 +1506,11 @@ export function jsonFromCoercedText(input: TextValue): JsonValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -1510,6 +1531,11 @@ export function jsonIsNull(input: JsonValue): BoolValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -1775,6 +1801,11 @@ export function jsonbInputFromText(input: TextValue): JsonbInput {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -1795,6 +1826,11 @@ export function jsonbInputFromJson(input: JsonValue): JsonbInput {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -1876,6 +1912,11 @@ export function jsonbInputFromFloat4(input: Float4Value): JsonbInput {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -1900,6 +1941,11 @@ export function jsonbInputFromFloat8(input: Float8Value): JsonbInput {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -2237,6 +2283,12 @@ export function byteaIsNull(value: ByteaValue): BoolValue {
     let unresolvedFlavor: number = 0;
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (value.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(value.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (value.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -2619,6 +2671,11 @@ export function float4IsNull(value: Float4Value): BoolValue {
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (value.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -2725,6 +2782,11 @@ export function float8IsNull(value: Float8Value): BoolValue {
     let unresolvedFlavor: number = 0;
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (value.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (value.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -3325,6 +3387,11 @@ export function boxIsNull(input: BoxValue): BoolValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -6299,6 +6366,11 @@ export function networkFromText(input: TextValue): NetworkValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -6331,6 +6403,11 @@ export function cidrFromText(input: TextValue): NetworkValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -6591,6 +6668,11 @@ export function macaddrFromText(input: TextValue): MacaddrValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -6632,6 +6714,11 @@ export function macaddr8FromText(input: TextValue): Macaddr8Value {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -6749,6 +6836,11 @@ export function uuidFromText(input: TextValue): UuidValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -7500,8 +7592,18 @@ export function jsonReadFieldContext(input: JsonValue, key: TextValue, asText: b
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (key.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (key.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -7571,6 +7673,11 @@ export function jsonReadElementContext(input: JsonValue, index: Int4Value, asTex
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (index.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
@@ -7636,6 +7743,11 @@ export function jsonReadLength(input: JsonValue): Int4Value {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -7663,6 +7775,11 @@ export function jsonReadInputScalar(input: JsonValue, quoted: boolean, utf8: boo
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -7701,6 +7818,11 @@ export function jsonReadObjectReady(input: JsonValue, utf8: boolean): CheckOutco
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -8107,6 +8229,11 @@ export function jsonReadArrayPath(input: JsonValue, path: ArrayValue, asText: bo
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (path.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
@@ -8259,6 +8386,11 @@ export function jsonStripNullsContext(input: JsonValue, arrays: BoolValue, utf8:
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (arrays.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -8670,6 +8802,11 @@ function jsonbParseTextContext(input: TextValue, admission: boolean, utf8: boole
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -9332,6 +9469,11 @@ export function jsonbFromString(input: TextValue): JsonbValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -11050,6 +11192,11 @@ export function arrayElementFromText(input: TextValue): ArrayElement {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -11184,6 +11331,11 @@ export function arrayElementFromJson(input: JsonValue): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -11372,6 +11524,12 @@ export function arrayElementFromBytea(input: ByteaValue): ArrayElement {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(input.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -11552,6 +11710,11 @@ export function arrayElementFromFloat4(input: Float4Value): ArrayElement {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -11600,6 +11763,11 @@ export function arrayElementFromFloat8(input: Float8Value): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -11907,6 +12075,11 @@ export function arrayElementFromBox(input: BoxValue): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -12615,6 +12788,12 @@ export function arrayElementFromXml(input: XmlValue): ArrayElement {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        const knowledge: XmlKnowledge = input.value;
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -15317,6 +15496,12 @@ export function finishXmlDomainConversion(input: XmlValue, result: CheckOutcome)
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        const knowledge: XmlKnowledge = input.value;
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (result.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
@@ -17059,6 +17244,11 @@ export function parseArrayText(input: TextValue, delimiter: string, nulls: numbe
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -19685,6 +19875,11 @@ export function bitFromText(input: TextValue): BitValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -20866,6 +21061,11 @@ export function dateFromTextOrder(value: TextValue, dateOrder: number): DateValu
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (value.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -21001,6 +21201,11 @@ function dateFromTemporalText(value: TextValue, dateOrder: number): DateValue {
     let unresolvedFlavor: number = 0;
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (value.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (value.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -21191,7 +21396,7 @@ function timestampCalendarMicroseconds(year: number, month: number, day: number,
             return { kind: "Value", value: dateWide };
         }
         if (missingTimezone) {
-            return int8Unresolved(unresolvedFlavor);
+            return int8Unresolved(resolutionContext(unresolvedFlavor));
         }
         if ((calendarYear === langruntime.checkedSignedNegate(4714) && calendarMonth < 11) || (compactClock === false && dayValue < langruntime.checkedSignedNegate(2451546)) || dayValue > 106751983) {
             return { kind: "Error", value: { state: timestampFieldOverflow } };
@@ -21242,6 +21447,56 @@ function parseTimestampText(value: TextValue, withTimezone: boolean): Int8Value 
     withTimezone = langruntime.checkedBool(withTimezone);
     return parseTemporalText(value, withTimezone, false, 0);
 }
+function temporalRelativeWord(input: string): boolean {
+    input = langruntime.checkedString(input);
+    const chars: string[] = Array.from(input);
+    let start: number = 0;
+    let end: number = chars.length;
+    while (start < end && dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(start)))) {
+        start = langruntime.checkedAdd(start, 1);
+    }
+    while (start < end && dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1))))) {
+        end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
+    }
+    let word: string = "";
+    while (start < end) {
+        word = word + langruntime.checkedChar(langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(start))));
+        start = langruntime.checkedAdd(start, 1);
+    }
+    return word === "now" || word === "today" || word === "tomorrow" || word === "yesterday";
+}
+function temporalZoneWord(text: TimestampText, from: number, end: number): boolean {
+    from = langruntime.checkedIndex(from);
+    end = langruntime.checkedIndex(end);
+    let start: number = from;
+    while (start < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(start)))) {
+        start = langruntime.checkedAdd(start, 1);
+    }
+    if (start === end || englishDateLetter(langruntime.indexChar(text.chars, langruntime.checkedIndex(start))) === false) {
+        return false;
+    }
+    let index: number = start;
+    while (index < end) {
+        const character: string = langruntime.indexChar(text.chars, langruntime.checkedIndex(index));
+        if (englishDateLetter(character) === false && dateTextDigit(character) < 0 && !(character === "/") && !(character === "_") && !(character === "+") && !(character === "-")) {
+            return false;
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    const word: string = englishDateWord(text, start, end);
+    if (!(englishDateMonth(word) === 0) || englishDateWeekday(word)) {
+        return false;
+    }
+    let keyword: number = 0;
+    while (keyword < temporalFieldWords.length) {
+        if (word === langruntime.indexStatic(temporalFieldWords, langruntime.checkedIndex(keyword))) {
+            return false;
+        }
+        keyword = langruntime.checkedAdd(keyword, 1);
+    }
+    return true;
+}
+const temporalFieldWords: ReadonlyArray<string> = ["ad", "allballs", "ago", "am", "at", "bc", "d", "epoch", "h", "infinity", "j", "jd", "julian", "m", "mm", "now", "on", "pm", "s", "t", "today", "tomorrow", "y", "yesterday", "z", "zulu"];
 function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: boolean, dateOrder: number): Int8Value {
     withTimezone = langruntime.checkedBool(withTimezone);
     dateOnly = langruntime.checkedBool(dateOnly);
@@ -21249,6 +21504,11 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
     let unresolvedFlavor: number = 0;
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (value.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (value.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -21277,6 +21537,9 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
         const chars: string[] = Array.from(input);
         if (chars.length > 128) {
             return int8Unresolved(unresolvedFlavor);
+        }
+        if (temporalRelativeWord(input)) {
+            return int8Unresolved(resolutionContext(unresolvedFlavor));
         }
         let bc: boolean = false;
         let eras: number = 0;
@@ -21480,96 +21743,101 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
             month = langruntime.checkedI32(compactMonth.value);
             day = langruntime.checkedI32(compactDay.value);
         }
-        else if ((yearField.digits === 1 || yearField.digits === 2) && dateOrder > 0 && index < end) {
-            const separator: string = langruntime.indexChar(text.chars, langruntime.checkedIndex(index));
-            if (!(separator === "-") && !(separator === "/") && !(separator === ".")) {
-                return int8Unresolved(unresolvedFlavor);
-            }
-            const secondField: TimestampNumber = readTimestampNumber(text, langruntime.checkedAdd(index, 1), end);
-            index = langruntime.checkedIndex(secondField.next);
-            if (secondField.digits < 1 || secondField.digits > 2 || index === end || !(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === separator)) {
-                return int8Unresolved(unresolvedFlavor);
-            }
-            const thirdField: TimestampNumber = readTimestampNumber(text, langruntime.checkedAdd(index, 1), end);
-            index = langruntime.checkedIndex(thirdField.next);
-            if (thirdField.digits < 1 || thirdField.overflow || (index < end && langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === separator)) {
-                return int8Unresolved(unresolvedFlavor);
-            }
-            let shortYear: number = thirdField.value;
-            let yearDigits: number = thirdField.digits;
-            if (dateOrder === 1) {
-                month = langruntime.checkedI32(yearField.value);
-                day = langruntime.checkedI32(secondField.value);
-            }
-            else if (dateOrder === 2) {
-                day = langruntime.checkedI32(yearField.value);
-                month = langruntime.checkedI32(secondField.value);
-            }
-            else {
-                shortYear = langruntime.checkedI32(yearField.value);
-                yearDigits = langruntime.checkedIndex(yearField.digits);
-                month = langruntime.checkedI32(secondField.value);
-                day = langruntime.checkedI32(thirdField.value);
-            }
-            year = langruntime.checkedI32(shortYear);
-            if (yearDigits <= 2 && bc === false) {
-                if (year < 70) {
-                    year = langruntime.checkedI32(langruntime.checkedSignedAdd(year, 2000));
-                }
-                else {
-                    year = langruntime.checkedI32(langruntime.checkedSignedAdd(year, 1900));
-                }
-            }
-        }
-        else if (yearField.digits < 3 || index === end) {
-            return int8Unresolved(unresolvedFlavor);
-        }
         else {
-            const separator: string = langruntime.indexChar(text.chars, langruntime.checkedIndex(index));
-            if (!(separator === "-") && !(separator === "/") && !(separator === ".")) {
-                return int8Unresolved(unresolvedFlavor);
+            if ((yearField.digits === 1 || yearField.digits === 2) && dateOrder === 0 && index < end) {
+                return int8Unresolved(resolutionContext(unresolvedFlavor));
             }
-            const monthField: TimestampNumber = readTimestampNumber(text, langruntime.checkedAdd(index, 1), end);
-            index = langruntime.checkedIndex(monthField.next);
-            if (monthField.digits < 1 || index === end || !(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === separator)) {
-                return int8Unresolved(unresolvedFlavor);
-            }
-            const dayField: TimestampNumber = readTimestampNumber(text, langruntime.checkedAdd(index, 1), end);
-            index = langruntime.checkedIndex(dayField.next);
-            if (index < end && langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === separator) {
-                const extraField: TimestampNumber = readTimestampNumber(text, langruntime.checkedAdd(index, 1), end);
-                if (dayField.digits === 0 || extraField.digits === 0 || extraField.overflow || yearOverflow || monthField.overflow || dayField.overflow || (monthField.digits === 3 && monthField.value >= 1 && monthField.value <= 366)) {
+            if ((yearField.digits === 1 || yearField.digits === 2) && dateOrder > 0 && index < end) {
+                const separator: string = langruntime.indexChar(text.chars, langruntime.checkedIndex(index));
+                if (!(separator === "-") && !(separator === "/") && !(separator === ".")) {
                     return int8Unresolved(unresolvedFlavor);
                 }
-                return { kind: "Error", value: { state: invalidTimestampText } };
-            }
-            if (monthField.digits === 3 && monthField.value >= 1 && monthField.value <= 366) {
-                if (dayField.digits > 0) {
-                    if (yearOverflow || dayField.overflow) {
-                        if (index === end) {
-                            return { kind: "Error", value: { state: timestampFieldOverflow } };
-                        }
-                        return int8Unresolved(unresolvedFlavor);
-                    }
-                    return { kind: "Error", value: { state: invalidTimestampText } };
+                const secondField: TimestampNumber = readTimestampNumber(text, langruntime.checkedAdd(index, 1), end);
+                index = langruntime.checkedIndex(secondField.next);
+                if (secondField.digits < 1 || secondField.digits > 2 || index === end || !(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === separator)) {
+                    return int8Unresolved(unresolvedFlavor);
                 }
-                ordinalDay = langruntime.checkedI32(monthField.value);
+                const thirdField: TimestampNumber = readTimestampNumber(text, langruntime.checkedAdd(index, 1), end);
+                index = langruntime.checkedIndex(thirdField.next);
+                if (thirdField.digits < 1 || thirdField.overflow || (index < end && langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === separator)) {
+                    return int8Unresolved(unresolvedFlavor);
+                }
+                let shortYear: number = thirdField.value;
+                let yearDigits: number = thirdField.digits;
+                if (dateOrder === 1) {
+                    month = langruntime.checkedI32(yearField.value);
+                    day = langruntime.checkedI32(secondField.value);
+                }
+                else if (dateOrder === 2) {
+                    day = langruntime.checkedI32(yearField.value);
+                    month = langruntime.checkedI32(secondField.value);
+                }
+                else {
+                    shortYear = langruntime.checkedI32(yearField.value);
+                    yearDigits = langruntime.checkedIndex(yearField.digits);
+                    month = langruntime.checkedI32(secondField.value);
+                    day = langruntime.checkedI32(thirdField.value);
+                }
+                year = langruntime.checkedI32(shortYear);
+                if (yearDigits <= 2 && bc === false) {
+                    if (year < 70) {
+                        year = langruntime.checkedI32(langruntime.checkedSignedAdd(year, 2000));
+                    }
+                    else {
+                        year = langruntime.checkedI32(langruntime.checkedSignedAdd(year, 1900));
+                    }
+                }
+            }
+            else if (yearField.digits < 3 || index === end) {
+                return int8Unresolved(unresolvedFlavor);
             }
             else {
-                if (dayField.digits < 1) {
-                    if (yearOverflow || monthField.overflow) {
-                        if (index === end) {
-                            return { kind: "Error", value: { state: timestampFieldOverflow } };
-                        }
+                const separator: string = langruntime.indexChar(text.chars, langruntime.checkedIndex(index));
+                if (!(separator === "-") && !(separator === "/") && !(separator === ".")) {
+                    return int8Unresolved(unresolvedFlavor);
+                }
+                const monthField: TimestampNumber = readTimestampNumber(text, langruntime.checkedAdd(index, 1), end);
+                index = langruntime.checkedIndex(monthField.next);
+                if (monthField.digits < 1 || index === end || !(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === separator)) {
+                    return int8Unresolved(unresolvedFlavor);
+                }
+                const dayField: TimestampNumber = readTimestampNumber(text, langruntime.checkedAdd(index, 1), end);
+                index = langruntime.checkedIndex(dayField.next);
+                if (index < end && langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === separator) {
+                    const extraField: TimestampNumber = readTimestampNumber(text, langruntime.checkedAdd(index, 1), end);
+                    if (dayField.digits === 0 || extraField.digits === 0 || extraField.overflow || yearOverflow || monthField.overflow || dayField.overflow || (monthField.digits === 3 && monthField.value >= 1 && monthField.value <= 366)) {
                         return int8Unresolved(unresolvedFlavor);
                     }
                     return { kind: "Error", value: { state: invalidTimestampText } };
                 }
-                if (monthField.overflow || dayField.overflow) {
-                    yearOverflow = langruntime.checkedBool(true);
+                if (monthField.digits === 3 && monthField.value >= 1 && monthField.value <= 366) {
+                    if (dayField.digits > 0) {
+                        if (yearOverflow || dayField.overflow) {
+                            if (index === end) {
+                                return { kind: "Error", value: { state: timestampFieldOverflow } };
+                            }
+                            return int8Unresolved(unresolvedFlavor);
+                        }
+                        return { kind: "Error", value: { state: invalidTimestampText } };
+                    }
+                    ordinalDay = langruntime.checkedI32(monthField.value);
                 }
-                month = langruntime.checkedI32(monthField.value);
-                day = langruntime.checkedI32(dayField.value);
+                else {
+                    if (dayField.digits < 1) {
+                        if (yearOverflow || monthField.overflow) {
+                            if (index === end) {
+                                return { kind: "Error", value: { state: timestampFieldOverflow } };
+                            }
+                            return int8Unresolved(unresolvedFlavor);
+                        }
+                        return { kind: "Error", value: { state: invalidTimestampText } };
+                    }
+                    if (monthField.overflow || dayField.overflow) {
+                        yearOverflow = langruntime.checkedBool(true);
+                    }
+                    month = langruntime.checkedI32(monthField.value);
+                    day = langruntime.checkedI32(dayField.value);
+                }
             }
         }
         if (bc && julianDate === false) {
@@ -21821,6 +22089,9 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
             return temporalNumberAfterClock(hour, minute, second, compactClock, yearOverflow);
         }
         else if (!(index === end)) {
+            if (temporalZoneWord(text, index, end)) {
+                return int8Unresolved(resolutionContext(unresolvedFlavor));
+            }
             return int8Unresolved(unresolvedFlavor);
         }
         else if (withTimezone) {
@@ -21880,6 +22151,9 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
             return afterClock;
         }
         if (!(index === end)) {
+            if (temporalZoneWord(text, index, end)) {
+                return int8Unresolved(resolutionContext(unresolvedFlavor));
+            }
             return int8Unresolved(unresolvedFlavor);
         }
         if (yearOverflow) {
@@ -22027,6 +22301,11 @@ function clockGrammarNormalized(input: TextValue): TextValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -22188,6 +22467,11 @@ function clockInputText(rawInput: TextValue): TextValue {
     if (rawInput.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (rawInput.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (rawInput.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -22226,7 +22510,7 @@ function clockInputText(rawInput: TextValue): TextValue {
         }
         if (digitCount === 0) {
             if (keyword === "now") {
-                return textUnresolved(unresolvedFlavor);
+                return textUnresolved(resolutionContext(unresolvedFlavor));
             }
             if (keyword === "allballs") {
                 return makeTextValue("2000-01-01 00:00:00+00");
@@ -22302,6 +22586,11 @@ export function timeFromText(input: TextValue): TimeValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -22332,6 +22621,11 @@ export function timetzFromText(input: TextValue): TimetzValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -22690,6 +22984,11 @@ function intervalUnitsFromText(input: TextValue, fieldMask: number, style: numbe
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -23346,6 +23645,11 @@ export function intervalFromTextFieldsContext(input: TextValue, fields: Int4Valu
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (fields.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);

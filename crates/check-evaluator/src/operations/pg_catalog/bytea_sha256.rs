@@ -297,6 +297,7 @@ fn digest_sha256_hex(input: &str, short: bool) -> String {
 fn digest_sha256(input: ByteaValue, short: bool) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = input {
         return ByteaValue::Error(error);

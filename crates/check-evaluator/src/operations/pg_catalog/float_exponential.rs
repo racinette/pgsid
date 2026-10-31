@@ -966,6 +966,7 @@ fn musl_log(input: f64) -> f64 {
 pub fn sql__pg_catalog__dexp__we7o(input: Float8Value, musl: bool) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unimplemented = input { unresolved_flavor = 2; };
     if input == Float8Value::UnspecifiedNan {
         return Float8Value::UnspecifiedNan;
@@ -1002,6 +1003,7 @@ pub fn sql__pg_catalog__exp__biel(input: Float8Value, musl: bool) -> Float8Value
 pub fn sql__pg_catalog__dlog1__6b2t(input: Float8Value, musl: bool) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unimplemented = input { unresolved_flavor = 2; };
     if input == Float8Value::UnspecifiedNan {
         return Float8Value::UnspecifiedNan;
@@ -1082,6 +1084,7 @@ fn musl_log10(input: f64) -> f64 {
 pub fn sql__pg_catalog__dlog10__uzhv(input: Float8Value, musl: bool) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unimplemented = input { unresolved_flavor = 2; };
     if input == Float8Value::UnspecifiedNan {
         return Float8Value::UnspecifiedNan;
@@ -1164,6 +1167,7 @@ fn musl_cbrt(x: f64) -> f64 {
 pub fn sql__pg_catalog__dcbrt__qu0u(input: Float8Value, musl: bool) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unimplemented = input { unresolved_flavor = 2; };
     if input == Float8Value::UnspecifiedNan {
         return Float8Value::UnspecifiedNan;
@@ -1804,7 +1808,9 @@ pub fn sql__pg_catalog__dpow__anie(
 ) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = left { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unknown = right { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unimplemented = left { unresolved_flavor = 2; };
     if let Float8Value::Unimplemented = right { unresolved_flavor = 2; };
     if let Float8Value::Error(error) = left {

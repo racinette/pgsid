@@ -116,7 +116,8 @@ fn timestamp_calendar_microseconds(
             return Int8Value::Value(date_wide);
         }
         if missing_timezone {
-            return int8_unresolved(unresolved_flavor);
+            // Without a written zone the instant follows the session TimeZone setting.
+            return int8_unresolved(resolution_context(unresolved_flavor));
         }
         if (calendar_year == -4714 && calendar_month < 11)
             || (compact_clock == false && day_value < -2451546)
@@ -203,6 +204,69 @@ fn parse_timestamp_text(value: TextValue, with_timezone: bool) -> Int8Value {
 }
 
 // The date order is the session DateStyle field order: 0 when unknown, 1 MDY, 2 DMY, 3 YMD.
+// The relative date words resolve against the transaction start time, a session fact.
+fn temporal_relative_word(input: &str) -> bool {
+    let chars: Vec<char> = input.chars().collect();
+    let mut start: usize = 0;
+    let mut end: usize = chars.len();
+    while start < end && date_text_space(chars[start]) {
+        start += 1;
+    }
+    while start < end && date_text_space(chars[end - 1]) {
+        end = end - 1;
+    }
+    let mut word = String::new();
+    while start < end {
+        word.push(chars[start].to_ascii_lowercase());
+        start += 1;
+    }
+    word == "now" || word == "today" || word == "tomorrow" || word == "yesterday"
+}
+
+// A trailing word the grammar does not claim is looked up in the session zone abbreviations and
+// then in the server zone database, so what it means is a database fact.
+fn temporal_zone_word(text: &TimestampText, from: usize, end: usize) -> bool {
+    let mut start = from;
+    while start < end && date_text_space(text.chars[start]) {
+        start += 1;
+    }
+    if start == end || english_date_letter(text.chars[start]) == false {
+        return false;
+    }
+    let mut index = start;
+    while index < end {
+        let character = text.chars[index];
+        if english_date_letter(character) == false
+            && date_text_digit(character) < 0
+            && character != '/'
+            && character != '_'
+            && character != '+'
+            && character != '-'
+        {
+            return false;
+        }
+        index += 1;
+    }
+    let word = english_date_word(text, start, end);
+    if english_date_month(word.as_str()) != 0 || english_date_weekday(word.as_str()) {
+        return false;
+    }
+    let mut keyword: usize = 0;
+    while keyword < TEMPORAL_FIELD_WORDS.len() {
+        if word.as_str() == TEMPORAL_FIELD_WORDS[keyword] {
+            return false;
+        }
+        keyword += 1;
+    }
+    true
+}
+
+// Words the datetime grammar reads as fields rather than as zones.
+const TEMPORAL_FIELD_WORDS: &[&str] = &[
+    "ad", "allballs", "ago", "am", "at", "bc", "d", "epoch", "h", "infinity", "j", "jd", "julian",
+    "m", "mm", "now", "on", "pm", "s", "t", "today", "tomorrow", "y", "yesterday", "z", "zulu",
+];
+
 fn parse_temporal_text(
     value: TextValue,
     with_timezone: bool,
@@ -211,6 +275,7 @@ fn parse_temporal_text(
 ) -> Int8Value {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = value { unresolved_flavor = 1; };
+    if let TextValue::NonNull = value { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = value { unresolved_flavor = 2; };
     if let TextValue::Error(error) = value {
         return Int8Value::Error(error);
@@ -225,6 +290,9 @@ fn parse_temporal_text(
         let chars: Vec<char> = input.chars().collect();
         if chars.len() > 128 {
             return int8_unresolved(unresolved_flavor);
+        }
+        if temporal_relative_word(input.as_str()) {
+            return int8_unresolved(resolution_context(unresolved_flavor));
         }
         // PostgreSQL reads BC or AD as an ordinary field anywhere after the first one, so the era
         // is blanked before the date and clock grammar runs, as is punctuation its lexer skips
@@ -473,6 +541,10 @@ fn parse_temporal_text(
             month = compact_month.value;
             day = compact_day.value;
         } else {
+            // A short first field's role follows the session DateStyle order, which was not declared.
+            if (year_field.digits == 1 || year_field.digits == 2) && date_order == 0 && index < end {
+                return int8_unresolved(resolution_context(unresolved_flavor));
+            }
             if (year_field.digits == 1 || year_field.digits == 2) && date_order > 0 && index < end {
                 // A short first field takes its role from the session field order, as in
                 // DecodeNumber; a one- or two-digit year maps into 1970-2069 unless BC is given.
@@ -883,6 +955,9 @@ fn parse_temporal_text(
         {
             return temporal_number_after_clock(hour, minute, second, compact_clock, year_overflow);
         } else if index != end {
+            if temporal_zone_word(&text, index, end) {
+                return int8_unresolved(resolution_context(unresolved_flavor));
+            }
             return int8_unresolved(unresolved_flavor);
         } else if with_timezone {
             missing_timezone = true;
@@ -941,6 +1016,9 @@ fn parse_temporal_text(
             return after_clock;
         }
         if index != end {
+            if temporal_zone_word(&text, index, end) {
+                return int8_unresolved(resolution_context(unresolved_flavor));
+            }
             return int8_unresolved(unresolved_flavor);
         }
         if year_overflow {

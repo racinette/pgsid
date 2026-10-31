@@ -4,6 +4,7 @@ const UNISTR_INVALID_CODE_POINT: u32 = 3452619;
 pub fn sql__pg_catalog__unistr__n58m(input: TextValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return TextValue::Error(error);

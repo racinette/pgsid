@@ -816,6 +816,7 @@ pub fn date_from_text(value: TextValue) -> DateValue {
 pub fn date_from_text_order(value: TextValue, date_order: i32) -> DateValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = value { unresolved_flavor = 1; };
+    if let TextValue::NonNull = value { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = value { unresolved_flavor = 2; };
     if let TextValue::Error(error) = value {
         return DateValue::Error(error);
@@ -958,6 +959,7 @@ pub fn date_from_text_order(value: TextValue, date_order: i32) -> DateValue {
 fn date_from_temporal_text(value: TextValue, date_order: i32) -> DateValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = value { unresolved_flavor = 1; };
+    if let TextValue::NonNull = value { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = value { unresolved_flavor = 2; };
     let parsed = parse_temporal_text(value, false, true, date_order);
     if let Int8Value::Error(error) = parsed {

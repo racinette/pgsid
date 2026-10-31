@@ -46,6 +46,7 @@ fn box_from_points(left: PointValue, right: PointValue, keep_ties: bool) -> BoxV
 fn box_endpoint(input: BoxValue, low: bool) -> PointValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoxValue::Unknown = input { unresolved_flavor = 1; };
+    if let BoxValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let BoxValue::Unimplemented = input { unresolved_flavor = 2; };
     if let BoxValue::Error(error) = input {
         return PointValue::Error(error);
@@ -98,6 +99,7 @@ fn box_computed_scalar(input: Float8Value) -> Float8Value {
 fn box_dimension(input: BoxValue, vertical: bool) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let BoxValue::Unknown = input { unresolved_flavor = 1; };
+    if let BoxValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let BoxValue::Unimplemented = input { unresolved_flavor = 2; };
     if let BoxValue::Error(error) = input {
         return Float8Value::Error(error);
@@ -125,6 +127,7 @@ fn box_area_value(input: BoxValue) -> Float8Value {
 fn box_midpoint(input: BoxValue) -> PointValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoxValue::Unknown = input { unresolved_flavor = 1; };
+    if let BoxValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let BoxValue::Unimplemented = input { unresolved_flavor = 2; };
     if let BoxValue::Error(error) = input {
         return PointValue::Error(error);
@@ -149,7 +152,9 @@ fn box_midpoint(input: BoxValue) -> PointValue {
 fn box_pair_status(left: BoxValue, right: BoxValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoxValue::Unknown = left { unresolved_flavor = 1; };
+    if let BoxValue::NonNull = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let BoxValue::Unknown = right { unresolved_flavor = 1; };
+    if let BoxValue::NonNull = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let BoxValue::Unimplemented = left { unresolved_flavor = 2; };
     if let BoxValue::Unimplemented = right { unresolved_flavor = 2; };
     if let BoxValue::Error(error) = left {
@@ -181,7 +186,9 @@ fn box_same_corners(left: BoxValue, right: BoxValue) -> BoolValue {
 fn box_area_relation(left: BoxValue, right: BoxValue, mode: i32) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoxValue::Unknown = left { unresolved_flavor = 1; };
+    if let BoxValue::NonNull = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let BoxValue::Unknown = right { unresolved_flavor = 1; };
+    if let BoxValue::NonNull = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let BoxValue::Unimplemented = left { unresolved_flavor = 2; };
     if let BoxValue::Unimplemented = right { unresolved_flavor = 2; };
     let status = box_pair_status(left, right);
@@ -222,6 +229,7 @@ fn box_area_relation(left: BoxValue, right: BoxValue, mode: i32) -> BoolValue {
 fn box_binary(input: BoxValue) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoxValue::Unknown = input { unresolved_flavor = 1; };
+    if let BoxValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let BoxValue::Unimplemented = input { unresolved_flavor = 2; };
     if let BoxValue::Error(error) = input {
         return ByteaValue::Error(error);
@@ -249,7 +257,9 @@ fn box_diagonal_value(input: BoxValue) -> LsegValue {
 fn box_centers_distance(left: BoxValue, right: BoxValue) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let BoxValue::Unknown = left { unresolved_flavor = 1; };
+    if let BoxValue::NonNull = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let BoxValue::Unknown = right { unresolved_flavor = 1; };
+    if let BoxValue::NonNull = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let BoxValue::Unimplemented = left { unresolved_flavor = 2; };
     if let BoxValue::Unimplemented = right { unresolved_flavor = 2; };
     let status = box_pair_status(left, right);

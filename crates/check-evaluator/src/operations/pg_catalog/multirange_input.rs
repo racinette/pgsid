@@ -138,16 +138,19 @@ fn multirange_text_advance(input: MultirangeTextPayload) -> MultirangeTextPayloa
     )
 }
 
+// Cursor states -1 and -3 hold an unresolved text or member that is Unknown or Unimplemented.
 pub(crate) fn prepare_multirange_text(input: TextValue) -> MultirangeTextPayload {
     let characters: Vec<char> = Vec::new();
     let ranges: Vec<RangeValue> = Vec::new();
+    let mut unresolved_state: i32 = -1;
+    if let TextValue::Unimplemented = input { unresolved_state = -3; };
     let initial = multirange_text_payload(
         characters,
         0,
         String::new(),
         false,
         ranges,
-        -1,
+        unresolved_state,
         make_sql_error(RANGE_INPUT_SYNTAX),
     );
     if let TextValue::Error(error) = input {
@@ -207,6 +210,8 @@ pub(crate) fn append_multirange_text(
     if let RangeValue::Error(error) = member {
         return multirange_text_failure(input, error);
     };
+    let mut member_state: i32 = -1;
+    if let RangeValue::Unimplemented = member { member_state = -3; };
     if let RangeValue::Value(payload) = member {
         let mut ranges = input.ranges;
         if payload.empty == false {
@@ -228,7 +233,7 @@ pub(crate) fn append_multirange_text(
         input.member,
         input.started,
         input.ranges,
-        -1,
+        member_state,
         input.error,
     )
 }
@@ -241,7 +246,9 @@ pub(crate) fn finish_multirange_text(
     element_kind: i32,
     support: RangeSupport,
 ) -> MultirangeValue {
-    let unresolved_flavor: i32 = 0;
+    let mut unresolved_flavor: i32 = 0;
+    if input.state == -1 { unresolved_flavor = 1; };
+    if input.state == -3 { unresolved_flavor = 2; };
     if input.state == -2 {
         return MultirangeValue::Error(input.error);
     };

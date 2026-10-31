@@ -13,7 +13,9 @@ fn box_coordinate_relation(a: f64, b: f64, mode: i32) -> bool {
 fn box_spatial_relation(left: BoxValue, right: BoxValue, mode: i32) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoxValue::Unknown = left { unresolved_flavor = 1; };
+    if let BoxValue::NonNull = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let BoxValue::Unknown = right { unresolved_flavor = 1; };
+    if let BoxValue::NonNull = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let BoxValue::Unimplemented = left { unresolved_flavor = 2; };
     if let BoxValue::Unimplemented = right { unresolved_flavor = 2; };
     let status = box_pair_status(left, right);
@@ -86,9 +88,13 @@ fn box_from_scalars(
 ) -> BoxValue {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = high_x { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = high_x { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unknown = high_y { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = high_y { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unknown = low_x { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = low_x { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unknown = low_y { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = low_y { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unimplemented = high_x { unresolved_flavor = 2; };
     if let Float8Value::Unimplemented = high_y { unresolved_flavor = 2; };
     if let Float8Value::Unimplemented = low_x { unresolved_flavor = 2; };
@@ -146,7 +152,9 @@ fn box_from_scalars(
 fn box_merge(left: BoxValue, right: BoxValue, intersection: bool) -> BoxValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoxValue::Unknown = left { unresolved_flavor = 1; };
+    if let BoxValue::NonNull = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let BoxValue::Unknown = right { unresolved_flavor = 1; };
+    if let BoxValue::NonNull = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let BoxValue::Unimplemented = left { unresolved_flavor = 2; };
     if let BoxValue::Unimplemented = right { unresolved_flavor = 2; };
     let status = box_pair_status(left, right);
@@ -185,6 +193,7 @@ fn box_merge(left: BoxValue, right: BoxValue, intersection: bool) -> BoxValue {
 fn box_point_status(input: BoxValue, point: PointValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoxValue::Unknown = input { unresolved_flavor = 1; };
+    if let BoxValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let PointValue::Unknown = point { unresolved_flavor = 1; };
     if let BoxValue::Unimplemented = input { unresolved_flavor = 2; };
     if let PointValue::Unimplemented = point { unresolved_flavor = 2; };
@@ -205,6 +214,7 @@ fn box_point_status(input: BoxValue, point: PointValue) -> BoolValue {
 fn box_segment_status(input: BoxValue, segment: LsegValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoxValue::Unknown = input { unresolved_flavor = 1; };
+    if let BoxValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let LsegValue::Unknown = segment { unresolved_flavor = 1; };
     if let BoxValue::Unimplemented = input { unresolved_flavor = 2; };
     if let LsegValue::Unimplemented = segment { unresolved_flavor = 2; };
@@ -225,6 +235,7 @@ fn box_segment_status(input: BoxValue, segment: LsegValue) -> BoolValue {
 fn box_arithmetic(input: BoxValue, point: PointValue, mode: i32) -> BoxValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoxValue::Unknown = input { unresolved_flavor = 1; };
+    if let BoxValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let PointValue::Unknown = point { unresolved_flavor = 1; };
     if let BoxValue::Unimplemented = input { unresolved_flavor = 2; };
     if let PointValue::Unimplemented = point { unresolved_flavor = 2; };
@@ -284,6 +295,7 @@ fn box_arithmetic(input: BoxValue, point: PointValue, mode: i32) -> BoxValue {
 fn box_contains_point(input: BoxValue, point: PointValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoxValue::Unknown = input { unresolved_flavor = 1; };
+    if let BoxValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let PointValue::Unknown = point { unresolved_flavor = 1; };
     if let BoxValue::Unimplemented = input { unresolved_flavor = 2; };
     if let PointValue::Unimplemented = point { unresolved_flavor = 2; };
@@ -319,6 +331,7 @@ fn box_contains_segment(input: BoxValue, segment: LsegValue) -> BoolValue {
 fn box_corner(input: BoxValue, high_x: bool, high_y: bool) -> PointValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoxValue::Unknown = input { unresolved_flavor = 1; };
+    if let BoxValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let BoxValue::Unimplemented = input { unresolved_flavor = 2; };
     if let BoxValue::Error(error) = input {
         return PointValue::Error(error);
@@ -509,6 +522,7 @@ fn box_nearest_segment(input: BoxValue, segment: LsegValue, with_point: bool) ->
 fn box_cross_line(input: BoxValue, line: LineValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoxValue::Unknown = input { unresolved_flavor = 1; };
+    if let BoxValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let LineValue::Unknown = line { unresolved_flavor = 1; };
     if let BoxValue::Unimplemented = input { unresolved_flavor = 2; };
     if let LineValue::Unimplemented = line { unresolved_flavor = 2; };

@@ -409,6 +409,7 @@ pub(crate) fn json_read_array_path(
 ) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let JsonValue::Unknown = input { unresolved_flavor = 1; };
+    if let JsonValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ArrayValue::Unknown = path { unresolved_flavor = 1; };
     if let JsonValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayValue::Unimplemented = path { unresolved_flavor = 2; };

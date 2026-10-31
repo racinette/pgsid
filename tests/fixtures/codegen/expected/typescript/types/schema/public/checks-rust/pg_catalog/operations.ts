@@ -290,6 +290,11 @@ export function aclitemFromTextContext(input: checkruntime.TextValue, limit: num
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -453,6 +458,11 @@ function aclitemPrivileges(input: checkruntime.TextValue): checkruntime.Int8Valu
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -512,6 +522,11 @@ export function makeaclitemAb9i(grantee: checkruntime.OidValue, grantor: checkru
     }
     if (privileges.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (privileges.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (grantable.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -1270,6 +1285,12 @@ export function arraySendG245(input: checkruntime.ArrayValue, output: checkrunti
     if (output.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (output.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(output.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -1743,8 +1764,18 @@ function floatStateArithmetic(left: checkruntime.Float8Value, right: checkruntim
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -2053,6 +2084,11 @@ function floatTransitionTest(input: checkruntime.Float8Value, operation: number)
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -2087,6 +2123,11 @@ function floatTransitionNan(input: checkruntime.Float8Value, condition: checkrun
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (condition.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -2154,8 +2195,18 @@ function floatArrayAccumulate(input: checkruntime.ArrayValue, y: checkruntime.Fl
     if (y.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (y.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (x.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (x.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -2418,20 +2469,50 @@ function floatCombineVariance(first: checkruntime.Float8Value, second: checkrunt
     if (first.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (first.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (second.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (second.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (counts.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (counts.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (tx.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (tx.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (ty.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (ty.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (n.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (n.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (first.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -2944,6 +3025,11 @@ export function parseIdentUh6p(input: checkruntime.TextValue, strict: checkrunti
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (strict.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -3600,6 +3686,11 @@ export function arrayFloat4Output(input: checkruntime.Float4Value): checkruntime
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -3623,6 +3714,11 @@ export function arrayFloat8Output(input: checkruntime.Float8Value): checkruntime
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -4580,6 +4676,11 @@ function arrayStringField(input: string, marker: checkruntime.TextValue, determi
     if (marker.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (marker.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (marker.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -4613,11 +4714,26 @@ function arrayStringSplit(input: checkruntime.TextValue, delimiter: checkruntime
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (delimiter.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (delimiter.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (marker.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (marker.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -4749,8 +4865,18 @@ function arrayStringJoin(input: checkruntime.ArrayOutputPayload, rendered: check
     if (delimiter.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (delimiter.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (marker.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (marker.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (rendered.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -6486,8 +6612,20 @@ export function byteaeqZ0yh(left: checkruntime.ByteaValue, right: checkruntime.B
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(left.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(right.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -6571,8 +6709,20 @@ export function byteaneVolo(left: checkruntime.ByteaValue, right: checkruntime.B
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(left.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(right.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -6656,6 +6806,11 @@ export function textWireContext(input: checkruntime.TextValue, utf8: boolean): c
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -7970,6 +8125,11 @@ export function bitFromTextModifier(input: checkruntime.TextValue, width: number
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -9018,6 +9178,11 @@ function boxEndpoint(input: checkruntime.BoxValue, low: boolean): checkruntime.P
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -9074,6 +9239,11 @@ function boxDimension(input: checkruntime.BoxValue, vertical: boolean): checkrun
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -9104,6 +9274,11 @@ function boxMidpoint(input: checkruntime.BoxValue): checkruntime.PointValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -9128,8 +9303,18 @@ function boxPairStatus(left: checkruntime.BoxValue, right: checkruntime.BoxValue
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -9187,8 +9372,18 @@ function boxAreaRelation(left: checkruntime.BoxValue, right: checkruntime.BoxVal
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -9281,6 +9476,11 @@ function boxBinary(input: checkruntime.BoxValue): checkruntime.ByteaValue {
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -9311,8 +9511,18 @@ function boxCentersDistance(left: checkruntime.BoxValue, right: checkruntime.Box
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -9389,6 +9599,11 @@ export function boxFromText(input: checkruntime.TextValue): checkruntime.BoxValu
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -9436,8 +9651,18 @@ function boxSpatialRelation(left: checkruntime.BoxValue, right: checkruntime.Box
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -9513,14 +9738,34 @@ function boxFromScalars(highX: checkruntime.Float8Value, highY: checkruntime.Flo
     if (highX.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (highX.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (highY.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (highY.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (lowX.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (lowX.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (lowY.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (lowY.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (highX.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -9647,8 +9892,18 @@ function boxMerge(left: checkruntime.BoxValue, right: checkruntime.BoxValue, int
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -9695,6 +9950,11 @@ function boxPointStatus(input: checkruntime.BoxValue, point: checkruntime.PointV
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (point.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -9743,6 +10003,11 @@ function boxSegmentStatus(input: checkruntime.BoxValue, segment: checkruntime.Ls
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (segment.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
@@ -9790,6 +10055,11 @@ function boxArithmetic(input: checkruntime.BoxValue, point: checkruntime.PointVa
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (point.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -9883,6 +10153,11 @@ function boxContainsPoint(input: checkruntime.BoxValue, point: checkruntime.Poin
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (point.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
@@ -9933,6 +10208,11 @@ function boxCorner(input: checkruntime.BoxValue, highX: boolean, highY: boolean)
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -10117,6 +10397,11 @@ function boxCrossLine(input: checkruntime.BoxValue, line: checkruntime.LineValue
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (line.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -10351,8 +10636,20 @@ export function byteacatZitv(left: checkruntime.ByteaValue, right: checkruntime.
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(left.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(right.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -10459,8 +10756,20 @@ function byteaCompare(left: checkruntime.ByteaValue, right: checkruntime.ByteaVa
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(left.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(right.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -10537,8 +10846,20 @@ export function bytealtBe6e(left: checkruntime.ByteaValue, right: checkruntime.B
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(left.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(right.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -10577,8 +10898,20 @@ export function bytealeVi7d(left: checkruntime.ByteaValue, right: checkruntime.B
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(left.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(right.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -10617,8 +10950,20 @@ export function byteagt221r(left: checkruntime.ByteaValue, right: checkruntime.B
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(left.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(right.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -10657,8 +11002,20 @@ export function byteagePaor(left: checkruntime.ByteaValue, right: checkruntime.B
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(left.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(right.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -10697,8 +11054,20 @@ export function byteaLargerIqg1(left: checkruntime.ByteaValue, right: checkrunti
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(left.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(right.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -10740,8 +11109,20 @@ export function byteaSmallerIook(left: checkruntime.ByteaValue, right: checkrunt
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(left.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(right.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -10782,6 +11163,12 @@ function byteaLength(input: checkruntime.ByteaValue): checkruntime.Int4Value {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(input.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -10841,6 +11228,12 @@ export function bitCountU0pl(input: checkruntime.ByteaValue): checkruntime.Int8V
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(input.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -10886,6 +11279,12 @@ export function reverseW0od(input: checkruntime.ByteaValue): checkruntime.ByteaV
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(input.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -10979,6 +11378,12 @@ export function getByte48am(input: checkruntime.ByteaValue, position: checkrunti
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(input.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (position.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
@@ -11048,6 +11453,12 @@ export function getBitThv7(input: checkruntime.ByteaValue, position: checkruntim
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(input.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (position.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
@@ -11113,6 +11524,12 @@ export function setByte8mtw(input: checkruntime.ByteaValue, position: checkrunti
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(input.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (position.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -11197,6 +11614,12 @@ export function setBit06f4(input: checkruntime.ByteaValue, position: checkruntim
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(input.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (position.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -11652,8 +12075,19 @@ export function encodeBvkp(input: checkruntime.ByteaValue, format: checkruntime.
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(input.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (format.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (format.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -11732,8 +12166,18 @@ export function decodeB6gt(input: checkruntime.TextValue, format: checkruntime.T
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (format.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (format.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -11829,6 +12273,12 @@ export function hashbyteaMypt(input: checkruntime.ByteaValue, byteOrder: number)
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(input.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -11863,6 +12313,12 @@ export function hashbyteaextendedU1vz(input: checkruntime.ByteaValue, seed: chec
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(input.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (seed.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -11919,6 +12375,12 @@ function byteaCrc(input: checkruntime.ByteaValue, polynomial: bigint): checkrunt
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(input.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -11980,6 +12442,11 @@ export function byteaFromText(input: checkruntime.TextValue): checkruntime.Bytea
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -12038,6 +12505,12 @@ function byteaIntegerValue(input: checkruntime.ByteaValue, width: number): check
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unspecified") {
+        const width1: number = langruntime.checkedI32(input.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -12114,6 +12587,12 @@ export function int2Hj0w(input: checkruntime.ByteaValue): checkruntime.Int2Value
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(input.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -12148,6 +12627,12 @@ export function int4Lvgc(input: checkruntime.ByteaValue): checkruntime.Int4Value
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(input.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -12569,8 +13054,20 @@ function byteaLike(input: checkruntime.ByteaValue, pattern: checkruntime.ByteaVa
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(input.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (pattern.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (pattern.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(pattern.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -12644,8 +13141,20 @@ export function likeEscapeHk4j(input: checkruntime.ByteaValue, escape: checkrunt
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(input.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (escape.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (escape.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(escape.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -12847,6 +13356,12 @@ export function md5Vpfl(input: checkruntime.ByteaValue): checkruntime.TextValue 
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(input.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -12880,6 +13395,11 @@ export function md5Kt50(input: checkruntime.TextValue): checkruntime.TextValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -12925,6 +13445,12 @@ export function byteaOutputContext(input: checkruntime.ByteaValue, format: numbe
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(input.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -13014,8 +13540,20 @@ function byteaOverlay(input: checkruntime.ByteaValue, replacement: checkruntime.
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(input.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (replacement.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (replacement.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(replacement.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (position.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -13127,8 +13665,20 @@ export function position9w14(input: checkruntime.ByteaValue, pattern: checkrunti
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(input.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (pattern.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (pattern.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(pattern.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -13414,6 +13964,12 @@ function digestSha256(input: checkruntime.ByteaValue, short: boolean): checkrunt
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(input.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -13663,6 +14219,12 @@ function digestSha512(input: checkruntime.ByteaValue, short: boolean): checkrunt
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(input.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -13704,6 +14266,12 @@ function byteaSubstring(input: checkruntime.ByteaValue, position: checkruntime.I
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(input.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (position.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -13824,8 +14392,20 @@ function byteaTrim(input: checkruntime.ByteaValue, pattern: checkruntime.ByteaVa
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(input.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (pattern.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (pattern.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(pattern.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -14253,6 +14833,11 @@ export function catalogVectorFromText(input: checkruntime.TextValue, oid: boolea
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -14841,8 +15426,18 @@ export function bpchareqNpys(left: checkruntime.TextValue, right: checkruntime.T
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -14896,8 +15491,18 @@ export function bpchargeO6oj(left: checkruntime.TextValue, right: checkruntime.T
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -14951,8 +15556,18 @@ export function bpchargtKxc4(left: checkruntime.TextValue, right: checkruntime.T
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -15006,8 +15621,18 @@ export function bpcharle0rch(left: checkruntime.TextValue, right: checkruntime.T
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -15061,8 +15686,18 @@ export function bpcharltQrb5(left: checkruntime.TextValue, right: checkruntime.T
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -15116,8 +15751,18 @@ export function bpcharneQkuu(left: checkruntime.TextValue, right: checkruntime.T
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -15170,6 +15815,11 @@ export function textVc4r(input: checkruntime.TextValue): checkruntime.TextValue 
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -15283,6 +15933,11 @@ function circleFromCenterRadius(center: checkruntime.PointValue, radius: checkru
     }
     if (radius.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (radius.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (center.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -15785,6 +16440,11 @@ export function circleFromText(input: checkruntime.TextValue): checkruntime.Circ
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -15807,8 +16467,18 @@ function circleFuzzyRelation(left: checkruntime.Float8Value, right: checkruntime
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -16696,6 +17366,11 @@ function clockFieldsNumeric(units: checkruntime.TextValue, input: ClockFieldInpu
     if (units.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (units.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (units.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -16737,6 +17412,11 @@ function clockFieldsLegacy(units: checkruntime.TextValue, input: ClockFieldInput
     let unresolvedFlavor: number = 0;
     if (units.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (units.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (units.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -16848,6 +17528,12 @@ export function recordSendYv22(input: checkruntime.CompositeValue, output: check
     }
     if (output.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (output.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(output.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -16982,6 +17668,11 @@ export function recordAnonymousInput(input: checkruntime.TextValue): checkruntim
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -17017,6 +17708,11 @@ export function recordArrayFromText(input: checkruntime.TextValue, nulls: number
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -17269,6 +17965,11 @@ export function prepareCompositeText(input: checkruntime.TextValue, expected: nu
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -17479,8 +18180,18 @@ export function appendCompositeOutput(input: checkruntime.TextValue, field: chec
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (field.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (field.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -18582,8 +19293,18 @@ function floatArithmetic(left: checkruntime.Float8Value, right: checkruntime.Flo
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -18714,8 +19435,18 @@ export function float4largerBpdf(left: checkruntime.Float4Value, right: checkrun
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -18766,8 +19497,18 @@ export function float4smaller1d11(left: checkruntime.Float4Value, right: checkru
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -18854,8 +19595,18 @@ export function float8largerB58s(left: checkruntime.Float8Value, right: checkrun
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -18906,8 +19657,18 @@ export function float8smallerSp3n(left: checkruntime.Float8Value, right: checkru
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -18974,6 +19735,11 @@ function float4Widen(input: checkruntime.Float4Value): checkruntime.Float8Value 
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -19001,6 +19767,11 @@ function float8Narrow(input: checkruntime.Float8Value): checkruntime.Float4Value
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -19036,8 +19807,18 @@ function float8Compare(left: checkruntime.Float8Value, right: checkruntime.Float
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -19125,6 +19906,11 @@ function float8Integer(input: checkruntime.Float8Value): checkruntime.Int8Value 
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -19370,6 +20156,11 @@ export function int2Pv8l(input: checkruntime.Float4Value): checkruntime.Int2Valu
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -19403,6 +20194,11 @@ export function int4Tbuy(input: checkruntime.Float4Value): checkruntime.Int4Valu
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -19444,6 +20240,11 @@ export function int268cf(input: checkruntime.Float8Value): checkruntime.Int2Valu
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -19477,6 +20278,11 @@ export function int4Nc79(input: checkruntime.Float8Value): checkruntime.Int4Valu
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -19612,6 +20418,11 @@ function float8ErrorFunction(input: checkruntime.Float8Value, musl: boolean, com
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -19751,6 +20562,11 @@ export function gammaT3sa(input: checkruntime.Float8Value, musl: boolean): check
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -19929,6 +20745,11 @@ export function lgammaRpzb(input: checkruntime.Float8Value, musl: boolean): chec
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -20094,6 +20915,11 @@ export function dexpWe7o(input: checkruntime.Float8Value, musl: boolean): checkr
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -20132,6 +20958,11 @@ export function dlog16b2t(input: checkruntime.Float8Value, musl: boolean): check
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -20206,6 +21037,11 @@ export function dlog10Uzhv(input: checkruntime.Float8Value, musl: boolean): chec
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -20286,6 +21122,11 @@ export function dcbrtQu0u(input: checkruntime.Float8Value, musl: boolean): check
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -20512,8 +21353,18 @@ export function dpowAnie(left: checkruntime.Float8Value, right: checkruntime.Flo
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -20680,6 +21531,11 @@ export function hashfloat8P4el(input: checkruntime.Float8Value, byteOrder: numbe
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -20709,6 +21565,11 @@ export function hashfloat8extended7sph(input: checkruntime.Float8Value, seed: ch
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (seed.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -21061,6 +21922,11 @@ function float8Hyperbolic(input: checkruntime.Float8Value, musl: boolean, operat
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -21360,6 +22226,11 @@ export function float4FromText(input: checkruntime.TextValue): checkruntime.Floa
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -21395,6 +22266,11 @@ export function float8FromText(input: checkruntime.TextValue): checkruntime.Floa
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -21657,6 +22533,11 @@ function float8InverseTrigonometry(input: checkruntime.Float8Value, fdlibm: bool
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -21703,8 +22584,18 @@ export function atan2Re5y(left: checkruntime.Float8Value, right: checkruntime.Fl
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -21800,6 +22691,11 @@ function float8InverseDegrees(input: checkruntime.Float8Value, fdlibm: boolean, 
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -21886,6 +22782,11 @@ function floatNumericDecimal(input: checkruntime.Float8Value, precision: number)
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -22205,6 +23106,11 @@ export function float8OutputContext(input: checkruntime.Float8Value, extra: numb
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -22235,6 +23141,11 @@ export function float4OutputContext(input: checkruntime.Float4Value, extra: numb
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -22400,6 +23311,11 @@ export function float4sendUk42(input: checkruntime.Float4Value): checkruntime.By
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -22423,6 +23339,11 @@ export function float8send3bqt(input: checkruntime.Float8Value): checkruntime.By
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -22449,6 +23370,11 @@ function float8Trigonometry(input: checkruntime.Float8Value, fdlibm: boolean, co
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -22521,6 +23447,11 @@ function float8DegreeTrigonometry(input: checkruntime.Float8Value, fdlibm: boole
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -22644,6 +23575,11 @@ function float8Tangent(input: checkruntime.Float8Value, fdlibm: boolean, cotange
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -22713,6 +23649,11 @@ function float8DegreeTangent(input: checkruntime.Float8Value, fdlibm: boolean, c
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -22776,11 +23717,26 @@ function floatInRange(value: checkruntime.Float8Value, base: checkruntime.Float8
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (base.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (base.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (offset.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (offset.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (subtract.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -22997,11 +23953,26 @@ export function widthBucketWbi9(operand: checkruntime.Float8Value, lower: checkr
     if (operand.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (operand.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (lower.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (lower.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (upper.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (upper.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (count.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -23124,8 +24095,18 @@ export function int8incFloat8Float8Naop(count: checkruntime.Int8Value, left: che
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (count.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -25782,6 +26763,11 @@ export function internalCharFromText(input: checkruntime.TextValue): checkruntim
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -26775,6 +27761,11 @@ export function toChar0fwv(input: checkruntime.IntervalValue, template: checkrun
     if (template.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (template.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -26936,6 +27927,11 @@ function intervalScaled(input: checkruntime.IntervalValue, factor: checkruntime.
     }
     if (factor.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (factor.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -27259,6 +28255,11 @@ export function makeIntervalNlc1(years: checkruntime.Int4Value, months: checkrun
     }
     if (seconds.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (seconds.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (years.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -28776,6 +29777,11 @@ export function jsonTypeofVzgr(input: checkruntime.JsonValue): checkruntime.Text
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -28796,6 +29802,11 @@ export function jsonToText(input: checkruntime.JsonValue): checkruntime.TextValu
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -28839,6 +29850,11 @@ export function jsonFromText(input: checkruntime.TextValue): checkruntime.JsonVa
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -29063,6 +30079,11 @@ function jsonObjectArrayToJsonb(input: checkruntime.JsonValue): checkruntime.Jso
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -29184,6 +30205,11 @@ function jsonPopulateArrayTextEvent(input: checkruntime.TextValue): checkruntime
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -29477,6 +30503,11 @@ function jsonPopulateCalendarText(input: checkruntime.TextValue): checkruntime.T
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -30661,6 +31692,11 @@ export function jsonbInputFromJsonContext(input: checkruntime.JsonValue, utf8: b
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -30753,6 +31789,11 @@ function jsonbFloatOutputInput(input: checkruntime.TextValue): checkruntime.Json
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -30989,6 +32030,11 @@ export function geometryBoxOutputContext(input: checkruntime.BoxValue, extra: nu
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -31569,6 +32615,11 @@ export function jsonbDeleteCow2(input: checkruntime.JsonbValue, key: checkruntim
     if (key.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (key.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -31912,6 +32963,11 @@ export function jsonbObjectField4uf3(input: checkruntime.JsonbValue, key: checkr
     if (key.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (key.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -32188,6 +33244,11 @@ export function jsonbExistsF8f8(input: checkruntime.JsonbValue, key: checkruntim
     }
     if (key.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (key.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -34025,6 +35086,11 @@ export function jsonbSetLaxLecq(input: checkruntime.JsonbValue, path: checkrunti
     }
     if (treatment.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (treatment.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -37997,6 +39063,11 @@ export function jsonpathFromCoercedSourceUtf8(input: checkruntime.TextValue): ch
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -38023,6 +39094,11 @@ export function jsonpathFromStoredText(input: checkruntime.TextValue): checkrunt
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -38045,6 +39121,11 @@ function lineEqualProduct(left: bigint, right: bigint, ratio: checkruntime.Float
     let unresolvedFlavor: number = 0;
     if (ratio.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (ratio.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (ratio.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -38234,11 +39315,26 @@ function lineFromScalars(first: checkruntime.Float8Value, second: checkruntime.F
     if (first.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (first.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (second.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (second.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (third.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (third.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (first.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -38353,6 +39449,11 @@ function lineFromOriginSlope(origin: checkruntime.PointPayload, gradient: checkr
     let unresolvedFlavor: number = 0;
     if (gradient.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (gradient.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (gradient.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -38648,6 +39749,11 @@ export function lineFromText(input: checkruntime.TextValue): checkruntime.LineVa
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -39197,6 +40303,11 @@ export function literalTextFields(input: checkruntime.TextValue, kind: number): 
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -39790,6 +40901,11 @@ export function lsegFromText(input: checkruntime.TextValue): checkruntime.LsegVa
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -39994,8 +41110,18 @@ function segmentRawRelation(left: checkruntime.Float8Value, right: checkruntime.
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -42008,6 +43134,11 @@ function moneyFloatScale(input: checkruntime.MoneyValue, factor: checkruntime.Fl
     if (factor.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (factor.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -42186,6 +43317,11 @@ export function moneyFromText(input: checkruntime.TextValue): checkruntime.Money
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -42348,6 +43484,11 @@ export function moneyFromTextContext(input: checkruntime.TextValue, cLocale: boo
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -44490,7 +45631,11 @@ function multirangeTextAdvance(input: checkruntime.MultirangeTextPayload): check
 export function prepareMultirangeText(input: checkruntime.TextValue): checkruntime.MultirangeTextPayload {
     const characters: string[] = [];
     const ranges: checkruntime.RangeValue[] = [];
-    const initial: checkruntime.MultirangeTextPayload = multirangeTextPayload(characters, 0, "", false, ranges, langruntime.checkedSignedNegate(1), checkruntime.makeSqlError(rangeInputSyntax));
+    let unresolvedState: number = langruntime.checkedSignedNegate(1);
+    if (input.kind === "Unimplemented") {
+        unresolvedState = langruntime.checkedI32(langruntime.checkedSignedNegate(3));
+    }
+    const initial: checkruntime.MultirangeTextPayload = multirangeTextPayload(characters, 0, "", false, ranges, unresolvedState, checkruntime.makeSqlError(rangeInputSyntax));
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return multirangeTextFailure(initial, error);
@@ -44529,6 +45674,10 @@ export function appendMultirangeText(input: checkruntime.MultirangeTextPayload, 
         const error: checkruntime.SqlError = member.value;
         return multirangeTextFailure(input, error);
     }
+    let memberState: number = langruntime.checkedSignedNegate(1);
+    if (member.kind === "Unimplemented") {
+        memberState = langruntime.checkedI32(langruntime.checkedSignedNegate(3));
+    }
     if (member.kind === "Value") {
         const payload: checkruntime.RangePayload = checkruntime.copyRangePayload(member.value);
         let ranges: checkruntime.RangeValue[] = input.ranges;
@@ -44537,10 +45686,16 @@ export function appendMultirangeText(input: checkruntime.MultirangeTextPayload, 
         }
         return multirangeTextAdvance(multirangeTextPayload(input.characters, input.position, "", true, ranges, 1, input.error));
     }
-    return multirangeTextPayload(input.characters, input.position, input.member, input.started, input.ranges, langruntime.checkedSignedNegate(1), input.error);
+    return multirangeTextPayload(input.characters, input.position, input.member, input.started, input.ranges, memberState, input.error);
 }
 export function finishMultirangeText(input: checkruntime.MultirangeTextPayload, typeName: string, rangeType: string, elementType: string, elementKind: number, support: checkruntime.RangeSupport): checkruntime.MultirangeValue {
-    const unresolvedFlavor: number = 0;
+    let unresolvedFlavor: number = 0;
+    if (input.state === langruntime.checkedSignedNegate(1)) {
+        unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.state === langruntime.checkedSignedNegate(3)) {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     if (input.state === langruntime.checkedSignedNegate(2)) {
         return { kind: "Error", value: input.error };
     }
@@ -44725,8 +45880,18 @@ export function multirangeOutputAppend(output: checkruntime.TextValue, member: c
     if (output.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (output.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (member.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (member.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (index.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -45184,6 +46349,11 @@ export function nameFromTextWithLimit(input: checkruntime.TextValue, limit: chec
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (limit.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
@@ -45251,8 +46421,18 @@ function nameRelation(left: checkruntime.TextValue, right: checkruntime.TextValu
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -45390,6 +46570,11 @@ export function nameFromTextContext(input: checkruntime.TextValue, limit: number
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -45414,8 +46599,18 @@ export function btnamecmp9x5j(left: checkruntime.TextValue, right: checkruntime.
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -48434,6 +49629,11 @@ export function toCharC1f5(input: checkruntime.Int4Value, template: checkruntime
     if (template.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (template.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -48489,6 +49689,11 @@ export function toCharOw74(input: checkruntime.Int8Value, template: checkruntime
     }
     if (template.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (template.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -48832,6 +50037,11 @@ export function toCharHftr(input: checkruntime.NumericValue, template: checkrunt
     if (template.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (template.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -49120,8 +50330,18 @@ export function toCharB68b(input: checkruntime.Float8Value, template: checkrunti
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (template.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (template.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -49186,8 +50406,18 @@ export function toChar1rcw(input: checkruntime.Float4Value, template: checkrunti
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (template.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (template.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -53517,6 +54747,11 @@ export function oidAliasFromText(input: checkruntime.TextValue, dash: boolean, g
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -53677,6 +54912,11 @@ export function regclassWqix(input: checkruntime.TextValue): checkruntime.OidVal
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -54004,6 +55244,11 @@ export function oidFromText(input: checkruntime.TextValue): checkruntime.OidValu
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -54464,8 +55709,18 @@ function pathMinDistance(current: checkruntime.Float8Value, candidate: checkrunt
     if (current.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (current.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (candidate.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (candidate.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (current.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -54817,6 +56072,11 @@ export function pathFromText(input: checkruntime.TextValue): checkruntime.PathVa
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -55966,6 +57226,11 @@ export function pgLsnFromText(input: checkruntime.TextValue): checkruntime.PgLsn
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -56089,8 +57354,18 @@ export function pointDb27(x: checkruntime.Float8Value, y: checkruntime.Float8Val
     if (x.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (x.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (y.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (y.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (x.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -56361,6 +57636,11 @@ export function pointFromText(input: checkruntime.TextValue): checkruntime.Point
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -56581,8 +57861,18 @@ function geometricHypot(first: checkruntime.Float8Value, second: checkruntime.Fl
     if (first.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (first.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (second.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (second.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (first.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -57104,6 +58394,11 @@ export function polygon6ij1(input: checkruntime.BoxValue): checkruntime.PolygonV
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -57469,6 +58764,11 @@ export function polygonFromText(input: checkruntime.TextValue): checkruntime.Pol
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -57605,8 +58905,18 @@ function polygonPathsOverlap(a: checkruntime.PathPayload, b: checkruntime.PathPa
     if (aBounds.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (aBounds.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (bBounds.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (bBounds.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (aBounds.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -58004,8 +59314,20 @@ function rangeBinaryAppend(output: checkruntime.ByteaValue, bound: checkruntime.
     if (output.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (output.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(output.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (bound.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (bound.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(bound.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (output.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -58046,8 +59368,20 @@ export function rangeSendB1w5(input: checkruntime.RangeValue, lower: checkruntim
     if (lower.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (lower.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(lower.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (upper.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (upper.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(upper.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -59357,6 +60691,11 @@ export function rangeConstructTyped(typeName: string, elementType: string, kind:
     if (flags.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (flags.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (lower.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -59808,6 +61147,11 @@ function rangeInputBound(input: checkruntime.TextValue, kind: number, cidr: bool
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -59942,6 +61286,11 @@ export function prepareRangeText(input: checkruntime.TextValue): checkruntime.Ra
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -60359,6 +61708,11 @@ export function rangeFromTextDefined(input: checkruntime.TextValue, typeName: st
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -60494,8 +61848,18 @@ export function rangeFormatText(input: checkruntime.RangeValue, lower: checkrunt
     if (lower.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (lower.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (upper.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (upper.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -61229,6 +62593,11 @@ export function moneyFromCapturedText(input: checkruntime.TextValue, texts: stri
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -61278,6 +62647,11 @@ export function scalarIntegerFromText(input: checkruntime.TextValue, bits: numbe
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -61388,6 +62762,11 @@ export function scalarBooleanFromText(input: checkruntime.TextValue): checkrunti
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -61429,6 +62808,11 @@ export function scalarEnumFromText(input: checkruntime.TextValue, labels: string
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -61469,6 +62853,11 @@ export function scalarNumericFromText(input: checkruntime.TextValue): checkrunti
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -61593,6 +62982,11 @@ function scalarBooleanWord(input: checkruntime.TextValue): checkruntime.BoolValu
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -62270,6 +63664,11 @@ export function snapshotFromText(input: checkruntime.TextValue): checkruntime.Sn
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -63075,6 +64474,11 @@ export function dateTruncD8uf(units: checkruntime.TextValue, input: checkruntime
     let unresolvedFlavor: number = 0;
     if (units.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (units.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -64330,6 +65734,11 @@ export function extractQjml(units: checkruntime.TextValue, input: checkruntime.D
     if (units.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (units.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
@@ -64530,6 +65939,11 @@ export function dateTrunc3i0u(units: checkruntime.TextValue, input: checkruntime
     let unresolvedFlavor: number = 0;
     if (units.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (units.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -66149,6 +67563,11 @@ export function datePartG4hw(units: checkruntime.TextValue, input: checkruntime.
     if (units.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (units.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
@@ -66201,6 +67620,11 @@ export function toTimestampKymq(input: checkruntime.Float8Value): checkruntime.T
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -67309,6 +68733,11 @@ export function extractF4l3(units: checkruntime.TextValue, input: checkruntime.T
     if (units.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (units.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
@@ -67472,6 +68901,11 @@ export function lengthEhpe(value: checkruntime.TextValue): checkruntime.Int4Valu
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (value.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -67512,8 +68946,18 @@ export function texteqAet8(left: checkruntime.TextValue, right: checkruntime.Tex
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -67566,8 +69010,18 @@ export function textne1urq(left: checkruntime.TextValue, right: checkruntime.Tex
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -67620,8 +69074,18 @@ export function textLtZinq(left: checkruntime.TextValue, right: checkruntime.Tex
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -67674,8 +69138,18 @@ export function textLeWb3z(left: checkruntime.TextValue, right: checkruntime.Tex
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -67728,8 +69202,18 @@ export function textGtRb7n(left: checkruntime.TextValue, right: checkruntime.Tex
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -67782,8 +69266,18 @@ export function startsWith6ctf(text: checkruntime.TextValue, prefix: checkruntim
     if (text.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (text.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (prefix.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (prefix.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (text.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -67836,8 +69330,18 @@ export function textGeT8pg(left: checkruntime.TextValue, right: checkruntime.Tex
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -67890,6 +69394,11 @@ export function ascii7m47(input: checkruntime.TextValue): checkruntime.Int4Value
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -67928,6 +69437,11 @@ export function asciiContext(input: checkruntime.TextValue, utf8: boolean): chec
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -67984,6 +69498,11 @@ function textCaseValue(input: checkruntime.TextValue, mode: number): checkruntim
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -69065,6 +70584,11 @@ function textHashValue(input: checkruntime.TextValue, trimSpaces: boolean, byteO
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -69112,6 +70636,11 @@ function textHashExtended(input: checkruntime.TextValue, seed: checkruntime.Int8
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (seed.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -69228,6 +70757,11 @@ export function quoteIdentOutputContext(input: checkruntime.TextValue, quoteAll:
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -69442,8 +70976,18 @@ function textLike(input: checkruntime.TextValue, pattern: checkruntime.TextValue
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (pattern.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (pattern.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -69534,8 +71078,18 @@ export function likeEscapeXfrr(input: checkruntime.TextValue, escape: checkrunti
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (escape.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (escape.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -69657,8 +71211,18 @@ export function bpcharLargerClri(left: checkruntime.TextValue, right: checkrunti
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -69700,8 +71264,18 @@ export function bpcharPatternGeDv6p(left: checkruntime.TextValue, right: checkru
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -69740,8 +71314,18 @@ export function bpcharPatternGtTnmi(left: checkruntime.TextValue, right: checkru
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -69780,8 +71364,18 @@ export function bpcharPatternLe5vh3(left: checkruntime.TextValue, right: checkru
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -69820,8 +71414,18 @@ export function bpcharPatternLt5798(left: checkruntime.TextValue, right: checkru
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -69860,8 +71464,18 @@ export function bpcharSmaller0mnx(left: checkruntime.TextValue, right: checkrunt
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -69915,8 +71529,18 @@ export function textLargerSsmm(left: checkruntime.TextValue, right: checkruntime
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -69958,8 +71582,18 @@ export function textPatternGeV6bi(left: checkruntime.TextValue, right: checkrunt
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -69998,8 +71632,18 @@ export function textPatternGt99dz(left: checkruntime.TextValue, right: checkrunt
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -70038,8 +71682,18 @@ export function textPatternLeDpvx(left: checkruntime.TextValue, right: checkrunt
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -70078,8 +71732,18 @@ export function textPatternLtQftf(left: checkruntime.TextValue, right: checkrunt
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -70118,8 +71782,18 @@ export function textSmallerT2nd(left: checkruntime.TextValue, right: checkruntim
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -70185,11 +71859,21 @@ function textPadding(input: checkruntime.TextValue, length: checkruntime.Int4Val
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (length.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
     if (fill.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (fill.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -70337,6 +72021,11 @@ export function repeatF0fb(input: checkruntime.TextValue, length: checkruntime.I
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (length.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
@@ -70414,11 +72103,26 @@ export function translateTxpt(input: checkruntime.TextValue, from: checkruntime.
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (from.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (from.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (to.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (to.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -70522,6 +72226,11 @@ export function quoteLiteralOutput(input: checkruntime.TextValue, sqlText: boole
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -70620,8 +72329,18 @@ export function textcatS76e(left: checkruntime.TextValue, right: checkruntime.Te
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -70679,8 +72398,18 @@ export function strposEb1n(left: checkruntime.TextValue, right: checkruntime.Tex
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -70747,8 +72476,18 @@ function textOverlayValue(input: checkruntime.TextValue, replacement: checkrunti
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (replacement.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (replacement.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (position.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -70867,11 +72606,26 @@ export function replaceGz9l(input: checkruntime.TextValue, from: checkruntime.Te
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (from.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (from.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (to.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (to.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -70976,8 +72730,18 @@ export function splitPartDoxr(input: checkruntime.TextValue, separator: checkrun
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (separator.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (separator.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (field.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -71108,8 +72872,18 @@ function similarPatternValue(pattern: checkruntime.TextValue, escape: checkrunti
     if (pattern.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (pattern.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (escape.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (escape.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (pattern.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -71290,6 +73064,11 @@ export function pgSizeBytesGgrt(input: checkruntime.TextValue): checkruntime.Int
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -71485,6 +73264,11 @@ function textSubstringValue(input: checkruntime.TextValue, position: checkruntim
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (position.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
@@ -71580,6 +73364,11 @@ function textSideValue(input: checkruntime.TextValue, length: checkruntime.Int4V
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (length.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -71690,6 +73479,11 @@ export function reverse5pr1(input: checkruntime.TextValue): checkruntime.TextVal
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -71795,6 +73589,11 @@ export function toAsciiCulg(value: checkruntime.TextValue): checkruntime.TextVal
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (value.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -71823,6 +73622,11 @@ export function toAsciiUqov(value: checkruntime.TextValue, encoding: checkruntim
     let unresolvedFlavor: number = 0;
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (value.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (encoding.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -71903,6 +73707,11 @@ export function unistrN58m(input: checkruntime.TextValue): checkruntime.TextValu
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -72017,6 +73826,11 @@ function textWidthValue(input: checkruntime.TextValue, modifier: checkruntime.In
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (modifier.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -72159,8 +73973,18 @@ function textBinaryCompare(left: checkruntime.TextValue, right: checkruntime.Tex
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -72216,6 +74040,11 @@ function textMeasureValue(value: checkruntime.TextValue, trimSpaces: boolean, mo
     let unresolvedFlavor: number = 0;
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (value.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (value.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -72284,8 +74113,18 @@ function textTrimValue(value: checkruntime.TextValue, set: checkruntime.TextValu
     if (value.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (value.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (set.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (set.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (value.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -72806,6 +74645,11 @@ export function tidFromText(input: checkruntime.TextValue): checkruntime.TidValu
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -73502,6 +75346,11 @@ export function makeTime6c3q(hour: checkruntime.Int4Value, minute: checkruntime.
     }
     if (second.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (second.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (hour.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -75044,6 +76893,11 @@ export function makeTimestampN30u(year: checkruntime.Int4Value, month: checkrunt
     if (second.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (second.kind === "UnspecifiedNan") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (year.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -75523,6 +77377,11 @@ export function toCharM86d(input: checkruntime.TimestampValue, template: checkru
     }
     if (template.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (template.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -78047,6 +79906,11 @@ export function tsqueryFromTextContext(input: checkruntime.TextValue, utf8: bool
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -80001,6 +81865,11 @@ export function tsqueryFromCapturedText(input: checkruntime.TextValue, plan: Tsq
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (index.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
@@ -80184,6 +82053,11 @@ function tsvectorParseText(input: checkruntime.TextValue, utf8: boolean, stored:
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -80365,6 +82239,11 @@ export function tsvectorFromStoredTextContext(input: checkruntime.TextValue, utf
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -80389,6 +82268,11 @@ export function tsvectorFromStoredTextNativeContext(input: checkruntime.TextValu
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -80703,6 +82587,11 @@ export function tsDeleteY2kd(input: checkruntime.TsvectorValue, selector: checkr
     }
     if (selector.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (selector.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -82465,6 +84354,11 @@ export function xid8FromText(input: checkruntime.TextValue): checkruntime.Xid8Va
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -82555,6 +84449,11 @@ function xmlWellFormedValue(input: checkruntime.TextValue, document: boolean): c
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -82792,8 +84691,19 @@ export function xmlRoot(input: checkruntime.XmlValue, version: checkruntime.Text
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        const knowledge: checkruntime.XmlKnowledge = input.value;
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (version.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (version.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -82851,6 +84761,11 @@ export function xmlMakeProcessingInstruction(name: string, content: checkruntime
     let unresolvedFlavor: number = 0;
     if (content.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (content.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (content.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -84149,8 +86064,18 @@ export function xmlElementAppend(left: checkruntime.TextValue, right: checkrunti
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (left.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (right.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (right.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (left.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -84208,6 +86133,11 @@ export function xmlElementAttribute(name: string, mapped: boolean, implicit: boo
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -84295,8 +86225,18 @@ export function xmlElementFinish(name: string, mapped: boolean, attributes: chec
     if (attributes.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (attributes.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (content.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (content.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (validity.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -84363,6 +86303,11 @@ export function xmlForestFinish(content: checkruntime.TextValue, validity: check
     let unresolvedFlavor: number = 0;
     if (content.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (content.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (validity.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -84483,6 +86428,12 @@ export function xmlValueBinary(input: checkruntime.ByteaValue, mode: number): ch
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unspecified") {
+        const width: number = langruntime.checkedI32(input.value);
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -85187,6 +87138,12 @@ export function xmlIndentUtf8(input: checkruntime.XmlValue, document: boolean, u
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        const knowledge: checkruntime.XmlKnowledge = input.value;
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -87259,6 +89216,11 @@ export function xmlFromStorageText(input: checkruntime.TextValue): checkruntime.
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -87297,6 +89259,11 @@ export function xmlFromTextContext(input: checkruntime.TextValue, mode: number, 
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -87339,6 +89306,12 @@ export function xmlIsDocumentContext(input: checkruntime.XmlValue, utf8: boolean
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        const knowledge: checkruntime.XmlKnowledge = input.value;
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -87368,6 +89341,12 @@ export function xmlSerializeContext(input: checkruntime.XmlValue, mode: number, 
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        const knowledge: checkruntime.XmlKnowledge = input.value;
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -87413,6 +89392,12 @@ export function xmlSendUur7(input: checkruntime.XmlValue, clientUtf8: boolean): 
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        const knowledge: checkruntime.XmlKnowledge = input.value;
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -87433,6 +89418,11 @@ export function xmlFromTextUtf8(input: checkruntime.TextValue, document: boolean
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -87461,6 +89451,12 @@ export function xmlToText(input: checkruntime.XmlValue): checkruntime.TextValue 
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        const knowledge: checkruntime.XmlKnowledge = input.value;
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -87496,6 +89492,12 @@ export function xmlToOutputText(input: checkruntime.XmlValue): checkruntime.Text
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        const knowledge: checkruntime.XmlKnowledge = input.value;
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -87570,6 +89572,12 @@ export function xmlToByteaUtf8(input: checkruntime.XmlValue): checkruntime.Bytea
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        const knowledge: checkruntime.XmlKnowledge = input.value;
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -87599,6 +89607,12 @@ export function xmlIsDocumentUtf8(input: checkruntime.XmlValue): checkruntime.Bo
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        const knowledge: checkruntime.XmlKnowledge = input.value;
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -87636,6 +89650,11 @@ export function xmltextA36t(input: checkruntime.TextValue): checkruntime.XmlValu
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -87683,6 +89702,11 @@ export function xmlcomment8j57(input: checkruntime.TextValue): checkruntime.XmlV
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -87716,8 +89740,19 @@ export function xmlvalidateBvje(input: checkruntime.XmlValue, schema: checkrunti
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "NonNull") {
+        const knowledge: checkruntime.XmlKnowledge = input.value;
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
     if (schema.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (schema.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -87765,6 +89800,11 @@ export function xmlIsWellFormedWikq(input: checkruntime.TextValue, mode: number)
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);

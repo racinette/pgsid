@@ -3,7 +3,9 @@ const SQLSTATE_INVALID_REGEX: u32 = 3452591;
 pub fn eval_regex(subject: TextValue, pattern: TextValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = subject { unresolved_flavor = 1; };
+    if let TextValue::NonNull = subject { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = pattern { unresolved_flavor = 1; };
+    if let TextValue::NonNull = pattern { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = subject { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = pattern { unresolved_flavor = 2; };
     if let TextValue::Error(error) = subject {

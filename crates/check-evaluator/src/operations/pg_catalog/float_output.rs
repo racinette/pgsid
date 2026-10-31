@@ -114,6 +114,7 @@ fn float_output_bits(bits: i64, single: bool, negative: bool, extra: i32, known:
 pub fn float8_output_context(input: Float8Value, extra: i32, known: bool) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Float8Value::Error(error) = input { return TextValue::Error(error); };
     if let Float8Value::Null = input { return TextValue::Null; };
@@ -129,6 +130,7 @@ pub fn float8_output_context(input: Float8Value, extra: i32, known: bool) -> Tex
 pub fn float4_output_context(input: Float4Value, extra: i32, known: bool) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let Float4Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float4Value::UnspecifiedNan = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float4Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Float4Value::Error(error) = input { return TextValue::Error(error); };
     if let Float4Value::Null = input { return TextValue::Null; };

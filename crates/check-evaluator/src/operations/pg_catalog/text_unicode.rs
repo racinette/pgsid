@@ -3,7 +3,9 @@ const UNICODE_INVALID_FORM: u32 = 3452619;
 pub fn sql__pg_catalog__normalize__fhd2(input: TextValue, normal_form: TextValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = normal_form { unresolved_flavor = 1; };
+    if let TextValue::NonNull = normal_form { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = normal_form { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
@@ -33,7 +35,9 @@ pub fn sql__pg_catalog__normalize__fhd2(input: TextValue, normal_form: TextValue
 pub fn sql__pg_catalog__is_normalized__pxj9(input: TextValue, normal_form: TextValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = normal_form { unresolved_flavor = 1; };
+    if let TextValue::NonNull = normal_form { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = normal_form { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
@@ -63,6 +67,7 @@ pub fn sql__pg_catalog__is_normalized__pxj9(input: TextValue, normal_form: TextV
 pub fn sql__pg_catalog__unicode_assigned__46hx(input: TextValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return BoolValue::Error(error);

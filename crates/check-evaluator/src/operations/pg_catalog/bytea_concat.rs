@@ -11,7 +11,9 @@ fn bytea_concat_length(left: i32, right: i32) -> Int4Value {
 pub fn sql__pg_catalog__byteacat__zitv(left: ByteaValue, right: ByteaValue) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = left { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = left { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unknown = right { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = right { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unimplemented = left { unresolved_flavor = 2; };
     if let ByteaValue::Unimplemented = right { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = left {

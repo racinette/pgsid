@@ -1,6 +1,7 @@
 pub fn sql__pg_catalog__float4send__uk42(input: Float4Value) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let Float4Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float4Value::UnspecifiedNan = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float4Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Float4Value::Error(error) = input {
         return ByteaValue::Error(error);
@@ -17,6 +18,7 @@ pub fn sql__pg_catalog__float4send__uk42(input: Float4Value) -> ByteaValue {
 pub fn sql__pg_catalog__float8send__3bqt(input: Float8Value) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Float8Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Float8Value::Error(error) = input {
         return ByteaValue::Error(error);

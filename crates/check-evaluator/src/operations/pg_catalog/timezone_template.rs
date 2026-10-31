@@ -888,7 +888,9 @@ pub fn sql__pg_catalog__to_date__643t(
 ) -> DateValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = template { unresolved_flavor = 1; };
+    if let TextValue::NonNull = template { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = template { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
@@ -1009,7 +1011,9 @@ pub fn sql__pg_catalog__to_timestamp__xn0m(
 ) -> TimestamptzValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = template { unresolved_flavor = 1; };
+    if let TextValue::NonNull = template { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Unimplemented = template { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {

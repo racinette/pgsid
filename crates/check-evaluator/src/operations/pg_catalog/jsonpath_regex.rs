@@ -54,6 +54,7 @@ fn jsonpath_regex_predicate(
 ) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     let node = jsonpath_execution_node(context, reference);
     if node.kind != 4 {

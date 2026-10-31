@@ -121,7 +121,9 @@ fn bytea_like_match(input: &str, pattern: &str) -> Int4Value {
 fn bytea_like(input: ByteaValue, pattern: ByteaValue, negate: bool) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unknown = pattern { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = pattern { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ByteaValue::Unimplemented = pattern { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = input { return BoolValue::Error(error); }
@@ -157,7 +159,9 @@ pub fn sql__pg_catalog__notlike__cy7a(input: ByteaValue, pattern: ByteaValue) ->
 pub fn sql__pg_catalog__like_escape__hk4j(input: ByteaValue, escape: ByteaValue) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unknown = escape { unresolved_flavor = 1; };
+    if let ByteaValue::Unspecified(_width) = escape { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ByteaValue::Unimplemented = escape { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = input { return ByteaValue::Error(error); }

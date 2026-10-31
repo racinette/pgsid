@@ -145,7 +145,9 @@ pub fn sql__pg_catalog__make_timestamptz__nko2(
     if let Int4Value::Unknown = hour { unresolved_flavor = 1; };
     if let Int4Value::Unknown = minute { unresolved_flavor = 1; };
     if let Float8Value::Unknown = second { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = second { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unknown = zone { unresolved_flavor = 1; };
+    if let TextValue::NonNull = zone { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let Int4Value::Unimplemented = year { unresolved_flavor = 2; };
     if let Int4Value::Unimplemented = month { unresolved_flavor = 2; };
     if let Int4Value::Unimplemented = day { unresolved_flavor = 2; };

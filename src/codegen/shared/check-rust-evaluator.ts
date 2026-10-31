@@ -10182,8 +10182,12 @@ export function emitCheckRustEvaluator(
     if (node.kind === 'uncertain') {
       const name = fresh('unknown_result')
       if (node.preparation !== 'runtime') prepareOpaque()
-      // An unbound expression is unimplemented until its binder names the database fact it needs.
-      return { lines: [`let ${name} = check_unresolved(2);`], name, inputs: new Set() }
+      // An unbound expression is unimplemented unless its binder found it needs database context.
+      return {
+        lines: [`let ${name} = check_unresolved(${node.reason === 'context' ? 1 : 2});`],
+        name,
+        inputs: new Set(),
+      }
     }
     if (node.kind === 'eval-regex') {
       if (

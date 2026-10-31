@@ -2,6 +2,7 @@ fn circle_from_center_radius(center: PointValue, radius: Float8Value) -> CircleV
     let mut unresolved_flavor: i32 = 0;
     if let PointValue::Unknown = center { unresolved_flavor = 1; };
     if let Float8Value::Unknown = radius { unresolved_flavor = 1; };
+    if let Float8Value::UnspecifiedNan = radius { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let PointValue::Unimplemented = center { unresolved_flavor = 2; };
     if let Float8Value::Unimplemented = radius { unresolved_flavor = 2; };
     if let PointValue::Error(error) = center {
