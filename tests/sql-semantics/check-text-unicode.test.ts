@@ -269,10 +269,11 @@ describe('Rust CHECK Unicode catalog functions', () => {
                 ? label
                 : normalForm.kind === 'Error'
                   ? normalForm
-                  : label.kind === 'Unknown' || normalForm.kind === 'Unknown'
-                    ? { kind: 'Unknown' }
-                    : label.kind === 'Null' || normalForm.kind === 'Null'
-                      ? { kind: 'Null' }
+                  : // A strict call never runs with a NULL argument, whatever the other holds.
+                    label.kind === 'Null' || normalForm.kind === 'Null'
+                    ? { kind: 'Null' }
+                    : label.kind === 'Unknown' || normalForm.kind === 'Unknown'
+                      ? { kind: 'Unknown' }
                       : { kind: 'True' }
             const row = { ...base(), label, normal_form: normalForm }
             add(['normalized', 'normalized_octets', 'normalized_predicate'], row, expected)

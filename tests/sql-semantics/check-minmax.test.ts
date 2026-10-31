@@ -208,6 +208,8 @@ describe('GREATEST and LEAST CHECK evaluation', () => {
     for (const sql of [
       'GREATEST(amount,floating_amount) IS NULL',
       'GREATEST(ROW(amount,divisor),ROW(divisor,amount)) IS NULL',
+      // Mixed date/instant ordering binds; it reads the declared session zone at evaluation.
+      'LEAST(date_left,timestamptz_left) IS NULL',
     ]) {
       const expression = lower(sql)
       expect(hasUncertain(expression), sql).toBe(false)
@@ -225,7 +227,6 @@ describe('GREATEST and LEAST CHECK evaluation', () => {
       expect(group.checks[0]?.kind, sql).toBe('supported')
     }
     for (const sql of [
-      'LEAST(date_left,timestamptz_left) IS NULL',
       'GREATEST(locale_text,locale_text) IS NULL',
       'LEAST(insensitive_text,insensitive_text) IS NULL',
       'GREATEST(text_left COLLATE "C", text_right COLLATE minmax_locale) IS NULL',
