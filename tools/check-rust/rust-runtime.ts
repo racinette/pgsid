@@ -26,6 +26,61 @@ const crateName = 'pgsid_parity_runtime'
 const keptVariants = 16
 const run = promisify(execFile)
 
+// An exploratory origin report, never a gate: the runtime records the call site of every helper
+// that makes an unresolved result, so a report can name where each deferral starts.
+export const originTracking = process.env['PGSID_PARITY_ORIGINS'] !== undefined
+
+const originRecorder = `
+thread_local! {
+    static PARITY_ORIGINS: std::cell::RefCell<Vec<(i32, i32, &'static str, u32)>> = std::cell::RefCell::new(Vec::new());
+}
+#[track_caller]
+pub fn parity_origin(kind: i32, flavor: i32) {
+    let at = std::panic::Location::caller();
+    PARITY_ORIGINS.with(|origins| {
+        let mut origins = origins.borrow_mut();
+        if origins.len() < 256 {
+            origins.push((kind, flavor, at.file(), at.line()));
+        }
+    });
+}
+pub fn parity_origins_take() -> Vec<(i32, i32, &'static str, u32)> {
+    PARITY_ORIGINS.with(|origins| std::mem::take(&mut *origins.borrow_mut()))
+}
+`
+
+// A call that passes a literal flavor starts a deferral wherever it is written (kind 3).
+export const trackLiteralOrigins = (source: string): string =>
+  source
+    .replace(
+      /\b(\w+_unresolved)\(([12])\)/gu,
+      '{ crate::checkruntime::parity_origin(3, $2); $1($2) }',
+    )
+    .replace(
+      /\barray_comparison_unresolved\(([12]), (\d+)\)/gu,
+      '{ crate::checkruntime::parity_origin(3, $1); array_comparison_unresolved($1, $2) }',
+    )
+
+// Kind 0 marks a flavored constructor, 1 a context resolution and 2 a literal Unknown; a flavor
+// of 0 means nothing upstream was unresolved, so that call starts the deferral. Constructors are
+// defined across the runtime, and the recorder lives with the flavored helpers.
+const trackOrigins = (source: string): string => {
+  const tracked = source
+    .replace(
+      /^pub fn (\w+)_unresolved\(flavor: i32\) -> (\w+) \{$/gmu,
+      '#[track_caller]\npub fn $1_unresolved(flavor: i32) -> $2 {\n    crate::checkruntime::parity_origin(0, flavor);',
+    )
+    .replace(
+      /^pub fn resolution_context\(flavor: i32\) -> i32 \{$/gmu,
+      '#[track_caller]\npub fn resolution_context(flavor: i32) -> i32 {\n    crate::checkruntime::parity_origin(1, flavor);',
+    )
+    .replace(
+      /^pub fn (\w+)_unknown\(\) -> (\w+) \{ (.*) \}$/gmu,
+      '#[track_caller]\npub fn $1_unknown() -> $2 { crate::checkruntime::parity_origin(2, 1); $3 }',
+    )
+  return trackLiteralOrigins(tracked)
+}
+
 export async function ownDirectory(directory: string): Promise<void> {
   let entries: string[]
   try {
@@ -67,6 +122,7 @@ export async function checkRustRuntimeLibrary(source: CheckRustSource): Promise<
   const key = createHash('sha256')
     .update(version)
     .update(JSON.stringify(modules))
+    .update(originTracking ? 'origins' : '')
     .digest('hex')
     .slice(0, 32)
   await ownDirectory(checkRustRuntimeDirectory)
@@ -86,7 +142,15 @@ export async function checkRustRuntimeLibrary(source: CheckRustSource): Promise<
     await writeFile(join(work, 'lib.rs'), root.replace(/^mod /gmu, 'pub mod '))
     for (const name of await readdir(join(work, 'lib-modules'))) {
       const path = join(work, 'lib-modules', name)
-      await writeFile(path, (await readFile(path, 'utf8')).replaceAll('pub(crate)', 'pub'))
+      const source = (await readFile(path, 'utf8')).replaceAll('pub(crate)', 'pub')
+      await writeFile(
+        path,
+        !originTracking
+          ? source
+          : source.includes('pub fn check_unresolved(')
+            ? trackOrigins(source) + originRecorder
+            : trackOrigins(source),
+      )
     }
     await run('rustc', [
       '--edition',

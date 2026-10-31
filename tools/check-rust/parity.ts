@@ -36,13 +36,18 @@ import {
 } from './multirange-input.js'
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
-import { mkdir, readdir, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, symlink, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import type { prepareCheckRustGroup } from '../../src/codegen/shared/check-rust-source.js'
 import { writeCheckRustSources } from './sources.js'
-import { checkRustRuntimeLibrary, linkedCheckRustRoot } from './rust-runtime.js'
+import {
+  checkRustRuntimeLibrary,
+  linkedCheckRustRoot,
+  originTracking,
+  trackLiteralOrigins,
+} from './rust-runtime.js'
 import { recordCheckRustReach } from './reach.js'
 import {
   checkRustTranslation,
@@ -488,6 +493,11 @@ export async function runCheckParity(
   await mkdir(join(directory, 'go'), { recursive: true })
   // An exploratory inventory of Unknown expectations that Unimplemented results now satisfy.
   const flavorReport = process.env['PGSID_PARITY_FLAVOR_REPORT']
+  // Every unresolved result with the call sites that started it, for auditing both flavors.
+  const originReport = originTracking ? process.env['PGSID_PARITY_ORIGINS'] : undefined
+  const originFiles = group.source.modules.flatMap((module) =>
+    module.files.map((file, index) => [`${module.name}-${index}.rs`, file.path] as const),
+  )
   const dataDrivenSetting = process.env['PGSID_PARITY_DATA_DRIVEN']
   const dataDriven =
     dataDrivenSetting === 'always' ||
@@ -616,7 +626,26 @@ export async function runCheckParity(
 ${rustTables.join('\n')}
 struct ParityTables {${[...tables.keys()].map((prefix) => `${prefix}_values: Vec<${rustType(prefix)}>`).join(', ')}}
 ${rustRunners.join('\n')}
-#[test]
+${
+  originReport
+    ? `// A generated evaluator line is shown by its text, since its file is the suite's own.
+fn parity_origin_text(file: &str, line: u32) -> String {
+    if !file.ends_with("evaluators.rs") && !file.contains("checks-modules") { return String::new(); }
+    let path = if file.starts_with('/') { file.to_string() } else { format!("{}/{}", ${rustStringLiteral(directory)}, file.rsplit('/').next().unwrap_or(file)) };
+    let text = std::fs::read_to_string(path).unwrap_or_default();
+    let found = text.lines().nth((line as usize).saturating_sub(1)).unwrap_or("").trim().replace('\\t', " ");
+    format!("{{{}}}", found.chars().take(90).collect::<String>())
+}
+fn parity_origin_path(file: &str) -> String {
+    let base = file.rsplit('/').next().unwrap_or(file);
+    match base {
+${originFiles.map(([name, path]) => `        ${rustStringLiteral(name)} => ${rustStringLiteral(path)}.to_string(),`).join('\n')}
+        _ => file.to_string(),
+    }
+}
+`
+    : ''
+}#[test]
 fn checks_match_postgres() {
     let t = ParityTables {${[...tables.keys()].map((prefix) => `${prefix}_values: parity_table_${prefix}()`).join(', ')}};
     let runners: Vec<fn(&ParityTables, &[usize]) -> CheckOutcome> = vec![${checkNames.map((_, index) => `parity_run_${index}`).join(', ')}];
@@ -635,7 +664,7 @@ fn checks_match_postgres() {
             .map(|list| list.split(',').map(|item| item.parse().unwrap()).collect())
             .unwrap_or_default();
         count += 1;
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| runners[check](&t, &args)));
+${originReport ? '        parity_origins_take();\n' : ''}        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| runners[check](&t, &args)));
         let actual = match result {
             Ok(CheckOutcome::True) => "T".to_string(),
             Ok(CheckOutcome::False) => "F".to_string(),
@@ -645,7 +674,29 @@ fn checks_match_postgres() {
             Ok(CheckOutcome::Error(error)) => format!("E{}", error.state),
             Err(_) => "panic".to_string(),
         };
-        // Until owners name the flavor, an Unknown expectation also admits Unimplemented.
+${
+  originReport
+    ? `        if actual == "U" || actual == "I" {
+            use std::io::Write;
+            let origins = parity_origins_take();
+            let mut sites: Vec<String> = Vec::new();
+            for (kind, flavor, file, line) in origins.iter() {
+                if *flavor != 0 && *kind != 2 && *kind != 3 { continue; }
+                let label = if *kind == 0 || (*kind == 3 && *flavor == 2) { "I" } else { "U" };
+                let site = format!("{}@{}:{}{}", label, parity_origin_path(file), line, parity_origin_text(file, *line));
+                if !sites.contains(&site) { sites.push(site); }
+            }
+            if sites.is_empty() {
+                if let Some((_, flavor, file, line)) = origins.first() {
+                    sites.push(format!("first{}@{}:{}", flavor, parity_origin_path(file), line));
+                }
+            }
+            let mut report = std::fs::OpenOptions::new().create(true).append(true).open(${rustStringLiteral(originReport)}).unwrap();
+            writeln!(report, "{}\\t{}\\t{}\\t{}\\t{}\\t{}", ${rustStringLiteral(directory)}, names[check], fixture, expected, actual, sites.join("\\u{1f}")).unwrap();
+        }
+`
+    : ''
+}        // Until owners name the flavor, an Unknown expectation also admits Unimplemented.
 ${
   flavorReport
     ? `        if expected == "U" && actual == "I" {
@@ -949,6 +1000,11 @@ func TestChecksMatchPostgres(t *testing.T) {
         .join('\n')}\n`,
     )
   }
+  if (originReport)
+    for (const name of await readdir(join(directory, 'checks-modules'))) {
+      const path = join(directory, 'checks-modules', name)
+      await writeFile(path, trackLiteralOrigins(await readFile(path, 'utf8')))
+    }
   await run('rustc', [
     '--edition',
     '2021',
