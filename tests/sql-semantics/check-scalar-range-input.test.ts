@@ -293,7 +293,14 @@ it.each(scalarRangeBatchStarts)(
                   sample !== null &&
                   /[^\x00-\x7f]/u.test(sample) &&
                   native.kind !== 'Error'
+                // A stored nonzero OID-alias constant names an object of one database instance,
+                // so the stored literal is never embedded, even when it deparses as a number.
+                const storedOid =
+                  form.backend.type.startsWith('pg_catalog.reg') &&
+                  form.constant &&
+                  plan.identity.constraint === 'stored'
                 const result: Outcome =
+                  (!bypass && storedOid) ||
                   sourceName ||
                   (!bypass && (runtimeName || textWire)) ||
                   sourceMoney ||
