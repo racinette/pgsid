@@ -81,6 +81,8 @@ describe('renderTypescriptSchemaArtifacts', () => {
     const artifacts = Object.fromEntries(
       result.artifacts.map((artifact) => [artifact.path, artifact.content]),
     )
+    // The int8 domain CHECK compiles through the shared Rust evaluator, so its translated
+    // modules ship beside the schema.
     expect(Object.keys(artifacts)).toEqual([
       '/generated/helpers.d.ts',
       '/jsonschemas/EventPayload.d.ts',
@@ -91,6 +93,10 @@ describe('renderTypescriptSchemaArtifacts', () => {
       '/generated/public/enums.d.ts',
       '/generated/public/domains.d.ts',
       '/generated/public/checks.ts',
+      '/generated/public/checks-rust/checks.ts',
+      '/generated/public/checks-rust/pg_catalog/operations.ts',
+      '/generated/public/checks-rust/checkruntime/runtime.ts',
+      '/generated/public/checks-rust/langruntime/runtime.ts',
       '/generated/public/index.d.ts',
     ])
     expect(artifacts['/generated/helpers.d.ts']).toContain('export type InferInsert')

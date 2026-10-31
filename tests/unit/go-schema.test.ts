@@ -77,10 +77,15 @@ describe('renderGoSchemaArtifacts', () => {
     const result = renderGoSchemaArtifacts(catalog, config, schemas, '/generated', 'db', relations)
 
     expect(result.diagnostics).toEqual([])
-    expect(result.artifacts).toHaveLength(3)
+    // The int8 domain CHECK compiles through the shared Rust evaluator, so its translated
+    // modules ship beside the schema.
     expect(result.artifacts.map((artifact) => artifact.path)).toEqual([
       '/generated/public/schema.go',
       '/generated/public/checks.go',
+      '/generated/public/checkrust/checks.go',
+      '/generated/public/checkrust/checkruntime/runtime.go',
+      '/generated/public/checkrust/langruntime/runtime.go',
+      '/generated/public/checkrust/pg_catalog/operations.go',
       '/jsonschemas/eventpayload.go',
     ])
     const source = result.artifacts.map((artifact) => artifact.content).join('\n')
