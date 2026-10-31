@@ -323,7 +323,8 @@ describe('NULLIF CHECK evaluation', () => {
       for (const suffix of ['null', 'value'])
         for (const [left, right, expected] of [
           [{ kind: 'Unknown' }, input(null), { kind: 'Unknown' }],
-          [input(null), { kind: 'Unknown' }, { kind: 'Unknown' }],
+          // A NULL first operand is returned whatever the second is, which both forms decide.
+          [input(null), { kind: 'Unknown' }, { kind: 'True' }],
           [{ kind: 'Unknown' }, family.values[0]!.input, { kind: 'Unknown' }],
           [family.values[0]!.input, { kind: 'Unknown' }, { kind: 'Unknown' }],
           [{ kind: 'Unknown' }, error('22003'), error('22003')],
