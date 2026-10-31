@@ -1079,6 +1079,18 @@ fn check_clone_types(items: &[Item], semantics: &Semantics) -> Result<()> {
             if owner == &inner { payload.clone() } else { None }
         }));
     }
+    // Public adapters construct and read exported payloads, so every type they reach must be
+    // public too; a private one would surface as a name callers cannot use.
+    for item in items {
+        let (name, public) = match item {
+            Item::Struct(structure) => (&structure.ident, matches!(structure.vis, syn::Visibility::Public(_))),
+            Item::Enum(enumeration) => (&enumeration.ident, matches!(enumeration.vis, syn::Visibility::Public(_))),
+            _ => continue,
+        };
+        if !public && exported_payloads.contains(&name.to_string()) {
+            return Err(format!("exported value payload reaches private type {name}"));
+        }
+    }
     for name in &semantics.clone {
         let supported = |ty: &String| scalar(ty) || semantics.copy.contains(ty);
         let owned_record = items.iter().any(|item| {
