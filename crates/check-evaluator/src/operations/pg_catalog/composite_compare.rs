@@ -14,6 +14,7 @@ fn record_comparison_state(state: i32, error: SqlError) -> ArrayComparisonPayloa
         error: error,
         tail: 0,
         value: 0,
+        flavor: 2,
     }
 }
 
@@ -31,15 +32,13 @@ pub fn prepare_record_comparison(
     if let CompositeValue::Error(error) = right {
         return record_comparison_state(-2, error);
     };
-    if let CompositeValue::Unknown = left {
-        return record_comparison_state(-1, make_sql_error(0));
-    }; if let CompositeValue::Unimplemented = left {
-        return record_comparison_state(-1, make_sql_error(0));
-    };
-    if let CompositeValue::Unknown = right {
-        return record_comparison_state(-1, make_sql_error(0));
-    }; if let CompositeValue::Unimplemented = right {
-        return record_comparison_state(-1, make_sql_error(0));
+    let mut deferred_flavor: i32 = 0;
+    if let CompositeValue::Unknown = left { deferred_flavor = 1; };
+    if let CompositeValue::Unknown = right { deferred_flavor = 1; };
+    if let CompositeValue::Unimplemented = left { deferred_flavor = 2; };
+    if let CompositeValue::Unimplemented = right { deferred_flavor = 2; };
+    if deferred_flavor > 0 {
+        return array_comparison_unresolved(deferred_flavor, 0);
     };
     if let CompositeValue::Null = left {
         return record_comparison_state(0, make_sql_error(0));
@@ -76,6 +75,7 @@ pub fn prepare_record_comparison(
                 error: make_sql_error(0),
                 tail: tail,
                 value: 0,
+                flavor: 2,
             };
         };
     };

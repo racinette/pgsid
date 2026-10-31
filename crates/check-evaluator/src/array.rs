@@ -84,6 +84,18 @@ pub(crate) fn array_validity_possible(input: CheckOutcome) -> CheckOutcome {
     CheckOutcome::True
 }
 
+// A branch that would fail matters only when its unresolved guard selects it, so the result
+// takes the guard's flavor.
+pub(crate) fn array_validity_possible_under(input: CheckOutcome, guard: CheckOutcome) -> CheckOutcome {
+    if let CheckOutcome::Error(_) = input {
+        if guard == CheckOutcome::Unknown {
+            return check_unresolved(1);
+        };
+        return check_unresolved(2);
+    };
+    array_validity_possible(input)
+}
+
 pub(crate) fn array_constructor_from_validity(
     input: ArrayValue,
     validity: CheckOutcome,
@@ -183,6 +195,18 @@ pub(crate) fn append_array_cast_conversion(
     append_array_conversion(input, element, true)
 }
 
+// An unresolved payload records whether a database-dependent element (-3) or an unimplemented
+// one (-1) stopped it.
+pub(crate) fn array_output_flavor(state: i32, flavor: i32) -> i32 {
+    if state == -1 || flavor == 2 {
+        return 2;
+    };
+    if state == -3 {
+        return 1;
+    };
+    flavor
+}
+
 pub(crate) fn make_array_conversion() -> ArrayOutputPayload {
     let dimensions: Vec<ArrayDimension> = Vec::new();
     let elements: Vec<ArrayElement> = Vec::new();
@@ -210,8 +234,13 @@ pub(crate) fn append_array_conversion(
     };
     if state == 1 && unknown_valid == false {
         if let ArrayElement::Unknown = element {
-            state = -1;
+            state = -3;
         }; if let ArrayElement::Unimplemented = element {
+            state = -1;
+        };
+    };
+    if state == -3 && unknown_valid == false {
+        if let ArrayElement::Unimplemented = element {
             state = -1;
         };
     };
@@ -240,7 +269,7 @@ pub(crate) fn array_conversion_arguments(
         return ArrayArguments::Error(input.error);
     };
     if input.state != 1 {
-        return array_arguments_unresolved(unresolved_flavor);
+        return array_arguments_unresolved(array_output_flavor(input.state, unresolved_flavor));
     };
     ArrayArguments::Value(ArrayPayload {
         null_bitmap: input.null_bitmap,
@@ -263,6 +292,9 @@ pub fn prepare_array_output(input: ArrayValue) -> ArrayOutputPayload {
     };
     let mut state = -1;
     let mut error = make_sql_error(0);
+    if let ArrayValue::Unknown = input {
+        state = -3;
+    };
     if let ArrayValue::Null = input {
         state = 0;
     };
@@ -2197,11 +2229,38 @@ pub struct ArrayComparisonPayload {
     pub error: SqlError,
     pub tail: i32,
     pub value: i32,
+    // For an unresolved payload: 1 when only database state stopped it, 2 otherwise.
+    pub flavor: i32,
 }
 
 #[derive(Clone)]
 pub enum ArrayComparisonPlan {
     Value(ArrayComparisonPayload),
+}
+
+pub(crate) fn array_comparison_unresolved(flavor: i32, value: i32) -> ArrayComparisonPayload {
+    let left: Vec<ArrayElement> = Vec::new();
+    let right: Vec<ArrayElement> = Vec::new();
+    ArrayComparisonPayload {
+        left: left,
+        right: right,
+        limit: 0,
+        state: -1,
+        error: make_sql_error(0),
+        tail: 0,
+        value: value,
+        flavor: flavor,
+    }
+}
+
+pub(crate) fn array_comparison_flavor(input: &ArrayComparisonPayload, flavor: i32) -> i32 {
+    if flavor == 2 || input.flavor == 2 {
+        return 2;
+    };
+    if input.flavor == 1 {
+        return 1;
+    };
+    flavor
 }
 
 fn array_comparison_state(state: i32, error: SqlError, value: i32) -> ArrayComparisonPayload {
@@ -2215,6 +2274,7 @@ fn array_comparison_state(state: i32, error: SqlError, value: i32) -> ArrayCompa
         error: error,
         tail: 0,
         value: value,
+        flavor: 2,
     }
 }
 
@@ -2266,15 +2326,13 @@ pub fn prepare_array_comparison(
     if let ArrayValue::Error(error) = right {
         return array_comparison_state(-2, error, 0);
     };
-    if let ArrayValue::Unknown = left {
-        return array_comparison_state(-1, make_sql_error(0), 0);
-    }; if let ArrayValue::Unimplemented = left {
-        return array_comparison_state(-1, make_sql_error(0), 0);
-    };
-    if let ArrayValue::Unknown = right {
-        return array_comparison_state(-1, make_sql_error(0), 0);
-    }; if let ArrayValue::Unimplemented = right {
-        return array_comparison_state(-1, make_sql_error(0), 0);
+    let mut deferred_flavor: i32 = 0;
+    if let ArrayValue::Unknown = left { deferred_flavor = 1; };
+    if let ArrayValue::Unknown = right { deferred_flavor = 1; };
+    if let ArrayValue::Unimplemented = left { deferred_flavor = 2; };
+    if let ArrayValue::Unimplemented = right { deferred_flavor = 2; };
+    if deferred_flavor > 0 {
+        return array_comparison_unresolved(deferred_flavor, 0);
     };
     if let ArrayValue::Null = left {
         return array_comparison_state(0, make_sql_error(0), 0);
@@ -2310,6 +2368,7 @@ pub fn prepare_array_comparison(
                 error: make_sql_error(0),
                 tail: tail,
                 value: 0,
+                flavor: 2,
             };
         };
     };
@@ -2322,7 +2381,7 @@ pub(crate) fn array_comparison_initial(input: &ArrayComparisonPayload) -> Int4Va
         return Int4Value::Error(input.error);
     };
     if input.state == -1 {
-        return int4_unresolved(unresolved_flavor);
+        return int4_unresolved(array_comparison_flavor(input, unresolved_flavor));
     };
     if input.state == 0 {
         return Int4Value::Null;
@@ -2500,6 +2559,7 @@ pub fn prepare_array_membership(
             error: payload.error,
             tail: payload.tail,
             value: payload.value,
+            flavor: payload.flavor,
         };
     };
     payload
@@ -2511,7 +2571,7 @@ pub fn array_membership_initial(input: &ArrayComparisonPayload, all: bool) -> Bo
         return BoolValue::Error(input.error);
     };
     if input.state == -1 {
-        return bool_unresolved(unresolved_flavor);
+        return bool_unresolved(array_comparison_flavor(input, unresolved_flavor));
     };
     if input.state == 0 {
         return BoolValue::Null;
@@ -2650,8 +2710,8 @@ pub fn finish_array_coercion(
     if input.state == -2 {
         return ArrayValue::Error(input.error);
     };
-    if input.state == -1 {
-        return array_unresolved(unresolved_flavor);
+    if input.state == -1 || input.state == -3 {
+        return array_unresolved(array_output_flavor(input.state, unresolved_flavor));
     };
     if input.state == 0 {
         return ArrayValue::Null;
@@ -2703,15 +2763,13 @@ pub(crate) fn prepare_array_bucket(
     if let ArrayValue::Error(error) = input {
         return array_comparison_state(-2, error, 0);
     };
-    if let ArrayElement::Unknown = needle {
-        return array_comparison_state(-1, make_sql_error(0), 0);
-    }; if let ArrayElement::Unimplemented = needle {
-        return array_comparison_state(-1, make_sql_error(0), 0);
-    };
-    if let ArrayValue::Unknown = input {
-        return array_comparison_state(-1, make_sql_error(0), 0);
-    }; if let ArrayValue::Unimplemented = input {
-        return array_comparison_state(-1, make_sql_error(0), 0);
+    let mut deferred_flavor: i32 = 0;
+    if let ArrayElement::Unknown = needle { deferred_flavor = 1; };
+    if let ArrayValue::Unknown = input { deferred_flavor = 1; };
+    if let ArrayElement::Unimplemented = needle { deferred_flavor = 2; };
+    if let ArrayValue::Unimplemented = input { deferred_flavor = 2; };
+    if deferred_flavor > 0 {
+        return array_comparison_unresolved(deferred_flavor, 0);
     };
     if let ArrayElement::Null = needle {
         return array_comparison_state(0, make_sql_error(0), 0);
@@ -2760,6 +2818,7 @@ pub(crate) fn prepare_array_bucket(
             error: make_sql_error(0),
             tail: 0,
             value: 0,
+            flavor: 2,
         };
     };
     array_comparison_state(-1, make_sql_error(0), 0)
@@ -2889,13 +2948,17 @@ pub fn prepare_array_search(
         if let ArrayElement::Null = needle {
             needle_null = true;
         };
+        let mut needle_flavor: i32 = 0;
         if let ArrayElement::Unknown = needle {
             needle_unknown = true;
+            needle_flavor = 1;
         }; if let ArrayElement::Unimplemented = needle {
             needle_unknown = true;
+            needle_flavor = 2;
         };
         let mut known_null = false;
         let mut unknown_null = false;
+        let mut cell_flavor: i32 = 0;
         let mut position: usize = 0;
         while position < array.elements.len() {
             let element = array.elements[position].clone();
@@ -2904,28 +2967,39 @@ pub fn prepare_array_search(
             };
             if let ArrayElement::Unknown = element {
                 unknown_null = true;
+                if cell_flavor < 1 {
+                    cell_flavor = 1;
+                };
             }; if let ArrayElement::Unimplemented = element {
                 unknown_null = true;
+                cell_flavor = 2;
             };
             position += 1;
         }
+        let mut search_flavor = needle_flavor;
+        if (needle_null || needle_unknown) && cell_flavor > search_flavor {
+            search_flavor = cell_flavor;
+        };
         if needle_null && known_null == false && unknown_null == false {
             return array_comparison_state(2, make_sql_error(0), 0);
         };
         if provided {
-            if (start == Int4Value::Unknown || start == Int4Value::Unimplemented) {
+            if start == Int4Value::Unknown {
+                return array_comparison_unresolved(1, 0);
+            };
+            if start == Int4Value::Unimplemented {
                 return array_comparison_state(-1, make_sql_error(0), 0);
             };
             if start == Int4Value::Null {
                 if known_null == false && (needle_unknown || (needle_null && unknown_null)) {
-                    return array_comparison_state(-1, make_sql_error(0), 0);
+                    return array_comparison_unresolved(search_flavor, 0);
                 };
                 return array_comparison_state(-2, make_sql_error(ARRAY_SEARCH_NULL_START), 0);
             };
         };
         if available == false {
             if known_null == false && (needle_unknown || (needle_null && unknown_null)) {
-                return array_comparison_state(-1, make_sql_error(0), 0);
+                return array_comparison_unresolved(search_flavor, 0);
             };
             return array_comparison_state(-2, make_sql_error(ARRAY_COMPARISON_UNDEFINED), 0);
         };
@@ -2952,6 +3026,7 @@ pub fn prepare_array_search(
             error: make_sql_error(0),
             tail: lower,
             value: offset as i32,
+            flavor: 2,
         };
     };
     array_comparison_state(-1, make_sql_error(0), 0)
@@ -2963,7 +3038,7 @@ pub fn array_search_initial(input: &ArrayComparisonPayload) -> Int4Value {
         return Int4Value::Error(input.error);
     };
     if input.state == -1 {
-        return int4_unresolved(unresolved_flavor);
+        return int4_unresolved(array_comparison_flavor(input, unresolved_flavor));
     };
     Int4Value::Null
 }
@@ -3103,6 +3178,7 @@ pub fn prepare_array_rewrite(
             error: make_sql_error(0),
             tail: 0,
             value: 0,
+            flavor: 2,
         };
     };
     array_comparison_state(-1, make_sql_error(0), 0)
@@ -3219,7 +3295,7 @@ pub fn finish_array_rewrite(
         return ArrayValue::Error(plan.error);
     };
     if plan.state == -1 {
-        return array_unresolved(unresolved_flavor);
+        return array_unresolved(array_comparison_flavor(plan, unresolved_flavor));
     };
     if plan.state == 0 {
         return ArrayValue::Null;
@@ -3311,13 +3387,13 @@ pub fn prepare_array_hash(
     if let Int8Value::Error(error) = seed {
         return array_comparison_state(-2, error, 1);
     };
-    if let ArrayValue::Unknown = input {
-        return array_comparison_state(-1, make_sql_error(0), 1);
-    }; if let ArrayValue::Unimplemented = input {
-        return array_comparison_state(-1, make_sql_error(0), 1);
-    };
-    if (seed == Int8Value::Unknown || seed == Int8Value::Unimplemented) {
-        return array_comparison_state(-1, make_sql_error(0), 1);
+    let mut deferred_flavor: i32 = 0;
+    if let ArrayValue::Unknown = input { deferred_flavor = 1; };
+    if seed == Int8Value::Unknown { deferred_flavor = 1; };
+    if let ArrayValue::Unimplemented = input { deferred_flavor = 2; };
+    if seed == Int8Value::Unimplemented { deferred_flavor = 2; };
+    if deferred_flavor > 0 {
+        return array_comparison_unresolved(deferred_flavor, 1);
     };
     if let ArrayValue::Null = input {
         return array_comparison_state(0, make_sql_error(0), 1);
@@ -3339,6 +3415,7 @@ pub fn prepare_array_hash(
             error: make_sql_error(0),
             tail: 0,
             value: 1,
+            flavor: 2,
         };
     };
     array_comparison_state(-1, make_sql_error(0), 1)

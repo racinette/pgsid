@@ -11,6 +11,7 @@ fn record_hash_state(state: i32, error: SqlError) -> ArrayComparisonPayload {
         error: error,
         tail: 0,
         value: 0,
+        flavor: 2,
     }
 }
 
@@ -46,6 +47,7 @@ pub(crate) fn prepare_record_hash(
                     error: make_sql_error(0),
                     tail: 0,
                     value: 0,
+                    flavor: 2,
                 };
             };
         };

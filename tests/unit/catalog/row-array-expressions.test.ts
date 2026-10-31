@@ -100,7 +100,7 @@ it('keeps earlier native array I/O casts and defers selected unavailable custom 
             ? 'CHECK(ROW(n,ARRAY[label]::int4[])::reading IS NOT NULL)'
             : undefined,
         )!.expression,
-      ).toEqual({ kind: 'uncertain' })
+      ).toEqual({ kind: 'uncertain', reason: 'context' })
   } finally {
     await pg.close()
   }

@@ -1212,7 +1212,7 @@ export function arrayBinaryInitial(input: checkruntime.ArrayOutputPayload, suppo
         }
         return result;
     }
-    return checkruntime.byteaUnresolved(unresolvedFlavor);
+    return checkruntime.byteaUnresolved(checkruntime.arrayOutputFlavor(input.state, unresolvedFlavor));
 }
 export function containerBinaryMissing(input: checkruntime.ArrayElement, absent: boolean): checkruntime.ByteaValue {
     let unresolvedFlavor: number = 0;
@@ -3816,7 +3816,7 @@ export function finishArrayOutput(input: checkruntime.ArrayOutputPayload, render
         return { kind: "Null" };
     }
     if (!(input.state === 1)) {
-        return checkruntime.textUnresolved(unresolvedFlavor);
+        return checkruntime.textUnresolved(checkruntime.arrayOutputFlavor(input.state, unresolvedFlavor));
     }
     if (rendered.kind === "Error") {
         const error: checkruntime.SqlError = rendered.value;
@@ -4894,7 +4894,7 @@ function arrayStringJoin(input: checkruntime.ArrayOutputPayload, rendered: check
         return { kind: "Null" };
     }
     if (!(input.state === 1)) {
-        return checkruntime.textUnresolved(unresolvedFlavor);
+        return checkruntime.textUnresolved(checkruntime.arrayOutputFlavor(input.state, unresolvedFlavor));
     }
     if (rendered.kind === "Error") {
         const error: checkruntime.SqlError = rendered.value;
@@ -17561,7 +17561,7 @@ function recordComparisonState(state: number, error: checkruntime.SqlError): che
     state = langruntime.checkedI32(state);
     const left: checkruntime.ArrayElement[] = [];
     const right: checkruntime.ArrayElement[] = [];
-    return { left: left, right: right, limit: 0, state: state, error: error, tail: 0, value: 0 };
+    return { left: left, right: right, limit: 0, state: state, error: error, tail: 0, value: 0, flavor: 2 };
 }
 export function prepareRecordComparison(left: checkruntime.CompositeValue, right: checkruntime.CompositeValue, leftType: string, rightType: string, leftCount: number, rightCount: number): checkruntime.ArrayComparisonPayload {
     left = checkruntime.copyCompositeValue(left);
@@ -17578,17 +17578,21 @@ export function prepareRecordComparison(left: checkruntime.CompositeValue, right
         const error: checkruntime.SqlError = right.value;
         return recordComparisonState(langruntime.checkedSignedNegate(2), error);
     }
+    let deferredFlavor: number = 0;
     if (left.kind === "Unknown") {
-        return recordComparisonState(langruntime.checkedSignedNegate(1), checkruntime.makeSqlError(0));
-    }
-    if (left.kind === "Unimplemented") {
-        return recordComparisonState(langruntime.checkedSignedNegate(1), checkruntime.makeSqlError(0));
+        deferredFlavor = langruntime.checkedI32(1);
     }
     if (right.kind === "Unknown") {
-        return recordComparisonState(langruntime.checkedSignedNegate(1), checkruntime.makeSqlError(0));
+        deferredFlavor = langruntime.checkedI32(1);
+    }
+    if (left.kind === "Unimplemented") {
+        deferredFlavor = langruntime.checkedI32(2);
     }
     if (right.kind === "Unimplemented") {
-        return recordComparisonState(langruntime.checkedSignedNegate(1), checkruntime.makeSqlError(0));
+        deferredFlavor = langruntime.checkedI32(2);
+    }
+    if (deferredFlavor > 0) {
+        return checkruntime.arrayComparisonUnresolved(deferredFlavor, 0);
     }
     if (left.kind === "Null") {
         return recordComparisonState(0, checkruntime.makeSqlError(0));
@@ -17611,7 +17615,7 @@ export function prepareRecordComparison(left: checkruntime.CompositeValue, right
             if (!(a.fields.length === b.fields.length)) {
                 tail = langruntime.checkedIndex(1);
             }
-            return { left: a.fields, right: b.fields, limit: limit, state: 1, error: checkruntime.makeSqlError(0), tail: tail, value: 0 };
+            return { left: a.fields, right: b.fields, limit: limit, state: 1, error: checkruntime.makeSqlError(0), tail: tail, value: 0, flavor: 2 };
         }
     }
     return recordComparisonState(langruntime.checkedSignedNegate(1), checkruntime.makeSqlError(0));
@@ -17775,7 +17779,7 @@ function recordHashState(state: number, error: checkruntime.SqlError): checkrunt
     state = langruntime.checkedI32(state);
     const left: checkruntime.ArrayElement[] = [];
     const right: checkruntime.ArrayElement[] = [];
-    return { left: left, right: right, limit: 0, state: state, error: error, tail: 0, value: 0 };
+    return { left: left, right: right, limit: 0, state: state, error: error, tail: 0, value: 0, flavor: 2 };
 }
 export function prepareRecordHash(input: checkruntime.CompositeValue, seed: checkruntime.Int8Value, typeName: string, count: number): checkruntime.ArrayComparisonPayload {
     const checked: checkruntime.CompositeValue = checkruntime.compositeFromCoercedValue(input);
@@ -17800,7 +17804,7 @@ export function prepareRecordHash(input: checkruntime.CompositeValue, seed: chec
             const expected: number = langruntime.indexFromI32(count, langruntime.checkedAdd(value1.fields.length, 1));
             if (value1.typeName === typeName && value1.fields.length === expected) {
                 const right: checkruntime.ArrayElement[] = [];
-                return { left: value1.fields, right: right, limit: expected, state: 1, error: checkruntime.makeSqlError(0), tail: 0, value: 0 };
+                return { left: value1.fields, right: right, limit: expected, state: 1, error: checkruntime.makeSqlError(0), tail: 0, value: 0, flavor: 2 };
             }
         }
     }
@@ -18729,7 +18733,7 @@ export function enumToText(input: checkruntime.EnumValue, labels: string, count:
     if (input.kind === "Value") {
         const value: checkruntime.EnumPayload = input.value;
         if (value.ordinal < 0 || value.ordinal >= count) {
-            return checkruntime.textUnresolved(unresolvedFlavor);
+            return checkruntime.textUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         const chars: string[] = Array.from(labels);
         let index: number = 0;
@@ -35268,6 +35272,7 @@ function jsonbDeferredRangeInput(nullness: checkruntime.BoolValue, category: num
         if (category === 2 && key) {
             return { kind: "ConvertedError", value: checkruntime.makeSqlError(jsonbBuildParameter) };
         }
+        return checkruntime.jsonbInputUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
     }
     return checkruntime.jsonbInputUnresolved(unresolvedFlavor);
 }
@@ -70459,7 +70464,7 @@ export function formatArrayCount(input: checkruntime.ArrayOutputPayload): checkr
         const size: number = langruntime.checkedI32(langruntime.checkedIndex(input.elements.length));
         return { kind: "Value", value: size };
     }
-    return checkruntime.int4Unresolved(unresolvedFlavor);
+    return checkruntime.int4Unresolved(checkruntime.arrayOutputFlavor(input.state, unresolvedFlavor));
 }
 export function formatArgumentIndex(input: TextFormatState): checkruntime.Int4Value {
     return { kind: "Value", value: langruntime.checkedSignedSubtract(input.request, 1) };

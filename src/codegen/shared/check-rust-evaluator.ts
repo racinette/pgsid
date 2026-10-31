@@ -1215,7 +1215,7 @@ export function emitCheckRustEvaluator(
     }
     const possible = fresh('array_choice_possible')
     lines.push(
-      `let ${possible} = array_validity_possible(${potential});`,
+      `let ${possible} = array_validity_possible_under(${potential}, ${guard});`,
       `${arrayValidityScope} = array_validity_finish(${arrayValidityScope}, ${possible});`,
     )
     appendValidityRequirement(arrayValidityScope, possible, '-1', lines)
@@ -9618,7 +9618,7 @@ export function emitCheckRustEvaluator(
           const possible = fresh('array_member_possible')
           lines.push(
             `if array_validity_unknown(${name}) {`,
-            `    let ${possible} = array_validity_possible(${validity});`,
+            `    let ${possible} = array_validity_possible_under(${validity}, ${name});`,
             `    ${outer} = array_validity_finish(${outer}, ${possible});`,
             ...indent(validityRequirementLines(outer, possible, diagnostics.reference(validity))),
             `} else {`,
@@ -10037,7 +10037,7 @@ export function emitCheckRustEvaluator(
         const possible = fresh('array_right_possible')
         rightLines.push(
           `if array_validity_unknown(${leftName}) {`,
-          `    let ${possible} = array_validity_possible(${rightValidity});`,
+          `    let ${possible} = array_validity_possible_under(${rightValidity}, ${leftName});`,
           `    ${outerValidity} = array_validity_finish(${outerValidity}, ${possible});`,
           ...indent(
             validityRequirementLines(outerValidity, possible, diagnostics.reference(rightValidity)),

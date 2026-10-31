@@ -23,7 +23,7 @@ pub(crate) fn array_binary_initial(input: &ArrayOutputPayload, support: i32) -> 
         }
         return result;
     };
-    bytea_unresolved(unresolved_flavor)
+    bytea_unresolved(array_output_flavor(input.state, unresolved_flavor))
 }
 
 pub(crate) fn container_binary_missing(input: ArrayElement, absent: bool) -> ByteaValue {

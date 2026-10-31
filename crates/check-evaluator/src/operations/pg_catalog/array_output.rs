@@ -192,7 +192,7 @@ pub fn finish_array_output(
         return TextValue::Null;
     };
     if input.state != 1 {
-        return text_unresolved(unresolved_flavor);
+        return text_unresolved(array_output_flavor(input.state, unresolved_flavor));
     };
     if let ArrayArguments::Error(error) = rendered {
         return TextValue::Error(error);

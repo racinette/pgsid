@@ -231,7 +231,7 @@ it('retains a selected polymorphic array consumer after later custom overload cr
           c.rangeTypes,
           c.compositeTypeGraph,
         )!.expression,
-      ).toEqual({ kind: 'uncertain' })
+      ).toEqual({ kind: 'uncertain', reason: 'context' })
     }
     await expect(pg.exec('INSERT INTO earlier VALUES(1)')).rejects.toMatchObject({ code: '2202E' })
     await pg.exec('INSERT INTO later VALUES(1)')
