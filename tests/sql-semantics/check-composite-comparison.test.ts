@@ -11,7 +11,12 @@ import {
   prepareCheckRustGroup,
 } from '../../src/codegen/shared/check-rust-source.js'
 import { checkRustEntryName } from '../../src/codegen/shared/check-rust-names.js'
-import { runCheckParity, type Row, type Outcome } from '../../tools/check-rust/parity.js'
+import {
+  goParityModule,
+  runCheckParity,
+  type Row,
+  type Outcome,
+} from '../../tools/check-rust/parity.js'
 
 const input = (value: string | boolean | number | null) =>
   value === null ? { kind: 'Null' as const } : { kind: 'Value' as const, value }
@@ -723,7 +728,7 @@ pub fn record_frame_probe(mode:Int4Value)->BoolValue {if let Int4Value::Value(n)
       `package pg_catalog
 import (
  "testing"
- . "recordframestates/checkruntime"
+ . "${goParityModule}/checkruntime"
 )
 func TestRecordFrameOwnsInputs(t *testing.T) {
  original:=CompositeValue{Kind:CompositeValueValue,Value:CompositePayload{TypeName:"public.pair",Fields:[]ArrayElement{{Kind:ArrayElementComposite,Composite:CompositePayload{TypeName:"public.child",Fields:[]ArrayElement{{Kind:ArrayElementInt4,Int4:7}}}}}}}

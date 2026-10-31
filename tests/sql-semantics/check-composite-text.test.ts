@@ -11,7 +11,12 @@ import {
   prepareCheckRustGroup,
 } from '../../src/codegen/shared/check-rust-source.js'
 import { checkRustEntryName } from '../../src/codegen/shared/check-rust-names.js'
-import { runCheckParity, type Row, type Outcome } from '../../tools/check-rust/parity.js'
+import {
+  goParityModule,
+  runCheckParity,
+  type Row,
+  type Outcome,
+} from '../../tools/check-rust/parity.js'
 
 it('parses and renders record text with ordered field conversion, NULL fields, quoting, modifiers and lazy casts', async () => {
   const pg = await PGlite.create(),
@@ -299,7 +304,7 @@ pub fn composite_text_kept_cursor(input:CompositeTextPlan)->CompositeTextPlan {i
       `package pg_catalog
 import (
  "testing"
- . "compositetextstates/checkruntime"
+ . "${goParityModule}/checkruntime"
 )
 func TestCompositeTextCursorCopies(t *testing.T) {
  original:=AppendCompositeText(PrepareCompositeText(MakeTextValue("(a,b)"),2),ArrayElement{Kind:ArrayElementComposite,Composite:CompositePayload{TypeName:"public.child",Fields:[]ArrayElement{{Kind:ArrayElementInt4,Int4:7}}}},false)

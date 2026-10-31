@@ -88,7 +88,7 @@ fn multirange_plan_support(mode:i32)->RangeSupport {
 }
 fn multirange_plan_bound(input:TextValue,mode:i32)->ArrayElement {
  if mode==3 {return ArrayElement::Error(make_sql_error(3452582));};
- let parsed=range_input_bound(input,2);
+ let parsed=range_input_bound(input,2,false,false,0,false,"",0);
  if mode==2 {if let ArrayElement::Int4(number)=parsed {if number<=0 {return ArrayElement::Error(make_sql_error(3505720));};};};
  parsed
 }
