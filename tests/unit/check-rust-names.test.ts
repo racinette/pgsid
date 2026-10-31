@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { readdirSync } from 'node:fs'
 import {
   assertUniqueCheckEntryNames,
   checkRustEntryName,
@@ -37,7 +38,13 @@ describe('CHECK evaluator identity names', () => {
       graph.modules.flatMap((module) => module.files.map((file) => file.path))
     expect(sources(withoutZones).some((path) => path.includes('/timezone'))).toBe(false)
     expect(sources(withZones)).toContain('generated/timezone_tables.rs')
-    expect(sources(withZones).filter((path) => path.includes('/timezone'))).toHaveLength(6)
+    // The timezone family is included as a whole, so the count follows the files on disk.
+    const family = readdirSync('crates/check-evaluator/src/operations/pg_catalog').filter((name) =>
+      /^timezone(?:_|\.rs$)/u.test(name),
+    )
+    expect(sources(withZones).filter((path) => path.includes('/timezone'))).toHaveLength(
+      family.length + 1,
+    )
   })
   it('includes the regex engine and execution sources only for their consumers', () => {
     const paths = (graph: ReturnType<typeof assembleCheckRust>) =>
