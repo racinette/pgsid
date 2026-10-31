@@ -229,8 +229,11 @@ export function containerConstant<Leaf>(
           }
           const count = word(data, 8),
             flags = 12 + Math.max(count - 1, 0) * 4
+          // PostgreSQL pads even an empty multirange's header to the subtype alignment.
           if (count === 0)
-            return data.length === 12 ? { kind: 'multirange', ranges: [] } : undefined
+            return data.length === align(12, subtype.alignment)
+              ? { kind: 'multirange', ranges: [] }
+              : undefined
           if (count > 2147483647 || flags + count > data.length) return undefined
           const begin = align(flags + count, subtype.alignment),
             values: ContainerStorageFacet<Leaf>[] = []
