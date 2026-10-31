@@ -17,7 +17,9 @@ export const oidAliasInputForms = oidAliasTypes.map((type) => {
       '',
       '  ',
       ...(name === 'regoper' || name === 'regoperator' ? [] : ['-']),
-      ...(signature ? [...numericNames, 'pgsid_runtime_object'] : []),
+      // Too many dotted names is a soft lookup failure for signatures but hard for most plain
+      // lookups, so only signature lookups decide it.
+      ...(signature ? [...numericNames, 'pgsid_runtime_object', 'a.b.c.d'] : []),
     ],
     platformDependent: ['18446744071562067968', '18446744073709551614', '18446744073709551615'],
     contextRequired: signature
@@ -25,6 +27,11 @@ export const oidAliasInputForms = oidAliasTypes.map((type) => {
       : ['pgsid_runtime_object', ...(name === 'regtype' ? [] : numericNames)],
     unimplementedGrammar: signature
       ? ['foo(']
-      : ['"unterminated', 'foo..bar', ...(name === 'regtype' ? [...numericNames, 'integer['] : [])],
+      : [
+          '"unterminated',
+          'foo..bar',
+          'a.b.c.d',
+          ...(name === 'regtype' ? [...numericNames, 'integer['] : []),
+        ],
   }
 })

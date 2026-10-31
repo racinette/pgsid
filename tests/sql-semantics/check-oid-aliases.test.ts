@@ -132,9 +132,18 @@ describe('catalog OID aliases', () => {
       [null, null],
     ]
     const fixtures: { name: string; row: Row; expected: Outcome }[] = []
+    // A stored nonzero alias constant names an object of one database instance, so it is never
+    // embedded, even when it deparses as a number.
     const add = (name: string, row: Row, outcome: Outcome) => {
       for (const suffix of ['raw', 'stored'])
-        fixtures.push({ name: name + '_' + suffix, row, expected: outcome })
+        fixtures.push({
+          name: name + '_' + suffix,
+          row,
+          expected:
+            suffix === 'stored' && name.endsWith('_string_literal') && outcome.kind !== 'Error'
+              ? { kind: 'Unknown' }
+              : outcome,
+        })
     }
     for (const entry of entries) {
       const n = entry.type.slice('pg_catalog.'.length)
