@@ -105,3 +105,16 @@ reports retain their selection instead of presenting it as the full inventory:
 ```sh
 node --import tsx scripts/check-measurements/historical.ts 'pg_catalog.int4:array' boolean_test
 ```
+
+The shape census is exploratory and stays out of the gate. It enumerates nested
+domain, array, range and composite shapes over hand-written scalar edge values,
+writes them as generated worlds, and measures stored constants, text input and
+text output through the world INSERT runner. PostgreSQL decides each row; a
+generated check must agree or stay Unknown. Unknown cells form the precision map,
+and a mismatch is a defect to reproduce in a maintained owner:
+
+```sh
+node --import tsx scripts/check-measurements/shapes.ts
+PGSID_CHECK_WORLDS_DIRECTORY=artifacts/check-shapes/worlds vitest run tests/sql-semantics/check-worlds.test.ts
+node --import tsx scripts/check-measurements/shapes.ts --summarize
+```

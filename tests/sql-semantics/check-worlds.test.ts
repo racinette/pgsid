@@ -13,7 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { execFile } from 'node:child_process'
 import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL, fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import type { Node } from 'libpg-query'
@@ -91,7 +91,13 @@ import {
 import { constantInput } from '../unit/query/espalier/worlds/[world]/check-seed.sql.mjs'
 
 const run = promisify(execFile)
-const worldsDirectory = fileURLToPath(new URL('../unit/query/worlds/', import.meta.url))
+// Exploratory measurements point the runner at generated worlds; their report sits beside them
+// and never stands for the maintained corpus.
+const worldsOverride = process.env['PGSID_CHECK_WORLDS_DIRECTORY']
+const worldsDirectory = worldsOverride
+  ? resolve(worldsOverride)
+  : fileURLToPath(new URL('../unit/query/worlds/', import.meta.url))
+const worldsRoot = pathToFileURL(worldsDirectory + '/')
 const quote = (name: string) => '"' + name.replaceAll('"', '""') + '"'
 type Result = {
   constraint: string
@@ -122,14 +128,19 @@ if (
 const worlds = selectedWorldNames
   ? availableWorlds.filter((world) => selectedWorldNames.includes(world.name))
   : availableWorlds
-const reportDirectory = fileURLToPath(
-  new URL(
-    selectedWorldNames
-      ? '../../artifacts/check-worlds/scoped/' + worlds.map((world) => world.name).join('+') + '/'
-      : '../../artifacts/check-worlds/',
-    import.meta.url,
-  ),
-)
+const scoped = selectedWorldNames !== undefined || worldsOverride !== undefined
+const reportDirectory = worldsOverride
+  ? join(dirname(worldsDirectory), 'report')
+  : fileURLToPath(
+      new URL(
+        selectedWorldNames
+          ? '../../artifacts/check-worlds/scoped/' +
+              worlds.map((world) => world.name).join('+') +
+              '/'
+          : '../../artifacts/check-worlds/',
+        import.meta.url,
+      ),
+    )
 
 const cases: Case[] = []
 const checkWorlds = new Set<string>()
@@ -261,7 +272,7 @@ if (binaryContextCases.size !== platformDependentCases.size + sessionDependentCa
   throw new Error('Duplicate binary context case declarations')
 const binaryDeferrals = (identity: string): number =>
   [...binaryContextCases.values()].filter((name) => name === identity).length
-const sourceDigest = await worldSourceDigest()
+const sourceDigest = await worldSourceDigest(worldsRoot)
 for (const world of worlds) {
   if (
     worldPurpose(await readFile(join(worldsDirectory, world.name, 'schema.sql'), 'utf8')) ===
@@ -1981,8 +1992,7 @@ describe('world CHECK INSERT parity', () => {
     for (const [identity, constraint] of declaredValueContextCases) {
       const slash = identity.lastIndexOf('/')
       const item = caseResults.find((row) => row.name === identity.slice(0, slash))
-      if (selectedWorldNames && !worlds.some((world) => identity.startsWith(world.name + '/')))
-        continue
+      if (scoped && !worlds.some((world) => identity.startsWith(world.name + '/'))) continue
       expect(item, identity).toBeDefined()
       const check = item!.checks.find((row) => row.constraint === identity.slice(slash + 1))!
       expect.soft(check.result.certain, identity).toBe(false)
@@ -1990,7 +2000,7 @@ describe('world CHECK INSERT parity', () => {
       expect(item!.database.accepted, identity).toBe(true)
       expect(check.postgres, identity).toBe(true)
     }
-    if (!selectedWorldNames) {
+    if (!scoped) {
       for (const [identity, constraint] of binaryContextCases) {
         const slash = identity.lastIndexOf('/')
         const item = caseResults.find((row) => row.name === identity.slice(0, slash))!
@@ -3368,7 +3378,7 @@ describe('world CHECK INSERT parity', () => {
       'world_012_package_capacity.warehouse_count_conversions.archived_unit_count',
       'world_012_package_capacity.warehouse_count_conversions.archived_integer_count',
     ]) {
-      if (selectedWorldNames && !coverage.has(identity)) continue
+      if (scoped && !coverage.has(identity)) continue
       const measured = coverage.get(identity)!
       expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
       expect(measured.true, identity).toBeGreaterThan(0)
@@ -3432,7 +3442,7 @@ describe('world CHECK INSERT parity', () => {
         unknown: checks.reduce((sum, item) => sum + item.unknown, 0),
       }
     })
-    if (selectedWorldNames)
+    if (scoped)
       for (const measured of constraints) {
         if (
           !worlds.some(
@@ -3459,7 +3469,9 @@ describe('world CHECK INSERT parity', () => {
         `${name}: needs a rejected INSERT`,
       ).toBe(true)
     }
-    expect(await worldSourceDigest(), 'World inputs changed during evaluation').toBe(sourceDigest)
+    expect(await worldSourceDigest(worldsRoot), 'World inputs changed during evaluation').toBe(
+      sourceDigest,
+    )
     await mkdir(reportDirectory, { recursive: true })
     await writeFile(
       join(reportDirectory, 'report.json'),
@@ -3467,9 +3479,11 @@ describe('world CHECK INSERT parity', () => {
         {
           sourceDigest,
           executionContext,
-          scope: selectedWorldNames
-            ? { kind: 'selected-worlds', worlds: worlds.map((world) => world.name) }
-            : { kind: 'full-corpus' },
+          scope: worldsOverride
+            ? { kind: 'explored-worlds', directory: worldsDirectory }
+            : selectedWorldNames
+              ? { kind: 'selected-worlds', worlds: worlds.map((world) => world.name) }
+              : { kind: 'full-corpus' },
           summary,
           worlds: worldStats,
           constraints,

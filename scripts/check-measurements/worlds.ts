@@ -29,8 +29,8 @@ export function worldRejectionCoverage(
   }
 }
 
-export async function worldSources() {
-  const names = (await readdir(directory, { withFileTypes: true }))
+export async function worldSources(root: URL = directory) {
+  const names = (await readdir(root, { withFileTypes: true }))
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .sort()
@@ -40,16 +40,16 @@ export async function worldSources() {
       files: await Promise.all(
         ['schema.sql', 'data.sql', 'check-seed.sql'].map(async (file) => ({
           file,
-          source: await readFile(new URL(`${name}/${file}`, directory), 'utf8'),
+          source: await readFile(new URL(`${name}/${file}`, root), 'utf8'),
         })),
       ),
     })),
   )
 }
 
-export async function worldSourceDigest(): Promise<string> {
+export async function worldSourceDigest(root: URL = directory): Promise<string> {
   return createHash('sha256')
-    .update(JSON.stringify(await worldSources()))
+    .update(JSON.stringify(await worldSources(root)))
     .digest('hex')
 }
 
