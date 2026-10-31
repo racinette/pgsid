@@ -1,6 +1,7 @@
 fn binary_send_bits(input: Int8Value, width: i32) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let Int8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Int8Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Int8Value::Error(error) = input {
         return ByteaValue::Error(error);
     }

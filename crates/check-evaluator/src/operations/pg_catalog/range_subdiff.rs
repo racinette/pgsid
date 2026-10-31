@@ -11,6 +11,7 @@ fn range_subdiff_integer(left: Int8Value, right: Int8Value, seconds: bool) -> Fl
 fn range_subdiff_date(input: DateValue) -> Int8Value {
     let mut unresolved_flavor: i32 = 0;
     if let DateValue::Unknown = input { unresolved_flavor = 1; };
+    if let DateValue::Unimplemented = input { unresolved_flavor = 2; };
     if let DateValue::Error(error) = input {
         return Int8Value::Error(error);
     };
@@ -26,6 +27,7 @@ fn range_subdiff_date(input: DateValue) -> Int8Value {
 fn range_subdiff_timestamp(input: TimestampValue) -> Int8Value {
     let mut unresolved_flavor: i32 = 0;
     if let TimestampValue::Unknown = input { unresolved_flavor = 1; };
+    if let TimestampValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TimestampValue::Error(error) = input {
         return Int8Value::Error(error);
     };
@@ -41,6 +43,7 @@ fn range_subdiff_timestamp(input: TimestampValue) -> Int8Value {
 fn range_subdiff_timestamptz(input: TimestamptzValue) -> Int8Value {
     let mut unresolved_flavor: i32 = 0;
     if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TimestamptzValue::Error(error) = input {
         return Int8Value::Error(error);
     };

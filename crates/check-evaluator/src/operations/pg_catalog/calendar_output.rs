@@ -55,6 +55,7 @@ fn calendar_output_label(index: i32, spelling: &str) -> String {
 pub fn date_output_context(input: DateValue, style: i32) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let DateValue::Unknown = input { unresolved_flavor = 1; };
+    if let DateValue::Unimplemented = input { unresolved_flavor = 2; };
     if let DateValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -84,6 +85,7 @@ pub fn date_output_context(input: DateValue, style: i32) -> TextValue {
 fn timestamp_output_profile(input: TimestampValue, style: i32, projected: bool) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TimestampValue::Unknown = input { unresolved_flavor = 1; };
+    if let TimestampValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TimestampValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -157,6 +159,7 @@ fn timestamp_output_profile(input: TimestampValue, style: i32, projected: bool) 
 pub fn timestamptz_output_without_context(input: TimestamptzValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TimestamptzValue::Error(error) = input {
         return TextValue::Error(error);
     };

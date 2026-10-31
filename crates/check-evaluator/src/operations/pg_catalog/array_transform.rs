@@ -34,6 +34,8 @@ fn array_push(
     let mut unresolved_flavor: i32 = 0;
     if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
     if let ArrayElement::Unknown = element { unresolved_flavor = 1; };
+    if let ArrayValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let ArrayElement::Unimplemented = element { unresolved_flavor = 2; };
     if prepend {
         if let ArrayElement::Error(error) = element {
             return ArrayValue::Error(error);
@@ -45,8 +47,10 @@ fn array_push(
     if let ArrayElement::Error(error) = element {
         return ArrayValue::Error(error);
     };
-    if let ArrayValue::Unknown = input {
-        return array_unresolved(unresolved_flavor);
+    let mut condition_flavor_50_4: i32 = unresolved_flavor; if let ArrayValue::Unknown = input { if condition_flavor_50_4 < 1 { condition_flavor_50_4 = 1; }; }; if let ArrayValue::Unknown = input {
+        return array_unresolved(condition_flavor_50_4);
+    }; let mut condition_flavor_52_7: i32 = unresolved_flavor; if let ArrayValue::Unimplemented = input { condition_flavor_52_7 = 2; }; if let ArrayValue::Unimplemented = input {
+        return array_unresolved(condition_flavor_52_7);
     };
     if let ArrayValue::Value(value) = input {
         return array_push_payload(value, element, element_type, element_kind, prepend);
@@ -147,6 +151,8 @@ pub fn sql__pg_catalog__array_cat__6rla(left: ArrayValue, right: ArrayValue) -> 
     let mut unresolved_flavor: i32 = 0;
     if let ArrayValue::Unknown = left { unresolved_flavor = 1; };
     if let ArrayValue::Unknown = right { unresolved_flavor = 1; };
+    if let ArrayValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let ArrayValue::Unimplemented = right { unresolved_flavor = 2; };
     if let ArrayValue::Error(error) = left {
         return ArrayValue::Error(error);
     };

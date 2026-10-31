@@ -2,16 +2,18 @@ pub fn sql__pg_catalog__date_trunc__d8uf(units: TextValue, input: IntervalValue)
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = units { unresolved_flavor = 1; };
     if let IntervalValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = units { unresolved_flavor = 2; };
+    if let IntervalValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = units {
         return IntervalValue::Error(error);
     };
     if let IntervalValue::Error(error) = input {
         return IntervalValue::Error(error);
     };
-    if (units == TextValue::Unknown || units == TextValue::NonNull)
-        || input == IntervalValue::Unknown
+    let mut condition_flavor_13_4: i32 = unresolved_flavor; if let TextValue::Unknown = units { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let TextValue::Unimplemented = units { condition_flavor_13_4 = 2; }; if let IntervalValue::Unknown = input { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let IntervalValue::Unimplemented = input { condition_flavor_13_4 = 2; }; if ((units == TextValue::Unknown || units == TextValue::Unimplemented) || units == TextValue::NonNull)
+        || (input == IntervalValue::Unknown || input == IntervalValue::Unimplemented)
     {
-        return interval_unresolved(unresolved_flavor);
+        return interval_unresolved(condition_flavor_13_4);
     };
     if units == TextValue::Null || input == IntervalValue::Null {
         return IntervalValue::Null;
@@ -78,6 +80,9 @@ pub fn sql__pg_catalog__date_bin__67ed(
     if let IntervalValue::Unknown = stride { unresolved_flavor = 1; };
     if let TimestampValue::Unknown = input { unresolved_flavor = 1; };
     if let TimestampValue::Unknown = origin { unresolved_flavor = 1; };
+    if let IntervalValue::Unimplemented = stride { unresolved_flavor = 2; };
+    if let TimestampValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TimestampValue::Unimplemented = origin { unresolved_flavor = 2; };
     if let IntervalValue::Error(error) = stride {
         return TimestampValue::Error(error);
     };
@@ -87,11 +92,11 @@ pub fn sql__pg_catalog__date_bin__67ed(
     if let TimestampValue::Error(error) = origin {
         return TimestampValue::Error(error);
     };
-    if stride == IntervalValue::Unknown
-        || input == TimestampValue::Unknown
-        || origin == TimestampValue::Unknown
+    let mut condition_flavor_95_4: i32 = unresolved_flavor; if let IntervalValue::Unknown = stride { if condition_flavor_95_4 < 1 { condition_flavor_95_4 = 1; }; }; if let IntervalValue::Unimplemented = stride { condition_flavor_95_4 = 2; }; if let TimestampValue::Unknown = input { if condition_flavor_95_4 < 1 { condition_flavor_95_4 = 1; }; }; if let TimestampValue::Unimplemented = input { condition_flavor_95_4 = 2; }; if let TimestampValue::Unknown = origin { if condition_flavor_95_4 < 1 { condition_flavor_95_4 = 1; }; }; if let TimestampValue::Unimplemented = origin { condition_flavor_95_4 = 2; }; if (stride == IntervalValue::Unknown || stride == IntervalValue::Unimplemented)
+        || (input == TimestampValue::Unknown || input == TimestampValue::Unimplemented)
+        || (origin == TimestampValue::Unknown || origin == TimestampValue::Unimplemented)
     {
-        return timestamp_unresolved(unresolved_flavor);
+        return timestamp_unresolved(condition_flavor_95_4);
     };
     if stride == IntervalValue::Null
         || input == TimestampValue::Null
@@ -165,6 +170,9 @@ pub fn sql__pg_catalog__date_bin__0b5n(
     if let IntervalValue::Unknown = stride { unresolved_flavor = 1; };
     if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
     if let TimestamptzValue::Unknown = origin { unresolved_flavor = 1; };
+    if let IntervalValue::Unimplemented = stride { unresolved_flavor = 2; };
+    if let TimestamptzValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TimestamptzValue::Unimplemented = origin { unresolved_flavor = 2; };
     let source_time = interval_calendar_local_payload(input);
     let origin_time = interval_calendar_local_payload(origin);
     let result = sql__pg_catalog__date_bin__67ed(stride, source_time, origin_time);

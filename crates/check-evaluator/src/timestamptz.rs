@@ -1,6 +1,7 @@
 fn timestamptz_from_microseconds(value: Int8Value) -> TimestamptzValue {
     let mut unresolved_flavor: i32 = 0;
     if let Int8Value::Unknown = value { unresolved_flavor = 1; };
+    if let Int8Value::Unimplemented = value { unresolved_flavor = 2; };
     if let Int8Value::Error(error) = value {
         return TimestamptzValue::Error(error);
     }

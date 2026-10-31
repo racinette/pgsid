@@ -1,6 +1,7 @@
 pub fn internal_char_from_text(input: TextValue) -> InternalCharValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input { return InternalCharValue::Error(error); };
     if input == TextValue::Null { return InternalCharValue::Null; };
     if let TextValue::Value(text) = input {
@@ -26,9 +27,11 @@ fn internal_char_compare(left: InternalCharValue, right: InternalCharValue) -> I
     let mut unresolved_flavor: i32 = 0;
     if let InternalCharValue::Unknown = left { unresolved_flavor = 1; };
     if let InternalCharValue::Unknown = right { unresolved_flavor = 1; };
+    if let InternalCharValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let InternalCharValue::Unimplemented = right { unresolved_flavor = 2; };
     if let InternalCharValue::Error(error) = left { return Int4Value::Error(error); };
     if let InternalCharValue::Error(error) = right { return Int4Value::Error(error); };
-    if left == InternalCharValue::Unknown || right == InternalCharValue::Unknown { return int4_unresolved(unresolved_flavor); };
+    let mut condition_flavor_34_4: i32 = unresolved_flavor; if let InternalCharValue::Unknown = left { if condition_flavor_34_4 < 1 { condition_flavor_34_4 = 1; }; }; if let InternalCharValue::Unimplemented = left { condition_flavor_34_4 = 2; }; if let InternalCharValue::Unknown = right { if condition_flavor_34_4 < 1 { condition_flavor_34_4 = 1; }; }; if let InternalCharValue::Unimplemented = right { condition_flavor_34_4 = 2; }; if (left == InternalCharValue::Unknown || left == InternalCharValue::Unimplemented) || (right == InternalCharValue::Unknown || right == InternalCharValue::Unimplemented) { return int4_unresolved(condition_flavor_34_4); };
     if left == InternalCharValue::Null || right == InternalCharValue::Null { return Int4Value::Null; };
     if let InternalCharValue::Value(a) = left {
         if let InternalCharValue::Value(b) = right { return make_int4_value(a - b); };
@@ -39,6 +42,8 @@ fn internal_char_relation(left: InternalCharValue, right: InternalCharValue, mod
     let mut unresolved_flavor: i32 = 0;
     if let InternalCharValue::Unknown = left { unresolved_flavor = 1; };
     if let InternalCharValue::Unknown = right { unresolved_flavor = 1; };
+    if let InternalCharValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let InternalCharValue::Unimplemented = right { unresolved_flavor = 2; };
     let result = internal_char_compare(left, right);
     if let Int4Value::Error(error) = result { return BoolValue::Error(error); };
     if result == Int4Value::Null { return BoolValue::Null; };
@@ -55,6 +60,7 @@ fn internal_char_relation(left: InternalCharValue, right: InternalCharValue, mod
 pub fn sql__pg_catalog__int4__9xis(input: InternalCharValue) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let InternalCharValue::Unknown = input { unresolved_flavor = 1; };
+    if let InternalCharValue::Unimplemented = input { unresolved_flavor = 2; };
     if let InternalCharValue::Error(error) = input { return Int4Value::Error(error); };
     if input == InternalCharValue::Null { return Int4Value::Null; };
     if let InternalCharValue::Value(octet) = input {
@@ -66,6 +72,7 @@ pub fn sql__pg_catalog__int4__9xis(input: InternalCharValue) -> Int4Value {
 pub fn sql__pg_catalog__char__ame0(input: Int4Value) -> InternalCharValue {
     let mut unresolved_flavor: i32 = 0;
     if let Int4Value::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Int4Value::Error(error) = input { return InternalCharValue::Error(error); };
     if input == Int4Value::Null { return InternalCharValue::Null; };
     if let Int4Value::Value(value) = input {
@@ -80,6 +87,7 @@ pub fn sql__pg_catalog__btcharcmp__gfia(left: InternalCharValue, right: Internal
 pub fn sql__pg_catalog__charsend__12ys(input: InternalCharValue) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let InternalCharValue::Unknown = input { unresolved_flavor = 1; };
+    if let InternalCharValue::Unimplemented = input { unresolved_flavor = 2; };
     if let InternalCharValue::Error(error) = input { return ByteaValue::Error(error); };
     if input == InternalCharValue::Null { return ByteaValue::Null; };
     if let InternalCharValue::Value(octet) = input { return ByteaValue::Value(bytea_append_byte(String::new(), octet)); };
@@ -88,6 +96,7 @@ pub fn sql__pg_catalog__charsend__12ys(input: InternalCharValue) -> ByteaValue {
 pub fn sql__pg_catalog__text__j1jh(input: InternalCharValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let InternalCharValue::Unknown = input { unresolved_flavor = 1; };
+    if let InternalCharValue::Unimplemented = input { unresolved_flavor = 2; };
     if let InternalCharValue::Error(error) = input { return TextValue::Error(error); };
     if input == InternalCharValue::Null { return TextValue::Null; };
     if let InternalCharValue::Value(octet) = input {
@@ -107,6 +116,7 @@ pub fn sql__pg_catalog__text__j1jh(input: InternalCharValue) -> TextValue {
 pub fn sql__pg_catalog__bpchar__p75w(input: InternalCharValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let InternalCharValue::Unknown = input { unresolved_flavor = 1; };
+    if let InternalCharValue::Unimplemented = input { unresolved_flavor = 2; };
     if let InternalCharValue::Error(error) = input { return TextValue::Error(error); };
     if input == InternalCharValue::Null { return TextValue::Null; };
     if let InternalCharValue::Value(octet) = input {
@@ -120,6 +130,7 @@ pub fn sql__pg_catalog__bpchar__p75w(input: InternalCharValue) -> TextValue {
 fn internal_char_hash_word(input: InternalCharValue) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let InternalCharValue::Unknown = input { unresolved_flavor = 1; };
+    if let InternalCharValue::Unimplemented = input { unresolved_flavor = 2; };
     if let InternalCharValue::Error(error) = input { return Int4Value::Error(error); };
     if input == InternalCharValue::Null { return Int4Value::Null; };
     if let InternalCharValue::Value(octet) = input {

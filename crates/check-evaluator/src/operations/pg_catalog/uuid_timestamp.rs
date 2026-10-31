@@ -1,11 +1,12 @@
 pub fn sql__pg_catalog__uuid_extract_timestamp__p52j(input: UuidValue) -> TimestamptzValue {
     let mut unresolved_flavor: i32 = 0;
     if let UuidValue::Unknown = input { unresolved_flavor = 1; };
+    if let UuidValue::Unimplemented = input { unresolved_flavor = 2; };
     if let UuidValue::Error(error) = input {
         return TimestamptzValue::Error(error);
     }
-    if input == UuidValue::Unknown {
-        return timestamptz_unresolved(unresolved_flavor);
+    let mut condition_flavor_8_4: i32 = unresolved_flavor; if let UuidValue::Unknown = input { if condition_flavor_8_4 < 1 { condition_flavor_8_4 = 1; }; }; if let UuidValue::Unimplemented = input { condition_flavor_8_4 = 2; }; if (input == UuidValue::Unknown || input == UuidValue::Unimplemented) {
+        return timestamptz_unresolved(condition_flavor_8_4);
     }
     if input == UuidValue::Null {
         return TimestamptzValue::Null;

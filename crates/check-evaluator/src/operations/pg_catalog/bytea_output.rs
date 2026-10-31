@@ -4,6 +4,7 @@ const BYTEA_OUTPUT_LIMIT_ERROR: u32 = 8584704;
 pub fn bytea_output_context(input: ByteaValue, format: i32, sql_text: bool) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = input { return TextValue::Error(error); };
     if input == ByteaValue::Null { return TextValue::Null; };
     if let ByteaValue::Value(value) = input {

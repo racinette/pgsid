@@ -12,14 +12,16 @@ fn interval_calendar_add(
     let mut unresolved_flavor: i32 = 0;
     if let TimestampValue::Unknown = input { unresolved_flavor = 1; };
     if let IntervalValue::Unknown = amount { unresolved_flavor = 1; };
+    if let TimestampValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let IntervalValue::Unimplemented = amount { unresolved_flavor = 2; };
     if let TimestampValue::Error(error) = input {
         return TimestampValue::Error(error);
     };
     if let IntervalValue::Error(error) = amount {
         return TimestampValue::Error(error);
     };
-    if input == TimestampValue::Unknown || amount == IntervalValue::Unknown {
-        return timestamp_unresolved(unresolved_flavor);
+    let mut condition_flavor_23_4: i32 = unresolved_flavor; if let TimestampValue::Unknown = input { if condition_flavor_23_4 < 1 { condition_flavor_23_4 = 1; }; }; if let TimestampValue::Unimplemented = input { condition_flavor_23_4 = 2; }; if let IntervalValue::Unknown = amount { if condition_flavor_23_4 < 1 { condition_flavor_23_4 = 1; }; }; if let IntervalValue::Unimplemented = amount { condition_flavor_23_4 = 2; }; if (input == TimestampValue::Unknown || input == TimestampValue::Unimplemented) || (amount == IntervalValue::Unknown || amount == IntervalValue::Unimplemented) {
+        return timestamp_unresolved(condition_flavor_23_4);
     };
     if input == TimestampValue::Null || amount == IntervalValue::Null {
         return TimestampValue::Null;
@@ -162,14 +164,16 @@ fn interval_calendar_date(
     let mut unresolved_flavor: i32 = 0;
     if let DateValue::Unknown = input { unresolved_flavor = 1; };
     if let IntervalValue::Unknown = amount { unresolved_flavor = 1; };
+    if let DateValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let IntervalValue::Unimplemented = amount { unresolved_flavor = 2; };
     if let DateValue::Error(error) = input {
         return TimestampValue::Error(error);
     };
     if let IntervalValue::Error(error) = amount {
         return TimestampValue::Error(error);
     };
-    if input == DateValue::Unknown || amount == IntervalValue::Unknown {
-        return timestamp_unresolved(unresolved_flavor);
+    let mut condition_flavor_175_4: i32 = unresolved_flavor; if let DateValue::Unknown = input { if condition_flavor_175_4 < 1 { condition_flavor_175_4 = 1; }; }; if let DateValue::Unimplemented = input { condition_flavor_175_4 = 2; }; if let IntervalValue::Unknown = amount { if condition_flavor_175_4 < 1 { condition_flavor_175_4 = 1; }; }; if let IntervalValue::Unimplemented = amount { condition_flavor_175_4 = 2; }; if (input == DateValue::Unknown || input == DateValue::Unimplemented) || (amount == IntervalValue::Unknown || amount == IntervalValue::Unimplemented) {
+        return timestamp_unresolved(condition_flavor_175_4);
     };
     if input == DateValue::Null || amount == IntervalValue::Null {
         return TimestampValue::Null;
@@ -215,14 +219,16 @@ pub fn sql__pg_catalog__timestamp_mi__sntt(
     let mut unresolved_flavor: i32 = 0;
     if let TimestampValue::Unknown = left { unresolved_flavor = 1; };
     if let TimestampValue::Unknown = right { unresolved_flavor = 1; };
+    if let TimestampValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let TimestampValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TimestampValue::Error(error) = left {
         return IntervalValue::Error(error);
     };
     if let TimestampValue::Error(error) = right {
         return IntervalValue::Error(error);
     };
-    if left == TimestampValue::Unknown || right == TimestampValue::Unknown {
-        return interval_unresolved(unresolved_flavor);
+    let mut condition_flavor_230_4: i32 = unresolved_flavor; if let TimestampValue::Unknown = left { if condition_flavor_230_4 < 1 { condition_flavor_230_4 = 1; }; }; if let TimestampValue::Unimplemented = left { condition_flavor_230_4 = 2; }; if let TimestampValue::Unknown = right { if condition_flavor_230_4 < 1 { condition_flavor_230_4 = 1; }; }; if let TimestampValue::Unimplemented = right { condition_flavor_230_4 = 2; }; if (left == TimestampValue::Unknown || left == TimestampValue::Unimplemented) || (right == TimestampValue::Unknown || right == TimestampValue::Unimplemented) {
+        return interval_unresolved(condition_flavor_230_4);
     };
     if left == TimestampValue::Null || right == TimestampValue::Null {
         return IntervalValue::Null;
@@ -251,6 +257,7 @@ pub fn sql__pg_catalog__timestamp_mi__sntt(
 fn interval_calendar_local_payload(input: TimestamptzValue) -> TimestampValue {
     let mut unresolved_flavor: i32 = 0;
     if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TimestamptzValue::Error(error) = input {
         return TimestampValue::Error(error);
     };

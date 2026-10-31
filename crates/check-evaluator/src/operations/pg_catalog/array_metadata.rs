@@ -1,6 +1,7 @@
 pub fn sql__pg_catalog__cardinality__m1rn(input: ArrayValue) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayValue::Error(error) = input {
         return Int4Value::Error(error);
     };
@@ -16,6 +17,7 @@ pub fn sql__pg_catalog__cardinality__m1rn(input: ArrayValue) -> Int4Value {
 pub fn sql__pg_catalog__array_ndims__8wu3(input: ArrayValue) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayValue::Error(error) = input {
         return Int4Value::Error(error);
     };
@@ -35,6 +37,8 @@ fn array_dimension_value(input: ArrayValue, dimension: Int4Value, mode: i32) -> 
     let mut unresolved_flavor: i32 = 0;
     if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
     if let Int4Value::Unknown = dimension { unresolved_flavor = 1; };
+    if let ArrayValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = dimension { unresolved_flavor = 2; };
     if let ArrayValue::Error(error) = input {
         return Int4Value::Error(error);
     };
@@ -84,6 +88,7 @@ pub fn sql__pg_catalog__array_upper__lnz3(input: ArrayValue, dimension: Int4Valu
 pub fn sql__pg_catalog__array_dims__01ex(input: ArrayValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayValue::Error(error) = input {
         return TextValue::Error(error);
     };

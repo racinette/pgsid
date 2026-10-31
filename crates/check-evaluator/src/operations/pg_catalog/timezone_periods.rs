@@ -12,6 +12,11 @@ pub fn sql__pg_catalog__in_range__o9l2(
     if let IntervalValue::Unknown = offset { unresolved_flavor = 1; };
     if let BoolValue::Unknown = subtract { unresolved_flavor = 1; };
     if let BoolValue::Unknown = less { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unimplemented = value { unresolved_flavor = 2; };
+    if let TimestamptzValue::Unimplemented = base { unresolved_flavor = 2; };
+    if let IntervalValue::Unimplemented = offset { unresolved_flavor = 2; };
+    if let BoolValue::Unimplemented = subtract { unresolved_flavor = 2; };
+    if let BoolValue::Unimplemented = less { unresolved_flavor = 2; };
     if let TimestamptzValue::Error(error) = value {
         return BoolValue::Error(error);
     };
@@ -27,13 +32,13 @@ pub fn sql__pg_catalog__in_range__o9l2(
     if let BoolValue::Error(error) = less {
         return BoolValue::Error(error);
     };
-    if value == TimestamptzValue::Unknown
-        || base == TimestamptzValue::Unknown
-        || offset == IntervalValue::Unknown
-        || subtract == BoolValue::Unknown
-        || less == BoolValue::Unknown
+    let mut condition_flavor_35_4: i32 = unresolved_flavor; if let TimestamptzValue::Unknown = value { if condition_flavor_35_4 < 1 { condition_flavor_35_4 = 1; }; }; if let TimestamptzValue::Unimplemented = value { condition_flavor_35_4 = 2; }; if let TimestamptzValue::Unknown = base { if condition_flavor_35_4 < 1 { condition_flavor_35_4 = 1; }; }; if let TimestamptzValue::Unimplemented = base { condition_flavor_35_4 = 2; }; if let IntervalValue::Unknown = offset { if condition_flavor_35_4 < 1 { condition_flavor_35_4 = 1; }; }; if let IntervalValue::Unimplemented = offset { condition_flavor_35_4 = 2; }; if let BoolValue::Unknown = subtract { if condition_flavor_35_4 < 1 { condition_flavor_35_4 = 1; }; }; if let BoolValue::Unimplemented = subtract { condition_flavor_35_4 = 2; }; if let BoolValue::Unknown = less { if condition_flavor_35_4 < 1 { condition_flavor_35_4 = 1; }; }; if let BoolValue::Unimplemented = less { condition_flavor_35_4 = 2; }; if (value == TimestamptzValue::Unknown || value == TimestamptzValue::Unimplemented)
+        || (base == TimestamptzValue::Unknown || base == TimestamptzValue::Unimplemented)
+        || (offset == IntervalValue::Unknown || offset == IntervalValue::Unimplemented)
+        || (subtract == BoolValue::Unknown || subtract == BoolValue::Unimplemented)
+        || (less == BoolValue::Unknown || less == BoolValue::Unimplemented)
     {
-        return bool_unresolved(unresolved_flavor);
+        return bool_unresolved(condition_flavor_35_4);
     };
     if value == TimestamptzValue::Null
         || base == TimestamptzValue::Null

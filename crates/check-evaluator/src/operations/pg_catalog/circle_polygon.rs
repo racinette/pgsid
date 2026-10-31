@@ -32,14 +32,16 @@ pub fn sql__pg_catalog__polygon__9juc(
     let mut unresolved_flavor: i32 = 0;
     if let Int4Value::Unknown = count { unresolved_flavor = 1; };
     if let CircleValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unimplemented = count { unresolved_flavor = 2; };
+    if let CircleValue::Unimplemented = input { unresolved_flavor = 2; };
     if let Int4Value::Error(error) = count {
         return PolygonValue::Error(error);
     };
     if let CircleValue::Error(error) = input {
         return PolygonValue::Error(error);
     };
-    if count == Int4Value::Unknown || input == CircleValue::Unknown {
-        return polygon_unresolved(unresolved_flavor);
+    let mut condition_flavor_43_4: i32 = unresolved_flavor; if let Int4Value::Unknown = count { if condition_flavor_43_4 < 1 { condition_flavor_43_4 = 1; }; }; if let Int4Value::Unimplemented = count { condition_flavor_43_4 = 2; }; if let CircleValue::Unknown = input { if condition_flavor_43_4 < 1 { condition_flavor_43_4 = 1; }; }; if let CircleValue::Unimplemented = input { condition_flavor_43_4 = 2; }; if (count == Int4Value::Unknown || count == Int4Value::Unimplemented) || (input == CircleValue::Unknown || input == CircleValue::Unimplemented) {
+        return polygon_unresolved(condition_flavor_43_4);
     };
     if count == Int4Value::Null || input == CircleValue::Null {
         return PolygonValue::Null;
@@ -60,8 +62,8 @@ pub fn sql__pg_catalog__polygon__9juc(
             if let PointValue::Error(error) = first {
                 return PolygonValue::Error(error);
             };
-            if first == PointValue::Unknown || first == PointValue::Null {
-                return polygon_unresolved(unresolved_flavor);
+            let mut condition_flavor_65_12: i32 = unresolved_flavor; if let PointValue::Unknown = first { if condition_flavor_65_12 < 1 { condition_flavor_65_12 = 1; }; }; if let PointValue::Unimplemented = first { condition_flavor_65_12 = 2; }; if (first == PointValue::Unknown || first == PointValue::Unimplemented) || first == PointValue::Null {
+                return polygon_unresolved(condition_flavor_65_12);
             };
             if fdlibm == false {
                 return polygon_unresolved(unresolved_flavor);
@@ -83,8 +85,8 @@ pub fn sql__pg_catalog__polygon__9juc(
                 if let PointValue::Error(error) = point {
                     return PolygonValue::Error(error);
                 };
-                if point == PointValue::Unknown || point == PointValue::Null {
-                    return polygon_unresolved(unresolved_flavor);
+                let mut condition_flavor_88_16: i32 = unresolved_flavor; if let PointValue::Unknown = point { if condition_flavor_88_16 < 1 { condition_flavor_88_16 = 1; }; }; if let PointValue::Unimplemented = point { condition_flavor_88_16 = 2; }; if (point == PointValue::Unknown || point == PointValue::Unimplemented) || point == PointValue::Null {
+                    return polygon_unresolved(condition_flavor_88_16);
                 };
                 if let PointValue::Value(payload) = point {
                     points.push(payload);

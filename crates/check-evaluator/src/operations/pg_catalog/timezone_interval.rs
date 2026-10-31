@@ -82,14 +82,16 @@ fn timezone_interval_add(
     let mut unresolved_flavor: i32 = 0;
     if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
     if let IntervalValue::Unknown = amount { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let IntervalValue::Unimplemented = amount { unresolved_flavor = 2; };
     if let TimestamptzValue::Error(error) = input {
         return TimestamptzValue::Error(error);
     };
     if let IntervalValue::Error(error) = amount {
         return TimestamptzValue::Error(error);
     };
-    if input == TimestamptzValue::Unknown || amount == IntervalValue::Unknown {
-        return timestamptz_unresolved(unresolved_flavor);
+    let mut condition_flavor_93_4: i32 = unresolved_flavor; if let TimestamptzValue::Unknown = input { if condition_flavor_93_4 < 1 { condition_flavor_93_4 = 1; }; }; if let TimestamptzValue::Unimplemented = input { condition_flavor_93_4 = 2; }; if let IntervalValue::Unknown = amount { if condition_flavor_93_4 < 1 { condition_flavor_93_4 = 1; }; }; if let IntervalValue::Unimplemented = amount { condition_flavor_93_4 = 2; }; if (input == TimestamptzValue::Unknown || input == TimestamptzValue::Unimplemented) || (amount == IntervalValue::Unknown || amount == IntervalValue::Unimplemented) {
+        return timestamptz_unresolved(condition_flavor_93_4);
     };
     if input == TimestamptzValue::Null || amount == IntervalValue::Null {
         return TimestamptzValue::Null;

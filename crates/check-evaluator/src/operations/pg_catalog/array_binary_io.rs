@@ -29,14 +29,17 @@ pub(crate) fn array_binary_initial(input: &ArrayOutputPayload, support: i32) -> 
 pub(crate) fn container_binary_missing(input: ArrayElement, absent: bool) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return ByteaValue::Error(error);
     };
     if let ArrayElement::Null = input {
         return ByteaValue::Null;
     };
-    if let ArrayElement::Unknown = input {
-        return bytea_unresolved(unresolved_flavor);
+    let mut condition_flavor_39_4: i32 = unresolved_flavor; if let ArrayElement::Unknown = input { if condition_flavor_39_4 < 1 { condition_flavor_39_4 = 1; }; }; if let ArrayElement::Unknown = input {
+        return bytea_unresolved(condition_flavor_39_4);
+    }; let mut condition_flavor_41_7: i32 = unresolved_flavor; if let ArrayElement::Unimplemented = input { condition_flavor_41_7 = 2; }; if let ArrayElement::Unimplemented = input {
+        return bytea_unresolved(condition_flavor_41_7);
     };
     if absent {
         return ByteaValue::Error(make_sql_error(CONTAINER_BINARY_MISSING_SEND_ERROR));
@@ -48,7 +51,7 @@ pub(crate) fn container_binary_continues(input: ByteaValue) -> bool {
     if let ByteaValue::Error(_) = input {
         return false;
     };
-    input != ByteaValue::Null && input != ByteaValue::Unknown
+    input != ByteaValue::Null && (input != ByteaValue::Unknown && input != ByteaValue::Unimplemented)
 }
 
 pub(crate) fn array_binary_has_element(
@@ -85,6 +88,8 @@ pub fn sql__pg_catalog__array_send__g245(input: ArrayValue, output: ByteaValue) 
     let mut unresolved_flavor: i32 = 0;
     if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
     if let ByteaValue::Unknown = output { unresolved_flavor = 1; };
+    if let ArrayValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let ByteaValue::Unimplemented = output { unresolved_flavor = 2; };
     if let ArrayValue::Error(error) = input {
         return ByteaValue::Error(error);
     };

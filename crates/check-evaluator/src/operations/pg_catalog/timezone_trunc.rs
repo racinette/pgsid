@@ -51,6 +51,9 @@ pub fn sql__pg_catalog__date_trunc__6323(
     if let TextValue::Unknown = units { unresolved_flavor = 1; };
     if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unknown = zone { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = units { unresolved_flavor = 2; };
+    if let TimestamptzValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = zone { unresolved_flavor = 2; };
     if let TextValue::Error(error) = units {
         return TimestamptzValue::Error(error);
     }
@@ -60,11 +63,11 @@ pub fn sql__pg_catalog__date_trunc__6323(
     if let TextValue::Error(error) = zone {
         return TimestamptzValue::Error(error);
     }
-    if units == TextValue::Unknown
-        || input == TimestamptzValue::Unknown
-        || zone == TextValue::Unknown
+    let mut condition_flavor_66_4: i32 = unresolved_flavor; if let TextValue::Unknown = units { if condition_flavor_66_4 < 1 { condition_flavor_66_4 = 1; }; }; if let TextValue::Unimplemented = units { condition_flavor_66_4 = 2; }; if let TimestamptzValue::Unknown = input { if condition_flavor_66_4 < 1 { condition_flavor_66_4 = 1; }; }; if let TimestamptzValue::Unimplemented = input { condition_flavor_66_4 = 2; }; if let TextValue::Unknown = zone { if condition_flavor_66_4 < 1 { condition_flavor_66_4 = 1; }; }; if let TextValue::Unimplemented = zone { condition_flavor_66_4 = 2; }; if (units == TextValue::Unknown || units == TextValue::Unimplemented)
+        || (input == TimestamptzValue::Unknown || input == TimestamptzValue::Unimplemented)
+        || (zone == TextValue::Unknown || zone == TextValue::Unimplemented)
     {
-        return timestamptz_unresolved(unresolved_flavor);
+        return timestamptz_unresolved(condition_flavor_66_4);
     }
     if units == TextValue::Null || input == TimestamptzValue::Null || zone == TextValue::Null {
         return TimestamptzValue::Null;
@@ -98,14 +101,16 @@ pub fn sql__pg_catalog__date_trunc__7d7s(
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = units { unresolved_flavor = 1; };
     if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = units { unresolved_flavor = 2; };
+    if let TimestamptzValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = units {
         return TimestamptzValue::Error(error);
     };
     if let TimestamptzValue::Error(error) = input {
         return TimestamptzValue::Error(error);
     };
-    if units == TextValue::Unknown || input == TimestamptzValue::Unknown {
-        return timestamptz_unresolved(unresolved_flavor);
+    let mut condition_flavor_112_4: i32 = unresolved_flavor; if let TextValue::Unknown = units { if condition_flavor_112_4 < 1 { condition_flavor_112_4 = 1; }; }; if let TextValue::Unimplemented = units { condition_flavor_112_4 = 2; }; if let TimestamptzValue::Unknown = input { if condition_flavor_112_4 < 1 { condition_flavor_112_4 = 1; }; }; if let TimestamptzValue::Unimplemented = input { condition_flavor_112_4 = 2; }; if (units == TextValue::Unknown || units == TextValue::Unimplemented) || (input == TimestamptzValue::Unknown || input == TimestamptzValue::Unimplemented) {
+        return timestamptz_unresolved(condition_flavor_112_4);
     };
     if units == TextValue::Null || input == TimestamptzValue::Null {
         return TimestamptzValue::Null;

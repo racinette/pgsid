@@ -33,8 +33,12 @@ pub fn prepare_record_comparison(
     };
     if let CompositeValue::Unknown = left {
         return record_comparison_state(-1, make_sql_error(0));
+    }; if let CompositeValue::Unimplemented = left {
+        return record_comparison_state(-1, make_sql_error(0));
     };
     if let CompositeValue::Unknown = right {
+        return record_comparison_state(-1, make_sql_error(0));
+    }; if let CompositeValue::Unimplemented = right {
         return record_comparison_state(-1, make_sql_error(0));
     };
     if let CompositeValue::Null = left {
@@ -88,6 +92,8 @@ pub fn record_comparison_pair(
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = left { unresolved_flavor = 1; };
     if let ArrayElement::Unknown = right { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = left { unresolved_flavor = 2; };
+    if let ArrayElement::Unimplemented = right { unresolved_flavor = 2; };
     if same_type == false {
         return Int4Value::Error(make_sql_error(RECORD_COMPARISON_TYPE_MISMATCH));
     };
@@ -125,6 +131,7 @@ pub(crate) fn finish_record_comparison(
 pub fn record_anonymous_input(input: TextValue) -> CompositeValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return CompositeValue::Error(error);
     };
@@ -155,6 +162,7 @@ fn record_array_input_with_nulls(input: TextValue, nulls: i32) -> ArrayValue {
 pub fn record_array_from_text(input: TextValue, nulls: i32) -> ArrayValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if nulls == 0 || nulls == 1 {
         return record_array_input_with_nulls(input, nulls);
     };

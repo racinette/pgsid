@@ -122,9 +122,11 @@ fn bytea_like(input: ByteaValue, pattern: ByteaValue, negate: bool) -> BoolValue
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
     if let ByteaValue::Unknown = pattern { unresolved_flavor = 1; };
+    if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let ByteaValue::Unimplemented = pattern { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = input { return BoolValue::Error(error); }
     if let ByteaValue::Error(error) = pattern { return BoolValue::Error(error); }
-    if input == ByteaValue::Unknown || pattern == ByteaValue::Unknown { return bool_unresolved(unresolved_flavor); }
+    let mut condition_flavor_129_4: i32 = unresolved_flavor; if let ByteaValue::Unknown = input { if condition_flavor_129_4 < 1 { condition_flavor_129_4 = 1; }; }; if let ByteaValue::Unimplemented = input { condition_flavor_129_4 = 2; }; if let ByteaValue::Unknown = pattern { if condition_flavor_129_4 < 1 { condition_flavor_129_4 = 1; }; }; if let ByteaValue::Unimplemented = pattern { condition_flavor_129_4 = 2; }; if (input == ByteaValue::Unknown || input == ByteaValue::Unimplemented) || (pattern == ByteaValue::Unknown || pattern == ByteaValue::Unimplemented) { return bool_unresolved(condition_flavor_129_4); }
     if input == ByteaValue::Null || pattern == ByteaValue::Null { return BoolValue::Null; }
     if let ByteaValue::Value(value) = input {
         if let ByteaValue::Value(pat) = pattern {
@@ -156,9 +158,11 @@ pub fn sql__pg_catalog__like_escape__hk4j(input: ByteaValue, escape: ByteaValue)
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
     if let ByteaValue::Unknown = escape { unresolved_flavor = 1; };
+    if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let ByteaValue::Unimplemented = escape { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = input { return ByteaValue::Error(error); }
     if let ByteaValue::Error(error) = escape { return ByteaValue::Error(error); }
-    if input == ByteaValue::Unknown || escape == ByteaValue::Unknown { return bytea_unresolved(unresolved_flavor); }
+    let mut condition_flavor_165_4: i32 = unresolved_flavor; if let ByteaValue::Unknown = input { if condition_flavor_165_4 < 1 { condition_flavor_165_4 = 1; }; }; if let ByteaValue::Unimplemented = input { condition_flavor_165_4 = 2; }; if let ByteaValue::Unknown = escape { if condition_flavor_165_4 < 1 { condition_flavor_165_4 = 1; }; }; if let ByteaValue::Unimplemented = escape { condition_flavor_165_4 = 2; }; if (input == ByteaValue::Unknown || input == ByteaValue::Unimplemented) || (escape == ByteaValue::Unknown || escape == ByteaValue::Unimplemented) { return bytea_unresolved(condition_flavor_165_4); }
     if input == ByteaValue::Null || escape == ByteaValue::Null { return ByteaValue::Null; }
     if let ByteaValue::Value(value) = input {
         if let ByteaValue::Value(esc) = escape {

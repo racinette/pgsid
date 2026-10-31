@@ -2,14 +2,16 @@ fn numeric_compare(left: NumericValue, right: NumericValue) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = left { unresolved_flavor = 1; };
     if let NumericValue::Unknown = right { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let NumericValue::Unimplemented = right { unresolved_flavor = 2; };
     if let NumericValue::Error(error) = left {
         return Int4Value::Error(error);
     }
     if let NumericValue::Error(error) = right {
         return Int4Value::Error(error);
     }
-    if left == NumericValue::Unknown || right == NumericValue::Unknown {
-        return int4_unresolved(unresolved_flavor);
+    let mut condition_flavor_13_4: i32 = unresolved_flavor; if let NumericValue::Unknown = left { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let NumericValue::Unimplemented = left { condition_flavor_13_4 = 2; }; if let NumericValue::Unknown = right { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let NumericValue::Unimplemented = right { condition_flavor_13_4 = 2; }; if (left == NumericValue::Unknown || left == NumericValue::Unimplemented) || (right == NumericValue::Unknown || right == NumericValue::Unimplemented) {
+        return int4_unresolved(condition_flavor_13_4);
     }
     if left == NumericValue::Null || right == NumericValue::Null {
         return Int4Value::Null;
@@ -85,12 +87,14 @@ pub fn sql__pg_catalog__numeric_eq__fw7r(left: NumericValue, right: NumericValue
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = left { unresolved_flavor = 1; };
     if let NumericValue::Unknown = right { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let NumericValue::Unimplemented = right { unresolved_flavor = 2; };
     let result = numeric_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
-    if result == Int4Value::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_96_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_96_4 < 1 { condition_flavor_96_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_96_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+        return bool_unresolved(condition_flavor_96_4);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -105,12 +109,14 @@ pub fn sql__pg_catalog__numeric_ge__w8pw(left: NumericValue, right: NumericValue
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = left { unresolved_flavor = 1; };
     if let NumericValue::Unknown = right { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let NumericValue::Unimplemented = right { unresolved_flavor = 2; };
     let result = numeric_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
-    if result == Int4Value::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_118_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_118_4 < 1 { condition_flavor_118_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_118_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+        return bool_unresolved(condition_flavor_118_4);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -125,12 +131,14 @@ pub fn sql__pg_catalog__numeric_gt__h1pi(left: NumericValue, right: NumericValue
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = left { unresolved_flavor = 1; };
     if let NumericValue::Unknown = right { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let NumericValue::Unimplemented = right { unresolved_flavor = 2; };
     let result = numeric_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
-    if result == Int4Value::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_140_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_140_4 < 1 { condition_flavor_140_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_140_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+        return bool_unresolved(condition_flavor_140_4);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -145,12 +153,14 @@ pub fn sql__pg_catalog__numeric_le__bbpc(left: NumericValue, right: NumericValue
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = left { unresolved_flavor = 1; };
     if let NumericValue::Unknown = right { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let NumericValue::Unimplemented = right { unresolved_flavor = 2; };
     let result = numeric_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
-    if result == Int4Value::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_162_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_162_4 < 1 { condition_flavor_162_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_162_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+        return bool_unresolved(condition_flavor_162_4);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -165,12 +175,14 @@ pub fn sql__pg_catalog__numeric_lt__zl16(left: NumericValue, right: NumericValue
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = left { unresolved_flavor = 1; };
     if let NumericValue::Unknown = right { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let NumericValue::Unimplemented = right { unresolved_flavor = 2; };
     let result = numeric_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
-    if result == Int4Value::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_184_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_184_4 < 1 { condition_flavor_184_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_184_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+        return bool_unresolved(condition_flavor_184_4);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;
@@ -185,12 +197,14 @@ pub fn sql__pg_catalog__numeric_ne__gyip(left: NumericValue, right: NumericValue
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = left { unresolved_flavor = 1; };
     if let NumericValue::Unknown = right { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let NumericValue::Unimplemented = right { unresolved_flavor = 2; };
     let result = numeric_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
-    if result == Int4Value::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_206_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_206_4 < 1 { condition_flavor_206_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_206_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+        return bool_unresolved(condition_flavor_206_4);
     }
     if result == Int4Value::Null {
         return BoolValue::Null;

@@ -56,14 +56,16 @@ pub fn sql__pg_catalog__get_byte__48am(input: ByteaValue, position: Int4Value) -
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
     if let Int4Value::Unknown = position { unresolved_flavor = 1; };
+    if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = position { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = input {
         return Int4Value::Error(error);
     }
     if let Int4Value::Error(error) = position {
         return Int4Value::Error(error);
     }
-    if input == ByteaValue::Unknown || position == Int4Value::Unknown {
-        return int4_unresolved(unresolved_flavor);
+    let mut condition_flavor_67_4: i32 = unresolved_flavor; if let ByteaValue::Unknown = input { if condition_flavor_67_4 < 1 { condition_flavor_67_4 = 1; }; }; if let ByteaValue::Unimplemented = input { condition_flavor_67_4 = 2; }; if let Int4Value::Unknown = position { if condition_flavor_67_4 < 1 { condition_flavor_67_4 = 1; }; }; if let Int4Value::Unimplemented = position { condition_flavor_67_4 = 2; }; if (input == ByteaValue::Unknown || input == ByteaValue::Unimplemented) || (position == Int4Value::Unknown || position == Int4Value::Unimplemented) {
+        return int4_unresolved(condition_flavor_67_4);
     }
     if input == ByteaValue::Null || position == Int4Value::Null {
         return Int4Value::Null;
@@ -93,14 +95,16 @@ pub fn sql__pg_catalog__get_bit__thv7(input: ByteaValue, position: Int8Value) ->
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
     if let Int8Value::Unknown = position { unresolved_flavor = 1; };
+    if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int8Value::Unimplemented = position { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = input {
         return Int4Value::Error(error);
     }
     if let Int8Value::Error(error) = position {
         return Int4Value::Error(error);
     }
-    if input == ByteaValue::Unknown || position == Int8Value::Unknown {
-        return int4_unresolved(unresolved_flavor);
+    let mut condition_flavor_106_4: i32 = unresolved_flavor; if let ByteaValue::Unknown = input { if condition_flavor_106_4 < 1 { condition_flavor_106_4 = 1; }; }; if let ByteaValue::Unimplemented = input { condition_flavor_106_4 = 2; }; if let Int8Value::Unknown = position { if condition_flavor_106_4 < 1 { condition_flavor_106_4 = 1; }; }; if let Int8Value::Unimplemented = position { condition_flavor_106_4 = 2; }; if (input == ByteaValue::Unknown || input == ByteaValue::Unimplemented) || (position == Int8Value::Unknown || position == Int8Value::Unimplemented) {
+        return int4_unresolved(condition_flavor_106_4);
     }
     if input == ByteaValue::Null || position == Int8Value::Null {
         return Int4Value::Null;
@@ -134,6 +138,9 @@ pub fn sql__pg_catalog__set_byte__8mtw(
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
     if let Int4Value::Unknown = position { unresolved_flavor = 1; };
     if let Int4Value::Unknown = replacement { unresolved_flavor = 1; };
+    if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = position { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = replacement { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
@@ -143,11 +150,11 @@ pub fn sql__pg_catalog__set_byte__8mtw(
     if let Int4Value::Error(error) = replacement {
         return ByteaValue::Error(error);
     }
-    if input == ByteaValue::Unknown
-        || position == Int4Value::Unknown
-        || replacement == Int4Value::Unknown
+    let mut condition_flavor_153_4: i32 = unresolved_flavor; if let ByteaValue::Unknown = input { if condition_flavor_153_4 < 1 { condition_flavor_153_4 = 1; }; }; if let ByteaValue::Unimplemented = input { condition_flavor_153_4 = 2; }; if let Int4Value::Unknown = position { if condition_flavor_153_4 < 1 { condition_flavor_153_4 = 1; }; }; if let Int4Value::Unimplemented = position { condition_flavor_153_4 = 2; }; if let Int4Value::Unknown = replacement { if condition_flavor_153_4 < 1 { condition_flavor_153_4 = 1; }; }; if let Int4Value::Unimplemented = replacement { condition_flavor_153_4 = 2; }; if (input == ByteaValue::Unknown || input == ByteaValue::Unimplemented)
+        || (position == Int4Value::Unknown || position == Int4Value::Unimplemented)
+        || (replacement == Int4Value::Unknown || replacement == Int4Value::Unimplemented)
     {
-        return bytea_unresolved(unresolved_flavor);
+        return bytea_unresolved(condition_flavor_153_4);
     }
     if input == ByteaValue::Null || position == Int4Value::Null || replacement == Int4Value::Null {
         return ByteaValue::Null;
@@ -180,6 +187,9 @@ pub fn sql__pg_catalog__set_bit__06f4(
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
     if let Int8Value::Unknown = position { unresolved_flavor = 1; };
     if let Int4Value::Unknown = replacement { unresolved_flavor = 1; };
+    if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int8Value::Unimplemented = position { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = replacement { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
@@ -189,11 +199,11 @@ pub fn sql__pg_catalog__set_bit__06f4(
     if let Int4Value::Error(error) = replacement {
         return ByteaValue::Error(error);
     }
-    if input == ByteaValue::Unknown
-        || position == Int8Value::Unknown
-        || replacement == Int4Value::Unknown
+    let mut condition_flavor_202_4: i32 = unresolved_flavor; if let ByteaValue::Unknown = input { if condition_flavor_202_4 < 1 { condition_flavor_202_4 = 1; }; }; if let ByteaValue::Unimplemented = input { condition_flavor_202_4 = 2; }; if let Int8Value::Unknown = position { if condition_flavor_202_4 < 1 { condition_flavor_202_4 = 1; }; }; if let Int8Value::Unimplemented = position { condition_flavor_202_4 = 2; }; if let Int4Value::Unknown = replacement { if condition_flavor_202_4 < 1 { condition_flavor_202_4 = 1; }; }; if let Int4Value::Unimplemented = replacement { condition_flavor_202_4 = 2; }; if (input == ByteaValue::Unknown || input == ByteaValue::Unimplemented)
+        || (position == Int8Value::Unknown || position == Int8Value::Unimplemented)
+        || (replacement == Int4Value::Unknown || replacement == Int4Value::Unimplemented)
     {
-        return bytea_unresolved(unresolved_flavor);
+        return bytea_unresolved(condition_flavor_202_4);
     }
     if input == ByteaValue::Null || position == Int8Value::Null || replacement == Int4Value::Null {
         return ByteaValue::Null;

@@ -1,6 +1,7 @@
 pub fn sql__pg_catalog__to_jsonb__9y7o(input: JsonbInput) -> JsonbValue {
     let mut unresolved_flavor: i32 = 0;
     if let JsonbInput::Unknown = input { unresolved_flavor = 1; };
+    if let JsonbInput::Unimplemented = input { unresolved_flavor = 2; };
     if let JsonbInput::JsonbNonNull(maximum) = input {
         return JsonbValue::NonNull(maximum);
     };
@@ -146,6 +147,7 @@ fn jsonb_calendar_text(calendar: TemporalCalendarFields) -> String {
 pub fn jsonb_input_from_date(input: DateValue) -> JsonbInput {
     let mut unresolved_flavor: i32 = 0;
     if let DateValue::Unknown = input { unresolved_flavor = 1; };
+    if let DateValue::Unimplemented = input { unresolved_flavor = 2; };
     if let DateValue::Error(error) = input {
         return JsonbInput::Error(error);
     };
@@ -173,6 +175,7 @@ pub fn jsonb_input_from_date(input: DateValue) -> JsonbInput {
 pub fn jsonb_input_from_timestamp(input: TimestampValue) -> JsonbInput {
     let mut unresolved_flavor: i32 = 0;
     if let TimestampValue::Unknown = input { unresolved_flavor = 1; };
+    if let TimestampValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TimestampValue::Error(error) = input {
         return JsonbInput::Error(error);
     };
@@ -211,6 +214,7 @@ pub fn jsonb_input_from_timestamp(input: TimestampValue) -> JsonbInput {
 pub fn jsonb_input_from_timestamptz(input: TimestamptzValue) -> JsonbInput {
     let mut unresolved_flavor: i32 = 0;
     if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TimestamptzValue::Error(error) = input {
         return JsonbInput::Error(error);
     };
@@ -231,6 +235,7 @@ pub fn jsonb_input_from_timestamptz(input: TimestamptzValue) -> JsonbInput {
 pub fn jsonb_input_from_json_context(input: JsonValue, utf8: bool) -> JsonbInput {
     let mut unresolved_flavor: i32 = 0;
     if let JsonValue::Unknown = input { unresolved_flavor = 1; };
+    if let JsonValue::Unimplemented = input { unresolved_flavor = 2; };
     if utf8 == false {
         return jsonb_input_from_json(input);
     };

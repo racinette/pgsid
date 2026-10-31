@@ -11,11 +11,13 @@ fn path_min_distance(current: Float8Value, candidate: Float8Value, first: bool) 
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = current { unresolved_flavor = 1; };
     if let Float8Value::Unknown = candidate { unresolved_flavor = 1; };
+    if let Float8Value::Unimplemented = current { unresolved_flavor = 2; };
+    if let Float8Value::Unimplemented = candidate { unresolved_flavor = 2; };
     if let Float8Value::Error(error) = candidate {
         return Float8Value::Error(error);
     };
-    if candidate == Float8Value::Unknown {
-        return float8_unresolved(unresolved_flavor);
+    let mut condition_flavor_19_4: i32 = unresolved_flavor; if let Float8Value::Unknown = candidate { if condition_flavor_19_4 < 1 { condition_flavor_19_4 = 1; }; }; if let Float8Value::Unimplemented = candidate { condition_flavor_19_4 = 2; }; if (candidate == Float8Value::Unknown || candidate == Float8Value::Unimplemented) {
+        return float8_unresolved(condition_flavor_19_4);
     };
     if first || sql__pg_catalog__float8lt__vp07(candidate, current) == BoolValue::Value(true) {
         return candidate;
@@ -26,17 +28,21 @@ pub fn sql__pg_catalog__dist_ppath__e16q(point: PointValue, input: PathValue) ->
     let mut unresolved_flavor: i32 = 0;
     if let PointValue::Unknown = point { unresolved_flavor = 1; };
     if let PathValue::Unknown = input { unresolved_flavor = 1; };
+    if let PointValue::Unimplemented = point { unresolved_flavor = 2; };
+    if let PathValue::Unimplemented = input { unresolved_flavor = 2; };
     if let PointValue::Error(error) = point {
         return Float8Value::Error(error);
     };
     if let PathValue::Error(error) = input {
         return Float8Value::Error(error);
     };
-    if point == PointValue::Unknown {
-        return float8_unresolved(unresolved_flavor);
+    let mut condition_flavor_39_4: i32 = unresolved_flavor; if let PointValue::Unknown = point { if condition_flavor_39_4 < 1 { condition_flavor_39_4 = 1; }; }; if let PointValue::Unimplemented = point { condition_flavor_39_4 = 2; }; if (point == PointValue::Unknown || point == PointValue::Unimplemented) {
+        return float8_unresolved(condition_flavor_39_4);
     };
-    if let PathValue::Unknown = input {
-        return float8_unresolved(unresolved_flavor);
+    let mut condition_flavor_42_4: i32 = unresolved_flavor; if let PathValue::Unknown = input { if condition_flavor_42_4 < 1 { condition_flavor_42_4 = 1; }; }; if let PathValue::Unknown = input {
+        return float8_unresolved(condition_flavor_42_4);
+    }; let mut condition_flavor_44_7: i32 = unresolved_flavor; if let PathValue::Unimplemented = input { condition_flavor_44_7 = 2; }; if let PathValue::Unimplemented = input {
+        return float8_unresolved(condition_flavor_44_7);
     };
     if point == PointValue::Null {
         return Float8Value::Null;
@@ -62,8 +68,8 @@ pub fn sql__pg_catalog__dist_ppath__e16q(point: PointValue, input: PathValue) ->
             if let Float8Value::Error(error) = result {
                 return Float8Value::Error(error);
             };
-            if result == Float8Value::Unknown {
-                return float8_unresolved(unresolved_flavor);
+            let mut condition_flavor_71_12: i32 = unresolved_flavor; if let Float8Value::Unknown = result { if condition_flavor_71_12 < 1 { condition_flavor_71_12 = 1; }; }; if let Float8Value::Unimplemented = result { condition_flavor_71_12 = 2; }; if (result == Float8Value::Unknown || result == Float8Value::Unimplemented) {
+                return float8_unresolved(condition_flavor_71_12);
             };
             have_min = true;
             index += 1;
@@ -82,17 +88,23 @@ pub fn sql__pg_catalog__path_distance__3309(left: PathValue, right: PathValue) -
     let mut unresolved_flavor: i32 = 0;
     if let PathValue::Unknown = left { unresolved_flavor = 1; };
     if let PathValue::Unknown = right { unresolved_flavor = 1; };
+    if let PathValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let PathValue::Unimplemented = right { unresolved_flavor = 2; };
     if let PathValue::Error(error) = left {
         return Float8Value::Error(error);
     };
     if let PathValue::Error(error) = right {
         return Float8Value::Error(error);
     };
-    if let PathValue::Unknown = left {
-        return float8_unresolved(unresolved_flavor);
+    let mut condition_flavor_99_4: i32 = unresolved_flavor; if let PathValue::Unknown = left { if condition_flavor_99_4 < 1 { condition_flavor_99_4 = 1; }; }; if let PathValue::Unknown = left {
+        return float8_unresolved(condition_flavor_99_4);
+    }; let mut condition_flavor_101_7: i32 = unresolved_flavor; if let PathValue::Unimplemented = left { condition_flavor_101_7 = 2; }; if let PathValue::Unimplemented = left {
+        return float8_unresolved(condition_flavor_101_7);
     };
-    if let PathValue::Unknown = right {
-        return float8_unresolved(unresolved_flavor);
+    let mut condition_flavor_104_4: i32 = unresolved_flavor; if let PathValue::Unknown = right { if condition_flavor_104_4 < 1 { condition_flavor_104_4 = 1; }; }; if let PathValue::Unknown = right {
+        return float8_unresolved(condition_flavor_104_4);
+    }; let mut condition_flavor_106_7: i32 = unresolved_flavor; if let PathValue::Unimplemented = right { condition_flavor_106_7 = 2; }; if let PathValue::Unimplemented = right {
+        return float8_unresolved(condition_flavor_106_7);
     };
     if let PathValue::Null = left {
         return Float8Value::Null;
@@ -129,8 +141,8 @@ pub fn sql__pg_catalog__path_distance__3309(left: PathValue, right: PathValue) -
                     if let Float8Value::Error(error) = result {
                         return Float8Value::Error(error);
                     };
-                    if result == Float8Value::Unknown {
-                        return float8_unresolved(unresolved_flavor);
+                    let mut condition_flavor_144_20: i32 = unresolved_flavor; if let Float8Value::Unknown = result { if condition_flavor_144_20 < 1 { condition_flavor_144_20 = 1; }; }; if let Float8Value::Unimplemented = result { condition_flavor_144_20 = 2; }; if (result == Float8Value::Unknown || result == Float8Value::Unimplemented) {
+                        return float8_unresolved(condition_flavor_144_20);
                     };
                     have_min = true;
                     second += 1;

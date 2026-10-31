@@ -17,6 +17,7 @@ fn json_build_layout(
 ) -> JsonValue {
     let mut unresolved_flavor: i32 = 0;
     if let JsonbArguments::Unknown = input { unresolved_flavor = 1; };
+    if let JsonbArguments::Unimplemented = input { unresolved_flavor = 2; };
     if let JsonbArguments::Error(error) = input {
         return JsonValue::Error(error);
     };
@@ -96,8 +97,10 @@ fn json_build_layout(
             if let JsonValue::Error(error) = converted {
                 return JsonValue::Error(error);
             };
-            if let JsonValue::Unknown = converted {
-                return json_unresolved(unresolved_flavor);
+            let mut condition_flavor_100_12: i32 = unresolved_flavor; if let JsonValue::Unknown = converted { if condition_flavor_100_12 < 1 { condition_flavor_100_12 = 1; }; }; if let JsonValue::Unknown = converted {
+                return json_unresolved(condition_flavor_100_12);
+            }; let mut condition_flavor_102_15: i32 = unresolved_flavor; if let JsonValue::Unimplemented = converted { condition_flavor_102_15 = 2; }; if let JsonValue::Unimplemented = converted {
+                return json_unresolved(condition_flavor_102_15);
             };
             if let JsonValue::Null = converted {
                 output.push_str("null");
@@ -241,6 +244,8 @@ fn json_record_conversion_stopped(input: &JsonRecordInputPayload) -> bool {
         let last = input.values[input.values.len() - 1].clone();
         if let JsonbInput::Unknown = last {
             return true;
+        }; if let JsonbInput::Unimplemented = last {
+            return true;
         };
         if let JsonbInput::ConvertedError(_error) = last {
             return true;
@@ -349,6 +354,7 @@ pub(crate) fn jsonb_record_input(input: JsonRecordInputPayload) -> JsonbInput {
 pub(crate) fn json_record_opaque_input(input: ArrayElement) -> JsonbInput {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Null = input {
         return JsonbInput::Null;
     };
@@ -361,14 +367,17 @@ pub(crate) fn json_record_opaque_input(input: ArrayElement) -> JsonbInput {
 pub(crate) fn json_record_key_input(input: CompositeValue) -> JsonbInput {
     let mut unresolved_flavor: i32 = 0;
     if let CompositeValue::Unknown = input { unresolved_flavor = 1; };
+    if let CompositeValue::Unimplemented = input { unresolved_flavor = 2; };
     if let CompositeValue::Error(error) = input {
         return JsonbInput::Error(error);
     };
     if let CompositeValue::Null = input {
         return JsonbInput::Null;
     };
-    if let CompositeValue::Unknown = input {
-        return jsonb_input_unresolved(unresolved_flavor);
+    let mut condition_flavor_377_4: i32 = unresolved_flavor; if let CompositeValue::Unknown = input { if condition_flavor_377_4 < 1 { condition_flavor_377_4 = 1; }; }; if let CompositeValue::Unknown = input {
+        return jsonb_input_unresolved(condition_flavor_377_4);
+    }; let mut condition_flavor_379_7: i32 = unresolved_flavor; if let CompositeValue::Unimplemented = input { condition_flavor_379_7 = 2; }; if let CompositeValue::Unimplemented = input {
+        return jsonb_input_unresolved(condition_flavor_379_7);
     };
     let marker = make_jsonb_value("{}");
     jsonb_input_from_jsonb(marker)
@@ -381,6 +390,7 @@ pub(crate) fn finish_json_record_plan(input: JsonRecordInputPayload) -> JsonReco
 fn json_record_plan_value(input: JsonRecordInputPlan, pretty: BoolValue, utf8: bool) -> JsonValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoolValue::Unknown = pretty { unresolved_flavor = 1; };
+    if let BoolValue::Unimplemented = pretty { unresolved_flavor = 2; };
     if let JsonRecordInputPlan::Value(value) = input {
         return json_record_value(value, pretty, utf8);
     };

@@ -37,14 +37,16 @@ fn interval_scaled(input: IntervalValue, factor: Float8Value, divide: bool) -> I
     let mut unresolved_flavor: i32 = 0;
     if let IntervalValue::Unknown = input { unresolved_flavor = 1; };
     if let Float8Value::Unknown = factor { unresolved_flavor = 1; };
+    if let IntervalValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let Float8Value::Unimplemented = factor { unresolved_flavor = 2; };
     if let IntervalValue::Error(error) = input {
         return IntervalValue::Error(error);
     };
     if let Float8Value::Error(error) = factor {
         return IntervalValue::Error(error);
     };
-    if input == IntervalValue::Unknown || factor == Float8Value::Unknown {
-        return interval_unresolved(unresolved_flavor);
+    let mut condition_flavor_48_4: i32 = unresolved_flavor; if let IntervalValue::Unknown = input { if condition_flavor_48_4 < 1 { condition_flavor_48_4 = 1; }; }; if let IntervalValue::Unimplemented = input { condition_flavor_48_4 = 2; }; if let Float8Value::Unknown = factor { if condition_flavor_48_4 < 1 { condition_flavor_48_4 = 1; }; }; if let Float8Value::Unimplemented = factor { condition_flavor_48_4 = 2; }; if (input == IntervalValue::Unknown || input == IntervalValue::Unimplemented) || (factor == Float8Value::Unknown || factor == Float8Value::Unimplemented) {
+        return interval_unresolved(condition_flavor_48_4);
     };
     if input == IntervalValue::Null || factor == Float8Value::Null {
         return IntervalValue::Null;
@@ -204,14 +206,16 @@ pub fn sql__pg_catalog__interval__drcl(input: IntervalValue, modifier: Int4Value
     let mut unresolved_flavor: i32 = 0;
     if let IntervalValue::Unknown = input { unresolved_flavor = 1; };
     if let Int4Value::Unknown = modifier { unresolved_flavor = 1; };
+    if let IntervalValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = modifier { unresolved_flavor = 2; };
     if let IntervalValue::Error(error) = input {
         return IntervalValue::Error(error);
     };
     if let Int4Value::Error(error) = modifier {
         return IntervalValue::Error(error);
     };
-    if input == IntervalValue::Unknown || modifier == Int4Value::Unknown {
-        return interval_unresolved(unresolved_flavor);
+    let mut condition_flavor_217_4: i32 = unresolved_flavor; if let IntervalValue::Unknown = input { if condition_flavor_217_4 < 1 { condition_flavor_217_4 = 1; }; }; if let IntervalValue::Unimplemented = input { condition_flavor_217_4 = 2; }; if let Int4Value::Unknown = modifier { if condition_flavor_217_4 < 1 { condition_flavor_217_4 = 1; }; }; if let Int4Value::Unimplemented = modifier { condition_flavor_217_4 = 2; }; if (input == IntervalValue::Unknown || input == IntervalValue::Unimplemented) || (modifier == Int4Value::Unknown || modifier == Int4Value::Unimplemented) {
+        return interval_unresolved(condition_flavor_217_4);
     };
     if input == IntervalValue::Null || modifier == Int4Value::Null {
         return IntervalValue::Null;
@@ -293,6 +297,13 @@ pub fn sql__pg_catalog__make_interval__nlc1(
     if let Int4Value::Unknown = hours { unresolved_flavor = 1; };
     if let Int4Value::Unknown = minutes { unresolved_flavor = 1; };
     if let Float8Value::Unknown = seconds { unresolved_flavor = 1; };
+    if let Int4Value::Unimplemented = years { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = months { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = weeks { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = days { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = hours { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = minutes { unresolved_flavor = 2; };
+    if let Float8Value::Unimplemented = seconds { unresolved_flavor = 2; };
     if let Int4Value::Error(error) = years { return IntervalValue::Error(error); }
     if let Int4Value::Error(error) = months { return IntervalValue::Error(error); }
     if let Int4Value::Error(error) = weeks { return IntervalValue::Error(error); }
@@ -300,9 +311,9 @@ pub fn sql__pg_catalog__make_interval__nlc1(
     if let Int4Value::Error(error) = hours { return IntervalValue::Error(error); }
     if let Int4Value::Error(error) = minutes { return IntervalValue::Error(error); }
     if let Float8Value::Error(error) = seconds { return IntervalValue::Error(error); }
-    if years == Int4Value::Unknown || months == Int4Value::Unknown || weeks == Int4Value::Unknown
-        || days == Int4Value::Unknown || hours == Int4Value::Unknown || minutes == Int4Value::Unknown
-        || seconds == Float8Value::Unknown { return interval_unresolved(unresolved_flavor); }
+    let mut condition_flavor_314_4: i32 = unresolved_flavor; if let Int4Value::Unknown = years { if condition_flavor_314_4 < 1 { condition_flavor_314_4 = 1; }; }; if let Int4Value::Unimplemented = years { condition_flavor_314_4 = 2; }; if let Int4Value::Unknown = months { if condition_flavor_314_4 < 1 { condition_flavor_314_4 = 1; }; }; if let Int4Value::Unimplemented = months { condition_flavor_314_4 = 2; }; if let Int4Value::Unknown = weeks { if condition_flavor_314_4 < 1 { condition_flavor_314_4 = 1; }; }; if let Int4Value::Unimplemented = weeks { condition_flavor_314_4 = 2; }; if let Int4Value::Unknown = days { if condition_flavor_314_4 < 1 { condition_flavor_314_4 = 1; }; }; if let Int4Value::Unimplemented = days { condition_flavor_314_4 = 2; }; if let Int4Value::Unknown = hours { if condition_flavor_314_4 < 1 { condition_flavor_314_4 = 1; }; }; if let Int4Value::Unimplemented = hours { condition_flavor_314_4 = 2; }; if let Int4Value::Unknown = minutes { if condition_flavor_314_4 < 1 { condition_flavor_314_4 = 1; }; }; if let Int4Value::Unimplemented = minutes { condition_flavor_314_4 = 2; }; if let Float8Value::Unknown = seconds { if condition_flavor_314_4 < 1 { condition_flavor_314_4 = 1; }; }; if let Float8Value::Unimplemented = seconds { condition_flavor_314_4 = 2; }; if (years == Int4Value::Unknown || years == Int4Value::Unimplemented) || (months == Int4Value::Unknown || months == Int4Value::Unimplemented) || (weeks == Int4Value::Unknown || weeks == Int4Value::Unimplemented)
+        || (days == Int4Value::Unknown || days == Int4Value::Unimplemented) || (hours == Int4Value::Unknown || hours == Int4Value::Unimplemented) || (minutes == Int4Value::Unknown || minutes == Int4Value::Unimplemented)
+        || (seconds == Float8Value::Unknown || seconds == Float8Value::Unimplemented) { return interval_unresolved(condition_flavor_314_4); }
     if years == Int4Value::Null || months == Int4Value::Null || weeks == Int4Value::Null
         || days == Int4Value::Null || hours == Int4Value::Null || minutes == Int4Value::Null
         || seconds == Float8Value::Null { return IntervalValue::Null; }

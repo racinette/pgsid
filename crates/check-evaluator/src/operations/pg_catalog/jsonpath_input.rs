@@ -17,6 +17,7 @@ fn jsonpath_regex_literal(pattern: &str, flags: i32, c_collation: bool) -> BoolV
 pub fn jsonpath_from_text(input: TextValue, c_collation: bool, utf8: bool) -> JsonpathValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return JsonpathValue::Error(error);
     };
@@ -59,16 +60,16 @@ pub fn jsonpath_from_text(input: TextValue, c_collation: bool, utf8: bool) -> Js
                 if let TextValue::Error(error) = result {
                     return JsonpathValue::Error(error);
                 };
-                if result == TextValue::Unknown || result == TextValue::NonNull {
-                    return jsonpath_unresolved(unresolved_flavor);
+                let mut condition_flavor_63_16: i32 = unresolved_flavor; if let TextValue::Unknown = result { if condition_flavor_63_16 < 1 { condition_flavor_63_16 = 1; }; }; if let TextValue::Unimplemented = result { condition_flavor_63_16 = 2; }; if (result == TextValue::Unknown || result == TextValue::Unimplemented) || result == TextValue::NonNull {
+                    return jsonpath_unresolved(condition_flavor_63_16);
                 };
             } else {
                 let result = jsonpath_regex_literal(literal.as_str(), node.flags, c_collation);
                 if let BoolValue::Error(error) = result {
                     return JsonpathValue::Error(error);
                 };
-                if let BoolValue::Unknown = result {
-                    return jsonpath_unresolved(unresolved_flavor);
+                let mut condition_flavor_71_16: i32 = unresolved_flavor; if let BoolValue::Unknown = result { if condition_flavor_71_16 < 1 { condition_flavor_71_16 = 1; }; }; if let BoolValue::Unimplemented = result { condition_flavor_71_16 = 2; }; if (result == BoolValue::Unknown || result == BoolValue::Unimplemented) {
+                    return jsonpath_unresolved(condition_flavor_71_16);
                 };
             };
             index += 1;
@@ -85,6 +86,7 @@ pub fn jsonpath_from_text_utf8(input: TextValue, c_collation: bool) -> JsonpathV
 pub fn jsonpath_validate_utf8(input: TextValue, c_collation: bool) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     let result = jsonpath_from_text_utf8(input, c_collation);
     if let JsonpathValue::Error(error) = result {
         return BoolValue::Error(error);

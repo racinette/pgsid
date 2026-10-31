@@ -11,6 +11,7 @@ pub fn jsonb_input_from_multirange(input: MultirangeValue) -> JsonbInput {
 fn jsonb_deferred_range_input(nullness: BoolValue, category: i32, key: bool) -> JsonbInput {
     let mut unresolved_flavor: i32 = 0;
     if let BoolValue::Unknown = nullness { unresolved_flavor = 1; };
+    if let BoolValue::Unimplemented = nullness { unresolved_flavor = 2; };
     if let BoolValue::Error(error) = nullness {
         return JsonbInput::Error(error);
     };

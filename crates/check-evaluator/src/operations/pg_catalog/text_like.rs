@@ -138,14 +138,16 @@ fn text_like(input: TextValue, pattern: TextValue, insensitive: bool, negate: bo
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unknown = pattern { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = pattern { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return BoolValue::Error(error);
     }
     if let TextValue::Error(error) = pattern {
         return BoolValue::Error(error);
     }
-    if (input == TextValue::Unknown || input == TextValue::NonNull) || (pattern == TextValue::Unknown || pattern == TextValue::NonNull) {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_149_4: i32 = unresolved_flavor; if let TextValue::Unknown = input { if condition_flavor_149_4 < 1 { condition_flavor_149_4 = 1; }; }; if let TextValue::Unimplemented = input { condition_flavor_149_4 = 2; }; if let TextValue::Unknown = pattern { if condition_flavor_149_4 < 1 { condition_flavor_149_4 = 1; }; }; if let TextValue::Unimplemented = pattern { condition_flavor_149_4 = 2; }; if ((input == TextValue::Unknown || input == TextValue::Unimplemented) || input == TextValue::NonNull) || ((pattern == TextValue::Unknown || pattern == TextValue::Unimplemented) || pattern == TextValue::NonNull) {
+        return bool_unresolved(condition_flavor_149_4);
     }
     if input == TextValue::Null || pattern == TextValue::Null {
         return BoolValue::Null;
@@ -199,14 +201,16 @@ pub fn sql__pg_catalog__like_escape__xfrr(input: TextValue, escape: TextValue) -
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unknown = escape { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = escape { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return TextValue::Error(error);
     }
     if let TextValue::Error(error) = escape {
         return TextValue::Error(error);
     }
-    if (input == TextValue::Unknown || input == TextValue::NonNull) || (escape == TextValue::Unknown || escape == TextValue::NonNull) {
-        return text_unresolved(unresolved_flavor);
+    let mut condition_flavor_212_4: i32 = unresolved_flavor; if let TextValue::Unknown = input { if condition_flavor_212_4 < 1 { condition_flavor_212_4 = 1; }; }; if let TextValue::Unimplemented = input { condition_flavor_212_4 = 2; }; if let TextValue::Unknown = escape { if condition_flavor_212_4 < 1 { condition_flavor_212_4 = 1; }; }; if let TextValue::Unimplemented = escape { condition_flavor_212_4 = 2; }; if ((input == TextValue::Unknown || input == TextValue::Unimplemented) || input == TextValue::NonNull) || ((escape == TextValue::Unknown || escape == TextValue::Unimplemented) || escape == TextValue::NonNull) {
+        return text_unresolved(condition_flavor_212_4);
     }
     if input == TextValue::Null || escape == TextValue::Null {
         return TextValue::Null;

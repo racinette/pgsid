@@ -24,14 +24,16 @@ fn clock_interval_value(left: TimeValue, right: IntervalValue, subtract: bool) -
     let mut unresolved_flavor: i32 = 0;
     if let TimeValue::Unknown = left { unresolved_flavor = 1; };
     if let IntervalValue::Unknown = right { unresolved_flavor = 1; };
+    if let TimeValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let IntervalValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TimeValue::Error(error) = left {
         return TimeValue::Error(error);
     }
     if let IntervalValue::Error(error) = right {
         return TimeValue::Error(error);
     }
-    if left == TimeValue::Unknown || right == IntervalValue::Unknown {
-        return time_unresolved(unresolved_flavor);
+    let mut condition_flavor_35_4: i32 = unresolved_flavor; if let TimeValue::Unknown = left { if condition_flavor_35_4 < 1 { condition_flavor_35_4 = 1; }; }; if let TimeValue::Unimplemented = left { condition_flavor_35_4 = 2; }; if let IntervalValue::Unknown = right { if condition_flavor_35_4 < 1 { condition_flavor_35_4 = 1; }; }; if let IntervalValue::Unimplemented = right { condition_flavor_35_4 = 2; }; if (left == TimeValue::Unknown || left == TimeValue::Unimplemented) || (right == IntervalValue::Unknown || right == IntervalValue::Unimplemented) {
+        return time_unresolved(condition_flavor_35_4);
     }
     if left == TimeValue::Null || right == IntervalValue::Null {
         return TimeValue::Null;
@@ -62,14 +64,16 @@ fn interval_binary_value(
     let mut unresolved_flavor: i32 = 0;
     if let IntervalValue::Unknown = left { unresolved_flavor = 1; };
     if let IntervalValue::Unknown = right { unresolved_flavor = 1; };
+    if let IntervalValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let IntervalValue::Unimplemented = right { unresolved_flavor = 2; };
     if let IntervalValue::Error(error) = left {
         return IntervalValue::Error(error);
     }
     if let IntervalValue::Error(error) = right {
         return IntervalValue::Error(error);
     }
-    if left == IntervalValue::Unknown || right == IntervalValue::Unknown {
-        return interval_unresolved(unresolved_flavor);
+    let mut condition_flavor_75_4: i32 = unresolved_flavor; if let IntervalValue::Unknown = left { if condition_flavor_75_4 < 1 { condition_flavor_75_4 = 1; }; }; if let IntervalValue::Unimplemented = left { condition_flavor_75_4 = 2; }; if let IntervalValue::Unknown = right { if condition_flavor_75_4 < 1 { condition_flavor_75_4 = 1; }; }; if let IntervalValue::Unimplemented = right { condition_flavor_75_4 = 2; }; if (left == IntervalValue::Unknown || left == IntervalValue::Unimplemented) || (right == IntervalValue::Unknown || right == IntervalValue::Unimplemented) {
+        return interval_unresolved(condition_flavor_75_4);
     }
     if left == IntervalValue::Null || right == IntervalValue::Null {
         return IntervalValue::Null;
@@ -151,14 +155,16 @@ pub fn sql__pg_catalog__timetz_pl_interval__wmqy(
     let mut unresolved_flavor: i32 = 0;
     if let TimetzValue::Unknown = left { unresolved_flavor = 1; };
     if let IntervalValue::Unknown = right { unresolved_flavor = 1; };
+    if let TimetzValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let IntervalValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TimetzValue::Error(error) = left {
         return TimetzValue::Error(error);
     }
     if let IntervalValue::Error(error) = right {
         return TimetzValue::Error(error);
     }
-    if left == TimetzValue::Unknown || right == IntervalValue::Unknown {
-        return timetz_unresolved(unresolved_flavor);
+    let mut condition_flavor_166_4: i32 = unresolved_flavor; if let TimetzValue::Unknown = left { if condition_flavor_166_4 < 1 { condition_flavor_166_4 = 1; }; }; if let TimetzValue::Unimplemented = left { condition_flavor_166_4 = 2; }; if let IntervalValue::Unknown = right { if condition_flavor_166_4 < 1 { condition_flavor_166_4 = 1; }; }; if let IntervalValue::Unimplemented = right { condition_flavor_166_4 = 2; }; if (left == TimetzValue::Unknown || left == TimetzValue::Unimplemented) || (right == IntervalValue::Unknown || right == IntervalValue::Unimplemented) {
+        return timetz_unresolved(condition_flavor_166_4);
     }
     if left == TimetzValue::Null || right == IntervalValue::Null {
         return TimetzValue::Null;
@@ -182,14 +188,16 @@ pub fn sql__pg_catalog__timetz_mi_interval__adb2(
     let mut unresolved_flavor: i32 = 0;
     if let TimetzValue::Unknown = left { unresolved_flavor = 1; };
     if let IntervalValue::Unknown = right { unresolved_flavor = 1; };
+    if let TimetzValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let IntervalValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TimetzValue::Error(error) = left {
         return TimetzValue::Error(error);
     }
     if let IntervalValue::Error(error) = right {
         return TimetzValue::Error(error);
     }
-    if left == TimetzValue::Unknown || right == IntervalValue::Unknown {
-        return timetz_unresolved(unresolved_flavor);
+    let mut condition_flavor_199_4: i32 = unresolved_flavor; if let TimetzValue::Unknown = left { if condition_flavor_199_4 < 1 { condition_flavor_199_4 = 1; }; }; if let TimetzValue::Unimplemented = left { condition_flavor_199_4 = 2; }; if let IntervalValue::Unknown = right { if condition_flavor_199_4 < 1 { condition_flavor_199_4 = 1; }; }; if let IntervalValue::Unimplemented = right { condition_flavor_199_4 = 2; }; if (left == TimetzValue::Unknown || left == TimetzValue::Unimplemented) || (right == IntervalValue::Unknown || right == IntervalValue::Unimplemented) {
+        return timetz_unresolved(condition_flavor_199_4);
     }
     if left == TimetzValue::Null || right == IntervalValue::Null {
         return TimetzValue::Null;
@@ -228,14 +236,16 @@ pub fn sql__pg_catalog__time_mi_time__qauq(left: TimeValue, right: TimeValue) ->
     let mut unresolved_flavor: i32 = 0;
     if let TimeValue::Unknown = left { unresolved_flavor = 1; };
     if let TimeValue::Unknown = right { unresolved_flavor = 1; };
+    if let TimeValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let TimeValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TimeValue::Error(error) = left {
         return IntervalValue::Error(error);
     }
     if let TimeValue::Error(error) = right {
         return IntervalValue::Error(error);
     }
-    if left == TimeValue::Unknown || right == TimeValue::Unknown {
-        return interval_unresolved(unresolved_flavor);
+    let mut condition_flavor_247_4: i32 = unresolved_flavor; if let TimeValue::Unknown = left { if condition_flavor_247_4 < 1 { condition_flavor_247_4 = 1; }; }; if let TimeValue::Unimplemented = left { condition_flavor_247_4 = 2; }; if let TimeValue::Unknown = right { if condition_flavor_247_4 < 1 { condition_flavor_247_4 = 1; }; }; if let TimeValue::Unimplemented = right { condition_flavor_247_4 = 2; }; if (left == TimeValue::Unknown || left == TimeValue::Unimplemented) || (right == TimeValue::Unknown || right == TimeValue::Unimplemented) {
+        return interval_unresolved(condition_flavor_247_4);
     }
     if left == TimeValue::Null || right == TimeValue::Null {
         return IntervalValue::Null;
@@ -251,6 +261,7 @@ pub fn sql__pg_catalog__time_mi_time__qauq(left: TimeValue, right: TimeValue) ->
 pub fn sql__pg_catalog__interval__39db(input: TimeValue) -> IntervalValue {
     let mut unresolved_flavor: i32 = 0;
     if let TimeValue::Unknown = input { unresolved_flavor = 1; };
+    if let TimeValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TimeValue::Error(error) = input {
         return IntervalValue::Error(error);
     }
@@ -266,6 +277,7 @@ pub fn sql__pg_catalog__interval__39db(input: TimeValue) -> IntervalValue {
 pub fn sql__pg_catalog__time__3hf3(input: TimetzValue) -> TimeValue {
     let mut unresolved_flavor: i32 = 0;
     if let TimetzValue::Unknown = input { unresolved_flavor = 1; };
+    if let TimetzValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TimetzValue::Error(error) = input {
         return TimeValue::Error(error);
     }
@@ -281,6 +293,7 @@ pub fn sql__pg_catalog__time__3hf3(input: TimetzValue) -> TimeValue {
 pub fn sql__pg_catalog__time__akgc(input: IntervalValue) -> TimeValue {
     let mut unresolved_flavor: i32 = 0;
     if let IntervalValue::Unknown = input { unresolved_flavor = 1; };
+    if let IntervalValue::Unimplemented = input { unresolved_flavor = 2; };
     if let IntervalValue::Error(error) = input {
         return TimeValue::Error(error);
     }

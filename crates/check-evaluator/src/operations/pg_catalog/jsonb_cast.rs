@@ -3,6 +3,7 @@ const JSONB_SCALAR_CAST_ERROR: u32 = 3452619;
 pub fn sql__pg_catalog__numeric__unkz(input: JsonbValue) -> NumericValue {
     let mut unresolved_flavor: i32 = 0;
     if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
+    if let JsonbValue::Unimplemented = input { unresolved_flavor = 2; };
     if let JsonbValue::Error(error) = input {
         return NumericValue::Error(error);
     };
@@ -31,6 +32,7 @@ pub fn sql__pg_catalog__numeric__unkz(input: JsonbValue) -> NumericValue {
 pub fn sql__pg_catalog__bool__k8bw(input: JsonbValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
+    if let JsonbValue::Unimplemented = input { unresolved_flavor = 2; };
     if let JsonbValue::Error(error) = input {
         return BoolValue::Error(error);
     };

@@ -180,8 +180,11 @@ it('validates owned tsvector arrays and record fields through native INSERTs and
     const base = cases[0]!,
       missing = array([cell({ ...a, nativeBytes: -1 }), cell(z)])
     const missingExpected = { ...base.expected }
-    for (const name of ['same', 'less', 'sorted', 'located', 'projected', 'lazy'])
-      missingExpected[name] = { kind: 'Unknown' }
+    // A tsvector's in-memory size follows from its lexemes and positions, so ordering a value
+    // whose size was not supplied is a missing computation rather than database state.
+    for (const name of ['same', 'less', 'located', 'projected', 'lazy'])
+      missingExpected[name] = { kind: 'Unimplemented' }
+    missingExpected['sorted'] = { kind: 'Unknown' }
     const partial = { row: { ...base.row, items: known(missing) }, expected: missingExpected }
     cases.push(partial)
     for (const [name, expected] of Object.entries(partial.expected))
@@ -205,9 +208,11 @@ it('validates owned tsvector arrays and record fields through native INSERTs and
     const result = (o: Outcome) =>
       o.kind === 'Unknown'
         ? { certain: false }
-        : o.kind === 'Error'
-          ? { certain: true, error: o.value.state.toString(36).toUpperCase().padStart(5, '0') }
-          : { certain: true, value: o.kind === 'Null' ? null : o.kind === 'True' }
+        : o.kind === 'Unimplemented'
+          ? { certain: false, unimplemented: true }
+          : o.kind === 'Error'
+            ? { certain: true, error: o.value.state.toString(36).toUpperCase().padStart(5, '0') }
+            : { certain: true, value: o.kind === 'Null' ? null : o.kind === 'True' }
     const tsBundle = renderTypescriptSchemaCheckArtifacts([table], catalog.domains, [], {
         executionContext: context,
         compositeTypeGraph: catalog.compositeTypeGraph,
@@ -275,8 +280,9 @@ it('validates owned tsvector arrays and record fields through native INSERTs and
           value: { ...reference.value, elements: [{ kind: 'Tsvector', value: bad }, cell(z)] },
         },
       }
-      expect(evaluate(input).same).toEqual({ certain: false })
-      expect(evaluate(input).presence).toEqual({ certain: false })
+      // Invalid payloads are never decided, whichever reason defers them.
+      expect(evaluate(input).same).toMatchObject({ certain: false })
+      expect(evaluate(input).presence).toMatchObject({ certain: false })
     }
     const goRoot = join(root, 'public-go'),
       goBundle = renderGoSchemaCheckArtifacts(
@@ -355,7 +361,7 @@ it('validates owned tsvector arrays and record fields through native INSERTs and
     const assertions = cases.flatMap((c, i) =>
       Object.entries(c.expected).map(
         ([name, o]) =>
-          `if r:=results[${i}]["${name}"]; ${o.kind === 'Unknown' ? 'r.Certain' : o.kind === 'Error' ? `!r.Certain||r.Value.Error!="${o.value.state.toString(36).toUpperCase().padStart(5, '0')}"` : o.kind === 'Null' ? '!r.Certain||r.Value.Valid' : `!r.Certain||!r.Value.Valid||r.Value.Value!=${o.kind === 'True'}`}{t.Fatalf("${i} ${name}: %+v",r)}`,
+          `if r:=results[${i}]["${name}"]; ${o.kind === 'Unknown' ? 'r.Certain||r.Unimplemented' : o.kind === 'Unimplemented' ? 'r.Certain||!r.Unimplemented' : o.kind === 'Error' ? `!r.Certain||r.Value.Error!="${o.value.state.toString(36).toUpperCase().padStart(5, '0')}"` : o.kind === 'Null' ? '!r.Certain||r.Value.Valid' : `!r.Certain||!r.Value.Valid||r.Value.Value!=${o.kind === 'True'}`}{t.Fatalf("${i} ${name}: %+v",r)}`,
       ),
     )
     await writeFile(

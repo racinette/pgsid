@@ -9,7 +9,7 @@ fn format_pad_output(
     if let TextValue::Error(_) = value {
         return concat_after_argument(input, value);
     };
-    if value == TextValue::Unknown || value == TextValue::Null {
+    if (value == TextValue::Unknown || value == TextValue::Unimplemented) || value == TextValue::Null {
         let missing = TextValue::Unknown;
         return concat_after_argument(input, missing);
     };
@@ -72,7 +72,7 @@ fn format_accept_with_bounds(
     let mut output = input.output;
     if phase == 1 {
         let mut parsed = scalar_integer_from_text(value, 32);
-        if parsed == Int8Value::Unknown {
+        if (parsed == Int8Value::Unknown || parsed == Int8Value::Unimplemented) {
             let hinted_width = hint.width;
             if let Int4Value::Value(width) = hinted_width {
                 let number = width as i64;
@@ -106,7 +106,7 @@ fn format_accept_with_bounds(
         let rendered = format_quoted_value(value, input.conversion, quote_all);
         let prepared = rendered.clone();
         let mut facts = format_prepared_bounds(prepared, width);
-        if facts.status == CheckOutcome::Unknown {
+        if (facts.status == CheckOutcome::Unknown || facts.status == CheckOutcome::Unimplemented) {
             facts = hint;
         };
         output = format_append_output(output, rendered, facts, width, input.left);
@@ -194,8 +194,8 @@ pub(crate) fn format_accept_typed(
         let raw = value.clone();
         facts = format_candidate_bounds(&input, raw, quote_all);
     };
-    if facts.status == CheckOutcome::Unknown
-        && (value == TextValue::Unknown || value == TextValue::NonNull)
+    if (facts.status == CheckOutcome::Unknown || facts.status == CheckOutcome::Unimplemented)
+        && ((value == TextValue::Unknown || value == TextValue::Unimplemented) || value == TextValue::NonNull)
     {
         facts = format_choice_bounds(&input, original, family, quote_all);
     };

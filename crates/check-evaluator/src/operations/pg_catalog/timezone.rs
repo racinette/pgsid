@@ -253,14 +253,16 @@ pub fn sql__pg_catalog__timezone__9nbk(
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = zone { unresolved_flavor = 1; };
     if let TimestampValue::Unknown = value { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = zone { unresolved_flavor = 2; };
+    if let TimestampValue::Unimplemented = value { unresolved_flavor = 2; };
     if let TextValue::Error(error) = zone {
         return TimestamptzValue::Error(error);
     };
     if let TimestampValue::Error(error) = value {
         return TimestamptzValue::Error(error);
     };
-    if zone == TextValue::Unknown || value == TimestampValue::Unknown {
-        return timestamptz_unresolved(unresolved_flavor);
+    let mut condition_flavor_264_4: i32 = unresolved_flavor; if let TextValue::Unknown = zone { if condition_flavor_264_4 < 1 { condition_flavor_264_4 = 1; }; }; if let TextValue::Unimplemented = zone { condition_flavor_264_4 = 2; }; if let TimestampValue::Unknown = value { if condition_flavor_264_4 < 1 { condition_flavor_264_4 = 1; }; }; if let TimestampValue::Unimplemented = value { condition_flavor_264_4 = 2; }; if (zone == TextValue::Unknown || zone == TextValue::Unimplemented) || (value == TimestampValue::Unknown || value == TimestampValue::Unimplemented) {
+        return timestamptz_unresolved(condition_flavor_264_4);
     };
     if zone == TextValue::Null || value == TimestampValue::Null {
         return TimestamptzValue::Null;
@@ -290,13 +292,16 @@ pub fn sql__pg_catalog__timezone__9nbk(
                     if let Int4Value::Error(error) = forced {
                         return TimestamptzValue::Error(error);
                     };
+                    let mut forced_flavor: i32 = unresolved_flavor;
+                    if let Int4Value::Unknown = forced { if forced_flavor < 1 { forced_flavor = 1; }; };
+                    if let Int4Value::Unimplemented = forced { forced_flavor = 2; };
                     let mut known = false;
                     if let Int4Value::Value(offset) = forced {
                         seconds = offset;
                         known = true;
                     };
                     if known == false {
-                        return timestamptz_unresolved(unresolved_flavor);
+                        return timestamptz_unresolved(forced_flavor);
                     };
                 } else {
                     let profile = session_timezone_profile(name.as_str(), microseconds, true);
@@ -323,14 +328,16 @@ pub fn sql__pg_catalog__timezone__blof(
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = zone { unresolved_flavor = 1; };
     if let TimestamptzValue::Unknown = value { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = zone { unresolved_flavor = 2; };
+    if let TimestamptzValue::Unimplemented = value { unresolved_flavor = 2; };
     if let TextValue::Error(error) = zone {
         return TimestampValue::Error(error);
     };
     if let TimestamptzValue::Error(error) = value {
         return TimestampValue::Error(error);
     };
-    if zone == TextValue::Unknown || value == TimestamptzValue::Unknown {
-        return timestamp_unresolved(unresolved_flavor);
+    let mut condition_flavor_336_4: i32 = unresolved_flavor; if let TextValue::Unknown = zone { if condition_flavor_336_4 < 1 { condition_flavor_336_4 = 1; }; }; if let TextValue::Unimplemented = zone { condition_flavor_336_4 = 2; }; if let TimestamptzValue::Unknown = value { if condition_flavor_336_4 < 1 { condition_flavor_336_4 = 1; }; }; if let TimestamptzValue::Unimplemented = value { condition_flavor_336_4 = 2; }; if (zone == TextValue::Unknown || zone == TextValue::Unimplemented) || (value == TimestamptzValue::Unknown || value == TimestamptzValue::Unimplemented) {
+        return timestamp_unresolved(condition_flavor_336_4);
     };
     if zone == TextValue::Null || value == TimestamptzValue::Null {
         return TimestampValue::Null;
@@ -356,13 +363,16 @@ pub fn sql__pg_catalog__timezone__blof(
                 if let Int4Value::Error(error) = forced {
                     return TimestampValue::Error(error);
                 };
+                let mut forced_flavor: i32 = unresolved_flavor;
+                if let Int4Value::Unknown = forced { if forced_flavor < 1 { forced_flavor = 1; }; };
+                if let Int4Value::Unimplemented = forced { forced_flavor = 2; };
                 let mut known = false;
                 if let Int4Value::Value(offset) = forced {
                     seconds = offset;
                     known = true;
                 };
                 if known == false {
-                    return timestamp_unresolved(unresolved_flavor);
+                    return timestamp_unresolved(forced_flavor);
                 };
             } else if selected.kind == 0 {
                 let profile = session_timezone_profile(name.as_str(), microseconds, false);
@@ -426,14 +436,16 @@ pub fn sql__pg_catalog__timezone__nsm6(
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = zone { unresolved_flavor = 1; };
     if let TimetzValue::Unknown = value { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = zone { unresolved_flavor = 2; };
+    if let TimetzValue::Unimplemented = value { unresolved_flavor = 2; };
     if let TextValue::Error(error) = zone {
         return TimetzValue::Error(error);
     };
     if let TimetzValue::Error(error) = value {
         return TimetzValue::Error(error);
     };
-    if zone == TextValue::Unknown || value == TimetzValue::Unknown {
-        return timetz_unresolved(unresolved_flavor);
+    let mut condition_flavor_441_4: i32 = unresolved_flavor; if let TextValue::Unknown = zone { if condition_flavor_441_4 < 1 { condition_flavor_441_4 = 1; }; }; if let TextValue::Unimplemented = zone { condition_flavor_441_4 = 2; }; if let TimetzValue::Unknown = value { if condition_flavor_441_4 < 1 { condition_flavor_441_4 = 1; }; }; if let TimetzValue::Unimplemented = value { condition_flavor_441_4 = 2; }; if (zone == TextValue::Unknown || zone == TextValue::Unimplemented) || (value == TimetzValue::Unknown || value == TimetzValue::Unimplemented) {
+        return timetz_unresolved(condition_flavor_441_4);
     };
     if zone == TextValue::Null || value == TimetzValue::Null {
         return TimetzValue::Null;

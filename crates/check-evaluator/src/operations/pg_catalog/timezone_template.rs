@@ -489,7 +489,7 @@ fn datetime_template_parse(
                     );
                     let lookup = prefix.lookup;
                     let profile = lookup.profile.clone();
-                    if profile == TextValue::Unknown {
+                    if (profile == TextValue::Unknown || profile == TextValue::Unimplemented) {
                         return datetime_template_unknown();
                     };
                     if lookup.kind > 0 {
@@ -889,14 +889,16 @@ pub fn sql__pg_catalog__to_date__643t(
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unknown = template { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = template { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return DateValue::Error(error);
     };
     if let TextValue::Error(error) = template {
         return DateValue::Error(error);
     };
-    if input == TextValue::Unknown || template == TextValue::Unknown {
-        return date_unresolved(unresolved_flavor);
+    let mut condition_flavor_900_4: i32 = unresolved_flavor; if let TextValue::Unknown = input { if condition_flavor_900_4 < 1 { condition_flavor_900_4 = 1; }; }; if let TextValue::Unimplemented = input { condition_flavor_900_4 = 2; }; if let TextValue::Unknown = template { if condition_flavor_900_4 < 1 { condition_flavor_900_4 = 1; }; }; if let TextValue::Unimplemented = template { condition_flavor_900_4 = 2; }; if (input == TextValue::Unknown || input == TextValue::Unimplemented) || (template == TextValue::Unknown || template == TextValue::Unimplemented) {
+        return date_unresolved(condition_flavor_900_4);
     };
     if input == TextValue::Null || template == TextValue::Null {
         return DateValue::Null;
@@ -1008,14 +1010,16 @@ pub fn sql__pg_catalog__to_timestamp__xn0m(
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unknown = template { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = template { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return TimestamptzValue::Error(error);
     };
     if let TextValue::Error(error) = template {
         return TimestamptzValue::Error(error);
     };
-    if input == TextValue::Unknown || template == TextValue::Unknown {
-        return timestamptz_unresolved(unresolved_flavor);
+    let mut condition_flavor_1021_4: i32 = unresolved_flavor; if let TextValue::Unknown = input { if condition_flavor_1021_4 < 1 { condition_flavor_1021_4 = 1; }; }; if let TextValue::Unimplemented = input { condition_flavor_1021_4 = 2; }; if let TextValue::Unknown = template { if condition_flavor_1021_4 < 1 { condition_flavor_1021_4 = 1; }; }; if let TextValue::Unimplemented = template { condition_flavor_1021_4 = 2; }; if (input == TextValue::Unknown || input == TextValue::Unimplemented) || (template == TextValue::Unknown || template == TextValue::Unimplemented) {
+        return timestamptz_unresolved(condition_flavor_1021_4);
     };
     if input == TextValue::Null || template == TextValue::Null {
         return TimestamptzValue::Null;

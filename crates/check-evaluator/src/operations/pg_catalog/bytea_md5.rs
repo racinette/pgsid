@@ -175,11 +175,12 @@ fn digest_md5_hex(input: &str) -> String {
 pub fn sql__pg_catalog__md5__vpfl(input: ByteaValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = input {
         return TextValue::Error(error);
     }
-    if input == ByteaValue::Unknown {
-        return text_unresolved(unresolved_flavor);
+    let mut condition_flavor_182_4: i32 = unresolved_flavor; if let ByteaValue::Unknown = input { if condition_flavor_182_4 < 1 { condition_flavor_182_4 = 1; }; }; if let ByteaValue::Unimplemented = input { condition_flavor_182_4 = 2; }; if (input == ByteaValue::Unknown || input == ByteaValue::Unimplemented) {
+        return text_unresolved(condition_flavor_182_4);
     }
     if input == ByteaValue::Null {
         return TextValue::Null;
@@ -194,11 +195,12 @@ pub fn sql__pg_catalog__md5__vpfl(input: ByteaValue) -> TextValue {
 pub fn sql__pg_catalog__md5__kt50(input: TextValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return TextValue::Error(error);
     }
-    if (input == TextValue::Unknown || input == TextValue::NonNull) {
-        return text_unresolved(unresolved_flavor);
+    let mut condition_flavor_202_4: i32 = unresolved_flavor; if let TextValue::Unknown = input { if condition_flavor_202_4 < 1 { condition_flavor_202_4 = 1; }; }; if let TextValue::Unimplemented = input { condition_flavor_202_4 = 2; }; if ((input == TextValue::Unknown || input == TextValue::Unimplemented) || input == TextValue::NonNull) {
+        return text_unresolved(condition_flavor_202_4);
     }
     if input == TextValue::Null {
         return TextValue::Null;

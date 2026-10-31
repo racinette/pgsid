@@ -7,6 +7,8 @@ pub fn sql__pg_catalog__date_part__g4hw(
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = units { unresolved_flavor = 1; };
     if let DateValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = units { unresolved_flavor = 2; };
+    if let DateValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = units {
         return Float8Value::Error(error);
     };
@@ -20,8 +22,8 @@ pub fn sql__pg_catalog__date_part__g4hw(
     if let TimestampValue::Error(error) = timestamp {
         return Float8Value::Error(error);
     };
-    if units == TextValue::Unknown || input == DateValue::Unknown {
-        return float8_unresolved(unresolved_flavor);
+    let mut condition_flavor_25_4: i32 = unresolved_flavor; if let TextValue::Unknown = units { if condition_flavor_25_4 < 1 { condition_flavor_25_4 = 1; }; }; if let TextValue::Unimplemented = units { condition_flavor_25_4 = 2; }; if let DateValue::Unknown = input { if condition_flavor_25_4 < 1 { condition_flavor_25_4 = 1; }; }; if let DateValue::Unimplemented = input { condition_flavor_25_4 = 2; }; if (units == TextValue::Unknown || units == TextValue::Unimplemented) || (input == DateValue::Unknown || input == DateValue::Unimplemented) {
+        return float8_unresolved(condition_flavor_25_4);
     };
     let clipped = name_from_text_context(units, limit, utf8);
     sql__pg_catalog__date_part__nzwd(clipped, timestamp)
@@ -30,6 +32,7 @@ pub fn sql__pg_catalog__date_part__g4hw(
 pub fn sql__pg_catalog__to_timestamp__kymq(input: Float8Value) -> TimestamptzValue {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float8Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Float8Value::Error(error) = input {
         return TimestamptzValue::Error(error);
     };

@@ -122,8 +122,8 @@ fn point_parse(value: &str) -> PointValue {
     if let Float8Value::Error(error) = first_value {
         return PointValue::Error(error);
     };
-    if first_value == Float8Value::Unknown {
-        return point_unresolved(unresolved_flavor);
+    let mut condition_flavor_125_4: i32 = unresolved_flavor; if let Float8Value::Unknown = first_value { if condition_flavor_125_4 < 1 { condition_flavor_125_4 = 1; }; }; if let Float8Value::Unimplemented = first_value { condition_flavor_125_4 = 2; }; if (first_value == Float8Value::Unknown || first_value == Float8Value::Unimplemented) {
+        return point_unresolved(condition_flavor_125_4);
     };
     index = first.end;
     if index >= source.chars.len() || source.chars[index] != ',' {
@@ -135,8 +135,8 @@ fn point_parse(value: &str) -> PointValue {
     if let Float8Value::Error(error) = second_value {
         return PointValue::Error(error);
     };
-    if second_value == Float8Value::Unknown {
-        return point_unresolved(unresolved_flavor);
+    let mut condition_flavor_138_4: i32 = unresolved_flavor; if let Float8Value::Unknown = second_value { if condition_flavor_138_4 < 1 { condition_flavor_138_4 = 1; }; }; if let Float8Value::Unimplemented = second_value { condition_flavor_138_4 = 2; }; if (second_value == Float8Value::Unknown || second_value == Float8Value::Unimplemented) {
+        return point_unresolved(condition_flavor_138_4);
     };
     index = second.end;
     if parenthesized {
@@ -153,6 +153,7 @@ fn point_parse(value: &str) -> PointValue {
 pub fn point_from_text(input: TextValue) -> PointValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return PointValue::Error(error);
     };

@@ -21,6 +21,8 @@ fn integer_hash_extended(input: Int8Value, seed: Int8Value) -> Int8Value {
     let mut unresolved_flavor: i32 = 0;
     if let Int8Value::Unknown = input { unresolved_flavor = 1; };
     if let Int8Value::Unknown = seed { unresolved_flavor = 1; };
+    if let Int8Value::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int8Value::Unimplemented = seed { unresolved_flavor = 2; };
     if let Int8Value::Error(error) = input {
         return Int8Value::Error(error);
     }
@@ -30,8 +32,8 @@ fn integer_hash_extended(input: Int8Value, seed: Int8Value) -> Int8Value {
     if input == Int8Value::Null || seed == Int8Value::Null {
         return Int8Value::Null;
     }
-    if input == Int8Value::Unknown || seed == Int8Value::Unknown {
-        return int8_unresolved(unresolved_flavor);
+    let mut condition_flavor_35_4: i32 = unresolved_flavor; if let Int8Value::Unknown = input { if condition_flavor_35_4 < 1 { condition_flavor_35_4 = 1; }; }; if let Int8Value::Unimplemented = input { condition_flavor_35_4 = 2; }; if let Int8Value::Unknown = seed { if condition_flavor_35_4 < 1 { condition_flavor_35_4 = 1; }; }; if let Int8Value::Unimplemented = seed { condition_flavor_35_4 = 2; }; if (input == Int8Value::Unknown || input == Int8Value::Unimplemented) || (seed == Int8Value::Unknown || seed == Int8Value::Unimplemented) {
+        return int8_unresolved(condition_flavor_35_4);
     }
     if let Int8Value::Value(value) = input {
         if let Int8Value::Value(initial) = seed {
@@ -53,12 +55,13 @@ fn integer_hash_extended(input: Int8Value, seed: Int8Value) -> Int8Value {
 fn integer_hash(input: Int8Value) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let Int8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Int8Value::Unimplemented = input { unresolved_flavor = 2; };
     let result = integer_hash_extended(input, Int8Value::Value(0i64));
     if let Int8Value::Error(error) = result {
         return Int4Value::Error(error);
     }
-    if result == Int8Value::Unknown {
-        return int4_unresolved(unresolved_flavor);
+    let mut condition_flavor_63_4: i32 = unresolved_flavor; if let Int8Value::Unknown = result { if condition_flavor_63_4 < 1 { condition_flavor_63_4 = 1; }; }; if let Int8Value::Unimplemented = result { condition_flavor_63_4 = 2; }; if (result == Int8Value::Unknown || result == Int8Value::Unimplemented) {
+        return int4_unresolved(condition_flavor_63_4);
     }
     if result == Int8Value::Null {
         return Int4Value::Null;

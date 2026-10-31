@@ -57,14 +57,15 @@ fn nested_owned_arrays_preserve_independent_shapes_identity_and_snapshots() {
         "domain:batch\0domain:other\0pg_catalog.int4",
         "domain:batch\0domain:group\0pg_catalog.text",
     ] {
+        // A descriptor that does not describe the payload is a defensive refusal, not database state.
         assert!(matches!(
             array_from_coerced_tree(copied.clone(), types, kinds),
-            ArrayValue::Unknown
+            ArrayValue::Unimplemented
         ));
     }
     assert!(matches!(
         array_from_coerced_tree(copied, plan, ")\u{2}"),
-        ArrayValue::Unknown
+        ArrayValue::Unimplemented
     ));
 }
 
@@ -122,6 +123,6 @@ fn nested_states_keep_outer_shape_null_bitmap_and_first_error() {
             "domain:group\0pg_catalog.int4",
             ")\u{2}"
         ),
-        ArrayValue::Unknown
+        ArrayValue::Unimplemented
     ));
 }

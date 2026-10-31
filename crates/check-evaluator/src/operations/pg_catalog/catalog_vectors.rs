@@ -17,6 +17,7 @@ fn catalog_vector_status(value: &ArrayPayload, oid: bool) -> BoolValue {
 fn catalog_vector_units(input: ArrayElement, oid: bool) -> Int8Value {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input { return Int8Value::Error(error); };
     if let ArrayElement::Null = input { return Int8Value::Null; };
     if oid { return oid_units(array_element_to_oid(input)); };
@@ -27,6 +28,7 @@ fn catalog_vector_units(input: ArrayElement, oid: bool) -> Int8Value {
 pub fn catalog_vector_to_text(input: ArrayValue, oid: bool) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayValue::Error(error) = input { return TextValue::Error(error); };
     if let ArrayValue::Null = input { return TextValue::Null; };
     if let ArrayValue::Value(value) = input {
@@ -55,6 +57,7 @@ pub fn catalog_vector_to_text(input: ArrayValue, oid: bool) -> TextValue {
 pub fn catalog_vector_from_text(input: TextValue, oid: bool) -> ArrayValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input { return ArrayValue::Error(error); };
     if let TextValue::Null = input { return ArrayValue::Null; };
     if let TextValue::Value(text) = input {
@@ -106,7 +109,7 @@ pub fn catalog_vector_from_text(input: TextValue, oid: bool) -> ArrayValue {
                 if let OidValue::Value(units) = value {
                     elements.push(ArrayElement::Oid(units));
                 };
-                if value == OidValue::Unknown { return array_unresolved(unresolved_flavor); };
+                let mut condition_flavor_112_16: i32 = unresolved_flavor; if let OidValue::Unknown = value { if condition_flavor_112_16 < 1 { condition_flavor_112_16 = 1; }; }; if let OidValue::Unimplemented = value { condition_flavor_112_16 = 2; }; if (value == OidValue::Unknown || value == OidValue::Unimplemented) { return array_unresolved(condition_flavor_112_16); };
             } else {
                 if small > 32768i64 || (negative == false && small > 32767i64) {
                     return ArrayValue::Error(make_sql_error(SQLSTATE_NUMERIC_VALUE_OUT_OF_RANGE));
@@ -135,10 +138,12 @@ pub fn sql__pg_catalog__btoidvectorcmp__6oyf(left: ArrayValue, right: ArrayValue
     let mut unresolved_flavor: i32 = 0;
     if let ArrayValue::Unknown = left { unresolved_flavor = 1; };
     if let ArrayValue::Unknown = right { unresolved_flavor = 1; };
+    if let ArrayValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let ArrayValue::Unimplemented = right { unresolved_flavor = 2; };
     if let ArrayValue::Error(error) = left { return Int4Value::Error(error); };
     if let ArrayValue::Error(error) = right { return Int4Value::Error(error); };
-    if let ArrayValue::Unknown = left { return int4_unresolved(unresolved_flavor); };
-    if let ArrayValue::Unknown = right { return int4_unresolved(unresolved_flavor); };
+    let mut condition_flavor_145_4: i32 = unresolved_flavor; if let ArrayValue::Unknown = left { if condition_flavor_145_4 < 1 { condition_flavor_145_4 = 1; }; }; if let ArrayValue::Unknown = left { return int4_unresolved(condition_flavor_145_4); }; let mut condition_flavor_145_86: i32 = unresolved_flavor; if let ArrayValue::Unimplemented = left { condition_flavor_145_86 = 2; }; if let ArrayValue::Unimplemented = left { return int4_unresolved(condition_flavor_145_86); };
+    let mut condition_flavor_146_4: i32 = unresolved_flavor; if let ArrayValue::Unknown = right { if condition_flavor_146_4 < 1 { condition_flavor_146_4 = 1; }; }; if let ArrayValue::Unknown = right { return int4_unresolved(condition_flavor_146_4); }; let mut condition_flavor_146_87: i32 = unresolved_flavor; if let ArrayValue::Unimplemented = right { condition_flavor_146_87 = 2; }; if let ArrayValue::Unimplemented = right { return int4_unresolved(condition_flavor_146_87); };
     if let ArrayValue::Null = left { return Int4Value::Null; };
     if let ArrayValue::Null = right { return Int4Value::Null; };
     if let ArrayValue::Value(a) = left {
@@ -173,6 +178,7 @@ pub fn sql__pg_catalog__oidvectorge__bgvu(left: ArrayValue, right: ArrayValue) -
 pub fn sql__pg_catalog__oidvectortypes__w22j(input: ArrayValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayValue::Error(error) = input { return TextValue::Error(error); };
     if let ArrayValue::Null = input { return TextValue::Null; };
     if let ArrayValue::Value(value) = input {
@@ -215,7 +221,7 @@ fn catalog_vector_hash_bytes(input: ArrayValue) -> VectorHashBytes {
                     bytes.push(HashByte { value: word % 256i64 }); word = word / 256i64; octet = octet + 1;
                 }
             };
-            if cell == Int8Value::Unknown || cell == Int8Value::Null {
+            if (cell == Int8Value::Unknown || cell == Int8Value::Unimplemented) || cell == Int8Value::Null {
                 return VectorHashBytes { bytes, state: CheckOutcome::Unknown };
             };
             index += 1;
@@ -227,6 +233,7 @@ fn catalog_vector_hash_bytes(input: ArrayValue) -> VectorHashBytes {
 pub fn sql__pg_catalog__hashoidvector__hb8d(input: ArrayValue) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayValue::Unimplemented = input { unresolved_flavor = 2; };
     let plan = catalog_vector_hash_bytes(input);
     let state = plan.state;
     if let CheckOutcome::Error(error) = state { return Int4Value::Error(error); };
@@ -239,10 +246,12 @@ pub fn sql__pg_catalog__hashoidvectorextended__hlbf(input: ArrayValue, seed: Int
     let mut unresolved_flavor: i32 = 0;
     if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
     if let Int8Value::Unknown = seed { unresolved_flavor = 1; };
+    if let ArrayValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int8Value::Unimplemented = seed { unresolved_flavor = 2; };
     if let ArrayValue::Error(error) = input { return Int8Value::Error(error); };
     if let Int8Value::Error(error) = seed { return Int8Value::Error(error); };
-    if let ArrayValue::Unknown = input { return int8_unresolved(unresolved_flavor); };
-    if seed == Int8Value::Unknown { return int8_unresolved(unresolved_flavor); };
+    let mut condition_flavor_253_4: i32 = unresolved_flavor; if let ArrayValue::Unknown = input { if condition_flavor_253_4 < 1 { condition_flavor_253_4 = 1; }; }; if let ArrayValue::Unknown = input { return int8_unresolved(condition_flavor_253_4); }; let mut condition_flavor_253_87: i32 = unresolved_flavor; if let ArrayValue::Unimplemented = input { condition_flavor_253_87 = 2; }; if let ArrayValue::Unimplemented = input { return int8_unresolved(condition_flavor_253_87); };
+    let mut condition_flavor_254_4: i32 = unresolved_flavor; if let Int8Value::Unknown = seed { if condition_flavor_254_4 < 1 { condition_flavor_254_4 = 1; }; }; if let Int8Value::Unimplemented = seed { condition_flavor_254_4 = 2; }; if (seed == Int8Value::Unknown || seed == Int8Value::Unimplemented) { return int8_unresolved(condition_flavor_254_4); };
     if let ArrayValue::Null = input { return Int8Value::Null; };
     if seed == Int8Value::Null { return Int8Value::Null; };
     let plan = catalog_vector_hash_bytes(input);
@@ -255,6 +264,7 @@ pub fn sql__pg_catalog__hashoidvectorextended__hlbf(input: ArrayValue, seed: Int
 fn catalog_vector_send(input: ArrayValue, oid: bool) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayValue::Error(error) = input { return ByteaValue::Error(error); };
     if let ArrayValue::Null = input { return ByteaValue::Null; };
     if let ArrayValue::Value(value) = input {
@@ -269,8 +279,10 @@ fn catalog_vector_send(input: ArrayValue, oid: bool) -> ByteaValue {
             if let ArrayElement::Error(error) = cell { return ByteaValue::Error(error); };
             let mut null_cell = false;
             if let ArrayElement::Null = cell { null_cell = true; };
-            if let ArrayElement::Unknown = cell {
-                if value.null_bitmap != BoolValue::Value(false) { return bytea_unresolved(unresolved_flavor); };
+            let mut condition_flavor_282_12: i32 = unresolved_flavor; if let ArrayElement::Unknown = cell { if condition_flavor_282_12 < 1 { condition_flavor_282_12 = 1; }; }; if let ArrayElement::Unknown = cell {
+                if value.null_bitmap != BoolValue::Value(false) { return bytea_unresolved(condition_flavor_282_12); };
+            }; let mut condition_flavor_284_15: i32 = unresolved_flavor; if let ArrayElement::Unimplemented = cell { condition_flavor_284_15 = 2; }; if let ArrayElement::Unimplemented = cell {
+                if value.null_bitmap != BoolValue::Value(false) { return bytea_unresolved(condition_flavor_284_15); };
             };
             length = length + 4i64;
             if null_cell == false { length = length + width; };

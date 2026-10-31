@@ -196,6 +196,10 @@ pub fn sql__pg_catalog__overlaps__4anj(
     if let TimeValue::Unknown = b { unresolved_flavor = 1; };
     if let TimeValue::Unknown = c { unresolved_flavor = 1; };
     if let TimeValue::Unknown = d { unresolved_flavor = 1; };
+    if let TimeValue::Unimplemented = a { unresolved_flavor = 2; };
+    if let TimeValue::Unimplemented = b { unresolved_flavor = 2; };
+    if let TimeValue::Unimplemented = c { unresolved_flavor = 2; };
+    if let TimeValue::Unimplemented = d { unresolved_flavor = 2; };
     if let TimeValue::Error(error) = a {
         return BoolValue::Error(error);
     };
@@ -208,12 +212,12 @@ pub fn sql__pg_catalog__overlaps__4anj(
     if let TimeValue::Error(error) = d {
         return BoolValue::Error(error);
     };
-    if a == TimeValue::Unknown
-        || b == TimeValue::Unknown
-        || c == TimeValue::Unknown
-        || d == TimeValue::Unknown
+    let mut condition_flavor_215_4: i32 = unresolved_flavor; if let TimeValue::Unknown = a { if condition_flavor_215_4 < 1 { condition_flavor_215_4 = 1; }; }; if let TimeValue::Unimplemented = a { condition_flavor_215_4 = 2; }; if let TimeValue::Unknown = b { if condition_flavor_215_4 < 1 { condition_flavor_215_4 = 1; }; }; if let TimeValue::Unimplemented = b { condition_flavor_215_4 = 2; }; if let TimeValue::Unknown = c { if condition_flavor_215_4 < 1 { condition_flavor_215_4 = 1; }; }; if let TimeValue::Unimplemented = c { condition_flavor_215_4 = 2; }; if let TimeValue::Unknown = d { if condition_flavor_215_4 < 1 { condition_flavor_215_4 = 1; }; }; if let TimeValue::Unimplemented = d { condition_flavor_215_4 = 2; }; if (a == TimeValue::Unknown || a == TimeValue::Unimplemented)
+        || (b == TimeValue::Unknown || b == TimeValue::Unimplemented)
+        || (c == TimeValue::Unknown || c == TimeValue::Unimplemented)
+        || (d == TimeValue::Unknown || d == TimeValue::Unimplemented)
     {
-        return bool_unresolved(unresolved_flavor);
+        return bool_unresolved(condition_flavor_215_4);
     };
     let point_a = overlap_time_point(a);
     let point_b = overlap_time_point(b);
@@ -296,6 +300,10 @@ pub fn sql__pg_catalog__overlaps__cdbz(
     if let TimestampValue::Unknown = b { unresolved_flavor = 1; };
     if let TimestampValue::Unknown = c { unresolved_flavor = 1; };
     if let TimestampValue::Unknown = d { unresolved_flavor = 1; };
+    if let TimestampValue::Unimplemented = a { unresolved_flavor = 2; };
+    if let TimestampValue::Unimplemented = b { unresolved_flavor = 2; };
+    if let TimestampValue::Unimplemented = c { unresolved_flavor = 2; };
+    if let TimestampValue::Unimplemented = d { unresolved_flavor = 2; };
     if let TimestampValue::Error(error) = a {
         return BoolValue::Error(error);
     };
@@ -308,12 +316,12 @@ pub fn sql__pg_catalog__overlaps__cdbz(
     if let TimestampValue::Error(error) = d {
         return BoolValue::Error(error);
     };
-    if a == TimestampValue::Unknown
-        || b == TimestampValue::Unknown
-        || c == TimestampValue::Unknown
-        || d == TimestampValue::Unknown
+    let mut condition_flavor_319_4: i32 = unresolved_flavor; if let TimestampValue::Unknown = a { if condition_flavor_319_4 < 1 { condition_flavor_319_4 = 1; }; }; if let TimestampValue::Unimplemented = a { condition_flavor_319_4 = 2; }; if let TimestampValue::Unknown = b { if condition_flavor_319_4 < 1 { condition_flavor_319_4 = 1; }; }; if let TimestampValue::Unimplemented = b { condition_flavor_319_4 = 2; }; if let TimestampValue::Unknown = c { if condition_flavor_319_4 < 1 { condition_flavor_319_4 = 1; }; }; if let TimestampValue::Unimplemented = c { condition_flavor_319_4 = 2; }; if let TimestampValue::Unknown = d { if condition_flavor_319_4 < 1 { condition_flavor_319_4 = 1; }; }; if let TimestampValue::Unimplemented = d { condition_flavor_319_4 = 2; }; if (a == TimestampValue::Unknown || a == TimestampValue::Unimplemented)
+        || (b == TimestampValue::Unknown || b == TimestampValue::Unimplemented)
+        || (c == TimestampValue::Unknown || c == TimestampValue::Unimplemented)
+        || (d == TimestampValue::Unknown || d == TimestampValue::Unimplemented)
     {
-        return bool_unresolved(unresolved_flavor);
+        return bool_unresolved(condition_flavor_319_4);
     };
     let point_a = overlap_timestamp_point(a);
     let point_b = overlap_timestamp_point(b);
@@ -332,6 +340,10 @@ pub fn sql__pg_catalog__overlaps__xg7p(
     if let TimestamptzValue::Unknown = b { unresolved_flavor = 1; };
     if let TimestamptzValue::Unknown = c { unresolved_flavor = 1; };
     if let TimestamptzValue::Unknown = d { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unimplemented = a { unresolved_flavor = 2; };
+    if let TimestamptzValue::Unimplemented = b { unresolved_flavor = 2; };
+    if let TimestamptzValue::Unimplemented = c { unresolved_flavor = 2; };
+    if let TimestamptzValue::Unimplemented = d { unresolved_flavor = 2; };
     if let TimestamptzValue::Error(error) = a {
         return BoolValue::Error(error);
     };
@@ -344,12 +356,12 @@ pub fn sql__pg_catalog__overlaps__xg7p(
     if let TimestamptzValue::Error(error) = d {
         return BoolValue::Error(error);
     };
-    if a == TimestamptzValue::Unknown
-        || b == TimestamptzValue::Unknown
-        || c == TimestamptzValue::Unknown
-        || d == TimestamptzValue::Unknown
+    let mut condition_flavor_359_4: i32 = unresolved_flavor; if let TimestamptzValue::Unknown = a { if condition_flavor_359_4 < 1 { condition_flavor_359_4 = 1; }; }; if let TimestamptzValue::Unimplemented = a { condition_flavor_359_4 = 2; }; if let TimestamptzValue::Unknown = b { if condition_flavor_359_4 < 1 { condition_flavor_359_4 = 1; }; }; if let TimestamptzValue::Unimplemented = b { condition_flavor_359_4 = 2; }; if let TimestamptzValue::Unknown = c { if condition_flavor_359_4 < 1 { condition_flavor_359_4 = 1; }; }; if let TimestamptzValue::Unimplemented = c { condition_flavor_359_4 = 2; }; if let TimestamptzValue::Unknown = d { if condition_flavor_359_4 < 1 { condition_flavor_359_4 = 1; }; }; if let TimestamptzValue::Unimplemented = d { condition_flavor_359_4 = 2; }; if (a == TimestamptzValue::Unknown || a == TimestamptzValue::Unimplemented)
+        || (b == TimestamptzValue::Unknown || b == TimestamptzValue::Unimplemented)
+        || (c == TimestamptzValue::Unknown || c == TimestamptzValue::Unimplemented)
+        || (d == TimestamptzValue::Unknown || d == TimestamptzValue::Unimplemented)
     {
-        return bool_unresolved(unresolved_flavor);
+        return bool_unresolved(condition_flavor_359_4);
     };
     let point_a = overlap_timestamptz_point(a);
     let point_b = overlap_timestamptz_point(b);
@@ -368,6 +380,10 @@ pub fn sql__pg_catalog__overlaps__o9q5(
     if let TimetzValue::Unknown = b { unresolved_flavor = 1; };
     if let TimetzValue::Unknown = c { unresolved_flavor = 1; };
     if let TimetzValue::Unknown = d { unresolved_flavor = 1; };
+    if let TimetzValue::Unimplemented = a { unresolved_flavor = 2; };
+    if let TimetzValue::Unimplemented = b { unresolved_flavor = 2; };
+    if let TimetzValue::Unimplemented = c { unresolved_flavor = 2; };
+    if let TimetzValue::Unimplemented = d { unresolved_flavor = 2; };
     if let TimetzValue::Error(error) = a {
         return BoolValue::Error(error);
     };
@@ -380,12 +396,12 @@ pub fn sql__pg_catalog__overlaps__o9q5(
     if let TimetzValue::Error(error) = d {
         return BoolValue::Error(error);
     };
-    if a == TimetzValue::Unknown
-        || b == TimetzValue::Unknown
-        || c == TimetzValue::Unknown
-        || d == TimetzValue::Unknown
+    let mut condition_flavor_399_4: i32 = unresolved_flavor; if let TimetzValue::Unknown = a { if condition_flavor_399_4 < 1 { condition_flavor_399_4 = 1; }; }; if let TimetzValue::Unimplemented = a { condition_flavor_399_4 = 2; }; if let TimetzValue::Unknown = b { if condition_flavor_399_4 < 1 { condition_flavor_399_4 = 1; }; }; if let TimetzValue::Unimplemented = b { condition_flavor_399_4 = 2; }; if let TimetzValue::Unknown = c { if condition_flavor_399_4 < 1 { condition_flavor_399_4 = 1; }; }; if let TimetzValue::Unimplemented = c { condition_flavor_399_4 = 2; }; if let TimetzValue::Unknown = d { if condition_flavor_399_4 < 1 { condition_flavor_399_4 = 1; }; }; if let TimetzValue::Unimplemented = d { condition_flavor_399_4 = 2; }; if (a == TimetzValue::Unknown || a == TimetzValue::Unimplemented)
+        || (b == TimetzValue::Unknown || b == TimetzValue::Unimplemented)
+        || (c == TimetzValue::Unknown || c == TimetzValue::Unimplemented)
+        || (d == TimetzValue::Unknown || d == TimetzValue::Unimplemented)
     {
-        return bool_unresolved(unresolved_flavor);
+        return bool_unresolved(condition_flavor_399_4);
     };
     let point_a = overlap_timetz_point(a);
     let point_b = overlap_timetz_point(b);

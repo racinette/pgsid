@@ -3,11 +3,12 @@ const ENUM_SUPPORT_EMPTY: u32 = 8631360;
 fn enum_support_argument(input: EnumValue, count: i32, unknown_valid: bool) -> CheckOutcome {
     let mut unresolved_flavor: i32 = 0;
     if let EnumValue::Unknown = input { unresolved_flavor = 1; };
+    if let EnumValue::Unimplemented = input { unresolved_flavor = 2; };
     if let EnumValue::Error(error) = input {
         return CheckOutcome::Error(error);
     };
-    if count < 0 || (input == EnumValue::Unknown && unknown_valid == false) {
-        return check_unresolved(unresolved_flavor);
+    let mut condition_flavor_10_4: i32 = unresolved_flavor; if let EnumValue::Unknown = input { if condition_flavor_10_4 < 1 { condition_flavor_10_4 = 1; }; }; if let EnumValue::Unimplemented = input { condition_flavor_10_4 = 2; }; if count < 0 || ((input == EnumValue::Unknown || input == EnumValue::Unimplemented) && unknown_valid == false) {
+        return check_unresolved(condition_flavor_10_4);
     };
     if let EnumValue::Value(value) = input {
         if value.ordinal < 0 || value.ordinal >= count {
@@ -50,6 +51,7 @@ pub fn sql__pg_catalog__enum_range__p6cj(
 ) -> ArrayValue {
     let mut unresolved_flavor: i32 = 0;
     if let EnumValue::Unknown = input { unresolved_flavor = 1; };
+    if let EnumValue::Unimplemented = input { unresolved_flavor = 2; };
     let validity = enum_support_argument(input, count, unknown_valid);
     if let CheckOutcome::Error(error) = validity {
         return ArrayValue::Error(error);
@@ -71,6 +73,8 @@ pub fn sql__pg_catalog__enum_range__ecgl(
     let mut unresolved_flavor: i32 = 0;
     if let EnumValue::Unknown = lower { unresolved_flavor = 1; };
     if let EnumValue::Unknown = upper { unresolved_flavor = 1; };
+    if let EnumValue::Unimplemented = lower { unresolved_flavor = 2; };
+    if let EnumValue::Unimplemented = upper { unresolved_flavor = 2; };
     if let EnumValue::Error(error) = lower {
         return ArrayValue::Error(error);
     };
@@ -82,8 +86,8 @@ pub fn sql__pg_catalog__enum_range__ecgl(
     if lower_valid != CheckOutcome::True || upper_valid != CheckOutcome::True {
         return array_unresolved(unresolved_flavor);
     };
-    if count > 1 && (lower == EnumValue::Unknown || upper == EnumValue::Unknown) {
-        return array_unresolved(unresolved_flavor);
+    let mut condition_flavor_89_4: i32 = unresolved_flavor; if let EnumValue::Unknown = lower { if condition_flavor_89_4 < 1 { condition_flavor_89_4 = 1; }; }; if let EnumValue::Unimplemented = lower { condition_flavor_89_4 = 2; }; if let EnumValue::Unknown = upper { if condition_flavor_89_4 < 1 { condition_flavor_89_4 = 1; }; }; if let EnumValue::Unimplemented = upper { condition_flavor_89_4 = 2; }; if count > 1 && ((lower == EnumValue::Unknown || lower == EnumValue::Unimplemented) || (upper == EnumValue::Unknown || upper == EnumValue::Unimplemented)) {
+        return array_unresolved(condition_flavor_89_4);
     };
     let mut first: i32 = 0;
     let mut last: i32 = count - 1;
@@ -104,6 +108,7 @@ fn enum_support_endpoint(
 ) -> EnumValue {
     let mut unresolved_flavor: i32 = 0;
     if let EnumValue::Unknown = input { unresolved_flavor = 1; };
+    if let EnumValue::Unimplemented = input { unresolved_flavor = 2; };
     let validity = enum_support_argument(input, count, unknown_valid);
     if let CheckOutcome::Error(error) = validity {
         return EnumValue::Error(error);

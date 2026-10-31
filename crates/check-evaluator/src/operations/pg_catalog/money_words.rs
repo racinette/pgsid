@@ -120,6 +120,7 @@ fn money_hundred_words(value: i32) -> String {
 fn money_words(input: MoneyValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let MoneyValue::Unknown = input { unresolved_flavor = 1; };
+    if let MoneyValue::Unimplemented = input { unresolved_flavor = 2; };
     if let MoneyValue::Error(error) = input {
         return TextValue::Error(error);
     };

@@ -37,14 +37,16 @@ fn bit_compare(left: BitValue, right: BitValue) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let BitValue::Unknown = left { unresolved_flavor = 1; };
     if let BitValue::Unknown = right { unresolved_flavor = 1; };
+    if let BitValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let BitValue::Unimplemented = right { unresolved_flavor = 2; };
     if let BitValue::Error(error) = left {
         return Int4Value::Error(error);
     }
     if let BitValue::Error(error) = right {
         return Int4Value::Error(error);
     }
-    if left == BitValue::Unknown || right == BitValue::Unknown {
-        return int4_unresolved(unresolved_flavor);
+    let mut condition_flavor_48_4: i32 = unresolved_flavor; if let BitValue::Unknown = left { if condition_flavor_48_4 < 1 { condition_flavor_48_4 = 1; }; }; if let BitValue::Unimplemented = left { condition_flavor_48_4 = 2; }; if let BitValue::Unknown = right { if condition_flavor_48_4 < 1 { condition_flavor_48_4 = 1; }; }; if let BitValue::Unimplemented = right { condition_flavor_48_4 = 2; }; if (left == BitValue::Unknown || left == BitValue::Unimplemented) || (right == BitValue::Unknown || right == BitValue::Unimplemented) {
+        return int4_unresolved(condition_flavor_48_4);
     }
     if left == BitValue::Null || right == BitValue::Null {
         return Int4Value::Null;
@@ -63,11 +65,12 @@ fn bit_compare(left: BitValue, right: BitValue) -> Int4Value {
 fn bit_length(input: BitValue) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let BitValue::Unknown = input { unresolved_flavor = 1; };
+    if let BitValue::Unimplemented = input { unresolved_flavor = 2; };
     if let BitValue::Error(error) = input {
         return Int4Value::Error(error);
     }
-    if input == BitValue::Unknown {
-        return int4_unresolved(unresolved_flavor);
+    let mut condition_flavor_72_4: i32 = unresolved_flavor; if let BitValue::Unknown = input { if condition_flavor_72_4 < 1 { condition_flavor_72_4 = 1; }; }; if let BitValue::Unimplemented = input { condition_flavor_72_4 = 2; }; if (input == BitValue::Unknown || input == BitValue::Unimplemented) {
+        return int4_unresolved(condition_flavor_72_4);
     }
     if input == BitValue::Null {
         return Int4Value::Null;
@@ -92,12 +95,14 @@ pub fn sql__pg_catalog__biteq__320u(left: BitValue, right: BitValue) -> BoolValu
     let mut unresolved_flavor: i32 = 0;
     if let BitValue::Unknown = left { unresolved_flavor = 1; };
     if let BitValue::Unknown = right { unresolved_flavor = 1; };
+    if let BitValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let BitValue::Unimplemented = right { unresolved_flavor = 2; };
     let compared = bit_compare(left, right);
     if let Int4Value::Error(error) = compared {
         return BoolValue::Error(error);
     }
-    if compared == Int4Value::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_104_4: i32 = unresolved_flavor; if let Int4Value::Unknown = compared { if condition_flavor_104_4 < 1 { condition_flavor_104_4 = 1; }; }; if let Int4Value::Unimplemented = compared { condition_flavor_104_4 = 2; }; if (compared == Int4Value::Unknown || compared == Int4Value::Unimplemented) {
+        return bool_unresolved(condition_flavor_104_4);
     }
     if compared == Int4Value::Null {
         return BoolValue::Null;
@@ -112,12 +117,14 @@ pub fn sql__pg_catalog__bitge__py56(left: BitValue, right: BitValue) -> BoolValu
     let mut unresolved_flavor: i32 = 0;
     if let BitValue::Unknown = left { unresolved_flavor = 1; };
     if let BitValue::Unknown = right { unresolved_flavor = 1; };
+    if let BitValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let BitValue::Unimplemented = right { unresolved_flavor = 2; };
     let compared = bit_compare(left, right);
     if let Int4Value::Error(error) = compared {
         return BoolValue::Error(error);
     }
-    if compared == Int4Value::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_126_4: i32 = unresolved_flavor; if let Int4Value::Unknown = compared { if condition_flavor_126_4 < 1 { condition_flavor_126_4 = 1; }; }; if let Int4Value::Unimplemented = compared { condition_flavor_126_4 = 2; }; if (compared == Int4Value::Unknown || compared == Int4Value::Unimplemented) {
+        return bool_unresolved(condition_flavor_126_4);
     }
     if compared == Int4Value::Null {
         return BoolValue::Null;
@@ -132,12 +139,14 @@ pub fn sql__pg_catalog__bitgt__2srl(left: BitValue, right: BitValue) -> BoolValu
     let mut unresolved_flavor: i32 = 0;
     if let BitValue::Unknown = left { unresolved_flavor = 1; };
     if let BitValue::Unknown = right { unresolved_flavor = 1; };
+    if let BitValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let BitValue::Unimplemented = right { unresolved_flavor = 2; };
     let compared = bit_compare(left, right);
     if let Int4Value::Error(error) = compared {
         return BoolValue::Error(error);
     }
-    if compared == Int4Value::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_148_4: i32 = unresolved_flavor; if let Int4Value::Unknown = compared { if condition_flavor_148_4 < 1 { condition_flavor_148_4 = 1; }; }; if let Int4Value::Unimplemented = compared { condition_flavor_148_4 = 2; }; if (compared == Int4Value::Unknown || compared == Int4Value::Unimplemented) {
+        return bool_unresolved(condition_flavor_148_4);
     }
     if compared == Int4Value::Null {
         return BoolValue::Null;
@@ -152,12 +161,14 @@ pub fn sql__pg_catalog__bitle__y0d7(left: BitValue, right: BitValue) -> BoolValu
     let mut unresolved_flavor: i32 = 0;
     if let BitValue::Unknown = left { unresolved_flavor = 1; };
     if let BitValue::Unknown = right { unresolved_flavor = 1; };
+    if let BitValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let BitValue::Unimplemented = right { unresolved_flavor = 2; };
     let compared = bit_compare(left, right);
     if let Int4Value::Error(error) = compared {
         return BoolValue::Error(error);
     }
-    if compared == Int4Value::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_170_4: i32 = unresolved_flavor; if let Int4Value::Unknown = compared { if condition_flavor_170_4 < 1 { condition_flavor_170_4 = 1; }; }; if let Int4Value::Unimplemented = compared { condition_flavor_170_4 = 2; }; if (compared == Int4Value::Unknown || compared == Int4Value::Unimplemented) {
+        return bool_unresolved(condition_flavor_170_4);
     }
     if compared == Int4Value::Null {
         return BoolValue::Null;
@@ -172,12 +183,14 @@ pub fn sql__pg_catalog__bitlt__6ybn(left: BitValue, right: BitValue) -> BoolValu
     let mut unresolved_flavor: i32 = 0;
     if let BitValue::Unknown = left { unresolved_flavor = 1; };
     if let BitValue::Unknown = right { unresolved_flavor = 1; };
+    if let BitValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let BitValue::Unimplemented = right { unresolved_flavor = 2; };
     let compared = bit_compare(left, right);
     if let Int4Value::Error(error) = compared {
         return BoolValue::Error(error);
     }
-    if compared == Int4Value::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_192_4: i32 = unresolved_flavor; if let Int4Value::Unknown = compared { if condition_flavor_192_4 < 1 { condition_flavor_192_4 = 1; }; }; if let Int4Value::Unimplemented = compared { condition_flavor_192_4 = 2; }; if (compared == Int4Value::Unknown || compared == Int4Value::Unimplemented) {
+        return bool_unresolved(condition_flavor_192_4);
     }
     if compared == Int4Value::Null {
         return BoolValue::Null;
@@ -192,12 +205,14 @@ pub fn sql__pg_catalog__bitne__xjg3(left: BitValue, right: BitValue) -> BoolValu
     let mut unresolved_flavor: i32 = 0;
     if let BitValue::Unknown = left { unresolved_flavor = 1; };
     if let BitValue::Unknown = right { unresolved_flavor = 1; };
+    if let BitValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let BitValue::Unimplemented = right { unresolved_flavor = 2; };
     let compared = bit_compare(left, right);
     if let Int4Value::Error(error) = compared {
         return BoolValue::Error(error);
     }
-    if compared == Int4Value::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_214_4: i32 = unresolved_flavor; if let Int4Value::Unknown = compared { if condition_flavor_214_4 < 1 { condition_flavor_214_4 = 1; }; }; if let Int4Value::Unimplemented = compared { condition_flavor_214_4 = 2; }; if (compared == Int4Value::Unknown || compared == Int4Value::Unimplemented) {
+        return bool_unresolved(condition_flavor_214_4);
     }
     if compared == Int4Value::Null {
         return BoolValue::Null;
@@ -232,12 +247,14 @@ pub fn sql__pg_catalog__varbiteq__d8r9(left: BitValue, right: BitValue) -> BoolV
     let mut unresolved_flavor: i32 = 0;
     if let BitValue::Unknown = left { unresolved_flavor = 1; };
     if let BitValue::Unknown = right { unresolved_flavor = 1; };
+    if let BitValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let BitValue::Unimplemented = right { unresolved_flavor = 2; };
     let compared = bit_compare(left, right);
     if let Int4Value::Error(error) = compared {
         return BoolValue::Error(error);
     }
-    if compared == Int4Value::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_256_4: i32 = unresolved_flavor; if let Int4Value::Unknown = compared { if condition_flavor_256_4 < 1 { condition_flavor_256_4 = 1; }; }; if let Int4Value::Unimplemented = compared { condition_flavor_256_4 = 2; }; if (compared == Int4Value::Unknown || compared == Int4Value::Unimplemented) {
+        return bool_unresolved(condition_flavor_256_4);
     }
     if compared == Int4Value::Null {
         return BoolValue::Null;
@@ -252,12 +269,14 @@ pub fn sql__pg_catalog__varbitge__3izz(left: BitValue, right: BitValue) -> BoolV
     let mut unresolved_flavor: i32 = 0;
     if let BitValue::Unknown = left { unresolved_flavor = 1; };
     if let BitValue::Unknown = right { unresolved_flavor = 1; };
+    if let BitValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let BitValue::Unimplemented = right { unresolved_flavor = 2; };
     let compared = bit_compare(left, right);
     if let Int4Value::Error(error) = compared {
         return BoolValue::Error(error);
     }
-    if compared == Int4Value::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_278_4: i32 = unresolved_flavor; if let Int4Value::Unknown = compared { if condition_flavor_278_4 < 1 { condition_flavor_278_4 = 1; }; }; if let Int4Value::Unimplemented = compared { condition_flavor_278_4 = 2; }; if (compared == Int4Value::Unknown || compared == Int4Value::Unimplemented) {
+        return bool_unresolved(condition_flavor_278_4);
     }
     if compared == Int4Value::Null {
         return BoolValue::Null;
@@ -272,12 +291,14 @@ pub fn sql__pg_catalog__varbitgt__31v4(left: BitValue, right: BitValue) -> BoolV
     let mut unresolved_flavor: i32 = 0;
     if let BitValue::Unknown = left { unresolved_flavor = 1; };
     if let BitValue::Unknown = right { unresolved_flavor = 1; };
+    if let BitValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let BitValue::Unimplemented = right { unresolved_flavor = 2; };
     let compared = bit_compare(left, right);
     if let Int4Value::Error(error) = compared {
         return BoolValue::Error(error);
     }
-    if compared == Int4Value::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_300_4: i32 = unresolved_flavor; if let Int4Value::Unknown = compared { if condition_flavor_300_4 < 1 { condition_flavor_300_4 = 1; }; }; if let Int4Value::Unimplemented = compared { condition_flavor_300_4 = 2; }; if (compared == Int4Value::Unknown || compared == Int4Value::Unimplemented) {
+        return bool_unresolved(condition_flavor_300_4);
     }
     if compared == Int4Value::Null {
         return BoolValue::Null;
@@ -292,12 +313,14 @@ pub fn sql__pg_catalog__varbitle__42o0(left: BitValue, right: BitValue) -> BoolV
     let mut unresolved_flavor: i32 = 0;
     if let BitValue::Unknown = left { unresolved_flavor = 1; };
     if let BitValue::Unknown = right { unresolved_flavor = 1; };
+    if let BitValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let BitValue::Unimplemented = right { unresolved_flavor = 2; };
     let compared = bit_compare(left, right);
     if let Int4Value::Error(error) = compared {
         return BoolValue::Error(error);
     }
-    if compared == Int4Value::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_322_4: i32 = unresolved_flavor; if let Int4Value::Unknown = compared { if condition_flavor_322_4 < 1 { condition_flavor_322_4 = 1; }; }; if let Int4Value::Unimplemented = compared { condition_flavor_322_4 = 2; }; if (compared == Int4Value::Unknown || compared == Int4Value::Unimplemented) {
+        return bool_unresolved(condition_flavor_322_4);
     }
     if compared == Int4Value::Null {
         return BoolValue::Null;
@@ -312,12 +335,14 @@ pub fn sql__pg_catalog__varbitlt__xsv2(left: BitValue, right: BitValue) -> BoolV
     let mut unresolved_flavor: i32 = 0;
     if let BitValue::Unknown = left { unresolved_flavor = 1; };
     if let BitValue::Unknown = right { unresolved_flavor = 1; };
+    if let BitValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let BitValue::Unimplemented = right { unresolved_flavor = 2; };
     let compared = bit_compare(left, right);
     if let Int4Value::Error(error) = compared {
         return BoolValue::Error(error);
     }
-    if compared == Int4Value::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_344_4: i32 = unresolved_flavor; if let Int4Value::Unknown = compared { if condition_flavor_344_4 < 1 { condition_flavor_344_4 = 1; }; }; if let Int4Value::Unimplemented = compared { condition_flavor_344_4 = 2; }; if (compared == Int4Value::Unknown || compared == Int4Value::Unimplemented) {
+        return bool_unresolved(condition_flavor_344_4);
     }
     if compared == Int4Value::Null {
         return BoolValue::Null;
@@ -332,12 +357,14 @@ pub fn sql__pg_catalog__varbitne__sbck(left: BitValue, right: BitValue) -> BoolV
     let mut unresolved_flavor: i32 = 0;
     if let BitValue::Unknown = left { unresolved_flavor = 1; };
     if let BitValue::Unknown = right { unresolved_flavor = 1; };
+    if let BitValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let BitValue::Unimplemented = right { unresolved_flavor = 2; };
     let compared = bit_compare(left, right);
     if let Int4Value::Error(error) = compared {
         return BoolValue::Error(error);
     }
-    if compared == Int4Value::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_366_4: i32 = unresolved_flavor; if let Int4Value::Unknown = compared { if condition_flavor_366_4 < 1 { condition_flavor_366_4 = 1; }; }; if let Int4Value::Unimplemented = compared { condition_flavor_366_4 = 2; }; if (compared == Int4Value::Unknown || compared == Int4Value::Unimplemented) {
+        return bool_unresolved(condition_flavor_366_4);
     }
     if compared == Int4Value::Null {
         return BoolValue::Null;

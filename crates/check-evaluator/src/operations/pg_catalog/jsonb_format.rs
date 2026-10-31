@@ -72,17 +72,21 @@ pub fn sql__pg_catalog__jsonb_strip_nulls__ruwp(
     let mut unresolved_flavor: i32 = 0;
     if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
     if let BoolValue::Unknown = arrays { unresolved_flavor = 1; };
+    if let JsonbValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let BoolValue::Unimplemented = arrays { unresolved_flavor = 2; };
     if let JsonbValue::Error(error) = input {
         return JsonbValue::Error(error);
     };
     if let BoolValue::Error(error) = arrays {
         return JsonbValue::Error(error);
     };
-    if let JsonbValue::Unknown = input {
-        return jsonb_unresolved(unresolved_flavor);
+    let mut condition_flavor_83_4: i32 = unresolved_flavor; if let JsonbValue::Unknown = input { if condition_flavor_83_4 < 1 { condition_flavor_83_4 = 1; }; }; if let JsonbValue::Unknown = input {
+        return jsonb_unresolved(condition_flavor_83_4);
+    }; let mut condition_flavor_85_7: i32 = unresolved_flavor; if let JsonbValue::Unimplemented = input { condition_flavor_85_7 = 2; }; if let JsonbValue::Unimplemented = input {
+        return jsonb_unresolved(condition_flavor_85_7);
     };
-    if arrays == BoolValue::Unknown {
-        return jsonb_unresolved(unresolved_flavor);
+    let mut condition_flavor_88_4: i32 = unresolved_flavor; if let BoolValue::Unknown = arrays { if condition_flavor_88_4 < 1 { condition_flavor_88_4 = 1; }; }; if let BoolValue::Unimplemented = arrays { condition_flavor_88_4 = 2; }; if (arrays == BoolValue::Unknown || arrays == BoolValue::Unimplemented) {
+        return jsonb_unresolved(condition_flavor_88_4);
     };
     if let JsonbValue::Null = input {
         return JsonbValue::Null;

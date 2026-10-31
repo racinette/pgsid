@@ -3,14 +3,17 @@ const JSONB_BUILD_PARAMETER: u32 = 3452619;
 fn jsonb_build_key(input: JsonbInput) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let JsonbInput::Unknown = input { unresolved_flavor = 1; };
+    if let JsonbInput::Unimplemented = input { unresolved_flavor = 2; };
     if let JsonbInput::Error(error) = input {
         return TextValue::Error(error);
     };
     if let JsonbInput::ScalarUnknown(_) = input {
         return text_unresolved(unresolved_flavor);
     };
-    if let JsonbInput::Unknown = input {
-        return text_unresolved(unresolved_flavor);
+    let mut condition_flavor_13_4: i32 = unresolved_flavor; if let JsonbInput::Unknown = input { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let JsonbInput::Unknown = input {
+        return text_unresolved(condition_flavor_13_4);
+    }; let mut condition_flavor_15_7: i32 = unresolved_flavor; if let JsonbInput::Unimplemented = input { condition_flavor_15_7 = 2; }; if let JsonbInput::Unimplemented = input {
+        return text_unresolved(condition_flavor_15_7);
     };
     if let JsonbInput::Boolean(value) = input {
         if value {
@@ -42,6 +45,7 @@ fn jsonb_build_node(node: JsonbNode, next: usize, key_start: usize, key_end: usi
 fn jsonb_build(input: JsonbArguments, object: bool) -> JsonbValue {
     let mut unresolved_flavor: i32 = 0;
     if let JsonbArguments::Unknown = input { unresolved_flavor = 1; };
+    if let JsonbArguments::Unimplemented = input { unresolved_flavor = 2; };
     if let JsonbArguments::Error(error) = input {
         return JsonbValue::Error(error);
     };
@@ -108,8 +112,8 @@ fn jsonb_build(input: JsonbArguments, object: bool) -> JsonbValue {
                 if let TextValue::Error(error) = key {
                     return JsonbValue::Error(error);
                 };
-                if key == TextValue::Unknown || key == TextValue::NonNull {
-                    return jsonb_unresolved(unresolved_flavor);
+                let mut condition_flavor_115_16: i32 = unresolved_flavor; if let TextValue::Unknown = key { if condition_flavor_115_16 < 1 { condition_flavor_115_16 = 1; }; }; if let TextValue::Unimplemented = key { condition_flavor_115_16 = 2; }; if (key == TextValue::Unknown || key == TextValue::Unimplemented) || key == TextValue::NonNull {
+                    return jsonb_unresolved(condition_flavor_115_16);
                 };
                 if let TextValue::Value(text) = key {
                     let key_characters: Vec<char> = text.chars().collect();
@@ -160,8 +164,10 @@ fn jsonb_build(input: JsonbArguments, object: bool) -> JsonbValue {
             if let JsonbValue::Error(error) = converted {
                 return JsonbValue::Error(error);
             };
-            if let JsonbValue::Unknown = converted {
-                return jsonb_unresolved(unresolved_flavor);
+            let mut condition_flavor_167_12: i32 = unresolved_flavor; if let JsonbValue::Unknown = converted { if condition_flavor_167_12 < 1 { condition_flavor_167_12 = 1; }; }; if let JsonbValue::Unknown = converted {
+                return jsonb_unresolved(condition_flavor_167_12);
+            }; let mut condition_flavor_169_15: i32 = unresolved_flavor; if let JsonbValue::Unimplemented = converted { condition_flavor_169_15 = 2; }; if let JsonbValue::Unimplemented = converted {
+                return jsonb_unresolved(condition_flavor_169_15);
             };
             if let JsonbValue::Value(value) = converted {
                 if partial && spliced == false {

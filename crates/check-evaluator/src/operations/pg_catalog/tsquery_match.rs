@@ -251,10 +251,12 @@ pub fn sql__pg_catalog__ts_match_vq__53kf(document: TsvectorValue, query: Tsquer
     let mut unresolved_flavor: i32 = 0;
     if let TsvectorValue::Unknown = document { unresolved_flavor = 1; };
     if let TsqueryValue::Unknown = query { unresolved_flavor = 1; };
+    if let TsvectorValue::Unimplemented = document { unresolved_flavor = 2; };
+    if let TsqueryValue::Unimplemented = query { unresolved_flavor = 2; };
     if let TsvectorValue::Error(error) = document { return BoolValue::Error(error); };
     if let TsqueryValue::Error(error) = query { return BoolValue::Error(error); };
-    if let TsvectorValue::Unknown = document { return bool_unresolved(unresolved_flavor); };
-    if let TsqueryValue::Unknown = query { return bool_unresolved(unresolved_flavor); };
+    let mut condition_flavor_258_4: i32 = unresolved_flavor; if let TsvectorValue::Unknown = document { if condition_flavor_258_4 < 1 { condition_flavor_258_4 = 1; }; }; if let TsvectorValue::Unknown = document { return bool_unresolved(condition_flavor_258_4); }; let mut condition_flavor_258_93: i32 = unresolved_flavor; if let TsvectorValue::Unimplemented = document { condition_flavor_258_93 = 2; }; if let TsvectorValue::Unimplemented = document { return bool_unresolved(condition_flavor_258_93); };
+    let mut condition_flavor_259_4: i32 = unresolved_flavor; if let TsqueryValue::Unknown = query { if condition_flavor_259_4 < 1 { condition_flavor_259_4 = 1; }; }; if let TsqueryValue::Unknown = query { return bool_unresolved(condition_flavor_259_4); }; let mut condition_flavor_259_89: i32 = unresolved_flavor; if let TsqueryValue::Unimplemented = query { condition_flavor_259_89 = 2; }; if let TsqueryValue::Unimplemented = query { return bool_unresolved(condition_flavor_259_89); };
     if let TsvectorValue::Null = document { return BoolValue::Null; };
     if let TsqueryValue::Null = query { return BoolValue::Null; };
     if let TsvectorValue::Value(value) = document {

@@ -1,6 +1,7 @@
 fn lseg_endpoint(input: LsegValue, second: bool) -> PointValue {
     let mut unresolved_flavor: i32 = 0;
     if let LsegValue::Unknown = input { unresolved_flavor = 1; };
+    if let LsegValue::Unimplemented = input { unresolved_flavor = 2; };
     if let LsegValue::Error(error) = input {
         return PointValue::Error(error);
     };
@@ -27,14 +28,16 @@ pub fn sql__pg_catalog__lseg__l9bc(left: PointValue, right: PointValue) -> LsegV
     let mut unresolved_flavor: i32 = 0;
     if let PointValue::Unknown = left { unresolved_flavor = 1; };
     if let PointValue::Unknown = right { unresolved_flavor = 1; };
+    if let PointValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let PointValue::Unimplemented = right { unresolved_flavor = 2; };
     if let PointValue::Error(error) = left {
         return LsegValue::Error(error);
     };
     if let PointValue::Error(error) = right {
         return LsegValue::Error(error);
     };
-    if left == PointValue::Unknown || right == PointValue::Unknown {
-        return lseg_unresolved(unresolved_flavor);
+    let mut condition_flavor_39_4: i32 = unresolved_flavor; if let PointValue::Unknown = left { if condition_flavor_39_4 < 1 { condition_flavor_39_4 = 1; }; }; if let PointValue::Unimplemented = left { condition_flavor_39_4 = 2; }; if let PointValue::Unknown = right { if condition_flavor_39_4 < 1 { condition_flavor_39_4 = 1; }; }; if let PointValue::Unimplemented = right { condition_flavor_39_4 = 2; }; if (left == PointValue::Unknown || left == PointValue::Unimplemented) || (right == PointValue::Unknown || right == PointValue::Unimplemented) {
+        return lseg_unresolved(condition_flavor_39_4);
     };
     if left == PointValue::Null || right == PointValue::Null {
         return LsegValue::Null;
@@ -55,6 +58,7 @@ pub fn sql__pg_catalog__lseg__l9bc(left: PointValue, right: PointValue) -> LsegV
 pub fn sql__pg_catalog__lseg_send__kc2a(input: LsegValue) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let LsegValue::Unknown = input { unresolved_flavor = 1; };
+    if let LsegValue::Unimplemented = input { unresolved_flavor = 2; };
     if let LsegValue::Error(error) = input {
         return ByteaValue::Error(error);
     };
@@ -75,14 +79,16 @@ fn lseg_equal(left: LsegValue, right: LsegValue, different: bool) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let LsegValue::Unknown = left { unresolved_flavor = 1; };
     if let LsegValue::Unknown = right { unresolved_flavor = 1; };
+    if let LsegValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let LsegValue::Unimplemented = right { unresolved_flavor = 2; };
     if let LsegValue::Error(error) = left {
         return BoolValue::Error(error);
     };
     if let LsegValue::Error(error) = right {
         return BoolValue::Error(error);
     };
-    if left == LsegValue::Unknown || right == LsegValue::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_90_4: i32 = unresolved_flavor; if let LsegValue::Unknown = left { if condition_flavor_90_4 < 1 { condition_flavor_90_4 = 1; }; }; if let LsegValue::Unimplemented = left { condition_flavor_90_4 = 2; }; if let LsegValue::Unknown = right { if condition_flavor_90_4 < 1 { condition_flavor_90_4 = 1; }; }; if let LsegValue::Unimplemented = right { condition_flavor_90_4 = 2; }; if (left == LsegValue::Unknown || left == LsegValue::Unimplemented) || (right == LsegValue::Unknown || right == LsegValue::Unimplemented) {
+        return bool_unresolved(condition_flavor_90_4);
     };
     if left == LsegValue::Null || right == LsegValue::Null {
         return BoolValue::Null;
@@ -106,14 +112,16 @@ fn lseg_length_relation(left: LsegValue, right: LsegValue, mode: i32) -> BoolVal
     let mut unresolved_flavor: i32 = 0;
     if let LsegValue::Unknown = left { unresolved_flavor = 1; };
     if let LsegValue::Unknown = right { unresolved_flavor = 1; };
+    if let LsegValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let LsegValue::Unimplemented = right { unresolved_flavor = 2; };
     if let LsegValue::Error(error) = left {
         return BoolValue::Error(error);
     };
     if let LsegValue::Error(error) = right {
         return BoolValue::Error(error);
     };
-    if left == LsegValue::Unknown || right == LsegValue::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_123_4: i32 = unresolved_flavor; if let LsegValue::Unknown = left { if condition_flavor_123_4 < 1 { condition_flavor_123_4 = 1; }; }; if let LsegValue::Unimplemented = left { condition_flavor_123_4 = 2; }; if let LsegValue::Unknown = right { if condition_flavor_123_4 < 1 { condition_flavor_123_4 = 1; }; }; if let LsegValue::Unimplemented = right { condition_flavor_123_4 = 2; }; if (left == LsegValue::Unknown || left == LsegValue::Unimplemented) || (right == LsegValue::Unknown || right == LsegValue::Unimplemented) {
+        return bool_unresolved(condition_flavor_123_4);
     };
     if left == LsegValue::Null || right == LsegValue::Null {
         return BoolValue::Null;
@@ -149,6 +157,7 @@ fn lseg_length_relation(left: LsegValue, right: LsegValue, mode: i32) -> BoolVal
 fn lseg_midpoint(input: LsegValue) -> PointValue {
     let mut unresolved_flavor: i32 = 0;
     if let LsegValue::Unknown = input { unresolved_flavor = 1; };
+    if let LsegValue::Unimplemented = input { unresolved_flavor = 2; };
     if let LsegValue::Error(error) = input {
         return PointValue::Error(error);
     };
@@ -181,6 +190,7 @@ fn lseg_orientation(input: LsegValue, vertical: bool) -> BoolValue {
 fn lseg_slope(input: LsegValue, inverse: bool) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let LsegValue::Unknown = input { unresolved_flavor = 1; };
+    if let LsegValue::Unimplemented = input { unresolved_flavor = 2; };
     if inverse == false {
         return sql__pg_catalog__slope__xxph(
             lseg_endpoint(input, false),
@@ -212,14 +222,16 @@ fn lseg_direction_relation(left: LsegValue, right: LsegValue, perpendicular: boo
     let mut unresolved_flavor: i32 = 0;
     if let LsegValue::Unknown = left { unresolved_flavor = 1; };
     if let LsegValue::Unknown = right { unresolved_flavor = 1; };
+    if let LsegValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let LsegValue::Unimplemented = right { unresolved_flavor = 2; };
     if let LsegValue::Error(error) = left {
         return BoolValue::Error(error);
     };
     if let LsegValue::Error(error) = right {
         return BoolValue::Error(error);
     };
-    if left == LsegValue::Unknown || right == LsegValue::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_233_4: i32 = unresolved_flavor; if let LsegValue::Unknown = left { if condition_flavor_233_4 < 1 { condition_flavor_233_4 = 1; }; }; if let LsegValue::Unimplemented = left { condition_flavor_233_4 = 2; }; if let LsegValue::Unknown = right { if condition_flavor_233_4 < 1 { condition_flavor_233_4 = 1; }; }; if let LsegValue::Unimplemented = right { condition_flavor_233_4 = 2; }; if (left == LsegValue::Unknown || left == LsegValue::Unimplemented) || (right == LsegValue::Unknown || right == LsegValue::Unimplemented) {
+        return bool_unresolved(condition_flavor_233_4);
     };
     if left == LsegValue::Null || right == LsegValue::Null {
         return BoolValue::Null;

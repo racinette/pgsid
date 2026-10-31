@@ -8,14 +8,16 @@ pub fn sql__pg_catalog__to_char__ly1v(
     let mut unresolved_flavor: i32 = 0;
     if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unknown = template { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = template { unresolved_flavor = 2; };
     if let TimestamptzValue::Error(error) = input {
         return TextValue::Error(error);
     };
     if let TextValue::Error(error) = template {
         return TextValue::Error(error);
     };
-    if input == TimestamptzValue::Unknown || template == TextValue::Unknown {
-        return text_unresolved(unresolved_flavor);
+    let mut condition_flavor_19_4: i32 = unresolved_flavor; if let TimestamptzValue::Unknown = input { if condition_flavor_19_4 < 1 { condition_flavor_19_4 = 1; }; }; if let TimestamptzValue::Unimplemented = input { condition_flavor_19_4 = 2; }; if let TextValue::Unknown = template { if condition_flavor_19_4 < 1 { condition_flavor_19_4 = 1; }; }; if let TextValue::Unimplemented = template { condition_flavor_19_4 = 2; }; if (input == TimestamptzValue::Unknown || input == TimestamptzValue::Unimplemented) || (template == TextValue::Unknown || template == TextValue::Unimplemented) {
+        return text_unresolved(condition_flavor_19_4);
     };
     if input == TimestamptzValue::Null || template == TextValue::Null {
         return TextValue::Null;

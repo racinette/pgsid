@@ -416,11 +416,12 @@ fn network_parse(value: &str, cidr: bool) -> NetworkValue {
 pub fn network_from_text(input: TextValue) -> NetworkValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return NetworkValue::Error(error);
     }
-    if (input == TextValue::Unknown || input == TextValue::NonNull) {
-        return network_unresolved(unresolved_flavor);
+    let mut condition_flavor_423_4: i32 = unresolved_flavor; if let TextValue::Unknown = input { if condition_flavor_423_4 < 1 { condition_flavor_423_4 = 1; }; }; if let TextValue::Unimplemented = input { condition_flavor_423_4 = 2; }; if ((input == TextValue::Unknown || input == TextValue::Unimplemented) || input == TextValue::NonNull) {
+        return network_unresolved(condition_flavor_423_4);
     }
     if input == TextValue::Null {
         return NetworkValue::Null;
@@ -434,11 +435,12 @@ pub fn network_from_text(input: TextValue) -> NetworkValue {
 pub fn cidr_from_text(input: TextValue) -> NetworkValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return NetworkValue::Error(error);
     }
-    if (input == TextValue::Unknown || input == TextValue::NonNull) {
-        return network_unresolved(unresolved_flavor);
+    let mut condition_flavor_442_4: i32 = unresolved_flavor; if let TextValue::Unknown = input { if condition_flavor_442_4 < 1 { condition_flavor_442_4 = 1; }; }; if let TextValue::Unimplemented = input { condition_flavor_442_4 = 2; }; if ((input == TextValue::Unknown || input == TextValue::Unimplemented) || input == TextValue::NonNull) {
+        return network_unresolved(condition_flavor_442_4);
     }
     if input == TextValue::Null {
         return NetworkValue::Null;

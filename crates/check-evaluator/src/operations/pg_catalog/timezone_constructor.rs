@@ -146,6 +146,13 @@ pub fn sql__pg_catalog__make_timestamptz__nko2(
     if let Int4Value::Unknown = minute { unresolved_flavor = 1; };
     if let Float8Value::Unknown = second { unresolved_flavor = 1; };
     if let TextValue::Unknown = zone { unresolved_flavor = 1; };
+    if let Int4Value::Unimplemented = year { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = month { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = day { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = hour { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = minute { unresolved_flavor = 2; };
+    if let Float8Value::Unimplemented = second { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = zone { unresolved_flavor = 2; };
     if let Int4Value::Error(error) = year {
         return TimestamptzValue::Error(error);
     };
@@ -167,15 +174,15 @@ pub fn sql__pg_catalog__make_timestamptz__nko2(
     if let TextValue::Error(error) = zone {
         return TimestamptzValue::Error(error);
     };
-    if year == Int4Value::Unknown
-        || month == Int4Value::Unknown
-        || day == Int4Value::Unknown
-        || hour == Int4Value::Unknown
-        || minute == Int4Value::Unknown
-        || second == Float8Value::Unknown
-        || zone == TextValue::Unknown
+    let mut condition_flavor_177_4: i32 = unresolved_flavor; if let Int4Value::Unknown = year { if condition_flavor_177_4 < 1 { condition_flavor_177_4 = 1; }; }; if let Int4Value::Unimplemented = year { condition_flavor_177_4 = 2; }; if let Int4Value::Unknown = month { if condition_flavor_177_4 < 1 { condition_flavor_177_4 = 1; }; }; if let Int4Value::Unimplemented = month { condition_flavor_177_4 = 2; }; if let Int4Value::Unknown = day { if condition_flavor_177_4 < 1 { condition_flavor_177_4 = 1; }; }; if let Int4Value::Unimplemented = day { condition_flavor_177_4 = 2; }; if let Int4Value::Unknown = hour { if condition_flavor_177_4 < 1 { condition_flavor_177_4 = 1; }; }; if let Int4Value::Unimplemented = hour { condition_flavor_177_4 = 2; }; if let Int4Value::Unknown = minute { if condition_flavor_177_4 < 1 { condition_flavor_177_4 = 1; }; }; if let Int4Value::Unimplemented = minute { condition_flavor_177_4 = 2; }; if let Float8Value::Unknown = second { if condition_flavor_177_4 < 1 { condition_flavor_177_4 = 1; }; }; if let Float8Value::Unimplemented = second { condition_flavor_177_4 = 2; }; if let TextValue::Unknown = zone { if condition_flavor_177_4 < 1 { condition_flavor_177_4 = 1; }; }; if let TextValue::Unimplemented = zone { condition_flavor_177_4 = 2; }; if (year == Int4Value::Unknown || year == Int4Value::Unimplemented)
+        || (month == Int4Value::Unknown || month == Int4Value::Unimplemented)
+        || (day == Int4Value::Unknown || day == Int4Value::Unimplemented)
+        || (hour == Int4Value::Unknown || hour == Int4Value::Unimplemented)
+        || (minute == Int4Value::Unknown || minute == Int4Value::Unimplemented)
+        || (second == Float8Value::Unknown || second == Float8Value::Unimplemented)
+        || (zone == TextValue::Unknown || zone == TextValue::Unimplemented)
     {
-        return timestamptz_unresolved(unresolved_flavor);
+        return timestamptz_unresolved(condition_flavor_177_4);
     };
     if year == Int4Value::Null
         || month == Int4Value::Null

@@ -127,6 +127,7 @@ fn jsonpath_keyvalue_next_identity(identity: i64) -> i64 {
 fn jsonpath_keyvalue_add_base(offset: NumericValue, identity: i64) -> NumericValue {
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = offset { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = offset { unresolved_flavor = 2; };
     if identity < -2147483648i64 || identity > 2147483647i64 {
         return numeric_unresolved(unresolved_flavor);
     };

@@ -314,14 +314,16 @@ pub fn sql__pg_catalog__to_char__0fwv(input: IntervalValue, template: TextValue)
     let mut unresolved_flavor: i32 = 0;
     if let IntervalValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unknown = template { unresolved_flavor = 1; };
+    if let IntervalValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = template { unresolved_flavor = 2; };
     if let IntervalValue::Error(error) = input {
         return TextValue::Error(error);
     };
     if let TextValue::Error(error) = template {
         return TextValue::Error(error);
     };
-    if input == IntervalValue::Unknown || template == TextValue::Unknown {
-        return text_unresolved(unresolved_flavor);
+    let mut condition_flavor_325_4: i32 = unresolved_flavor; if let IntervalValue::Unknown = input { if condition_flavor_325_4 < 1 { condition_flavor_325_4 = 1; }; }; if let IntervalValue::Unimplemented = input { condition_flavor_325_4 = 2; }; if let TextValue::Unknown = template { if condition_flavor_325_4 < 1 { condition_flavor_325_4 = 1; }; }; if let TextValue::Unimplemented = template { condition_flavor_325_4 = 2; }; if (input == IntervalValue::Unknown || input == IntervalValue::Unimplemented) || (template == TextValue::Unknown || template == TextValue::Unimplemented) {
+        return text_unresolved(condition_flavor_325_4);
     };
     if input == IntervalValue::Null || template == TextValue::Null {
         return TextValue::Null;

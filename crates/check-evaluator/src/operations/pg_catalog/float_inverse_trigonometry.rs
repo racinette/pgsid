@@ -243,6 +243,7 @@ fn float8_atan2_kernel(y: f64, x: f64) -> f64 {
 fn float8_inverse_trigonometry(input: Float8Value, fdlibm: bool, operation: i32) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float8Value::Unimplemented = input { unresolved_flavor = 2; };
     if input == Float8Value::UnspecifiedNan {
         return Float8Value::UnspecifiedNan;
     };
@@ -288,14 +289,16 @@ pub fn sql__pg_catalog__atan2__re5y(
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = left { unresolved_flavor = 1; };
     if let Float8Value::Unknown = right { unresolved_flavor = 1; };
+    if let Float8Value::Unimplemented = left { unresolved_flavor = 2; };
+    if let Float8Value::Unimplemented = right { unresolved_flavor = 2; };
     if let Float8Value::Error(error) = left {
         return Float8Value::Error(error);
     };
     if let Float8Value::Error(error) = right {
         return Float8Value::Error(error);
     };
-    if left == Float8Value::Unknown || right == Float8Value::Unknown {
-        return float8_unresolved(unresolved_flavor);
+    let mut condition_flavor_300_4: i32 = unresolved_flavor; if let Float8Value::Unknown = left { if condition_flavor_300_4 < 1 { condition_flavor_300_4 = 1; }; }; if let Float8Value::Unimplemented = left { condition_flavor_300_4 = 2; }; if let Float8Value::Unknown = right { if condition_flavor_300_4 < 1 { condition_flavor_300_4 = 1; }; }; if let Float8Value::Unimplemented = right { condition_flavor_300_4 = 2; }; if (left == Float8Value::Unknown || left == Float8Value::Unimplemented) || (right == Float8Value::Unknown || right == Float8Value::Unimplemented) {
+        return float8_unresolved(condition_flavor_300_4);
     };
     if left == Float8Value::Null || right == Float8Value::Null {
         return Float8Value::Null;
@@ -337,6 +340,7 @@ fn float8_acosd_q1(x: f64) -> f64 {
 fn float8_inverse_degrees(input: Float8Value, fdlibm: bool, operation: i32) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float8Value::Unimplemented = input { unresolved_flavor = 2; };
     if input == Float8Value::UnspecifiedNan {
         return Float8Value::UnspecifiedNan;
     };

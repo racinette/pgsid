@@ -4,14 +4,16 @@ pub fn eval_regex(subject: TextValue, pattern: TextValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = subject { unresolved_flavor = 1; };
     if let TextValue::Unknown = pattern { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = subject { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = pattern { unresolved_flavor = 2; };
     if let TextValue::Error(error) = subject {
         return BoolValue::Error(error);
     }
     if let TextValue::Error(error) = pattern {
         return BoolValue::Error(error);
     }
-    if (subject == TextValue::Unknown || subject == TextValue::NonNull) || (pattern == TextValue::Unknown || pattern == TextValue::NonNull) {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_15_4: i32 = unresolved_flavor; if let TextValue::Unknown = subject { if condition_flavor_15_4 < 1 { condition_flavor_15_4 = 1; }; }; if let TextValue::Unimplemented = subject { condition_flavor_15_4 = 2; }; if let TextValue::Unknown = pattern { if condition_flavor_15_4 < 1 { condition_flavor_15_4 = 1; }; }; if let TextValue::Unimplemented = pattern { condition_flavor_15_4 = 2; }; if ((subject == TextValue::Unknown || subject == TextValue::Unimplemented) || subject == TextValue::NonNull) || ((pattern == TextValue::Unknown || pattern == TextValue::Unimplemented) || pattern == TextValue::NonNull) {
+        return bool_unresolved(condition_flavor_15_4);
     }
     if subject == TextValue::Null || pattern == TextValue::Null {
         return BoolValue::Null;

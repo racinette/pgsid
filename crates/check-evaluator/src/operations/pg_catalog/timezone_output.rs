@@ -163,6 +163,7 @@ pub fn timestamptz_output_context(
 ) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unimplemented = input { unresolved_flavor = 2; };
     let state = timestamptz_output_without_context(input);
     if state != TextValue::NonNull {
         return state;

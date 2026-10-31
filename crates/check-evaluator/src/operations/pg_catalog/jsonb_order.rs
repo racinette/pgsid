@@ -474,18 +474,24 @@ pub fn sql__pg_catalog__jsonb_cmp__n2cx(left: JsonbValue, right: JsonbValue) -> 
     let mut unresolved_flavor: i32 = 0;
     if let JsonbValue::Unknown = left { unresolved_flavor = 1; };
     if let JsonbValue::Unknown = right { unresolved_flavor = 1; };
+    if let JsonbValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let JsonbValue::Unimplemented = right { unresolved_flavor = 2; };
     if let JsonbValue::Error(error) = left {
         return Int4Value::Error(error);
     }
     if let JsonbValue::Error(error) = right {
         return Int4Value::Error(error);
     }
-    if let JsonbValue::Unknown = left {
-        return int4_unresolved(unresolved_flavor);
-    }
-    if let JsonbValue::Unknown = right {
-        return int4_unresolved(unresolved_flavor);
-    }
+    let mut condition_flavor_485_4: i32 = unresolved_flavor; if let JsonbValue::Unknown = left { if condition_flavor_485_4 < 1 { condition_flavor_485_4 = 1; }; }; if let JsonbValue::Unknown = left {
+        return int4_unresolved(condition_flavor_485_4);
+    }; let mut condition_flavor_487_7: i32 = unresolved_flavor; if let JsonbValue::Unimplemented = left { condition_flavor_487_7 = 2; }; if let JsonbValue::Unimplemented = left {
+        return int4_unresolved(condition_flavor_487_7);
+    };
+    let mut condition_flavor_490_4: i32 = unresolved_flavor; if let JsonbValue::Unknown = right { if condition_flavor_490_4 < 1 { condition_flavor_490_4 = 1; }; }; if let JsonbValue::Unknown = right {
+        return int4_unresolved(condition_flavor_490_4);
+    }; let mut condition_flavor_492_7: i32 = unresolved_flavor; if let JsonbValue::Unimplemented = right { condition_flavor_492_7 = 2; }; if let JsonbValue::Unimplemented = right {
+        return int4_unresolved(condition_flavor_492_7);
+    };
     if let JsonbValue::Null = left {
         return Int4Value::Null;
     }

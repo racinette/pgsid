@@ -4,6 +4,8 @@ pub fn range_hash_missing32(state: BoolValue, seed: Int8Value) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let BoolValue::Unknown = state { unresolved_flavor = 1; };
     if let Int8Value::Unknown = seed { unresolved_flavor = 1; };
+    if let BoolValue::Unimplemented = state { unresolved_flavor = 2; };
+    if let Int8Value::Unimplemented = seed { unresolved_flavor = 2; };
     if let BoolValue::Error(error) = state {
         return Int4Value::Error(error);
     };
@@ -36,6 +38,10 @@ pub fn sql__pg_catalog__hash_range__ov3e(
     if let Int4Value::Unknown = flags { unresolved_flavor = 1; };
     if let Int4Value::Unknown = lower { unresolved_flavor = 1; };
     if let Int4Value::Unknown = upper { unresolved_flavor = 1; };
+    if let RangeValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = flags { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = lower { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = upper { unresolved_flavor = 2; };
     if let RangeValue::Error(error) = input {
         return Int4Value::Error(error);
     };
@@ -101,6 +107,11 @@ pub fn sql__pg_catalog__hash_range_extended__axg0(
     if let Int8Value::Unknown = flags { unresolved_flavor = 1; };
     if let Int8Value::Unknown = lower { unresolved_flavor = 1; };
     if let Int8Value::Unknown = upper { unresolved_flavor = 1; };
+    if let RangeValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int8Value::Unimplemented = seed { unresolved_flavor = 2; };
+    if let Int8Value::Unimplemented = flags { unresolved_flavor = 2; };
+    if let Int8Value::Unimplemented = lower { unresolved_flavor = 2; };
+    if let Int8Value::Unimplemented = upper { unresolved_flavor = 2; };
     if let RangeValue::Error(error) = input {
         return Int8Value::Error(error);
     };
@@ -113,8 +124,8 @@ pub fn sql__pg_catalog__hash_range_extended__axg0(
     if let Int8Value::Null = seed {
         return Int8Value::Null;
     };
-    if let Int8Value::Unknown = seed {
-        return int8_unresolved(unresolved_flavor);
+    let mut condition_flavor_127_4: i32 = unresolved_flavor; if let Int8Value::Unknown = seed { if condition_flavor_127_4 < 1 { condition_flavor_127_4 = 1; }; }; if let Int8Value::Unimplemented = seed { condition_flavor_127_4 = 2; }; if (seed == Int8Value::Unknown || seed == Int8Value::Unimplemented) {
+        return int8_unresolved(condition_flavor_127_4);
     };
     if let Int8Value::Error(error) = flags {
         return Int8Value::Error(error);

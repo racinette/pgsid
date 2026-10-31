@@ -1,6 +1,7 @@
 fn temporal_hash_time_input(input: TimeValue) -> Int8Value {
     let mut unresolved_flavor: i32 = 0;
     if let TimeValue::Unknown = input { unresolved_flavor = 1; };
+    if let TimeValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TimeValue::Error(error) = input {
         return Int8Value::Error(error);
     };
@@ -15,6 +16,7 @@ fn temporal_hash_time_input(input: TimeValue) -> Int8Value {
 fn temporal_hash_interval_input(input: IntervalValue) -> Int8Value {
     let mut unresolved_flavor: i32 = 0;
     if let IntervalValue::Unknown = input { unresolved_flavor = 1; };
+    if let IntervalValue::Unimplemented = input { unresolved_flavor = 2; };
     if let IntervalValue::Error(error) = input {
         return Int8Value::Error(error);
     };
@@ -40,14 +42,16 @@ fn temporal_hash_timetz(input: TimetzValue, seed: Int8Value) -> Int8Value {
     let mut unresolved_flavor: i32 = 0;
     if let TimetzValue::Unknown = input { unresolved_flavor = 1; };
     if let Int8Value::Unknown = seed { unresolved_flavor = 1; };
+    if let TimetzValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int8Value::Unimplemented = seed { unresolved_flavor = 2; };
     if let TimetzValue::Error(error) = input {
         return Int8Value::Error(error);
     };
     if let Int8Value::Error(error) = seed {
         return Int8Value::Error(error);
     };
-    if input == TimetzValue::Unknown || seed == Int8Value::Unknown {
-        return int8_unresolved(unresolved_flavor);
+    let mut condition_flavor_53_4: i32 = unresolved_flavor; if let TimetzValue::Unknown = input { if condition_flavor_53_4 < 1 { condition_flavor_53_4 = 1; }; }; if let TimetzValue::Unimplemented = input { condition_flavor_53_4 = 2; }; if let Int8Value::Unknown = seed { if condition_flavor_53_4 < 1 { condition_flavor_53_4 = 1; }; }; if let Int8Value::Unimplemented = seed { condition_flavor_53_4 = 2; }; if (input == TimetzValue::Unknown || input == TimetzValue::Unimplemented) || (seed == Int8Value::Unknown || seed == Int8Value::Unimplemented) {
+        return int8_unresolved(condition_flavor_53_4);
     };
     if input == TimetzValue::Null || seed == Int8Value::Null {
         return Int8Value::Null;
@@ -62,6 +66,7 @@ fn temporal_hash_timetz(input: TimetzValue, seed: Int8Value) -> Int8Value {
 fn temporal_hash_narrow(input: Int8Value) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let Int8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Int8Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Int8Value::Error(error) = input {
         return Int4Value::Error(error);
     };

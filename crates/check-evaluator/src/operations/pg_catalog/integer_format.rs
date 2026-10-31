@@ -1,11 +1,12 @@
 fn integer_base_text(input: Int8Value, full_width: bool, radix: i64) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let Int8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Int8Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Int8Value::Error(error) = input {
         return TextValue::Error(error);
     }
-    if input == Int8Value::Unknown {
-        return text_unresolved(unresolved_flavor);
+    let mut condition_flavor_8_4: i32 = unresolved_flavor; if let Int8Value::Unknown = input { if condition_flavor_8_4 < 1 { condition_flavor_8_4 = 1; }; }; if let Int8Value::Unimplemented = input { condition_flavor_8_4 = 2; }; if (input == Int8Value::Unknown || input == Int8Value::Unimplemented) {
+        return text_unresolved(condition_flavor_8_4);
     }
     if input == Int8Value::Null {
         return TextValue::Null;
@@ -48,11 +49,12 @@ fn integer_base_text(input: Int8Value, full_width: bool, radix: i64) -> TextValu
 pub fn int8_to_text(input: Int8Value) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let Int8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Int8Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Int8Value::Error(error) = input {
         return TextValue::Error(error);
     }
-    if input == Int8Value::Unknown {
-        return text_unresolved(unresolved_flavor);
+    let mut condition_flavor_56_4: i32 = unresolved_flavor; if let Int8Value::Unknown = input { if condition_flavor_56_4 < 1 { condition_flavor_56_4 = 1; }; }; if let Int8Value::Unimplemented = input { condition_flavor_56_4 = 2; }; if (input == Int8Value::Unknown || input == Int8Value::Unimplemented) {
+        return text_unresolved(condition_flavor_56_4);
     }
     if input == Int8Value::Null {
         return TextValue::Null;
@@ -71,11 +73,12 @@ pub fn int4_to_text(input: Int4Value) -> TextValue {
 pub fn int2_to_text(input: Int2Value) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let Int2Value::Unknown = input { unresolved_flavor = 1; };
+    if let Int2Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Int2Value::Error(error) = input {
         return TextValue::Error(error);
     }
-    if input == Int2Value::Unknown {
-        return text_unresolved(unresolved_flavor);
+    let mut condition_flavor_80_4: i32 = unresolved_flavor; if let Int2Value::Unknown = input { if condition_flavor_80_4 < 1 { condition_flavor_80_4 = 1; }; }; if let Int2Value::Unimplemented = input { condition_flavor_80_4 = 2; }; if (input == Int2Value::Unknown || input == Int2Value::Unimplemented) {
+        return text_unresolved(condition_flavor_80_4);
     }
     if input == Int2Value::Null {
         return TextValue::Null;

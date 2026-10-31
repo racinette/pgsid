@@ -2,14 +2,16 @@ fn segment_pair_status(left: LsegValue, right: LsegValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let LsegValue::Unknown = left { unresolved_flavor = 1; };
     if let LsegValue::Unknown = right { unresolved_flavor = 1; };
+    if let LsegValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let LsegValue::Unimplemented = right { unresolved_flavor = 2; };
     if let LsegValue::Error(error) = left {
         return BoolValue::Error(error);
     };
     if let LsegValue::Error(error) = right {
         return BoolValue::Error(error);
     };
-    if left == LsegValue::Unknown || right == LsegValue::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_13_4: i32 = unresolved_flavor; if let LsegValue::Unknown = left { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let LsegValue::Unimplemented = left { condition_flavor_13_4 = 2; }; if let LsegValue::Unknown = right { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let LsegValue::Unimplemented = right { condition_flavor_13_4 = 2; }; if (left == LsegValue::Unknown || left == LsegValue::Unimplemented) || (right == LsegValue::Unknown || right == LsegValue::Unimplemented) {
+        return bool_unresolved(condition_flavor_13_4);
     };
     if left == LsegValue::Null || right == LsegValue::Null {
         return BoolValue::Null;
@@ -20,14 +22,16 @@ fn segment_line_status(segment: LsegValue, line: LineValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let LsegValue::Unknown = segment { unresolved_flavor = 1; };
     if let LineValue::Unknown = line { unresolved_flavor = 1; };
+    if let LsegValue::Unimplemented = segment { unresolved_flavor = 2; };
+    if let LineValue::Unimplemented = line { unresolved_flavor = 2; };
     if let LsegValue::Error(error) = segment {
         return BoolValue::Error(error);
     };
     if let LineValue::Error(error) = line {
         return BoolValue::Error(error);
     };
-    if segment == LsegValue::Unknown || line == LineValue::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_33_4: i32 = unresolved_flavor; if let LsegValue::Unknown = segment { if condition_flavor_33_4 < 1 { condition_flavor_33_4 = 1; }; }; if let LsegValue::Unimplemented = segment { condition_flavor_33_4 = 2; }; if let LineValue::Unknown = line { if condition_flavor_33_4 < 1 { condition_flavor_33_4 = 1; }; }; if let LineValue::Unimplemented = line { condition_flavor_33_4 = 2; }; if (segment == LsegValue::Unknown || segment == LsegValue::Unimplemented) || (line == LineValue::Unknown || line == LineValue::Unimplemented) {
+        return bool_unresolved(condition_flavor_33_4);
     };
     if segment == LsegValue::Null || line == LineValue::Null {
         return BoolValue::Null;
@@ -38,14 +42,16 @@ fn segment_point_status(segment: LsegValue, point: PointValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let LsegValue::Unknown = segment { unresolved_flavor = 1; };
     if let PointValue::Unknown = point { unresolved_flavor = 1; };
+    if let LsegValue::Unimplemented = segment { unresolved_flavor = 2; };
+    if let PointValue::Unimplemented = point { unresolved_flavor = 2; };
     if let LsegValue::Error(error) = segment {
         return BoolValue::Error(error);
     };
     if let PointValue::Error(error) = point {
         return BoolValue::Error(error);
     };
-    if segment == LsegValue::Unknown || point == PointValue::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_53_4: i32 = unresolved_flavor; if let LsegValue::Unknown = segment { if condition_flavor_53_4 < 1 { condition_flavor_53_4 = 1; }; }; if let LsegValue::Unimplemented = segment { condition_flavor_53_4 = 2; }; if let PointValue::Unknown = point { if condition_flavor_53_4 < 1 { condition_flavor_53_4 = 1; }; }; if let PointValue::Unimplemented = point { condition_flavor_53_4 = 2; }; if (segment == LsegValue::Unknown || segment == LsegValue::Unimplemented) || (point == PointValue::Unknown || point == PointValue::Unimplemented) {
+        return bool_unresolved(condition_flavor_53_4);
     };
     if segment == LsegValue::Null || point == PointValue::Null {
         return BoolValue::Null;
@@ -55,6 +61,7 @@ fn segment_point_status(segment: LsegValue, point: PointValue) -> BoolValue {
 fn segment_point_from_status(status: BoolValue) -> PointValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoolValue::Unknown = status { unresolved_flavor = 1; };
+    if let BoolValue::Unimplemented = status { unresolved_flavor = 2; };
     if let BoolValue::Error(error) = status {
         return PointValue::Error(error);
     };
@@ -66,6 +73,7 @@ fn segment_point_from_status(status: BoolValue) -> PointValue {
 fn segment_float_from_status(status: BoolValue) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let BoolValue::Unknown = status { unresolved_flavor = 1; };
+    if let BoolValue::Unimplemented = status { unresolved_flavor = 2; };
     if let BoolValue::Error(error) = status {
         return Float8Value::Error(error);
     };
@@ -78,14 +86,16 @@ fn segment_raw_relation(left: Float8Value, right: Float8Value, equal: bool) -> B
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = left { unresolved_flavor = 1; };
     if let Float8Value::Unknown = right { unresolved_flavor = 1; };
+    if let Float8Value::Unimplemented = left { unresolved_flavor = 2; };
+    if let Float8Value::Unimplemented = right { unresolved_flavor = 2; };
     if let Float8Value::Error(error) = left {
         return BoolValue::Error(error);
     };
     if let Float8Value::Error(error) = right {
         return BoolValue::Error(error);
     };
-    if left == Float8Value::Unknown || right == Float8Value::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_97_4: i32 = unresolved_flavor; if let Float8Value::Unknown = left { if condition_flavor_97_4 < 1 { condition_flavor_97_4 = 1; }; }; if let Float8Value::Unimplemented = left { condition_flavor_97_4 = 2; }; if let Float8Value::Unknown = right { if condition_flavor_97_4 < 1 { condition_flavor_97_4 = 1; }; }; if let Float8Value::Unimplemented = right { condition_flavor_97_4 = 2; }; if (left == Float8Value::Unknown || left == Float8Value::Unimplemented) || (right == Float8Value::Unknown || right == Float8Value::Unimplemented) {
+        return bool_unresolved(condition_flavor_97_4);
     };
     if left == Float8Value::Null || right == Float8Value::Null {
         return BoolValue::Null;
@@ -106,6 +116,8 @@ fn segment_contains_point(segment: LsegValue, point: PointValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let LsegValue::Unknown = segment { unresolved_flavor = 1; };
     if let PointValue::Unknown = point { unresolved_flavor = 1; };
+    if let LsegValue::Unimplemented = segment { unresolved_flavor = 2; };
+    if let PointValue::Unimplemented = point { unresolved_flavor = 2; };
     let status = segment_point_status(segment, point);
     if status != BoolValue::Value(true) {
         return status;
@@ -138,6 +150,7 @@ fn segment_contains_point(segment: LsegValue, point: PointValue) -> BoolValue {
 fn segment_promote_line(segment: LsegValue) -> LineValue {
     let mut unresolved_flavor: i32 = 0;
     if let LsegValue::Unknown = segment { unresolved_flavor = 1; };
+    if let LsegValue::Unimplemented = segment { unresolved_flavor = 2; };
     if let LsegValue::Error(error) = segment {
         return LineValue::Error(error);
     };
@@ -159,7 +172,7 @@ fn segment_line_intersection(segment: LsegValue, line: LineValue) -> PointValue 
     if let PointValue::Error(error) = intersection {
         return PointValue::Error(error);
     };
-    if intersection == PointValue::Null || intersection == PointValue::Unknown {
+    if intersection == PointValue::Null || (intersection == PointValue::Unknown || intersection == PointValue::Unimplemented) {
         return intersection;
     };
     let contains = segment_contains_point(segment, intersection);
@@ -188,7 +201,7 @@ fn segment_intersection(left: LsegValue, right: LsegValue) -> PointValue {
     if let PointValue::Error(error) = intersection {
         return PointValue::Error(error);
     };
-    if intersection == PointValue::Null || intersection == PointValue::Unknown {
+    if intersection == PointValue::Null || (intersection == PointValue::Unknown || intersection == PointValue::Unimplemented) {
         return intersection;
     };
     let contains = segment_contains_point(right, intersection);
@@ -203,11 +216,12 @@ fn segment_intersection(left: LsegValue, right: LsegValue) -> PointValue {
 fn segment_intersection_result(point: PointValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let PointValue::Unknown = point { unresolved_flavor = 1; };
+    if let PointValue::Unimplemented = point { unresolved_flavor = 2; };
     if let PointValue::Error(error) = point {
         return BoolValue::Error(error);
     };
-    if point == PointValue::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_223_4: i32 = unresolved_flavor; if let PointValue::Unknown = point { if condition_flavor_223_4 < 1 { condition_flavor_223_4 = 1; }; }; if let PointValue::Unimplemented = point { condition_flavor_223_4 = 2; }; if (point == PointValue::Unknown || point == PointValue::Unimplemented) {
+        return bool_unresolved(condition_flavor_223_4);
     };
     make_bool_value(point != PointValue::Null)
 }
@@ -243,7 +257,7 @@ fn segment_project_line(segment: LsegValue, line: LineValue) -> SegmentClosest {
     if let PointValue::Error(error) = intersection {
         return segment_closest_from_status(BoolValue::Error(error));
     };
-    if intersection == PointValue::Unknown {
+    if (intersection == PointValue::Unknown || intersection == PointValue::Unimplemented) {
         return segment_closest_from_status(BoolValue::Unknown);
     };
     if intersection != PointValue::Null {
@@ -291,7 +305,7 @@ fn segment_project_point(segment: LsegValue, point: PointValue) -> SegmentCloses
         if let Float8Value::Error(error) = distance {
             return segment_closest_error(Float8Value::Error(error));
         };
-        if distance == Float8Value::Unknown {
+        if (distance == Float8Value::Unknown || distance == Float8Value::Unimplemented) {
             return segment_closest_error(distance);
         };
         return SegmentClosest {
@@ -320,7 +334,7 @@ fn segment_nearest_pair(left: LsegValue, right: LsegValue) -> SegmentClosest {
     if let PointValue::Error(error) = intersection {
         return segment_closest_from_status(BoolValue::Error(error));
     };
-    if intersection == PointValue::Unknown {
+    if (intersection == PointValue::Unknown || intersection == PointValue::Unimplemented) {
         return segment_closest_from_status(BoolValue::Unknown);
     };
     if intersection != PointValue::Null {
@@ -369,8 +383,8 @@ fn segment_closest_point(closest: SegmentClosest) -> PointValue {
     if let Float8Value::Error(error) = distance {
         return PointValue::Error(error);
     };
-    if distance == Float8Value::Unknown {
-        return point_unresolved(unresolved_flavor);
+    let mut condition_flavor_386_4: i32 = unresolved_flavor; if let Float8Value::Unknown = distance { if condition_flavor_386_4 < 1 { condition_flavor_386_4 = 1; }; }; if let Float8Value::Unimplemented = distance { condition_flavor_386_4 = 2; }; if (distance == Float8Value::Unknown || distance == Float8Value::Unimplemented) {
+        return point_unresolved(condition_flavor_386_4);
     };
     if distance == Float8Value::Null {
         return PointValue::Null;
@@ -387,6 +401,7 @@ fn segment_closest_point(closest: SegmentClosest) -> PointValue {
 fn segment_line_slope(input: LineValue) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let LineValue::Unknown = input { unresolved_flavor = 1; };
+    if let LineValue::Unimplemented = input { unresolved_flavor = 2; };
     if let LineValue::Error(error) = input {
         return Float8Value::Error(error);
     };

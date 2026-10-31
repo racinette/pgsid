@@ -2,6 +2,7 @@ const OID_INPUT_INVALID: u32 = 3484946;
 pub fn oid_from_text(input: TextValue) -> OidValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input { return OidValue::Error(error); };
     if input == TextValue::Null { return OidValue::Null; };
     if let TextValue::Value(text) = input {

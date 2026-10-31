@@ -55,12 +55,15 @@ fn tsvector_select_array(input: TsvectorValue, weight: InternalCharValue, select
     if let TsvectorValue::Unknown = input { unresolved_flavor = 1; };
     if let InternalCharValue::Unknown = weight { unresolved_flavor = 1; };
     if let ArrayValue::Unknown = selectors { unresolved_flavor = 1; };
+    if let TsvectorValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let InternalCharValue::Unimplemented = weight { unresolved_flavor = 2; };
+    if let ArrayValue::Unimplemented = selectors { unresolved_flavor = 2; };
     if let TsvectorValue::Error(error) = input { return TsvectorValue::Error(error); };
     if let InternalCharValue::Error(error) = weight { return TsvectorValue::Error(error); };
     if let ArrayValue::Error(error) = selectors { return TsvectorValue::Error(error); };
-    if let TsvectorValue::Unknown = input { return tsvector_unresolved(unresolved_flavor); };
-    if weight == InternalCharValue::Unknown { return tsvector_unresolved(unresolved_flavor); };
-    if let ArrayValue::Unknown = selectors { return tsvector_unresolved(unresolved_flavor); };
+    let mut condition_flavor_64_4: i32 = unresolved_flavor; if let TsvectorValue::Unknown = input { if condition_flavor_64_4 < 1 { condition_flavor_64_4 = 1; }; }; if let TsvectorValue::Unknown = input { return tsvector_unresolved(condition_flavor_64_4); }; let mut condition_flavor_64_94: i32 = unresolved_flavor; if let TsvectorValue::Unimplemented = input { condition_flavor_64_94 = 2; }; if let TsvectorValue::Unimplemented = input { return tsvector_unresolved(condition_flavor_64_94); };
+    let mut condition_flavor_65_4: i32 = unresolved_flavor; if let InternalCharValue::Unknown = weight { if condition_flavor_65_4 < 1 { condition_flavor_65_4 = 1; }; }; if let InternalCharValue::Unimplemented = weight { condition_flavor_65_4 = 2; }; if (weight == InternalCharValue::Unknown || weight == InternalCharValue::Unimplemented) { return tsvector_unresolved(condition_flavor_65_4); };
+    let mut condition_flavor_66_4: i32 = unresolved_flavor; if let ArrayValue::Unknown = selectors { if condition_flavor_66_4 < 1 { condition_flavor_66_4 = 1; }; }; if let ArrayValue::Unknown = selectors { return tsvector_unresolved(condition_flavor_66_4); }; let mut condition_flavor_66_95: i32 = unresolved_flavor; if let ArrayValue::Unimplemented = selectors { condition_flavor_66_95 = 2; }; if let ArrayValue::Unimplemented = selectors { return tsvector_unresolved(condition_flavor_66_95); };
     if let TsvectorValue::Null = input { return TsvectorValue::Null; };
     if weight == InternalCharValue::Null { return TsvectorValue::Null; };
     if let ArrayValue::Null = selectors { return TsvectorValue::Null; };
@@ -77,7 +80,7 @@ fn tsvector_select_array(input: TsvectorValue, weight: InternalCharValue, select
                 while i < array.elements.len() {
                     let cell = array_element_to_text(array.elements[i].clone());
                     if let TextValue::Error(error) = cell { return TsvectorValue::Error(error); };
-                    if cell == TextValue::Unknown { return tsvector_unresolved(unresolved_flavor); };
+                    let mut condition_flavor_83_20: i32 = unresolved_flavor; if let TextValue::Unknown = cell { if condition_flavor_83_20 < 1 { condition_flavor_83_20 = 1; }; }; if let TextValue::Unimplemented = cell { condition_flavor_83_20 = 2; }; if (cell == TextValue::Unknown || cell == TextValue::Unimplemented) { return tsvector_unresolved(condition_flavor_83_20); };
                     if let TextValue::Value(text) = cell {
                         let index = tsvector_find_lexeme(&payload,text.as_str());
                         if index >= 0 { selected[usize::try_from(index).unwrap_or(0)] = 1; };
@@ -103,10 +106,12 @@ pub fn sql__pg_catalog__ts_delete__y2kd(input: TsvectorValue, selector: TextValu
     let mut unresolved_flavor: i32 = 0;
     if let TsvectorValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unknown = selector { unresolved_flavor = 1; };
+    if let TsvectorValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = selector { unresolved_flavor = 2; };
     if let TsvectorValue::Error(error) = input { return TsvectorValue::Error(error); };
     if let TextValue::Error(error) = selector { return TsvectorValue::Error(error); };
-    if let TsvectorValue::Unknown = input { return tsvector_unresolved(unresolved_flavor); };
-    if selector == TextValue::Unknown { return tsvector_unresolved(unresolved_flavor); };
+    let mut condition_flavor_113_4: i32 = unresolved_flavor; if let TsvectorValue::Unknown = input { if condition_flavor_113_4 < 1 { condition_flavor_113_4 = 1; }; }; if let TsvectorValue::Unknown = input { return tsvector_unresolved(condition_flavor_113_4); }; let mut condition_flavor_113_94: i32 = unresolved_flavor; if let TsvectorValue::Unimplemented = input { condition_flavor_113_94 = 2; }; if let TsvectorValue::Unimplemented = input { return tsvector_unresolved(condition_flavor_113_94); };
+    let mut condition_flavor_114_4: i32 = unresolved_flavor; if let TextValue::Unknown = selector { if condition_flavor_114_4 < 1 { condition_flavor_114_4 = 1; }; }; if let TextValue::Unimplemented = selector { condition_flavor_114_4 = 2; }; if (selector == TextValue::Unknown || selector == TextValue::Unimplemented) { return tsvector_unresolved(condition_flavor_114_4); };
     if let TsvectorValue::Null = input { return TsvectorValue::Null; };
     if selector == TextValue::Null { return TsvectorValue::Null; };
     if let TsvectorValue::Value(payload) = input {
@@ -127,10 +132,12 @@ pub fn sql__pg_catalog__ts_filter__82l1(input: TsvectorValue, weights: ArrayValu
     let mut unresolved_flavor: i32 = 0;
     if let TsvectorValue::Unknown = input { unresolved_flavor = 1; };
     if let ArrayValue::Unknown = weights { unresolved_flavor = 1; };
+    if let TsvectorValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let ArrayValue::Unimplemented = weights { unresolved_flavor = 2; };
     if let TsvectorValue::Error(error) = input { return TsvectorValue::Error(error); };
     if let ArrayValue::Error(error) = weights { return TsvectorValue::Error(error); };
-    if let TsvectorValue::Unknown = input { return tsvector_unresolved(unresolved_flavor); };
-    if let ArrayValue::Unknown = weights { return tsvector_unresolved(unresolved_flavor); };
+    let mut condition_flavor_139_4: i32 = unresolved_flavor; if let TsvectorValue::Unknown = input { if condition_flavor_139_4 < 1 { condition_flavor_139_4 = 1; }; }; if let TsvectorValue::Unknown = input { return tsvector_unresolved(condition_flavor_139_4); }; let mut condition_flavor_139_94: i32 = unresolved_flavor; if let TsvectorValue::Unimplemented = input { condition_flavor_139_94 = 2; }; if let TsvectorValue::Unimplemented = input { return tsvector_unresolved(condition_flavor_139_94); };
+    let mut condition_flavor_140_4: i32 = unresolved_flavor; if let ArrayValue::Unknown = weights { if condition_flavor_140_4 < 1 { condition_flavor_140_4 = 1; }; }; if let ArrayValue::Unknown = weights { return tsvector_unresolved(condition_flavor_140_4); }; let mut condition_flavor_140_93: i32 = unresolved_flavor; if let ArrayValue::Unimplemented = weights { condition_flavor_140_93 = 2; }; if let ArrayValue::Unimplemented = weights { return tsvector_unresolved(condition_flavor_140_93); };
     if let TsvectorValue::Null = input { return TsvectorValue::Null; };
     if let ArrayValue::Null = weights { return TsvectorValue::Null; };
     if let TsvectorValue::Value(payload) = input {
@@ -142,7 +149,7 @@ pub fn sql__pg_catalog__ts_filter__82l1(input: TsvectorValue, weights: ArrayValu
             while i < array.elements.len() {
                 let cell = array_element_to_internal_char(array.elements[i].clone());
                 if let InternalCharValue::Error(error) = cell { return TsvectorValue::Error(error); };
-                if cell == InternalCharValue::Unknown { return tsvector_unresolved(unresolved_flavor); };
+                let mut condition_flavor_152_16: i32 = unresolved_flavor; if let InternalCharValue::Unknown = cell { if condition_flavor_152_16 < 1 { condition_flavor_152_16 = 1; }; }; if let InternalCharValue::Unimplemented = cell { condition_flavor_152_16 = 2; }; if (cell == InternalCharValue::Unknown || cell == InternalCharValue::Unimplemented) { return tsvector_unresolved(condition_flavor_152_16); };
                 if cell == InternalCharValue::Null { return TsvectorValue::Error(make_sql_error(TSVECTOR_NULL_ELEMENT)); };
                 if let InternalCharValue::Value(code) = cell {
                     let weight = tsvector_weight_code(code);
@@ -174,6 +181,7 @@ pub fn sql__pg_catalog__ts_filter__82l1(input: TsvectorValue, weights: ArrayValu
 pub fn sql__pg_catalog__array_to_tsvector__y8ia(input: ArrayValue, utf8: bool) -> TsvectorValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayValue::Error(error) = input { return TsvectorValue::Error(error); };
     if let ArrayValue::Null = input { return TsvectorValue::Null; };
     if let ArrayValue::Value(array) = input {
@@ -183,7 +191,7 @@ pub fn sql__pg_catalog__array_to_tsvector__y8ia(input: ArrayValue, utf8: bool) -
         while i < array.elements.len() {
             let cell = array_element_to_text(array.elements[i].clone());
             if let TextValue::Error(error) = cell { return TsvectorValue::Error(error); };
-            if cell == TextValue::Unknown { return tsvector_unresolved(unresolved_flavor); };
+            let mut condition_flavor_194_12: i32 = unresolved_flavor; if let TextValue::Unknown = cell { if condition_flavor_194_12 < 1 { condition_flavor_194_12 = 1; }; }; if let TextValue::Unimplemented = cell { condition_flavor_194_12 = 2; }; if (cell == TextValue::Unknown || cell == TextValue::Unimplemented) { return tsvector_unresolved(condition_flavor_194_12); };
             if cell == TextValue::Null { return TsvectorValue::Error(make_sql_error(TSVECTOR_NULL_ELEMENT)); };
             if let TextValue::Value(text) = cell {
                 if text == "" { return TsvectorValue::Error(make_sql_error(TSVECTOR_EMPTY_LEXEME)); };
@@ -222,10 +230,12 @@ pub fn sql__pg_catalog__tsvector_concat__0ejl(left: TsvectorValue, right: Tsvect
     let mut unresolved_flavor: i32 = 0;
     if let TsvectorValue::Unknown = left { unresolved_flavor = 1; };
     if let TsvectorValue::Unknown = right { unresolved_flavor = 1; };
+    if let TsvectorValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let TsvectorValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TsvectorValue::Error(error) = left { return TsvectorValue::Error(error); };
     if let TsvectorValue::Error(error) = right { return TsvectorValue::Error(error); };
-    if let TsvectorValue::Unknown = left { return tsvector_unresolved(unresolved_flavor); };
-    if let TsvectorValue::Unknown = right { return tsvector_unresolved(unresolved_flavor); };
+    let mut condition_flavor_237_4: i32 = unresolved_flavor; if let TsvectorValue::Unknown = left { if condition_flavor_237_4 < 1 { condition_flavor_237_4 = 1; }; }; if let TsvectorValue::Unknown = left { return tsvector_unresolved(condition_flavor_237_4); }; let mut condition_flavor_237_93: i32 = unresolved_flavor; if let TsvectorValue::Unimplemented = left { condition_flavor_237_93 = 2; }; if let TsvectorValue::Unimplemented = left { return tsvector_unresolved(condition_flavor_237_93); };
+    let mut condition_flavor_238_4: i32 = unresolved_flavor; if let TsvectorValue::Unknown = right { if condition_flavor_238_4 < 1 { condition_flavor_238_4 = 1; }; }; if let TsvectorValue::Unknown = right { return tsvector_unresolved(condition_flavor_238_4); }; let mut condition_flavor_238_94: i32 = unresolved_flavor; if let TsvectorValue::Unimplemented = right { condition_flavor_238_94 = 2; }; if let TsvectorValue::Unimplemented = right { return tsvector_unresolved(condition_flavor_238_94); };
     if let TsvectorValue::Null = left { return TsvectorValue::Null; };
     if let TsvectorValue::Null = right { return TsvectorValue::Null; };
     if let TsvectorValue::Value(a) = left {
@@ -270,6 +280,7 @@ pub fn sql__pg_catalog__tsvector_concat__0ejl(left: TsvectorValue, right: Tsvect
 pub fn sql__pg_catalog__tsvectorsend__37x7(input: TsvectorValue, utf8: bool) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let TsvectorValue::Unknown = input { unresolved_flavor = 1; };
+    if let TsvectorValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TsvectorValue::Error(error) = input { return ByteaValue::Error(error); };
     if let TsvectorValue::Null = input { return ByteaValue::Null; };
     if let TsvectorValue::Value(payload) = input {

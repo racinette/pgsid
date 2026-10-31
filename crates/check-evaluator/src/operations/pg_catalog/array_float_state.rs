@@ -35,6 +35,8 @@ fn float_state_arithmetic(left: Float8Value, right: Float8Value, operation: i32)
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = left { unresolved_flavor = 1; };
     if let Float8Value::Unknown = right { unresolved_flavor = 1; };
+    if let Float8Value::Unimplemented = left { unresolved_flavor = 2; };
+    if let Float8Value::Unimplemented = right { unresolved_flavor = 2; };
     if let Float8Value::Error(error) = left {
         return Float8Value::Error(error);
     };
@@ -80,6 +82,7 @@ fn float_state_is_zero(input: Float8Value) -> bool {
 fn float_array_final(input: ArrayValue, operation: i32) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayValue::Error(error) = input {
         return Float8Value::Error(error);
     };

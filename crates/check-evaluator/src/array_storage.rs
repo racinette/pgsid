@@ -2,6 +2,8 @@ pub fn array_bitmap_union(left: BoolValue, right: BoolValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoolValue::Unknown = left { unresolved_flavor = 1; };
     if let BoolValue::Unknown = right { unresolved_flavor = 1; };
+    if let BoolValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let BoolValue::Unimplemented = right { unresolved_flavor = 2; };
     if left == BoolValue::Value(true) || right == BoolValue::Value(true) {
         return BoolValue::Value(true);
     };
@@ -14,8 +16,11 @@ pub fn array_bitmap_union(left: BoolValue, right: BoolValue) -> BoolValue {
 pub fn array_element_bitmap(input: ArrayElement) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
-    if let ArrayElement::Unknown = input {
-        return bool_unresolved(unresolved_flavor);
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
+    let mut condition_flavor_20_4: i32 = unresolved_flavor; if let ArrayElement::Unknown = input { if condition_flavor_20_4 < 1 { condition_flavor_20_4 = 1; }; }; if let ArrayElement::Unknown = input {
+        return bool_unresolved(condition_flavor_20_4);
+    }; let mut condition_flavor_22_7: i32 = unresolved_flavor; if let ArrayElement::Unimplemented = input { condition_flavor_22_7 = 2; }; if let ArrayElement::Unimplemented = input {
+        return bool_unresolved(condition_flavor_22_7);
     };
     if let ArrayElement::Null = input {
         return BoolValue::Value(true);
@@ -47,6 +52,8 @@ pub fn array_bitmap_choice(left: BoolValue, right: BoolValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoolValue::Unknown = left { unresolved_flavor = 1; };
     if let BoolValue::Unknown = right { unresolved_flavor = 1; };
+    if let BoolValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let BoolValue::Unimplemented = right { unresolved_flavor = 2; };
     if left == right {
         return left;
     };
@@ -56,6 +63,7 @@ pub fn array_bitmap_choice(left: BoolValue, right: BoolValue) -> BoolValue {
 pub fn array_null_bitmap(input: ArrayValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayValue::Error(error) = input {
         return BoolValue::Error(error);
     };
@@ -108,6 +116,8 @@ pub fn advance_tsvector_storage(nullness: BoolValue, index: Int4Value) -> Int4Va
     let mut unresolved_flavor: i32 = 0;
     if let BoolValue::Unknown = nullness { unresolved_flavor = 1; };
     if let Int4Value::Unknown = index { unresolved_flavor = 1; };
+    if let BoolValue::Unimplemented = nullness { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = index { unresolved_flavor = 2; };
     if let BoolValue::Error(error) = nullness { return Int4Value::Error(error); };
     if nullness == BoolValue::Value(true) { return index; };
     if nullness == BoolValue::Value(false) {

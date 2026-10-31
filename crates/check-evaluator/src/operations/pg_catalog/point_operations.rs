@@ -20,14 +20,16 @@ fn point_coordinate_relation(left: PointValue, right: PointValue, mode: i32) -> 
     let mut unresolved_flavor: i32 = 0;
     if let PointValue::Unknown = left { unresolved_flavor = 1; };
     if let PointValue::Unknown = right { unresolved_flavor = 1; };
+    if let PointValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let PointValue::Unimplemented = right { unresolved_flavor = 2; };
     if let PointValue::Error(error) = left {
         return BoolValue::Error(error);
     };
     if let PointValue::Error(error) = right {
         return BoolValue::Error(error);
     };
-    if left == PointValue::Unknown || right == PointValue::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_31_4: i32 = unresolved_flavor; if let PointValue::Unknown = left { if condition_flavor_31_4 < 1 { condition_flavor_31_4 = 1; }; }; if let PointValue::Unimplemented = left { condition_flavor_31_4 = 2; }; if let PointValue::Unknown = right { if condition_flavor_31_4 < 1 { condition_flavor_31_4 = 1; }; }; if let PointValue::Unimplemented = right { condition_flavor_31_4 = 2; }; if (left == PointValue::Unknown || left == PointValue::Unimplemented) || (right == PointValue::Unknown || right == PointValue::Unimplemented) {
+        return bool_unresolved(condition_flavor_31_4);
     };
     if left == PointValue::Null || right == PointValue::Null {
         return BoolValue::Null;
@@ -80,14 +82,16 @@ fn point_arithmetic(left: PointValue, right: PointValue, mode: i32) -> PointValu
     let mut unresolved_flavor: i32 = 0;
     if let PointValue::Unknown = left { unresolved_flavor = 1; };
     if let PointValue::Unknown = right { unresolved_flavor = 1; };
+    if let PointValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let PointValue::Unimplemented = right { unresolved_flavor = 2; };
     if let PointValue::Error(error) = left {
         return PointValue::Error(error);
     };
     if let PointValue::Error(error) = right {
         return PointValue::Error(error);
     };
-    if left == PointValue::Unknown || right == PointValue::Unknown {
-        return point_unresolved(unresolved_flavor);
+    let mut condition_flavor_93_4: i32 = unresolved_flavor; if let PointValue::Unknown = left { if condition_flavor_93_4 < 1 { condition_flavor_93_4 = 1; }; }; if let PointValue::Unimplemented = left { condition_flavor_93_4 = 2; }; if let PointValue::Unknown = right { if condition_flavor_93_4 < 1 { condition_flavor_93_4 = 1; }; }; if let PointValue::Unimplemented = right { condition_flavor_93_4 = 2; }; if (left == PointValue::Unknown || left == PointValue::Unimplemented) || (right == PointValue::Unknown || right == PointValue::Unimplemented) {
+        return point_unresolved(condition_flavor_93_4);
     };
     if left == PointValue::Null || right == PointValue::Null {
         return PointValue::Null;
@@ -157,14 +161,16 @@ fn geometric_hypot(first: Float8Value, second: Float8Value) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = first { unresolved_flavor = 1; };
     if let Float8Value::Unknown = second { unresolved_flavor = 1; };
+    if let Float8Value::Unimplemented = first { unresolved_flavor = 2; };
+    if let Float8Value::Unimplemented = second { unresolved_flavor = 2; };
     if let Float8Value::Error(error) = first {
         return Float8Value::Error(error);
     };
     if let Float8Value::Error(error) = second {
         return Float8Value::Error(error);
     };
-    if first == Float8Value::Unknown || second == Float8Value::Unknown {
-        return float8_unresolved(unresolved_flavor);
+    let mut condition_flavor_172_4: i32 = unresolved_flavor; if let Float8Value::Unknown = first { if condition_flavor_172_4 < 1 { condition_flavor_172_4 = 1; }; }; if let Float8Value::Unimplemented = first { condition_flavor_172_4 = 2; }; if let Float8Value::Unknown = second { if condition_flavor_172_4 < 1 { condition_flavor_172_4 = 1; }; }; if let Float8Value::Unimplemented = second { condition_flavor_172_4 = 2; }; if (first == Float8Value::Unknown || first == Float8Value::Unimplemented) || (second == Float8Value::Unknown || second == Float8Value::Unimplemented) {
+        return float8_unresolved(condition_flavor_172_4);
     };
     if first == Float8Value::Null || second == Float8Value::Null {
         return Float8Value::Null;
@@ -206,14 +212,16 @@ fn point_measurement(left: PointValue, right: PointValue, slope: bool) -> Float8
     let mut unresolved_flavor: i32 = 0;
     if let PointValue::Unknown = left { unresolved_flavor = 1; };
     if let PointValue::Unknown = right { unresolved_flavor = 1; };
+    if let PointValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let PointValue::Unimplemented = right { unresolved_flavor = 2; };
     if let PointValue::Error(error) = left {
         return Float8Value::Error(error);
     };
     if let PointValue::Error(error) = right {
         return Float8Value::Error(error);
     };
-    if left == PointValue::Unknown || right == PointValue::Unknown {
-        return float8_unresolved(unresolved_flavor);
+    let mut condition_flavor_223_4: i32 = unresolved_flavor; if let PointValue::Unknown = left { if condition_flavor_223_4 < 1 { condition_flavor_223_4 = 1; }; }; if let PointValue::Unimplemented = left { condition_flavor_223_4 = 2; }; if let PointValue::Unknown = right { if condition_flavor_223_4 < 1 { condition_flavor_223_4 = 1; }; }; if let PointValue::Unimplemented = right { condition_flavor_223_4 = 2; }; if (left == PointValue::Unknown || left == PointValue::Unimplemented) || (right == PointValue::Unknown || right == PointValue::Unimplemented) {
+        return float8_unresolved(condition_flavor_223_4);
     };
     if left == PointValue::Null || right == PointValue::Null {
         return Float8Value::Null;

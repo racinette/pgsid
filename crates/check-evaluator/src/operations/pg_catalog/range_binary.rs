@@ -23,6 +23,7 @@ fn range_storage_flags(input: &RangePayload) -> i32 {
 pub fn range_hash_flags(input: RangeValue) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let RangeValue::Unknown = input { unresolved_flavor = 1; };
+    if let RangeValue::Unimplemented = input { unresolved_flavor = 2; };
     if let RangeValue::Error(error) = input {
         return Int4Value::Error(error);
     };
@@ -39,11 +40,13 @@ fn range_binary_append(output: ByteaValue, bound: ByteaValue) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = output { unresolved_flavor = 1; };
     if let ByteaValue::Unknown = bound { unresolved_flavor = 1; };
+    if let ByteaValue::Unimplemented = output { unresolved_flavor = 2; };
+    if let ByteaValue::Unimplemented = bound { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = bound {
         return ByteaValue::Error(error);
     };
-    if let ByteaValue::Unknown = bound {
-        return bytea_unresolved(unresolved_flavor);
+    let mut condition_flavor_48_4: i32 = unresolved_flavor; if let ByteaValue::Unknown = bound { if condition_flavor_48_4 < 1 { condition_flavor_48_4 = 1; }; }; if let ByteaValue::Unimplemented = bound { condition_flavor_48_4 = 2; }; if (bound == ByteaValue::Unknown || bound == ByteaValue::Unimplemented) {
+        return bytea_unresolved(condition_flavor_48_4);
     };
     if let ByteaValue::Null = bound {
         return bytea_unresolved(unresolved_flavor);
@@ -63,6 +66,9 @@ pub fn sql__pg_catalog__range_send__b1w5(
     if let RangeValue::Unknown = input { unresolved_flavor = 1; };
     if let ByteaValue::Unknown = lower { unresolved_flavor = 1; };
     if let ByteaValue::Unknown = upper { unresolved_flavor = 1; };
+    if let RangeValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let ByteaValue::Unimplemented = lower { unresolved_flavor = 2; };
+    if let ByteaValue::Unimplemented = upper { unresolved_flavor = 2; };
     if let RangeValue::Error(error) = input {
         return ByteaValue::Error(error);
     };
@@ -91,7 +97,7 @@ pub fn sql__pg_catalog__range_send__b1w5(
             if let ByteaValue::Error(error) = result {
                 return ByteaValue::Error(error);
             };
-            if let ByteaValue::Unknown = result {
+            if (result == ByteaValue::Unknown || result == ByteaValue::Unimplemented) {
                 return result;
             };
         };

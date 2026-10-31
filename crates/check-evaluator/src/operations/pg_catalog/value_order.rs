@@ -1,6 +1,7 @@
 fn value_order_finish(result: Int4Value, strategy: i32) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let Int4Value::Unknown = result { unresolved_flavor = 1; };
+    if let Int4Value::Unimplemented = result { unresolved_flavor = 2; };
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }

@@ -2,14 +2,16 @@ fn circle_fuzzy_relation(left: Float8Value, right: Float8Value, mode: i32) -> Bo
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = left { unresolved_flavor = 1; };
     if let Float8Value::Unknown = right { unresolved_flavor = 1; };
+    if let Float8Value::Unimplemented = left { unresolved_flavor = 2; };
+    if let Float8Value::Unimplemented = right { unresolved_flavor = 2; };
     if let Float8Value::Error(error) = left {
         return BoolValue::Error(error);
     };
     if let Float8Value::Error(error) = right {
         return BoolValue::Error(error);
     };
-    if left == Float8Value::Unknown || right == Float8Value::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_13_4: i32 = unresolved_flavor; if let Float8Value::Unknown = left { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let Float8Value::Unimplemented = left { condition_flavor_13_4 = 2; }; if let Float8Value::Unknown = right { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let Float8Value::Unimplemented = right { condition_flavor_13_4 = 2; }; if (left == Float8Value::Unknown || left == Float8Value::Unimplemented) || (right == Float8Value::Unknown || right == Float8Value::Unimplemented) {
+        return bool_unresolved(condition_flavor_13_4);
     };
     if left == Float8Value::Null || right == Float8Value::Null {
         return BoolValue::Null;
@@ -40,6 +42,7 @@ fn circle_fuzzy_relation(left: Float8Value, right: Float8Value, mode: i32) -> Bo
 fn circle_edge(input: CircleValue, vertical: bool, low: bool) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let CircleValue::Unknown = input { unresolved_flavor = 1; };
+    if let CircleValue::Unimplemented = input { unresolved_flavor = 2; };
     let center = circle_center_value(input);
     if let PointValue::Error(error) = center {
         return Float8Value::Error(error);
@@ -128,12 +131,14 @@ fn circle_distance_value(left: CircleValue, right: CircleValue) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let CircleValue::Unknown = left { unresolved_flavor = 1; };
     if let CircleValue::Unknown = right { unresolved_flavor = 1; };
+    if let CircleValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let CircleValue::Unimplemented = right { unresolved_flavor = 2; };
     let status = circle_pair_status(left, right);
     if let BoolValue::Error(error) = status {
         return Float8Value::Error(error);
     };
-    if status == BoolValue::Unknown {
-        return float8_unresolved(unresolved_flavor);
+    let mut condition_flavor_140_4: i32 = unresolved_flavor; if let BoolValue::Unknown = status { if condition_flavor_140_4 < 1 { condition_flavor_140_4 = 1; }; }; if let BoolValue::Unimplemented = status { condition_flavor_140_4 = 2; }; if (status == BoolValue::Unknown || status == BoolValue::Unimplemented) {
+        return float8_unresolved(condition_flavor_140_4);
     };
     if status == BoolValue::Null {
         return Float8Value::Null;
@@ -150,14 +155,16 @@ fn circle_point_status(input: CircleValue, point: PointValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let CircleValue::Unknown = input { unresolved_flavor = 1; };
     if let PointValue::Unknown = point { unresolved_flavor = 1; };
+    if let CircleValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let PointValue::Unimplemented = point { unresolved_flavor = 2; };
     if let CircleValue::Error(error) = input {
         return BoolValue::Error(error);
     };
     if let PointValue::Error(error) = point {
         return BoolValue::Error(error);
     };
-    if input == CircleValue::Unknown || point == PointValue::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_166_4: i32 = unresolved_flavor; if let CircleValue::Unknown = input { if condition_flavor_166_4 < 1 { condition_flavor_166_4 = 1; }; }; if let CircleValue::Unimplemented = input { condition_flavor_166_4 = 2; }; if let PointValue::Unknown = point { if condition_flavor_166_4 < 1 { condition_flavor_166_4 = 1; }; }; if let PointValue::Unimplemented = point { condition_flavor_166_4 = 2; }; if (input == CircleValue::Unknown || input == CircleValue::Unimplemented) || (point == PointValue::Unknown || point == PointValue::Unimplemented) {
+        return bool_unresolved(condition_flavor_166_4);
     };
     if input == CircleValue::Null || point == PointValue::Null {
         return BoolValue::Null;
@@ -179,12 +186,14 @@ fn circle_point_distance(input: CircleValue, point: PointValue) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let CircleValue::Unknown = input { unresolved_flavor = 1; };
     if let PointValue::Unknown = point { unresolved_flavor = 1; };
+    if let CircleValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let PointValue::Unimplemented = point { unresolved_flavor = 2; };
     let status = circle_point_status(input, point);
     if let BoolValue::Error(error) = status {
         return Float8Value::Error(error);
     };
-    if status == BoolValue::Unknown {
-        return float8_unresolved(unresolved_flavor);
+    let mut condition_flavor_195_4: i32 = unresolved_flavor; if let BoolValue::Unknown = status { if condition_flavor_195_4 < 1 { condition_flavor_195_4 = 1; }; }; if let BoolValue::Unimplemented = status { condition_flavor_195_4 = 2; }; if (status == BoolValue::Unknown || status == BoolValue::Unimplemented) {
+        return float8_unresolved(condition_flavor_195_4);
     };
     if status == BoolValue::Null {
         return Float8Value::Null;
@@ -199,12 +208,14 @@ fn circle_arithmetic(input: CircleValue, point: PointValue, mode: i32) -> Circle
     let mut unresolved_flavor: i32 = 0;
     if let CircleValue::Unknown = input { unresolved_flavor = 1; };
     if let PointValue::Unknown = point { unresolved_flavor = 1; };
+    if let CircleValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let PointValue::Unimplemented = point { unresolved_flavor = 2; };
     let status = circle_point_status(input, point);
     if let BoolValue::Error(error) = status {
         return CircleValue::Error(error);
     };
-    if status == BoolValue::Unknown {
-        return circle_unresolved(unresolved_flavor);
+    let mut condition_flavor_217_4: i32 = unresolved_flavor; if let BoolValue::Unknown = status { if condition_flavor_217_4 < 1 { condition_flavor_217_4 = 1; }; }; if let BoolValue::Unimplemented = status { condition_flavor_217_4 = 2; }; if (status == BoolValue::Unknown || status == BoolValue::Unimplemented) {
+        return circle_unresolved(condition_flavor_217_4);
     };
     if status == BoolValue::Null {
         return CircleValue::Null;

@@ -24,6 +24,8 @@ pub fn xml_element_append(left: TextValue, right: TextValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = left { unresolved_flavor = 1; };
     if let TextValue::Unknown = right { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = right { unresolved_flavor = 2; };
     if let TextValue::Error(error) = left { return TextValue::Error(error); };
     if let TextValue::Error(error) = right { return TextValue::Error(error); };
     if let TextValue::Null = right { return left; };
@@ -56,6 +58,7 @@ fn xml_element_character_reference(code: i32) -> String {
 pub fn xml_element_attribute(name: &str, mapped: bool, implicit: bool, input: TextValue, utf8: bool) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Value(value) = input {
         if xml_text_encoding_available(value.as_str(),utf8) == false { return text_unresolved(unresolved_flavor); };
         let mut target = name.to_owned();
@@ -110,10 +113,13 @@ pub fn xml_element_finish(name: &str, mapped: bool, attributes: TextValue, conte
     if let TextValue::Unknown = attributes { unresolved_flavor = 1; };
     if let TextValue::Unknown = content { unresolved_flavor = 1; };
     if let CheckOutcome::Unknown = validity { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = attributes { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = content { unresolved_flavor = 2; };
+    if let CheckOutcome::Unimplemented = validity { unresolved_flavor = 2; };
     if let CheckOutcome::Error(error) = validity { return XmlValue::Error(error); };
     if let TextValue::Error(error) = attributes { return XmlValue::Error(error); };
     if let TextValue::Error(error) = content { return XmlValue::Error(error); };
-    if validity == CheckOutcome::Unknown { return xml_unresolved(unresolved_flavor); };
+    let mut condition_flavor_122_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = validity { if condition_flavor_122_4 < 1 { condition_flavor_122_4 = 1; }; }; if let CheckOutcome::Unimplemented = validity { condition_flavor_122_4 = 2; }; if (validity == CheckOutcome::Unknown || validity == CheckOutcome::Unimplemented) { return xml_unresolved(condition_flavor_122_4); };
     let mut target = name.to_owned();
     if mapped == false { target = xml_constructor_name(name); };
     if let TextValue::Value(attrs) = attributes {
@@ -140,9 +146,11 @@ pub fn xml_forest_finish(content: TextValue, validity: CheckOutcome) -> XmlValue
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = content { unresolved_flavor = 1; };
     if let CheckOutcome::Unknown = validity { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = content { unresolved_flavor = 2; };
+    if let CheckOutcome::Unimplemented = validity { unresolved_flavor = 2; };
     if let CheckOutcome::Error(error) = validity { return XmlValue::Error(error); };
     if let TextValue::Error(error) = content { return XmlValue::Error(error); };
-    if validity == CheckOutcome::Unknown { return xml_unresolved(unresolved_flavor); };
+    let mut condition_flavor_153_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = validity { if condition_flavor_153_4 < 1 { condition_flavor_153_4 = 1; }; }; if let CheckOutcome::Unimplemented = validity { condition_flavor_153_4 = 2; }; if (validity == CheckOutcome::Unknown || validity == CheckOutcome::Unimplemented) { return xml_unresolved(condition_flavor_153_4); };
     if let TextValue::Null = content { return XmlValue::Null; };
     if let TextValue::Value(value) = content { return make_xml_value(value.as_str()); };
     xml_unresolved(unresolved_flavor)
@@ -151,6 +159,7 @@ pub fn xml_forest_finish(content: TextValue, validity: CheckOutcome) -> XmlValue
 pub fn xml_value_boolean(input: BoolValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoolValue::Unknown = input { unresolved_flavor = 1; };
+    if let BoolValue::Unimplemented = input { unresolved_flavor = 2; };
     if let BoolValue::Error(error) = input { return TextValue::Error(error); };
     if let BoolValue::Null = input { return TextValue::Null; };
     if let BoolValue::Value(value) = input {
@@ -163,6 +172,7 @@ pub fn xml_value_boolean(input: BoolValue) -> TextValue {
 fn xml_value_calendar_text(input: JsonbInput) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let JsonbInput::Unknown = input { unresolved_flavor = 1; };
+    if let JsonbInput::Unimplemented = input { unresolved_flavor = 2; };
     if let JsonbInput::Error(error) = input { return TextValue::Error(error); };
     if let JsonbInput::Null = input { return TextValue::Null; };
     if let JsonbInput::Text(value) = input { return TextValue::Value(value); };
@@ -196,6 +206,7 @@ pub fn xml_value_timestamptz(input: TimestamptzValue) -> TextValue {
 pub fn xml_value_binary(input: ByteaValue, mode: i32) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = input { return TextValue::Error(error); };
     if let ByteaValue::Null = input { return TextValue::Null; };
     if let ByteaValue::Value(value) = input {
@@ -240,6 +251,7 @@ pub fn xml_value_binary(input: ByteaValue, mode: i32) -> TextValue {
 pub fn xml_array_output_initial(input: ArrayValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayValue::Error(error) = input { return TextValue::Error(error); };
     if let ArrayValue::Null = input { return TextValue::Null; };
     if let ArrayValue::Value(_) = input { return make_text_value(""); };

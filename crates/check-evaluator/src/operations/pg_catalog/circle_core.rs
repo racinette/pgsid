@@ -2,14 +2,16 @@ fn circle_from_center_radius(center: PointValue, radius: Float8Value) -> CircleV
     let mut unresolved_flavor: i32 = 0;
     if let PointValue::Unknown = center { unresolved_flavor = 1; };
     if let Float8Value::Unknown = radius { unresolved_flavor = 1; };
+    if let PointValue::Unimplemented = center { unresolved_flavor = 2; };
+    if let Float8Value::Unimplemented = radius { unresolved_flavor = 2; };
     if let PointValue::Error(error) = center {
         return CircleValue::Error(error);
     };
     if let Float8Value::Error(error) = radius {
         return CircleValue::Error(error);
     };
-    if center == PointValue::Unknown || radius == Float8Value::Unknown {
-        return circle_unresolved(unresolved_flavor);
+    let mut condition_flavor_13_4: i32 = unresolved_flavor; if let PointValue::Unknown = center { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let PointValue::Unimplemented = center { condition_flavor_13_4 = 2; }; if let Float8Value::Unknown = radius { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let Float8Value::Unimplemented = radius { condition_flavor_13_4 = 2; }; if (center == PointValue::Unknown || center == PointValue::Unimplemented) || (radius == Float8Value::Unknown || radius == Float8Value::Unimplemented) {
+        return circle_unresolved(condition_flavor_13_4);
     };
     if center == PointValue::Null || radius == Float8Value::Null {
         return CircleValue::Null;
@@ -30,6 +32,7 @@ fn circle_from_center_radius(center: PointValue, radius: Float8Value) -> CircleV
 fn circle_center_value(input: CircleValue) -> PointValue {
     let mut unresolved_flavor: i32 = 0;
     if let CircleValue::Unknown = input { unresolved_flavor = 1; };
+    if let CircleValue::Unimplemented = input { unresolved_flavor = 2; };
     if let CircleValue::Error(error) = input {
         return PointValue::Error(error);
     };
@@ -50,6 +53,7 @@ fn circle_center_value(input: CircleValue) -> PointValue {
 fn circle_radius_value(input: CircleValue) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let CircleValue::Unknown = input { unresolved_flavor = 1; };
+    if let CircleValue::Unimplemented = input { unresolved_flavor = 2; };
     if let CircleValue::Error(error) = input {
         return Float8Value::Error(error);
     };
@@ -76,14 +80,16 @@ fn circle_pair_status(left: CircleValue, right: CircleValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let CircleValue::Unknown = left { unresolved_flavor = 1; };
     if let CircleValue::Unknown = right { unresolved_flavor = 1; };
+    if let CircleValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let CircleValue::Unimplemented = right { unresolved_flavor = 2; };
     if let CircleValue::Error(error) = left {
         return BoolValue::Error(error);
     };
     if let CircleValue::Error(error) = right {
         return BoolValue::Error(error);
     };
-    if left == CircleValue::Unknown || right == CircleValue::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_91_4: i32 = unresolved_flavor; if let CircleValue::Unknown = left { if condition_flavor_91_4 < 1 { condition_flavor_91_4 = 1; }; }; if let CircleValue::Unimplemented = left { condition_flavor_91_4 = 2; }; if let CircleValue::Unknown = right { if condition_flavor_91_4 < 1 { condition_flavor_91_4 = 1; }; }; if let CircleValue::Unimplemented = right { condition_flavor_91_4 = 2; }; if (left == CircleValue::Unknown || left == CircleValue::Unimplemented) || (right == CircleValue::Unknown || right == CircleValue::Unimplemented) {
+        return bool_unresolved(condition_flavor_91_4);
     };
     if left == CircleValue::Null || right == CircleValue::Null {
         return BoolValue::Null;
@@ -94,6 +100,8 @@ fn circle_area_relation(left: CircleValue, right: CircleValue, mode: i32) -> Boo
     let mut unresolved_flavor: i32 = 0;
     if let CircleValue::Unknown = left { unresolved_flavor = 1; };
     if let CircleValue::Unknown = right { unresolved_flavor = 1; };
+    if let CircleValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let CircleValue::Unimplemented = right { unresolved_flavor = 2; };
     let status = circle_pair_status(left, right);
     if status != BoolValue::Value(true) {
         return status;
@@ -136,6 +144,8 @@ fn circle_same_value(left: CircleValue, right: CircleValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let CircleValue::Unknown = left { unresolved_flavor = 1; };
     if let CircleValue::Unknown = right { unresolved_flavor = 1; };
+    if let CircleValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let CircleValue::Unimplemented = right { unresolved_flavor = 2; };
     let status = circle_pair_status(left, right);
     if status != BoolValue::Value(true) {
         return status;
@@ -160,6 +170,7 @@ fn circle_same_value(left: CircleValue, right: CircleValue) -> BoolValue {
 fn circle_binary(input: CircleValue) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let CircleValue::Unknown = input { unresolved_flavor = 1; };
+    if let CircleValue::Unimplemented = input { unresolved_flavor = 2; };
     if let CircleValue::Error(error) = input {
         return ByteaValue::Error(error);
     };
@@ -180,6 +191,7 @@ fn circle_binary(input: CircleValue) -> ByteaValue {
 fn circle_inscribed_box(input: CircleValue) -> BoxValue {
     let mut unresolved_flavor: i32 = 0;
     if let CircleValue::Unknown = input { unresolved_flavor = 1; };
+    if let CircleValue::Unimplemented = input { unresolved_flavor = 2; };
     if let CircleValue::Error(error) = input {
         return BoxValue::Error(error);
     };

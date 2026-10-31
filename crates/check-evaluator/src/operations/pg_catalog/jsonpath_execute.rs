@@ -287,6 +287,7 @@ fn jsonpath_execution_make_task(
 fn jsonpath_execution_stored(input: JsonpathValue) -> JsonpathValue {
     let mut unresolved_flavor: i32 = 0;
     if let JsonpathValue::Unknown = input { unresolved_flavor = 1; };
+    if let JsonpathValue::Unimplemented = input { unresolved_flavor = 2; };
     if let JsonpathValue::StoredText(text) = input {
         let parsed = jsonpath_from_coerced_source_utf8(TextValue::Value(text));
         if let JsonpathValue::Value(path) = parsed {
@@ -680,7 +681,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
             if let Int4Value::Error(failure) = index {
                 error = failure.state;
             };
-            if let Int4Value::Unknown = index {
+            if (index == Int4Value::Unknown || index == Int4Value::Unimplemented) {
                 unknown = true;
             };
             if let Int4Value::Value(position) = index {
@@ -849,7 +850,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
                         text = strings[reference.node].clone();
                     };
                     let result = jsonpath_regex_predicate(&context, step, reference, text);
-                    if let BoolValue::Unknown = result {
+                    if (result == BoolValue::Unknown || result == BoolValue::Unimplemented) {
                         unknown = true;
                     };
                     if let BoolValue::Error(failure) = result {
@@ -926,7 +927,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
                                 context.use_timezone,
                                 context.session_timezone.as_str(),
                             );
-                            if let Int4Value::Unknown = comparison {
+                            if (comparison == Int4Value::Unknown || comparison == Int4Value::Unimplemented) {
                                 unknown = true;
                                 ready = false;
                             };
@@ -1132,7 +1133,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
             if let BoolValue::Error(failure) = admission {
                 error = failure.state;
             };
-            if let BoolValue::Unknown = admission {
+            if (admission == BoolValue::Unknown || admission == BoolValue::Unimplemented) {
                 unknown = true;
             };
             if error == 0 && unknown == false {
@@ -1789,7 +1790,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
                         if let BoolValue::Error(failure) = result {
                             error = failure.state;
                         };
-                        if let BoolValue::Unknown = result {
+                        if (result == BoolValue::Unknown || result == BoolValue::Unimplemented) {
                             unknown = true;
                         };
                     } else if jsonpath_conversion_kind(step.kind) {
@@ -1826,7 +1827,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
             error = failure.state;
         };
         let mut computed_unknown = false;
-        if let NumericValue::Unknown = computed {
+        if (computed == NumericValue::Unknown || computed == NumericValue::Unimplemented) {
             computed_unknown = true;
         };
         if let NumericValue::Value(number) = computed {
@@ -1836,7 +1837,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
             error = failure.state;
         };
         let mut text_unknown = false;
-        if computed_text == TextValue::Unknown || computed_text == TextValue::NonNull {
+        if (computed_text == TextValue::Unknown || computed_text == TextValue::Unimplemented) || computed_text == TextValue::NonNull {
             text_unknown = true;
         };
         if let TextValue::Value(value) = computed_text {
@@ -2019,8 +2020,8 @@ fn jsonpath_execution_output(
                 if let TextValue::Error(failure) = rendered {
                     return JsonbValue::Error(failure);
                 };
-                if rendered == TextValue::Unknown || rendered == TextValue::NonNull {
-                    return jsonb_unresolved(unresolved_flavor);
+                let mut condition_flavor_2023_16: i32 = unresolved_flavor; if let TextValue::Unknown = rendered { if condition_flavor_2023_16 < 1 { condition_flavor_2023_16 = 1; }; }; if let TextValue::Unimplemented = rendered { condition_flavor_2023_16 = 2; }; if (rendered == TextValue::Unknown || rendered == TextValue::Unimplemented) || rendered == TextValue::NonNull {
+                    return jsonb_unresolved(condition_flavor_2023_16);
                 };
                 if let TextValue::Value(text) = rendered {
                     let content: Vec<char> = text.chars().collect();
@@ -2179,6 +2180,10 @@ fn jsonpath_evaluate_session(
     if let JsonpathValue::Unknown = path { unresolved_flavor = 1; };
     if let JsonbValue::Unknown = variables { unresolved_flavor = 1; };
     if let BoolValue::Unknown = silent { unresolved_flavor = 1; };
+    if let JsonbValue::Unimplemented = document { unresolved_flavor = 2; };
+    if let JsonpathValue::Unimplemented = path { unresolved_flavor = 2; };
+    if let JsonbValue::Unimplemented = variables { unresolved_flavor = 2; };
+    if let BoolValue::Unimplemented = silent { unresolved_flavor = 2; };
     if let JsonbValue::Error(error) = document {
         return JsonbValue::Error(error);
     };
@@ -2206,8 +2211,10 @@ fn jsonpath_evaluate_session(
     if let JsonbValue::Value(input) = document {
         if let JsonbValue::Value(vars) = variables {
             if let BoolValue::Value(suppress) = silent {
-                if let JsonpathValue::Unknown = path {
-                    return jsonb_unresolved(unresolved_flavor);
+                let mut condition_flavor_2214_16: i32 = unresolved_flavor; if let JsonpathValue::Unknown = path { if condition_flavor_2214_16 < 1 { condition_flavor_2214_16 = 1; }; }; if let JsonpathValue::Unknown = path {
+                    return jsonb_unresolved(condition_flavor_2214_16);
+                }; let mut condition_flavor_2216_19: i32 = unresolved_flavor; if let JsonpathValue::Unimplemented = path { condition_flavor_2216_19 = 2; }; if let JsonpathValue::Unimplemented = path {
+                    return jsonb_unresolved(condition_flavor_2216_19);
                 };
                 if vars.nodes[vars.root].kind != 6 {
                     return JsonbValue::Error(make_sql_error(JSONPATH_EXEC_PARAMETER));
@@ -2279,6 +2286,7 @@ fn jsonpath_evaluate_session(
 fn jsonpath_execution_bool_result(input: JsonbValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
+    if let JsonbValue::Unimplemented = input { unresolved_flavor = 2; };
     if let JsonbValue::Error(error) = input {
         return BoolValue::Error(error);
     };

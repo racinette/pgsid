@@ -1,6 +1,7 @@
 #[derive(Clone)]
 pub enum ArrayElement {
     Unknown,
+    Unimplemented,
     Null,
     Error(SqlError),
     Int2(i32),
@@ -230,6 +231,7 @@ pub fn array_element_family(input: ArrayElement) -> i32 {
 pub fn array_element_from_array(input: ArrayValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -245,6 +247,7 @@ pub fn array_element_from_array(input: ArrayValue) -> ArrayElement {
 pub fn array_element_to_array(input: ArrayElement) -> ArrayValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return ArrayValue::Error(error);
     };
@@ -260,6 +263,7 @@ pub fn array_element_to_array(input: ArrayElement) -> ArrayValue {
 pub fn array_element_from_int2(input: Int2Value) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let Int2Value::Unknown = input { unresolved_flavor = 1; };
+    if let Int2Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Int2Value::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -275,6 +279,7 @@ pub fn array_element_from_int2(input: Int2Value) -> ArrayElement {
 pub fn array_element_to_int2(input: ArrayElement) -> Int2Value {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return Int2Value::Error(error);
     };
@@ -290,6 +295,7 @@ pub fn array_element_to_int2(input: ArrayElement) -> Int2Value {
 pub fn array_element_from_int4(input: Int4Value) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let Int4Value::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Int4Value::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -305,6 +311,7 @@ pub fn array_element_from_int4(input: Int4Value) -> ArrayElement {
 pub fn array_element_to_int4(input: ArrayElement) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return Int4Value::Error(error);
     };
@@ -320,6 +327,7 @@ pub fn array_element_to_int4(input: ArrayElement) -> Int4Value {
 pub fn array_element_from_int8(input: Int8Value) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let Int8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Int8Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Int8Value::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -335,6 +343,7 @@ pub fn array_element_from_int8(input: Int8Value) -> ArrayElement {
 pub fn array_element_to_int8(input: ArrayElement) -> Int8Value {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return Int8Value::Error(error);
     };
@@ -350,6 +359,7 @@ pub fn array_element_to_int8(input: ArrayElement) -> Int8Value {
 pub fn array_element_from_timestamp(input: TimestampValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let TimestampValue::Unknown = input { unresolved_flavor = 1; };
+    if let TimestampValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TimestampValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -365,6 +375,7 @@ pub fn array_element_from_timestamp(input: TimestampValue) -> ArrayElement {
 pub fn array_element_to_timestamp(input: ArrayElement) -> TimestampValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return TimestampValue::Error(error);
     };
@@ -380,6 +391,7 @@ pub fn array_element_to_timestamp(input: ArrayElement) -> TimestampValue {
 pub fn array_element_from_timestamptz(input: TimestamptzValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TimestamptzValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -395,6 +407,7 @@ pub fn array_element_from_timestamptz(input: TimestamptzValue) -> ArrayElement {
 pub fn array_element_to_timestamptz(input: ArrayElement) -> TimestamptzValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return TimestamptzValue::Error(error);
     };
@@ -410,6 +423,7 @@ pub fn array_element_to_timestamptz(input: ArrayElement) -> TimestamptzValue {
 pub fn array_element_from_enum(input: EnumValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let EnumValue::Unknown = input { unresolved_flavor = 1; };
+    if let EnumValue::Unimplemented = input { unresolved_flavor = 2; };
     if let EnumValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -425,6 +439,7 @@ pub fn array_element_from_enum(input: EnumValue) -> ArrayElement {
 pub fn array_element_to_enum(input: ArrayElement) -> EnumValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return EnumValue::Error(error);
     };
@@ -440,6 +455,7 @@ pub fn array_element_to_enum(input: ArrayElement) -> EnumValue {
 pub fn array_element_from_date(input: DateValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let DateValue::Unknown = input { unresolved_flavor = 1; };
+    if let DateValue::Unimplemented = input { unresolved_flavor = 2; };
     if let DateValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -455,6 +471,7 @@ pub fn array_element_from_date(input: DateValue) -> ArrayElement {
 pub fn array_element_to_date(input: ArrayElement) -> DateValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return DateValue::Error(error);
     };
@@ -470,6 +487,7 @@ pub fn array_element_to_date(input: ArrayElement) -> DateValue {
 pub fn array_element_from_text(input: TextValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if input == TextValue::NonNull { return ArrayElement::TextNonNull; };
     if let TextValue::Error(error) = input {
         return ArrayElement::Error(error);
@@ -486,6 +504,7 @@ pub fn array_element_from_text(input: TextValue) -> ArrayElement {
 pub fn array_element_to_text(input: ArrayElement) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::TextNonNull = input { return TextValue::NonNull; };
     if let ArrayElement::Error(error) = input {
         return TextValue::Error(error);
@@ -502,6 +521,7 @@ pub fn array_element_to_text(input: ArrayElement) -> TextValue {
 pub fn array_element_from_bool(input: BoolValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let BoolValue::Unknown = input { unresolved_flavor = 1; };
+    if let BoolValue::Unimplemented = input { unresolved_flavor = 2; };
     if let BoolValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -517,6 +537,7 @@ pub fn array_element_from_bool(input: BoolValue) -> ArrayElement {
 pub fn array_element_to_bool(input: ArrayElement) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return BoolValue::Error(error);
     };
@@ -532,6 +553,7 @@ pub fn array_element_to_bool(input: ArrayElement) -> BoolValue {
 pub fn array_element_from_numeric(input: NumericValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = input { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = input { unresolved_flavor = 2; };
     if let NumericValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -547,6 +569,7 @@ pub fn array_element_from_numeric(input: NumericValue) -> ArrayElement {
 pub fn array_element_to_numeric(input: ArrayElement) -> NumericValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return NumericValue::Error(error);
     };
@@ -562,6 +585,7 @@ pub fn array_element_to_numeric(input: ArrayElement) -> NumericValue {
 pub fn array_element_from_json(input: JsonValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let JsonValue::Unknown = input { unresolved_flavor = 1; };
+    if let JsonValue::Unimplemented = input { unresolved_flavor = 2; };
     if let JsonValue::NonNull = input {
         return ArrayElement::JsonNonNull;
     };
@@ -580,6 +604,7 @@ pub fn array_element_from_json(input: JsonValue) -> ArrayElement {
 pub fn array_element_to_json(input: ArrayElement) -> JsonValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::JsonNonNull = input {
         return JsonValue::NonNull;
     };
@@ -598,6 +623,7 @@ pub fn array_element_to_json(input: ArrayElement) -> JsonValue {
 pub fn array_element_from_jsonb(input: JsonbValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
+    if let JsonbValue::Unimplemented = input { unresolved_flavor = 2; };
     if let JsonbValue::NonNull(maximum) = input {
         return ArrayElement::JsonbNonNull(maximum);
     };
@@ -616,6 +642,7 @@ pub fn array_element_from_jsonb(input: JsonbValue) -> ArrayElement {
 pub fn array_element_to_jsonb(input: ArrayElement) -> JsonbValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::JsonbNonNull(maximum) = input {
         return JsonbValue::NonNull(maximum);
     };
@@ -634,6 +661,7 @@ pub fn array_element_to_jsonb(input: ArrayElement) -> JsonbValue {
 pub fn array_element_from_network(input: NetworkValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let NetworkValue::Unknown = input { unresolved_flavor = 1; };
+    if let NetworkValue::Unimplemented = input { unresolved_flavor = 2; };
     if let NetworkValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -649,6 +677,7 @@ pub fn array_element_from_network(input: NetworkValue) -> ArrayElement {
 pub fn array_element_to_network(input: ArrayElement) -> NetworkValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return NetworkValue::Error(error);
     };
@@ -664,6 +693,7 @@ pub fn array_element_to_network(input: ArrayElement) -> NetworkValue {
 pub fn array_element_from_bit(input: BitValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let BitValue::Unknown = input { unresolved_flavor = 1; };
+    if let BitValue::Unimplemented = input { unresolved_flavor = 2; };
     if let BitValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -679,6 +709,7 @@ pub fn array_element_from_bit(input: BitValue) -> ArrayElement {
 pub fn array_element_to_bit(input: ArrayElement) -> BitValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return BitValue::Error(error);
     };
@@ -694,6 +725,7 @@ pub fn array_element_to_bit(input: ArrayElement) -> BitValue {
 pub fn array_element_from_bytea(input: ByteaValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let ByteaValue::Unknown = input { unresolved_flavor = 1; };
+    if let ByteaValue::Unimplemented = input { unresolved_flavor = 2; };
     if let ByteaValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -712,6 +744,7 @@ pub fn array_element_from_bytea(input: ByteaValue) -> ArrayElement {
 pub fn array_element_to_bytea(input: ArrayElement) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return ByteaValue::Error(error);
     };
@@ -730,6 +763,7 @@ pub fn array_element_to_bytea(input: ArrayElement) -> ByteaValue {
 pub fn array_element_from_macaddr(input: MacaddrValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let MacaddrValue::Unknown = input { unresolved_flavor = 1; };
+    if let MacaddrValue::Unimplemented = input { unresolved_flavor = 2; };
     if let MacaddrValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -745,6 +779,7 @@ pub fn array_element_from_macaddr(input: MacaddrValue) -> ArrayElement {
 pub fn array_element_to_macaddr(input: ArrayElement) -> MacaddrValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return MacaddrValue::Error(error);
     };
@@ -760,6 +795,7 @@ pub fn array_element_to_macaddr(input: ArrayElement) -> MacaddrValue {
 pub fn array_element_from_macaddr8(input: Macaddr8Value) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let Macaddr8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Macaddr8Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Macaddr8Value::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -775,6 +811,7 @@ pub fn array_element_from_macaddr8(input: Macaddr8Value) -> ArrayElement {
 pub fn array_element_to_macaddr8(input: ArrayElement) -> Macaddr8Value {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return Macaddr8Value::Error(error);
     };
@@ -790,6 +827,7 @@ pub fn array_element_to_macaddr8(input: ArrayElement) -> Macaddr8Value {
 pub fn array_element_from_uuid(input: UuidValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let UuidValue::Unknown = input { unresolved_flavor = 1; };
+    if let UuidValue::Unimplemented = input { unresolved_flavor = 2; };
     if let UuidValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -805,6 +843,7 @@ pub fn array_element_from_uuid(input: UuidValue) -> ArrayElement {
 pub fn array_element_to_uuid(input: ArrayElement) -> UuidValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return UuidValue::Error(error);
     };
@@ -820,6 +859,7 @@ pub fn array_element_to_uuid(input: ArrayElement) -> UuidValue {
 pub fn array_element_from_float4(input: Float4Value) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let Float4Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float4Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Float4Value::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -838,6 +878,7 @@ pub fn array_element_from_float4(input: Float4Value) -> ArrayElement {
 pub fn array_element_to_float4(input: ArrayElement) -> Float4Value {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return Float4Value::Error(error);
     };
@@ -856,6 +897,7 @@ pub fn array_element_to_float4(input: ArrayElement) -> Float4Value {
 pub fn array_element_from_float8(input: Float8Value) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Float8Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Float8Value::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -874,6 +916,7 @@ pub fn array_element_from_float8(input: Float8Value) -> ArrayElement {
 pub fn array_element_to_float8(input: ArrayElement) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return Float8Value::Error(error);
     };
@@ -892,6 +935,7 @@ pub fn array_element_to_float8(input: ArrayElement) -> Float8Value {
 pub fn array_element_from_time(input: TimeValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let TimeValue::Unknown = input { unresolved_flavor = 1; };
+    if let TimeValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TimeValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -907,6 +951,7 @@ pub fn array_element_from_time(input: TimeValue) -> ArrayElement {
 pub fn array_element_to_time(input: ArrayElement) -> TimeValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return TimeValue::Error(error);
     };
@@ -922,6 +967,7 @@ pub fn array_element_to_time(input: ArrayElement) -> TimeValue {
 pub fn array_element_from_timetz(input: TimetzValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let TimetzValue::Unknown = input { unresolved_flavor = 1; };
+    if let TimetzValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TimetzValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -937,6 +983,7 @@ pub fn array_element_from_timetz(input: TimetzValue) -> ArrayElement {
 pub fn array_element_to_timetz(input: ArrayElement) -> TimetzValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return TimetzValue::Error(error);
     };
@@ -952,6 +999,7 @@ pub fn array_element_to_timetz(input: ArrayElement) -> TimetzValue {
 pub fn array_element_from_interval(input: IntervalValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let IntervalValue::Unknown = input { unresolved_flavor = 1; };
+    if let IntervalValue::Unimplemented = input { unresolved_flavor = 2; };
     if let IntervalValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -967,6 +1015,7 @@ pub fn array_element_from_interval(input: IntervalValue) -> ArrayElement {
 pub fn array_element_to_interval(input: ArrayElement) -> IntervalValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return IntervalValue::Error(error);
     };
@@ -982,6 +1031,7 @@ pub fn array_element_to_interval(input: ArrayElement) -> IntervalValue {
 pub fn array_element_from_point(input: PointValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let PointValue::Unknown = input { unresolved_flavor = 1; };
+    if let PointValue::Unimplemented = input { unresolved_flavor = 2; };
     if let PointValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -997,6 +1047,7 @@ pub fn array_element_from_point(input: PointValue) -> ArrayElement {
 pub fn array_element_to_point(input: ArrayElement) -> PointValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return PointValue::Error(error);
     };
@@ -1012,6 +1063,7 @@ pub fn array_element_to_point(input: ArrayElement) -> PointValue {
 pub fn array_element_from_line(input: LineValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let LineValue::Unknown = input { unresolved_flavor = 1; };
+    if let LineValue::Unimplemented = input { unresolved_flavor = 2; };
     if let LineValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -1027,6 +1079,7 @@ pub fn array_element_from_line(input: LineValue) -> ArrayElement {
 pub fn array_element_to_line(input: ArrayElement) -> LineValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return LineValue::Error(error);
     };
@@ -1042,6 +1095,7 @@ pub fn array_element_to_line(input: ArrayElement) -> LineValue {
 pub fn array_element_from_lseg(input: LsegValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let LsegValue::Unknown = input { unresolved_flavor = 1; };
+    if let LsegValue::Unimplemented = input { unresolved_flavor = 2; };
     if let LsegValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -1057,6 +1111,7 @@ pub fn array_element_from_lseg(input: LsegValue) -> ArrayElement {
 pub fn array_element_to_lseg(input: ArrayElement) -> LsegValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return LsegValue::Error(error);
     };
@@ -1072,6 +1127,7 @@ pub fn array_element_to_lseg(input: ArrayElement) -> LsegValue {
 pub fn array_element_from_box(input: BoxValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let BoxValue::Unknown = input { unresolved_flavor = 1; };
+    if let BoxValue::Unimplemented = input { unresolved_flavor = 2; };
     if let BoxValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -1090,6 +1146,7 @@ pub fn array_element_from_box(input: BoxValue) -> ArrayElement {
 pub fn array_element_to_box(input: ArrayElement) -> BoxValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return BoxValue::Error(error);
     };
@@ -1108,6 +1165,7 @@ pub fn array_element_to_box(input: ArrayElement) -> BoxValue {
 pub fn array_element_from_path(input: PathValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let PathValue::Unknown = input { unresolved_flavor = 1; };
+    if let PathValue::Unimplemented = input { unresolved_flavor = 2; };
     if let PathValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -1123,6 +1181,7 @@ pub fn array_element_from_path(input: PathValue) -> ArrayElement {
 pub fn array_element_to_path(input: ArrayElement) -> PathValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return PathValue::Error(error);
     };
@@ -1138,6 +1197,7 @@ pub fn array_element_to_path(input: ArrayElement) -> PathValue {
 pub fn array_element_from_polygon(input: PolygonValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let PolygonValue::Unknown = input { unresolved_flavor = 1; };
+    if let PolygonValue::Unimplemented = input { unresolved_flavor = 2; };
     if let PolygonValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -1153,6 +1213,7 @@ pub fn array_element_from_polygon(input: PolygonValue) -> ArrayElement {
 pub fn array_element_to_polygon(input: ArrayElement) -> PolygonValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return PolygonValue::Error(error);
     };
@@ -1168,6 +1229,7 @@ pub fn array_element_to_polygon(input: ArrayElement) -> PolygonValue {
 pub fn array_element_from_circle(input: CircleValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let CircleValue::Unknown = input { unresolved_flavor = 1; };
+    if let CircleValue::Unimplemented = input { unresolved_flavor = 2; };
     if let CircleValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -1183,6 +1245,7 @@ pub fn array_element_from_circle(input: CircleValue) -> ArrayElement {
 pub fn array_element_to_circle(input: ArrayElement) -> CircleValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return CircleValue::Error(error);
     };
@@ -1198,6 +1261,7 @@ pub fn array_element_to_circle(input: ArrayElement) -> CircleValue {
 pub fn array_element_from_money(input: MoneyValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let MoneyValue::Unknown = input { unresolved_flavor = 1; };
+    if let MoneyValue::Unimplemented = input { unresolved_flavor = 2; };
     if let MoneyValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -1213,6 +1277,7 @@ pub fn array_element_from_money(input: MoneyValue) -> ArrayElement {
 pub fn array_element_to_money(input: ArrayElement) -> MoneyValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return MoneyValue::Error(error);
     };
@@ -1228,6 +1293,7 @@ pub fn array_element_to_money(input: ArrayElement) -> MoneyValue {
 pub fn array_element_from_internal_char(input: InternalCharValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let InternalCharValue::Unknown = input { unresolved_flavor = 1; };
+    if let InternalCharValue::Unimplemented = input { unresolved_flavor = 2; };
     if let InternalCharValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -1243,6 +1309,7 @@ pub fn array_element_from_internal_char(input: InternalCharValue) -> ArrayElemen
 pub fn array_element_to_internal_char(input: ArrayElement) -> InternalCharValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return InternalCharValue::Error(error);
     };
@@ -1258,6 +1325,7 @@ pub fn array_element_to_internal_char(input: ArrayElement) -> InternalCharValue 
 pub fn array_element_from_oid(input: OidValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let OidValue::Unknown = input { unresolved_flavor = 1; };
+    if let OidValue::Unimplemented = input { unresolved_flavor = 2; };
     if let OidValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -1273,6 +1341,7 @@ pub fn array_element_from_oid(input: OidValue) -> ArrayElement {
 pub fn array_element_to_oid(input: ArrayElement) -> OidValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return OidValue::Error(error);
     };
@@ -1288,6 +1357,7 @@ pub fn array_element_to_oid(input: ArrayElement) -> OidValue {
 pub fn array_element_from_xid(input: XidValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let XidValue::Unknown = input { unresolved_flavor = 1; };
+    if let XidValue::Unimplemented = input { unresolved_flavor = 2; };
     if let XidValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -1303,6 +1373,7 @@ pub fn array_element_from_xid(input: XidValue) -> ArrayElement {
 pub fn array_element_to_xid(input: ArrayElement) -> XidValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return XidValue::Error(error);
     };
@@ -1318,6 +1389,7 @@ pub fn array_element_to_xid(input: ArrayElement) -> XidValue {
 pub fn array_element_from_cid(input: CidValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let CidValue::Unknown = input { unresolved_flavor = 1; };
+    if let CidValue::Unimplemented = input { unresolved_flavor = 2; };
     if let CidValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -1333,6 +1405,7 @@ pub fn array_element_from_cid(input: CidValue) -> ArrayElement {
 pub fn array_element_to_cid(input: ArrayElement) -> CidValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return CidValue::Error(error);
     };
@@ -1348,6 +1421,7 @@ pub fn array_element_to_cid(input: ArrayElement) -> CidValue {
 pub fn array_element_from_snapshot(input: SnapshotValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let SnapshotValue::Unknown = input { unresolved_flavor = 1; };
+    if let SnapshotValue::Unimplemented = input { unresolved_flavor = 2; };
     if let SnapshotValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -1363,6 +1437,7 @@ pub fn array_element_from_snapshot(input: SnapshotValue) -> ArrayElement {
 pub fn array_element_to_snapshot(input: ArrayElement) -> SnapshotValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return SnapshotValue::Error(error);
     };
@@ -1378,6 +1453,7 @@ pub fn array_element_to_snapshot(input: ArrayElement) -> SnapshotValue {
 pub fn array_element_from_xid8(input: Xid8Value) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let Xid8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Xid8Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Xid8Value::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -1393,6 +1469,7 @@ pub fn array_element_from_xid8(input: Xid8Value) -> ArrayElement {
 pub fn array_element_to_xid8(input: ArrayElement) -> Xid8Value {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return Xid8Value::Error(error);
     };
@@ -1408,6 +1485,7 @@ pub fn array_element_to_xid8(input: ArrayElement) -> Xid8Value {
 pub fn array_element_from_pg_lsn(input: PgLsnValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let PgLsnValue::Unknown = input { unresolved_flavor = 1; };
+    if let PgLsnValue::Unimplemented = input { unresolved_flavor = 2; };
     if let PgLsnValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -1423,6 +1501,7 @@ pub fn array_element_from_pg_lsn(input: PgLsnValue) -> ArrayElement {
 pub fn array_element_to_pg_lsn(input: ArrayElement) -> PgLsnValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return PgLsnValue::Error(error);
     };
@@ -1438,6 +1517,7 @@ pub fn array_element_to_pg_lsn(input: ArrayElement) -> PgLsnValue {
 pub fn array_element_from_tid(input: TidValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let TidValue::Unknown = input { unresolved_flavor = 1; };
+    if let TidValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TidValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -1453,6 +1533,7 @@ pub fn array_element_from_tid(input: TidValue) -> ArrayElement {
 pub fn array_element_to_tid(input: ArrayElement) -> TidValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return TidValue::Error(error);
     };
@@ -1468,6 +1549,7 @@ pub fn array_element_to_tid(input: ArrayElement) -> TidValue {
 pub fn array_element_from_jsonpath(input: JsonpathValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let JsonpathValue::Unknown = input { unresolved_flavor = 1; };
+    if let JsonpathValue::Unimplemented = input { unresolved_flavor = 2; };
     if let JsonpathValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -1486,6 +1568,7 @@ pub fn array_element_from_jsonpath(input: JsonpathValue) -> ArrayElement {
 pub fn array_element_to_jsonpath(input: ArrayElement) -> JsonpathValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return JsonpathValue::Error(error);
     };
@@ -1504,6 +1587,7 @@ pub fn array_element_to_jsonpath(input: ArrayElement) -> JsonpathValue {
 pub fn array_element_from_range(input: RangeValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let RangeValue::Unknown = input { unresolved_flavor = 1; };
+    if let RangeValue::Unimplemented = input { unresolved_flavor = 2; };
     if let RangeValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -1519,6 +1603,7 @@ pub fn array_element_from_range(input: RangeValue) -> ArrayElement {
 pub fn array_element_to_range(input: ArrayElement) -> RangeValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return RangeValue::Error(error);
     };
@@ -1534,6 +1619,7 @@ pub fn array_element_to_range(input: ArrayElement) -> RangeValue {
 pub fn array_element_from_multirange(input: MultirangeValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let MultirangeValue::Unknown = input { unresolved_flavor = 1; };
+    if let MultirangeValue::Unimplemented = input { unresolved_flavor = 2; };
     if let MultirangeValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -1549,6 +1635,7 @@ pub fn array_element_from_multirange(input: MultirangeValue) -> ArrayElement {
 pub fn array_element_to_multirange(input: ArrayElement) -> MultirangeValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return MultirangeValue::Error(error);
     };
@@ -1565,6 +1652,7 @@ pub fn array_element_to_multirange(input: ArrayElement) -> MultirangeValue {
 pub fn array_element_from_xml(input: XmlValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let XmlValue::Unknown = input { unresolved_flavor = 1; };
+    if let XmlValue::Unimplemented = input { unresolved_flavor = 2; };
     if let XmlValue::NonNull(knowledge) = input {
         let checked = make_xml_knowledge(knowledge.document,knowledge.content);
         if let XmlValue::NonNull(actual) = checked { return ArrayElement::XmlNonNull(actual); };
@@ -1580,6 +1668,7 @@ pub fn array_element_from_xml(input: XmlValue) -> ArrayElement {
 pub fn array_element_to_xml(input: ArrayElement) -> XmlValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::XmlNonNull(knowledge) = input { return make_xml_knowledge(knowledge.document,knowledge.content); };
     if let ArrayElement::Error(error) = input { return XmlValue::Error(error); };
     if let ArrayElement::Null = input { return XmlValue::Null; };
@@ -1591,6 +1680,7 @@ pub fn array_element_to_xml(input: ArrayElement) -> XmlValue {
 pub fn array_element_from_aclitem(input: AclitemValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let AclitemValue::Unknown = input { unresolved_flavor = 1; };
+    if let AclitemValue::Unimplemented = input { unresolved_flavor = 2; };
     if let AclitemValue::Catalog(value) = input { return ArrayElement::AclitemCatalog(value); };
     if let AclitemValue::Error(error) = input { return ArrayElement::Error(error); };
     if input == AclitemValue::Null { return ArrayElement::Null; };
@@ -1600,6 +1690,7 @@ pub fn array_element_from_aclitem(input: AclitemValue) -> ArrayElement {
 pub fn array_element_to_aclitem(input: ArrayElement) -> AclitemValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::AclitemCatalog(value) = input { return make_aclitem_catalog_value(value.privileges,value.grant_options,value.public_grantee,value.invalid_grantor); };
     if let ArrayElement::Error(error) = input { return AclitemValue::Error(error); };
     if let ArrayElement::Null = input { return AclitemValue::Null; };
@@ -1610,6 +1701,7 @@ pub fn array_element_to_aclitem(input: ArrayElement) -> AclitemValue {
 pub fn array_element_from_tsvector(input: TsvectorValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let TsvectorValue::Unknown = input { unresolved_flavor = 1; };
+    if let TsvectorValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TsvectorValue::Error(error) = input { return ArrayElement::Error(error); };
     if let TsvectorValue::Null = input { return ArrayElement::Null; };
     if let TsvectorValue::Value(value) = input { return ArrayElement::Tsvector(value); };
@@ -1618,6 +1710,7 @@ pub fn array_element_from_tsvector(input: TsvectorValue) -> ArrayElement {
 pub fn array_element_to_tsvector(input: ArrayElement) -> TsvectorValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input { return TsvectorValue::Error(error); };
     if let ArrayElement::Null = input { return TsvectorValue::Null; };
     if let ArrayElement::Tsvector(value) = input { return TsvectorValue::Value(value); };
@@ -1627,6 +1720,7 @@ pub fn array_element_to_tsvector(input: ArrayElement) -> TsvectorValue {
 pub fn array_element_from_tsquery(input: TsqueryValue) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let TsqueryValue::Unknown = input { unresolved_flavor = 1; };
+    if let TsqueryValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TsqueryValue::Error(error) = input { return ArrayElement::Error(error); };
     if let TsqueryValue::Null = input { return ArrayElement::Null; };
     if let TsqueryValue::Value(value) = input { return ArrayElement::Tsquery(value); };
@@ -1635,6 +1729,7 @@ pub fn array_element_from_tsquery(input: TsqueryValue) -> ArrayElement {
 pub fn array_element_to_tsquery(input: ArrayElement) -> TsqueryValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input { return TsqueryValue::Error(error); };
     if let ArrayElement::Null = input { return TsqueryValue::Null; };
     if let ArrayElement::Tsquery(value) = input { return TsqueryValue::Value(value); };

@@ -167,6 +167,7 @@ pub(crate) fn array_sort_element_at(
 ) -> ArrayElement {
     let mut unresolved_flavor: i32 = 0;
     if let Int4Value::Unknown = index { unresolved_flavor = 1; };
+    if let Int4Value::Unimplemented = index { unresolved_flavor = 2; };
     let mut row = input.left;
     if right {
         row = input.right;
@@ -235,7 +236,7 @@ pub(crate) fn array_sort_step(input: ArraySortPayload, compared: Int4Value) -> A
                 state = -2;
                 error = failed;
             };
-            if compared == Int4Value::Unknown || compared == Int4Value::Null {
+            if (compared == Int4Value::Unknown || compared == Int4Value::Unimplemented) || compared == Int4Value::Null {
                 state = 3;
             };
             if let Int4Value::Value(value) = compared {

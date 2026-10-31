@@ -4,11 +4,12 @@ const CHR_PROGRAM_LIMIT: u32 = 8584704;
 pub fn sql__pg_catalog__chr__23bn(input: Int4Value) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let Int4Value::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Int4Value::Error(error) = input {
         return TextValue::Error(error);
     }
-    if input == Int4Value::Unknown {
-        return text_unresolved(unresolved_flavor);
+    let mut condition_flavor_11_4: i32 = unresolved_flavor; if let Int4Value::Unknown = input { if condition_flavor_11_4 < 1 { condition_flavor_11_4 = 1; }; }; if let Int4Value::Unimplemented = input { condition_flavor_11_4 = 2; }; if (input == Int4Value::Unknown || input == Int4Value::Unimplemented) {
+        return text_unresolved(condition_flavor_11_4);
     }
     if input == Int4Value::Null {
         return TextValue::Null;
@@ -31,6 +32,7 @@ pub fn sql__pg_catalog__chr__23bn(input: Int4Value) -> TextValue {
 pub fn chr_context(input: Int4Value, utf8: bool) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let Int4Value::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unimplemented = input { unresolved_flavor = 2; };
     let value = sql__pg_catalog__chr__23bn(input);
     if utf8 == false {
         if let Int4Value::Value(code) = input {

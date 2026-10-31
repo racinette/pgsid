@@ -2,17 +2,23 @@ fn path_cardinality_relation(left: PathValue, right: PathValue, mode: i32) -> Bo
     let mut unresolved_flavor: i32 = 0;
     if let PathValue::Unknown = left { unresolved_flavor = 1; };
     if let PathValue::Unknown = right { unresolved_flavor = 1; };
+    if let PathValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let PathValue::Unimplemented = right { unresolved_flavor = 2; };
     if let PathValue::Error(error) = left {
         return BoolValue::Error(error);
     };
     if let PathValue::Error(error) = right {
         return BoolValue::Error(error);
     };
-    if let PathValue::Unknown = left {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_13_4: i32 = unresolved_flavor; if let PathValue::Unknown = left { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let PathValue::Unknown = left {
+        return bool_unresolved(condition_flavor_13_4);
+    }; let mut condition_flavor_15_7: i32 = unresolved_flavor; if let PathValue::Unimplemented = left { condition_flavor_15_7 = 2; }; if let PathValue::Unimplemented = left {
+        return bool_unresolved(condition_flavor_15_7);
     };
-    if let PathValue::Unknown = right {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_18_4: i32 = unresolved_flavor; if let PathValue::Unknown = right { if condition_flavor_18_4 < 1 { condition_flavor_18_4 = 1; }; }; if let PathValue::Unknown = right {
+        return bool_unresolved(condition_flavor_18_4);
+    }; let mut condition_flavor_20_7: i32 = unresolved_flavor; if let PathValue::Unimplemented = right { condition_flavor_20_7 = 2; }; if let PathValue::Unimplemented = right {
+        return bool_unresolved(condition_flavor_20_7);
     };
     if let PathValue::Null = left {
         return BoolValue::Null;
@@ -59,6 +65,7 @@ pub fn sql__pg_catalog__path_n_ge__tah4(left: PathValue, right: PathValue) -> Bo
 pub fn sql__pg_catalog__isclosed__j43z(input: PathValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let PathValue::Unknown = input { unresolved_flavor = 1; };
+    if let PathValue::Unimplemented = input { unresolved_flavor = 2; };
     if let PathValue::Error(error) = input {
         return BoolValue::Error(error);
     };
@@ -79,6 +86,7 @@ pub fn sql__pg_catalog__isopen__kqm6(input: PathValue) -> BoolValue {
 pub fn sql__pg_catalog__npoints__0pt7(input: PathValue) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let PathValue::Unknown = input { unresolved_flavor = 1; };
+    if let PathValue::Unimplemented = input { unresolved_flavor = 2; };
     if let PathValue::Error(error) = input {
         return Int4Value::Error(error);
     };
@@ -111,6 +119,7 @@ pub fn sql__pg_catalog__pclose__17wh(input: PathValue) -> PathValue {
 pub fn sql__pg_catalog__path_send__tszn(input: PathValue) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let PathValue::Unknown = input { unresolved_flavor = 1; };
+    if let PathValue::Unimplemented = input { unresolved_flavor = 2; };
     if let PathValue::Error(error) = input {
         return ByteaValue::Error(error);
     };
@@ -143,8 +152,8 @@ pub fn sql__pg_catalog__path_send__tszn(input: PathValue) -> ByteaValue {
                 let length: i32 = 5 + (path.points.len() as i32) * 16;
                 return ByteaValue::Unspecified(length);
             };
-            if encoded == ByteaValue::Unknown || encoded == ByteaValue::Null {
-                return bytea_unresolved(unresolved_flavor);
+            let mut condition_flavor_155_12: i32 = unresolved_flavor; if let ByteaValue::Unknown = encoded { if condition_flavor_155_12 < 1 { condition_flavor_155_12 = 1; }; }; if let ByteaValue::Unimplemented = encoded { condition_flavor_155_12 = 2; }; if (encoded == ByteaValue::Unknown || encoded == ByteaValue::Unimplemented) || encoded == ByteaValue::Null {
+                return bytea_unresolved(condition_flavor_155_12);
             };
             if let ByteaValue::Value(bytes) = encoded {
                 output.push_str(bytes.as_str());
@@ -158,6 +167,7 @@ pub fn sql__pg_catalog__path_send__tszn(input: PathValue) -> ByteaValue {
 pub fn sql__pg_catalog__path_length__fjk7(input: PathValue) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let PathValue::Unknown = input { unresolved_flavor = 1; };
+    if let PathValue::Unimplemented = input { unresolved_flavor = 2; };
     if let PathValue::Error(error) = input {
         return Float8Value::Error(error);
     };
@@ -195,6 +205,7 @@ pub fn sql__pg_catalog__length__jatg(input: PathValue) -> Float8Value {
 pub fn sql__pg_catalog__area__ph6t(input: PathValue) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let PathValue::Unknown = input { unresolved_flavor = 1; };
+    if let PathValue::Unimplemented = input { unresolved_flavor = 2; };
     if let PathValue::Error(error) = input {
         return Float8Value::Error(error);
     };

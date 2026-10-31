@@ -213,12 +213,15 @@ pub fn sql__pg_catalog__ts_rewrite__2hpb(input: TsqueryValue, target: TsqueryVal
     if let TsqueryValue::Unknown = input { unresolved_flavor = 1; };
     if let TsqueryValue::Unknown = target { unresolved_flavor = 1; };
     if let TsqueryValue::Unknown = replacement { unresolved_flavor = 1; };
+    if let TsqueryValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TsqueryValue::Unimplemented = target { unresolved_flavor = 2; };
+    if let TsqueryValue::Unimplemented = replacement { unresolved_flavor = 2; };
     if let TsqueryValue::Error(error) = input { return TsqueryValue::Error(error); };
     if let TsqueryValue::Error(error) = target { return TsqueryValue::Error(error); };
     if let TsqueryValue::Error(error) = replacement { return TsqueryValue::Error(error); };
-    if let TsqueryValue::Unknown = input { return tsquery_unresolved(unresolved_flavor); };
-    if let TsqueryValue::Unknown = target { return tsquery_unresolved(unresolved_flavor); };
-    if let TsqueryValue::Unknown = replacement { return tsquery_unresolved(unresolved_flavor); };
+    let mut condition_flavor_222_4: i32 = unresolved_flavor; if let TsqueryValue::Unknown = input { if condition_flavor_222_4 < 1 { condition_flavor_222_4 = 1; }; }; if let TsqueryValue::Unknown = input { return tsquery_unresolved(condition_flavor_222_4); }; let mut condition_flavor_222_92: i32 = unresolved_flavor; if let TsqueryValue::Unimplemented = input { condition_flavor_222_92 = 2; }; if let TsqueryValue::Unimplemented = input { return tsquery_unresolved(condition_flavor_222_92); };
+    let mut condition_flavor_223_4: i32 = unresolved_flavor; if let TsqueryValue::Unknown = target { if condition_flavor_223_4 < 1 { condition_flavor_223_4 = 1; }; }; if let TsqueryValue::Unknown = target { return tsquery_unresolved(condition_flavor_223_4); }; let mut condition_flavor_223_93: i32 = unresolved_flavor; if let TsqueryValue::Unimplemented = target { condition_flavor_223_93 = 2; }; if let TsqueryValue::Unimplemented = target { return tsquery_unresolved(condition_flavor_223_93); };
+    let mut condition_flavor_224_4: i32 = unresolved_flavor; if let TsqueryValue::Unknown = replacement { if condition_flavor_224_4 < 1 { condition_flavor_224_4 = 1; }; }; if let TsqueryValue::Unknown = replacement { return tsquery_unresolved(condition_flavor_224_4); }; let mut condition_flavor_224_98: i32 = unresolved_flavor; if let TsqueryValue::Unimplemented = replacement { condition_flavor_224_98 = 2; }; if let TsqueryValue::Unimplemented = replacement { return tsquery_unresolved(condition_flavor_224_98); };
     if let TsqueryValue::Null = input { return TsqueryValue::Null; };
     if let TsqueryValue::Null = target { return TsqueryValue::Null; };
     if let TsqueryValue::Null = replacement { return TsqueryValue::Null; };

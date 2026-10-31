@@ -1,6 +1,7 @@
 fn line_equal_product(left: i64, right: i64, ratio: Float8Value) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = ratio { unresolved_flavor = 1; };
+    if let Float8Value::Unimplemented = ratio { unresolved_flavor = 2; };
     let product = sql__pg_catalog__float8mul__d3nd(ratio, make_float8_bits(right));
     if let Float8Value::Error(error) = product {
         return BoolValue::Error(error);
@@ -15,14 +16,16 @@ pub fn sql__pg_catalog__line_eq__k687(left: LineValue, right: LineValue) -> Bool
     let mut unresolved_flavor: i32 = 0;
     if let LineValue::Unknown = left { unresolved_flavor = 1; };
     if let LineValue::Unknown = right { unresolved_flavor = 1; };
+    if let LineValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let LineValue::Unimplemented = right { unresolved_flavor = 2; };
     if let LineValue::Error(error) = left {
         return BoolValue::Error(error);
     };
     if let LineValue::Error(error) = right {
         return BoolValue::Error(error);
     };
-    if left == LineValue::Unknown || right == LineValue::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_27_4: i32 = unresolved_flavor; if let LineValue::Unknown = left { if condition_flavor_27_4 < 1 { condition_flavor_27_4 = 1; }; }; if let LineValue::Unimplemented = left { condition_flavor_27_4 = 2; }; if let LineValue::Unknown = right { if condition_flavor_27_4 < 1 { condition_flavor_27_4 = 1; }; }; if let LineValue::Unimplemented = right { condition_flavor_27_4 = 2; }; if (left == LineValue::Unknown || left == LineValue::Unimplemented) || (right == LineValue::Unknown || right == LineValue::Unimplemented) {
+        return bool_unresolved(condition_flavor_27_4);
     };
     if left == LineValue::Null || right == LineValue::Null {
         return BoolValue::Null;
@@ -69,6 +72,7 @@ pub fn sql__pg_catalog__line_eq__k687(left: LineValue, right: LineValue) -> Bool
 fn line_orientation(input: LineValue, vertical: bool) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let LineValue::Unknown = input { unresolved_flavor = 1; };
+    if let LineValue::Unimplemented = input { unresolved_flavor = 2; };
     if let LineValue::Error(error) = input {
         return BoolValue::Error(error);
     };
@@ -99,6 +103,7 @@ pub fn sql__pg_catalog__isvertical__x62g(input: LineValue) -> BoolValue {
 pub fn sql__pg_catalog__line_send__b5ct(input: LineValue) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let LineValue::Unknown = input { unresolved_flavor = 1; };
+    if let LineValue::Unimplemented = input { unresolved_flavor = 2; };
     if let LineValue::Error(error) = input {
         return ByteaValue::Error(error);
     };

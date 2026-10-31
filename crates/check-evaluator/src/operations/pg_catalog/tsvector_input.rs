@@ -65,6 +65,7 @@ fn tsvector_normalize(lexemes: Vec<TsvectorLexeme>) -> TsvectorValue {
 fn tsvector_parse_text(input: TextValue, utf8: bool, stored: bool) -> TsvectorValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input { return TsvectorValue::Error(error); };
     if input == TextValue::Null { return TsvectorValue::Null; };
     if let TextValue::Value(text) = input {
@@ -169,6 +170,7 @@ pub fn tsvector_from_text_context(input: TextValue, utf8: bool) -> TsvectorValue
 pub fn tsvector_from_stored_text_context(input: TextValue, utf8: bool) -> TsvectorValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input { return TsvectorValue::Error(error); };
     let value = tsvector_parse_text(input,utf8,true);
     if let TsvectorValue::Value(payload) = value {
@@ -181,6 +183,7 @@ pub fn tsvector_from_stored_text_context(input: TextValue, utf8: bool) -> Tsvect
 pub fn tsvector_from_stored_text_native_context(input: TextValue, utf8: bool, native_bytes: i32, lexeme_count: i32) -> TsvectorValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     let value = tsvector_from_stored_text_context(input,utf8);
     if let TsvectorValue::Value(payload) = value {
         if lexeme_count < 0 || (payload.lexemes.len() as i32) != lexeme_count || native_bytes < 8 { return tsvector_unresolved(unresolved_flavor); };
@@ -194,6 +197,7 @@ pub fn tsvector_from_text(input: TextValue) -> TsvectorValue { tsvector_from_tex
 pub fn tsvector_to_text(input: TsvectorValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let TsvectorValue::Unknown = input { unresolved_flavor = 1; };
+    if let TsvectorValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TsvectorValue::Error(error) = input { return TextValue::Error(error); };
     if let TsvectorValue::Null = input { return TextValue::Null; };
     if let TsvectorValue::Value(value) = input {

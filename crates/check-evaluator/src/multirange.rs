@@ -16,6 +16,7 @@ pub fn multirange_payload_with_ranges(input: MultirangePayload, ranges: Vec<Rang
 #[derive(Clone)]
 pub enum MultirangeValue {
     Unknown,
+    Unimplemented,
     Null,
     Error(SqlError),
     Value(MultirangePayload),
@@ -37,10 +38,7 @@ pub enum MultirangeTextPlan {
     Value(MultirangeTextPayload),
 }
 
-pub fn multirange_unknown() -> MultirangeValue {
-    let unresolved_flavor: i32 = 0;
-    multirange_unresolved(unresolved_flavor)
-}
+pub fn multirange_unknown() -> MultirangeValue { MultirangeValue::Unknown }
 
 pub fn multirange_null() -> MultirangeValue {
     MultirangeValue::Null
@@ -109,13 +107,16 @@ pub fn make_coerced_multirange_value(input: MultirangePayload) -> MultirangeValu
         if let RangeValue::Error(error) = member {
             return MultirangeValue::Error(error);
         };
+        let mut member_flavor: i32 = unresolved_flavor;
+        if let RangeValue::Unknown = member { if member_flavor < 1 { member_flavor = 1; }; };
+        if let RangeValue::Unimplemented = member { member_flavor = 2; };
         let mut known = false;
         if let RangeValue::Value(span) = member {
             ranges.push(RangeValue::Value(span));
             known = true;
         };
         if known == false {
-            return multirange_unresolved(unresolved_flavor);
+            return multirange_unresolved(member_flavor);
         };
         index += 1;
     }
@@ -157,6 +158,7 @@ pub fn multirange_from_coerced_array(
 ) -> MultirangeValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayValue::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayValue::Unimplemented = input { unresolved_flavor = 2; };
     let coerced = array_from_coerced_value(input, range_type, 42);
     if let ArrayValue::Error(error) = coerced {
         return MultirangeValue::Error(error);
@@ -203,6 +205,7 @@ pub fn multirange_from_coerced_defined_profile(
 ) -> MultirangeValue {
     let mut unresolved_flavor: i32 = 0;
     if let MultirangeValue::Unknown = input { unresolved_flavor = 1; };
+    if let MultirangeValue::Unimplemented = input { unresolved_flavor = 2; };
     if let MultirangeValue::Value(payload) = input {
         if payload.type_name.as_str() != type_name
             || payload.range_type.as_str() != range_type
@@ -248,6 +251,7 @@ pub fn multirange_from_coerced_typed_profile(input: MultirangeValue, type_name: 
     canonical: i32, bound_profile: RangeBoundContext) -> MultirangeValue {
     let mut unresolved_flavor: i32 = 0;
     if let MultirangeValue::Unknown = input { unresolved_flavor = 1; };
+    if let MultirangeValue::Unimplemented = input { unresolved_flavor = 2; };
     if let MultirangeValue::Value(payload)=input {
         if payload.type_name.as_str()!=type_name || payload.range_type.as_str()!=range_type
             || payload.element_type.as_str()!=element_type || payload.element_kind!=element_kind {
@@ -272,6 +276,7 @@ pub fn multirange_require_support(
 ) -> MultirangeValue {
     let mut unresolved_flavor: i32 = 0;
     if let MultirangeValue::Unknown = input { unresolved_flavor = 1; };
+    if let MultirangeValue::Unimplemented = input { unresolved_flavor = 2; };
     if let MultirangeValue::Value(payload) = input {
         if range_support_equal(payload.support, expected) == false {
             return multirange_unresolved(unresolved_flavor);
@@ -290,6 +295,7 @@ pub fn multirange_require_type(
 ) -> MultirangeValue {
     let mut unresolved_flavor: i32 = 0;
     if let MultirangeValue::Unknown = input { unresolved_flavor = 1; };
+    if let MultirangeValue::Unimplemented = input { unresolved_flavor = 2; };
     if let MultirangeValue::Value(payload) = input {
         if payload.type_name.as_str() != type_name
             || payload.range_type.as_str() != range_type
@@ -306,6 +312,7 @@ pub fn multirange_require_type(
 pub fn multirange_is_null(input: MultirangeValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let MultirangeValue::Unknown = input { unresolved_flavor = 1; };
+    if let MultirangeValue::Unimplemented = input { unresolved_flavor = 2; };
     if let MultirangeValue::Error(error) = input {
         return BoolValue::Error(error);
     };
@@ -321,6 +328,7 @@ pub fn multirange_is_null(input: MultirangeValue) -> BoolValue {
 pub fn multirange_from_case_guard(input: CheckOutcome) -> MultirangeValue {
     let mut unresolved_flavor: i32 = 0;
     if let CheckOutcome::Unknown = input { unresolved_flavor = 1; };
+    if let CheckOutcome::Unimplemented = input { unresolved_flavor = 2; };
     if let CheckOutcome::Error(error) = input {
         return MultirangeValue::Error(error);
     };
@@ -330,6 +338,7 @@ pub fn multirange_from_case_guard(input: CheckOutcome) -> MultirangeValue {
 pub fn multirange_empty_state(input: MultirangeValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let MultirangeValue::Unknown = input { unresolved_flavor = 1; };
+    if let MultirangeValue::Unimplemented = input { unresolved_flavor = 2; };
     if let MultirangeValue::Error(error) = input {
         return BoolValue::Error(error);
     };
@@ -356,6 +365,7 @@ fn multirange_boundary_at(input: &MultirangePayload, upper: bool) -> RangeValue 
 pub fn multirange_boundary(input: MultirangeValue, upper: bool) -> RangeValue {
     let mut unresolved_flavor: i32 = 0;
     if let MultirangeValue::Unknown = input { unresolved_flavor = 1; };
+    if let MultirangeValue::Unimplemented = input { unresolved_flavor = 2; };
     if let MultirangeValue::Error(error) = input {
         return RangeValue::Error(error);
     };
@@ -376,6 +386,7 @@ pub fn multirange_bound(input: MultirangeValue, upper: bool) -> ArrayElement {
 pub fn multirange_bound_flag(input: MultirangeValue, upper: bool, infinite: bool) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let MultirangeValue::Unknown = input { unresolved_flavor = 1; };
+    if let MultirangeValue::Unimplemented = input { unresolved_flavor = 2; };
     if let MultirangeValue::Error(error) = input {
         return BoolValue::Error(error);
     };

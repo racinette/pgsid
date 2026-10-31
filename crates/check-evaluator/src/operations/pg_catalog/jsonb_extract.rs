@@ -95,6 +95,7 @@ fn jsonb_shape_has_key(shape: &JsonbPayload, key: &JsonbExtractKey) -> i32 {
 fn jsonb_extract_text(input: JsonbValue, utf8: bool) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
+    if let JsonbValue::Unimplemented = input { unresolved_flavor = 2; };
     if let JsonbValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -133,17 +134,21 @@ pub fn sql__pg_catalog__jsonb_object_field__4uf3(input: JsonbValue, key: TextVal
     let mut unresolved_flavor: i32 = 0;
     if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unknown = key { unresolved_flavor = 1; };
+    if let JsonbValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = key { unresolved_flavor = 2; };
     if let JsonbValue::Error(error) = input {
         return JsonbValue::Error(error);
     };
     if let TextValue::Error(error) = key {
         return JsonbValue::Error(error);
     };
-    if let JsonbValue::Unknown = input {
-        return jsonb_unresolved(unresolved_flavor);
+    let mut condition_flavor_145_4: i32 = unresolved_flavor; if let JsonbValue::Unknown = input { if condition_flavor_145_4 < 1 { condition_flavor_145_4 = 1; }; }; if let JsonbValue::Unknown = input {
+        return jsonb_unresolved(condition_flavor_145_4);
+    }; let mut condition_flavor_147_7: i32 = unresolved_flavor; if let JsonbValue::Unimplemented = input { condition_flavor_147_7 = 2; }; if let JsonbValue::Unimplemented = input {
+        return jsonb_unresolved(condition_flavor_147_7);
     };
-    if key == TextValue::Unknown || key == TextValue::NonNull {
-        return jsonb_unresolved(unresolved_flavor);
+    let mut condition_flavor_150_4: i32 = unresolved_flavor; if let TextValue::Unknown = key { if condition_flavor_150_4 < 1 { condition_flavor_150_4 = 1; }; }; if let TextValue::Unimplemented = key { condition_flavor_150_4 = 2; }; if (key == TextValue::Unknown || key == TextValue::Unimplemented) || key == TextValue::NonNull {
+        return jsonb_unresolved(condition_flavor_150_4);
     };
     if let JsonbValue::NonNull(facts) = input {
         if key == TextValue::Null || (facts.kind >= 0 && facts.kind != 6) {
@@ -204,17 +209,21 @@ pub fn sql__pg_catalog__jsonb_array_element__08oi(
     let mut unresolved_flavor: i32 = 0;
     if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
     if let Int4Value::Unknown = index { unresolved_flavor = 1; };
+    if let JsonbValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = index { unresolved_flavor = 2; };
     if let JsonbValue::Error(error) = input {
         return JsonbValue::Error(error);
     };
     if let Int4Value::Error(error) = index {
         return JsonbValue::Error(error);
     };
-    if let JsonbValue::Unknown = input {
-        return jsonb_unresolved(unresolved_flavor);
+    let mut condition_flavor_220_4: i32 = unresolved_flavor; if let JsonbValue::Unknown = input { if condition_flavor_220_4 < 1 { condition_flavor_220_4 = 1; }; }; if let JsonbValue::Unknown = input {
+        return jsonb_unresolved(condition_flavor_220_4);
+    }; let mut condition_flavor_222_7: i32 = unresolved_flavor; if let JsonbValue::Unimplemented = input { condition_flavor_222_7 = 2; }; if let JsonbValue::Unimplemented = input {
+        return jsonb_unresolved(condition_flavor_222_7);
     };
-    if let Int4Value::Unknown = index {
-        return jsonb_unresolved(unresolved_flavor);
+    let mut condition_flavor_225_4: i32 = unresolved_flavor; if let Int4Value::Unknown = index { if condition_flavor_225_4 < 1 { condition_flavor_225_4 = 1; }; }; if let Int4Value::Unimplemented = index { condition_flavor_225_4 = 2; }; if (index == Int4Value::Unknown || index == Int4Value::Unimplemented) {
+        return jsonb_unresolved(condition_flavor_225_4);
     };
     if let JsonbValue::NonNull(facts) = input {
         if index == Int4Value::Null {
@@ -310,6 +319,7 @@ pub fn sql__pg_catalog__jsonb_array_element_text__83ql(
 pub fn sql__pg_catalog__jsonb_array_length__1gng(input: JsonbValue) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
+    if let JsonbValue::Unimplemented = input { unresolved_flavor = 2; };
     if let JsonbValue::Error(error) = input {
         return Int4Value::Error(error);
     };
@@ -348,17 +358,21 @@ pub fn sql__pg_catalog__jsonb_exists__f8f8(input: JsonbValue, key: TextValue) ->
     let mut unresolved_flavor: i32 = 0;
     if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
     if let TextValue::Unknown = key { unresolved_flavor = 1; };
+    if let JsonbValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = key { unresolved_flavor = 2; };
     if let JsonbValue::Error(error) = input {
         return BoolValue::Error(error);
     };
     if let TextValue::Error(error) = key {
         return BoolValue::Error(error);
     };
-    if let JsonbValue::Unknown = input {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_369_4: i32 = unresolved_flavor; if let JsonbValue::Unknown = input { if condition_flavor_369_4 < 1 { condition_flavor_369_4 = 1; }; }; if let JsonbValue::Unknown = input {
+        return bool_unresolved(condition_flavor_369_4);
+    }; let mut condition_flavor_371_7: i32 = unresolved_flavor; if let JsonbValue::Unimplemented = input { condition_flavor_371_7 = 2; }; if let JsonbValue::Unimplemented = input {
+        return bool_unresolved(condition_flavor_371_7);
     };
-    if key == TextValue::Unknown || key == TextValue::NonNull {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_374_4: i32 = unresolved_flavor; if let TextValue::Unknown = key { if condition_flavor_374_4 < 1 { condition_flavor_374_4 = 1; }; }; if let TextValue::Unimplemented = key { condition_flavor_374_4 = 2; }; if (key == TextValue::Unknown || key == TextValue::Unimplemented) || key == TextValue::NonNull {
+        return bool_unresolved(condition_flavor_374_4);
     };
     if let JsonbValue::NonNull(facts) = input {
         if key == TextValue::Null {

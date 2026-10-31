@@ -202,6 +202,7 @@ fn clock_fields_numeric_value(
 fn clock_fields_numeric(units: TextValue, input: ClockFieldInput) -> NumericValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = units { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = units { unresolved_flavor = 2; };
     if let TextValue::Error(error) = units {
         return NumericValue::Error(error);
     };
@@ -209,8 +210,8 @@ fn clock_fields_numeric(units: TextValue, input: ClockFieldInput) -> NumericValu
     if let IntervalValue::Error(error) = interval_value {
         return NumericValue::Error(error);
     };
-    if (units == TextValue::Unknown || units == TextValue::NonNull) || input.value == IntervalValue::Unknown {
-        return numeric_unresolved(unresolved_flavor);
+    let mut condition_flavor_213_4: i32 = unresolved_flavor; if let TextValue::Unknown = units { if condition_flavor_213_4 < 1 { condition_flavor_213_4 = 1; }; }; if let TextValue::Unimplemented = units { condition_flavor_213_4 = 2; }; if ((units == TextValue::Unknown || units == TextValue::Unimplemented) || units == TextValue::NonNull) || (input.value == IntervalValue::Unknown || input.value == IntervalValue::Unimplemented) {
+        return numeric_unresolved(condition_flavor_213_4);
     };
     if units == TextValue::Null || input.value == IntervalValue::Null {
         return NumericValue::Null;
@@ -230,13 +231,14 @@ fn clock_fields_numeric(units: TextValue, input: ClockFieldInput) -> NumericValu
 fn clock_fields_legacy(units: TextValue, input: ClockFieldInput) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = units { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = units { unresolved_flavor = 2; };
     let interval_value = input.value;
     let number = clock_fields_numeric(units.clone(), input);
     if let NumericValue::Error(error) = number {
         return Float8Value::Error(error);
     };
-    if number == NumericValue::Unknown {
-        return float8_unresolved(unresolved_flavor);
+    let mut condition_flavor_240_4: i32 = unresolved_flavor; if let NumericValue::Unknown = number { if condition_flavor_240_4 < 1 { condition_flavor_240_4 = 1; }; }; if let NumericValue::Unimplemented = number { condition_flavor_240_4 = 2; }; if (number == NumericValue::Unknown || number == NumericValue::Unimplemented) {
+        return float8_unresolved(condition_flavor_240_4);
     };
     if number == NumericValue::Null {
         return Float8Value::Null;

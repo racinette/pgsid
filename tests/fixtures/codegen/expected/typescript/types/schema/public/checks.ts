@@ -2,6 +2,7 @@ import * as _checkRust from "./checks-rust/checks.js";
 import type { DefaultEventId, EventId } from "./domains.js";
 type EvalValue<T> = {
     readonly certain: false;
+    readonly unimplemented?: true;
 } | {
     readonly certain: true;
     readonly value: T | null;
@@ -9,6 +10,7 @@ type EvalValue<T> = {
 type EvalBool = EvalValue<boolean>;
 function evalBoolCertain(value: boolean | null): EvalBool { return { certain: true, value }; }
 function evalBoolUncertain(): EvalBool { return { certain: false }; }
+function evalBoolUnimplemented(): EvalBool { return { certain: false, unimplemented: true }; }
 function checkRawInput(row: object, name: string): unknown {
     return Object.hasOwn(row, name) ? Reflect.get(row, name) : undefined;
 }
@@ -82,6 +84,7 @@ function checkRustOutcome(value: _checkRust.CheckOutcome): CheckResult {
         case "False": return evalBoolCertain(false);
         case "Null": return evalBoolCertain(null);
         case "Unknown": return evalBoolUncertain();
+        case "Unimplemented": return evalBoolUnimplemented();
         case "Error": return {
             certain: true,
             error: value.value.state.toString(36).toUpperCase().padStart(5, "0"),

@@ -90,6 +90,7 @@ pub(crate) fn record_hash_initial64(input: &ArrayComparisonPayload) -> Int8Value
 pub(crate) fn record_hash_cell32(input: ArrayElement, availability: i32) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     if let ArrayElement::Error(error) = input {
         return Int4Value::Error(error);
     };
@@ -105,6 +106,7 @@ pub(crate) fn record_hash_cell32(input: ArrayElement, availability: i32) -> Int4
 pub(crate) fn record_hash_cell64(input: ArrayElement, availability: i32) -> Int8Value {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
     let value = record_hash_cell32(input, availability);
     if let Int4Value::Error(error) = value {
         return Int8Value::Error(error);

@@ -1,6 +1,7 @@
 pub(crate) fn record_binary_initial(input: CompositeValue) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let CompositeValue::Unknown = input { unresolved_flavor = 1; };
+    if let CompositeValue::Unimplemented = input { unresolved_flavor = 2; };
     let checked = composite_from_coerced_value(input);
     if let CompositeValue::Error(error) = checked {
         return ByteaValue::Error(error);
@@ -24,6 +25,8 @@ pub fn sql__pg_catalog__record_send__yv22(input: CompositeValue, output: ByteaVa
     let mut unresolved_flavor: i32 = 0;
     if let CompositeValue::Unknown = input { unresolved_flavor = 1; };
     if let ByteaValue::Unknown = output { unresolved_flavor = 1; };
+    if let CompositeValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let ByteaValue::Unimplemented = output { unresolved_flavor = 2; };
     if let CompositeValue::Error(error) = input {
         return ByteaValue::Error(error);
     };

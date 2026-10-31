@@ -196,8 +196,10 @@ pub(crate) fn make_format_input(input: TextFormatState) -> TextFormatInput {
 }
 
 fn format_finish(input: TextFormatInput) -> TextValue {
-    let unresolved_flavor: i32 = 0;
+    let mut unresolved_flavor: i32 = 0;
     if let TextFormatInput::Value(state) = input {
+        if state.status == CheckOutcome::Unknown { unresolved_flavor = 1; };
+        if state.status == CheckOutcome::Unimplemented { unresolved_flavor = 2; };
         if state.status == CheckOutcome::True {
             return format_finish_output(state.output);
         };

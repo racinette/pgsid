@@ -14,14 +14,16 @@ fn point_same(left: PointValue, right: PointValue, negate: bool) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let PointValue::Unknown = left { unresolved_flavor = 1; };
     if let PointValue::Unknown = right { unresolved_flavor = 1; };
+    if let PointValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let PointValue::Unimplemented = right { unresolved_flavor = 2; };
     if let PointValue::Error(error) = left {
         return BoolValue::Error(error);
     };
     if let PointValue::Error(error) = right {
         return BoolValue::Error(error);
     };
-    if left == PointValue::Unknown || right == PointValue::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_25_4: i32 = unresolved_flavor; if let PointValue::Unknown = left { if condition_flavor_25_4 < 1 { condition_flavor_25_4 = 1; }; }; if let PointValue::Unimplemented = left { condition_flavor_25_4 = 2; }; if let PointValue::Unknown = right { if condition_flavor_25_4 < 1 { condition_flavor_25_4 = 1; }; }; if let PointValue::Unimplemented = right { condition_flavor_25_4 = 2; }; if (left == PointValue::Unknown || left == PointValue::Unimplemented) || (right == PointValue::Unknown || right == PointValue::Unimplemented) {
+        return bool_unresolved(condition_flavor_25_4);
     };
     if left == PointValue::Null || right == PointValue::Null {
         return BoolValue::Null;
@@ -43,14 +45,16 @@ pub fn sql__pg_catalog__point__db27(x: Float8Value, y: Float8Value) -> PointValu
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = x { unresolved_flavor = 1; };
     if let Float8Value::Unknown = y { unresolved_flavor = 1; };
+    if let Float8Value::Unimplemented = x { unresolved_flavor = 2; };
+    if let Float8Value::Unimplemented = y { unresolved_flavor = 2; };
     if let Float8Value::Error(error) = x {
         return PointValue::Error(error);
     };
     if let Float8Value::Error(error) = y {
         return PointValue::Error(error);
     };
-    if x == Float8Value::Unknown || y == Float8Value::Unknown {
-        return point_unresolved(unresolved_flavor);
+    let mut condition_flavor_56_4: i32 = unresolved_flavor; if let Float8Value::Unknown = x { if condition_flavor_56_4 < 1 { condition_flavor_56_4 = 1; }; }; if let Float8Value::Unimplemented = x { condition_flavor_56_4 = 2; }; if let Float8Value::Unknown = y { if condition_flavor_56_4 < 1 { condition_flavor_56_4 = 1; }; }; if let Float8Value::Unimplemented = y { condition_flavor_56_4 = 2; }; if (x == Float8Value::Unknown || x == Float8Value::Unimplemented) || (y == Float8Value::Unknown || y == Float8Value::Unimplemented) {
+        return point_unresolved(condition_flavor_56_4);
     };
     if x == Float8Value::Null || y == Float8Value::Null {
         return PointValue::Null;
@@ -68,6 +72,7 @@ pub fn sql__pg_catalog__point__db27(x: Float8Value, y: Float8Value) -> PointValu
 pub fn sql__pg_catalog__point_send__kuoa(input: PointValue) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let PointValue::Unknown = input { unresolved_flavor = 1; };
+    if let PointValue::Unimplemented = input { unresolved_flavor = 2; };
     if let PointValue::Error(error) = input {
         return ByteaValue::Error(error);
     };

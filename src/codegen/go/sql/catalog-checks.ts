@@ -752,7 +752,7 @@ export function renderGoSchemaCheckArtifacts(
               ),
             ]),
           },
-          helpers: ['evalBoolCertain', 'evalBoolUncertain'],
+          helpers: ['evalBoolCertain', 'evalBoolUncertain', 'evalBoolUnimplemented'],
           unknownMessage,
         }
       }
@@ -1880,6 +1880,7 @@ func checkRustOutcome(value checkruntime.CheckOutcome) EvalBool {
   case checkruntime.CheckOutcomeFalse: return evalBoolCertain(SqlBoolean{Value: false, Valid: true})
   case checkruntime.CheckOutcomeNull: return evalBoolCertain(SqlBoolean{})
   case checkruntime.CheckOutcomeUnknown: return evalBoolUncertain()
+  case checkruntime.CheckOutcomeUnimplemented: return evalBoolUnimplemented()
   case checkruntime.CheckOutcomeError:
     state := strings.ToUpper(strconv.FormatInt(int64(value.Error.State), 36))
     for len(state) < 5 { state = "0" + state }

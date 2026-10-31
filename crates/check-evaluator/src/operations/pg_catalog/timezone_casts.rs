@@ -39,6 +39,7 @@ fn session_timezone_fixed_offset(name: &str) -> Int4Value {
 pub fn sql__pg_catalog__timetz__qcb2(input: TimeValue, zone: &str) -> TimetzValue {
     let mut unresolved_flavor: i32 = 0;
     if let TimeValue::Unknown = input { unresolved_flavor = 1; };
+    if let TimeValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TimeValue::Error(error) = input {
         return TimetzValue::Error(error);
     };
@@ -57,6 +58,7 @@ pub fn sql__pg_catalog__timetz__qcb2(input: TimeValue, zone: &str) -> TimetzValu
 pub fn sql__pg_catalog__timestamptz__m17a(input: TimestampValue, zone: &str) -> TimestamptzValue {
     let mut unresolved_flavor: i32 = 0;
     if let TimestampValue::Unknown = input { unresolved_flavor = 1; };
+    if let TimestampValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TimestampValue::Error(error) = input {
         return TimestamptzValue::Error(error);
     };
@@ -81,6 +83,7 @@ pub fn sql__pg_catalog__timestamptz__m17a(input: TimestampValue, zone: &str) -> 
 pub fn sql__pg_catalog__timestamptz__6zge(input: DateValue, zone: &str) -> TimestamptzValue {
     let mut unresolved_flavor: i32 = 0;
     if let DateValue::Unknown = input { unresolved_flavor = 1; };
+    if let DateValue::Unimplemented = input { unresolved_flavor = 2; };
     if let DateValue::Error(error) = input {
         return TimestamptzValue::Error(error);
     };
@@ -109,6 +112,7 @@ pub fn sql__pg_catalog__timestamptz__6zge(input: DateValue, zone: &str) -> Times
 pub fn sql__pg_catalog__timestamp__i0gp(input: TimestamptzValue, zone: &str) -> TimestampValue {
     let mut unresolved_flavor: i32 = 0;
     if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TimestamptzValue::Error(error) = input {
         return TimestampValue::Error(error);
     };
@@ -130,6 +134,7 @@ pub fn sql__pg_catalog__timestamp__i0gp(input: TimestamptzValue, zone: &str) -> 
 pub fn sql__pg_catalog__date__h28y(input: TimestamptzValue, zone: &str) -> DateValue {
     let mut unresolved_flavor: i32 = 0;
     if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TimestamptzValue::Error(error) = input {
         return DateValue::Error(error);
     };
@@ -159,6 +164,7 @@ pub fn sql__pg_catalog__date__h28y(input: TimestamptzValue, zone: &str) -> DateV
 pub fn sql__pg_catalog__time__az0x(input: TimestamptzValue, zone: &str) -> TimeValue {
     let mut unresolved_flavor: i32 = 0;
     if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TimestamptzValue::Error(error) = input {
         return TimeValue::Error(error);
     };
@@ -185,6 +191,7 @@ pub fn sql__pg_catalog__time__az0x(input: TimestamptzValue, zone: &str) -> TimeV
 pub fn sql__pg_catalog__timetz__sqdw(input: TimestamptzValue, zone: &str) -> TimetzValue {
     let mut unresolved_flavor: i32 = 0;
     if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
+    if let TimestamptzValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TimestamptzValue::Error(error) = input {
         return TimetzValue::Error(error);
     };
@@ -223,8 +230,9 @@ pub fn timestamptz_from_text_context(
 ) -> TimestamptzValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     let parsed = timestamptz_from_text_order(input.clone(), date_order);
-    if parsed != TimestamptzValue::Unknown {
+    if (parsed != TimestamptzValue::Unknown && parsed != TimestamptzValue::Unimplemented) {
         return parsed;
     };
     let local = timestamp_from_text_order(input.clone(), date_order);
@@ -263,6 +271,7 @@ fn timestamptz_from_text_trailing_zone(
 ) -> TimestamptzValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Value(text) = input {
         let chars: Vec<char> = text.chars().collect();
         let mut zone_end = chars.len();
@@ -310,7 +319,7 @@ fn timestamptz_from_text_trailing_zone(
             };
             return timestamptz_unresolved(unresolved_flavor);
         };
-        if zoned != TimestamptzValue::Unknown {
+        if (zoned != TimestamptzValue::Unknown && zoned != TimestamptzValue::Unimplemented) {
             return timestamptz_unresolved(unresolved_flavor);
         };
         let local = timestamp_from_text_order(remainder, date_order);
@@ -359,8 +368,9 @@ fn timestamptz_from_text_trailing_zone(
 pub fn timetz_from_text_context(input: TextValue, zone: &str) -> TimetzValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     let parsed = timetz_from_text(input.clone());
-    if parsed != TimetzValue::Unknown {
+    if (parsed != TimetzValue::Unknown && parsed != TimetzValue::Unimplemented) {
         return parsed;
     };
     let clock = time_from_text(input);

@@ -1,6 +1,7 @@
 fn xid_to_oid(input: XidValue) -> OidValue {
     let mut unresolved_flavor: i32 = 0;
     if let XidValue::Unknown = input { unresolved_flavor = 1; };
+    if let XidValue::Unimplemented = input { unresolved_flavor = 2; };
     if let XidValue::Error(error) = input { return OidValue::Error(error); };
     if input == XidValue::Null { return OidValue::Null; };
     if let XidValue::Value(value) = input { return make_oid_value(value); };
@@ -9,6 +10,7 @@ fn xid_to_oid(input: XidValue) -> OidValue {
 fn xid_from_oid(input: OidValue) -> XidValue {
     let mut unresolved_flavor: i32 = 0;
     if let OidValue::Unknown = input { unresolved_flavor = 1; };
+    if let OidValue::Unimplemented = input { unresolved_flavor = 2; };
     if let OidValue::Error(error) = input { return XidValue::Error(error); };
     if input == OidValue::Null { return XidValue::Null; };
     if let OidValue::Value(value) = input { return make_xid_value(value); };
@@ -20,6 +22,7 @@ pub fn xid_to_text(input: XidValue) -> TextValue { oid_to_text(xid_to_oid(input)
 fn cid_to_oid(input: CidValue) -> OidValue {
     let mut unresolved_flavor: i32 = 0;
     if let CidValue::Unknown = input { unresolved_flavor = 1; };
+    if let CidValue::Unimplemented = input { unresolved_flavor = 2; };
     if let CidValue::Error(error) = input { return OidValue::Error(error); };
     if input == CidValue::Null { return OidValue::Null; };
     if let CidValue::Value(value) = input { return make_oid_value(value); };
@@ -28,6 +31,7 @@ fn cid_to_oid(input: CidValue) -> OidValue {
 fn cid_from_oid(input: OidValue) -> CidValue {
     let mut unresolved_flavor: i32 = 0;
     if let OidValue::Unknown = input { unresolved_flavor = 1; };
+    if let OidValue::Unimplemented = input { unresolved_flavor = 2; };
     if let OidValue::Error(error) = input { return CidValue::Error(error); };
     if input == OidValue::Null { return CidValue::Null; };
     if let OidValue::Value(value) = input { return make_cid_value(value); };
@@ -40,14 +44,16 @@ fn xid8_compare(left: Xid8Value, right: Xid8Value) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let Xid8Value::Unknown = left { unresolved_flavor = 1; };
     if let Xid8Value::Unknown = right { unresolved_flavor = 1; };
+    if let Xid8Value::Unimplemented = left { unresolved_flavor = 2; };
+    if let Xid8Value::Unimplemented = right { unresolved_flavor = 2; };
     if let Xid8Value::Error(error) = left {
         return Int4Value::Error(error);
     };
     if let Xid8Value::Error(error) = right {
         return Int4Value::Error(error);
     };
-    if left == Xid8Value::Unknown || right == Xid8Value::Unknown {
-        return int4_unresolved(unresolved_flavor);
+    let mut condition_flavor_55_4: i32 = unresolved_flavor; if let Xid8Value::Unknown = left { if condition_flavor_55_4 < 1 { condition_flavor_55_4 = 1; }; }; if let Xid8Value::Unimplemented = left { condition_flavor_55_4 = 2; }; if let Xid8Value::Unknown = right { if condition_flavor_55_4 < 1 { condition_flavor_55_4 = 1; }; }; if let Xid8Value::Unimplemented = right { condition_flavor_55_4 = 2; }; if (left == Xid8Value::Unknown || left == Xid8Value::Unimplemented) || (right == Xid8Value::Unknown || right == Xid8Value::Unimplemented) {
+        return int4_unresolved(condition_flavor_55_4);
     };
     if left == Xid8Value::Null || right == Xid8Value::Null {
         return Int4Value::Null;
@@ -71,6 +77,8 @@ fn xid8_relation(left: Xid8Value, right: Xid8Value, mode: i32) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let Xid8Value::Unknown = left { unresolved_flavor = 1; };
     if let Xid8Value::Unknown = right { unresolved_flavor = 1; };
+    if let Xid8Value::Unimplemented = left { unresolved_flavor = 2; };
+    if let Xid8Value::Unimplemented = right { unresolved_flavor = 2; };
     let comparison = xid8_compare(left, right);
     if let Int4Value::Error(error) = comparison {
         return BoolValue::Error(error);
@@ -102,6 +110,8 @@ fn xid8_select(left: Xid8Value, right: Xid8Value, larger: bool) -> Xid8Value {
     let mut unresolved_flavor: i32 = 0;
     if let Xid8Value::Unknown = left { unresolved_flavor = 1; };
     if let Xid8Value::Unknown = right { unresolved_flavor = 1; };
+    if let Xid8Value::Unimplemented = left { unresolved_flavor = 2; };
+    if let Xid8Value::Unimplemented = right { unresolved_flavor = 2; };
     let comparison = xid8_compare(left, right);
     if let Int4Value::Error(error) = comparison {
         return Xid8Value::Error(error);
@@ -122,6 +132,7 @@ fn xid8_select(left: Xid8Value, right: Xid8Value, larger: bool) -> Xid8Value {
 fn xid8_bits(input: Xid8Value) -> Int8Value {
     let mut unresolved_flavor: i32 = 0;
     if let Xid8Value::Unknown = input { unresolved_flavor = 1; };
+    if let Xid8Value::Unimplemented = input { unresolved_flavor = 2; };
     if let Xid8Value::Error(error) = input { return Int8Value::Error(error); };
     if input == Xid8Value::Null { return Int8Value::Null; };
     if let Xid8Value::Value(value) = input { return make_int8_value(value); };
@@ -172,6 +183,7 @@ pub fn sql__pg_catalog__hashxidextended__3a8s(left: XidValue, right: Int8Value) 
 pub fn sql__pg_catalog__xid__lwyo(left: Xid8Value) -> XidValue {
     let mut unresolved_flavor: i32 = 0;
     if let Xid8Value::Unknown = left { unresolved_flavor = 1; };
+    if let Xid8Value::Unimplemented = left { unresolved_flavor = 2; };
     let bits = xid8_bits(left);
     if let Int8Value::Error(error) = bits { return XidValue::Error(error); };
     if bits == Int8Value::Null { return XidValue::Null; };

@@ -20,11 +20,12 @@ fn uuid_hash_bytes(value: Uuid) -> Vec<HashByte> {
 pub fn sql__pg_catalog__uuid_send__32nf(input: UuidValue) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let UuidValue::Unknown = input { unresolved_flavor = 1; };
+    if let UuidValue::Unimplemented = input { unresolved_flavor = 2; };
     if let UuidValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
-    if input == UuidValue::Unknown {
-        return bytea_unresolved(unresolved_flavor);
+    let mut condition_flavor_27_4: i32 = unresolved_flavor; if let UuidValue::Unknown = input { if condition_flavor_27_4 < 1 { condition_flavor_27_4 = 1; }; }; if let UuidValue::Unimplemented = input { condition_flavor_27_4 = 2; }; if (input == UuidValue::Unknown || input == UuidValue::Unimplemented) {
+        return bytea_unresolved(condition_flavor_27_4);
     }
     if input == UuidValue::Null {
         return ByteaValue::Null;
@@ -45,11 +46,12 @@ pub fn sql__pg_catalog__uuid_send__32nf(input: UuidValue) -> ByteaValue {
 pub fn sql__pg_catalog__uuid_hash__8nnn(input: UuidValue, byte_order: i32) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
     if let UuidValue::Unknown = input { unresolved_flavor = 1; };
+    if let UuidValue::Unimplemented = input { unresolved_flavor = 2; };
     if let UuidValue::Error(error) = input {
         return Int4Value::Error(error);
     }
-    if input == UuidValue::Unknown {
-        return int4_unresolved(unresolved_flavor);
+    let mut condition_flavor_53_4: i32 = unresolved_flavor; if let UuidValue::Unknown = input { if condition_flavor_53_4 < 1 { condition_flavor_53_4 = 1; }; }; if let UuidValue::Unimplemented = input { condition_flavor_53_4 = 2; }; if (input == UuidValue::Unknown || input == UuidValue::Unimplemented) {
+        return int4_unresolved(condition_flavor_53_4);
     }
     if input == UuidValue::Null {
         return Int4Value::Null;
@@ -69,14 +71,16 @@ pub fn sql__pg_catalog__uuid_hash_extended__i59z(
     let mut unresolved_flavor: i32 = 0;
     if let UuidValue::Unknown = left { unresolved_flavor = 1; };
     if let Int8Value::Unknown = right { unresolved_flavor = 1; };
+    if let UuidValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let Int8Value::Unimplemented = right { unresolved_flavor = 2; };
     if let UuidValue::Error(error) = left {
         return Int8Value::Error(error);
     }
     if let Int8Value::Error(error) = right {
         return Int8Value::Error(error);
     }
-    if left == UuidValue::Unknown || right == Int8Value::Unknown {
-        return int8_unresolved(unresolved_flavor);
+    let mut condition_flavor_82_4: i32 = unresolved_flavor; if let UuidValue::Unknown = left { if condition_flavor_82_4 < 1 { condition_flavor_82_4 = 1; }; }; if let UuidValue::Unimplemented = left { condition_flavor_82_4 = 2; }; if let Int8Value::Unknown = right { if condition_flavor_82_4 < 1 { condition_flavor_82_4 = 1; }; }; if let Int8Value::Unimplemented = right { condition_flavor_82_4 = 2; }; if (left == UuidValue::Unknown || left == UuidValue::Unimplemented) || (right == Int8Value::Unknown || right == Int8Value::Unimplemented) {
+        return int8_unresolved(condition_flavor_82_4);
     }
     if left == UuidValue::Null || right == Int8Value::Null {
         return Int8Value::Null;
@@ -93,11 +97,12 @@ pub fn sql__pg_catalog__uuid_hash_extended__i59z(
 pub fn sql__pg_catalog__uuid_extract_version__ydwe(input: UuidValue) -> Int2Value {
     let mut unresolved_flavor: i32 = 0;
     if let UuidValue::Unknown = input { unresolved_flavor = 1; };
+    if let UuidValue::Unimplemented = input { unresolved_flavor = 2; };
     if let UuidValue::Error(error) = input {
         return Int2Value::Error(error);
     }
-    if input == UuidValue::Unknown {
-        return int2_unresolved(unresolved_flavor);
+    let mut condition_flavor_104_4: i32 = unresolved_flavor; if let UuidValue::Unknown = input { if condition_flavor_104_4 < 1 { condition_flavor_104_4 = 1; }; }; if let UuidValue::Unimplemented = input { condition_flavor_104_4 = 2; }; if (input == UuidValue::Unknown || input == UuidValue::Unimplemented) {
+        return int2_unresolved(condition_flavor_104_4);
     }
     if input == UuidValue::Null {
         return Int2Value::Null;

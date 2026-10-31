@@ -93,7 +93,7 @@ fn timezone_compare_date(
     if let TimestamptzValue::Error(error) = right {
         return timezone_comparison_result(Int4Value::Error(error));
     };
-    if left == DateValue::Unknown || right == TimestamptzValue::Unknown {
+    if (left == DateValue::Unknown || left == DateValue::Unimplemented) || (right == TimestamptzValue::Unknown || right == TimestamptzValue::Unimplemented) {
         return timezone_comparison_result(Int4Value::Unknown);
     };
     if left == DateValue::Null || right == TimestamptzValue::Null {
@@ -141,7 +141,7 @@ fn timezone_compare_timestamp(
     if let TimestamptzValue::Error(error) = right {
         return timezone_comparison_result(Int4Value::Error(error));
     };
-    if left == TimestampValue::Unknown || right == TimestamptzValue::Unknown {
+    if (left == TimestampValue::Unknown || left == TimestampValue::Unimplemented) || (right == TimestamptzValue::Unknown || right == TimestamptzValue::Unimplemented) {
         return timezone_comparison_result(Int4Value::Unknown);
     };
     if left == TimestampValue::Null || right == TimestamptzValue::Null {
@@ -213,11 +213,11 @@ fn timezone_comparison_boolean(
     if value == Int4Value::Null {
         return BoolValue::Null;
     };
-    if value == Int4Value::Unknown {
+    let mut condition_flavor_216_4: i32 = unresolved_flavor; if let Int4Value::Unknown = value { if condition_flavor_216_4 < 1 { condition_flavor_216_4 = 1; }; }; if let Int4Value::Unimplemented = value { condition_flavor_216_4 = 2; }; if (value == Int4Value::Unknown || value == Int4Value::Unimplemented) {
         if input.unequal && less == greater && equal != less {
             return BoolValue::Value(less);
         };
-        return bool_unresolved(unresolved_flavor);
+        return bool_unresolved(condition_flavor_216_4);
     };
     if let Int4Value::Value(order) = value {
         return BoolValue::Value(

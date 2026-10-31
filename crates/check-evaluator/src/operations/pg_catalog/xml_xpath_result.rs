@@ -55,6 +55,9 @@ pub(crate) fn xpath_result_to_xml(input: XPathValue, tree: &XmlTree, graph: &XPa
             if let XmlValue::Unknown = value {
                 state = XPATH_RESULT_NOTATION_CONTEXT;
                 if tree.serialization_gap { state = 3; };
+            }; if let XmlValue::Unimplemented = value {
+                state = XPATH_RESULT_NOTATION_CONTEXT;
+                if tree.serialization_gap { state = 3; };
             };
             result = xpath_xml_result_push(result,value,state);
             index += 1;

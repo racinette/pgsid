@@ -1,6 +1,7 @@
 pub fn sql__pg_catalog__time_send__0qc6(input: TimeValue) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let TimeValue::Unknown = input { unresolved_flavor = 1; };
+    if let TimeValue::Unimplemented = input { unresolved_flavor = 2; };
 if let TimeValue::Error(error) = input { return ByteaValue::Error(error); }
 if input == TimeValue::Null { return ByteaValue::Null; }
 if let TimeValue::Value(value) = input {
@@ -13,6 +14,7 @@ bytea_unresolved(unresolved_flavor)
 pub fn sql__pg_catalog__timetz_send__r9py(input: TimetzValue) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let TimetzValue::Unknown = input { unresolved_flavor = 1; };
+    if let TimetzValue::Unimplemented = input { unresolved_flavor = 2; };
 if let TimetzValue::Error(error) = input { return ByteaValue::Error(error); }
 if input == TimetzValue::Null { return ByteaValue::Null; }
 if let TimetzValue::Value(value) = input {
@@ -27,6 +29,7 @@ bytea_unresolved(unresolved_flavor)
 pub fn sql__pg_catalog__interval_send__jxgl(input: IntervalValue) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let IntervalValue::Unknown = input { unresolved_flavor = 1; };
+    if let IntervalValue::Unimplemented = input { unresolved_flavor = 2; };
 if let IntervalValue::Error(error) = input { return ByteaValue::Error(error); }
 if input == IntervalValue::Null { return ByteaValue::Null; }
 if let IntervalValue::Value(value) = input {

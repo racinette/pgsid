@@ -45,17 +45,23 @@ pub fn sql__pg_catalog__path_inter__6pqp(left: PathValue, right: PathValue) -> B
     let mut unresolved_flavor: i32 = 0;
     if let PathValue::Unknown = left { unresolved_flavor = 1; };
     if let PathValue::Unknown = right { unresolved_flavor = 1; };
+    if let PathValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let PathValue::Unimplemented = right { unresolved_flavor = 2; };
     if let PathValue::Error(error) = left {
         return BoolValue::Error(error);
     };
     if let PathValue::Error(error) = right {
         return BoolValue::Error(error);
     };
-    if let PathValue::Unknown = left {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_56_4: i32 = unresolved_flavor; if let PathValue::Unknown = left { if condition_flavor_56_4 < 1 { condition_flavor_56_4 = 1; }; }; if let PathValue::Unknown = left {
+        return bool_unresolved(condition_flavor_56_4);
+    }; let mut condition_flavor_58_7: i32 = unresolved_flavor; if let PathValue::Unimplemented = left { condition_flavor_58_7 = 2; }; if let PathValue::Unimplemented = left {
+        return bool_unresolved(condition_flavor_58_7);
     };
-    if let PathValue::Unknown = right {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_61_4: i32 = unresolved_flavor; if let PathValue::Unknown = right { if condition_flavor_61_4 < 1 { condition_flavor_61_4 = 1; }; }; if let PathValue::Unknown = right {
+        return bool_unresolved(condition_flavor_61_4);
+    }; let mut condition_flavor_63_7: i32 = unresolved_flavor; if let PathValue::Unimplemented = right { condition_flavor_63_7 = 2; }; if let PathValue::Unimplemented = right {
+        return bool_unresolved(condition_flavor_63_7);
     };
     if let PathValue::Null = left {
         return BoolValue::Null;
@@ -242,17 +248,21 @@ pub fn sql__pg_catalog__on_ppath__8fo6(point: PointValue, input: PathValue) -> B
     let mut unresolved_flavor: i32 = 0;
     if let PointValue::Unknown = point { unresolved_flavor = 1; };
     if let PathValue::Unknown = input { unresolved_flavor = 1; };
+    if let PointValue::Unimplemented = point { unresolved_flavor = 2; };
+    if let PathValue::Unimplemented = input { unresolved_flavor = 2; };
     if let PointValue::Error(error) = point {
         return BoolValue::Error(error);
     };
     if let PathValue::Error(error) = input {
         return BoolValue::Error(error);
     };
-    if point == PointValue::Unknown {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_259_4: i32 = unresolved_flavor; if let PointValue::Unknown = point { if condition_flavor_259_4 < 1 { condition_flavor_259_4 = 1; }; }; if let PointValue::Unimplemented = point { condition_flavor_259_4 = 2; }; if (point == PointValue::Unknown || point == PointValue::Unimplemented) {
+        return bool_unresolved(condition_flavor_259_4);
     };
-    if let PathValue::Unknown = input {
-        return bool_unresolved(unresolved_flavor);
+    let mut condition_flavor_262_4: i32 = unresolved_flavor; if let PathValue::Unknown = input { if condition_flavor_262_4 < 1 { condition_flavor_262_4 = 1; }; }; if let PathValue::Unknown = input {
+        return bool_unresolved(condition_flavor_262_4);
+    }; let mut condition_flavor_264_7: i32 = unresolved_flavor; if let PathValue::Unimplemented = input { condition_flavor_264_7 = 2; }; if let PathValue::Unimplemented = input {
+        return bool_unresolved(condition_flavor_264_7);
     };
     if point == PointValue::Null {
         return BoolValue::Null;

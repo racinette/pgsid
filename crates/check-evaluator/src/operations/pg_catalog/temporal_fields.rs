@@ -219,16 +219,18 @@ pub fn sql__pg_catalog__date_trunc__3i0u(
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = units { unresolved_flavor = 1; };
     if let TimestampValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = units { unresolved_flavor = 2; };
+    if let TimestampValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = units {
         return TimestampValue::Error(error);
     }
     if let TimestampValue::Error(error) = input {
         return TimestampValue::Error(error);
     }
-    if (units == TextValue::Unknown || units == TextValue::NonNull)
-        || input == TimestampValue::Unknown
+    let mut condition_flavor_230_4: i32 = unresolved_flavor; if let TextValue::Unknown = units { if condition_flavor_230_4 < 1 { condition_flavor_230_4 = 1; }; }; if let TextValue::Unimplemented = units { condition_flavor_230_4 = 2; }; if let TimestampValue::Unknown = input { if condition_flavor_230_4 < 1 { condition_flavor_230_4 = 1; }; }; if let TimestampValue::Unimplemented = input { condition_flavor_230_4 = 2; }; if ((units == TextValue::Unknown || units == TextValue::Unimplemented) || units == TextValue::NonNull)
+        || (input == TimestampValue::Unknown || input == TimestampValue::Unimplemented)
     {
-        return timestamp_unresolved(unresolved_flavor);
+        return timestamp_unresolved(condition_flavor_230_4);
     }
     if units == TextValue::Null || input == TimestampValue::Null {
         return TimestampValue::Null;

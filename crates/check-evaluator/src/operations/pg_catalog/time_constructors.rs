@@ -2,14 +2,16 @@ fn clock_scale_value(input: TimeValue, precision: Int4Value) -> TimeValue {
     let mut unresolved_flavor: i32 = 0;
     if let TimeValue::Unknown = input { unresolved_flavor = 1; };
     if let Int4Value::Unknown = precision { unresolved_flavor = 1; };
+    if let TimeValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = precision { unresolved_flavor = 2; };
     if let TimeValue::Error(error) = input {
         return TimeValue::Error(error);
     }
     if let Int4Value::Error(error) = precision {
         return TimeValue::Error(error);
     }
-    if input == TimeValue::Unknown || precision == Int4Value::Unknown {
-        return time_unresolved(unresolved_flavor);
+    let mut condition_flavor_13_4: i32 = unresolved_flavor; if let TimeValue::Unknown = input { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let TimeValue::Unimplemented = input { condition_flavor_13_4 = 2; }; if let Int4Value::Unknown = precision { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let Int4Value::Unimplemented = precision { condition_flavor_13_4 = 2; }; if (input == TimeValue::Unknown || input == TimeValue::Unimplemented) || (precision == Int4Value::Unknown || precision == Int4Value::Unimplemented) {
+        return time_unresolved(condition_flavor_13_4);
     }
     if input == TimeValue::Null || precision == Int4Value::Null {
         return TimeValue::Null;
@@ -37,14 +39,16 @@ pub fn sql__pg_catalog__timetz__7slr(input: TimetzValue, precision: Int4Value) -
     let mut unresolved_flavor: i32 = 0;
     if let TimetzValue::Unknown = input { unresolved_flavor = 1; };
     if let Int4Value::Unknown = precision { unresolved_flavor = 1; };
+    if let TimetzValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = precision { unresolved_flavor = 2; };
     if let TimetzValue::Error(error) = input {
         return TimetzValue::Error(error);
     }
     if let Int4Value::Error(error) = precision {
         return TimetzValue::Error(error);
     }
-    if input == TimetzValue::Unknown || precision == Int4Value::Unknown {
-        return timetz_unresolved(unresolved_flavor);
+    let mut condition_flavor_50_4: i32 = unresolved_flavor; if let TimetzValue::Unknown = input { if condition_flavor_50_4 < 1 { condition_flavor_50_4 = 1; }; }; if let TimetzValue::Unimplemented = input { condition_flavor_50_4 = 2; }; if let Int4Value::Unknown = precision { if condition_flavor_50_4 < 1 { condition_flavor_50_4 = 1; }; }; if let Int4Value::Unimplemented = precision { condition_flavor_50_4 = 2; }; if (input == TimetzValue::Unknown || input == TimetzValue::Unimplemented) || (precision == Int4Value::Unknown || precision == Int4Value::Unimplemented) {
+        return timetz_unresolved(condition_flavor_50_4);
     }
     if input == TimetzValue::Null || precision == Int4Value::Null {
         return TimetzValue::Null;
@@ -63,6 +67,7 @@ pub fn sql__pg_catalog__timetz__7slr(input: TimetzValue, precision: Int4Value) -
 pub fn sql__pg_catalog__time__3gc2(input: TimestampValue) -> TimeValue {
     let mut unresolved_flavor: i32 = 0;
     if let TimestampValue::Unknown = input { unresolved_flavor = 1; };
+    if let TimestampValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TimestampValue::Error(error) = input {
         return TimeValue::Error(error);
     }
@@ -87,6 +92,7 @@ pub fn sql__pg_catalog__time__3gc2(input: TimestampValue) -> TimeValue {
 pub fn sql__pg_catalog__isfinite__0u09(input: IntervalValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
     if let IntervalValue::Unknown = input { unresolved_flavor = 1; };
+    if let IntervalValue::Unimplemented = input { unresolved_flavor = 2; };
     if let IntervalValue::Error(error) = input {
         return BoolValue::Error(error);
     }
@@ -107,6 +113,9 @@ pub fn sql__pg_catalog__make_time__6c3q(
     if let Int4Value::Unknown = hour { unresolved_flavor = 1; };
     if let Int4Value::Unknown = minute { unresolved_flavor = 1; };
     if let Float8Value::Unknown = second { unresolved_flavor = 1; };
+    if let Int4Value::Unimplemented = hour { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = minute { unresolved_flavor = 2; };
+    if let Float8Value::Unimplemented = second { unresolved_flavor = 2; };
     if let Int4Value::Error(error) = hour {
         return TimeValue::Error(error);
     }
@@ -116,9 +125,9 @@ pub fn sql__pg_catalog__make_time__6c3q(
     if let Float8Value::Error(error) = second {
         return TimeValue::Error(error);
     }
-    if hour == Int4Value::Unknown || minute == Int4Value::Unknown || second == Float8Value::Unknown
+    let mut condition_flavor_128_4: i32 = unresolved_flavor; if let Int4Value::Unknown = hour { if condition_flavor_128_4 < 1 { condition_flavor_128_4 = 1; }; }; if let Int4Value::Unimplemented = hour { condition_flavor_128_4 = 2; }; if let Int4Value::Unknown = minute { if condition_flavor_128_4 < 1 { condition_flavor_128_4 = 1; }; }; if let Int4Value::Unimplemented = minute { condition_flavor_128_4 = 2; }; if let Float8Value::Unknown = second { if condition_flavor_128_4 < 1 { condition_flavor_128_4 = 1; }; }; if let Float8Value::Unimplemented = second { condition_flavor_128_4 = 2; }; if (hour == Int4Value::Unknown || hour == Int4Value::Unimplemented) || (minute == Int4Value::Unknown || minute == Int4Value::Unimplemented) || (second == Float8Value::Unknown || second == Float8Value::Unimplemented)
     {
-        return time_unresolved(unresolved_flavor);
+        return time_unresolved(condition_flavor_128_4);
     }
     if hour == Int4Value::Null || minute == Int4Value::Null || second == Float8Value::Null {
         return TimeValue::Null;
@@ -155,14 +164,16 @@ fn clock_date_timestamp(date: DateValue, clock: TimeValue) -> TimestampValue {
     let mut unresolved_flavor: i32 = 0;
     if let DateValue::Unknown = date { unresolved_flavor = 1; };
     if let TimeValue::Unknown = clock { unresolved_flavor = 1; };
+    if let DateValue::Unimplemented = date { unresolved_flavor = 2; };
+    if let TimeValue::Unimplemented = clock { unresolved_flavor = 2; };
     if let DateValue::Error(error) = date {
         return TimestampValue::Error(error);
     }
     if let TimeValue::Error(error) = clock {
         return TimestampValue::Error(error);
     }
-    if date == DateValue::Unknown || clock == TimeValue::Unknown {
-        return timestamp_unresolved(unresolved_flavor);
+    let mut condition_flavor_175_4: i32 = unresolved_flavor; if let DateValue::Unknown = date { if condition_flavor_175_4 < 1 { condition_flavor_175_4 = 1; }; }; if let DateValue::Unimplemented = date { condition_flavor_175_4 = 2; }; if let TimeValue::Unknown = clock { if condition_flavor_175_4 < 1 { condition_flavor_175_4 = 1; }; }; if let TimeValue::Unimplemented = clock { condition_flavor_175_4 = 2; }; if (date == DateValue::Unknown || date == DateValue::Unimplemented) || (clock == TimeValue::Unknown || clock == TimeValue::Unimplemented) {
+        return timestamp_unresolved(condition_flavor_175_4);
     }
     if date == DateValue::Null || clock == TimeValue::Null {
         return TimestampValue::Null;
@@ -185,14 +196,16 @@ fn clock_date_timestamptz(date: DateValue, clock: TimetzValue) -> TimestamptzVal
     let mut unresolved_flavor: i32 = 0;
     if let DateValue::Unknown = date { unresolved_flavor = 1; };
     if let TimetzValue::Unknown = clock { unresolved_flavor = 1; };
+    if let DateValue::Unimplemented = date { unresolved_flavor = 2; };
+    if let TimetzValue::Unimplemented = clock { unresolved_flavor = 2; };
     if let DateValue::Error(error) = date {
         return TimestamptzValue::Error(error);
     }
     if let TimetzValue::Error(error) = clock {
         return TimestamptzValue::Error(error);
     }
-    if date == DateValue::Unknown || clock == TimetzValue::Unknown {
-        return timestamptz_unresolved(unresolved_flavor);
+    let mut condition_flavor_207_4: i32 = unresolved_flavor; if let DateValue::Unknown = date { if condition_flavor_207_4 < 1 { condition_flavor_207_4 = 1; }; }; if let DateValue::Unimplemented = date { condition_flavor_207_4 = 2; }; if let TimetzValue::Unknown = clock { if condition_flavor_207_4 < 1 { condition_flavor_207_4 = 1; }; }; if let TimetzValue::Unimplemented = clock { condition_flavor_207_4 = 2; }; if (date == DateValue::Unknown || date == DateValue::Unimplemented) || (clock == TimetzValue::Unknown || clock == TimetzValue::Unimplemented) {
+        return timestamptz_unresolved(condition_flavor_207_4);
     }
     if date == DateValue::Null || clock == TimetzValue::Null {
         return TimestamptzValue::Null;

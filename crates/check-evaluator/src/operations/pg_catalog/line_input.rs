@@ -5,6 +5,9 @@ fn line_from_scalars(first: Float8Value, second: Float8Value, third: Float8Value
     if let Float8Value::Unknown = first { unresolved_flavor = 1; };
     if let Float8Value::Unknown = second { unresolved_flavor = 1; };
     if let Float8Value::Unknown = third { unresolved_flavor = 1; };
+    if let Float8Value::Unimplemented = first { unresolved_flavor = 2; };
+    if let Float8Value::Unimplemented = second { unresolved_flavor = 2; };
+    if let Float8Value::Unimplemented = third { unresolved_flavor = 2; };
     if let Float8Value::Error(error) = first {
         return LineValue::Error(error);
     };
@@ -14,11 +17,11 @@ fn line_from_scalars(first: Float8Value, second: Float8Value, third: Float8Value
     if let Float8Value::Error(error) = third {
         return LineValue::Error(error);
     };
-    if first == Float8Value::Unknown
-        || second == Float8Value::Unknown
-        || third == Float8Value::Unknown
+    let mut condition_flavor_20_4: i32 = unresolved_flavor; if let Float8Value::Unknown = first { if condition_flavor_20_4 < 1 { condition_flavor_20_4 = 1; }; }; if let Float8Value::Unimplemented = first { condition_flavor_20_4 = 2; }; if let Float8Value::Unknown = second { if condition_flavor_20_4 < 1 { condition_flavor_20_4 = 1; }; }; if let Float8Value::Unimplemented = second { condition_flavor_20_4 = 2; }; if let Float8Value::Unknown = third { if condition_flavor_20_4 < 1 { condition_flavor_20_4 = 1; }; }; if let Float8Value::Unimplemented = third { condition_flavor_20_4 = 2; }; if (first == Float8Value::Unknown || first == Float8Value::Unimplemented)
+        || (second == Float8Value::Unknown || second == Float8Value::Unimplemented)
+        || (third == Float8Value::Unknown || third == Float8Value::Unimplemented)
     {
-        return line_unresolved(unresolved_flavor);
+        return line_unresolved(condition_flavor_20_4);
     };
     if first == Float8Value::Null || second == Float8Value::Null || third == Float8Value::Null {
         return LineValue::Null;
@@ -60,6 +63,7 @@ fn line_origin_coordinate(point: PointPayload, horizontal: bool) -> Float8Value 
 fn line_from_origin_slope(origin: PointPayload, gradient: Float8Value) -> LineValue {
     let mut unresolved_flavor: i32 = 0;
     if let Float8Value::Unknown = gradient { unresolved_flavor = 1; };
+    if let Float8Value::Unimplemented = gradient { unresolved_flavor = 2; };
     if let Float8Value::Error(error) = gradient {
         return LineValue::Error(error);
     };
@@ -98,14 +102,16 @@ fn line_from_points(left: PointValue, right: PointValue, invalid: u32) -> LineVa
     let mut unresolved_flavor: i32 = 0;
     if let PointValue::Unknown = left { unresolved_flavor = 1; };
     if let PointValue::Unknown = right { unresolved_flavor = 1; };
+    if let PointValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let PointValue::Unimplemented = right { unresolved_flavor = 2; };
     if let PointValue::Error(error) = left {
         return LineValue::Error(error);
     };
     if let PointValue::Error(error) = right {
         return LineValue::Error(error);
     };
-    if left == PointValue::Unknown || right == PointValue::Unknown {
-        return line_unresolved(unresolved_flavor);
+    let mut condition_flavor_113_4: i32 = unresolved_flavor; if let PointValue::Unknown = left { if condition_flavor_113_4 < 1 { condition_flavor_113_4 = 1; }; }; if let PointValue::Unimplemented = left { condition_flavor_113_4 = 2; }; if let PointValue::Unknown = right { if condition_flavor_113_4 < 1 { condition_flavor_113_4 = 1; }; }; if let PointValue::Unimplemented = right { condition_flavor_113_4 = 2; }; if (left == PointValue::Unknown || left == PointValue::Unimplemented) || (right == PointValue::Unknown || right == PointValue::Unimplemented) {
+        return line_unresolved(condition_flavor_113_4);
     };
     if left == PointValue::Null || right == PointValue::Null {
         return LineValue::Null;
@@ -144,7 +150,7 @@ fn geometry_read_point(source: &GeometryInputText, begin: usize) -> GeometryInpu
             end: first.end,
         };
     };
-    if first_value == Float8Value::Unknown {
+    if (first_value == Float8Value::Unknown || first_value == Float8Value::Unimplemented) {
         return GeometryInputPoint {
             value: PointValue::Unknown,
             end: first.end,
@@ -165,7 +171,7 @@ fn geometry_read_point(source: &GeometryInputText, begin: usize) -> GeometryInpu
             end: second.end,
         };
     };
-    if second_value == Float8Value::Unknown {
+    if (second_value == Float8Value::Unknown || second_value == Float8Value::Unimplemented) {
         return GeometryInputPoint {
             value: PointValue::Unknown,
             end: second.end,
@@ -199,8 +205,8 @@ fn line_parse_coefficients(source: &GeometryInputText, begin: usize) -> LineValu
         if let Float8Value::Error(error) = number_value {
             return LineValue::Error(error);
         };
-        if number_value == Float8Value::Unknown {
-            return line_unresolved(unresolved_flavor);
+        let mut condition_flavor_208_8: i32 = unresolved_flavor; if let Float8Value::Unknown = number_value { if condition_flavor_208_8 < 1 { condition_flavor_208_8 = 1; }; }; if let Float8Value::Unimplemented = number_value { condition_flavor_208_8 = 2; }; if (number_value == Float8Value::Unknown || number_value == Float8Value::Unimplemented) {
+            return line_unresolved(condition_flavor_208_8);
         };
         if count == 0 {
             first = number_value;
@@ -225,7 +231,7 @@ fn line_parse_coefficients(source: &GeometryInputText, begin: usize) -> LineValu
         return LineValue::Error(make_sql_error(FLOAT_INPUT_INVALID));
     };
     let result = line_from_scalars(first, second, third);
-    if result == LineValue::Unknown {
+    if (result == LineValue::Unknown || result == LineValue::Unimplemented) {
         return LineValue::Error(make_sql_error(FLOAT_INPUT_INVALID));
     };
     result
@@ -283,7 +289,7 @@ fn geometry_read_pair(source: &GeometryInputText, begin: usize) -> GeometryInput
     if let PointValue::Error(error) = first_value {
         return geometry_pair_failure(PointValue::Error(error));
     };
-    if first_value == PointValue::Unknown {
+    if (first_value == PointValue::Unknown || first_value == PointValue::Unimplemented) {
         return geometry_pair_failure(PointValue::Unknown);
     };
     index = first.end;
@@ -295,7 +301,7 @@ fn geometry_read_pair(source: &GeometryInputText, begin: usize) -> GeometryInput
     if let PointValue::Error(error) = second_value {
         return geometry_pair_failure(PointValue::Error(error));
     };
-    if second_value == PointValue::Unknown {
+    if (second_value == PointValue::Unknown || second_value == PointValue::Unimplemented) {
         return geometry_pair_failure(PointValue::Unknown);
     };
     index = second.end;
@@ -321,6 +327,7 @@ fn geometry_read_pair(source: &GeometryInputText, begin: usize) -> GeometryInput
 pub fn line_from_text(input: TextValue) -> LineValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return LineValue::Error(error);
     };
