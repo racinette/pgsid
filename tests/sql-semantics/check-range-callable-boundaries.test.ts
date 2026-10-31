@@ -135,18 +135,18 @@ it('admits custom range core checks only with captured profiles and represented 
     const words = await snapshotCatalog(pg),
       wordTable = words.tables.find((table) => table.name === 'word_spans')!
     expect(words.rangeTypes.some((range) => range.name === 'words_span')).toBe(true)
-    expect(
-      hasUncertain(
-        lowerTableCheck(
-          wordTable,
-          wordTable.constraints[0]!,
-          words.enums,
-          words.domains,
-          'stored',
-          words.rangeTypes,
-        )!.expression,
-      ),
-    ).toBe(true)
+    // Captured text ranges are a represented backend; collation callbacks they cannot run are
+    // deferred where evaluation reaches them, not at binding.
+    const wordCheck = lowerTableCheck(
+      wordTable,
+      wordTable.constraints[0]!,
+      words.enums,
+      words.domains,
+      'stored',
+      words.rangeTypes,
+    )!.expression
+    expect(hasUncertain(wordCheck)).toBe(false)
+    expect(prepareCheckRust(portableCheckAtoms(wordCheck)).kind).toBe('supported')
   } finally {
     await pg.close()
   }
