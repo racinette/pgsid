@@ -265,14 +265,9 @@ it('preserves source JSONPath graphs outside prebound historical comparisons', a
           bypass: { kind: 'Value', value: bypass },
         }
       native.push({ n, m, d, bypass, expected })
-      fixtures.push(
-        { name: 'source', row, expected },
-        {
-          name: 'stored',
-          row,
-          expected: bypass || d === 0 ? expected : { kind: 'Unknown' },
-        },
-      )
+      // The stored JSONPath constant decodes from its binary graph, so the stored check no
+      // longer depends on re-reading the path text and agrees with PostgreSQL.
+      fixtures.push({ name: 'source', row, expected }, { name: 'stored', row, expected })
     }
     await mkdir(artifact, { recursive: true })
     await writeFile(
