@@ -560,19 +560,14 @@ type CheckEvaluationResult struct {
 	Reason  int
 }
 
-func CopyCheckEvaluationResult(value CheckEvaluationResult) CheckEvaluationResult {
-	return CheckEvaluationResult{Outcome: value.Outcome, Reason: langruntime.CheckedI32(value.Reason)}
-}
 func MakeCheckEvaluationResult(outcome CheckOutcome, reason int) CheckEvaluationResult {
 	reason = langruntime.CheckedI32(reason)
 	return CheckEvaluationResult{Outcome: outcome, Reason: reason}
 }
 func CheckEvaluationOutcome(input CheckEvaluationResult) CheckOutcome {
-	input = CopyCheckEvaluationResult(input)
 	return input.Outcome
 }
 func CheckEvaluationReason(input CheckEvaluationResult) Int4Value {
-	input = CopyCheckEvaluationResult(input)
 	return Int4Value{Kind: Int4ValueValue, Value: input.Reason}
 }
 func CheckRequirementCode(input int) int {
