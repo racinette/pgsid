@@ -226,8 +226,10 @@ export function rangeBoundProfiles(
     const index = result.length
     const nested =
       kind === 42 || kind === 43
-        ? ((kind === 42 ? rangeTypeProfile(base) : multirangeTypeProfile(base)) ??
-          rangeNestedProfile(profile, kind === 42 ? node.identity : node.member!))
+        ? // The retained child capture comes first: even a pg_catalog range may have replaced
+          // support functions, which the built-in profile for its name would not show.
+          (rangeNestedProfile(profile, kind === 42 ? node.identity : node.member!) ??
+          (kind === 42 ? rangeTypeProfile(base) : multirangeTypeProfile(base)))
         : null
     if ((kind === 42 || kind === 43) && !nested) return false
     const nestedSupport = nested ? rangeProfileSupport(nested, context) : null
