@@ -141,7 +141,7 @@ it('reuses represented scalar range backends for exact bounds, constructors, rel
                 (value.includes(b) || value.includes(c)))),
         )
       }
-      if (![21, 22, 31, 39].includes(profile.kind))
+      if (![31, 39].includes(profile.kind))
         await wire(
           index,
           `$1::${span}`,
@@ -154,8 +154,6 @@ it('reuses represented scalar range backends for exact bounds, constructors, rel
       if (profile.kind === 21 || profile.kind === 22) {
         const invalid = scalarRangeText('25:00:00+00', b)
         await wire(index, `$1::${span}`, [invalid], input(invalid, index))
-        const unmodeled = scalarRangeText('bad', b)
-        await wire(index, `$1::${span}`, [unmodeled], input(unmodeled, index), false, true)
       }
       for (const flags of ['[]', '[)', '(]', '()', 'bad', null]) {
         const reference = await native(
