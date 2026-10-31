@@ -112,13 +112,84 @@ export function isTextOrderingCallable(signature: string): boolean {
   return textOrderingCallables.has(signature)
 }
 
+// Casing, case-insensitive LIKE and regex read the collation's ctype; with the database default
+// they need a declared ctype, which the default ordering does not supply.
+const ctypeNames = new Set([
+  'lower',
+  'upper',
+  'initcap',
+  'casefold',
+  'texticlike',
+  'texticnlike',
+  'bpchariclike',
+  'bpcharicnlike',
+  'nameiclike',
+  'nameicnlike',
+  'textregexeq',
+  'textregexne',
+  'texticregexeq',
+  'texticregexne',
+  'nameregexeq',
+  'nameregexne',
+  'nameicregexeq',
+  'nameicregexne',
+  'bpcharregexeq',
+  'bpcharregexne',
+  'bpcharicregexeq',
+  'bpcharicregexne',
+  'regexp_like',
+  'regexp_count',
+  'regexp_instr',
+  'regexp_substr',
+  'regexp_replace',
+])
+const ctypeCallables = new Set<string>()
+for (const item of builtinCallables()) {
+  const implementation = item.kind === 'operator' ? builtinMetadata(item.implementation) : item
+  if (
+    implementation.kind !== 'function' ||
+    implementation.schema !== 'pg_catalog' ||
+    !implementation.strict ||
+    implementation.volatility !== 'i' ||
+    implementation.returnsSet ||
+    !implementation.args.some((type) =>
+      ['pg_catalog.text', 'pg_catalog.bpchar', 'pg_catalog.name'].includes(type),
+    ) ||
+    !(
+      ctypeNames.has(implementation.name) ||
+      (implementation.name === 'substring' &&
+        implementation.args.join(',') === 'pg_catalog.text,pg_catalog.text')
+    )
+  )
+    continue
+  ctypeCallables.add(callableIdentity(item))
+}
+
+// Case mapping of valid text cannot raise under any provider, unlike pattern-driven LIKE and regex.
+export function isTextCasingCallable(signature: string): boolean {
+  const metadata = builtinMetadata(signature)
+  return (
+    metadata.kind === 'function' &&
+    ['lower', 'upper', 'initcap', 'casefold'].includes(metadata.name) &&
+    metadata.args.length === 1 &&
+    metadata.args[0] === 'pg_catalog.text' &&
+    metadata.result === 'pg_catalog.text' &&
+    ctypeCallables.has(signature)
+  )
+}
+
+export function isCtypeCallable(signature: string): boolean {
+  return ctypeCallables.has(signature) && supportsTextCallableCollation(signature, 'C')
+}
+
 export function supportsBoundTextCallableCollation(
   signature: string,
   collation?: BoundCollation | null,
 ): boolean {
   return (
     supportsTextCallableCollation(signature, collation?.kind) ||
-    (collation?.default === true && isTextOrderingCallable(signature))
+    (collation?.default === true &&
+      (isTextOrderingCallable(signature) || isCtypeCallable(signature)))
   )
 }
 

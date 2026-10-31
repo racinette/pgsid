@@ -31,7 +31,7 @@ node node_modules/vitest/vitest.mjs run tests/sql-semantics/check-json*.test.ts 
 node node_modules/vitest/vitest.mjs run tests/sql-semantics/check-null-count.test.ts "${vitest_args[@]}"
 node node_modules/vitest/vitest.mjs run tests/sql-semantics/check-non-strict-measurements.test.ts "${vitest_args[@]}"
 node node_modules/vitest/vitest.mjs run tests/sql-semantics/check-integer-sum.test.ts "${vitest_args[@]}"
-node node_modules/vitest/vitest.mjs run tests/sql-semantics/check-value-metadata.test.ts tests/sql-semantics/check-integer-null-state.test.ts tests/sql-semantics/check-strict-call-null.test.ts tests/sql-semantics/check-text-default-ordering.test.ts "${vitest_args[@]}"
+node node_modules/vitest/vitest.mjs run tests/sql-semantics/check-value-metadata.test.ts tests/sql-semantics/check-integer-null-state.test.ts tests/sql-semantics/check-strict-call-null.test.ts tests/sql-semantics/check-text-default-ordering.test.ts tests/sql-semantics/check-default-ctype.test.ts "${vitest_args[@]}"
 node node_modules/vitest/vitest.mjs run tests/sql-semantics/check-current-age.test.ts "${vitest_args[@]}"
 node node_modules/vitest/vitest.mjs run tests/sql-semantics/check-nullable-quote.test.ts "${vitest_args[@]}"
 node node_modules/vitest/vitest.mjs run tests/sql-semantics/check-generic-literal-quote.test.ts "${vitest_args[@]}"

@@ -215,7 +215,10 @@ it('does not reinterpret explicit non-C ordering or character classification as 
           catalog.rangeTypes,
           catalog.compositeTypeGraph,
         )!.expression
-        expect(hasUncertain(expression), constraint.name + origin).toBe(true)
+        // Casing and ILIKE bind and defer without a declared ctype; a non-C ordering stays unbound.
+        expect(hasUncertain(expression), constraint.name + origin).toBe(
+          constraint.definition.includes('other_order'),
+        )
         const group = prepareCheckRustGroup(
           [
             {

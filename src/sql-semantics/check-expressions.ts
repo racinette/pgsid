@@ -238,6 +238,9 @@ export function emitEvalBoolExpression<Ast>(
         metadata.args.every((type) => type === 'pg_catalog.text')
       if (!validSignature || (!regexpOperator && !regexpFunction && !regexpLike))
         throw new Error(`Unsupported regex CHECK signature: ${call.signature}`)
+      // These validators carry no declared ctype, so a default-collation regex depends on the
+      // database's character classification.
+      if (call.collation === 'deterministic') return emit({ kind: 'uncertain' })
       if (call.collation !== 'C')
         throw new Error('A regex CHECK atom requires a C-collated text subject')
       const subject = call.operands[0]!

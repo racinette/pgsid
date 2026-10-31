@@ -123,7 +123,8 @@ describe('catalog regex count and position collation boundary', () => {
                 ...row,
                 label: input(null),
               },
-              expected: { kind: index === 1 ? 'Null' : 'Unknown' },
+              // A NULL subject decides the strict call before the default ctype matters.
+              expected: { kind: index <= 1 ? 'Null' : 'Unknown' },
             })
           }
         }
