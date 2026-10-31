@@ -3335,7 +3335,7 @@ export function emitCheckRustEvaluator(
         const result = fresh('metadata_result')
         destination.push(
           `let ${argument} = ${rustValuePrefix(rustType(operand.type))}_is_null(${ownedOperand(operand)});`,
-          `let ${collation} = ${!collatable ? 'make_bool_value(false)' : resolved ? 'make_bool_value(true)' : 'bool_unknown()'};`,
+          `let ${collation} = ${!collatable ? 'make_bool_value(false)' : call.collationAbsent === true ? 'bool_null()' : resolved ? 'make_bool_value(true)' : 'bool_unresolved(1)'};`,
           `let ${result} = ${implementation.rustName}(${argument},${collation});`,
         )
         callables.add(implementation.rustName)
@@ -4787,7 +4787,7 @@ export function emitCheckRustEvaluator(
             }
           } else
             body.push(
-              `    ${hash} = ${extended ? 'int8' : 'int4'}_unresolved(${portableHash && contextHash ? 1 : 2});`,
+              `    ${hash} = ${extended ? 'int8' : 'int4'}_unresolved(${(portableHash && contextHash) || (!!selected && !scalar) ? 1 : 2});`,
             )
           body.push(
             '};',
@@ -5224,7 +5224,10 @@ export function emitCheckRustEvaluator(
                   checkRustCallableNames().has(metadata.rustName) &&
                   text &&
                   !supportsTextCallableCollation(selected, collation)
-                scalarLines.push(`${compared}=int4_unresolved(${contextField ? 1 : 2});`)
+                const userComparator = !!selected && !metadata
+                scalarLines.push(
+                  `${compared}=int4_unresolved(${contextField || userComparator ? 1 : 2});`,
+                )
               }
               lines.push(
                 `if array_pair_requires_scalar(${pair}) {`,
@@ -5340,7 +5343,9 @@ export function emitCheckRustEvaluator(
               (executionContext.defaultCollation !== 'C' ||
                 executionContext.serverEncoding !== 'UTF8'))
           const deferred = !portableElement || contextOrdering
-          const orderFlavor = portableElement && contextOrdering ? 1 : 2
+          // A comparator outside the builtins is a database function.
+          const orderFlavor =
+            (portableElement && contextOrdering) || (!!selected && !scalar) ? 1 : 2
           const emitElement = (selected: string, scalar: ReturnType<typeof builtinMetadata>) => {
             const baseType = arrayElementBaseType(elementType)
             const prefix = rustValuePrefix(rustType(elementType))

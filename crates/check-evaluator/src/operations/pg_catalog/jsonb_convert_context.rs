@@ -407,5 +407,7 @@ pub fn jsonb_input_from_enum(input: EnumValue) -> JsonbInput {
     if input == EnumValue::Null {
         return JsonbInput::Null;
     };
-    jsonb_input_unresolved(unresolved_flavor)
+    // Label conversions are emitted directly, so a value here converts through a catalog cast or
+    // an uncaptured definition.
+    jsonb_input_unresolved(resolution_context(unresolved_flavor))
 }

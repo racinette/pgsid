@@ -2184,13 +2184,16 @@ const comparisonCandidate = (
 const callDefaultCollation = (
   signature: string,
   collation?: BoundCollation,
-): { collationDefault?: true; collationResolved?: true } => {
+): { collationDefault?: true; collationResolved?: true; collationAbsent?: true } => {
   const metadata = builtinMetadata(signature)
   if (isCollationMetadataCallable(metadata))
     return {
       ...(collation?.default ? { collationDefault: true as const } : {}),
       ...(collation && collation.identity !== 'conflict'
         ? { collationResolved: true as const }
+        : {}),
+      ...(collation?.identity === 'conflict' && !collation.explicit
+        ? { collationAbsent: true as const }
         : {}),
     }
   return collation?.default &&

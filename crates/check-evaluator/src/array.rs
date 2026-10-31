@@ -1775,6 +1775,9 @@ pub(crate) fn array_text_event_at(input: &ArrayTextPayload, index: Int4Value) ->
         if let ArrayTextEvent::Error(error) = event {
             return TextValue::Error(error);
         };
+        if let ArrayTextEvent::Unknown = event {
+            return text_unresolved(resolution_context(unresolved_flavor));
+        };
     };
     text_unresolved(unresolved_flavor)
 }
@@ -1836,7 +1839,11 @@ pub fn prepare_array_text(input: TextValue, box_delimiter: bool, nulls: i32) -> 
     if let ArrayTextPlan::Value(payload) = plan {
         return payload;
     };
+    // An unresolved plan keeps whether database state (-3) or an implementation gap (-1) stopped it.
     let mut state: i32 = -1;
+    if let ArrayTextPlan::Unknown = plan {
+        state = -3;
+    };
     if let ArrayTextPlan::Null = plan {
         state = 0;
     };
@@ -1895,7 +1902,7 @@ pub fn finish_prepared_array_text(
         return ArrayValue::Null;
     };
     if input.state != 1 {
-        return array_unresolved(unresolved_flavor);
+        return array_unresolved(array_output_flavor(input.state, unresolved_flavor));
     };
     finish_array_text(ArrayTextPlan::Value(input), converted)
 }

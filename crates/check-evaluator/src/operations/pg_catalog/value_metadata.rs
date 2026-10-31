@@ -19,6 +19,8 @@ pub fn sql__pg_catalog__format_type__bj8v(identity: OidValue, modifier: Int4Valu
         if value == 0i64 {
             return make_text_value("-");
         };
+        // Any other identity names a type only the catalog can describe.
+        return text_unresolved(resolution_context(unresolved_flavor));
     };
     text_unresolved(unresolved_flavor)
 }
@@ -34,6 +36,10 @@ pub fn sql__pg_catalog__pg_collation_for__808q(
     if let BoolValue::Unimplemented = collation { unresolved_flavor = 2; };
     if let BoolValue::Error(error) = argument {
         return TextValue::Error(error);
+    };
+    // An argument that carries no collation, such as an implicit conflict, reports none.
+    if collation == BoolValue::Null {
+        return TextValue::Null;
     };
     if collation == BoolValue::Value(false) {
         return TextValue::Error(make_sql_error(METADATA_NONCOLLATABLE_TYPE));
