@@ -593,22 +593,17 @@ export function equalCheckOutcome(left: CheckOutcome, right: CheckOutcome): bool
     return true;
 }
 export interface CheckEvaluationResult {
-    outcome: CheckOutcome;
-    reason: number;
-}
-export function copyCheckEvaluationResult(value: CheckEvaluationResult): CheckEvaluationResult {
-    return { outcome: value.outcome, reason: langruntime.checkedI32(value.reason) };
+    readonly outcome: CheckOutcome;
+    readonly reason: number;
 }
 export function makeCheckEvaluationResult(outcome: CheckOutcome, reason: number): CheckEvaluationResult {
     reason = langruntime.checkedI32(reason);
     return { outcome: outcome, reason: reason };
 }
 export function checkEvaluationOutcome(input: CheckEvaluationResult): CheckOutcome {
-    input = copyCheckEvaluationResult(input);
     return input.outcome;
 }
 export function checkEvaluationReason(input: CheckEvaluationResult): Int4Value {
-    input = copyCheckEvaluationResult(input);
     return { kind: "Value", value: input.reason };
 }
 export function checkRequirementCode(input: number): number {
