@@ -10319,7 +10319,11 @@ function boxCrossSegment(input: checkruntime.BoxValue, segment: checkruntime.Lse
             return { intersects: { kind: "Error", value: error }, point: { kind: "Error", value: error } };
         }
         if ((checkruntime.equalFloat8Value(distance, { kind: "Unknown" }) || checkruntime.equalFloat8Value(distance, { kind: "Unimplemented" }))) {
-            return { intersects: { kind: "Unknown" }, point: { kind: "Unknown" } };
+            let testedFlavor: number = 1;
+            if (checkruntime.equalFloat8Value(distance, { kind: "Unimplemented" })) {
+                testedFlavor = langruntime.checkedI32(2);
+            }
+            return { intersects: checkruntime.boolUnresolved(testedFlavor), point: checkruntime.pointUnresolved(testedFlavor) };
         }
         nearest = projection.point;
     }
@@ -10334,7 +10338,11 @@ function boxCrossSegment(input: checkruntime.BoxValue, segment: checkruntime.Lse
             return { intersects: { kind: "Error", value: error }, point: { kind: "Error", value: error } };
         }
         if ((checkruntime.equalPointValue(result, { kind: "Unknown" }) || checkruntime.equalPointValue(result, { kind: "Unimplemented" }))) {
-            return { intersects: { kind: "Unknown" }, point: result };
+            let testedFlavor: number = 1;
+            if (checkruntime.equalPointValue(result, { kind: "Unimplemented" })) {
+                testedFlavor = langruntime.checkedI32(2);
+            }
+            return { intersects: checkruntime.boolUnresolved(testedFlavor), point: result };
         }
         if (!(checkruntime.equalPointValue(result, { kind: "Null" }))) {
             return { intersects: checkruntime.makeBoolValue(true), point: nearest };
@@ -15178,7 +15186,11 @@ function catalogVectorHashBytes(input: checkruntime.ArrayValue): VectorHashBytes
             return { bytes: bytes, state: { kind: "Error", value: error } };
         }
         if (!(checkruntime.equalBoolValue(status, { kind: "Value", value: true }))) {
-            return { bytes: bytes, state: { kind: "Unknown" } };
+            let vectorState: checkruntime.CheckOutcome = { kind: "Unimplemented" };
+            if (checkruntime.equalBoolValue(status, { kind: "Unknown" })) {
+                vectorState = { kind: "Unknown" };
+            }
+            return { bytes: bytes, state: vectorState };
         }
         let index: number = 0;
         while (index < value.elements.length) {
@@ -15198,7 +15210,11 @@ function catalogVectorHashBytes(input: checkruntime.ArrayValue): VectorHashBytes
                 }
             }
             if ((checkruntime.equalInt8Value(cell, { kind: "Unknown" }) || checkruntime.equalInt8Value(cell, { kind: "Unimplemented" })) || checkruntime.equalInt8Value(cell, { kind: "Null" })) {
-                return { bytes: bytes, state: { kind: "Unknown" } };
+                let testedFlavor: number = 2;
+                if (checkruntime.equalInt8Value(cell, { kind: "Unknown" })) {
+                    testedFlavor = langruntime.checkedI32(1);
+                }
+                return { bytes: bytes, state: checkruntime.checkUnresolved(testedFlavor) };
             }
             index = langruntime.checkedAdd(index, 1);
         }
@@ -15224,8 +15240,11 @@ export function hashoidvectorHb8d(input: checkruntime.ArrayValue): checkruntime.
     if (checkruntime.equalCheckOutcome(plan.state, { kind: "Null" })) {
         return { kind: "Null" };
     }
+    if (checkruntime.equalCheckOutcome(plan.state, { kind: "Unknown" })) {
+        return checkruntime.int4Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
+    }
     if (!(checkruntime.equalCheckOutcome(plan.state, { kind: "True" }))) {
-        return checkruntime.int4Unresolved(unresolvedFlavor);
+        return checkruntime.int4Unresolved(2);
     }
     return checkruntime.makeInt4Value(checkruntime.hashBytes32(plan.bytes));
 }
@@ -15292,8 +15311,11 @@ export function hashoidvectorextendedHlbf(input: checkruntime.ArrayValue, seed: 
         const error: checkruntime.SqlError = state.value;
         return { kind: "Error", value: error };
     }
+    if (checkruntime.equalCheckOutcome(plan.state, { kind: "Unknown" })) {
+        return checkruntime.int8Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
+    }
     if (!(checkruntime.equalCheckOutcome(plan.state, { kind: "True" }))) {
-        return checkruntime.int8Unresolved(unresolvedFlavor);
+        return checkruntime.int8Unresolved(2);
     }
     if (seed.kind === "Value") {
         const value: bigint = langruntime.checkedI64(seed.value);
@@ -17179,6 +17201,9 @@ function clockFieldsTime(input: checkruntime.TimeValue): ClockFieldInput {
     if (checkruntime.equalTimeValue(input, { kind: "Null" })) {
         value = { kind: "Null" };
     }
+    if (checkruntime.equalTimeValue(input, { kind: "Unimplemented" })) {
+        value = { kind: "Unimplemented" };
+    }
     if (input.kind === "Value") {
         const time: bigint = langruntime.checkedI64(input.value);
         value = checkruntime.makeIntervalValue(0, 0, time);
@@ -17194,6 +17219,9 @@ function clockFieldsTimetz(input: checkruntime.TimetzValue): ClockFieldInput {
     }
     if (checkruntime.equalTimetzValue(input, { kind: "Null" })) {
         value = { kind: "Null" };
+    }
+    if (checkruntime.equalTimetzValue(input, { kind: "Unimplemented" })) {
+        value = { kind: "Unimplemented" };
     }
     if (input.kind === "Value") {
         const time: checkruntime.TimetzPayload = input.value;
@@ -30688,14 +30716,14 @@ export function prepareJsonPopulate(base: checkruntime.CompositeValue, input: ch
         if (base.kind === "Unknown") {
             status = { kind: "Unknown" };
         }
-        if (base.kind === "Unimplemented") {
-            status = { kind: "Unknown" };
-        }
         if (input.kind === "Unknown") {
             status = { kind: "Unknown" };
         }
+        if (base.kind === "Unimplemented") {
+            status = { kind: "Unimplemented" };
+        }
         if (input.kind === "Unimplemented") {
-            status = { kind: "Unknown" };
+            status = { kind: "Unimplemented" };
         }
     }
     if (checkruntime.equalCheckOutcome(status, { kind: "True" })) {
@@ -30704,7 +30732,7 @@ export function prepareJsonPopulate(base: checkruntime.CompositeValue, input: ch
             active = langruntime.checkedBool(false);
         }
         if (active) {
-            status = { kind: "Unknown" };
+            status = { kind: "Unimplemented" };
             const rawSource: checkruntime.JsonbInput = checkruntime.copyJsonbInput(input);
             if (rawSource.kind === "Json") {
                 const value: checkruntime.JsonPayload = rawSource.value;
@@ -30732,6 +30760,12 @@ export function prepareJsonPopulate(base: checkruntime.CompositeValue, input: ch
                     else if (partial === false || count === 0) {
                         status = { kind: "True" };
                     }
+                    else {
+                        status = { kind: "Unknown" };
+                    }
+                }
+                else if (partial) {
+                    status = { kind: "Unknown" };
                 }
             }
         }
@@ -30834,10 +30868,12 @@ export function jsonPopulateAcceptDomain(input: JsonPopulateState, output: check
         status = { kind: "Error", value: error };
     }
     if (output.kind === "Unknown") {
-        status = { kind: "Unknown" };
+        if (!(checkruntime.equalCheckOutcome(status, { kind: "Unimplemented" }))) {
+            status = { kind: "Unknown" };
+        }
     }
     if (output.kind === "Unimplemented") {
-        status = { kind: "Unknown" };
+        status = { kind: "Unimplemented" };
     }
     return { input: input.input, base: input.base, output: output, status: status, hard: jsonPopulateHardError(input.hard, hard), position: input.position, count: input.count, active: input.active, convert: input.convert, current: input.current, utf8: input.utf8 };
 }
@@ -30857,7 +30893,7 @@ export function jsonPopulateAccept(input: JsonPopulateState, field: checkruntime
             status = { kind: "Unknown" };
         }
         if (field.kind === "Unimplemented") {
-            status = { kind: "Unknown" };
+            status = { kind: "Unimplemented" };
         }
     }
     if (checkruntime.equalCheckOutcome(status, { kind: "True" })) {
@@ -30904,8 +30940,11 @@ export function jsonPopulateGuard(input: JsonPopulateState, flag: checkruntime.B
         status = { kind: "Error", value: error };
         hard = status;
     }
-    if (safe === false && (checkruntime.equalBoolValue(flag, { kind: "Unknown" }) || checkruntime.equalBoolValue(flag, { kind: "Unimplemented" }))) {
+    if (safe === false && checkruntime.equalBoolValue(flag, { kind: "Unknown" }) && !(checkruntime.equalCheckOutcome(status, { kind: "Unimplemented" }))) {
         status = { kind: "Unknown" };
+    }
+    if (safe === false && checkruntime.equalBoolValue(flag, { kind: "Unimplemented" })) {
+        status = { kind: "Unimplemented" };
     }
     return { input: input.input, base: input.base, output: input.output, status: status, hard: hard, position: input.position, count: input.count, active: input.active, convert: input.convert, current: input.current, utf8: input.utf8 };
 }
@@ -39598,7 +39637,11 @@ function geometryReadPoint(source: GeometryInputText, begin: number): GeometryIn
         return { value: { kind: "Error", value: error }, end: first.end };
     }
     if ((checkruntime.equalFloat8Value(firstValue, { kind: "Unknown" }) || checkruntime.equalFloat8Value(firstValue, { kind: "Unimplemented" }))) {
-        return { value: { kind: "Unknown" }, end: first.end };
+        let testedFlavor: number = 1;
+        if (checkruntime.equalFloat8Value(firstValue, { kind: "Unimplemented" })) {
+            testedFlavor = langruntime.checkedI32(2);
+        }
+        return { value: checkruntime.pointUnresolved(testedFlavor), end: first.end };
     }
     index = langruntime.checkedIndex(first.end);
     if (index >= source.chars.length || !(langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === ",")) {
@@ -39611,7 +39654,11 @@ function geometryReadPoint(source: GeometryInputText, begin: number): GeometryIn
         return { value: { kind: "Error", value: error }, end: second.end };
     }
     if ((checkruntime.equalFloat8Value(secondValue, { kind: "Unknown" }) || checkruntime.equalFloat8Value(secondValue, { kind: "Unimplemented" }))) {
-        return { value: { kind: "Unknown" }, end: second.end };
+        let testedFlavor: number = 1;
+        if (checkruntime.equalFloat8Value(secondValue, { kind: "Unimplemented" })) {
+            testedFlavor = langruntime.checkedI32(2);
+        }
+        return { value: checkruntime.pointUnresolved(testedFlavor), end: second.end };
     }
     index = langruntime.checkedIndex(second.end);
     if (delimited) {
@@ -39736,7 +39783,11 @@ function geometryReadPair(source: GeometryInputText, begin: number): GeometryInp
         return geometryPairFailure({ kind: "Error", value: error });
     }
     if ((checkruntime.equalPointValue(firstValue, { kind: "Unknown" }) || checkruntime.equalPointValue(firstValue, { kind: "Unimplemented" }))) {
-        return geometryPairFailure({ kind: "Unknown" });
+        let testedFlavor: number = 1;
+        if (checkruntime.equalPointValue(firstValue, { kind: "Unimplemented" })) {
+            testedFlavor = langruntime.checkedI32(2);
+        }
+        return geometryPairFailure(checkruntime.pointUnresolved(testedFlavor));
     }
     index = langruntime.checkedIndex(first.end);
     if (index < source.chars.length && langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === ",") {
@@ -39749,7 +39800,11 @@ function geometryReadPair(source: GeometryInputText, begin: number): GeometryInp
         return geometryPairFailure({ kind: "Error", value: error });
     }
     if ((checkruntime.equalPointValue(secondValue, { kind: "Unknown" }) || checkruntime.equalPointValue(secondValue, { kind: "Unimplemented" }))) {
-        return geometryPairFailure({ kind: "Unknown" });
+        let testedFlavor: number = 1;
+        if (checkruntime.equalPointValue(secondValue, { kind: "Unimplemented" })) {
+            testedFlavor = langruntime.checkedI32(2);
+        }
+        return geometryPairFailure(checkruntime.pointUnresolved(testedFlavor));
     }
     index = langruntime.checkedIndex(second.end);
     if (index < source.chars.length && langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === ",") {
@@ -40182,7 +40237,11 @@ function lineProjectPoint(point: checkruntime.PointValue, line: checkruntime.Lin
         return { point: { kind: "Error", value: error }, distance: { kind: "Error", value: error } };
     }
     if ((checkruntime.equalPointValue(point, { kind: "Unknown" }) || checkruntime.equalPointValue(point, { kind: "Unimplemented" })) || (checkruntime.equalLineValue(line, { kind: "Unknown" }) || checkruntime.equalLineValue(line, { kind: "Unimplemented" }))) {
-        return { point: { kind: "Unknown" }, distance: { kind: "Unknown" } };
+        let testedFlavor: number = 1;
+        if (checkruntime.equalPointValue(point, { kind: "Unimplemented" })) {
+            testedFlavor = langruntime.checkedI32(2);
+        }
+        return { point: checkruntime.pointUnresolved(testedFlavor), distance: checkruntime.float8Unresolved(testedFlavor) };
     }
     if (checkruntime.equalPointValue(point, { kind: "Null" }) || checkruntime.equalLineValue(line, { kind: "Null" })) {
         return { point: { kind: "Null" }, distance: { kind: "Null" } };
@@ -41455,7 +41514,11 @@ function segmentProjectLine(segment: checkruntime.LsegValue, line: checkruntime.
         return segmentClosestFromStatus({ kind: "Error", value: error });
     }
     if ((checkruntime.equalPointValue(intersection, { kind: "Unknown" }) || checkruntime.equalPointValue(intersection, { kind: "Unimplemented" }))) {
-        return segmentClosestFromStatus({ kind: "Unknown" });
+        let testedFlavor: number = 1;
+        if (checkruntime.equalPointValue(intersection, { kind: "Unimplemented" })) {
+            testedFlavor = langruntime.checkedI32(2);
+        }
+        return segmentClosestFromStatus(checkruntime.boolUnresolved(testedFlavor));
     }
     if (!(checkruntime.equalPointValue(intersection, { kind: "Null" }))) {
         return { point: intersection, distance: checkruntime.makeFloat8Bits(0n) };
@@ -41527,7 +41590,11 @@ function segmentNearestPair(left: checkruntime.LsegValue, right: checkruntime.Ls
         return segmentClosestFromStatus({ kind: "Error", value: error });
     }
     if ((checkruntime.equalPointValue(intersection, { kind: "Unknown" }) || checkruntime.equalPointValue(intersection, { kind: "Unimplemented" }))) {
-        return segmentClosestFromStatus({ kind: "Unknown" });
+        let testedFlavor: number = 1;
+        if (checkruntime.equalPointValue(intersection, { kind: "Unimplemented" })) {
+            testedFlavor = langruntime.checkedI32(2);
+        }
+        return segmentClosestFromStatus(checkruntime.boolUnresolved(testedFlavor));
     }
     if (!(checkruntime.equalPointValue(intersection, { kind: "Null" }))) {
         return { point: intersection, distance: checkruntime.makeFloat8Bits(0n) };
@@ -69620,6 +69687,9 @@ export function concatBegin(separator: checkruntime.TextValue, argumentGuard: ch
         const error: checkruntime.SqlError = separator.value;
         status = { kind: "Error", value: error };
     }
+    if (separator.kind === "Unimplemented") {
+        status = { kind: "Unimplemented" };
+    }
     if (separator.kind === "Value") {
         const value: string = langruntime.checkedString(separator.value);
         text = langruntime.checkedString(value);
@@ -69639,6 +69709,9 @@ export function concatVariadicBegin(input: TextConcatState, nullness: checkrunti
         if (checkruntime.equalBoolValue(nullness, { kind: "Value", value: true })) {
             status = { kind: "Null" };
         }
+        else if (checkruntime.equalBoolValue(nullness, { kind: "Unimplemented" })) {
+            status = { kind: "Unimplemented" };
+        }
         else if (!(checkruntime.equalBoolValue(nullness, { kind: "Value", value: false }))) {
             status = { kind: "Unknown" };
         }
@@ -69654,6 +69727,9 @@ function concatAppend(input: TextConcatState, value: checkruntime.TextValue): Te
         if (value.kind === "Error") {
             const error: checkruntime.SqlError = value.value;
             status = { kind: "Error", value: error };
+        }
+        if (value.kind === "Unimplemented") {
+            status = { kind: "Unimplemented" };
         }
         if (value.kind === "Value") {
             const part: string = langruntime.checkedString(value.value);
@@ -69677,7 +69753,10 @@ export function concatBeforeArgument(input: TextConcatState, nullness: checkrunt
     let ready: boolean = false;
     let printed: boolean = input.printed;
     if (checkruntime.equalCheckOutcome(status, { kind: "True" }) && !(checkruntime.equalBoolValue(nullness, { kind: "Value", value: true }))) {
-        if (!(checkruntime.equalBoolValue(nullness, { kind: "Value", value: false }))) {
+        if (checkruntime.equalBoolValue(nullness, { kind: "Unimplemented" })) {
+            status = { kind: "Unimplemented" };
+        }
+        else if (!(checkruntime.equalBoolValue(nullness, { kind: "Value", value: false }))) {
             status = { kind: "Unknown" };
         }
         else {
@@ -70243,7 +70322,11 @@ function formatPadOutput(input: TextConcatState, value: checkruntime.TextValue, 
         return concatAfterArgument(input, value);
     }
     if ((checkruntime.equalTextValue(value, { kind: "Unknown" }) || checkruntime.equalTextValue(value, { kind: "Unimplemented" })) || checkruntime.equalTextValue(value, { kind: "Null" })) {
-        const missing: checkruntime.TextValue = { kind: "Unknown" };
+        let testedFlavor: number = 2;
+        if (checkruntime.equalTextValue(value, { kind: "Unknown" })) {
+            testedFlavor = langruntime.checkedI32(1);
+        }
+        const missing: checkruntime.TextValue = checkruntime.textUnresolved(testedFlavor);
         return concatAfterArgument(input, missing);
     }
     if (width === langruntime.checkedSignedSubtract(langruntime.checkedSignedNegate(2147483647), 1)) {
@@ -70316,7 +70399,10 @@ function formatAcceptWithBounds(input: TextFormatState, value: checkruntime.Text
                 parsed = { kind: "Error", value: error };
             }
         }
-        status = { kind: "Unknown" };
+        status = { kind: "Unimplemented" };
+        if (checkruntime.equalInt8Value(parsed, { kind: "Unknown" })) {
+            status = { kind: "Unknown" };
+        }
         if (parsed.kind === "Error") {
             const error: checkruntime.SqlError = parsed.value;
             status = { kind: "Error", value: error };
@@ -70365,8 +70451,11 @@ export function formatBeforeArgument(input: TextFormatState, nullness: checkrunt
     if (checkruntime.equalBoolValue(nullness, { kind: "Value", value: false })) {
         render = langruntime.checkedBool(true);
     }
-    else {
+    else if (checkruntime.equalBoolValue(nullness, { kind: "Unknown" })) {
         status = { kind: "Unknown" };
+    }
+    else {
+        status = { kind: "Unimplemented" };
     }
     if (nullness.kind === "Error") {
         const error: checkruntime.SqlError = nullness.value;
@@ -70436,6 +70525,9 @@ export function formatBegin(format: checkruntime.TextValue, count: checkruntime.
         const error: checkruntime.SqlError = format.value;
         status = { kind: "Error", value: error };
     }
+    if (format.kind === "Unimplemented") {
+        status = { kind: "Unimplemented" };
+    }
     if (format.kind === "Value") {
         const text: string = langruntime.checkedString(format.value);
         formatText = langruntime.checkedString(text);
@@ -70450,7 +70542,10 @@ export function formatBegin(format: checkruntime.TextValue, count: checkruntime.
         knownCount = langruntime.checkedBool(true);
     }
     if (knownCount === false && checkruntime.equalCheckOutcome(status, { kind: "True" })) {
-        status = { kind: "Unknown" };
+        status = { kind: "Unimplemented" };
+        if (checkruntime.equalInt4Value(count, { kind: "Unknown" })) {
+            status = { kind: "Unknown" };
+        }
     }
     const output: TextFormatOutput = formatBeginOutput(guard);
     if (!(checkruntime.equalCheckOutcome(output.status, { kind: "True" }))) {

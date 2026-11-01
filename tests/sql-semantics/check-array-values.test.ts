@@ -600,11 +600,11 @@ pub fn array_carrier_probe(family:Int4Value)->BoolValue {
 
 const ownershipProbe = String.raw`
 fn array_fixture_state(input:ArrayValue)->i32 {
- if let ArrayValue::Unknown=input {return 0;};if let ArrayValue::Null=input {return 1;};
+ if let ArrayValue::Unknown=input {return 0;};if let ArrayValue::Unimplemented=input {return 0;};if let ArrayValue::Null=input {return 1;};
  if let ArrayValue::Error(_)=input {return 2;};3
 }
 fn array_fixture_element_state(input:ArrayElement)->i32 {
- if let ArrayElement::Unknown=input {return 0;};if let ArrayElement::Null=input {return 1;};
+ if let ArrayElement::Unknown=input {return 0;};if let ArrayElement::Unimplemented=input {return 0;};if let ArrayElement::Null=input {return 1;};
  if let ArrayElement::Error(_)=input {return 2;};3
 }
 fn array_fixture_error(input:ArrayValue)->u32 {

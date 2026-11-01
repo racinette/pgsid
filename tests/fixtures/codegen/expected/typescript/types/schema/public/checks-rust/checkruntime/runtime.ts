@@ -18435,6 +18435,9 @@ export function arrayMembershipPair(left: ArrayElement, right: ArrayElement): In
 }
 export function arrayMembershipMatchStep(matched: BoolValue, comparison: Int4Value): BoolValue {
     let value: BoolValue = { kind: "Unknown" };
+    if (comparison.kind === "Unimplemented") {
+        value = { kind: "Unimplemented" };
+    }
     if (comparison.kind === "Value") {
         const result: number = langruntime.checkedI32(comparison.value);
         value = { kind: "Value", value: result === 0 };
@@ -19066,7 +19069,7 @@ export function arrayRewriteStep(input: ArrayArguments, plan: ArrayComparisonPay
                 return appendArrayArgument(input, { kind: "Null" });
             }
         }
-        return appendArrayArgument(input, { kind: "Unknown" });
+        return appendArrayArgument(input, arrayElementUnresolved(conditionFlavor31564));
     }
     if (compared.kind === "Value") {
         const value: number = langruntime.checkedI32(compared.value);

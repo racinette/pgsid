@@ -48,13 +48,13 @@ pub(crate) fn prepare_json_populate(
     if status == CheckOutcome::True {
         if let CompositeValue::Unknown = base {
             status = CheckOutcome::Unknown;
-        }; if let CompositeValue::Unimplemented = base {
+        }; if let JsonbInput::Unknown = input {
             status = CheckOutcome::Unknown;
         };
-        if let JsonbInput::Unknown = input {
-            status = CheckOutcome::Unknown;
+        if let CompositeValue::Unimplemented = base {
+            status = CheckOutcome::Unimplemented;
         }; if let JsonbInput::Unimplemented = input {
-            status = CheckOutcome::Unknown;
+            status = CheckOutcome::Unimplemented;
         };
     };
     if status == CheckOutcome::True {
@@ -63,7 +63,7 @@ pub(crate) fn prepare_json_populate(
             active = false;
         };
         if active {
-            status = CheckOutcome::Unknown;
+            status = CheckOutcome::Unimplemented;
             let raw_source = input.clone();
             if let JsonbInput::Json(value) = raw_source {
                 status = json_read_object_ready(JsonValue::Value(value), utf8);
@@ -90,7 +90,12 @@ pub(crate) fn prepare_json_populate(
                     } else if partial == false || count == 0 {
                         // Unknown keys may leave base fields untouched and skip input callbacks.
                         status = CheckOutcome::True;
+                    } else {
+                        // The partial value's own deferral hides which fields it supplies.
+                        status = CheckOutcome::Unknown;
                     };
+                } else if partial {
+                    status = CheckOutcome::Unknown;
                 };
             };
         };
@@ -98,6 +103,8 @@ pub(crate) fn prepare_json_populate(
     if status == CheckOutcome::True && active {
         let source = base.clone();
         if let CompositeValue::Value(value) = source {
+            // A base unlike the captured layout, or an uncaptured one, leaves the fields to the
+            // catalog.
             if value.type_name.as_str() != type_name || value.fields.len() != expected || count < 0
             {
                 status = CheckOutcome::Unknown;
@@ -225,9 +232,11 @@ pub(crate) fn json_populate_accept_domain(
         status = CheckOutcome::Error(error);
     };
     if let CompositeValue::Unknown = output {
-        status = CheckOutcome::Unknown;
+        if status != CheckOutcome::Unimplemented {
+            status = CheckOutcome::Unknown;
+        };
     }; if let CompositeValue::Unimplemented = output {
-        status = CheckOutcome::Unknown;
+        status = CheckOutcome::Unimplemented;
     };
     JsonPopulateState {
         input: input.input,
@@ -262,7 +271,7 @@ pub(crate) fn json_populate_accept(
         if let ArrayElement::Unknown = field {
             status = CheckOutcome::Unknown;
         }; if let ArrayElement::Unimplemented = field {
-            status = CheckOutcome::Unknown;
+            status = CheckOutcome::Unimplemented;
         };
     };
     if status == CheckOutcome::True {
@@ -320,8 +329,11 @@ pub(crate) fn json_populate_guard(
         status = CheckOutcome::Error(error);
         hard = status;
     };
-    if safe == false && (flag == BoolValue::Unknown || flag == BoolValue::Unimplemented) {
+    if safe == false && flag == BoolValue::Unknown && status != CheckOutcome::Unimplemented {
         status = CheckOutcome::Unknown;
+    };
+    if safe == false && flag == BoolValue::Unimplemented {
+        status = CheckOutcome::Unimplemented;
     };
     JsonPopulateState {
         input: input.input,

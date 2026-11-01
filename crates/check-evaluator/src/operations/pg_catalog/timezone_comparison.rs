@@ -94,7 +94,11 @@ fn timezone_compare_date(
         return timezone_comparison_result(Int4Value::Error(error));
     };
     if (left == DateValue::Unknown || left == DateValue::Unimplemented) || (right == TimestamptzValue::Unknown || right == TimestamptzValue::Unimplemented) {
-        return timezone_comparison_result(Int4Value::Unknown);
+        let mut tested_flavor: i32 = 1;
+        if left == DateValue::Unimplemented {
+            tested_flavor = 2;
+        };
+        return timezone_comparison_result(int4_unresolved(tested_flavor));
     };
     if left == DateValue::Null || right == TimestamptzValue::Null {
         return timezone_comparison_result(Int4Value::Null);
@@ -142,7 +146,11 @@ fn timezone_compare_timestamp(
         return timezone_comparison_result(Int4Value::Error(error));
     };
     if (left == TimestampValue::Unknown || left == TimestampValue::Unimplemented) || (right == TimestamptzValue::Unknown || right == TimestamptzValue::Unimplemented) {
-        return timezone_comparison_result(Int4Value::Unknown);
+        let mut tested_flavor: i32 = 1;
+        if left == TimestampValue::Unimplemented {
+            tested_flavor = 2;
+        };
+        return timezone_comparison_result(int4_unresolved(tested_flavor));
     };
     if left == TimestampValue::Null || right == TimestamptzValue::Null {
         return timezone_comparison_result(Int4Value::Null);

@@ -393,7 +393,7 @@ pub fn array_rewrite_partial_probe()->BoolValue {
  if array_element_to_int4(result.elements[2].clone())!=Int4Value::Unknown {return BoolValue::Value(false);};
  let removed=rewrite_partial_run(original.clone(),one.clone(),ArrayElement::Null,true);
  let removed_state=prepare_array_output(removed);
- if removed_state.state!= -1 {return BoolValue::Value(false);};
+ if removed_state.state!= -3 {return BoolValue::Value(false);};
  let null_kept=rewrite_partial_run(original.clone(),ArrayElement::Unknown,ArrayElement::Null,false);
  let null_plan=prepare_array_output(null_kept);
  if array_element_to_int4(null_plan.elements[0].clone())!=Int4Value::Null {return BoolValue::Value(false);};

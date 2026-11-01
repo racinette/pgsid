@@ -12,6 +12,9 @@ fn clock_fields_time(input: TimeValue) -> ClockFieldInput {
     if input == TimeValue::Null {
         value = IntervalValue::Null;
     };
+    if input == TimeValue::Unimplemented {
+        value = IntervalValue::Unimplemented;
+    };
     if let TimeValue::Value(time) = input {
         value = make_interval_value(0, 0, time);
     };
@@ -29,6 +32,9 @@ fn clock_fields_timetz(input: TimetzValue) -> ClockFieldInput {
     };
     if input == TimetzValue::Null {
         value = IntervalValue::Null;
+    };
+    if input == TimetzValue::Unimplemented {
+        value = IntervalValue::Unimplemented;
     };
     if let TimetzValue::Value(time) = input {
         value = make_interval_value(0, 0, time.time);

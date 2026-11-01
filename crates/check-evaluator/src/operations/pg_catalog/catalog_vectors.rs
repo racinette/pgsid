@@ -210,7 +210,11 @@ fn catalog_vector_hash_bytes(input: ArrayValue) -> VectorHashBytes {
     if let ArrayValue::Value(value) = input {
         let status = catalog_vector_status(&value, true);
         if let BoolValue::Error(error) = status { return VectorHashBytes { bytes, state: CheckOutcome::Error(error) }; };
-        if status != BoolValue::Value(true) { return VectorHashBytes { bytes, state: CheckOutcome::Unknown }; };
+        if status != BoolValue::Value(true) {
+            let mut vector_state = CheckOutcome::Unimplemented;
+            if status == BoolValue::Unknown { vector_state = CheckOutcome::Unknown; };
+            return VectorHashBytes { bytes, state: vector_state };
+        };
         let mut index: usize = 0;
         while index < value.elements.len() {
             let cell = catalog_vector_units(value.elements[index].clone(), true);
@@ -223,7 +227,11 @@ fn catalog_vector_hash_bytes(input: ArrayValue) -> VectorHashBytes {
                 }
             };
             if (cell == Int8Value::Unknown || cell == Int8Value::Unimplemented) || cell == Int8Value::Null {
-                return VectorHashBytes { bytes, state: CheckOutcome::Unknown };
+                let mut tested_flavor: i32 = 2;
+                if cell == Int8Value::Unknown {
+                    tested_flavor = 1;
+                };
+                return VectorHashBytes { bytes, state: check_unresolved(tested_flavor) };
             };
             index += 1;
         }
@@ -239,7 +247,8 @@ pub fn sql__pg_catalog__hashoidvector__hb8d(input: ArrayValue) -> Int4Value {
     let state = plan.state;
     if let CheckOutcome::Error(error) = state { return Int4Value::Error(error); };
     if plan.state == CheckOutcome::Null { return Int4Value::Null; };
-    if plan.state != CheckOutcome::True { return int4_unresolved(unresolved_flavor); };
+    if plan.state == CheckOutcome::Unknown { return int4_unresolved(resolution_context(unresolved_flavor)); };
+    if plan.state != CheckOutcome::True { return int4_unresolved(2); };
     // Complete OID words contribute the same hash words in either byte order.
     make_int4_value(hash_bytes32(plan.bytes))
 }
@@ -258,7 +267,8 @@ pub fn sql__pg_catalog__hashoidvectorextended__hlbf(input: ArrayValue, seed: Int
     let plan = catalog_vector_hash_bytes(input);
     let state = plan.state;
     if let CheckOutcome::Error(error) = state { return Int8Value::Error(error); };
-    if plan.state != CheckOutcome::True { return int8_unresolved(unresolved_flavor); };
+    if plan.state == CheckOutcome::Unknown { return int8_unresolved(resolution_context(unresolved_flavor)); };
+    if plan.state != CheckOutcome::True { return int8_unresolved(2); };
     if let Int8Value::Value(value) = seed { return make_int8_value(hash_bytes64(plan.bytes, value)); };
     int8_unresolved(unresolved_flavor)
 }

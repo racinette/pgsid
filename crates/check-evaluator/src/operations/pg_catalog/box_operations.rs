@@ -423,9 +423,13 @@ fn box_cross_segment(
             };
         };
         if (distance == Float8Value::Unknown || distance == Float8Value::Unimplemented) {
+            let mut tested_flavor: i32 = 1;
+            if distance == Float8Value::Unimplemented {
+                tested_flavor = 2;
+            };
             return BoxSegmentIntersection {
-                intersects: BoolValue::Unknown,
-                point: PointValue::Unknown,
+                intersects: bool_unresolved(tested_flavor),
+                point: point_unresolved(tested_flavor),
             };
         };
         nearest = projection.point;
@@ -448,8 +452,12 @@ fn box_cross_segment(
             };
         };
         if (result == PointValue::Unknown || result == PointValue::Unimplemented) {
+            let mut tested_flavor: i32 = 1;
+            if result == PointValue::Unimplemented {
+                tested_flavor = 2;
+            };
             return BoxSegmentIntersection {
-                intersects: BoolValue::Unknown,
+                intersects: bool_unresolved(tested_flavor),
                 point: result,
             };
         };
