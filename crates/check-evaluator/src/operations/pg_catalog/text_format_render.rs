@@ -10,7 +10,12 @@ fn format_pad_output(
         return concat_after_argument(input, value);
     };
     if (value == TextValue::Unknown || value == TextValue::Unimplemented) || value == TextValue::Null {
-        let missing = TextValue::Unknown;
+        // PostgreSQL pads a NULL argument as text, so only an unknown argument is a database fact.
+        let mut tested_flavor: i32 = 2;
+        if value == TextValue::Unknown {
+            tested_flavor = 1;
+        };
+        let missing = text_unresolved(tested_flavor);
         return concat_after_argument(input, missing);
     };
     if width == -2147483647 - 1 {
@@ -83,7 +88,11 @@ fn format_accept_with_bounds(
                 parsed = Int8Value::Error(error);
             };
         };
-        status = CheckOutcome::Unknown;
+        // A NULL width counts as zero in PostgreSQL, so only an unknown width is a database fact.
+        status = CheckOutcome::Unimplemented;
+        if parsed == Int8Value::Unknown {
+            status = CheckOutcome::Unknown;
+        };
         if let Int8Value::Error(error) = parsed {
             status = CheckOutcome::Error(error);
         };
@@ -146,8 +155,10 @@ pub(crate) fn format_before_argument(
     let mut render = false;
     if nullness == BoolValue::Value(false) {
         render = true;
-    } else {
+    } else if nullness == BoolValue::Unknown {
         status = CheckOutcome::Unknown;
+    } else {
+        status = CheckOutcome::Unimplemented;
     };
     if let BoolValue::Error(error) = nullness {
         status = CheckOutcome::Error(error);

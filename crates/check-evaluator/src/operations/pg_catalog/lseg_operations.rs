@@ -260,7 +260,11 @@ fn segment_project_line(segment: LsegValue, line: LineValue) -> SegmentClosest {
         return segment_closest_from_status(BoolValue::Error(error));
     };
     if (intersection == PointValue::Unknown || intersection == PointValue::Unimplemented) {
-        return segment_closest_from_status(BoolValue::Unknown);
+        let mut tested_flavor: i32 = 1;
+        if intersection == PointValue::Unimplemented {
+            tested_flavor = 2;
+        };
+        return segment_closest_from_status(bool_unresolved(tested_flavor));
     };
     if intersection != PointValue::Null {
         return SegmentClosest {
@@ -337,7 +341,11 @@ fn segment_nearest_pair(left: LsegValue, right: LsegValue) -> SegmentClosest {
         return segment_closest_from_status(BoolValue::Error(error));
     };
     if (intersection == PointValue::Unknown || intersection == PointValue::Unimplemented) {
-        return segment_closest_from_status(BoolValue::Unknown);
+        let mut tested_flavor: i32 = 1;
+        if intersection == PointValue::Unimplemented {
+            tested_flavor = 2;
+        };
+        return segment_closest_from_status(bool_unresolved(tested_flavor));
     };
     if intersection != PointValue::Null {
         return SegmentClosest {

@@ -372,7 +372,7 @@ pub fn array_reverse_partial_probe()->BoolValue {
  if jsonb_to_text(before)!=make_text_value("{\"a\": [1]}") {return BoolValue::Value(false);};
  if jsonb_to_text(after)!=make_text_value("{\"b\": [2]}") {return BoolValue::Value(false);};
  let unknown=sql__pg_catalog__array_reverse__iwk0(ArrayValue::Unknown);let plan=prepare_array_output(unknown);
- if plan.state!= -1 {return BoolValue::Value(false);};
+ if plan.state!= -3 {return BoolValue::Value(false);};
  if array_is_null(sql__pg_catalog__array_reverse__iwk0(ArrayValue::Null))!=BoolValue::Value(true) {return BoolValue::Value(false);};
  let error=make_sql_error(3452547);let failed=sql__pg_catalog__array_reverse__iwk0(ArrayValue::Error(error));let failed_plan=prepare_array_output(failed);
  if failed_plan.state!= -2 || failed_plan.error!=error {return BoolValue::Value(false);};

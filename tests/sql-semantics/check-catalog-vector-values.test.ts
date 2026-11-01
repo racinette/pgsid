@@ -446,7 +446,7 @@ fn vector_owned_states(oid:bool)->BoolValue {
   if catalog_vector_to_text(edited,oid)!=make_text_value("9 2") {return BoolValue::Value(false);};
  };
  if catalog_vector_to_text(original,oid)!=make_text_value("1 2") {return BoolValue::Value(false);};
- if array_is_null(catalog_vector_from_coerced(catalog_vector_from_text(make_text_value("1"),oid),oid==false))!=BoolValue::Unknown {return BoolValue::Value(false);};
+ if array_is_null(catalog_vector_from_coerced(catalog_vector_from_text(make_text_value("1"),oid),oid==false))!=BoolValue::Unimplemented {return BoolValue::Value(false);};
  if oid {
   let known=catalog_vector_from_text(make_text_value("1 2"),true);
   if let ArrayValue::Value(payload)=known {

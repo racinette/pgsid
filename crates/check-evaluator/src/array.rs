@@ -2676,6 +2676,9 @@ pub fn array_membership_pair(left: ArrayElement, right: ArrayElement) -> Int4Val
 
 pub fn array_membership_match_step(matched: BoolValue, comparison: Int4Value) -> BoolValue {
     let mut value = BoolValue::Unknown;
+    if let Int4Value::Unimplemented = comparison {
+        value = BoolValue::Unimplemented;
+    };
     if let Int4Value::Value(result) = comparison {
         value = BoolValue::Value(result == 0);
     };
@@ -3249,7 +3252,7 @@ pub fn array_rewrite_step(
                 return append_array_argument(input, ArrayElement::Null);
             };
         };
-        return append_array_argument(input, ArrayElement::Unknown);
+        return append_array_argument(input, array_element_unresolved(condition_flavor_3156_4));
     };
     if let Int4Value::Value(value) = compared {
         if value == 0 {

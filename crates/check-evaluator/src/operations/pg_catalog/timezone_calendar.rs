@@ -138,6 +138,7 @@ fn timezone_lookup_class(
     }
 }
 
+// A session zone without compiled rules is described only by the server zone database.
 fn timezone_lookup_session_classify(
     key: &str,
     session: &str,
@@ -199,6 +200,7 @@ fn timezone_lookup_session_classify(
     timezone_lookup_class(TextValue::Null, 0, 0, "")
 }
 
+// An unresolved lookup waits on the session zone abbreviations or the server zone database.
 fn timezone_lookup_classify(
     input: TextValue,
     session: &str,

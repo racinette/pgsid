@@ -281,9 +281,13 @@ fn line_project_point(point: PointValue, line: LineValue) -> LineProjection {
         };
     };
     if (point == PointValue::Unknown || point == PointValue::Unimplemented) || (line == LineValue::Unknown || line == LineValue::Unimplemented) {
+        let mut tested_flavor: i32 = 1;
+        if point == PointValue::Unimplemented {
+            tested_flavor = 2;
+        };
         return LineProjection {
-            point: PointValue::Unknown,
-            distance: Float8Value::Unknown,
+            point: point_unresolved(tested_flavor),
+            distance: float8_unresolved(tested_flavor),
         };
     };
     if point == PointValue::Null || line == LineValue::Null {

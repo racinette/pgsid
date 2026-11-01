@@ -38,6 +38,9 @@ pub(crate) fn format_begin(
     if let TextValue::Error(error) = format {
         status = CheckOutcome::Error(error);
     };
+    if let TextValue::Unimplemented = format {
+        status = CheckOutcome::Unimplemented;
+    };
     if let TextValue::Value(text) = format {
         format_text = text;
         status = CheckOutcome::True;
@@ -50,7 +53,10 @@ pub(crate) fn format_begin(
         known_count = true;
     };
     if known_count == false && status == CheckOutcome::True {
-        status = CheckOutcome::Unknown;
+        status = CheckOutcome::Unimplemented;
+        if count == Int4Value::Unknown {
+            status = CheckOutcome::Unknown;
+        };
     };
     let output = format_begin_output(guard);
     if output.status != CheckOutcome::True {

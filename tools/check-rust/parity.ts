@@ -596,6 +596,17 @@ export async function runCheckParity(
     }
     const casesPath = resolve(directory, 'parity-cases.txt')
     await writeFile(casesPath, caseLines.join('\n') + '\n')
+    // Fixtures that supply an Unknown input, so an origin report can tell them from deferrals.
+    const unknownInputsPath = resolve(directory, 'parity-unknown-inputs.txt')
+    if (originReport)
+      await writeFile(
+        unknownInputsPath,
+        fixtures
+          .flatMap((fixture, index) =>
+            JSON.stringify(fixture.row).includes('"kind":"Unknown"') ? [String(index)] : [],
+          )
+          .join('\n') + '\n',
+      )
     const argumentPrefixes = (name: string) =>
       entries
         .get(name)!
@@ -653,6 +664,12 @@ fn checks_match_postgres() {
     let cases = std::fs::read_to_string(${rustStringLiteral(casesPath)}).unwrap();
     let mut mismatches: Vec<String> = Vec::new();
     let mut count = 0usize;
+${
+  originReport
+    ? `    let unknown_inputs: std::collections::HashSet<String> = std::fs::read_to_string(${rustStringLiteral(unknownInputsPath)}).unwrap_or_default().lines().map(|line| line.to_string()).collect();
+`
+    : ''
+}
     for line in cases.lines() {
         let mut parts = line.split(' ');
         let check: usize = parts.next().unwrap().parse().unwrap();
@@ -685,6 +702,9 @@ ${
                 let label = if *kind == 0 || (*kind == 3 && *flavor == 2) { "I" } else { "U" };
                 let site = format!("{}@{}:{}{}", label, parity_origin_path(file), line, parity_origin_text(file, *line));
                 if !sites.contains(&site) { sites.push(site); }
+            }
+            if sites.is_empty() && unknown_inputs.contains(fixture) {
+                sites.push("U@fixture-input".to_string());
             }
             if sites.is_empty() {
                 if let Some((_, flavor, file, line)) = origins.first() {

@@ -37,6 +37,7 @@ const enclosingFunction = (path: string, line: number): string => {
 
 // Generated sites group by their text without fresh-name suffixes, since lines differ by suite.
 const site = (raw: string): { label: string; place: string } | null => {
+  if (raw === 'U@fixture-input') return { label: 'U', place: 'fixture input' }
   const match = /^(first\d|[IU])@([^:]+):(\d+)(?:\{(.*)\})?$/u.exec(raw)
   if (!match) return null
   const [, label, path, line, text] = match
@@ -66,8 +67,8 @@ for (const line of readFileSync(report, 'utf8').split('\n')) {
     .map(site)
     .filter((item) => item !== null)
     .filter((item) => item.label === actual || item.label.startsWith('first'))
-  // A row without a recorded site took its unresolved value from a fixture input.
-  const places = kept.length ? kept : [{ label: '?', place: 'no origin recorded (fixture input)' }]
+  // A row without a recorded site took its unresolved value from a direct construction.
+  const places = kept.length ? kept : [{ label: '?', place: 'no origin recorded' }]
   outcomes.set(actual!, (outcomes.get(actual!) ?? 0) + 1)
   for (const key of new Set(places.map((item) => `${actual}\t${item.label}\t${item.place}`))) {
     counts.set(key, (counts.get(key) ?? 0) + 1)

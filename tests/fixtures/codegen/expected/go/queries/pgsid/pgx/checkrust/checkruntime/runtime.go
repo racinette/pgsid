@@ -18463,6 +18463,9 @@ func ArrayMembershipPair(left ArrayElement, right ArrayElement) Int4Value {
 }
 func ArrayMembershipMatchStep(matched BoolValue, comparison Int4Value) BoolValue {
 	value := BoolValue{Kind: BoolValueUnknown}
+	if comparison.Kind == Int4ValueUnimplemented {
+		value = BoolValue{Kind: BoolValueUnimplemented}
+	}
 	if comparison.Kind == Int4ValueValue {
 		result := langruntime.CheckedI32(comparison.Value)
 		value = BoolValue{Kind: BoolValueValue, Value: result == 0}
@@ -19093,7 +19096,7 @@ func ArrayRewriteStep(input ArrayArguments, plan *ArrayComparisonPayload, index 
 				return AppendArrayArgument(input, ArrayElement{Kind: ArrayElementNull})
 			}
 		}
-		return AppendArrayArgument(input, ArrayElement{Kind: ArrayElementUnknown})
+		return AppendArrayArgument(input, ArrayElementUnresolved(conditionFlavor31564))
 	}
 	if compared.Kind == Int4ValueValue {
 		value := langruntime.CheckedI32(compared.Value)

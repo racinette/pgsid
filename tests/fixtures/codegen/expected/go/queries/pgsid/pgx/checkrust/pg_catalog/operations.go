@@ -10319,7 +10319,11 @@ func boxCrossSegment(input checkruntime.BoxValue, segment checkruntime.LsegValue
 			return boxSegmentIntersection{intersects: checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}, point: checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}}
 		}
 		if distance == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) || distance == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnimplemented}) {
-			return boxSegmentIntersection{intersects: checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}, point: checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}}
+			testedFlavor := 1
+			if distance == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnimplemented}) {
+				testedFlavor = langruntime.CheckedI32(2)
+			}
+			return boxSegmentIntersection{intersects: checkruntime.BoolUnresolved(testedFlavor), point: checkruntime.PointUnresolved(testedFlavor)}
 		}
 		nearest = projection.point
 	}
@@ -10334,7 +10338,11 @@ func boxCrossSegment(input checkruntime.BoxValue, segment checkruntime.LsegValue
 			return boxSegmentIntersection{intersects: checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}, point: checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}}
 		}
 		if result == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) || result == (checkruntime.PointValue{Kind: checkruntime.PointValueUnimplemented}) {
-			return boxSegmentIntersection{intersects: checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}, point: result}
+			testedFlavor := 1
+			if result == (checkruntime.PointValue{Kind: checkruntime.PointValueUnimplemented}) {
+				testedFlavor = langruntime.CheckedI32(2)
+			}
+			return boxSegmentIntersection{intersects: checkruntime.BoolUnresolved(testedFlavor), point: result}
 		}
 		if result != (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) {
 			return boxSegmentIntersection{intersects: checkruntime.MakeBoolValue(true), point: nearest}
@@ -15176,7 +15184,11 @@ func catalogVectorHashBytes(input checkruntime.ArrayValue) vectorHashBytes {
 			return vectorHashBytes{bytes: bytes, state: checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: error}}
 		}
 		if status != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
-			return vectorHashBytes{bytes: bytes, state: checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}}
+			vectorState := checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnimplemented}
+			if status == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) {
+				vectorState = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
+			}
+			return vectorHashBytes{bytes: bytes, state: vectorState}
 		}
 		index := 0
 		for index < len(value.Elements) {
@@ -15197,7 +15209,11 @@ func catalogVectorHashBytes(input checkruntime.ArrayValue) vectorHashBytes {
 				}
 			}
 			if (cell == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || cell == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnimplemented})) || cell == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
-				return vectorHashBytes{bytes: bytes, state: checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}}
+				testedFlavor := 2
+				if cell == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+					testedFlavor = langruntime.CheckedI32(1)
+				}
+				return vectorHashBytes{bytes: bytes, state: checkruntime.CheckUnresolved(testedFlavor)}
 			}
 			index = langruntime.CheckedAdd(index, 1)
 		}
@@ -15223,8 +15239,11 @@ func HashoidvectorHb8d(input checkruntime.ArrayValue) checkruntime.Int4Value {
 	if plan.state == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeNull}) {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
 	}
+	if plan.state == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}) {
+		return checkruntime.Int4Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
+	}
 	if plan.state != (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
-		return checkruntime.Int4Unresolved(unresolvedFlavor)
+		return checkruntime.Int4Unresolved(2)
 	}
 	return checkruntime.MakeInt4Value(checkruntime.HashBytes32(plan.bytes))
 }
@@ -15291,8 +15310,11 @@ func HashoidvectorextendedHlbf(input checkruntime.ArrayValue, seed checkruntime.
 		error := state.Error
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
 	}
+	if plan.state == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}) {
+		return checkruntime.Int8Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
+	}
 	if plan.state != (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
-		return checkruntime.Int8Unresolved(unresolvedFlavor)
+		return checkruntime.Int8Unresolved(2)
 	}
 	if seed.Kind == checkruntime.Int8ValueValue {
 		value := seed.Value
@@ -17163,6 +17185,9 @@ func clockFieldsTime(input checkruntime.TimeValue) clockFieldInput {
 	if input == (checkruntime.TimeValue{Kind: checkruntime.TimeValueNull}) {
 		value = checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}
 	}
+	if input == (checkruntime.TimeValue{Kind: checkruntime.TimeValueUnimplemented}) {
+		value = checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnimplemented}
+	}
 	if input.Kind == checkruntime.TimeValueValue {
 		time := input.Value
 		value = checkruntime.MakeIntervalValue(0, 0, time)
@@ -17178,6 +17203,9 @@ func clockFieldsTimetz(input checkruntime.TimetzValue) clockFieldInput {
 	}
 	if input == (checkruntime.TimetzValue{Kind: checkruntime.TimetzValueNull}) {
 		value = checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}
+	}
+	if input == (checkruntime.TimetzValue{Kind: checkruntime.TimetzValueUnimplemented}) {
+		value = checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnimplemented}
 	}
 	if input.Kind == checkruntime.TimetzValueValue {
 		time := input.Value
@@ -30487,14 +30515,14 @@ func PrepareJsonPopulate(base checkruntime.CompositeValue, input checkruntime.Js
 		if base.Kind == checkruntime.CompositeValueUnknown {
 			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
 		}
-		if base.Kind == checkruntime.CompositeValueUnimplemented {
-			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
-		}
 		if input.Kind == checkruntime.JsonbInputUnknown {
 			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
 		}
+		if base.Kind == checkruntime.CompositeValueUnimplemented {
+			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnimplemented}
+		}
 		if input.Kind == checkruntime.JsonbInputUnimplemented {
-			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
+			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnimplemented}
 		}
 	}
 	if status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
@@ -30503,7 +30531,7 @@ func PrepareJsonPopulate(base checkruntime.CompositeValue, input checkruntime.Js
 			active = false
 		}
 		if active {
-			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
+			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnimplemented}
 			rawSource := checkruntime.CopyJsonbInput(input)
 			if rawSource.Kind == checkruntime.JsonbInputJson {
 				value := rawSource.Json
@@ -30529,7 +30557,11 @@ func PrepareJsonPopulate(base checkruntime.CompositeValue, input checkruntime.Js
 						status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: checkruntime.MakeSqlError(jsonPopulateObjectError)}
 					} else if partial == false || count == 0 {
 						status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}
+					} else {
+						status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
 					}
+				} else if partial {
+					status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
 				}
 			}
 		}
@@ -30632,10 +30664,12 @@ func JsonPopulateAcceptDomain(input JsonPopulateState, output checkruntime.Compo
 		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: error}
 	}
 	if output.Kind == checkruntime.CompositeValueUnknown {
-		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
+		if status != (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnimplemented}) {
+			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
+		}
 	}
 	if output.Kind == checkruntime.CompositeValueUnimplemented {
-		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
+		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnimplemented}
 	}
 	return JsonPopulateState{Input: input.Input, Base: input.Base, Output: output, Status: status, Hard: JsonPopulateHardError(input.Hard, hard), Position: input.Position, Count: input.Count, Active: input.Active, Convert: input.Convert, Current: input.Current, Utf8: input.Utf8}
 }
@@ -30655,7 +30689,7 @@ func JsonPopulateAccept(input JsonPopulateState, field checkruntime.ArrayElement
 			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
 		}
 		if field.Kind == checkruntime.ArrayElementUnimplemented {
-			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
+			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnimplemented}
 		}
 	}
 	if status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
@@ -30702,8 +30736,11 @@ func JsonPopulateGuard(input JsonPopulateState, flag checkruntime.BoolValue, saf
 		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: error}
 		hard = status
 	}
-	if safe == false && (flag == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) || flag == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnimplemented})) {
+	if safe == false && flag == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) && status != (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnimplemented}) {
 		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
+	}
+	if safe == false && flag == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnimplemented}) {
+		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnimplemented}
 	}
 	return JsonPopulateState{Input: input.Input, Base: input.Base, Output: input.Output, Status: status, Hard: hard, Position: input.Position, Count: input.Count, Active: input.Active, Convert: input.Convert, Current: input.Current, Utf8: input.Utf8}
 }
@@ -39337,7 +39374,11 @@ func geometryReadPoint(source *geometryInputText, begin int) geometryInputPoint 
 		return geometryInputPoint{value: checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}, end: first.end}
 	}
 	if firstValue == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) || firstValue == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnimplemented}) {
-		return geometryInputPoint{value: checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}, end: first.end}
+		testedFlavor := 1
+		if firstValue == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnimplemented}) {
+			testedFlavor = langruntime.CheckedI32(2)
+		}
+		return geometryInputPoint{value: checkruntime.PointUnresolved(testedFlavor), end: first.end}
 	}
 	index = langruntime.CheckedIndex(first.end)
 	if index >= len(source.chars) || source.chars[index] != ',' {
@@ -39350,7 +39391,11 @@ func geometryReadPoint(source *geometryInputText, begin int) geometryInputPoint 
 		return geometryInputPoint{value: checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}, end: second.end}
 	}
 	if secondValue == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) || secondValue == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnimplemented}) {
-		return geometryInputPoint{value: checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}, end: second.end}
+		testedFlavor := 1
+		if secondValue == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnimplemented}) {
+			testedFlavor = langruntime.CheckedI32(2)
+		}
+		return geometryInputPoint{value: checkruntime.PointUnresolved(testedFlavor), end: second.end}
 	}
 	index = langruntime.CheckedIndex(second.end)
 	if delimited {
@@ -39474,7 +39519,11 @@ func geometryReadPair(source *geometryInputText, begin int) geometryInputPair {
 		return geometryPairFailure(checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error})
 	}
 	if firstValue == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) || firstValue == (checkruntime.PointValue{Kind: checkruntime.PointValueUnimplemented}) {
-		return geometryPairFailure(checkruntime.PointValue{Kind: checkruntime.PointValueUnknown})
+		testedFlavor := 1
+		if firstValue == (checkruntime.PointValue{Kind: checkruntime.PointValueUnimplemented}) {
+			testedFlavor = langruntime.CheckedI32(2)
+		}
+		return geometryPairFailure(checkruntime.PointUnresolved(testedFlavor))
 	}
 	index = langruntime.CheckedIndex(first.end)
 	if index < len(source.chars) && source.chars[index] == ',' {
@@ -39487,7 +39536,11 @@ func geometryReadPair(source *geometryInputText, begin int) geometryInputPair {
 		return geometryPairFailure(checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error})
 	}
 	if secondValue == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) || secondValue == (checkruntime.PointValue{Kind: checkruntime.PointValueUnimplemented}) {
-		return geometryPairFailure(checkruntime.PointValue{Kind: checkruntime.PointValueUnknown})
+		testedFlavor := 1
+		if secondValue == (checkruntime.PointValue{Kind: checkruntime.PointValueUnimplemented}) {
+			testedFlavor = langruntime.CheckedI32(2)
+		}
+		return geometryPairFailure(checkruntime.PointUnresolved(testedFlavor))
 	}
 	index = langruntime.CheckedIndex(second.end)
 	if index < len(source.chars) && source.chars[index] == ',' {
@@ -39920,7 +39973,11 @@ func lineProjectPoint(point checkruntime.PointValue, line checkruntime.LineValue
 		return lineProjection{point: checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}, distance: checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}}
 	}
 	if (point == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) || point == (checkruntime.PointValue{Kind: checkruntime.PointValueUnimplemented})) || (line == (checkruntime.LineValue{Kind: checkruntime.LineValueUnknown}) || line == (checkruntime.LineValue{Kind: checkruntime.LineValueUnimplemented})) {
-		return lineProjection{point: checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}, distance: checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}}
+		testedFlavor := 1
+		if point == (checkruntime.PointValue{Kind: checkruntime.PointValueUnimplemented}) {
+			testedFlavor = langruntime.CheckedI32(2)
+		}
+		return lineProjection{point: checkruntime.PointUnresolved(testedFlavor), distance: checkruntime.Float8Unresolved(testedFlavor)}
 	}
 	if point == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) || line == (checkruntime.LineValue{Kind: checkruntime.LineValueNull}) {
 		return lineProjection{point: checkruntime.PointValue{Kind: checkruntime.PointValueNull}, distance: checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}}
@@ -41193,7 +41250,11 @@ func segmentProjectLine(segment checkruntime.LsegValue, line checkruntime.LineVa
 		return segmentClosestFromStatus(checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error})
 	}
 	if intersection == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) || intersection == (checkruntime.PointValue{Kind: checkruntime.PointValueUnimplemented}) {
-		return segmentClosestFromStatus(checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown})
+		testedFlavor := 1
+		if intersection == (checkruntime.PointValue{Kind: checkruntime.PointValueUnimplemented}) {
+			testedFlavor = langruntime.CheckedI32(2)
+		}
+		return segmentClosestFromStatus(checkruntime.BoolUnresolved(testedFlavor))
 	}
 	if intersection != (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) {
 		return segmentClosest{point: intersection, distance: checkruntime.MakeFloat8Bits(int64(0))}
@@ -41265,7 +41326,11 @@ func segmentNearestPair(left checkruntime.LsegValue, right checkruntime.LsegValu
 		return segmentClosestFromStatus(checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error})
 	}
 	if intersection == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) || intersection == (checkruntime.PointValue{Kind: checkruntime.PointValueUnimplemented}) {
-		return segmentClosestFromStatus(checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown})
+		testedFlavor := 1
+		if intersection == (checkruntime.PointValue{Kind: checkruntime.PointValueUnimplemented}) {
+			testedFlavor = langruntime.CheckedI32(2)
+		}
+		return segmentClosestFromStatus(checkruntime.BoolUnresolved(testedFlavor))
 	}
 	if intersection != (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) {
 		return segmentClosest{point: intersection, distance: checkruntime.MakeFloat8Bits(int64(0))}
@@ -69210,6 +69275,9 @@ func ConcatBegin(separator checkruntime.TextValue, argumentGuard checkruntime.Bo
 		error := separator.Error
 		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: error}
 	}
+	if separator.Kind == checkruntime.TextValueUnimplemented {
+		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnimplemented}
+	}
 	if separator.Kind == checkruntime.TextValueValue {
 		value := langruntime.CheckedString(separator.Value)
 		text = langruntime.NewTextBuffer(value)
@@ -69228,6 +69296,8 @@ func ConcatVariadicBegin(input TextConcatState, nullness checkruntime.BoolValue)
 	if status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
 		if nullness == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
 			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeNull}
+		} else if nullness == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnimplemented}) {
+			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnimplemented}
 		} else if nullness != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
 			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
 		}
@@ -69243,6 +69313,9 @@ func concatAppend(input TextConcatState, value checkruntime.TextValue) TextConca
 		if value.Kind == checkruntime.TextValueError {
 			error := value.Error
 			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: error}
+		}
+		if value.Kind == checkruntime.TextValueUnimplemented {
+			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnimplemented}
 		}
 		if value.Kind == checkruntime.TextValueValue {
 			part := langruntime.CheckedString(value.Value)
@@ -69264,7 +69337,9 @@ func ConcatBeforeArgument(input TextConcatState, nullness checkruntime.BoolValue
 	ready := false
 	printed := input.Printed
 	if status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) && nullness != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
-		if nullness != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+		if nullness == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnimplemented}) {
+			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnimplemented}
+		} else if nullness != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
 			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
 		} else {
 			ready = true
@@ -69828,7 +69903,11 @@ func formatPadOutput(input TextConcatState, value checkruntime.TextValue, width 
 		return ConcatAfterArgument(input, value)
 	}
 	if (value == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || value == (checkruntime.TextValue{Kind: checkruntime.TextValueUnimplemented})) || value == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
-		missing := checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+		testedFlavor := 2
+		if value == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+			testedFlavor = langruntime.CheckedI32(1)
+		}
+		missing := checkruntime.TextUnresolved(testedFlavor)
 		return ConcatAfterArgument(input, missing)
 	}
 	if width == langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1) {
@@ -69901,7 +69980,10 @@ func formatAcceptWithBounds(input TextFormatState, value checkruntime.TextValue,
 				parsed = checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
 			}
 		}
-		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
+		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnimplemented}
+		if parsed == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
+		}
 		if parsed.Kind == checkruntime.Int8ValueError {
 			error := parsed.Error
 			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: error}
@@ -69947,8 +70029,10 @@ func FormatBeforeArgument(input TextFormatState, nullness checkruntime.BoolValue
 	render := false
 	if nullness == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
 		render = true
-	} else {
+	} else if nullness == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) {
 		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
+	} else {
+		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnimplemented}
 	}
 	if nullness.Kind == checkruntime.BoolValueError {
 		error := nullness.Error
@@ -70032,6 +70116,9 @@ func FormatBegin(format checkruntime.TextValue, count checkruntime.Int4Value, gu
 		error := format.Error
 		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: error}
 	}
+	if format.Kind == checkruntime.TextValueUnimplemented {
+		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnimplemented}
+	}
 	if format.Kind == checkruntime.TextValueValue {
 		text := langruntime.CheckedString(format.Value)
 		formatText = langruntime.NewTextBuffer(text)
@@ -70046,7 +70133,10 @@ func FormatBegin(format checkruntime.TextValue, count checkruntime.Int4Value, gu
 		knownCount = true
 	}
 	if knownCount == false && status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
-		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
+		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnimplemented}
+		if count == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
+		}
 	}
 	output := formatBeginOutput(guard)
 	if output.Status != (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {

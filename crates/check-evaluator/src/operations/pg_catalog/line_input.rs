@@ -155,8 +155,12 @@ fn geometry_read_point(source: &GeometryInputText, begin: usize) -> GeometryInpu
         };
     };
     if (first_value == Float8Value::Unknown || first_value == Float8Value::Unimplemented) {
+        let mut tested_flavor: i32 = 1;
+        if first_value == Float8Value::Unimplemented {
+            tested_flavor = 2;
+        };
         return GeometryInputPoint {
-            value: PointValue::Unknown,
+            value: point_unresolved(tested_flavor),
             end: first.end,
         };
     };
@@ -176,8 +180,12 @@ fn geometry_read_point(source: &GeometryInputText, begin: usize) -> GeometryInpu
         };
     };
     if (second_value == Float8Value::Unknown || second_value == Float8Value::Unimplemented) {
+        let mut tested_flavor: i32 = 1;
+        if second_value == Float8Value::Unimplemented {
+            tested_flavor = 2;
+        };
         return GeometryInputPoint {
-            value: PointValue::Unknown,
+            value: point_unresolved(tested_flavor),
             end: second.end,
         };
     };
@@ -294,7 +302,11 @@ fn geometry_read_pair(source: &GeometryInputText, begin: usize) -> GeometryInput
         return geometry_pair_failure(PointValue::Error(error));
     };
     if (first_value == PointValue::Unknown || first_value == PointValue::Unimplemented) {
-        return geometry_pair_failure(PointValue::Unknown);
+        let mut tested_flavor: i32 = 1;
+        if first_value == PointValue::Unimplemented {
+            tested_flavor = 2;
+        };
+        return geometry_pair_failure(point_unresolved(tested_flavor));
     };
     index = first.end;
     if index < source.chars.len() && source.chars[index] == ',' {
@@ -306,7 +318,11 @@ fn geometry_read_pair(source: &GeometryInputText, begin: usize) -> GeometryInput
         return geometry_pair_failure(PointValue::Error(error));
     };
     if (second_value == PointValue::Unknown || second_value == PointValue::Unimplemented) {
-        return geometry_pair_failure(PointValue::Unknown);
+        let mut tested_flavor: i32 = 1;
+        if second_value == PointValue::Unimplemented {
+            tested_flavor = 2;
+        };
+        return geometry_pair_failure(point_unresolved(tested_flavor));
     };
     index = second.end;
     if index < source.chars.len() && source.chars[index] == ',' {

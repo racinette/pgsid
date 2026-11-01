@@ -36,6 +36,9 @@ pub fn concat_begin(separator: TextValue, argument_guard: BoolValue) -> TextConc
     if let TextValue::Error(error) = separator {
         status = CheckOutcome::Error(error);
     };
+    if let TextValue::Unimplemented = separator {
+        status = CheckOutcome::Unimplemented;
+    };
     if let TextValue::Value(value) = separator {
         text = value;
         status = CheckOutcome::True;
@@ -62,6 +65,8 @@ pub fn concat_variadic_begin(input: TextConcatState, nullness: BoolValue) -> Tex
     if status == CheckOutcome::True {
         if nullness == BoolValue::Value(true) {
             status = CheckOutcome::Null;
+        } else if nullness == BoolValue::Unimplemented {
+            status = CheckOutcome::Unimplemented;
         } else if nullness != BoolValue::Value(false) {
             status = CheckOutcome::Unknown;
         };
@@ -86,6 +91,9 @@ fn concat_append(input: TextConcatState, value: TextValue) -> TextConcatState {
         status = CheckOutcome::Unknown;
         if let TextValue::Error(error) = value {
             status = CheckOutcome::Error(error);
+        };
+        if let TextValue::Unimplemented = value {
+            status = CheckOutcome::Unimplemented;
         };
         if let TextValue::Value(part) = value {
             let size = text_build_octets(part.as_str());
@@ -120,7 +128,9 @@ pub fn concat_before_argument(
     let mut ready = false;
     let mut printed = input.printed;
     if status == CheckOutcome::True && nullness != BoolValue::Value(true) {
-        if nullness != BoolValue::Value(false) {
+        if nullness == BoolValue::Unimplemented {
+            status = CheckOutcome::Unimplemented;
+        } else if nullness != BoolValue::Value(false) {
             status = CheckOutcome::Unknown;
         } else {
             ready = true;
