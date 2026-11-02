@@ -223,8 +223,9 @@ describe('Rust CHECK bit and varbit values', () => {
     for (const name of ['fixed_equal', 'direct_bitcmp', 'fixed_length', 'default', 'reused']) {
       record(name, { ...base, a: { kind: 'Unknown' } }, { kind: 'Unknown' })
       record(name, { ...base, a: error }, error as Outcome)
+      // A malformed payload is not a bit string the evaluator reads, so it is not database state.
       for (const invalid of ['2', 'b001', 'x0f', ' 001', '001 ', '０１', '0\0'])
-        record(name, { ...base, a: input(invalid) }, { kind: 'Unknown' })
+        record(name, { ...base, a: input(invalid) }, { kind: 'Unimplemented' })
     }
     record('fixed_equal', { ...base, a: error, b: other }, error as Outcome)
     for (const a of [{ kind: 'Unknown' }, { kind: 'Null' }] as Input[])
