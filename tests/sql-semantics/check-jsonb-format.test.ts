@@ -291,8 +291,9 @@ it('matches recursive JSONB null stripping, default arguments, optional array re
     )
     add('strip_default', { ...baseline, expected_default: known('{}') }, { kind: 'False' })
     add('pretty', { ...baseline, expected_pretty: known('{}') }, { kind: 'False' })
+    // The server rejects invalid JSON text without any context, so deferring it is a missing check.
     for (const name of ['strip_default', 'pretty'])
-      add(name, { ...baseline, document: known('[1,]') }, { kind: 'Unknown' })
+      add(name, { ...baseline, document: known('[1,]') }, { kind: 'Unimplemented' })
     for (const depth of [128, 16384]) {
       const input = '['.repeat(depth) + '{"drop":null,"keep":1}' + ']'.repeat(depth),
         expected = '['.repeat(depth) + '{"keep":1}' + ']'.repeat(depth)

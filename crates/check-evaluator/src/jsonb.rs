@@ -589,8 +589,9 @@ fn jsonb_render(input: JsonbValue, require_order: bool, pretty: bool) -> TextVal
                             }
                             member = entry.next;
                         }
+                        // Keys sort by their bytes in the server encoding, which the output does not know.
                         if unicode && nonempty > 1 {
-                            return text_unresolved(unresolved_flavor);
+                            return text_unresolved(resolution_context(unresolved_flavor));
                         };
                     };
                     if node.kind == 5 {
