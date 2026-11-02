@@ -58,6 +58,7 @@ import {
 } from '../../src/codegen/typescript/sql/temporal.js'
 import { observeSql } from '../support/postgres/observe.js'
 import type { SqlObservation } from '../support/postgres/observe.js'
+import { sharedTempDirectory } from '../../tools/test-run-temp.js'
 
 const run = promisify(execFile)
 const standardCases = [
@@ -393,9 +394,10 @@ describe('generated PostgreSQL scalar evaluation', () => {
         timeout: 60000,
         env: {
           ...process.env,
-          GOCACHE: join(tmpdir(), 'pgsid-sql-semantics-go-cache'),
+          GOCACHE: join(sharedTempDirectory, 'pgsid-sql-semantics-go-cache'),
           GOTOOLCHAIN: 'local',
-          GOMODCACHE: process.env.GOMODCACHE ?? join(tmpdir(), 'pgsid-decimal-go-mod-cache'),
+          GOMODCACHE:
+            process.env.GOMODCACHE ?? join(sharedTempDirectory, 'pgsid-decimal-go-mod-cache'),
           GOFLAGS: '-mod=readonly',
         },
       })
@@ -739,9 +741,10 @@ describe('generated PostgreSQL scalar evaluation', () => {
         timeout: 60000,
         env: {
           ...process.env,
-          GOCACHE: join(tmpdir(), 'pgsid-sql-semantics-go-cache'),
+          GOCACHE: join(sharedTempDirectory, 'pgsid-sql-semantics-go-cache'),
           GOTOOLCHAIN: 'local',
-          GOMODCACHE: process.env.GOMODCACHE ?? join(tmpdir(), 'pgsid-decimal-go-mod-cache'),
+          GOMODCACHE:
+            process.env.GOMODCACHE ?? join(sharedTempDirectory, 'pgsid-decimal-go-mod-cache'),
           GOFLAGS: '-mod=readonly',
         },
       })

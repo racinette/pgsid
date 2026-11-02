@@ -11,6 +11,7 @@ import { join, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { buildProject } from '../../src/project-runtime.js'
+import { sharedTempDirectory } from '../../tools/test-run-temp.js'
 
 const fixtureRoot = fileURLToPath(new URL('../fixtures/codegen', import.meta.url))
 const projects: {
@@ -215,7 +216,7 @@ func TestQueryDeclarations(t *testing.T) {
           cwd: root,
           env: {
             ...process.env,
-            GOCACHE: join(tmpdir(), 'pgsid-codegen-go-cache'),
+            GOCACHE: join(sharedTempDirectory, 'pgsid-codegen-go-cache'),
             GOTOOLCHAIN: 'local',
           },
           timeout: 60_000,
@@ -239,7 +240,7 @@ func TestQueryDeclarations(t *testing.T) {
             env: {
               ...process.env,
               GOTOOLCHAIN: 'local',
-              GOCACHE: join(tmpdir(), 'pgsid-codegen-go-cache'),
+              GOCACHE: join(sharedTempDirectory, 'pgsid-codegen-go-cache'),
             },
             timeout: 60_000,
           },
