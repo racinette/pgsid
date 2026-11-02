@@ -54,6 +54,25 @@ fn aclitem_read_identifier(input: &str, start: usize, limit: i32, utf8: bool) ->
     AclitemIdentifier {value: output,next: position,state: 1}
 }
 
+fn aclitem_mode_bit(character: char) -> i64 {
+    if character == 'a' { return 1i64; };
+    if character == 'r' { return 2i64; };
+    if character == 'w' { return 4i64; };
+    if character == 'd' { return 8i64; };
+    if character == 'D' { return 16i64; };
+    if character == 'x' { return 32i64; };
+    if character == 't' { return 64i64; };
+    if character == 'X' { return 128i64; };
+    if character == 'U' { return 256i64; };
+    if character == 'C' { return 512i64; };
+    if character == 'T' { return 1024i64; };
+    if character == 'c' { return 2048i64; };
+    if character == 's' { return 4096i64; };
+    if character == 'A' { return 8192i64; };
+    if character == 'm' { return 16384i64; };
+    0i64
+}
+
 fn aclitem_mode_character(character: char) -> bool {
     character == 'a' || character == 'r' || character == 'w' || character == 'd'
         || character == 'D' || character == 'x' || character == 't' || character == 'X'
@@ -90,11 +109,21 @@ pub fn aclitem_from_text_context(input: TextValue, limit: i32, utf8: bool) -> Ac
         };
         position += 1;
         let mut scanning = true;
+        // A star grants the option for the privilege read just before it.
+        let mut read: i64 = 0i64;
+        let mut privileges: i64 = 0i64;
+        let mut grant_options: i64 = 0i64;
         while position < characters.len() && scanning {
             let character = characters[position];
             let code = character as i32;
             if (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || character == '*' {
                 if aclitem_mode_character(character) == false { return AclitemValue::Error(make_sql_error(ACLITEM_INVALID_TEXT)); };
+                if character == '*' {
+                    grant_options = integer_bits_combine(grant_options, read, 1);
+                } else {
+                    read = aclitem_mode_bit(character);
+                };
+                privileges = integer_bits_combine(privileges, read, 1);
                 position += 1;
             } else {
                 if code >= 128 && utf8 == false { return aclitem_unresolved(resolution_context(unresolved_flavor)); };
@@ -112,6 +141,9 @@ pub fn aclitem_from_text_context(input: TextValue, limit: i32, utf8: bool) -> Ac
         };
         while position < characters.len() && numeric_space(characters[position]) { position += 1; }
         if position < characters.len() { return AclitemValue::Error(make_sql_error(ACLITEM_INVALID_TEXT)); };
+        // Without a grantor the server records the bootstrap superuser, whose OID is fixed; an
+        // empty grantee is PUBLIC.
+        return make_aclitem_value(0i64, 10i64, privileges, grant_options);
     };
     aclitem_unresolved(unresolved_flavor)
 }
@@ -280,7 +312,8 @@ fn aclitem_hash_sum(input: AclitemValue) -> Int8Value {
     if let AclitemValue::Value(value) = input {
         return Int8Value::Value((value.privileges + value.grantee + value.grantor) % 4294967296i64);
     };
-    int8_unresolved(unresolved_flavor)
+    // A role-named item hashes the role OIDs the deployment's catalog assigns.
+    int8_unresolved(resolution_context(unresolved_flavor))
 }
 
 pub fn sql__pg_catalog__hash_aclitem__4zd0(input: AclitemValue) -> Int4Value {
