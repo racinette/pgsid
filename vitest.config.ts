@@ -1,4 +1,9 @@
 import { defineConfig } from 'vitest/config'
+import { useTestRunDirectory } from './tools/test-run-temp.js'
+
+// Before Vitest creates its own temporary directory, so a killed run leaves nothing outside the
+// directory a later run removes.
+useTestRunDirectory()
 
 export default defineConfig({
   test: {

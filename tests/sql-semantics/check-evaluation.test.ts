@@ -23,6 +23,7 @@ import type { PostgresRegexOptions } from '../../src/sql-semantics/regex/options
 import { parseRegexpLikeFlags } from '../../src/sql-semantics/regex/flags.js'
 import type { EvalExpression } from '../../src/sql-semantics/eval-expressions.js'
 import { numericMathCopyright } from '../../src/sql-semantics/numeric-math-license.js'
+import { sharedTempDirectory } from '../../tools/test-run-temp.js'
 
 const run = promisify(execFile)
 
@@ -1459,7 +1460,7 @@ return [${allCases.map((_, index) => `evaluate${index}`).join(',')}].map((evalua
         cwd: directory,
         env: {
           ...process.env,
-          GOCACHE: join(tmpdir(), 'pgsid-sql-semantics-go-cache'),
+          GOCACHE: join(sharedTempDirectory, 'pgsid-sql-semantics-go-cache'),
           GOTOOLCHAIN: 'local',
           GOFLAGS: '-mod=readonly',
         },

@@ -41,6 +41,7 @@ import { portableCheckAtoms } from '../../src/codegen/shared/check-atom-support.
 import { parseConfigString } from '../../src/config/loader.js'
 import type { QueryAnalysisItem } from '../../src/query-analysis.js'
 import type { WriteValueLineage } from '../../src/query/value-lineage.js'
+import { sharedTempDirectory } from '../../tools/test-run-temp.js'
 
 const run = promisify(execFile)
 
@@ -417,7 +418,7 @@ func TestMixedChecks(t *testing.T) {
       )
       await run(process.env.PGSID_GO_BINARY ?? 'go', ['test', '.'], {
         cwd: directory,
-        env: { ...process.env, GOCACHE: join(tmpdir(), 'pgsid-check-rust-go-cache') },
+        env: { ...process.env, GOCACHE: join(sharedTempDirectory, 'pgsid-check-rust-go-cache') },
       })
     } finally {
       await rm(directory, { recursive: true, force: true })
@@ -785,7 +786,7 @@ func main() {
       await writeFile(join(directory, 'main.go'), goSource)
       const { stdout } = await run(process.env.PGSID_GO_BINARY ?? 'go', ['run', '.'], {
         cwd: directory,
-        env: { ...process.env, GOCACHE: join(tmpdir(), 'pgsid-sql-semantics-go-cache') },
+        env: { ...process.env, GOCACHE: join(sharedTempDirectory, 'pgsid-sql-semantics-go-cache') },
       })
       const goResults = JSON.parse(stdout) as {
         Certain: boolean
@@ -905,7 +906,7 @@ func main() {
       await writeFile(join(directory, 'main.go'), goSource)
       const { stdout } = await run(process.env.PGSID_GO_BINARY ?? 'go', ['run', '.'], {
         cwd: directory,
-        env: { ...process.env, GOCACHE: join(tmpdir(), 'pgsid-sql-semantics-go-cache') },
+        env: { ...process.env, GOCACHE: join(sharedTempDirectory, 'pgsid-sql-semantics-go-cache') },
       })
       const [goLine, failuresLine] = stdout.trim().split('\n')
       const goResults = JSON.parse(goLine!) as {
@@ -1001,7 +1002,7 @@ func TestPartialCheckInputs(t *testing.T) {
       )
       await run(process.env.PGSID_GO_BINARY ?? 'go', ['test', './...'], {
         cwd: directory,
-        env: { ...process.env, GOCACHE: join(tmpdir(), 'pgsid-sql-semantics-go-cache') },
+        env: { ...process.env, GOCACHE: join(sharedTempDirectory, 'pgsid-sql-semantics-go-cache') },
       })
     } finally {
       await rm(directory, { recursive: true, force: true })
@@ -1275,7 +1276,7 @@ func TestCheckBeforeExec(t *testing.T) {
       )
       await run(process.env.PGSID_GO_BINARY ?? 'go', ['test', './...'], {
         cwd: directory,
-        env: { ...process.env, GOCACHE: join(tmpdir(), 'pgsid-sql-semantics-go-cache') },
+        env: { ...process.env, GOCACHE: join(sharedTempDirectory, 'pgsid-sql-semantics-go-cache') },
       })
     } finally {
       await rm(directory, { recursive: true, force: true })
