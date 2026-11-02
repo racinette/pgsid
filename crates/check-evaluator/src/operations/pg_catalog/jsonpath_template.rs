@@ -276,7 +276,7 @@ fn jsonpath_template_read_integer(
 }
 
 fn jsonpath_template_error(error: u32, hard: bool) -> JsonpathTemporalValue {
-    jsonpath_temporal_state(0, 0i64, 0, error, false, hard)
+    jsonpath_temporal_state(0, 0i64, 0, error, false, hard, 0)
 }
 
 fn jsonpath_template_parse(input: TextValue, template: TextValue) -> JsonpathTemporalValue {
@@ -291,6 +291,14 @@ fn jsonpath_template_parse_prefixes(
     locale_c: bool,
     collation_c: bool,
 ) -> JsonpathTemporalValue {
+    let mut input_flavor: i32 = 0;
+    if let TextValue::Unknown = input { input_flavor = 1; };
+    if let TextValue::NonNull = input { input_flavor = 1; };
+    if let TextValue::Unknown = template { if input_flavor < 1 { input_flavor = 1; }; };
+    if let TextValue::NonNull = template { if input_flavor < 1 { input_flavor = 1; }; };
+    if let TextValue::Unimplemented = input { input_flavor = 2; };
+    if let TextValue::Unimplemented = template { input_flavor = 2; };
+    if input_flavor == 0 { input_flavor = 2; };
     if let TextValue::Error(error) = input {
         return jsonpath_template_error(error.state, false);
     };
@@ -298,10 +306,10 @@ fn jsonpath_template_parse_prefixes(
         return jsonpath_template_error(error.state, false);
     };
     if let TextValue::Null = input {
-        return jsonpath_temporal_state(-1, 0i64, 0, 0, false, false);
+        return jsonpath_temporal_state(-1, 0i64, 0, 0, false, false, 0);
     };
     if let TextValue::Null = template {
-        return jsonpath_temporal_state(-1, 0i64, 0, 0, false, false);
+        return jsonpath_temporal_state(-1, 0i64, 0, 0, false, false, 0);
     };
     if let TextValue::Value(text) = input {
         if let TextValue::Value(format) = template {
@@ -350,7 +358,7 @@ fn jsonpath_template_parse_prefixes(
                         && token.kind <= 47
                         && (locale_c == false || collation_c == false)
                     {
-                        return jsonpath_temporal_state(0, 0i64, 0, 0, true, false);
+                        return jsonpath_temporal_state(0, 0i64, 0, 0, true, false, 1);
                     };
                     let mut variable =
                         token.fill || token.ordinal || index + 1 == program.tokens.len();
@@ -360,7 +368,12 @@ fn jsonpath_template_parse_prefixes(
                     };
                     if token.kind == 22 && jsonpath_temporal_letter(source.characters[position]) {
                         if prefixes.len() == 0 || prefixes[position] > source.characters.len() {
-                            return jsonpath_temporal_state(0, 0i64, 0, 0, true, false);
+                            let mut prefix_flavor: i32 = 1;
+                            // A marker past the overflow position means the lookup is unimplemented.
+                            if prefixes.len() > 0 && prefixes[position] > source.characters.len() + 1 {
+                                prefix_flavor = 2;
+                            };
+                            return jsonpath_temporal_state(0, 0i64, 0, 0, true, false, prefix_flavor);
                         };
                         if prefixes[position] == 0 {
                             return jsonpath_template_error(JSONPATH_TEMPLATE_FORMAT, false);
@@ -432,7 +445,7 @@ fn jsonpath_template_parse_prefixes(
                         if token.kind == 33 {
                             read = jsonpath_template_read_integer(&source, position, 1, true);
                             if read.error == JSONPATH_TEMPLATE_RANGE {
-                                return jsonpath_temporal_state(0, 0i64, 0, 0, true, false);
+                                return jsonpath_temporal_state(0, 0i64, 0, 0, true, false, 2);
                             };
                             if read.error == 0 {
                                 if read.end == source.characters.len()
@@ -674,7 +687,7 @@ fn jsonpath_template_parse_prefixes(
                     return jsonpath_template_error(JSONPATH_TEMPLATE_FORMAT, false);
                 };
                 if let DateValue::Value(value) = date {
-                    return jsonpath_temporal_state(1, value as i64, 0, 0, false, false);
+                    return jsonpath_temporal_state(1, value as i64, 0, 0, false, false, 0);
                 };
             };
             if program.dated == false {
@@ -727,7 +740,7 @@ fn jsonpath_template_parse_prefixes(
             return jsonpath_template_error(JSONPATH_TEMPLATE_RANGE, false);
         };
     };
-    jsonpath_temporal_state(0, 0i64, 0, 0, true, false)
+    jsonpath_temporal_state(0, 0i64, 0, 0, true, false, input_flavor)
 }
 
 fn jsonpath_template_zone_result(
@@ -737,7 +750,7 @@ fn jsonpath_template_zone_result(
     abbreviation_token: usize,
     numeric_zone: bool,
 ) -> JsonpathTemporalValue {
-    let result = jsonpath_temporal_state(kind, value, zone, 0, false, false);
+    let result = jsonpath_temporal_state(kind, value, zone, 0, false, false, 0);
     if abbreviation_token > 0 && numeric_zone == false {
         return JsonpathTemporalValue {
             kind: kind,
@@ -746,6 +759,7 @@ fn jsonpath_template_zone_result(
             error: 0,
             unknown: true,
             hard: false,
+            flavor: 1,
             abbreviation_token: abbreviation_token,
         };
     };

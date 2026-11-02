@@ -153,6 +153,8 @@ struct DatetimeTemplateParsed {
     abbreviation: TimezoneLookup,
     error: u32,
     unknown: bool,
+    // Whether an unknown parse waits on database context (1) or on a missing computation (2).
+    flavor: i32,
 }
 
 fn datetime_template_failure(error: u32) -> DatetimeTemplateParsed {
@@ -165,9 +167,10 @@ fn datetime_template_failure(error: u32) -> DatetimeTemplateParsed {
         abbreviation: timezone_lookup_class(TextValue::Null, 0, 0, ""),
         error: error,
         unknown: false,
+        flavor: 0,
     }
 }
-fn datetime_template_unknown() -> DatetimeTemplateParsed {
+fn datetime_template_unknown(flavor: i32) -> DatetimeTemplateParsed {
     DatetimeTemplateParsed {
         day: 0i64,
         clock: 0i64,
@@ -177,6 +180,7 @@ fn datetime_template_unknown() -> DatetimeTemplateParsed {
         abbreviation: timezone_lookup_class(TextValue::Null, 0, 0, ""),
         error: 0,
         unknown: true,
+        flavor: flavor,
     }
 }
 
@@ -472,7 +476,7 @@ fn datetime_template_parse(
                     && token.kind <= 47
                     && (locale_c == false || collation_c == false)
                 {
-                    return datetime_template_unknown();
+                    return datetime_template_unknown(1);
                 };
                 let mut variable = token.fill || token.ordinal || index + 1 == program.tokens.len();
                 if index + 1 < program.tokens.len() && program.tokens[index + 1].digit == false {
@@ -489,8 +493,11 @@ fn datetime_template_parse(
                     );
                     let lookup = prefix.lookup;
                     let profile = lookup.profile.clone();
-                    if profile == TextValue::Unknown || profile == TextValue::Unimplemented {
-                        return datetime_template_unknown();
+                    if profile == TextValue::Unknown {
+                        return datetime_template_unknown(1);
+                    };
+                    if profile == TextValue::Unimplemented {
+                        return datetime_template_unknown(2);
                     };
                     if lookup.kind > 0 {
                         abbreviation_profile = lookup.profile;
@@ -574,7 +581,7 @@ fn datetime_template_parse(
                                 return datetime_template_failure(part.error);
                             };
                             if read.error == JSONPATH_TEMPLATE_RANGE {
-                                return datetime_template_unknown();
+                                return datetime_template_unknown(2);
                             };
                             let product = (read.value as i64) * 1000i64;
                             let combined = product + part.value as i64;
@@ -592,7 +599,7 @@ fn datetime_template_parse(
                         };
                     };
                     if read.error == DATETIME_TEMPLATE_CONTEXT {
-                        return datetime_template_unknown();
+                        return datetime_template_unknown(1);
                     };
                     if read.error > 0 {
                         return datetime_template_failure(read.error);
@@ -697,7 +704,7 @@ fn datetime_template_parse(
                         let minutes =
                             datetime_template_number(&source, position + 1, 2, variable, utf8);
                         if minutes.error == DATETIME_TEMPLATE_CONTEXT {
-                            return datetime_template_unknown();
+                            return datetime_template_unknown(1);
                         };
                         if minutes.error > 0 {
                             return datetime_template_failure(minutes.error);
@@ -814,9 +821,12 @@ fn datetime_template_parse(
             ),
             error: 0,
             unknown: false,
+            flavor: 0,
         };
     };
-    datetime_template_unknown()
+    let mut day_flavor: i32 = 2;
+    if day == Int8Value::Unknown { day_flavor = 1; };
+    datetime_template_unknown(day_flavor)
 }
 
 fn datetime_template_value(
@@ -851,7 +861,7 @@ fn datetime_template_value(
                 default_profile,
             );
         };
-        return datetime_template_unknown();
+        return datetime_template_unknown(1);
     };
     if input == TextValue::NonNull {
         if let TextValue::Value(format) = template {
@@ -859,7 +869,7 @@ fn datetime_template_value(
             let mut index: usize = 0;
             while index < program.tokens.len() {
                 if program.tokens[index].kind != 0 && program.tokens[index].kind != 23 {
-                    return datetime_template_unknown();
+                    return datetime_template_unknown(1);
                 };
                 index += 1;
             }
@@ -874,7 +884,7 @@ fn datetime_template_value(
             );
         };
     };
-    datetime_template_unknown()
+    datetime_template_unknown(1)
 }
 
 pub fn sql__pg_catalog__to_date__643t(
@@ -918,7 +928,9 @@ pub fn sql__pg_catalog__to_date__643t(
         return DateValue::Error(make_sql_error(parsed.error));
     };
     if parsed.unknown {
-        return date_unresolved(unresolved_flavor);
+        let mut parsed_flavor: i32 = unresolved_flavor;
+        if parsed.flavor > parsed_flavor { parsed_flavor = parsed.flavor; };
+        return date_unresolved(parsed_flavor);
     };
     if parsed.day < -2451545i64 || parsed.day >= 2145031949i64 {
         return DateValue::Error(make_sql_error(JSONPATH_TEMPLATE_RANGE));
@@ -932,7 +944,9 @@ fn datetime_template_instant(parsed: &DatetimeTemplateParsed, session: &str) -> 
         return TimestamptzValue::Error(make_sql_error(parsed.error));
     };
     if parsed.unknown {
-        return timestamptz_unresolved(unresolved_flavor);
+        let mut parsed_flavor: i32 = unresolved_flavor;
+        if parsed.flavor > parsed_flavor { parsed_flavor = parsed.flavor; };
+        return timestamptz_unresolved(parsed_flavor);
     };
     if parsed.day < -2451568i64 || parsed.day > 106751991i64 {
         return TimestamptzValue::Error(make_sql_error(JSONPATH_TEMPLATE_RANGE));

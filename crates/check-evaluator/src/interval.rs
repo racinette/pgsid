@@ -1100,7 +1100,8 @@ pub fn interval_input_agreement(left: IntervalValue, right: IntervalValue) -> In
     if left == right {
         return left;
     };
-    interval_unresolved(unresolved_flavor)
+    // Readings that differ between interval styles wait on the session's IntervalStyle.
+    interval_unresolved(resolution_context(unresolved_flavor))
 }
 
 pub fn interval_from_text_fields(input: TextValue, fields: Int4Value) -> IntervalValue {

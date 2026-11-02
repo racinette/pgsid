@@ -1,5 +1,7 @@
 const TEMPORAL_CAST_RANGE: u32 = 3452552;
 
+// A zone whose offset changes over time takes the offset at the transaction's current date, and
+// a zone outside the bundled tables comes from the server's zone database.
 fn session_timezone_fixed_offset(name: &str) -> Int4Value {
     let unresolved_flavor: i32 = 0;
     let zone = find_zone_name(name, false);
@@ -9,7 +11,7 @@ fn session_timezone_fixed_offset(name: &str) -> Int4Value {
         let mut index = ZONE_STARTS[zone];
         while index < ZONE_ENDS[zone] {
             if ZONE_OFFSET_SECONDS[start + ZONE_OFFSET_IDS[index]] != seconds {
-                return int4_unresolved(unresolved_flavor);
+                return int4_unresolved(resolution_context(unresolved_flavor));
             };
             index += 1;
         }
@@ -19,7 +21,7 @@ fn session_timezone_fixed_offset(name: &str) -> Int4Value {
                 || rules.standard != rules.daylight
                 || 0 - rules.standard != seconds
             {
-                return int4_unresolved(unresolved_flavor);
+                return int4_unresolved(resolution_context(unresolved_flavor));
             };
         };
         return make_int4_value(seconds);
@@ -27,13 +29,13 @@ fn session_timezone_fixed_offset(name: &str) -> Int4Value {
     let upper_name = timezone_lookup_ascii(name, true);
     let rules = parse_recurring_zone(upper_name.as_str());
     if rules.valid && rules.standard != rules.daylight {
-        return int4_unresolved(unresolved_flavor);
+        return int4_unresolved(resolution_context(unresolved_flavor));
     };
     let profile = session_timezone_profile(name, 0i64, false);
     if profile.valid {
         return make_int4_value(profile.seconds);
     };
-    int4_unresolved(unresolved_flavor)
+    int4_unresolved(resolution_context(unresolved_flavor))
 }
 
 pub fn sql__pg_catalog__timetz__qcb2(input: TimeValue, zone: &str) -> TimetzValue {
