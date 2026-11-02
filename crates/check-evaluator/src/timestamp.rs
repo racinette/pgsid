@@ -613,6 +613,11 @@ fn parse_temporal_text(
                     };
                 };
             } else if year_field.digits < 3 || index == end {
+                // A leading word the grammar does not claim is looked up in the session zone
+                // abbreviations.
+                if year_field.digits == 0 && start < end && english_date_letter(text.chars[start]) {
+                    return int8_unresolved(resolution_context(unresolved_flavor));
+                }
                 return int8_unresolved(unresolved_flavor);
             } else {
                 let separator = text.chars[index];
@@ -851,6 +856,9 @@ fn parse_temporal_text(
                 state: INVALID_TIMESTAMP_TEXT,
             });
         } else if zone_only == false {
+            if temporal_zone_word(&text, index, end) {
+                return int8_unresolved(resolution_context(unresolved_flavor));
+            }
             return int8_unresolved(unresolved_flavor);
         }
         if julian_time >= 0i64 {

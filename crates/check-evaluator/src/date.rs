@@ -853,6 +853,11 @@ pub fn date_from_text_order(value: TextValue, date_order: i32) -> DateValue {
                 && date_text_space(chars[end - 3]) == false
                 && date_text_digit(chars[end - 3]) < 0
             {
+                // Letters before the era make one longer word, which the server looks up in the
+                // session zone abbreviations.
+                if english_date_letter(chars[end - 3]) {
+                    return date_unresolved(resolution_context(unresolved_flavor));
+                }
                 return date_unresolved(unresolved_flavor);
             }
             end = end - 2;
@@ -864,6 +869,11 @@ pub fn date_from_text_order(value: TextValue, date_order: i32) -> DateValue {
                 && date_text_space(chars[end - 3]) == false
                 && date_text_digit(chars[end - 3]) < 0
             {
+                // Letters before the era make one longer word, which the server looks up in the
+                // session zone abbreviations.
+                if english_date_letter(chars[end - 3]) {
+                    return date_unresolved(resolution_context(unresolved_flavor));
+                }
                 return date_unresolved(unresolved_flavor);
             }
             end = end - 2;
