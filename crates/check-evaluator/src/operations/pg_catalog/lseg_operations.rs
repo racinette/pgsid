@@ -222,7 +222,7 @@ fn segment_intersection_result(point: PointValue) -> BoolValue {
     if let PointValue::Error(error) = point {
         return BoolValue::Error(error);
     };
-    let mut condition_flavor_223_4: i32 = unresolved_flavor; if let PointValue::Unknown = point { if condition_flavor_223_4 < 1 { condition_flavor_223_4 = 1; }; }; if let PointValue::Unimplemented = point { condition_flavor_223_4 = 2; }; if (point == PointValue::Unknown || point == PointValue::Unimplemented) {
+    let mut condition_flavor_223_4: i32 = unresolved_flavor; if let PointValue::Unknown = point { if condition_flavor_223_4 < 1 { condition_flavor_223_4 = 1; }; }; if let PointValue::Unimplemented = point { condition_flavor_223_4 = 2; }; if point == PointValue::Unknown || point == PointValue::Unimplemented {
         return bool_unresolved(condition_flavor_223_4);
     };
     make_bool_value(point != PointValue::Null)
@@ -259,7 +259,7 @@ fn segment_project_line(segment: LsegValue, line: LineValue) -> SegmentClosest {
     if let PointValue::Error(error) = intersection {
         return segment_closest_from_status(BoolValue::Error(error));
     };
-    if (intersection == PointValue::Unknown || intersection == PointValue::Unimplemented) {
+    if intersection == PointValue::Unknown || intersection == PointValue::Unimplemented {
         let mut tested_flavor: i32 = 1;
         if intersection == PointValue::Unimplemented {
             tested_flavor = 2;
@@ -311,7 +311,7 @@ fn segment_project_point(segment: LsegValue, point: PointValue) -> SegmentCloses
         if let Float8Value::Error(error) = distance {
             return segment_closest_error(Float8Value::Error(error));
         };
-        if (distance == Float8Value::Unknown || distance == Float8Value::Unimplemented) {
+        if distance == Float8Value::Unknown || distance == Float8Value::Unimplemented {
             return segment_closest_error(distance);
         };
         return SegmentClosest {
@@ -340,7 +340,7 @@ fn segment_nearest_pair(left: LsegValue, right: LsegValue) -> SegmentClosest {
     if let PointValue::Error(error) = intersection {
         return segment_closest_from_status(BoolValue::Error(error));
     };
-    if (intersection == PointValue::Unknown || intersection == PointValue::Unimplemented) {
+    if intersection == PointValue::Unknown || intersection == PointValue::Unimplemented {
         let mut tested_flavor: i32 = 1;
         if intersection == PointValue::Unimplemented {
             tested_flavor = 2;
@@ -393,7 +393,7 @@ fn segment_closest_point(closest: SegmentClosest) -> PointValue {
     if let Float8Value::Error(error) = distance {
         return PointValue::Error(error);
     };
-    let mut condition_flavor_386_4: i32 = unresolved_flavor; if let Float8Value::Unknown = distance { if condition_flavor_386_4 < 1 { condition_flavor_386_4 = 1; }; }; if let Float8Value::Unimplemented = distance { condition_flavor_386_4 = 2; }; if (distance == Float8Value::Unknown || distance == Float8Value::Unimplemented) {
+    let mut condition_flavor_386_4: i32 = unresolved_flavor; if let Float8Value::Unknown = distance { if condition_flavor_386_4 < 1 { condition_flavor_386_4 = 1; }; }; if let Float8Value::Unimplemented = distance { condition_flavor_386_4 = 2; }; if distance == Float8Value::Unknown || distance == Float8Value::Unimplemented {
         return point_unresolved(condition_flavor_386_4);
     };
     if distance == Float8Value::Null {

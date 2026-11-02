@@ -5,7 +5,7 @@ fn array_comparison_boolean(input: Int4Value, strategy: i32) -> BoolValue {
     if let Int4Value::Error(error) = input {
         return BoolValue::Error(error);
     };
-    let mut condition_flavor_8_4: i32 = unresolved_flavor; if let Int4Value::Unknown = input { if condition_flavor_8_4 < 1 { condition_flavor_8_4 = 1; }; }; if let Int4Value::Unimplemented = input { condition_flavor_8_4 = 2; }; if (input == Int4Value::Unknown || input == Int4Value::Unimplemented) {
+    let mut condition_flavor_8_4: i32 = unresolved_flavor; if let Int4Value::Unknown = input { if condition_flavor_8_4 < 1 { condition_flavor_8_4 = 1; }; }; if let Int4Value::Unimplemented = input { condition_flavor_8_4 = 2; }; if input == Int4Value::Unknown || input == Int4Value::Unimplemented {
         return bool_unresolved(condition_flavor_8_4);
     };
     if let Int4Value::Null = input {

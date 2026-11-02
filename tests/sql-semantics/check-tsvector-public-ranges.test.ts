@@ -1,5 +1,6 @@
 import { PGlite } from '@electric-sql/pglite'
 import { expect, it } from 'vitest'
+import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -440,11 +441,15 @@ it('validates public tsvector range, array, record and nested range inputs with 
               node.lexemes = [{ text: 'a', positions: [{ position: 1, weight: 4 }] }]
           })
           const before = structuredClone(bad)
-          expect(evaluate(family, bad)[constraint]).toEqual({ certain: false })
+          const rejected = expectUndecidedOrRejected(() => evaluate(family, bad), defect, [
+            constraint,
+          ])
           expect(bad).toEqual(before)
-          expect(Object.values(evaluate(family, { ...bad, bypass: true }))).toEqual(
-            Object.keys(forms).map(() => ({ certain: true, value: true })),
-          )
+          if (rejected) expect(() => evaluate(family, { ...bad, bypass: true })).toThrow(TypeError)
+          else
+            expect(Object.values(evaluate(family, { ...bad, bypass: true }))).toEqual(
+              Object.keys(forms).map(() => ({ certain: true, value: true })),
+            )
         }
     }
     const runtime = (name: string) => go.selector(go.ident('checkruntime'), name)

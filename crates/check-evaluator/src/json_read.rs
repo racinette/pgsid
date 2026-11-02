@@ -357,7 +357,7 @@ pub fn json_read_element_context(input: JsonValue, index: Int4Value, as_text: bo
     }; let mut condition_flavor_354_7: i32 = unresolved_flavor; if let JsonValue::Unimplemented = input { condition_flavor_354_7 = 2; }; if let JsonValue::Unimplemented = input {
         return text_unresolved(condition_flavor_354_7);
     };
-    let mut condition_flavor_357_4: i32 = unresolved_flavor; if let Int4Value::Unknown = index { if condition_flavor_357_4 < 1 { condition_flavor_357_4 = 1; }; }; if let Int4Value::Unimplemented = index { condition_flavor_357_4 = 2; }; if (index == Int4Value::Unknown || index == Int4Value::Unimplemented) {
+    let mut condition_flavor_357_4: i32 = unresolved_flavor; if let Int4Value::Unknown = index { if condition_flavor_357_4 < 1 { condition_flavor_357_4 = 1; }; }; if let Int4Value::Unimplemented = index { condition_flavor_357_4 = 2; }; if index == Int4Value::Unknown || index == Int4Value::Unimplemented {
         return text_unresolved(condition_flavor_357_4);
     };
     if let JsonValue::Null = input {

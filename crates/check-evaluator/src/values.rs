@@ -28,7 +28,7 @@ pub fn int2_is_null(value: Int2Value) -> BoolValue {
     if let Int2Value::Error(error) = value {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_31_4: i32 = unresolved_flavor; if let Int2Value::Unknown = value { if condition_flavor_31_4 < 1 { condition_flavor_31_4 = 1; }; }; if let Int2Value::Unimplemented = value { condition_flavor_31_4 = 2; }; if (value == Int2Value::Unknown || value == Int2Value::Unimplemented) {
+    let mut condition_flavor_31_4: i32 = unresolved_flavor; if let Int2Value::Unknown = value { if condition_flavor_31_4 < 1 { condition_flavor_31_4 = 1; }; }; if let Int2Value::Unimplemented = value { condition_flavor_31_4 = 2; }; if value == Int2Value::Unknown || value == Int2Value::Unimplemented {
         return bool_unresolved(condition_flavor_31_4);
     }
     BoolValue::Value(value == Int2Value::Null)
@@ -141,7 +141,7 @@ pub fn timestamp_is_null(value: TimestampValue) -> BoolValue {
     if let TimestampValue::Error(error) = value {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_144_4: i32 = unresolved_flavor; if let TimestampValue::Unknown = value { if condition_flavor_144_4 < 1 { condition_flavor_144_4 = 1; }; }; if let TimestampValue::Unimplemented = value { condition_flavor_144_4 = 2; }; if (value == TimestampValue::Unknown || value == TimestampValue::Unimplemented) {
+    let mut condition_flavor_144_4: i32 = unresolved_flavor; if let TimestampValue::Unknown = value { if condition_flavor_144_4 < 1 { condition_flavor_144_4 = 1; }; }; if let TimestampValue::Unimplemented = value { condition_flavor_144_4 = 2; }; if value == TimestampValue::Unknown || value == TimestampValue::Unimplemented {
         return bool_unresolved(condition_flavor_144_4);
     }
     BoolValue::Value(value == TimestampValue::Null)
@@ -195,7 +195,7 @@ pub fn timestamptz_is_null(value: TimestamptzValue) -> BoolValue {
     if let TimestamptzValue::Error(error) = value {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_198_4: i32 = unresolved_flavor; if let TimestamptzValue::Unknown = value { if condition_flavor_198_4 < 1 { condition_flavor_198_4 = 1; }; }; if let TimestamptzValue::Unimplemented = value { condition_flavor_198_4 = 2; }; if (value == TimestamptzValue::Unknown || value == TimestamptzValue::Unimplemented) {
+    let mut condition_flavor_198_4: i32 = unresolved_flavor; if let TimestamptzValue::Unknown = value { if condition_flavor_198_4 < 1 { condition_flavor_198_4 = 1; }; }; if let TimestamptzValue::Unimplemented = value { condition_flavor_198_4 = 2; }; if value == TimestamptzValue::Unknown || value == TimestamptzValue::Unimplemented {
         return bool_unresolved(condition_flavor_198_4);
     }
     BoolValue::Value(value == TimestamptzValue::Null)
@@ -254,7 +254,7 @@ pub fn enum_is_null(value: EnumValue) -> BoolValue {
     if let EnumValue::Error(error) = value {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_257_4: i32 = unresolved_flavor; if let EnumValue::Unknown = value { if condition_flavor_257_4 < 1 { condition_flavor_257_4 = 1; }; }; if let EnumValue::Unimplemented = value { condition_flavor_257_4 = 2; }; if (value == EnumValue::Unknown || value == EnumValue::Unimplemented) {
+    let mut condition_flavor_257_4: i32 = unresolved_flavor; if let EnumValue::Unknown = value { if condition_flavor_257_4 < 1 { condition_flavor_257_4 = 1; }; }; if let EnumValue::Unimplemented = value { condition_flavor_257_4 = 2; }; if value == EnumValue::Unknown || value == EnumValue::Unimplemented {
         return bool_unresolved(condition_flavor_257_4);
     }
     BoolValue::Value(value == EnumValue::Null)
@@ -310,7 +310,7 @@ pub fn date_is_null(value: DateValue) -> BoolValue {
     if let DateValue::Error(error) = value {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_313_4: i32 = unresolved_flavor; if let DateValue::Unknown = value { if condition_flavor_313_4 < 1 { condition_flavor_313_4 = 1; }; }; if let DateValue::Unimplemented = value { condition_flavor_313_4 = 2; }; if (value == DateValue::Unknown || value == DateValue::Unimplemented) {
+    let mut condition_flavor_313_4: i32 = unresolved_flavor; if let DateValue::Unknown = value { if condition_flavor_313_4 < 1 { condition_flavor_313_4 = 1; }; }; if let DateValue::Unimplemented = value { condition_flavor_313_4 = 2; }; if value == DateValue::Unknown || value == DateValue::Unimplemented {
         return bool_unresolved(condition_flavor_313_4);
     }
     BoolValue::Value(value == DateValue::Null)
@@ -402,8 +402,8 @@ pub fn make_xml_knowledge(document: BoolValue, content: BoolValue) -> XmlValue {
     if let BoolValue::Unknown = content { unresolved_flavor = 1; };
     if let BoolValue::Unimplemented = document { unresolved_flavor = 2; };
     if let BoolValue::Unimplemented = content { unresolved_flavor = 2; };
-    let mut valid_document = (document == BoolValue::Unknown || document == BoolValue::Unimplemented);
-    let mut valid_content = (content == BoolValue::Unknown || content == BoolValue::Unimplemented);
+    let mut valid_document = document == BoolValue::Unknown || document == BoolValue::Unimplemented;
+    let mut valid_content = content == BoolValue::Unknown || content == BoolValue::Unimplemented;
     if let BoolValue::Value(_) = document { valid_document = true; };
     if let BoolValue::Value(_) = content { valid_content = true; };
     if valid_document == false || valid_content == false { return xml_unresolved(unresolved_flavor); };
@@ -530,7 +530,7 @@ pub fn check_requirement_merge(left: i32, right: i32) -> i32 {
 }
 
 pub fn check_requirement_filter(nullness: BoolValue, reason: i32, partial: bool) -> i32 {
-    if (nullness == BoolValue::Unknown || nullness == BoolValue::Unimplemented) {
+    if nullness == BoolValue::Unknown || nullness == BoolValue::Unimplemented {
         if reason > 0 { return reason; }; return -1;
     };
     if partial && nullness == BoolValue::Value(false) { return reason; };
@@ -551,7 +551,7 @@ pub fn check_xml_requirement(input: XmlValue, reason: i32) -> i32 {
 }
 
 pub fn check_requirement_for_outcome(input: CheckOutcome, reason: i32) -> i32 {
-    if (input == CheckOutcome::Unknown || input == CheckOutcome::Unimplemented) { return reason; };
+    if input == CheckOutcome::Unknown || input == CheckOutcome::Unimplemented { return reason; };
     0
 }
 
@@ -847,7 +847,7 @@ pub fn check_from_bool(value: BoolValue) -> CheckOutcome {
     if let BoolValue::Error(error) = value {
         return CheckOutcome::Error(error);
     }
-    let mut condition_flavor_848_4: i32 = unresolved_flavor; if let BoolValue::Unknown = value { if condition_flavor_848_4 < 1 { condition_flavor_848_4 = 1; }; }; if let BoolValue::Unimplemented = value { condition_flavor_848_4 = 2; }; if (value == BoolValue::Unknown || value == BoolValue::Unimplemented) {
+    let mut condition_flavor_848_4: i32 = unresolved_flavor; if let BoolValue::Unknown = value { if condition_flavor_848_4 < 1 { condition_flavor_848_4 = 1; }; }; if let BoolValue::Unimplemented = value { condition_flavor_848_4 = 2; }; if value == BoolValue::Unknown || value == BoolValue::Unimplemented {
         return check_unresolved(condition_flavor_848_4);
     }
     if value == BoolValue::Null {
@@ -868,7 +868,7 @@ pub fn int4_is_null(value: Int4Value) -> BoolValue {
     if let Int4Value::Error(error) = value {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_869_4: i32 = unresolved_flavor; if let Int4Value::Unknown = value { if condition_flavor_869_4 < 1 { condition_flavor_869_4 = 1; }; }; if let Int4Value::Unimplemented = value { condition_flavor_869_4 = 2; }; if (value == Int4Value::Unknown || value == Int4Value::Unimplemented) {
+    let mut condition_flavor_869_4: i32 = unresolved_flavor; if let Int4Value::Unknown = value { if condition_flavor_869_4 < 1 { condition_flavor_869_4 = 1; }; }; if let Int4Value::Unimplemented = value { condition_flavor_869_4 = 2; }; if value == Int4Value::Unknown || value == Int4Value::Unimplemented {
         return bool_unresolved(condition_flavor_869_4);
     }
     BoolValue::Value(value == Int4Value::Null)
@@ -881,7 +881,7 @@ pub fn int8_is_null(value: Int8Value) -> BoolValue {
     if let Int8Value::Error(error) = value {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_882_4: i32 = unresolved_flavor; if let Int8Value::Unknown = value { if condition_flavor_882_4 < 1 { condition_flavor_882_4 = 1; }; }; if let Int8Value::Unimplemented = value { condition_flavor_882_4 = 2; }; if (value == Int8Value::Unknown || value == Int8Value::Unimplemented) {
+    let mut condition_flavor_882_4: i32 = unresolved_flavor; if let Int8Value::Unknown = value { if condition_flavor_882_4 < 1 { condition_flavor_882_4 = 1; }; }; if let Int8Value::Unimplemented = value { condition_flavor_882_4 = 2; }; if value == Int8Value::Unknown || value == Int8Value::Unimplemented {
         return bool_unresolved(condition_flavor_882_4);
     }
     BoolValue::Value(value == Int8Value::Null)
@@ -895,7 +895,7 @@ pub fn text_is_null(value: TextValue) -> BoolValue {
     if let TextValue::Error(error) = value {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_895_4: i32 = unresolved_flavor; if let TextValue::Unknown = value { if condition_flavor_895_4 < 1 { condition_flavor_895_4 = 1; }; }; if let TextValue::Unimplemented = value { condition_flavor_895_4 = 2; }; if (value == TextValue::Unknown || value == TextValue::Unimplemented) {
+    let mut condition_flavor_895_4: i32 = unresolved_flavor; if let TextValue::Unknown = value { if condition_flavor_895_4 < 1 { condition_flavor_895_4 = 1; }; }; if let TextValue::Unimplemented = value { condition_flavor_895_4 = 2; }; if value == TextValue::Unknown || value == TextValue::Unimplemented {
         return bool_unresolved(condition_flavor_895_4);
     }
     BoolValue::Value(value == TextValue::Null)
@@ -908,7 +908,7 @@ pub fn bool_is_null(value: BoolValue) -> BoolValue {
     if let BoolValue::Error(error) = value {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_908_4: i32 = unresolved_flavor; if let BoolValue::Unknown = value { if condition_flavor_908_4 < 1 { condition_flavor_908_4 = 1; }; }; if let BoolValue::Unimplemented = value { condition_flavor_908_4 = 2; }; if (value == BoolValue::Unknown || value == BoolValue::Unimplemented) {
+    let mut condition_flavor_908_4: i32 = unresolved_flavor; if let BoolValue::Unknown = value { if condition_flavor_908_4 < 1 { condition_flavor_908_4 = 1; }; }; if let BoolValue::Unimplemented = value { condition_flavor_908_4 = 2; }; if value == BoolValue::Unknown || value == BoolValue::Unimplemented {
         return bool_unresolved(condition_flavor_908_4);
     }
     BoolValue::Value(value == BoolValue::Null)
@@ -931,7 +931,7 @@ pub fn bool_from_check(value: CheckOutcome) -> BoolValue {
     if let CheckOutcome::Error(error) = value {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_931_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = value { if condition_flavor_931_4 < 1 { condition_flavor_931_4 = 1; }; }; if let CheckOutcome::Unimplemented = value { condition_flavor_931_4 = 2; }; if (value == CheckOutcome::Unknown || value == CheckOutcome::Unimplemented) {
+    let mut condition_flavor_931_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = value { if condition_flavor_931_4 < 1 { condition_flavor_931_4 = 1; }; }; if let CheckOutcome::Unimplemented = value { condition_flavor_931_4 = 2; }; if value == CheckOutcome::Unknown || value == CheckOutcome::Unimplemented {
         return bool_unresolved(condition_flavor_931_4);
     }
     if value == CheckOutcome::Null {
@@ -992,7 +992,7 @@ pub fn numeric_is_null(value: NumericValue) -> BoolValue {
     if let NumericValue::Error(error) = value {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_992_4: i32 = unresolved_flavor; if let NumericValue::Unknown = value { if condition_flavor_992_4 < 1 { condition_flavor_992_4 = 1; }; }; if let NumericValue::Unimplemented = value { condition_flavor_992_4 = 2; }; if (value == NumericValue::Unknown || value == NumericValue::Unimplemented) {
+    let mut condition_flavor_992_4: i32 = unresolved_flavor; if let NumericValue::Unknown = value { if condition_flavor_992_4 < 1 { condition_flavor_992_4 = 1; }; }; if let NumericValue::Unimplemented = value { condition_flavor_992_4 = 2; }; if value == NumericValue::Unknown || value == NumericValue::Unimplemented {
         return bool_unresolved(condition_flavor_992_4);
     }
     BoolValue::Value(value == NumericValue::Null)
@@ -1464,7 +1464,7 @@ pub fn network_is_null(value: NetworkValue) -> BoolValue {
     if let NetworkValue::Error(error) = value {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_1458_4: i32 = unresolved_flavor; if let NetworkValue::Unknown = value { if condition_flavor_1458_4 < 1 { condition_flavor_1458_4 = 1; }; }; if let NetworkValue::Unimplemented = value { condition_flavor_1458_4 = 2; }; if (value == NetworkValue::Unknown || value == NetworkValue::Unimplemented) {
+    let mut condition_flavor_1458_4: i32 = unresolved_flavor; if let NetworkValue::Unknown = value { if condition_flavor_1458_4 < 1 { condition_flavor_1458_4 = 1; }; }; if let NetworkValue::Unimplemented = value { condition_flavor_1458_4 = 2; }; if value == NetworkValue::Unknown || value == NetworkValue::Unimplemented {
         return bool_unresolved(condition_flavor_1458_4);
     }
     BoolValue::Value(value == NetworkValue::Null)
@@ -1524,7 +1524,7 @@ pub fn bit_is_null(value: BitValue) -> BoolValue {
     if let BitValue::Error(error) = value {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_1518_4: i32 = unresolved_flavor; if let BitValue::Unknown = value { if condition_flavor_1518_4 < 1 { condition_flavor_1518_4 = 1; }; }; if let BitValue::Unimplemented = value { condition_flavor_1518_4 = 2; }; if (value == BitValue::Unknown || value == BitValue::Unimplemented) {
+    let mut condition_flavor_1518_4: i32 = unresolved_flavor; if let BitValue::Unknown = value { if condition_flavor_1518_4 < 1 { condition_flavor_1518_4 = 1; }; }; if let BitValue::Unimplemented = value { condition_flavor_1518_4 = 2; }; if value == BitValue::Unknown || value == BitValue::Unimplemented {
         return bool_unresolved(condition_flavor_1518_4);
     }
     BoolValue::Value(value == BitValue::Null)
@@ -1576,7 +1576,7 @@ pub fn bytea_is_null(value: ByteaValue) -> BoolValue {
     if let ByteaValue::Error(error) = value {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_1569_4: i32 = unresolved_flavor; if let ByteaValue::Unknown = value { if condition_flavor_1569_4 < 1 { condition_flavor_1569_4 = 1; }; }; if let ByteaValue::Unimplemented = value { condition_flavor_1569_4 = 2; }; if (value == ByteaValue::Unknown || value == ByteaValue::Unimplemented) {
+    let mut condition_flavor_1569_4: i32 = unresolved_flavor; if let ByteaValue::Unknown = value { if condition_flavor_1569_4 < 1 { condition_flavor_1569_4 = 1; }; }; if let ByteaValue::Unimplemented = value { condition_flavor_1569_4 = 2; }; if value == ByteaValue::Unknown || value == ByteaValue::Unimplemented {
         return bool_unresolved(condition_flavor_1569_4);
     }
     BoolValue::Value(value == ByteaValue::Null)
@@ -1640,7 +1640,7 @@ pub fn macaddr_is_null(value: MacaddrValue) -> BoolValue {
     if let MacaddrValue::Error(error) = value {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_1633_4: i32 = unresolved_flavor; if let MacaddrValue::Unknown = value { if condition_flavor_1633_4 < 1 { condition_flavor_1633_4 = 1; }; }; if let MacaddrValue::Unimplemented = value { condition_flavor_1633_4 = 2; }; if (value == MacaddrValue::Unknown || value == MacaddrValue::Unimplemented) {
+    let mut condition_flavor_1633_4: i32 = unresolved_flavor; if let MacaddrValue::Unknown = value { if condition_flavor_1633_4 < 1 { condition_flavor_1633_4 = 1; }; }; if let MacaddrValue::Unimplemented = value { condition_flavor_1633_4 = 2; }; if value == MacaddrValue::Unknown || value == MacaddrValue::Unimplemented {
         return bool_unresolved(condition_flavor_1633_4);
     }
     BoolValue::Value(value == MacaddrValue::Null)
@@ -1688,7 +1688,7 @@ pub fn macaddr8_is_null(value: Macaddr8Value) -> BoolValue {
     if let Macaddr8Value::Error(error) = value {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_1681_4: i32 = unresolved_flavor; if let Macaddr8Value::Unknown = value { if condition_flavor_1681_4 < 1 { condition_flavor_1681_4 = 1; }; }; if let Macaddr8Value::Unimplemented = value { condition_flavor_1681_4 = 2; }; if (value == Macaddr8Value::Unknown || value == Macaddr8Value::Unimplemented) {
+    let mut condition_flavor_1681_4: i32 = unresolved_flavor; if let Macaddr8Value::Unknown = value { if condition_flavor_1681_4 < 1 { condition_flavor_1681_4 = 1; }; }; if let Macaddr8Value::Unimplemented = value { condition_flavor_1681_4 = 2; }; if value == Macaddr8Value::Unknown || value == Macaddr8Value::Unimplemented {
         return bool_unresolved(condition_flavor_1681_4);
     }
     BoolValue::Value(value == Macaddr8Value::Null)
@@ -1748,7 +1748,7 @@ pub fn uuid_is_null(value: UuidValue) -> BoolValue {
     if let UuidValue::Error(error) = value {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_1741_4: i32 = unresolved_flavor; if let UuidValue::Unknown = value { if condition_flavor_1741_4 < 1 { condition_flavor_1741_4 = 1; }; }; if let UuidValue::Unimplemented = value { condition_flavor_1741_4 = 2; }; if (value == UuidValue::Unknown || value == UuidValue::Unimplemented) {
+    let mut condition_flavor_1741_4: i32 = unresolved_flavor; if let UuidValue::Unknown = value { if condition_flavor_1741_4 < 1 { condition_flavor_1741_4 = 1; }; }; if let UuidValue::Unimplemented = value { condition_flavor_1741_4 = 2; }; if value == UuidValue::Unknown || value == UuidValue::Unimplemented {
         return bool_unresolved(condition_flavor_1741_4);
     }
     BoolValue::Value(value == UuidValue::Null)
@@ -1819,7 +1819,7 @@ pub fn float4_is_null(value: Float4Value) -> BoolValue {
     if let Float4Value::Error(error) = value {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_1811_4: i32 = unresolved_flavor; if let Float4Value::Unknown = value { if condition_flavor_1811_4 < 1 { condition_flavor_1811_4 = 1; }; }; if let Float4Value::Unimplemented = value { condition_flavor_1811_4 = 2; }; if (value == Float4Value::Unknown || value == Float4Value::Unimplemented) {
+    let mut condition_flavor_1811_4: i32 = unresolved_flavor; if let Float4Value::Unknown = value { if condition_flavor_1811_4 < 1 { condition_flavor_1811_4 = 1; }; }; if let Float4Value::Unimplemented = value { condition_flavor_1811_4 = 2; }; if value == Float4Value::Unknown || value == Float4Value::Unimplemented {
         return bool_unresolved(condition_flavor_1811_4);
     }
     BoolValue::Value(value == Float4Value::Null)
@@ -1885,7 +1885,7 @@ pub fn float8_is_null(value: Float8Value) -> BoolValue {
     if let Float8Value::Error(error) = value {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_1876_4: i32 = unresolved_flavor; if let Float8Value::Unknown = value { if condition_flavor_1876_4 < 1 { condition_flavor_1876_4 = 1; }; }; if let Float8Value::Unimplemented = value { condition_flavor_1876_4 = 2; }; if (value == Float8Value::Unknown || value == Float8Value::Unimplemented) {
+    let mut condition_flavor_1876_4: i32 = unresolved_flavor; if let Float8Value::Unknown = value { if condition_flavor_1876_4 < 1 { condition_flavor_1876_4 = 1; }; }; if let Float8Value::Unimplemented = value { condition_flavor_1876_4 = 2; }; if value == Float8Value::Unknown || value == Float8Value::Unimplemented {
         return bool_unresolved(condition_flavor_1876_4);
     }
     BoolValue::Value(value == Float8Value::Null)
@@ -1930,7 +1930,7 @@ pub fn time_is_null(input: TimeValue) -> BoolValue {
     if let TimeValue::Error(error) = input {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_1921_4: i32 = unresolved_flavor; if let TimeValue::Unknown = input { if condition_flavor_1921_4 < 1 { condition_flavor_1921_4 = 1; }; }; if let TimeValue::Unimplemented = input { condition_flavor_1921_4 = 2; }; if (input == TimeValue::Unknown || input == TimeValue::Unimplemented) {
+    let mut condition_flavor_1921_4: i32 = unresolved_flavor; if let TimeValue::Unknown = input { if condition_flavor_1921_4 < 1 { condition_flavor_1921_4 = 1; }; }; if let TimeValue::Unimplemented = input { condition_flavor_1921_4 = 2; }; if input == TimeValue::Unknown || input == TimeValue::Unimplemented {
         return bool_unresolved(condition_flavor_1921_4);
     }
     BoolValue::Value(input == TimeValue::Null)
@@ -1984,7 +1984,7 @@ pub fn timetz_is_null(input: TimetzValue) -> BoolValue {
     if let TimetzValue::Error(error) = input {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_1975_4: i32 = unresolved_flavor; if let TimetzValue::Unknown = input { if condition_flavor_1975_4 < 1 { condition_flavor_1975_4 = 1; }; }; if let TimetzValue::Unimplemented = input { condition_flavor_1975_4 = 2; }; if (input == TimetzValue::Unknown || input == TimetzValue::Unimplemented) {
+    let mut condition_flavor_1975_4: i32 = unresolved_flavor; if let TimetzValue::Unknown = input { if condition_flavor_1975_4 < 1 { condition_flavor_1975_4 = 1; }; }; if let TimetzValue::Unimplemented = input { condition_flavor_1975_4 = 2; }; if input == TimetzValue::Unknown || input == TimetzValue::Unimplemented {
         return bool_unresolved(condition_flavor_1975_4);
     }
     BoolValue::Value(input == TimetzValue::Null)
@@ -2036,7 +2036,7 @@ pub fn interval_is_null(input: IntervalValue) -> BoolValue {
     if let IntervalValue::Error(error) = input {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_2027_4: i32 = unresolved_flavor; if let IntervalValue::Unknown = input { if condition_flavor_2027_4 < 1 { condition_flavor_2027_4 = 1; }; }; if let IntervalValue::Unimplemented = input { condition_flavor_2027_4 = 2; }; if (input == IntervalValue::Unknown || input == IntervalValue::Unimplemented) {
+    let mut condition_flavor_2027_4: i32 = unresolved_flavor; if let IntervalValue::Unknown = input { if condition_flavor_2027_4 < 1 { condition_flavor_2027_4 = 1; }; }; if let IntervalValue::Unimplemented = input { condition_flavor_2027_4 = 2; }; if input == IntervalValue::Unknown || input == IntervalValue::Unimplemented {
         return bool_unresolved(condition_flavor_2027_4);
     }
     BoolValue::Value(input == IntervalValue::Null)
@@ -2091,7 +2091,7 @@ pub fn point_is_null(input: PointValue) -> BoolValue {
     if let PointValue::Error(error) = input {
         return BoolValue::Error(error);
     };
-    let mut condition_flavor_2082_4: i32 = unresolved_flavor; if let PointValue::Unknown = input { if condition_flavor_2082_4 < 1 { condition_flavor_2082_4 = 1; }; }; if let PointValue::Unimplemented = input { condition_flavor_2082_4 = 2; }; if (input == PointValue::Unknown || input == PointValue::Unimplemented) {
+    let mut condition_flavor_2082_4: i32 = unresolved_flavor; if let PointValue::Unknown = input { if condition_flavor_2082_4 < 1 { condition_flavor_2082_4 = 1; }; }; if let PointValue::Unimplemented = input { condition_flavor_2082_4 = 2; }; if input == PointValue::Unknown || input == PointValue::Unimplemented {
         return bool_unresolved(condition_flavor_2082_4);
     };
     make_bool_value(input == PointValue::Null)
@@ -2151,7 +2151,7 @@ pub fn line_is_null(input: LineValue) -> BoolValue {
     if let LineValue::Error(error) = input {
         return BoolValue::Error(error);
     };
-    let mut condition_flavor_2142_4: i32 = unresolved_flavor; if let LineValue::Unknown = input { if condition_flavor_2142_4 < 1 { condition_flavor_2142_4 = 1; }; }; if let LineValue::Unimplemented = input { condition_flavor_2142_4 = 2; }; if (input == LineValue::Unknown || input == LineValue::Unimplemented) {
+    let mut condition_flavor_2142_4: i32 = unresolved_flavor; if let LineValue::Unknown = input { if condition_flavor_2142_4 < 1 { condition_flavor_2142_4 = 1; }; }; if let LineValue::Unimplemented = input { condition_flavor_2142_4 = 2; }; if input == LineValue::Unknown || input == LineValue::Unimplemented {
         return bool_unresolved(condition_flavor_2142_4);
     };
     make_bool_value(input == LineValue::Null)
@@ -2202,7 +2202,7 @@ pub fn lseg_is_null(input: LsegValue) -> BoolValue {
     if let LsegValue::Error(error) = input {
         return BoolValue::Error(error);
     };
-    let mut condition_flavor_2193_4: i32 = unresolved_flavor; if let LsegValue::Unknown = input { if condition_flavor_2193_4 < 1 { condition_flavor_2193_4 = 1; }; }; if let LsegValue::Unimplemented = input { condition_flavor_2193_4 = 2; }; if (input == LsegValue::Unknown || input == LsegValue::Unimplemented) {
+    let mut condition_flavor_2193_4: i32 = unresolved_flavor; if let LsegValue::Unknown = input { if condition_flavor_2193_4 < 1 { condition_flavor_2193_4 = 1; }; }; if let LsegValue::Unimplemented = input { condition_flavor_2193_4 = 2; }; if input == LsegValue::Unknown || input == LsegValue::Unimplemented {
         return bool_unresolved(condition_flavor_2193_4);
     };
     make_bool_value(input == LsegValue::Null)
@@ -2255,7 +2255,7 @@ pub fn box_is_null(input: BoxValue) -> BoolValue {
     if let BoxValue::Error(error) = input {
         return BoolValue::Error(error);
     };
-    let mut condition_flavor_2245_4: i32 = unresolved_flavor; if let BoxValue::Unknown = input { if condition_flavor_2245_4 < 1 { condition_flavor_2245_4 = 1; }; }; if let BoxValue::Unimplemented = input { condition_flavor_2245_4 = 2; }; if (input == BoxValue::Unknown || input == BoxValue::Unimplemented) {
+    let mut condition_flavor_2245_4: i32 = unresolved_flavor; if let BoxValue::Unknown = input { if condition_flavor_2245_4 < 1 { condition_flavor_2245_4 = 1; }; }; if let BoxValue::Unimplemented = input { condition_flavor_2245_4 = 2; }; if input == BoxValue::Unknown || input == BoxValue::Unimplemented {
         return bool_unresolved(condition_flavor_2245_4);
     };
     make_bool_value(input == BoxValue::Null)
@@ -2480,7 +2480,7 @@ pub fn make_polygon_value(payload: PolygonPayload) -> PolygonValue {
     };
     let calculated = polygon_calculated_bounds(payload.clone());
     let mut bounds = payload.bounds;
-    if (bounds == BoxValue::Unknown || bounds == BoxValue::Unimplemented) {
+    if bounds == BoxValue::Unknown || bounds == BoxValue::Unimplemented {
         bounds = BoxValue::NonNull;
         if polygon_bounds_ambiguous(payload.clone(), calculated) == false {
             bounds = BoxValue::Value(calculated);
@@ -2577,7 +2577,7 @@ pub fn circle_is_null(input: CircleValue) -> BoolValue {
     if let CircleValue::Error(error) = input {
         return BoolValue::Error(error);
     };
-    let mut condition_flavor_2567_4: i32 = unresolved_flavor; if let CircleValue::Unknown = input { if condition_flavor_2567_4 < 1 { condition_flavor_2567_4 = 1; }; }; if let CircleValue::Unimplemented = input { condition_flavor_2567_4 = 2; }; if (input == CircleValue::Unknown || input == CircleValue::Unimplemented) {
+    let mut condition_flavor_2567_4: i32 = unresolved_flavor; if let CircleValue::Unknown = input { if condition_flavor_2567_4 < 1 { condition_flavor_2567_4 = 1; }; }; if let CircleValue::Unimplemented = input { condition_flavor_2567_4 = 2; }; if input == CircleValue::Unknown || input == CircleValue::Unimplemented {
         return bool_unresolved(condition_flavor_2567_4);
     };
     make_bool_value(input == CircleValue::Null)
@@ -2636,7 +2636,7 @@ pub fn aclitem_is_null(input: AclitemValue) -> BoolValue {
     if let AclitemValue::Unknown = input { unresolved_flavor = 1; };
     if let AclitemValue::Unimplemented = input { unresolved_flavor = 2; };
     if let AclitemValue::Error(error) = input { return BoolValue::Error(error); };
-    let mut condition_flavor_2626_4: i32 = unresolved_flavor; if let AclitemValue::Unknown = input { if condition_flavor_2626_4 < 1 { condition_flavor_2626_4 = 1; }; }; if let AclitemValue::Unimplemented = input { condition_flavor_2626_4 = 2; }; if (input == AclitemValue::Unknown || input == AclitemValue::Unimplemented) { return bool_unresolved(condition_flavor_2626_4); };
+    let mut condition_flavor_2626_4: i32 = unresolved_flavor; if let AclitemValue::Unknown = input { if condition_flavor_2626_4 < 1 { condition_flavor_2626_4 = 1; }; }; if let AclitemValue::Unimplemented = input { condition_flavor_2626_4 = 2; }; if input == AclitemValue::Unknown || input == AclitemValue::Unimplemented { return bool_unresolved(condition_flavor_2626_4); };
     make_bool_value(input == AclitemValue::Null)
 }
 pub fn aclitem_from_case_guard(input: CheckOutcome) -> AclitemValue {
@@ -2669,7 +2669,7 @@ pub fn money_is_null(input: MoneyValue) -> BoolValue {
     if let MoneyValue::Error(error) = input {
         return BoolValue::Error(error);
     };
-    let mut condition_flavor_2659_4: i32 = unresolved_flavor; if let MoneyValue::Unknown = input { if condition_flavor_2659_4 < 1 { condition_flavor_2659_4 = 1; }; }; if let MoneyValue::Unimplemented = input { condition_flavor_2659_4 = 2; }; if (input == MoneyValue::Unknown || input == MoneyValue::Unimplemented) {
+    let mut condition_flavor_2659_4: i32 = unresolved_flavor; if let MoneyValue::Unknown = input { if condition_flavor_2659_4 < 1 { condition_flavor_2659_4 = 1; }; }; if let MoneyValue::Unimplemented = input { condition_flavor_2659_4 = 2; }; if input == MoneyValue::Unknown || input == MoneyValue::Unimplemented {
         return bool_unresolved(condition_flavor_2659_4);
     };
     make_bool_value(input == MoneyValue::Null)
@@ -2710,7 +2710,7 @@ pub fn internal_char_is_null(input: InternalCharValue) -> BoolValue {
     if let InternalCharValue::Error(error) = input {
         return BoolValue::Error(error);
     };
-    let mut condition_flavor_2700_4: i32 = unresolved_flavor; if let InternalCharValue::Unknown = input { if condition_flavor_2700_4 < 1 { condition_flavor_2700_4 = 1; }; }; if let InternalCharValue::Unimplemented = input { condition_flavor_2700_4 = 2; }; if (input == InternalCharValue::Unknown || input == InternalCharValue::Unimplemented) {
+    let mut condition_flavor_2700_4: i32 = unresolved_flavor; if let InternalCharValue::Unknown = input { if condition_flavor_2700_4 < 1 { condition_flavor_2700_4 = 1; }; }; if let InternalCharValue::Unimplemented = input { condition_flavor_2700_4 = 2; }; if input == InternalCharValue::Unknown || input == InternalCharValue::Unimplemented {
         return bool_unresolved(condition_flavor_2700_4);
     };
     make_bool_value(input == InternalCharValue::Null)
@@ -2751,7 +2751,7 @@ pub fn oid_is_null(input: OidValue) -> BoolValue {
     if let OidValue::Error(error) = input {
         return BoolValue::Error(error);
     };
-    let mut condition_flavor_2741_4: i32 = unresolved_flavor; if let OidValue::Unknown = input { if condition_flavor_2741_4 < 1 { condition_flavor_2741_4 = 1; }; }; if let OidValue::Unimplemented = input { condition_flavor_2741_4 = 2; }; if (input == OidValue::Unknown || input == OidValue::Unimplemented) {
+    let mut condition_flavor_2741_4: i32 = unresolved_flavor; if let OidValue::Unknown = input { if condition_flavor_2741_4 < 1 { condition_flavor_2741_4 = 1; }; }; if let OidValue::Unimplemented = input { condition_flavor_2741_4 = 2; }; if input == OidValue::Unknown || input == OidValue::Unimplemented {
         return bool_unresolved(condition_flavor_2741_4);
     };
     make_bool_value(input == OidValue::Null)
@@ -2792,7 +2792,7 @@ pub fn xid_is_null(input: XidValue) -> BoolValue {
     if let XidValue::Error(error) = input {
         return BoolValue::Error(error);
     };
-    let mut condition_flavor_2782_4: i32 = unresolved_flavor; if let XidValue::Unknown = input { if condition_flavor_2782_4 < 1 { condition_flavor_2782_4 = 1; }; }; if let XidValue::Unimplemented = input { condition_flavor_2782_4 = 2; }; if (input == XidValue::Unknown || input == XidValue::Unimplemented) {
+    let mut condition_flavor_2782_4: i32 = unresolved_flavor; if let XidValue::Unknown = input { if condition_flavor_2782_4 < 1 { condition_flavor_2782_4 = 1; }; }; if let XidValue::Unimplemented = input { condition_flavor_2782_4 = 2; }; if input == XidValue::Unknown || input == XidValue::Unimplemented {
         return bool_unresolved(condition_flavor_2782_4);
     };
     make_bool_value(input == XidValue::Null)
@@ -2833,7 +2833,7 @@ pub fn cid_is_null(input: CidValue) -> BoolValue {
     if let CidValue::Error(error) = input {
         return BoolValue::Error(error);
     };
-    let mut condition_flavor_2823_4: i32 = unresolved_flavor; if let CidValue::Unknown = input { if condition_flavor_2823_4 < 1 { condition_flavor_2823_4 = 1; }; }; if let CidValue::Unimplemented = input { condition_flavor_2823_4 = 2; }; if (input == CidValue::Unknown || input == CidValue::Unimplemented) {
+    let mut condition_flavor_2823_4: i32 = unresolved_flavor; if let CidValue::Unknown = input { if condition_flavor_2823_4 < 1 { condition_flavor_2823_4 = 1; }; }; if let CidValue::Unimplemented = input { condition_flavor_2823_4 = 2; }; if input == CidValue::Unknown || input == CidValue::Unimplemented {
         return bool_unresolved(condition_flavor_2823_4);
     };
     make_bool_value(input == CidValue::Null)
@@ -2980,7 +2980,7 @@ pub fn xid8_is_null(input: Xid8Value) -> BoolValue {
     if let Xid8Value::Error(error) = input {
         return BoolValue::Error(error);
     };
-    let mut condition_flavor_2970_4: i32 = unresolved_flavor; if let Xid8Value::Unknown = input { if condition_flavor_2970_4 < 1 { condition_flavor_2970_4 = 1; }; }; if let Xid8Value::Unimplemented = input { condition_flavor_2970_4 = 2; }; if (input == Xid8Value::Unknown || input == Xid8Value::Unimplemented) {
+    let mut condition_flavor_2970_4: i32 = unresolved_flavor; if let Xid8Value::Unknown = input { if condition_flavor_2970_4 < 1 { condition_flavor_2970_4 = 1; }; }; if let Xid8Value::Unimplemented = input { condition_flavor_2970_4 = 2; }; if input == Xid8Value::Unknown || input == Xid8Value::Unimplemented {
         return bool_unresolved(condition_flavor_2970_4);
     };
     make_bool_value(input == Xid8Value::Null)
@@ -3017,7 +3017,7 @@ pub fn pg_lsn_is_null(input: PgLsnValue) -> BoolValue {
     if let PgLsnValue::Error(error) = input {
         return BoolValue::Error(error);
     };
-    let mut condition_flavor_3007_4: i32 = unresolved_flavor; if let PgLsnValue::Unknown = input { if condition_flavor_3007_4 < 1 { condition_flavor_3007_4 = 1; }; }; if let PgLsnValue::Unimplemented = input { condition_flavor_3007_4 = 2; }; if (input == PgLsnValue::Unknown || input == PgLsnValue::Unimplemented) {
+    let mut condition_flavor_3007_4: i32 = unresolved_flavor; if let PgLsnValue::Unknown = input { if condition_flavor_3007_4 < 1 { condition_flavor_3007_4 = 1; }; }; if let PgLsnValue::Unimplemented = input { condition_flavor_3007_4 = 2; }; if input == PgLsnValue::Unknown || input == PgLsnValue::Unimplemented {
         return bool_unresolved(condition_flavor_3007_4);
     };
     make_bool_value(input == PgLsnValue::Null)
@@ -3058,7 +3058,7 @@ pub fn tid_is_null(input: TidValue) -> BoolValue {
     if let TidValue::Error(error) = input {
         return BoolValue::Error(error);
     };
-    let mut condition_flavor_3048_4: i32 = unresolved_flavor; if let TidValue::Unknown = input { if condition_flavor_3048_4 < 1 { condition_flavor_3048_4 = 1; }; }; if let TidValue::Unimplemented = input { condition_flavor_3048_4 = 2; }; if (input == TidValue::Unknown || input == TidValue::Unimplemented) {
+    let mut condition_flavor_3048_4: i32 = unresolved_flavor; if let TidValue::Unknown = input { if condition_flavor_3048_4 < 1 { condition_flavor_3048_4 = 1; }; }; if let TidValue::Unimplemented = input { condition_flavor_3048_4 = 2; }; if input == TidValue::Unknown || input == TidValue::Unimplemented {
         return bool_unresolved(condition_flavor_3048_4);
     };
     make_bool_value(input == TidValue::Null)

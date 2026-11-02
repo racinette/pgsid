@@ -93,7 +93,7 @@ pub fn sql__pg_catalog__numeric_eq__fw7r(left: NumericValue, right: NumericValue
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_96_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_96_4 < 1 { condition_flavor_96_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_96_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+    let mut condition_flavor_96_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_96_4 < 1 { condition_flavor_96_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_96_4 = 2; }; if result == Int4Value::Unknown || result == Int4Value::Unimplemented {
         return bool_unresolved(condition_flavor_96_4);
     }
     if result == Int4Value::Null {
@@ -115,7 +115,7 @@ pub fn sql__pg_catalog__numeric_ge__w8pw(left: NumericValue, right: NumericValue
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_118_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_118_4 < 1 { condition_flavor_118_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_118_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+    let mut condition_flavor_118_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_118_4 < 1 { condition_flavor_118_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_118_4 = 2; }; if result == Int4Value::Unknown || result == Int4Value::Unimplemented {
         return bool_unresolved(condition_flavor_118_4);
     }
     if result == Int4Value::Null {
@@ -137,7 +137,7 @@ pub fn sql__pg_catalog__numeric_gt__h1pi(left: NumericValue, right: NumericValue
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_140_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_140_4 < 1 { condition_flavor_140_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_140_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+    let mut condition_flavor_140_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_140_4 < 1 { condition_flavor_140_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_140_4 = 2; }; if result == Int4Value::Unknown || result == Int4Value::Unimplemented {
         return bool_unresolved(condition_flavor_140_4);
     }
     if result == Int4Value::Null {
@@ -159,7 +159,7 @@ pub fn sql__pg_catalog__numeric_le__bbpc(left: NumericValue, right: NumericValue
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_162_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_162_4 < 1 { condition_flavor_162_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_162_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+    let mut condition_flavor_162_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_162_4 < 1 { condition_flavor_162_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_162_4 = 2; }; if result == Int4Value::Unknown || result == Int4Value::Unimplemented {
         return bool_unresolved(condition_flavor_162_4);
     }
     if result == Int4Value::Null {
@@ -181,7 +181,7 @@ pub fn sql__pg_catalog__numeric_lt__zl16(left: NumericValue, right: NumericValue
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_184_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_184_4 < 1 { condition_flavor_184_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_184_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+    let mut condition_flavor_184_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_184_4 < 1 { condition_flavor_184_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_184_4 = 2; }; if result == Int4Value::Unknown || result == Int4Value::Unimplemented {
         return bool_unresolved(condition_flavor_184_4);
     }
     if result == Int4Value::Null {
@@ -203,7 +203,7 @@ pub fn sql__pg_catalog__numeric_ne__gyip(left: NumericValue, right: NumericValue
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_206_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_206_4 < 1 { condition_flavor_206_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_206_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+    let mut condition_flavor_206_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_206_4 < 1 { condition_flavor_206_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_206_4 = 2; }; if result == Int4Value::Unknown || result == Int4Value::Unimplemented {
         return bool_unresolved(condition_flavor_206_4);
     }
     if result == Int4Value::Null {

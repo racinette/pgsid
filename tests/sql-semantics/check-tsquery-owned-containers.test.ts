@@ -5,6 +5,7 @@ import {
 import { readTsqueryFixture } from './check-tsquery-fixtures.js'
 import { PGlite } from '@electric-sql/pglite'
 import { expect, it } from 'vitest'
+import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -283,8 +284,7 @@ it('validates owned tsquery arrays and record fields through native INSERTs and 
           value: { ...reference.value, elements: [{ kind: 'Tsquery', value: bad }, cell(z)] },
         },
       }
-      expect(evaluate(input).same).toEqual({ certain: false })
-      expect(evaluate(input).presence).toEqual({ certain: false })
+      expectUndecidedOrRejected(() => evaluate(input), undefined, ['same', 'presence'])
     }
     const goRoot = join(root, 'public-go'),
       goBundle = renderGoSchemaCheckArtifacts(

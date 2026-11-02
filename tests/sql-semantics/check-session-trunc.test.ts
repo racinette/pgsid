@@ -37,7 +37,7 @@ const profiles: { session: string; context: CheckExecutionContext; missingZone?:
     '167.999',
   ].map((session) => ({ session, context: { ...common, timeZone: session } })),
   { session: 'UTC', context: { ...common, timeZone: undefined }, missingZone: true },
-  { session: 'UTC2DST', context: { ...common, timeZone: 'UTC2DST' }, missingZone: true },
+  { session: 'UTC2DST', context: { ...common, timeZone: 'UTC2DST' } },
   { session: 'UTC', context: { ...common, maxIdentifierBytes: undefined } },
   { session: 'UTC', context: { ...common, serverEncoding: undefined } },
 ]

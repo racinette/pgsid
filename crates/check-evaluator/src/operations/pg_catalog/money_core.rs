@@ -161,7 +161,7 @@ fn money_ratio(left: MoneyValue, right: MoneyValue) -> Float8Value {
     if let Int4Value::Error(error) = status {
         return Float8Value::Error(error);
     };
-    let mut condition_flavor_163_4: i32 = unresolved_flavor; if let Int4Value::Unknown = status { if condition_flavor_163_4 < 1 { condition_flavor_163_4 = 1; }; }; if let Int4Value::Unimplemented = status { condition_flavor_163_4 = 2; }; if (status == Int4Value::Unknown || status == Int4Value::Unimplemented) {
+    let mut condition_flavor_163_4: i32 = unresolved_flavor; if let Int4Value::Unknown = status { if condition_flavor_163_4 < 1 { condition_flavor_163_4 = 1; }; }; if let Int4Value::Unimplemented = status { condition_flavor_163_4 = 2; }; if status == Int4Value::Unknown || status == Int4Value::Unimplemented {
         return float8_unresolved(condition_flavor_163_4);
     };
     if status == Int4Value::Null {

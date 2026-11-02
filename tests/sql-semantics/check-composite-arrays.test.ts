@@ -513,27 +513,27 @@ CONSTRAINT output CHECK(CASE WHEN bypass THEN true ELSE a::text='{"(2,z,hi)"}' E
         Object.assign(v.value.elements[0]!.value.fields[0]!, { kind: 'Int2', value: 40000 })
       },
       (v) => {
-        Object.assign(v.value.elements[0]!.value.fields[1]!, {
-          kind: 'Enum',
-          value: { ordinal: 99, labelOid: 0n },
-        })
-      },
-      (v) => {
         Object.assign(v.value.elements[0]!.value.fields[2]!, { kind: 'Text', value: '\ud800' })
       },
       (v) => {
         Object.assign(v.value.elements[0]!.value.fields[2]!, { kind: 'Text', value: 'bad\0label' })
       },
     ]
-    for (const mutate of mutations) {
+    for (const [index, mutate] of mutations.entries()) {
       const value = structuredClone(good)
       mutate(value)
-      for (const result of Object.values(evaluate({ a: value, bypass: false })))
-        expect(result).toMatchObject({ certain: false })
-      expect(evaluate({ a: value, bypass: true })).toEqual(expected)
+      expect(() => evaluate({ a: value, bypass: false }), String(index)).toThrow(TypeError)
     }
-    for (const result of Object.values(evaluate({ a: '{"(2,z,hi)"}', bypass: false })))
+    // An enum ordinal outside the captured labels is decoded, and the catalog decides it.
+    const outsideLabels = structuredClone(good)
+    Object.assign(outsideLabels.value.elements[0]!.value.fields[1]!, {
+      kind: 'Enum',
+      value: { ordinal: 99, labelOid: 0n },
+    })
+    for (const result of Object.values(evaluate({ a: outsideLabels, bypass: false })))
       expect(result).toMatchObject({ certain: false })
+    expect(evaluate({ a: outsideLabels, bypass: true })).toEqual(expected)
+    expect(() => evaluate({ a: '{"(2,z,hi)"}', bypass: false })).toThrow(TypeError)
     await writeFile(
       join(root, 'schema/public/composite_arrays_test.go'),
       `package public

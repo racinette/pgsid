@@ -109,7 +109,7 @@ pub fn sql__pg_catalog__time_larger__98xe(left: TimeValue, right: TimeValue) -> 
     if let Int4Value::Error(error) = order {
         return TimeValue::Error(error);
     }
-    let mut condition_flavor_112_4: i32 = unresolved_flavor; if let Int4Value::Unknown = order { if condition_flavor_112_4 < 1 { condition_flavor_112_4 = 1; }; }; if let Int4Value::Unimplemented = order { condition_flavor_112_4 = 2; }; if (order == Int4Value::Unknown || order == Int4Value::Unimplemented) {
+    let mut condition_flavor_112_4: i32 = unresolved_flavor; if let Int4Value::Unknown = order { if condition_flavor_112_4 < 1 { condition_flavor_112_4 = 1; }; }; if let Int4Value::Unimplemented = order { condition_flavor_112_4 = 2; }; if order == Int4Value::Unknown || order == Int4Value::Unimplemented {
         return time_unresolved(condition_flavor_112_4);
     }
     if order == Int4Value::Null {
@@ -146,7 +146,7 @@ pub fn sql__pg_catalog__time_smaller__a0k2(left: TimeValue, right: TimeValue) ->
     if let Int4Value::Error(error) = order {
         return TimeValue::Error(error);
     }
-    let mut condition_flavor_149_4: i32 = unresolved_flavor; if let Int4Value::Unknown = order { if condition_flavor_149_4 < 1 { condition_flavor_149_4 = 1; }; }; if let Int4Value::Unimplemented = order { condition_flavor_149_4 = 2; }; if (order == Int4Value::Unknown || order == Int4Value::Unimplemented) {
+    let mut condition_flavor_149_4: i32 = unresolved_flavor; if let Int4Value::Unknown = order { if condition_flavor_149_4 < 1 { condition_flavor_149_4 = 1; }; }; if let Int4Value::Unimplemented = order { condition_flavor_149_4 = 2; }; if order == Int4Value::Unknown || order == Int4Value::Unimplemented {
         return time_unresolved(condition_flavor_149_4);
     }
     if order == Int4Value::Null {
@@ -213,7 +213,7 @@ pub fn sql__pg_catalog__timetz_larger__yvok(left: TimetzValue, right: TimetzValu
     if let Int4Value::Error(error) = order {
         return TimetzValue::Error(error);
     }
-    let mut condition_flavor_216_4: i32 = unresolved_flavor; if let Int4Value::Unknown = order { if condition_flavor_216_4 < 1 { condition_flavor_216_4 = 1; }; }; if let Int4Value::Unimplemented = order { condition_flavor_216_4 = 2; }; if (order == Int4Value::Unknown || order == Int4Value::Unimplemented) {
+    let mut condition_flavor_216_4: i32 = unresolved_flavor; if let Int4Value::Unknown = order { if condition_flavor_216_4 < 1 { condition_flavor_216_4 = 1; }; }; if let Int4Value::Unimplemented = order { condition_flavor_216_4 = 2; }; if order == Int4Value::Unknown || order == Int4Value::Unimplemented {
         return timetz_unresolved(condition_flavor_216_4);
     }
     if order == Int4Value::Null {
@@ -250,7 +250,7 @@ pub fn sql__pg_catalog__timetz_smaller__5wru(left: TimetzValue, right: TimetzVal
     if let Int4Value::Error(error) = order {
         return TimetzValue::Error(error);
     }
-    let mut condition_flavor_253_4: i32 = unresolved_flavor; if let Int4Value::Unknown = order { if condition_flavor_253_4 < 1 { condition_flavor_253_4 = 1; }; }; if let Int4Value::Unimplemented = order { condition_flavor_253_4 = 2; }; if (order == Int4Value::Unknown || order == Int4Value::Unimplemented) {
+    let mut condition_flavor_253_4: i32 = unresolved_flavor; if let Int4Value::Unknown = order { if condition_flavor_253_4 < 1 { condition_flavor_253_4 = 1; }; }; if let Int4Value::Unimplemented = order { condition_flavor_253_4 = 2; }; if order == Int4Value::Unknown || order == Int4Value::Unimplemented {
         return timetz_unresolved(condition_flavor_253_4);
     }
     if order == Int4Value::Null {
@@ -320,7 +320,7 @@ pub fn sql__pg_catalog__interval_larger__vd9t(
     if let Int4Value::Error(error) = order {
         return IntervalValue::Error(error);
     }
-    let mut condition_flavor_323_4: i32 = unresolved_flavor; if let Int4Value::Unknown = order { if condition_flavor_323_4 < 1 { condition_flavor_323_4 = 1; }; }; if let Int4Value::Unimplemented = order { condition_flavor_323_4 = 2; }; if (order == Int4Value::Unknown || order == Int4Value::Unimplemented) {
+    let mut condition_flavor_323_4: i32 = unresolved_flavor; if let Int4Value::Unknown = order { if condition_flavor_323_4 < 1 { condition_flavor_323_4 = 1; }; }; if let Int4Value::Unimplemented = order { condition_flavor_323_4 = 2; }; if order == Int4Value::Unknown || order == Int4Value::Unimplemented {
         return interval_unresolved(condition_flavor_323_4);
     }
     if order == Int4Value::Null {
@@ -360,7 +360,7 @@ pub fn sql__pg_catalog__interval_smaller__ns56(
     if let Int4Value::Error(error) = order {
         return IntervalValue::Error(error);
     }
-    let mut condition_flavor_363_4: i32 = unresolved_flavor; if let Int4Value::Unknown = order { if condition_flavor_363_4 < 1 { condition_flavor_363_4 = 1; }; }; if let Int4Value::Unimplemented = order { condition_flavor_363_4 = 2; }; if (order == Int4Value::Unknown || order == Int4Value::Unimplemented) {
+    let mut condition_flavor_363_4: i32 = unresolved_flavor; if let Int4Value::Unknown = order { if condition_flavor_363_4 < 1 { condition_flavor_363_4 = 1; }; }; if let Int4Value::Unimplemented = order { condition_flavor_363_4 = 2; }; if order == Int4Value::Unknown || order == Int4Value::Unimplemented {
         return interval_unresolved(condition_flavor_363_4);
     }
     if order == Int4Value::Null {

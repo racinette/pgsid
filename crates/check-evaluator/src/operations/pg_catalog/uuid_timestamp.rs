@@ -5,7 +5,7 @@ pub fn sql__pg_catalog__uuid_extract_timestamp__p52j(input: UuidValue) -> Timest
     if let UuidValue::Error(error) = input {
         return TimestamptzValue::Error(error);
     }
-    let mut condition_flavor_8_4: i32 = unresolved_flavor; if let UuidValue::Unknown = input { if condition_flavor_8_4 < 1 { condition_flavor_8_4 = 1; }; }; if let UuidValue::Unimplemented = input { condition_flavor_8_4 = 2; }; if (input == UuidValue::Unknown || input == UuidValue::Unimplemented) {
+    let mut condition_flavor_8_4: i32 = unresolved_flavor; if let UuidValue::Unknown = input { if condition_flavor_8_4 < 1 { condition_flavor_8_4 = 1; }; }; if let UuidValue::Unimplemented = input { condition_flavor_8_4 = 2; }; if input == UuidValue::Unknown || input == UuidValue::Unimplemented {
         return timestamptz_unresolved(condition_flavor_8_4);
     }
     if input == UuidValue::Null {

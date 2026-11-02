@@ -182,7 +182,7 @@ fn network_output(input: NetworkValue, mode: i32) -> TextValue {
     if let NetworkValue::Error(error) = input {
         return TextValue::Error(error);
     }
-    let mut condition_flavor_185_4: i32 = unresolved_flavor; if let NetworkValue::Unknown = input { if condition_flavor_185_4 < 1 { condition_flavor_185_4 = 1; }; }; if let NetworkValue::Unimplemented = input { condition_flavor_185_4 = 2; }; if (input == NetworkValue::Unknown || input == NetworkValue::Unimplemented) {
+    let mut condition_flavor_185_4: i32 = unresolved_flavor; if let NetworkValue::Unknown = input { if condition_flavor_185_4 < 1 { condition_flavor_185_4 = 1; }; }; if let NetworkValue::Unimplemented = input { condition_flavor_185_4 = 2; }; if input == NetworkValue::Unknown || input == NetworkValue::Unimplemented {
         return text_unresolved(condition_flavor_185_4);
     }
     if input == NetworkValue::Null {
@@ -223,7 +223,7 @@ fn network_send(input: NetworkValue, cidr: bool) -> ByteaValue {
     if let NetworkValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
-    let mut condition_flavor_226_4: i32 = unresolved_flavor; if let NetworkValue::Unknown = input { if condition_flavor_226_4 < 1 { condition_flavor_226_4 = 1; }; }; if let NetworkValue::Unimplemented = input { condition_flavor_226_4 = 2; }; if (input == NetworkValue::Unknown || input == NetworkValue::Unimplemented) {
+    let mut condition_flavor_226_4: i32 = unresolved_flavor; if let NetworkValue::Unknown = input { if condition_flavor_226_4 < 1 { condition_flavor_226_4 = 1; }; }; if let NetworkValue::Unimplemented = input { condition_flavor_226_4 = 2; }; if input == NetworkValue::Unknown || input == NetworkValue::Unimplemented {
         return bytea_unresolved(condition_flavor_226_4);
     }
     if input == NetworkValue::Null {

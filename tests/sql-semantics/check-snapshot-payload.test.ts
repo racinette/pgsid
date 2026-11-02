@@ -1,5 +1,6 @@
 import { PGlite } from '@electric-sql/pglite'
 import { expect, it } from 'vitest'
+import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { execFile } from 'node:child_process'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
@@ -61,7 +62,7 @@ it.each(['pg_snapshot', 'txid_snapshot'] as const)(
       expect(evaluateText('1:9:', 'wrong')).toEqual({ certain: true, value: false })
       expect(evaluateText('invalid')).toEqual({ certain: true, error: '22P02' })
       for (const value of [String.fromCharCode(0), '\ud800', '\udc00'])
-        expect(evaluateText(value)).toEqual({ certain: false })
+        expect(() => evaluateText(value)).toThrow(TypeError)
       await expect(
         pg.query('INSERT INTO snapshot_text_inputs(source_text,expected_text) VALUES($1,$2)', [
           String.fromCharCode(0),
@@ -118,9 +119,7 @@ it.each(['pg_snapshot', 'txid_snapshot'] as const)(
         { kind: 'Value', value: { ...payload, xip: null } },
         { kind: 'Value', value: null },
       ]) {
-        expect(Object.values(evaluate(position))).toEqual(
-          Array.from({ length: 7 }, () => ({ certain: false })),
-        )
+        expectUndecidedOrRejected(() => evaluate(position))
       }
       expect(
         Object.values(evaluate({ kind: 'Error', value: { state: parseInt('22003', 36) } })),

@@ -42,7 +42,7 @@ pub fn sql__pg_catalog__length__ehpe(value: TextValue) -> Int4Value {
     if let TextValue::Error(error) = value {
         return Int4Value::Error(error);
     }
-    let mut condition_flavor_44_4: i32 = unresolved_flavor; if let TextValue::Unknown = value { if condition_flavor_44_4 < 1 { condition_flavor_44_4 = 1; }; }; if let TextValue::Unimplemented = value { condition_flavor_44_4 = 2; }; if ((value == TextValue::Unknown || value == TextValue::Unimplemented) || value == TextValue::NonNull) {
+    let mut condition_flavor_44_4: i32 = unresolved_flavor; if let TextValue::Unknown = value { if condition_flavor_44_4 < 1 { condition_flavor_44_4 = 1; }; }; if let TextValue::Unimplemented = value { condition_flavor_44_4 = 2; }; if (value == TextValue::Unknown || value == TextValue::Unimplemented) || value == TextValue::NonNull {
         return int4_unresolved(condition_flavor_44_4);
     }
     if value == TextValue::Null {

@@ -60,7 +60,7 @@ fn integer_hash(input: Int8Value) -> Int4Value {
     if let Int8Value::Error(error) = result {
         return Int4Value::Error(error);
     }
-    let mut condition_flavor_63_4: i32 = unresolved_flavor; if let Int8Value::Unknown = result { if condition_flavor_63_4 < 1 { condition_flavor_63_4 = 1; }; }; if let Int8Value::Unimplemented = result { condition_flavor_63_4 = 2; }; if (result == Int8Value::Unknown || result == Int8Value::Unimplemented) {
+    let mut condition_flavor_63_4: i32 = unresolved_flavor; if let Int8Value::Unknown = result { if condition_flavor_63_4 < 1 { condition_flavor_63_4 = 1; }; }; if let Int8Value::Unimplemented = result { condition_flavor_63_4 = 2; }; if result == Int8Value::Unknown || result == Int8Value::Unimplemented {
         return int4_unresolved(condition_flavor_63_4);
     }
     if result == Int8Value::Null {

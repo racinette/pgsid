@@ -124,7 +124,7 @@ pub fn sql__pg_catalog__hash_range_extended__axg0(
     if let Int8Value::Null = seed {
         return Int8Value::Null;
     };
-    let mut condition_flavor_127_4: i32 = unresolved_flavor; if let Int8Value::Unknown = seed { if condition_flavor_127_4 < 1 { condition_flavor_127_4 = 1; }; }; if let Int8Value::Unimplemented = seed { condition_flavor_127_4 = 2; }; if (seed == Int8Value::Unknown || seed == Int8Value::Unimplemented) {
+    let mut condition_flavor_127_4: i32 = unresolved_flavor; if let Int8Value::Unknown = seed { if condition_flavor_127_4 < 1 { condition_flavor_127_4 = 1; }; }; if let Int8Value::Unimplemented = seed { condition_flavor_127_4 = 2; }; if seed == Int8Value::Unknown || seed == Int8Value::Unimplemented {
         return int8_unresolved(condition_flavor_127_4);
     };
     if let Int8Value::Error(error) = flags {

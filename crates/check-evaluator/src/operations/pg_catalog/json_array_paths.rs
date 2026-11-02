@@ -46,7 +46,7 @@ fn jsonb_array_path_select(input: JsonbValue, path: ArrayValue) -> JsonbValue {
     if state == Int4Value::Null {
         return JsonbValue::Null;
     };
-    let mut condition_flavor_49_4: i32 = unresolved_flavor; if let Int4Value::Unknown = state { if condition_flavor_49_4 < 1 { condition_flavor_49_4 = 1; }; }; if let Int4Value::Unimplemented = state { condition_flavor_49_4 = 2; }; if (state == Int4Value::Unknown || state == Int4Value::Unimplemented) {
+    let mut condition_flavor_49_4: i32 = unresolved_flavor; if let Int4Value::Unknown = state { if condition_flavor_49_4 < 1 { condition_flavor_49_4 = 1; }; }; if let Int4Value::Unimplemented = state { condition_flavor_49_4 = 2; }; if state == Int4Value::Unknown || state == Int4Value::Unimplemented {
         return jsonb_unresolved(condition_flavor_49_4);
     };
     let partial = input.clone();

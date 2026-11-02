@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
+import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
 import { join, dirname } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -378,11 +379,10 @@ CONSTRAINT output CHECK(CASE WHEN bypass THEN true ELSE length(a::text)>2 END));
         v.value.elements[0]!.value.elements[0]!.value.fields[0]!.value = 40000
       },
     ]
-    for (const mutate of mutations) {
+    for (const [index, mutate] of mutations.entries()) {
       const v = structuredClone(good)
       mutate(v)
-      expect(evaluate(v).every((c) => !c.result.certain)).toBe(true)
-      expect(evaluate(v, true).every((c) => c.result.certain && c.result.value === true)).toBe(true)
+      expectUndecidedOrRejected(() => evaluate(v), String(index))
     }
     const partial = structuredClone(good)
     Object.assign(partial.value.elements[0]!.value.elements[0]!.value.fields[0]!, {

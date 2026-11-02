@@ -3,7 +3,7 @@ pub fn sql__pg_catalog__ceil__8geh(input: NumericValue) -> NumericValue {
     if let NumericValue::Unknown = input { unresolved_flavor = 1; };
     if let NumericValue::Unimplemented = input { unresolved_flavor = 2; };
 if let NumericValue::Error(error) = input { return NumericValue::Error(error); }
-let mut condition_flavor_6_0: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_6_0 < 1 { condition_flavor_6_0 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_6_0 = 2; }; if (input == NumericValue::Unknown || input == NumericValue::Unimplemented) { return numeric_unresolved(condition_flavor_6_0); }
+let mut condition_flavor_6_0: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_6_0 < 1 { condition_flavor_6_0 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_6_0 = 2; }; if input == NumericValue::Unknown || input == NumericValue::Unimplemented { return numeric_unresolved(condition_flavor_6_0); }
 if input == NumericValue::Null { return NumericValue::Null; }
 if let NumericValue::Value(value) = input {
 let work = numeric_work_from_value(value.as_str());
@@ -18,7 +18,7 @@ pub fn sql__pg_catalog__ceiling__pr5v(input: NumericValue) -> NumericValue {
     if let NumericValue::Unknown = input { unresolved_flavor = 1; };
     if let NumericValue::Unimplemented = input { unresolved_flavor = 2; };
 if let NumericValue::Error(error) = input { return NumericValue::Error(error); }
-let mut condition_flavor_21_0: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_21_0 < 1 { condition_flavor_21_0 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_21_0 = 2; }; if (input == NumericValue::Unknown || input == NumericValue::Unimplemented) { return numeric_unresolved(condition_flavor_21_0); }
+let mut condition_flavor_21_0: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_21_0 < 1 { condition_flavor_21_0 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_21_0 = 2; }; if input == NumericValue::Unknown || input == NumericValue::Unimplemented { return numeric_unresolved(condition_flavor_21_0); }
 if input == NumericValue::Null { return NumericValue::Null; }
 if let NumericValue::Value(value) = input {
 let work = numeric_work_from_value(value.as_str());
@@ -33,7 +33,7 @@ pub fn sql__pg_catalog__floor__x7mh(input: NumericValue) -> NumericValue {
     if let NumericValue::Unknown = input { unresolved_flavor = 1; };
     if let NumericValue::Unimplemented = input { unresolved_flavor = 2; };
 if let NumericValue::Error(error) = input { return NumericValue::Error(error); }
-let mut condition_flavor_36_0: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_36_0 < 1 { condition_flavor_36_0 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_36_0 = 2; }; if (input == NumericValue::Unknown || input == NumericValue::Unimplemented) { return numeric_unresolved(condition_flavor_36_0); }
+let mut condition_flavor_36_0: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_36_0 < 1 { condition_flavor_36_0 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_36_0 = 2; }; if input == NumericValue::Unknown || input == NumericValue::Unimplemented { return numeric_unresolved(condition_flavor_36_0); }
 if input == NumericValue::Null { return NumericValue::Null; }
 if let NumericValue::Value(value) = input {
 let work = numeric_work_from_value(value.as_str());
@@ -48,7 +48,7 @@ pub fn sql__pg_catalog__round__mmpo(input: NumericValue) -> NumericValue {
     if let NumericValue::Unknown = input { unresolved_flavor = 1; };
     if let NumericValue::Unimplemented = input { unresolved_flavor = 2; };
 if let NumericValue::Error(error) = input { return NumericValue::Error(error); }
-let mut condition_flavor_51_0: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_51_0 < 1 { condition_flavor_51_0 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_51_0 = 2; }; if (input == NumericValue::Unknown || input == NumericValue::Unimplemented) { return numeric_unresolved(condition_flavor_51_0); }
+let mut condition_flavor_51_0: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_51_0 < 1 { condition_flavor_51_0 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_51_0 = 2; }; if input == NumericValue::Unknown || input == NumericValue::Unimplemented { return numeric_unresolved(condition_flavor_51_0); }
 if input == NumericValue::Null { return NumericValue::Null; }
 if let NumericValue::Value(value) = input {
 let work = numeric_work_from_value(value.as_str());
@@ -81,7 +81,7 @@ pub fn sql__pg_catalog__trunc__dghz(input: NumericValue) -> NumericValue {
     if let NumericValue::Unknown = input { unresolved_flavor = 1; };
     if let NumericValue::Unimplemented = input { unresolved_flavor = 2; };
 if let NumericValue::Error(error) = input { return NumericValue::Error(error); }
-let mut condition_flavor_84_0: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_84_0 < 1 { condition_flavor_84_0 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_84_0 = 2; }; if (input == NumericValue::Unknown || input == NumericValue::Unimplemented) { return numeric_unresolved(condition_flavor_84_0); }
+let mut condition_flavor_84_0: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_84_0 < 1 { condition_flavor_84_0 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_84_0 = 2; }; if input == NumericValue::Unknown || input == NumericValue::Unimplemented { return numeric_unresolved(condition_flavor_84_0); }
 if input == NumericValue::Null { return NumericValue::Null; }
 if let NumericValue::Value(value) = input {
 let work = numeric_work_from_value(value.as_str());

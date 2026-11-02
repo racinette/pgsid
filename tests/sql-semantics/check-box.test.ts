@@ -547,17 +547,17 @@ describe('portable boxes', () => {
       ...knownResults,
       wire: { certain: false },
     })
+    for (const edge of [undefined, { kind: 'Unknown' }])
+      expect(Object.values(evaluate(edge))).toEqual(
+        Array.from({ length: 4 }, () => ({ certain: false })),
+      )
     for (const edge of [
-      undefined,
       '((0,0),(3,4))',
-      { kind: 'Unknown' },
       { kind: 'Value', value: { ...payload, highX: 9223372036854775808n } },
       { kind: 'Value', value: { ...payload, lowY: '0' } },
       { kind: 'Value', value: { ...payload, wireKnown: 'false' } },
     ])
-      expect(Object.values(evaluate(edge))).toEqual(
-        Array.from({ length: 4 }, () => ({ certain: false })),
-      )
+      expect(() => evaluate(edge)).toThrow(TypeError)
     for (const edge of [null, { kind: 'Null' }])
       expect(evaluate(edge)).toEqual({
         wire: { certain: true, value: null },

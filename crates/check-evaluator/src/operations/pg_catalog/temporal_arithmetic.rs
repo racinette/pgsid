@@ -7,7 +7,7 @@ pub fn sql__pg_catalog__date__bvna(left: TimestampValue) -> DateValue {
     if let TimestampValue::Error(error) = left {
         return DateValue::Error(error);
     }
-    let mut condition_flavor_10_4: i32 = unresolved_flavor; if let TimestampValue::Unknown = left { if condition_flavor_10_4 < 1 { condition_flavor_10_4 = 1; }; }; if let TimestampValue::Unimplemented = left { condition_flavor_10_4 = 2; }; if (left == TimestampValue::Unknown || left == TimestampValue::Unimplemented) {
+    let mut condition_flavor_10_4: i32 = unresolved_flavor; if let TimestampValue::Unknown = left { if condition_flavor_10_4 < 1 { condition_flavor_10_4 = 1; }; }; if let TimestampValue::Unimplemented = left { condition_flavor_10_4 = 2; }; if left == TimestampValue::Unknown || left == TimestampValue::Unimplemented {
         return date_unresolved(condition_flavor_10_4);
     }
     if left == TimestampValue::Null {
@@ -171,7 +171,7 @@ pub fn sql__pg_catalog__timestamp__swxj(left: DateValue) -> TimestampValue {
     if let DateValue::Error(error) = left {
         return TimestampValue::Error(error);
     }
-    let mut condition_flavor_174_4: i32 = unresolved_flavor; if let DateValue::Unknown = left { if condition_flavor_174_4 < 1 { condition_flavor_174_4 = 1; }; }; if let DateValue::Unimplemented = left { condition_flavor_174_4 = 2; }; if (left == DateValue::Unknown || left == DateValue::Unimplemented) {
+    let mut condition_flavor_174_4: i32 = unresolved_flavor; if let DateValue::Unknown = left { if condition_flavor_174_4 < 1 { condition_flavor_174_4 = 1; }; }; if let DateValue::Unimplemented = left { condition_flavor_174_4 = 2; }; if left == DateValue::Unknown || left == DateValue::Unimplemented {
         return timestamp_unresolved(condition_flavor_174_4);
     }
     if left == DateValue::Null {

@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
+import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { dirname, join } from 'node:path'
@@ -175,20 +176,20 @@ it('validates range array and domain-cell profiles before copying public inputs,
       ]) {
         const bad = structuredClone(spans)
         bad.elements[0] = { kind: 'Range', value: { ...head, ...change } as typeof head }
-        const result = evaluate(bad, domains, histories, true)
-        for (const name of ['first', 'shape', 'present']) {
-          expect(result[name], metadata.identity + ':' + name).toMatchObject({ certain: false })
-          assertions++
-        }
-        expect(result.guarded).toEqual({ certain: true, value: true })
+        expectUndecidedOrRejected(
+          () => evaluate(bad, domains, histories, true),
+          metadata.identity,
+          ['first', 'shape', 'present'],
+        )
+        assertions++
       }
       for (const value of [
-        undefined,
         '{empty}',
-        { kind: 'Unknown' },
         { kind: 'Value', value: { ...spans, elementType: 'wrong' } },
         { kind: 'Value', value: { ...spans, elementKind: 2 } },
-      ]) {
+      ])
+        expect(() => evaluate(value, domains, histories, true)).toThrow(TypeError)
+      for (const value of [undefined, { kind: 'Unknown' }]) {
         const result = evaluate(value, domains, histories, true)
         for (const name of ['first', 'shape', 'present']) {
           expect(result[name]).toMatchObject({ certain: false })
@@ -207,14 +208,18 @@ it('validates range array and domain-cell profiles before copying public inputs,
       expect(evaluate(partialBound).first).toMatchObject({ certain: false })
       expect(evaluate(partialBound).shape).toEqual({ certain: true, value: true })
       const badDomain = { ...domains, elementType: metadata.identity }
-      expect(evaluate(spans, badDomain).domain_cell).toMatchObject({ certain: false })
-      expect(evaluate(spans, badDomain).domain_guarded).toMatchObject({ certain: false })
+      expectUndecidedOrRejected(() => evaluate(spans, badDomain), metadata.identity, [
+        'domain_cell',
+        'domain_guarded',
+      ])
       const badNested = structuredClone(histories)
       const inner = badNested.elements[0]
       if (inner?.kind !== 'Array') throw new Error('Missing nested array')
       inner.value.elementType = metadata.identity
-      expect(evaluate(spans, domains, badNested).nested_cell).toMatchObject({ certain: false })
-      expect(evaluate(spans, domains, badNested).nested_guarded).toMatchObject({ certain: false })
+      expectUndecidedOrRejected(() => evaluate(spans, domains, badNested), metadata.identity, [
+        'nested_cell',
+        'nested_guarded',
+      ])
       for (const value of [null, { kind: 'Null' }]) {
         const result = evaluate(value)
         expect(result.first).toEqual({ certain: true, value: false })

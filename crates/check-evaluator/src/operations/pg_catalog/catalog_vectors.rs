@@ -110,7 +110,7 @@ pub fn catalog_vector_from_text(input: TextValue, oid: bool) -> ArrayValue {
                 if let OidValue::Value(units) = value {
                     elements.push(ArrayElement::Oid(units));
                 };
-                let mut condition_flavor_112_16: i32 = unresolved_flavor; if let OidValue::Unknown = value { if condition_flavor_112_16 < 1 { condition_flavor_112_16 = 1; }; }; if let OidValue::Unimplemented = value { condition_flavor_112_16 = 2; }; if (value == OidValue::Unknown || value == OidValue::Unimplemented) { return array_unresolved(condition_flavor_112_16); };
+                let mut condition_flavor_112_16: i32 = unresolved_flavor; if let OidValue::Unknown = value { if condition_flavor_112_16 < 1 { condition_flavor_112_16 = 1; }; }; if let OidValue::Unimplemented = value { condition_flavor_112_16 = 2; }; if value == OidValue::Unknown || value == OidValue::Unimplemented { return array_unresolved(condition_flavor_112_16); };
             } else {
                 if small > 32768i64 || (negative == false && small > 32767i64) {
                     return ArrayValue::Error(make_sql_error(SQLSTATE_NUMERIC_VALUE_OUT_OF_RANGE));
@@ -261,7 +261,7 @@ pub fn sql__pg_catalog__hashoidvectorextended__hlbf(input: ArrayValue, seed: Int
     if let ArrayValue::Error(error) = input { return Int8Value::Error(error); };
     if let Int8Value::Error(error) = seed { return Int8Value::Error(error); };
     let mut condition_flavor_253_4: i32 = unresolved_flavor; if let ArrayValue::Unknown = input { if condition_flavor_253_4 < 1 { condition_flavor_253_4 = 1; }; }; if let ArrayValue::Unknown = input { return int8_unresolved(condition_flavor_253_4); }; let mut condition_flavor_253_87: i32 = unresolved_flavor; if let ArrayValue::Unimplemented = input { condition_flavor_253_87 = 2; }; if let ArrayValue::Unimplemented = input { return int8_unresolved(condition_flavor_253_87); };
-    let mut condition_flavor_254_4: i32 = unresolved_flavor; if let Int8Value::Unknown = seed { if condition_flavor_254_4 < 1 { condition_flavor_254_4 = 1; }; }; if let Int8Value::Unimplemented = seed { condition_flavor_254_4 = 2; }; if (seed == Int8Value::Unknown || seed == Int8Value::Unimplemented) { return int8_unresolved(condition_flavor_254_4); };
+    let mut condition_flavor_254_4: i32 = unresolved_flavor; if let Int8Value::Unknown = seed { if condition_flavor_254_4 < 1 { condition_flavor_254_4 = 1; }; }; if let Int8Value::Unimplemented = seed { condition_flavor_254_4 = 2; }; if seed == Int8Value::Unknown || seed == Int8Value::Unimplemented { return int8_unresolved(condition_flavor_254_4); };
     if let ArrayValue::Null = input { return Int8Value::Null; };
     if seed == Int8Value::Null { return Int8Value::Null; };
     let plan = catalog_vector_hash_bytes(input);

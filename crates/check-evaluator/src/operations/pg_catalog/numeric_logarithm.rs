@@ -112,7 +112,7 @@ pub fn sql__pg_catalog__numeric_ln__okv6(input: NumericValue) -> NumericValue {
     if let NumericValue::Error(error) = input {
         return NumericValue::Error(error);
     }
-    let mut condition_flavor_115_4: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_115_4 < 1 { condition_flavor_115_4 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_115_4 = 2; }; if (input == NumericValue::Unknown || input == NumericValue::Unimplemented) {
+    let mut condition_flavor_115_4: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_115_4 < 1 { condition_flavor_115_4 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_115_4 = 2; }; if input == NumericValue::Unknown || input == NumericValue::Unimplemented {
         return numeric_unresolved(condition_flavor_115_4);
     }
     if input == NumericValue::Null {

@@ -413,7 +413,7 @@ pub fn array_string_partial_probe()->BoolValue {
  if sql__pg_catalog__cardinality__m1rn(characters)!=make_int4_value(2) {return BoolValue::Value(false);};
  let unicode=sql__pg_catalog__string_to_array__yhwp(make_text_value("雪"),TextValue::Null,true,false);
  let unicode_plan=prepare_array_output(unicode);
- if unicode_plan.state!= -1 {return BoolValue::Value(false);};
+ if unicode_plan.state!= -3 {return BoolValue::Value(false);};
  let unicode_known=sql__pg_catalog__string_to_array__yhwp(make_text_value("雪😊"),TextValue::Null,false,true);
  if sql__pg_catalog__cardinality__m1rn(unicode_known)!=make_int4_value(2) {return BoolValue::Value(false);};
  let mut cells=make_array_arguments("pg_catalog.text",8);

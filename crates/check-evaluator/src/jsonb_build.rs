@@ -87,7 +87,7 @@ pub fn jsonb_rebuild(input: JsonbValue, admission: bool) -> JsonbValue {
             if let BoolValue::Error(error) = admitted {
                 return JsonbValue::Error(error);
             };
-            let mut condition_flavor_90_12: i32 = unresolved_flavor; if let BoolValue::Unknown = admitted { if condition_flavor_90_12 < 1 { condition_flavor_90_12 = 1; }; }; if let BoolValue::Unimplemented = admitted { condition_flavor_90_12 = 2; }; if (admitted == BoolValue::Unknown || admitted == BoolValue::Unimplemented) {
+            let mut condition_flavor_90_12: i32 = unresolved_flavor; if let BoolValue::Unknown = admitted { if condition_flavor_90_12 < 1 { condition_flavor_90_12 = 1; }; }; if let BoolValue::Unimplemented = admitted { condition_flavor_90_12 = 2; }; if admitted == BoolValue::Unknown || admitted == BoolValue::Unimplemented {
                 return jsonb_unresolved(condition_flavor_90_12);
             };
         };

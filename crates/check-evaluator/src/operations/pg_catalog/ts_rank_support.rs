@@ -31,7 +31,7 @@ const TS_RANK_WEIGHT_RANGE: u32 = 3452619;
 #[derive(Clone, Copy)]
 struct TsRankWeightSet { d: i32, c: i32, b: i32, a: i32 }
 #[derive(Clone, Copy)]
-enum TsRankWeights { Unknown, Error(SqlError), Value(TsRankWeightSet) }
+enum TsRankWeights { Unknown, Unimplemented, Error(SqlError), Value(TsRankWeightSet) }
 #[derive(Clone, Copy)]
 struct TsRankWordRange { start: usize, count: usize }
 #[derive(Clone)]
@@ -55,28 +55,31 @@ fn ts_rank_flag(method: i32, bit: i32) -> bool {
 fn ts_rank_read_weights(input: ArrayValue) -> TsRankWeights {
     if let ArrayValue::Error(error) = input { return TsRankWeights::Error(error); };
     if let ArrayValue::Value(value) = input {
-        if value.element_kind != 19 || value.element_type != "pg_catalog.float4" { return TsRankWeights::Unknown; };
+        if value.element_kind != 19 || value.element_type != "pg_catalog.float4" { return TsRankWeights::Unimplemented; };
         if value.dimensions.len() != 1 || value.elements.len() < 4 { return TsRankWeights::Error(make_sql_error(TS_RANK_WEIGHT_SHAPE)); };
-        let mut uncertain = false;
+        // An undecided weight takes the flavor of its element, and Unimplemented wins every join.
+        let mut flavor: i32 = 0;
         let mut index: usize = 0;
         while index < value.elements.len() {
             let element = value.elements[index].clone();
             if let ArrayElement::Null = element { return TsRankWeights::Error(make_sql_error(TS_RANK_WEIGHT_NULL)); };
             if let ArrayElement::Unknown = element {
-                if value.null_bitmap != BoolValue::Value(false) { uncertain = true; };
+                if value.null_bitmap != BoolValue::Value(false) && flavor < 1 { flavor = 1; };
             }; if let ArrayElement::Unimplemented = element {
-                if value.null_bitmap != BoolValue::Value(false) { uncertain = true; };
+                if value.null_bitmap != BoolValue::Value(false) { flavor = 2; };
             };
             index += 1;
         }
-        if uncertain { return TsRankWeights::Unknown; };
+        if flavor == 1 { return TsRankWeights::Unknown; };
+        if flavor == 2 { return TsRankWeights::Unimplemented; };
         let defaults = ts_rank_defaults();
         let mut weights = defaults;
         index = 0;
         while index < 4 {
             let input = array_element_to_float4(value.elements[index].clone());
             if let Float4Value::Error(error) = input { return TsRankWeights::Error(error); };
-            if (input == Float4Value::Unknown || input == Float4Value::Unimplemented) { uncertain = true; };
+            if input == Float4Value::Unknown && flavor < 1 { flavor = 1; };
+            if input == Float4Value::Unimplemented { flavor = 2; };
             let mut bits = defaults.d;
             if index == 1 { bits = defaults.c; };
             if index == 2 { bits = defaults.b; };
@@ -92,10 +95,11 @@ fn ts_rank_read_weights(input: ArrayValue) -> TsRankWeights {
             if index == 3 { weights = TsRankWeightSet {d:weights.d,c:weights.c,b:weights.b,a:bits}; };
             index += 1;
         }
-        if uncertain { return TsRankWeights::Unknown; };
+        if flavor == 1 { return TsRankWeights::Unknown; };
+        if flavor == 2 { return TsRankWeights::Unimplemented; };
         return TsRankWeights::Value(weights);
     };
-    TsRankWeights::Unknown
+    TsRankWeights::Unimplemented
 }
 
 fn ts_rank_find(document: &TsvectorPayload, operand: &TsqueryNode) -> TsRankWordRange {

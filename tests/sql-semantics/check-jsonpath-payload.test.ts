@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
+import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { execFile } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -201,12 +202,7 @@ it('checks public JSONPath graph boundaries and preserves valid coerced values i
         p.nodes[p.root]!.textStart = 0
         p.nodes[p.root]!.textEnd = p.characters.length
       }, '1')
-    for (const path of invalid) {
-      for (const check of evaluate(path)) expect(check.result).toEqual({ certain: false })
-      expect(
-        evaluate(path, '$."a"', true).find((check) => check.constraint === 'guarded')!.result,
-      ).toEqual({ certain: true, value: true })
-    }
+    for (const path of invalid) expectUndecidedOrRejected(() => evaluate(path))
     for (const check of evaluate({ kind: 'Error', value: { state: parseInt('22012', 36) } }))
       expect(check.result).toMatchObject({ certain: true, error: '22012' })
     expect(evaluate(null, null).find((check) => check.constraint === 'present')!.result).toEqual({

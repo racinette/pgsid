@@ -821,7 +821,7 @@ pub fn date_from_text_order(value: TextValue, date_order: i32) -> DateValue {
     if let TextValue::Error(error) = value {
         return DateValue::Error(error);
     }
-    let mut condition_flavor_823_4: i32 = unresolved_flavor; if let TextValue::Unknown = value { if condition_flavor_823_4 < 1 { condition_flavor_823_4 = 1; }; }; if let TextValue::Unimplemented = value { condition_flavor_823_4 = 2; }; if ((value == TextValue::Unknown || value == TextValue::Unimplemented) || value == TextValue::NonNull) {
+    let mut condition_flavor_823_4: i32 = unresolved_flavor; if let TextValue::Unknown = value { if condition_flavor_823_4 < 1 { condition_flavor_823_4 = 1; }; }; if let TextValue::Unimplemented = value { condition_flavor_823_4 = 2; }; if (value == TextValue::Unknown || value == TextValue::Unimplemented) || value == TextValue::NonNull {
         return date_unresolved(condition_flavor_823_4);
     }
     if value == TextValue::Null {

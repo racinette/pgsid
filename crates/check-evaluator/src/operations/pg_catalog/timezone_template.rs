@@ -489,7 +489,7 @@ fn datetime_template_parse(
                     );
                     let lookup = prefix.lookup;
                     let profile = lookup.profile.clone();
-                    if (profile == TextValue::Unknown || profile == TextValue::Unimplemented) {
+                    if profile == TextValue::Unknown || profile == TextValue::Unimplemented {
                         return datetime_template_unknown();
                     };
                     if lookup.kind > 0 {

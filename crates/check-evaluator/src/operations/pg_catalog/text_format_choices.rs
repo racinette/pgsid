@@ -91,7 +91,7 @@ fn format_choice_bounds(
         let candidate = format_choice_value(source, family, index);
         let bounds = format_candidate_bounds(input, candidate, quote_all);
         result = format_merge_bounds(result, bounds);
-        if (result.status == CheckOutcome::Unknown || result.status == CheckOutcome::Unimplemented) {
+        if result.status == CheckOutcome::Unknown || result.status == CheckOutcome::Unimplemented {
             return result;
         };
         index = index + 1;

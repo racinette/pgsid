@@ -245,7 +245,7 @@ fn clock_fields_legacy(units: TextValue, input: ClockFieldInput) -> Float8Value 
     if let NumericValue::Error(error) = number {
         return Float8Value::Error(error);
     };
-    let mut condition_flavor_240_4: i32 = unresolved_flavor; if let NumericValue::Unknown = number { if condition_flavor_240_4 < 1 { condition_flavor_240_4 = 1; }; }; if let NumericValue::Unimplemented = number { condition_flavor_240_4 = 2; }; if (number == NumericValue::Unknown || number == NumericValue::Unimplemented) {
+    let mut condition_flavor_240_4: i32 = unresolved_flavor; if let NumericValue::Unknown = number { if condition_flavor_240_4 < 1 { condition_flavor_240_4 = 1; }; }; if let NumericValue::Unimplemented = number { condition_flavor_240_4 = 2; }; if number == NumericValue::Unknown || number == NumericValue::Unimplemented {
         return float8_unresolved(condition_flavor_240_4);
     };
     if number == NumericValue::Null {

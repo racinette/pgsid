@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
+import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { execFile } from 'node:child_process'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
@@ -126,8 +127,9 @@ it('validates lossless SQL-coerced JSON wrappers through the public TypeScript A
     }
     expect(evaluateText('{}', '[]')).toEqual({ certain: true, value: false })
     expect(evaluateText(null)).toEqual({ certain: true, value: null })
-    for (const source of ['"a\0b"', '"\ud800"', undefined, 123, {}])
-      expect(evaluateText(source)).toEqual({ certain: false })
+    expect(evaluateText(undefined)).toEqual({ certain: false })
+    for (const source of ['"a\0b"', '"\ud800"', 123, {}])
+      expect(() => evaluateText(source)).toThrow(TypeError)
     const evaluate = (
       document: unknown,
       expected_kind: unknown = 'object',
@@ -196,9 +198,7 @@ it('validates lossless SQL-coerced JSON wrappers through the public TypeScript A
         value: { source },
       })),
     ])
-      expect(Object.values(evaluate(document))).toEqual(
-        Array.from({ length: 3 }, () => ({ certain: false })),
-      )
+      expectUndecidedOrRejected(() => evaluate(document))
     for (const document of [null, { kind: 'Null' }])
       expect(evaluate(document)).toEqual({
         shape: { certain: true, value: null },

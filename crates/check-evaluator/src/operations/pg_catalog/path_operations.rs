@@ -22,7 +22,7 @@ fn path_point_transform(input: PathValue, vector: PointValue, mode: i32) -> Path
     }; let mut condition_flavor_22_7: i32 = unresolved_flavor; if let PathValue::Unimplemented = input { condition_flavor_22_7 = 2; }; if let PathValue::Unimplemented = input {
         return path_unresolved(condition_flavor_22_7);
     };
-    let mut condition_flavor_25_4: i32 = unresolved_flavor; if let PointValue::Unknown = vector { if condition_flavor_25_4 < 1 { condition_flavor_25_4 = 1; }; }; if let PointValue::Unimplemented = vector { condition_flavor_25_4 = 2; }; if (vector == PointValue::Unknown || vector == PointValue::Unimplemented) {
+    let mut condition_flavor_25_4: i32 = unresolved_flavor; if let PointValue::Unknown = vector { if condition_flavor_25_4 < 1 { condition_flavor_25_4 = 1; }; }; if let PointValue::Unimplemented = vector { condition_flavor_25_4 = 2; }; if vector == PointValue::Unknown || vector == PointValue::Unimplemented {
         return path_unresolved(condition_flavor_25_4);
     };
     if let PathValue::Null = input {

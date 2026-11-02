@@ -234,7 +234,7 @@ fn jsonpath_conversion_numeric_value(
         if let NumericValue::Error(error) = converted {
             return NumericValue::Error(error);
         };
-        let mut condition_flavor_232_8: i32 = unresolved_flavor; if let NumericValue::Unknown = converted { if condition_flavor_232_8 < 1 { condition_flavor_232_8 = 1; }; }; if let NumericValue::Unimplemented = converted { condition_flavor_232_8 = 2; }; if (converted == NumericValue::Unknown || converted == NumericValue::Unimplemented) {
+        let mut condition_flavor_232_8: i32 = unresolved_flavor; if let NumericValue::Unknown = converted { if condition_flavor_232_8 < 1 { condition_flavor_232_8 = 1; }; }; if let NumericValue::Unimplemented = converted { condition_flavor_232_8 = 2; }; if converted == NumericValue::Unknown || converted == NumericValue::Unimplemented {
             return numeric_unresolved(condition_flavor_232_8);
         };
         let precision = sql__pg_catalog__int4__z4rh(jsonpath_execution_numeric(

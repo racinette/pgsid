@@ -326,8 +326,12 @@ try {
     '-03:45:30',
   ])
     for (const name of ['to_utc', 'from_utc'] as const) await compare(zone, 0n, name)
+  // Daylight names without rules take PostgreSQL's fixed default rules, in winter and in summer.
+  for (const zone of ['UTC2DST', 'UTC2FOO', '<+02>2<DST>', 'UTC2DST-1:30'])
+    for (const micros of [0n, 646876800000000n])
+      for (const name of ['to_utc', 'from_utc'] as const) await compare(zone, micros, name)
   for (const name of ['to_utc', 'from_utc']) {
-    for (const zone of ['No/Such_Zone', 'UTC2DST'])
+    for (const zone of ['No/Such_Zone'])
       fixtures.push({
         name,
         row: { zone: value(zone), local_at: value(0n), instant_at: value(0n) },

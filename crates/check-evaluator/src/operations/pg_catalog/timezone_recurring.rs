@@ -251,11 +251,11 @@ fn parse_recurring_zone(value: &str) -> RecurringZone {
         return invalid;
     }
     let mut index = skip_zone_rule_name(&text, standard.next);
-    if index >= text.chars.len() {
+    if index > text.chars.len() || (index == text.chars.len() && index == standard.next) {
         return invalid;
     }
     let mut daylight = standard.value - 3600;
-    if text.chars[index] != ',' && text.chars[index] != ';' {
+    if index < text.chars.len() && text.chars[index] != ',' && text.chars[index] != ';' {
         let clock = read_zone_rule_clock(&text, index);
         if clock.valid == false {
             return invalid;
@@ -263,15 +263,27 @@ fn parse_recurring_zone(value: &str) -> RecurringZone {
         daylight = clock.value;
         index = clock.next;
     }
-    if index >= text.chars.len() || (text.chars[index] != ',' && text.chars[index] != ';') {
+    // A daylight name without rules takes the United States rules PostgreSQL fixes in its own
+    // zone code rather than any rules file of the installed zone database.
+    let mut source = String::new();
+    if index == text.chars.len() {
+        source.push_str(",M3.2.0,M11.1.0");
+        index = 0;
+    } else {
+        source.push_str(value);
+    }
+    let rules = ZoneRuleText {
+        chars: source.chars().collect(),
+    };
+    if index >= rules.chars.len() || (rules.chars[index] != ',' && rules.chars[index] != ';') {
         return invalid;
     }
-    let start = read_zone_date_rule(&text, index + 1);
-    if start.valid == false || start.next >= text.chars.len() || text.chars[start.next] != ',' {
+    let start = read_zone_date_rule(&rules, index + 1);
+    if start.valid == false || start.next >= rules.chars.len() || rules.chars[start.next] != ',' {
         return invalid;
     }
-    let end = read_zone_date_rule(&text, start.next + 1);
-    if end.valid == false || end.next != text.chars.len() {
+    let end = read_zone_date_rule(&rules, start.next + 1);
+    if end.valid == false || end.next != rules.chars.len() {
         return invalid;
     }
     RecurringZone {

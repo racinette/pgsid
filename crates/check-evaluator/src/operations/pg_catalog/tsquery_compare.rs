@@ -52,7 +52,8 @@ fn tsquery_compare(left: TsqueryValue, right: TsqueryValue, utf8: bool, exact: b
         if let TsqueryValue::Value(b) = right {
             if a.nodes.len() < b.nodes.len() { return make_int4_value(-1); };
             if a.nodes.len() > b.nodes.len() { return make_int4_value(1); };
-            if a.native_bytes < 0 || b.native_bytes < 0 { return int4_unresolved(unresolved_flavor); };
+            // A stored size the caller did not supply follows from how the value was produced.
+            if a.native_bytes < 0 || b.native_bytes < 0 { return int4_unresolved(resolution_context(unresolved_flavor)); };
             if a.native_bytes < b.native_bytes { return make_int4_value(-1); };
             if a.native_bytes > b.native_bytes { return make_int4_value(1); };
             if a.nodes.len() == 0 { return make_int4_value(0); };
@@ -78,7 +79,8 @@ fn tsquery_compare(left: TsqueryValue, right: TsqueryValue, utf8: bool, exact: b
                             if ac > bc { return make_int4_value(-1); };
                             if ac < bc { return make_int4_value(1); };
                             let order = tsvector_lexeme_order(an.text.as_str(),bn.text.as_str());
-                            if exact && order != 0 && text_has_prefix(an.text.as_str(),bn.text.as_str()) == false && text_has_prefix(bn.text.as_str(),an.text.as_str()) == false { return int4_unresolved(unresolved_flavor); };
+                            // Without a prefix relation the exact result is the server memcmp magnitude.
+                            if exact && order != 0 && text_has_prefix(an.text.as_str(),bn.text.as_str()) == false && text_has_prefix(bn.text.as_str(),an.text.as_str()) == false { return int4_unresolved(resolution_context(unresolved_flavor)); };
                             return make_int4_value(order);
                         };
                     } else {

@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
+import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -254,13 +255,10 @@ CREATE TABLE custom_multi_array_payloads(windows integer_set[],head integer_set,
         expect(result).toEqual({ certain: true, value: true })
       expect(textRow).toEqual(saved)
       textRow.v.value.bounds[0]!.kind = 'Int4'
-      expect(
-        resultMap(generated.evaluatePublicCustomTextPayloadsChecks(textRow)).lower_text,
-      ).toMatchObject({ certain: false })
-      for (const result of Object.values(
-        resultMap(generated.evaluatePublicCustomTextPayloadsChecks({ ...textRow, bypass: true })),
-      ))
-        expect(result).toEqual({ certain: true, value: true })
+      expect(() => generated.evaluatePublicCustomTextPayloadsChecks(textRow)).toThrow(TypeError)
+      expect(() =>
+        generated.evaluatePublicCustomTextPayloadsChecks({ ...textRow, bypass: true }),
+      ).toThrow(TypeError)
     }
     await pg.exec(
       `INSERT INTO custom_text_payloads VALUES('[a,z]','[é,漢]','{[a,z]}','[-2:0]={"[a,z]",NULL,"[é,漢]"}',false)`,
@@ -341,27 +339,19 @@ CREATE TABLE custom_multi_array_payloads(windows integer_set[],head integer_set,
         expect(result).toEqual({ certain: true, value: true })
       expect(multiInput).toEqual(multiBefore)
       multiInput.windows.value.elements[0]!.value.rangeType = 'pg_catalog.int4range'
-      expect(
-        resultMap(generated.evaluatePublicCustomMultiArrayPayloadsChecks(multiInput)).fetched,
-      ).toMatchObject({ certain: false })
-      for (const result of Object.values(
-        resultMap(
-          generated.evaluatePublicCustomMultiArrayPayloadsChecks({ ...multiInput, bypass: true }),
-        ),
-      ))
-        expect(result).toEqual({ certain: true, value: true })
+      expectUndecidedOrRejected(
+        () => resultMap(generated.evaluatePublicCustomMultiArrayPayloadsChecks(multiInput)),
+        undefined,
+        ['fetched'],
+      )
     }
     const wrongArrays = structuredClone(arrays)
     wrongArrays.windows.value.elementType = 'pg_catalog.int4range'
-    expect(
-      resultMap(generated.evaluatePublicCustomArrayPayloadsChecks(wrongArrays)).counted,
-    ).toMatchObject({ certain: false })
-    for (const result of Object.values(
-      resultMap(
-        generated.evaluatePublicCustomArrayPayloadsChecks({ ...wrongArrays, bypass: true }),
-      ),
-    ))
-      expect(result).toEqual({ certain: true, value: true })
+    expectUndecidedOrRejected(
+      () => resultMap(generated.evaluatePublicCustomArrayPayloadsChecks(wrongArrays)),
+      undefined,
+      ['counted'],
+    )
     expect(resultMap(generated.evaluatePublicCustomImportsChecks(imported)).parsed).toEqual({
       certain: true,
       value: true,

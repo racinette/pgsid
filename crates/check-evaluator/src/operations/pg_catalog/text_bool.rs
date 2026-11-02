@@ -5,7 +5,7 @@ pub fn sql__pg_catalog__text__vuvi(input: BoolValue) -> TextValue {
     if let BoolValue::Error(error) = input {
         return TextValue::Error(error);
     }
-    let mut condition_flavor_8_4: i32 = unresolved_flavor; if let BoolValue::Unknown = input { if condition_flavor_8_4 < 1 { condition_flavor_8_4 = 1; }; }; if let BoolValue::Unimplemented = input { condition_flavor_8_4 = 2; }; if (input == BoolValue::Unknown || input == BoolValue::Unimplemented) {
+    let mut condition_flavor_8_4: i32 = unresolved_flavor; if let BoolValue::Unknown = input { if condition_flavor_8_4 < 1 { condition_flavor_8_4 = 1; }; }; if let BoolValue::Unimplemented = input { condition_flavor_8_4 = 2; }; if input == BoolValue::Unknown || input == BoolValue::Unimplemented {
         return text_unresolved(condition_flavor_8_4);
     }
     if input == BoolValue::Null {

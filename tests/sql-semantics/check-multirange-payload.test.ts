@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
+import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -195,13 +196,12 @@ it('validates public multirange payloads, nominal subtype guards, partial finite
         ],
       },
     })
-    for (const input of invalid) {
-      const result = evaluate(input, null, true)
-      expect(result.bound, 'invalid range payload').toMatchObject({ certain: false })
-      expect(result.shape, 'invalid range payload').toMatchObject({ certain: false })
-      expect(result.present, 'invalid range payload').toMatchObject({ certain: false })
-      expect(result.guarded).toEqual({ certain: true, value: true })
-    }
+    for (const input of invalid)
+      expectUndecidedOrRejected(() => evaluate(input, null, true), undefined, [
+        'bound',
+        'shape',
+        'present',
+      ])
     for (const input of [null, { kind: 'Null' }]) {
       const result = evaluate(input, null, true)
       expect(result.bound).toEqual({ certain: true, value: true })

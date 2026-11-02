@@ -96,7 +96,7 @@ pub fn xml_concat_append(input: XmlConcatState, value: XmlValue) -> XmlConcatSta
         return xml_concat_status(input,failed);
     };
     if let XmlValue::Null = value { return input; };
-    if (input.status == CheckOutcome::Unknown || input.status == CheckOutcome::Unimplemented) { return input; };
+    if input.status == CheckOutcome::Unknown || input.status == CheckOutcome::Unimplemented { return input; };
     if let XmlValue::Value(text) = value {
         let declaration = parse_xml_constructor_declaration(text.as_str());
         let mut standalone = input.standalone;
@@ -121,7 +121,7 @@ pub fn xml_concat_finish(input: XmlConcatState) -> XmlValue {
     if input.status == CheckOutcome::Unimplemented { unresolved_flavor = 2; };
     let status = input.status;
     if let CheckOutcome::Error(error) = status { return XmlValue::Error(error); };
-    if (input.status == CheckOutcome::Unknown || input.status == CheckOutcome::Unimplemented) { return xml_unresolved(unresolved_flavor); };
+    if input.status == CheckOutcome::Unknown || input.status == CheckOutcome::Unimplemented { return xml_unresolved(unresolved_flavor); };
     if input.has_value == false { return XmlValue::Null; };
     xml_constructor_output(input.version.as_str(),input.version_consistent,input.standalone,input.body.as_str())
 }

@@ -58,7 +58,7 @@ pub(crate) fn array_value_validity(input: BoolValue, unknown_valid: bool) -> Che
 }
 
 pub(crate) fn array_validity_finish(left: CheckOutcome, right: CheckOutcome) -> CheckOutcome {
-    if (left == CheckOutcome::Unknown || left == CheckOutcome::Unimplemented) {
+    if left == CheckOutcome::Unknown || left == CheckOutcome::Unimplemented {
         return left;
     };
     if let CheckOutcome::Error(_) = left {
@@ -68,14 +68,14 @@ pub(crate) fn array_validity_finish(left: CheckOutcome, right: CheckOutcome) -> 
 }
 
 pub(crate) fn array_validity_unknown(input: CheckOutcome) -> bool {
-    (input == CheckOutcome::Unknown || input == CheckOutcome::Unimplemented)
+    input == CheckOutcome::Unknown || input == CheckOutcome::Unimplemented
 }
 
 pub(crate) fn array_validity_possible(input: CheckOutcome) -> CheckOutcome {
     let mut unresolved_flavor: i32 = 0;
     if let CheckOutcome::Unknown = input { unresolved_flavor = 1; };
     if let CheckOutcome::Unimplemented = input { unresolved_flavor = 2; };
-    let mut condition_flavor_78_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = input { if condition_flavor_78_4 < 1 { condition_flavor_78_4 = 1; }; }; if let CheckOutcome::Unimplemented = input { condition_flavor_78_4 = 2; }; if (input == CheckOutcome::Unknown || input == CheckOutcome::Unimplemented) {
+    let mut condition_flavor_78_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = input { if condition_flavor_78_4 < 1 { condition_flavor_78_4 = 1; }; }; if let CheckOutcome::Unimplemented = input { condition_flavor_78_4 = 2; }; if input == CheckOutcome::Unknown || input == CheckOutcome::Unimplemented {
         return check_unresolved(condition_flavor_78_4);
     };
     if let CheckOutcome::Error(_) = input {
@@ -108,7 +108,7 @@ pub(crate) fn array_constructor_from_validity(
     if let CheckOutcome::Error(error) = validity {
         return ArrayValue::Error(error);
     };
-    let mut condition_flavor_99_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = validity { if condition_flavor_99_4 < 1 { condition_flavor_99_4 = 1; }; }; if let CheckOutcome::Unimplemented = validity { condition_flavor_99_4 = 2; }; if (validity == CheckOutcome::Unknown || validity == CheckOutcome::Unimplemented) {
+    let mut condition_flavor_99_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = validity { if condition_flavor_99_4 < 1 { condition_flavor_99_4 = 1; }; }; if let CheckOutcome::Unimplemented = validity { condition_flavor_99_4 = 2; }; if validity == CheckOutcome::Unknown || validity == CheckOutcome::Unimplemented {
         return array_unresolved(condition_flavor_99_4);
     };
     input
@@ -2491,7 +2491,7 @@ pub fn array_equality_step(input: BoolValue) -> Int4Value {
     if let BoolValue::Error(error) = input {
         return Int4Value::Error(error);
     };
-    let mut condition_flavor_2427_4: i32 = unresolved_flavor; if let BoolValue::Unknown = input { if condition_flavor_2427_4 < 1 { condition_flavor_2427_4 = 1; }; }; if let BoolValue::Unimplemented = input { condition_flavor_2427_4 = 2; }; if (input == BoolValue::Unknown || input == BoolValue::Unimplemented) {
+    let mut condition_flavor_2427_4: i32 = unresolved_flavor; if let BoolValue::Unknown = input { if condition_flavor_2427_4 < 1 { condition_flavor_2427_4 = 1; }; }; if let BoolValue::Unimplemented = input { condition_flavor_2427_4 = 2; }; if input == BoolValue::Unknown || input == BoolValue::Unimplemented {
         return int4_unresolved(condition_flavor_2427_4);
     };
     if let BoolValue::Value(value) = input {
@@ -3071,7 +3071,7 @@ pub fn array_search_continues(
     if let Int4Value::Error(_) = result {
         return false;
     };
-    if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+    if result == Int4Value::Unknown || result == Int4Value::Unimplemented {
         return false;
     };
     if all == false {
@@ -3106,7 +3106,7 @@ pub fn array_search_result_step(
     if let Int4Value::Error(error) = compared {
         return Int4Value::Error(error);
     };
-    let mut condition_flavor_3021_4: i32 = unresolved_flavor; if let Int4Value::Unknown = compared { if condition_flavor_3021_4 < 1 { condition_flavor_3021_4 = 1; }; }; if let Int4Value::Unimplemented = compared { condition_flavor_3021_4 = 2; }; if (compared == Int4Value::Unknown || compared == Int4Value::Unimplemented) {
+    let mut condition_flavor_3021_4: i32 = unresolved_flavor; if let Int4Value::Unknown = compared { if condition_flavor_3021_4 < 1 { condition_flavor_3021_4 = 1; }; }; if let Int4Value::Unimplemented = compared { condition_flavor_3021_4 = 2; }; if compared == Int4Value::Unknown || compared == Int4Value::Unimplemented {
         return int4_unresolved(condition_flavor_3021_4);
     };
     if let Int4Value::Value(value) = compared {
@@ -3144,7 +3144,7 @@ pub fn finish_array_search_positions(
     if let Int4Value::Error(error) = result {
         return ArrayValue::Error(error);
     };
-    let mut condition_flavor_3059_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_3059_4 < 1 { condition_flavor_3059_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_3059_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+    let mut condition_flavor_3059_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_3059_4 < 1 { condition_flavor_3059_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_3059_4 = 2; }; if result == Int4Value::Unknown || result == Int4Value::Unimplemented {
         return array_unresolved(condition_flavor_3059_4);
     };
     finish_array_constructor(values)
@@ -3242,7 +3242,7 @@ pub fn array_rewrite_step(
         return ArrayArguments::Error(error);
     };
     let source = array_membership_element_at(plan, index, false);
-    let mut condition_flavor_3156_4: i32 = unresolved_flavor; if let Int4Value::Unknown = compared { if condition_flavor_3156_4 < 1 { condition_flavor_3156_4 = 1; }; }; if let Int4Value::Unimplemented = compared { condition_flavor_3156_4 = 2; }; if (compared == Int4Value::Unknown || compared == Int4Value::Unimplemented) {
+    let mut condition_flavor_3156_4: i32 = unresolved_flavor; if let Int4Value::Unknown = compared { if condition_flavor_3156_4 < 1 { condition_flavor_3156_4 = 1; }; }; if let Int4Value::Unimplemented = compared { condition_flavor_3156_4 = 2; }; if compared == Int4Value::Unknown || compared == Int4Value::Unimplemented {
         if remove {
             return array_arguments_unresolved(condition_flavor_3156_4);
         };
@@ -3439,7 +3439,7 @@ pub(crate) fn array_hash_initial64(input: &ArrayComparisonPayload) -> Int8Value 
     if let Int4Value::Error(error) = initial {
         return Int8Value::Error(error);
     };
-    let mut condition_flavor_3352_4: i32 = unresolved_flavor; if let Int4Value::Unknown = initial { if condition_flavor_3352_4 < 1 { condition_flavor_3352_4 = 1; }; }; if let Int4Value::Unimplemented = initial { condition_flavor_3352_4 = 2; }; if (initial == Int4Value::Unknown || initial == Int4Value::Unimplemented) {
+    let mut condition_flavor_3352_4: i32 = unresolved_flavor; if let Int4Value::Unknown = initial { if condition_flavor_3352_4 < 1 { condition_flavor_3352_4 = 1; }; }; if let Int4Value::Unimplemented = initial { condition_flavor_3352_4 = 2; }; if initial == Int4Value::Unknown || initial == Int4Value::Unimplemented {
         return int8_unresolved(condition_flavor_3352_4);
     };
     if initial == Int4Value::Null {

@@ -68,7 +68,7 @@ fn jsonpath_temporal_decode_context(
             start = start - 1;
         }
         let prefix = datetime_template_find_prefix(&source, start, session, defaults, utf8);
-        if (prefix.lookup.profile == TextValue::Unknown || prefix.lookup.profile == TextValue::Unimplemented) {
+        if prefix.lookup.profile == TextValue::Unknown || prefix.lookup.profile == TextValue::Unimplemented {
             return parsed;
         };
         if prefix.end != end || prefix.lookup.kind == 0 {
@@ -136,7 +136,7 @@ fn jsonpath_template_parse_context(
             let mut end: usize = 0;
             if jsonpath_temporal_letter(source.characters[index]) {
                 let prefix = datetime_template_find_prefix(&source, index, session, defaults, utf8);
-                if (prefix.lookup.profile == TextValue::Unknown || prefix.lookup.profile == TextValue::Unimplemented) {
+                if prefix.lookup.profile == TextValue::Unknown || prefix.lookup.profile == TextValue::Unimplemented {
                     end = source.characters.len() + 1;
                 } else if prefix.lookup.kind != 0 {
                     end = prefix.end;

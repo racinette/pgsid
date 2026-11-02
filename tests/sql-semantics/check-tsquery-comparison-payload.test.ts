@@ -1,6 +1,7 @@
 import { readTsqueryFixture } from './check-tsquery-fixtures.js'
 import { PGlite } from '@electric-sql/pglite'
 import { expect, it } from 'vitest'
+import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -375,10 +376,12 @@ it('compares SQL-coerced query payloads and optional size through native, Rust a
       { kind: 'Error', value: { state: -1 } },
       { kind: 'Error', value: { state: 1.5 } },
     ]
-    for (const bad of malformed) {
-      expect(evaluate({ ...base, item: bad }).rendered).toEqual({ certain: false })
-      expect(evaluate({ ...base, item: bad }).presence).toEqual({ certain: false })
-    }
+    for (const bad of malformed)
+      expectUndecidedOrRejected(
+        () => evaluate({ ...base, item: bad }),
+        JSON.stringify(bad, (_key, item) => (typeof item === 'bigint' ? String(item) : item)),
+        ['rendered', 'presence'],
+      )
     const goRoot = join(root, 'public-go'),
       goBundle = renderGoSchemaCheckArtifacts(
         [table],

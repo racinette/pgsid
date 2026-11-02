@@ -24,7 +24,7 @@ pub fn sql__pg_catalog__uuid_send__32nf(input: UuidValue) -> ByteaValue {
     if let UuidValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
-    let mut condition_flavor_27_4: i32 = unresolved_flavor; if let UuidValue::Unknown = input { if condition_flavor_27_4 < 1 { condition_flavor_27_4 = 1; }; }; if let UuidValue::Unimplemented = input { condition_flavor_27_4 = 2; }; if (input == UuidValue::Unknown || input == UuidValue::Unimplemented) {
+    let mut condition_flavor_27_4: i32 = unresolved_flavor; if let UuidValue::Unknown = input { if condition_flavor_27_4 < 1 { condition_flavor_27_4 = 1; }; }; if let UuidValue::Unimplemented = input { condition_flavor_27_4 = 2; }; if input == UuidValue::Unknown || input == UuidValue::Unimplemented {
         return bytea_unresolved(condition_flavor_27_4);
     }
     if input == UuidValue::Null {
@@ -50,7 +50,7 @@ pub fn sql__pg_catalog__uuid_hash__8nnn(input: UuidValue, byte_order: i32) -> In
     if let UuidValue::Error(error) = input {
         return Int4Value::Error(error);
     }
-    let mut condition_flavor_53_4: i32 = unresolved_flavor; if let UuidValue::Unknown = input { if condition_flavor_53_4 < 1 { condition_flavor_53_4 = 1; }; }; if let UuidValue::Unimplemented = input { condition_flavor_53_4 = 2; }; if (input == UuidValue::Unknown || input == UuidValue::Unimplemented) {
+    let mut condition_flavor_53_4: i32 = unresolved_flavor; if let UuidValue::Unknown = input { if condition_flavor_53_4 < 1 { condition_flavor_53_4 = 1; }; }; if let UuidValue::Unimplemented = input { condition_flavor_53_4 = 2; }; if input == UuidValue::Unknown || input == UuidValue::Unimplemented {
         return int4_unresolved(condition_flavor_53_4);
     }
     if input == UuidValue::Null {
@@ -101,7 +101,7 @@ pub fn sql__pg_catalog__uuid_extract_version__ydwe(input: UuidValue) -> Int2Valu
     if let UuidValue::Error(error) = input {
         return Int2Value::Error(error);
     }
-    let mut condition_flavor_104_4: i32 = unresolved_flavor; if let UuidValue::Unknown = input { if condition_flavor_104_4 < 1 { condition_flavor_104_4 = 1; }; }; if let UuidValue::Unimplemented = input { condition_flavor_104_4 = 2; }; if (input == UuidValue::Unknown || input == UuidValue::Unimplemented) {
+    let mut condition_flavor_104_4: i32 = unresolved_flavor; if let UuidValue::Unknown = input { if condition_flavor_104_4 < 1 { condition_flavor_104_4 = 1; }; }; if let UuidValue::Unimplemented = input { condition_flavor_104_4 = 2; }; if input == UuidValue::Unknown || input == UuidValue::Unimplemented {
         return int2_unresolved(condition_flavor_104_4);
     }
     if input == UuidValue::Null {

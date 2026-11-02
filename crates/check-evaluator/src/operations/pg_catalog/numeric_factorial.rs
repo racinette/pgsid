@@ -5,7 +5,7 @@ pub fn sql__pg_catalog__factorial__tah6(input: Int8Value) -> NumericValue {
     if let Int8Value::Error(error) = input {
         return NumericValue::Error(error);
     }
-    let mut condition_flavor_8_4: i32 = unresolved_flavor; if let Int8Value::Unknown = input { if condition_flavor_8_4 < 1 { condition_flavor_8_4 = 1; }; }; if let Int8Value::Unimplemented = input { condition_flavor_8_4 = 2; }; if (input == Int8Value::Unknown || input == Int8Value::Unimplemented) {
+    let mut condition_flavor_8_4: i32 = unresolved_flavor; if let Int8Value::Unknown = input { if condition_flavor_8_4 < 1 { condition_flavor_8_4 = 1; }; }; if let Int8Value::Unimplemented = input { condition_flavor_8_4 = 2; }; if input == Int8Value::Unknown || input == Int8Value::Unimplemented {
         return numeric_unresolved(condition_flavor_8_4);
     }
     if input == Int8Value::Null {

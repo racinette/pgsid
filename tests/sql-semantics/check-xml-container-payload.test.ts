@@ -123,11 +123,8 @@ CREATE TABLE xml_container_payloads(xs xml[],r xml_packet,expected text,bypass b
       { kind: 'Xml', value: 1 },
       { kind: 'Text', value: rendered },
     ]) {
-      const results = evaluate(array(bad), record(bad), rendered)
-      expect(Object.values(results)).toEqual(Array(5).fill(unknown))
-      expect(Object.values(evaluate(array(bad), record(bad), rendered, true))).toEqual(
-        Array(5).fill(known),
-      )
+      expect(() => evaluate(array(bad), record(bad), rendered)).toThrow(TypeError)
+      expect(() => evaluate(array(bad), record(bad), rendered, true)).toThrow(TypeError)
     }
     expect(evaluate(array({ kind: 'Unknown' }), record({ kind: 'Unknown' }), rendered)).toEqual(
       Object.fromEntries(

@@ -421,9 +421,8 @@ it('validates nested public ACL composite payloads and domain-array fields in Go
     expect(partialResult.covers).toEqual({ certain: true, value: true })
     expect(partialResult.history_entry).toEqual({ certain: true, value: true })
     const malformed = envelope(leaf({ ...a, grantOptions: 4294967296n }), [leaf()])
-    expect(
-      evaluate({ ...cases[0]!.row, payload: { kind: 'Value', value: malformed } }).entry,
-    ).toEqual({ certain: false })
+    const malformedRow = { ...cases[0]!.row, payload: { kind: 'Value', value: malformed } }
+    expect(() => evaluate(malformedRow)).toThrow(TypeError)
     expect(
       evaluate({
         ...cases[0]!.row,

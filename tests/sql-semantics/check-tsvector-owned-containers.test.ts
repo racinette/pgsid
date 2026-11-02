@@ -1,5 +1,6 @@
 import { PGlite } from '@electric-sql/pglite'
 import { expect, it } from 'vitest'
+import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -280,9 +281,11 @@ it('validates owned tsvector arrays and record fields through native INSERTs and
           value: { ...reference.value, elements: [{ kind: 'Tsvector', value: bad }, cell(z)] },
         },
       }
-      // Invalid payloads are never decided, whichever reason defers them.
-      expect(evaluate(input).same).toMatchObject({ certain: false })
-      expect(evaluate(input).presence).toMatchObject({ certain: false })
+      expectUndecidedOrRejected(
+        () => evaluate(input),
+        JSON.stringify(bad, (_key, item) => (typeof item === 'bigint' ? String(item) : item)),
+        ['same', 'presence'],
+      )
     }
     const goRoot = join(root, 'public-go'),
       goBundle = renderGoSchemaCheckArtifacts(

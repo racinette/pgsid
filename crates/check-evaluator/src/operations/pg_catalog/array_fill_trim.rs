@@ -43,7 +43,7 @@ fn array_fill_payload(
     if let Int4Value::Error(error) = bound_nulls {
         return ArrayValue::Error(error);
     };
-    let mut condition_flavor_46_4: i32 = unresolved_flavor; if let Int4Value::Unknown = bound_nulls { if condition_flavor_46_4 < 1 { condition_flavor_46_4 = 1; }; }; if let Int4Value::Unimplemented = bound_nulls { condition_flavor_46_4 = 2; }; if (bound_nulls == Int4Value::Unknown || bound_nulls == Int4Value::Unimplemented) {
+    let mut condition_flavor_46_4: i32 = unresolved_flavor; if let Int4Value::Unknown = bound_nulls { if condition_flavor_46_4 < 1 { condition_flavor_46_4 = 1; }; }; if let Int4Value::Unimplemented = bound_nulls { condition_flavor_46_4 = 2; }; if bound_nulls == Int4Value::Unknown || bound_nulls == Int4Value::Unimplemented {
         return array_unresolved(condition_flavor_46_4);
     };
     if bounds.elements.len() != lengths.elements.len() {
@@ -152,7 +152,7 @@ fn array_fill_value(
         if let Int4Value::Error(error) = nulls {
             return ArrayValue::Error(error);
         };
-        let mut condition_flavor_155_8: i32 = unresolved_flavor; if let Int4Value::Unknown = nulls { if condition_flavor_155_8 < 1 { condition_flavor_155_8 = 1; }; }; if let Int4Value::Unimplemented = nulls { condition_flavor_155_8 = 2; }; if (nulls == Int4Value::Unknown || nulls == Int4Value::Unimplemented) {
+        let mut condition_flavor_155_8: i32 = unresolved_flavor; if let Int4Value::Unknown = nulls { if condition_flavor_155_8 < 1 { condition_flavor_155_8 = 1; }; }; if let Int4Value::Unimplemented = nulls { condition_flavor_155_8 = 2; }; if nulls == Int4Value::Unknown || nulls == Int4Value::Unimplemented {
             return array_unresolved(condition_flavor_155_8);
         };
         if shape.elements.len() > 6 {

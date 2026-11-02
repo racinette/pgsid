@@ -681,7 +681,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
             if let Int4Value::Error(failure) = index {
                 error = failure.state;
             };
-            if (index == Int4Value::Unknown || index == Int4Value::Unimplemented) {
+            if index == Int4Value::Unknown || index == Int4Value::Unimplemented {
                 unknown = true;
             };
             if let Int4Value::Value(position) = index {
@@ -850,7 +850,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
                         text = strings[reference.node].clone();
                     };
                     let result = jsonpath_regex_predicate(&context, step, reference, text);
-                    if (result == BoolValue::Unknown || result == BoolValue::Unimplemented) {
+                    if result == BoolValue::Unknown || result == BoolValue::Unimplemented {
                         unknown = true;
                     };
                     if let BoolValue::Error(failure) = result {
@@ -927,7 +927,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
                                 context.use_timezone,
                                 context.session_timezone.as_str(),
                             );
-                            if (comparison == Int4Value::Unknown || comparison == Int4Value::Unimplemented) {
+                            if comparison == Int4Value::Unknown || comparison == Int4Value::Unimplemented {
                                 unknown = true;
                                 ready = false;
                             };
@@ -1133,7 +1133,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
             if let BoolValue::Error(failure) = admission {
                 error = failure.state;
             };
-            if (admission == BoolValue::Unknown || admission == BoolValue::Unimplemented) {
+            if admission == BoolValue::Unknown || admission == BoolValue::Unimplemented {
                 unknown = true;
             };
             if error == 0 && unknown == false {
@@ -1790,7 +1790,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
                         if let BoolValue::Error(failure) = result {
                             error = failure.state;
                         };
-                        if (result == BoolValue::Unknown || result == BoolValue::Unimplemented) {
+                        if result == BoolValue::Unknown || result == BoolValue::Unimplemented {
                             unknown = true;
                         };
                     } else if jsonpath_conversion_kind(step.kind) {
@@ -1827,7 +1827,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
             error = failure.state;
         };
         let mut computed_unknown = false;
-        if (computed == NumericValue::Unknown || computed == NumericValue::Unimplemented) {
+        if computed == NumericValue::Unknown || computed == NumericValue::Unimplemented {
             computed_unknown = true;
         };
         if let NumericValue::Value(number) = computed {

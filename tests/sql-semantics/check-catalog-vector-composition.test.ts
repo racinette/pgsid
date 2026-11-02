@@ -1,5 +1,6 @@
 import { PGlite } from '@electric-sql/pglite'
 import { expect, it } from 'vitest'
+import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
@@ -412,13 +413,7 @@ it('composes vector domains, records, arrays and catalog deferrals through nativ
       ]),
     )
     rawBad.value = '1 2'
-    expect(
-      publicState(
-        generated
-          .evaluatePublicVectorContextChecks(rawBad)
-          .find((e: { constraint: string }) => e.constraint === 'text_alias').result,
-      ),
-    ).toBe('Unknown')
+    expect(() => generated.evaluatePublicVectorContextChecks(rawBad)).toThrow(TypeError)
     const nativeVector = values[2]!
     if (nativeVector.kind !== 'Value') throw Error('Missing vector validation control')
     const vectorPayload = nativeVector.value
@@ -441,13 +436,11 @@ it('composes vector domains, records, arrays and catalog deferrals through nativ
         mode: [...calls.keys()].indexOf('text_alias'),
         expected_text: '1 2',
       }
-      expect(
-        publicState(
-          generated
-            .evaluatePublicVectorContextChecks(row)
-            .find((e: { constraint: string }) => e.constraint === 'text_alias').result,
-        ),
-      ).toBe('Unknown')
+      expectUndecidedOrRejected(
+        () => generated.evaluatePublicVectorContextChecks(row),
+        JSON.stringify(payload, (_key, item) => (typeof item === 'bigint' ? String(item) : item)),
+        ['text_alias'],
+      )
     }
     for (const mutation of [
       'value.Value.ElementType="other.positions"',
@@ -482,13 +475,11 @@ it('composes vector domains, records, arrays and catalog deferrals through nativ
         mode: [...calls.keys()].indexOf('record_text'),
         expected_text: '("1 2","0 0")',
       }
-      expect(
-        publicState(
-          generated
-            .evaluatePublicVectorContextChecks(row)
-            .find((e: { constraint: string }) => e.constraint === 'record_text').result,
-        ),
-      ).toBe('Unknown')
+      expectUndecidedOrRejected(
+        () => generated.evaluatePublicVectorContextChecks(row),
+        JSON.stringify(payload, (_key, item) => (typeof item === 'bigint' ? String(item) : item)),
+        ['record_text'],
+      )
     }
     for (const mutation of [
       'value.Value.TypeName="other.vector_record"',

@@ -308,19 +308,22 @@ describe('portable line value foundation', () => {
       ...knownResults,
       payload_wire: { certain: false },
     })
+    for (const axis of [undefined, { kind: 'Unknown' }])
+      expect(Object.values(evaluate(axis))).toEqual(
+        Array.from({ length: 4 }, () => ({ certain: false })),
+      )
     for (const axis of [
-      undefined,
       '{1,-1,0}',
-      { kind: 'Unknown' },
       { kind: 'Value', value: { ...payload, a: 0n, b: 0n } },
       { kind: 'Value', value: { ...payload, a: 0n, b: 0n, wireKnown: false } },
       { kind: 'Value', value: { ...payload, a: 9223372036854775808n } },
       { kind: 'Value', value: { ...payload, c: '0' } },
       { kind: 'Value', value: { ...payload, wireKnown: 'false' } },
     ])
-      expect(Object.values(evaluate(axis))).toEqual(
-        Array.from({ length: 4 }, () => ({ certain: false })),
-      )
+      expect(
+        () => evaluate(axis),
+        JSON.stringify(axis, (_key, item) => (typeof item === 'bigint' ? String(item) : item)),
+      ).toThrow(TypeError)
     for (const axis of [null, { kind: 'Null' }])
       expect(evaluate(axis)).toEqual({
         payload_wire: { certain: true, value: null },

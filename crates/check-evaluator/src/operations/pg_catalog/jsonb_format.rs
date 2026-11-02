@@ -85,7 +85,7 @@ pub fn sql__pg_catalog__jsonb_strip_nulls__ruwp(
     }; let mut condition_flavor_85_7: i32 = unresolved_flavor; if let JsonbValue::Unimplemented = input { condition_flavor_85_7 = 2; }; if let JsonbValue::Unimplemented = input {
         return jsonb_unresolved(condition_flavor_85_7);
     };
-    let mut condition_flavor_88_4: i32 = unresolved_flavor; if let BoolValue::Unknown = arrays { if condition_flavor_88_4 < 1 { condition_flavor_88_4 = 1; }; }; if let BoolValue::Unimplemented = arrays { condition_flavor_88_4 = 2; }; if (arrays == BoolValue::Unknown || arrays == BoolValue::Unimplemented) {
+    let mut condition_flavor_88_4: i32 = unresolved_flavor; if let BoolValue::Unknown = arrays { if condition_flavor_88_4 < 1 { condition_flavor_88_4 = 1; }; }; if let BoolValue::Unimplemented = arrays { condition_flavor_88_4 = 2; }; if arrays == BoolValue::Unknown || arrays == BoolValue::Unimplemented {
         return jsonb_unresolved(condition_flavor_88_4);
     };
     if let JsonbValue::Null = input {

@@ -432,10 +432,8 @@ fn native_w_${nativeIndex}()->CompositeValue {${rustWrapper(sample.w?.value ?? n
     expect(evaluate(forged)).toEqual(evaluate(base))
     const bad = structuredClone(base)
     bad.v.value.fields.pop()
-    expect(evaluate(bad).score).toMatchObject({ certain: false })
-    expect(evaluate(bad).json_score).toMatchObject({ certain: false })
-    for (const c of Object.values(evaluate({ ...bad, bypass: true })))
-      expect(c).toMatchObject({ certain: true, value: true })
+    expect(() => evaluate(bad)).toThrow(TypeError)
+    expect(() => evaluate({ ...bad, bypass: true })).toThrow(TypeError)
     const invalid = structuredClone(base)
     const inner = invalid.v.value.fields[0]!
     if (inner.kind !== 'Composite') throw new Error('Expected child')

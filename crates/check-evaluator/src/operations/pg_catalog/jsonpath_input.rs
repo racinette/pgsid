@@ -69,7 +69,7 @@ pub fn jsonpath_from_text(input: TextValue, c_collation: bool, utf8: bool) -> Js
                 if let BoolValue::Error(error) = result {
                     return JsonpathValue::Error(error);
                 };
-                let mut condition_flavor_71_16: i32 = unresolved_flavor; if let BoolValue::Unknown = result { if condition_flavor_71_16 < 1 { condition_flavor_71_16 = 1; }; }; if let BoolValue::Unimplemented = result { condition_flavor_71_16 = 2; }; if (result == BoolValue::Unknown || result == BoolValue::Unimplemented) {
+                let mut condition_flavor_71_16: i32 = unresolved_flavor; if let BoolValue::Unknown = result { if condition_flavor_71_16 < 1 { condition_flavor_71_16 = 1; }; }; if let BoolValue::Unimplemented = result { condition_flavor_71_16 = 2; }; if result == BoolValue::Unknown || result == BoolValue::Unimplemented {
                     return jsonpath_unresolved(condition_flavor_71_16);
                 };
             };

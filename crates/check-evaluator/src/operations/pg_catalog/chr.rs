@@ -8,7 +8,7 @@ pub fn sql__pg_catalog__chr__23bn(input: Int4Value) -> TextValue {
     if let Int4Value::Error(error) = input {
         return TextValue::Error(error);
     }
-    let mut condition_flavor_11_4: i32 = unresolved_flavor; if let Int4Value::Unknown = input { if condition_flavor_11_4 < 1 { condition_flavor_11_4 = 1; }; }; if let Int4Value::Unimplemented = input { condition_flavor_11_4 = 2; }; if (input == Int4Value::Unknown || input == Int4Value::Unimplemented) {
+    let mut condition_flavor_11_4: i32 = unresolved_flavor; if let Int4Value::Unknown = input { if condition_flavor_11_4 < 1 { condition_flavor_11_4 = 1; }; }; if let Int4Value::Unimplemented = input { condition_flavor_11_4 = 2; }; if input == Int4Value::Unknown || input == Int4Value::Unimplemented {
         return text_unresolved(condition_flavor_11_4);
     }
     if input == Int4Value::Null {

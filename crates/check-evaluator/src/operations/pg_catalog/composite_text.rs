@@ -255,7 +255,7 @@ pub fn append_composite_output(input: TextValue, field: TextValue, first: bool) 
     if let TextValue::Unimplemented = field { unresolved_flavor = 2; };
     if input == TextValue::NonNull {
         if let TextValue::Error(error) = field { return TextValue::Error(error); };
-        let mut condition_flavor_255_8: i32 = unresolved_flavor; if let TextValue::Unknown = field { if condition_flavor_255_8 < 1 { condition_flavor_255_8 = 1; }; }; if let TextValue::Unimplemented = field { condition_flavor_255_8 = 2; }; if (field == TextValue::Unknown || field == TextValue::Unimplemented) { return text_unresolved(condition_flavor_255_8); };
+        let mut condition_flavor_255_8: i32 = unresolved_flavor; if let TextValue::Unknown = field { if condition_flavor_255_8 < 1 { condition_flavor_255_8 = 1; }; }; if let TextValue::Unimplemented = field { condition_flavor_255_8 = 2; }; if field == TextValue::Unknown || field == TextValue::Unimplemented { return text_unresolved(condition_flavor_255_8); };
         if let TextValue::Value(text) = field {
             let characters: Vec<char> = text.chars().collect();
             let mut position: usize = 0;
@@ -271,7 +271,7 @@ pub fn append_composite_output(input: TextValue, field: TextValue, first: bool) 
             return TextValue::Error(error);
         };
         if field == TextValue::NonNull { return TextValue::NonNull; };
-        let mut condition_flavor_271_8: i32 = unresolved_flavor; if let TextValue::Unknown = field { if condition_flavor_271_8 < 1 { condition_flavor_271_8 = 1; }; }; if let TextValue::Unimplemented = field { condition_flavor_271_8 = 2; }; if (field == TextValue::Unknown || field == TextValue::Unimplemented) { return text_unresolved(condition_flavor_271_8); };
+        let mut condition_flavor_271_8: i32 = unresolved_flavor; if let TextValue::Unknown = field { if condition_flavor_271_8 < 1 { condition_flavor_271_8 = 1; }; }; if let TextValue::Unimplemented = field { condition_flavor_271_8 = 2; }; if field == TextValue::Unknown || field == TextValue::Unimplemented { return text_unresolved(condition_flavor_271_8); };
         let mut result = source;
         if first == false {
             result.push(',');

@@ -481,8 +481,9 @@ describe('portable SQL floating-point values', () => {
     for (const a of [0, -0, 1, Math.fround(1.1), Infinity, NaN])
       expect(result(a)).toEqual({ certain: true, value: true })
     expect(result(null)).toEqual({ certain: true, value: null })
-    for (const a of [undefined, 1.1, 1e100, 1e-100, '1', {}, { kind: 'Value', value: 2147483648 }])
-      expect(result(a)).toEqual({ certain: false })
+    expect(result(undefined)).toEqual({ certain: false })
+    for (const a of [1.1, 1e100, 1e-100, '1', {}, { kind: 'Value', value: 2147483648 }])
+      expect(() => result(a)).toThrow(TypeError)
     expect(result({ kind: 'Value', value: 0x3f800000 })).toEqual({ certain: true, value: true })
     expect(result({ kind: 'Value', value: -2147483648 })).toEqual({ certain: true, value: true })
     expect(result(1, { kind: 'Value', value: 0x3ff0000000000000n }, 'positive8')).toEqual({
@@ -490,9 +491,9 @@ describe('portable SQL floating-point values', () => {
       value: true,
     })
     expect(result(1, 1.1, 'positive8')).toEqual({ certain: true, value: true })
-    expect(result(1, { kind: 'Value', value: 9223372036854775808n }, 'positive8')).toEqual({
-      certain: false,
-    })
+    expect(() => result(1, { kind: 'Value', value: 9223372036854775808n }, 'positive8')).toThrow(
+      TypeError,
+    )
     expect(result({ kind: 'Error', value: { state: parseInt('22003', 36) } })).toMatchObject({
       certain: true,
       error: '22003',

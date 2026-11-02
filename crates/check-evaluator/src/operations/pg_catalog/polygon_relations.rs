@@ -150,7 +150,7 @@ fn polygon_segment_inside(a: PointPayload, b: PointPayload, polygon: &PathPayloa
         } else {
             let point = segment_intersection(segment, edge);
             if let PointValue::Error(error) = point { return BoolValue::Error(error); };
-            let mut condition_flavor_151_12: i32 = unresolved_flavor; if let PointValue::Unknown = point { if condition_flavor_151_12 < 1 { condition_flavor_151_12 = 1; }; }; if let PointValue::Unimplemented = point { condition_flavor_151_12 = 2; }; if (point == PointValue::Unknown || point == PointValue::Unimplemented) { return bool_unresolved(condition_flavor_151_12); };
+            let mut condition_flavor_151_12: i32 = unresolved_flavor; if let PointValue::Unknown = point { if condition_flavor_151_12 < 1 { condition_flavor_151_12 = 1; }; }; if let PointValue::Unimplemented = point { condition_flavor_151_12 = 2; }; if point == PointValue::Unknown || point == PointValue::Unimplemented { return bool_unresolved(condition_flavor_151_12); };
             if let PointValue::Value(crossing) = point {
                 intersection = true;
                 result = polygon_segment_inside(a, crossing, polygon, index + 1);

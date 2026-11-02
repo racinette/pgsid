@@ -63,14 +63,11 @@ it('validates SQL-coerced cursor names and defers invalid encodings without requ
         absent: { certain: true, value: false },
       })
     expect(evaluate('alpha', 'beta', 'beta').same).toEqual({ certain: true, value: false })
-    for (const value of [undefined, 123, {}, 'a\0b', '\ud800', '\udc00']) {
-      const results = evaluate(value, 'valid', 'valid')
-      expect(results['wire']).toEqual({ certain: false })
-      expect(results['same']).toEqual({ certain: false })
-      expect(results['rendered']).toEqual({ certain: false })
-      expect(results['present']).toEqual({ certain: false })
-      expect(results['absent']).toEqual({ certain: false })
-    }
+    expect(Object.values(evaluate(undefined, 'valid', 'valid'))).toEqual(
+      Array.from({ length: 5 }, () => ({ certain: false })),
+    )
+    for (const value of [123, {}, 'a\0b', '\ud800', '\udc00'])
+      expect(() => evaluate(value, 'valid', 'valid')).toThrow(TypeError)
     expect(evaluate(null)).toEqual({
       wire: { certain: true, value: null },
       same: { certain: true, value: null },

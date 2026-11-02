@@ -94,8 +94,11 @@ describe('public catalog alias payloads', () => {
           value: true,
         })
       }
+      for (const amount of [undefined])
+        expect(Object.values(evaluate(amount))).toEqual(
+          Array.from({ length: 5 }, () => ({ certain: false })),
+        )
       for (const amount of [
-        undefined,
         'named_object',
         1.25,
         125n,
@@ -104,9 +107,7 @@ describe('public catalog alias payloads', () => {
         { kind: 'Value', value: 4294967296n },
         { kind: 'Value', value: -1n },
       ])
-        expect(Object.values(evaluate(amount))).toEqual(
-          Array.from({ length: 5 }, () => ({ certain: false })),
-        )
+        expect(() => evaluate(amount)).toThrow(TypeError)
       for (const amount of [null, { kind: 'Null' }])
         expect(evaluate(amount)).toEqual({
           wire: { certain: true, value: null },

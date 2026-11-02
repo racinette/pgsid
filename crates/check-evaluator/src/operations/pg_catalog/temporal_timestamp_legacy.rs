@@ -5,7 +5,7 @@ fn temporal_timestamp_legacy_value(number: NumericValue, unit: &str, time: i64) 
     if let NumericValue::Error(error) = number {
         return Float8Value::Error(error);
     };
-    let mut condition_flavor_8_4: i32 = unresolved_flavor; if let NumericValue::Unknown = number { if condition_flavor_8_4 < 1 { condition_flavor_8_4 = 1; }; }; if let NumericValue::Unimplemented = number { condition_flavor_8_4 = 2; }; if (number == NumericValue::Unknown || number == NumericValue::Unimplemented) {
+    let mut condition_flavor_8_4: i32 = unresolved_flavor; if let NumericValue::Unknown = number { if condition_flavor_8_4 < 1 { condition_flavor_8_4 = 1; }; }; if let NumericValue::Unimplemented = number { condition_flavor_8_4 = 2; }; if number == NumericValue::Unknown || number == NumericValue::Unimplemented {
         return float8_unresolved(condition_flavor_8_4);
     };
     if number == NumericValue::Null {

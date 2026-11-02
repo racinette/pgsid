@@ -63,7 +63,7 @@ fn numeric_common(left: NumericValue, right: NumericValue, multiple: bool) -> Nu
                 if let NumericValue::Error(error) = remainder {
                     return NumericValue::Error(error);
                 }
-                let mut condition_flavor_66_16: i32 = unresolved_flavor; if let NumericValue::Unknown = remainder { if condition_flavor_66_16 < 1 { condition_flavor_66_16 = 1; }; }; if let NumericValue::Unimplemented = remainder { condition_flavor_66_16 = 2; }; if (remainder == NumericValue::Unknown || remainder == NumericValue::Unimplemented) {
+                let mut condition_flavor_66_16: i32 = unresolved_flavor; if let NumericValue::Unknown = remainder { if condition_flavor_66_16 < 1 { condition_flavor_66_16 = 1; }; }; if let NumericValue::Unimplemented = remainder { condition_flavor_66_16 = 2; }; if remainder == NumericValue::Unknown || remainder == NumericValue::Unimplemented {
                     return numeric_unresolved(condition_flavor_66_16);
                 }
                 dividend = divisor.clone();

@@ -48,6 +48,7 @@ const helpers = `
 pub fn tsquery_test_text(actual:TextValue,expected:TextValue)->BoolValue {
  if let TextValue::Error(error)=actual{return BoolValue::Error(error);};
  if actual==TextValue::Unknown{return BoolValue::Unknown;};
+ if actual==TextValue::Unimplemented{return BoolValue::Unimplemented;};
  if actual==TextValue::Null&&expected==TextValue::Null{return make_bool_value(true);};
  if actual==TextValue::Null||expected==TextValue::Null{return make_bool_value(false);};
  sql__pg_catalog__texteq__aet8(actual,expected)
@@ -55,6 +56,7 @@ pub fn tsquery_test_text(actual:TextValue,expected:TextValue)->BoolValue {
 pub fn tsquery_test_number(actual:Int4Value,expected:Int4Value)->BoolValue {
  if let Int4Value::Error(error)=actual{return BoolValue::Error(error);};
  if actual==Int4Value::Unknown{return BoolValue::Unknown;};
+ if actual==Int4Value::Unimplemented{return BoolValue::Unimplemented;};
  make_bool_value(actual==expected)
 }
 pub fn tsquery_test_wire(actual:ByteaValue,expected:TextValue)->BoolValue {
@@ -205,7 +207,7 @@ it('parses owned raw tsquery trees with native text, node count, wire, error and
           ].map((fields) => ({ ...term, nodes: [leaf, leaf, { ...branch, ...fields }], root: 2 })),
         ].map((value) => ({ value, unknown: true })),
       ] satisfies { value: TsqueryInputPayload; unknown: boolean }[]
-    const payloadHelper = `pub fn tsquery_test_payload(mode:Int4Value)->BoolValue {if let Int4Value::Value(index)=mode {${payloads.map(({ value }, index) => `if index==${index}{let mut nodes:Vec<TsqueryNode>=Vec::new();${value.nodes.map((node) => `nodes.push(${tsqueryRustNode(node)});`).join('')}let payload=TsqueryPayload{nodes:nodes,root:${value.root},native_bytes:${value.nativeBytes}};let query=make_tsquery_value(payload);let state=tsquery_is_null(query);return make_bool_value(state==BoolValue::Unknown);};`).join('')}};BoolValue::Unknown}`
+    const payloadHelper = `pub fn tsquery_test_payload(mode:Int4Value)->BoolValue {if let Int4Value::Value(index)=mode {${payloads.map(({ value }, index) => `if index==${index}{let mut nodes:Vec<TsqueryNode>=Vec::new();${value.nodes.map((node) => `nodes.push(${tsqueryRustNode(node)});`).join('')}let payload=TsqueryPayload{nodes:nodes,root:${value.root},native_bytes:${value.nativeBytes}};let query=make_tsquery_value(payload);let state=tsquery_is_null(query);return make_bool_value(state==BoolValue::Unimplemented);};`).join('')}};BoolValue::Unknown}`
     await mkdir(packet, { recursive: true })
     await writeFile(`${packet}/test-helpers.rs`, helpers + testInput + payloadHelper)
     await pg.exec(

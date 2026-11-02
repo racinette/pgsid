@@ -5,7 +5,7 @@ pub fn enum_to_text(input: EnumValue, labels: &str, count: i32) -> TextValue {
     if let EnumValue::Error(error) = input {
         return TextValue::Error(error);
     }
-    let mut condition_flavor_8_4: i32 = unresolved_flavor; if let EnumValue::Unknown = input { if condition_flavor_8_4 < 1 { condition_flavor_8_4 = 1; }; }; if let EnumValue::Unimplemented = input { condition_flavor_8_4 = 2; }; if (input == EnumValue::Unknown || input == EnumValue::Unimplemented) {
+    let mut condition_flavor_8_4: i32 = unresolved_flavor; if let EnumValue::Unknown = input { if condition_flavor_8_4 < 1 { condition_flavor_8_4 = 1; }; }; if let EnumValue::Unimplemented = input { condition_flavor_8_4 = 2; }; if input == EnumValue::Unknown || input == EnumValue::Unimplemented {
         return text_unresolved(condition_flavor_8_4);
     }
     if input == EnumValue::Null {
@@ -194,7 +194,7 @@ pub fn sql__pg_catalog__hashenum__z4zk(input: EnumValue) -> Int4Value {
     if let EnumValue::Error(error) = input {
         return Int4Value::Error(error);
     }
-    let mut condition_flavor_196_4: i32 = unresolved_flavor; if let EnumValue::Unknown = input { if condition_flavor_196_4 < 1 { condition_flavor_196_4 = 1; }; }; if let EnumValue::Unimplemented = input { condition_flavor_196_4 = 2; }; if (input == EnumValue::Unknown || input == EnumValue::Unimplemented) {
+    let mut condition_flavor_196_4: i32 = unresolved_flavor; if let EnumValue::Unknown = input { if condition_flavor_196_4 < 1 { condition_flavor_196_4 = 1; }; }; if let EnumValue::Unimplemented = input { condition_flavor_196_4 = 2; }; if input == EnumValue::Unknown || input == EnumValue::Unimplemented {
         return int4_unresolved(condition_flavor_196_4);
     }
     if input == EnumValue::Null {
