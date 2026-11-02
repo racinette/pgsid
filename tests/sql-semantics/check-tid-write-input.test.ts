@@ -99,12 +99,12 @@ func TestPortablePayloadStillValidates(t *testing.T) {
  input.Expected=pgsid.KnownCheckValue(&wire)
  input.Position.V=checkruntime.TidValue{}
  wireChecks:=0
- for _,check:=range pgsid.EvaluatePublicHeapPointerWritesChecks(input) {
+ for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicHeapPointerWritesChecks(input); if e != nil {return nil}; return r}() {
   if check.Constraint=="position_wire" {wireChecks++;if check.Result.Certain {t.Fatal("zero tuple-pointer wrapper did not remain unknown")}}
  }
  if wireChecks!=1 {t.Fatal("missing oid wire constraint")}
  
- for _,check:=range pgsid.EvaluatePublicHeapPointerWritesChecks(input) {
+ for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicHeapPointerWritesChecks(input); if e != nil {return nil}; return r}() {
   if check.Constraint=="latest_pointer" && check.Result.Certain {t.Fatal("heap lookup became definite without relation state")}
  }
  if checkruntime.MakeTidParts(4294967295,65535)!=checkruntime.MakeTidValue(281474976710655) {t.Fatal("tuple pointer fields lost bits")}
@@ -113,12 +113,12 @@ func TestPortablePayloadStillValidates(t *testing.T) {
  } {if invalid.Kind!=checkruntime.TidValueUnimplemented {t.Fatal("invalid tuple fields became definite",invalid)}}
  for _,invalid:=range []int64{-1,281474976710656} {
   input.Position.V=checkruntime.TidValue{Kind:checkruntime.TidValueValue,Value:invalid}
-  for _,check:=range pgsid.EvaluatePublicHeapPointerWritesChecks(input) {
+  for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicHeapPointerWritesChecks(input); if e != nil {return nil}; return r}() {
    if check.Constraint=="position_wire" && check.Result.Certain {t.Fatal("invalid packed tuple pointer became definite",invalid)}
   }
  }
  input.Position.V=checkruntime.MakeTidValue(126)
- for _,check:=range pgsid.EvaluatePublicHeapPointerWritesChecks(input) {
+ for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicHeapPointerWritesChecks(input); if e != nil {panic(e)}; return r}() {
   if check.Constraint=="position_wire" && (!check.Result.Certain || !check.Result.Value.Valid || check.Result.Value.Value) {t.Fatal("changed tuple pointer did not reject wrong wire bytes")}
  }
 

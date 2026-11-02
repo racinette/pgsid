@@ -447,10 +447,11 @@ import("testing";"reflect";checkruntime "compositepublic/schema/public/checkrust
 func TestCompositePayloads(t *testing.T){
  cases:=[]struct{v,w checkruntime.CompositeValue;rowNull,rowNotNull,choose bool;expected map[string]int}{${cases.join(',')}}
  for i,c:=range cases{skip:=false;row:=PublicRecordsCheckInput{V:KnownCheckValue(c.v),W:KnownCheckValue(c.w),ExpectedNull:KnownCheckValue(&c.rowNull),ExpectedNotNull:KnownCheckValue(&c.rowNotNull),ChooseFirst:KnownCheckValue(&c.choose),Bypass:KnownCheckValue(&skip)}
- for _,result:=range EvaluatePublicRecordsChecks(row){want:=c.expected[result.Constraint];got:=result.Result;if !got.Certain||(!got.Value.Valid&&want!=2)||(got.Value.Valid&&(want==2||got.Value.Value!=(want==1))){t.Fatal(i,result.Constraint,got,want)}}
+ for _,result:=range func() []CheckEvaluation {r, e := EvaluatePublicRecordsChecks(row); if e != nil {panic(e)}; return r}(){want:=c.expected[result.Constraint];got:=result.Result;if !got.Certain||(!got.Value.Valid&&want!=2)||(got.Value.Valid&&(want==2||got.Value.Value!=(want==1))){t.Fatal(i,result.Constraint,got,want)}}
  }
  c:=cases[6];c.choose=false;skip:=false
- evaluate:=func(v checkruntime.CompositeValue)[]CheckEvaluation {return EvaluatePublicRecordsChecks(PublicRecordsCheckInput{V:KnownCheckValue(v),W:KnownCheckValue(c.w),ExpectedNull:KnownCheckValue(&c.rowNull),ExpectedNotNull:KnownCheckValue(&c.rowNotNull),ChooseFirst:KnownCheckValue(&c.choose),Bypass:KnownCheckValue(&skip)})}
+ run:=func(v checkruntime.CompositeValue)([]CheckEvaluation,error){return EvaluatePublicRecordsChecks(PublicRecordsCheckInput{V:KnownCheckValue(v),W:KnownCheckValue(c.w),ExpectedNull:KnownCheckValue(&c.rowNull),ExpectedNotNull:KnownCheckValue(&c.rowNotNull),ChooseFirst:KnownCheckValue(&c.choose),Bypass:KnownCheckValue(&skip)})}
+ evaluate:=func(v checkruntime.CompositeValue)[]CheckEvaluation{r,e:=run(v);if e!=nil{t.Fatal(e)};return r}
  baseline:=evaluate(c.v)
  forged:=checkruntime.CompositeFromCoercedValue(c.v)
  field:=&forged.Value.Fields[0].Composite.Fields[3].Range
@@ -463,9 +464,9 @@ func TestCompositePayloads(t *testing.T){
  invalid.Value.Fields[0].Composite.Fields[2].Enum.Ordinal=999
  for _,result:=range evaluate(invalid){if result.Constraint=="score"&&result.Result.Certain{t.Fatal("invalid ordinal accepted")}}
  malformed:=checkruntime.CompositeFromCoercedValue(c.v);malformed.Value.Fields=malformed.Value.Fields[:2]
- for _,result:=range evaluate(malformed){if result.Constraint=="score"&&result.Result.Certain{t.Fatal("incomplete composite accepted")}}
+ if _,e:=run(malformed);e==nil{t.Fatal("incomplete composite accepted")}
  skip=true
- for _,result:=range evaluate(malformed){if !result.Result.Certain||!result.Result.Value.Valid||!result.Result.Value.Value{t.Fatal("skipped malformed input changed result")}}
+ if _,e:=run(malformed);e==nil{t.Fatal("skipped incomplete composite accepted")}
 }
 `,
     )

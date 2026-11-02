@@ -266,7 +266,7 @@ it('decodes complete profile words before validating caller hints in public rang
       assertions.push(`{
 row:=wordFixture${i}();row.Items.V=forgeProfileWords(row.Items.V);row.Packs.V=forgeProfileWords(row.Packs.V);row.Histories.V=forgeProfileWords(row.Histories.V)
 beforeItems:=checkruntime.CopyArrayValue(row.Items.V);beforePacks:=checkruntime.CopyArrayValue(row.Packs.V);beforeHistory:=checkruntime.CopyArrayValue(row.Histories.V)
-for _,c:=range EvaluatePublicWordBatches${i}Checks(row){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal(${i},"profile",c)}}
+for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicWordBatches${i}Checks(row); if e != nil {panic(e)}; return r}(){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal(${i},"profile",c)}}
 if !reflect.DeepEqual(beforeItems,row.Items.V)||!reflect.DeepEqual(beforePacks,row.Packs.V)||!reflect.DeepEqual(beforeHistory,row.Histories.V){t.Fatal("caller mutated")}
 }`)
     }

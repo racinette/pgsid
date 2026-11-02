@@ -160,7 +160,7 @@ func TestEnumCatalogUnavailable(t *testing.T) {
  stage:=schema.ExportStatus("ready");hash:=int32(${a.hash});seeded:=int64(${a.seeded})
  input:=pgsid.PublicEnumExportsCheckInput{Stage:pgsid.KnownCheckValue(&stage),Expected:pgsid.KnownCheckValue(&hash),ExpectedSeeded:pgsid.KnownCheckValue(&seeded)}
  count:=0
- for _,check:=range pgsid.EvaluatePublicEnumExportsChecks(input) {
+ for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicEnumExportsChecks(input); if e != nil {panic(e)}; return r}() {
  count++
  if check.Constraint=="label_order" {
  if !check.Result.Certain || !check.Result.Value.Valid || !check.Result.Value.Value {t.Fatal("lost enum ordering",check)}

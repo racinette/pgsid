@@ -138,15 +138,18 @@ func checkInputInteger[T any](field CheckOptional[T]) EvalValue[SqlInteger] {
 	return EvalValue[SqlInteger]{Certain: known, Value: value}
 }
 func checkRustInt8[T any](field CheckOptional[T]) checkruntime.Int8Value {
+	if !field.Set {
+		return checkruntime.Int8Unknown()
+	}
 	value := checkInputInteger(field)
 	if !value.Certain {
-		return checkruntime.Int8Unknown()
+		return checkruntime.Int8Unresolved(2)
 	}
 	if value.Value.Error != "" {
 		if state, ok := checkRustState(value.Value.Error); ok {
 			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: state}
 		}
-		return checkruntime.Int8Unknown()
+		return checkRustInvalid[checkruntime.Int8Value]()
 	}
 	if !value.Value.Valid {
 		return checkruntime.Int8Null()
@@ -194,6 +197,36 @@ func (e *CheckViolationError) SQLState() string {
 	return "23514"
 }
 
+type CheckInputError struct{ Input string }
+
+func (e *CheckInputError) Error() string {
+	if e.Input == "" {
+		return "CHECK input holds a malformed value"
+	}
+	return "CHECK input " + e.Input + " holds a malformed value"
+}
+
+type checkInputFault struct{}
+
+func checkInputAt[T any](at *string, name string, value T) T {
+	*at = name
+	return value
+}
+func checkRustInvalid[T any]() T {
+	panic(checkInputFault{})
+}
+func checkInputRecover(at *string, results *[]CheckEvaluation, err *error) {
+	fault := recover()
+	if fault == nil {
+		return
+	}
+	if _, ok := fault.(checkInputFault); !ok {
+		panic(fault)
+	}
+	*results = nil
+	*err = &CheckInputError{Input: *at}
+}
+
 type CheckEvaluationError struct{ Owner, Constraint, State, Message string }
 
 func (e *CheckEvaluationError) Error() string {
@@ -202,8 +235,12 @@ func (e *CheckEvaluationError) Error() string {
 func (e *CheckEvaluationError) SQLState() string {
 	return e.State
 }
-func ValidateCheckInputs[T any](input T, evaluate func(T) []CheckEvaluation) error {
-	for _, check := range evaluate(input) {
+func ValidateCheckInputs[T any](input T, evaluate func(T) ([]CheckEvaluation, error)) error {
+	checks, err := evaluate(input)
+	if err != nil {
+		return err
+	}
+	for _, check := range checks {
 		if !check.Result.Certain {
 			continue
 		}
@@ -244,9 +281,13 @@ type CheckEvaluation struct {
 	Message    string
 }
 
-func EvaluatePublicDefaultEventIdDomainChecks(row PublicDefaultEventIdCheckInput) []CheckEvaluation {
-	return []CheckEvaluation{checkEvaluation("public.event_id", "event_id_check", checkRustOutcome(checkrust.EvaluateCheckPublicDomainDefaultEventIdFromPublicEventIdEventIdCheckH7azw(checkRustInt8(row.Value))), "A required input is unavailable, or its value or an evaluated expression is not supported.")}
+func EvaluatePublicDefaultEventIdDomainChecks(row PublicDefaultEventIdCheckInput) (results []CheckEvaluation, err error) {
+	at := ""
+	defer checkInputRecover(&at, &results, &err)
+	return []CheckEvaluation{checkEvaluation("public.event_id", "event_id_check", checkRustOutcome(checkrust.EvaluateCheckPublicDomainDefaultEventIdFromPublicEventIdEventIdCheckH7azw(checkRustInt8(checkInputAt(&at, "value", row.Value)))), "A required input is unavailable, or its value or an evaluated expression is not supported.")}, nil
 }
-func EvaluatePublicEventIdDomainChecks(row PublicEventIdCheckInput) []CheckEvaluation {
-	return []CheckEvaluation{checkEvaluation("public.event_id", "event_id_check", checkRustOutcome(checkrust.EvaluateCheckPublicDomainEventIdEventIdCheckHcydw(checkRustInt8(row.Value))), "A required input is unavailable, or its value or an evaluated expression is not supported.")}
+func EvaluatePublicEventIdDomainChecks(row PublicEventIdCheckInput) (results []CheckEvaluation, err error) {
+	at := ""
+	defer checkInputRecover(&at, &results, &err)
+	return []CheckEvaluation{checkEvaluation("public.event_id", "event_id_check", checkRustOutcome(checkrust.EvaluateCheckPublicDomainEventIdEventIdCheckHcydw(checkRustInt8(checkInputAt(&at, "value", row.Value)))), "A required input is unavailable, or its value or an evaluated expression is not supported.")}, nil
 }

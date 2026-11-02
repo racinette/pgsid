@@ -101,7 +101,7 @@ func TestPortablePayloadStillValidates(t *testing.T) {
  input.Expected=pgsid.KnownCheckValue(&wire)
  input.Position.V=checkruntime.${type === 'xid8' ? 'Xid8' : type === 'xid' ? 'Xid' : 'Cid'}Value{}
  wireChecks:=0
- for _,check:=range pgsid.EvaluatePublicIdentifierWritesChecks(input) {
+ for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicIdentifierWritesChecks(input); if e != nil {return nil}; return r}() {
   if check.Constraint=="position_wire" {wireChecks++;if check.Result.Certain {t.Fatal("zero oid wrapper did not remain unknown")}}
  }
  if wireChecks!=1 {t.Fatal("missing oid wire constraint")}
@@ -110,13 +110,13 @@ func TestPortablePayloadStillValidates(t *testing.T) {
      ? ''
      : `for _,invalid:=range []int64{-1,4294967296} {
   input.Position.V=checkruntime.${type === 'xid' ? 'Xid' : 'Cid'}Value{Kind:checkruntime.${type === 'xid' ? 'Xid' : 'Cid'}ValueValue,Value:invalid}
-  for _,check:=range pgsid.EvaluatePublicIdentifierWritesChecks(input) {
+  for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicIdentifierWritesChecks(input); if e != nil {return nil}; return r}() {
    if check.Constraint=="position_wire" && check.Result.Certain {t.Fatal("invalid identifier carrier became definite",invalid)}
   }
  }`
  }
  input.Position.V=checkruntime.${type === 'xid8' ? 'MakeXid8Bits(126)' : type === 'xid' ? 'MakeXidValue(126)' : 'MakeCidValue(126)'}
- for _,check:=range pgsid.EvaluatePublicIdentifierWritesChecks(input) {
+ for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicIdentifierWritesChecks(input); if e != nil {panic(e)}; return r}() {
   if check.Constraint=="position_wire" && (!check.Result.Certain || !check.Result.Value.Valid || check.Result.Value.Value) {t.Fatal("changed oid units did not reject wrong wire bytes")}
  }
 

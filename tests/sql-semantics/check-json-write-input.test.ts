@@ -83,12 +83,12 @@ func TestCoercedJSONInputs(t *testing.T){
  if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonWritesChecks);err!=nil{t.Fatal("cached metadata was trusted",err)}
  for _,bad:=range []checkruntime.JsonValue{{},{Kind:checkruntime.JsonValueValue},{Kind:checkruntime.JsonValueValue,Value:checkruntime.JsonPayload{Source:"[1,]"}},{Kind:checkruntime.JsonValueValue,Value:checkruntime.JsonPayload{Source:string([]byte{255})}},{Kind:checkruntime.JsonValueValue,Value:checkruntime.JsonPayload{Source:string([]byte{0})}}}{
   input.Document=pgsid.KnownCheckValue(bad)
-  for _,check:=range pgsid.EvaluatePublicJsonWritesChecks(input){if check.Constraint!="domain_shape" && check.Result.Certain{t.Fatal("invalid JSON became definite",check)}}
+  for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicJsonWritesChecks(input); if e != nil {return nil}; return r}(){if check.Constraint!="domain_shape" && check.Result.Certain{t.Fatal("invalid JSON became definite",check)}}
  }
  input.Document=pgsid.NullCheckValue[checkruntime.JsonValue]()
  if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonWritesChecks);err==nil{t.Fatal("SQL NULL passed required presence")}
  input.Document=pgsid.KnownCheckValue(checkruntime.JsonValue{Kind:checkruntime.JsonValueError,Error:checkruntime.MakeSqlError(${parseInt('22003', 36)})})
- for _,check:=range pgsid.EvaluatePublicJsonWritesChecks(input){if check.Constraint!="domain_shape" && (!check.Result.Certain || check.Result.Value.Error!="22003"){t.Fatal("JSON error lost",check)}}
+ for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicJsonWritesChecks(input); if e != nil {panic(e)}; return r}(){if check.Constraint!="domain_shape" && (!check.Result.Certain || check.Result.Value.Error!="22003"){t.Fatal("JSON error lost",check)}}
 }
 func TestJSONTextCastsBeforeWrites(t *testing.T){
  db:=&recordingJSONDB{};queries:=New(db);source:="[1, 2]";expected:=source;bypass:=false
@@ -117,7 +117,7 @@ func TestJSONFieldValues(t *testing.T){
   {${JSON.stringify('{"a":1,"bad":"\\u00e9"}')},""},
  }{
   input.Document=pgsid.KnownCheckValue(checkruntime.MakeJsonValue(c.source))
-  result:=pgsid.EvaluatePublicJsonFieldWritesChecks(input)[0].Result
+  result:=func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicJsonFieldWritesChecks(input); if e != nil {panic(e)}; return r}()[0].Result
   if c.state=="" {if result.Certain{t.Fatal("missing encoding context became definite",result)}} else if !result.Certain||result.Value.Error!=c.state{t.Fatal("JSON decoding error lost",result)}
  }
  bypass=true

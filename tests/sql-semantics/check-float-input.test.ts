@@ -266,7 +266,7 @@ func TestFloatPayloads(t *testing.T) {
     wire := []byte{byte(bits >> 24),byte(bits >> 16),byte(bits >> 8),byte(bits)}
     row := PublicFloatInputChecksCheckInput{SingleValue: KnownCheckValue(&native), Expected: KnownCheckValue(&wire)}
     found := false
-    for _, check := range EvaluatePublicFloatInputChecksChecks(row) {
+    for _, check := range func() []CheckEvaluation {r, e := EvaluatePublicFloatInputChecksChecks(row); if e != nil {panic(e)}; return r}() {
       if check.Constraint != "send4" { continue }; found = true
       if !check.Result.Certain || !check.Result.Value.Valid || !check.Result.Value.Value || check.Result.Value.Error != "" { t.Fatalf("float4 %08x: %+v",bits,check) }
     }
@@ -277,7 +277,7 @@ func TestFloatPayloads(t *testing.T) {
     wire := []byte{byte(bits >> 56),byte(bits >> 48),byte(bits >> 40),byte(bits >> 32),byte(bits >> 24),byte(bits >> 16),byte(bits >> 8),byte(bits)}
     row := PublicFloatInputChecksCheckInput{DoubleValue: KnownCheckValue(&native), Expected: KnownCheckValue(&wire)}
     found := false
-    for _, check := range EvaluatePublicFloatInputChecksChecks(row) {
+    for _, check := range func() []CheckEvaluation {r, e := EvaluatePublicFloatInputChecksChecks(row); if e != nil {panic(e)}; return r}() {
       if check.Constraint != "send8" { continue }; found = true
       if !check.Result.Certain || !check.Result.Value.Valid || !check.Result.Value.Value || check.Result.Value.Error != "" { t.Fatalf("float8 %016x: %+v",bits,check) }
     }

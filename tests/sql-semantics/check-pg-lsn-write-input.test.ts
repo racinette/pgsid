@@ -99,13 +99,13 @@ func TestPortablePayloadStillValidates(t *testing.T) {
  input.Expected=pgsid.KnownCheckValue(&wire)
  input.Position.V=checkruntime.PgLsnValue{}
  wireChecks:=0
- for _,check:=range pgsid.EvaluatePublicWalLocationWritesChecks(input) {
+ for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicWalLocationWritesChecks(input); if e != nil {return nil}; return r}() {
   if check.Constraint=="position_wire" {wireChecks++;if check.Result.Certain {t.Fatal("zero WAL-location wrapper did not remain unknown")}}
  }
  if wireChecks!=1 {t.Fatal("missing oid wire constraint")}
  
  input.Position.V=checkruntime.MakePgLsnBits(126)
- for _,check:=range pgsid.EvaluatePublicWalLocationWritesChecks(input) {
+ for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicWalLocationWritesChecks(input); if e != nil {panic(e)}; return r}() {
   if check.Constraint=="position_wire" && (!check.Result.Certain || !check.Result.Value.Valid || check.Result.Value.Value) {t.Fatal("changed WAL location did not reject wrong wire bytes")}
  }
 

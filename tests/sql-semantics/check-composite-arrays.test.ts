@@ -540,7 +540,7 @@ CONSTRAINT output CHECK(CASE WHEN bypass THEN true ELSE a::text='{"(2,z,hi)"}' E
 import("testing";"reflect";checkruntime "compositearrayspublic/schema/public/checkrust/checkruntime")
 func TestPublicCompositeArrays(t *testing.T){
  value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"public.leaf",ElementKind:44,Dimensions:[]checkruntime.ArrayDimension{{Lower:1,Length:1}},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementComposite,Composite:checkruntime.CompositePayload{TypeName:"public.leaf",Fields:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementInt2,Int2:2},{Kind:checkruntime.ArrayElementEnum,Enum:checkruntime.EnumPayload{Ordinal:0,LabelOid:999}},{Kind:checkruntime.ArrayElementText,Text:"hi"}}}}},NullBitmap:checkruntime.BoolValue{Kind:checkruntime.BoolValueValue,Value:false}}}
- evaluate:=func(value checkruntime.ArrayValue,bypass bool)[]CheckEvaluation{return EvaluatePublicBundlesChecks(PublicBundlesCheckInput{A:KnownCheckValue(value),Bypass:KnownCheckValue(bypass)})}
+ evaluate:=func(value checkruntime.ArrayValue,bypass bool)[]CheckEvaluation{return func() []CheckEvaluation {r, e := EvaluatePublicBundlesChecks(PublicBundlesCheckInput{A:KnownCheckValue(value),Bypass:KnownCheckValue(bypass)}); if e != nil {panic(e)}; return r}()}
  before:=checkruntime.CopyArrayValue(value)
  for _,result:=range evaluate(value,false){if !result.Result.Certain||!result.Result.Value.Valid||!result.Result.Value.Value{t.Fatal(result)}}
  if !reflect.DeepEqual(value,before){t.Fatal("public array input mutated")}

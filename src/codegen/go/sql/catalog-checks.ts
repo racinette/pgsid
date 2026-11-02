@@ -682,7 +682,11 @@ export function renderGoSchemaCheckArtifacts(
           const range = rangeTypeProfile(item.type)
           const enumDefinition = (range ?? multirange)?.subtypeEnum
           return go.call(go.ident(helper), [
-            go.selector(row, goName(item.name)),
+            go.call(go.ident('checkInputAt'), [
+              go.address(go.ident('at')),
+              go.string(item.name),
+              go.selector(row, goName(item.name)),
+            ]),
             ...(item.rustType === 'CompositeValue' || compositeArray
               ? [compositeContext(compositeArray ? arrayLikeElementType(item.type)! : item.type)]
               : []),
@@ -889,14 +893,38 @@ func (e *CheckViolationError) Error() string {
 }
 func (e *CheckViolationError) SQLState() string { return "23514" }
 
+${
+  rustGroup?.source
+    ? `// CheckInputError reports a supplied input that holds no value of its type. An unset input is
+// not an error: its checks stay undecided.
+type CheckInputError struct { Input string }
+func (e *CheckInputError) Error() string {
+  if e.Input == "" { return "CHECK input holds a malformed value" }
+  return "CHECK input " + e.Input + " holds a malformed value"
+}
+type checkInputFault struct{}
+func checkInputAt[T any](at *string, name string, value T) T { *at = name; return value }
+func checkRustInvalid[T any]() T { panic(checkInputFault{}) }
+func checkInputRecover(at *string, results *[]CheckEvaluation, err *error) {
+  fault := recover()
+  if fault == nil { return }
+  if _, ok := fault.(checkInputFault); !ok { panic(fault) }
+  *results = nil
+  *err = &CheckInputError{Input: *at}
+}
+`
+    : ''
+}
 type CheckEvaluationError struct { Owner, Constraint, State, Message string }
 func (e *CheckEvaluationError) Error() string {
   return "check constraint " + e.Constraint + " evaluation failed: " + e.Message + " (SQLSTATE " + e.State + ")"
 }
 func (e *CheckEvaluationError) SQLState() string { return e.State }
 
-func ValidateCheckInputs[T any](input T, evaluate func(T) []CheckEvaluation) error {
-  for _, check := range evaluate(input) {
+func ValidateCheckInputs[T any](input T, evaluate func(T) ([]CheckEvaluation, error)) error {
+  checks, err := evaluate(input)
+  if err != nil { return err }
+  for _, check := range checks {
     if !check.Result.Certain { continue }
     value := check.Result.Value
     if value.Error != "" {
@@ -932,8 +960,23 @@ func checkEvaluation(owner, constraint string, result EvalBool, unknownMessage s
           go.function(
             `Evaluate${goName(name)}${kind === 'domain' ? 'DomainChecks' : 'Checks'}`,
             [{ names: ['row'], type: go.ident(inputType) }],
-            [{ type: go.slice(resultType) }],
             [
+              { names: ['results'], type: go.slice(resultType) },
+              { names: ['err'], type: go.ident('error') },
+            ],
+            [
+              ...(rustGroup?.source
+                ? [
+                    go.assign([go.ident('at')], [go.string('')]),
+                    go.defer(
+                      go.call(go.ident('checkInputRecover'), [
+                        go.address(go.ident('at')),
+                        go.address(go.ident('results')),
+                        go.address(go.ident('err')),
+                      ]),
+                    ),
+                  ]
+                : []),
               go.return(
                 go.composite(
                   go.slice(resultType),
@@ -953,6 +996,7 @@ func checkEvaluation(owner, constraint string, result EvalBool, unknownMessage s
                         ]),
                   ),
                 ),
+                go.ident('nil'),
               ),
             ],
           ),
@@ -974,20 +1018,20 @@ func checkRustArray[T any](field CheckOptional[T], elementType string, elementKi
   if !field.Set { return checkruntime.ArrayUnknown() }
   if field.Null { return checkruntime.ArrayNull() }
   input,ok:=any(field.V).(checkruntime.ArrayValue)
-  if !ok { return checkruntime.ArrayUnknown() }
+  if !ok { return checkruntime.ArrayUnresolved(2) }
   if input.Kind==checkruntime.ArrayValueUnknown || input.Kind==checkruntime.ArrayValueNull || input.Kind==checkruntime.ArrayValueError { return input }
-  if input.Kind!=checkruntime.ArrayValueValue || input.Value.ElementType!=elementType || input.Value.ElementKind!=elementKind { return checkruntime.ArrayUnknown() }
+  if input.Kind!=checkruntime.ArrayValueValue || input.Value.ElementType!=elementType || input.Value.ElementKind!=elementKind { return checkRustInvalid[checkruntime.ArrayValue]() }
   depth:=0
   if len(tree)>=2 { depth=len(tree[1])-1 }
-  if !checkRustArrayTree(input,depth,boundProfile,tree...) { return checkruntime.ArrayUnknown() }
+  if !checkRustArrayTree(input,depth,boundProfile,tree...) { return checkRustInvalid[checkruntime.ArrayValue]() }
   input=checkRustArrayTypedMetadata(input,boundProfile,tree...)
   if len(boundProfile.Nodes)>0 {
     if len(tree)==7 { return checkruntime.ArrayFromCoercedRangeTypedProfileTree(input,tree[0],tree[1],tree[2],tree[3],checkRustArrayProfileWord(tree[4]),checkRustArrayProfileWord(tree[5]),checkRustArrayProfileWord(tree[6]),boundProfile) }
     if len(tree)==8 { return checkruntime.ArrayFromCoercedMultirangeTypedProfileTree(input,tree[0],tree[1],tree[2],tree[3],tree[4],checkRustArrayProfileWord(tree[5]),checkRustArrayProfileWord(tree[6]),checkRustArrayProfileWord(tree[7]),boundProfile) }
-    return checkruntime.ArrayUnknown()
+    return checkruntime.ArrayUnresolved(2)
   }
-  if len(tree)==9 { count,err:=strconv.Atoi(tree[8]);if err!=nil { return checkruntime.ArrayUnknown() };return checkruntime.ArrayFromCoercedRangeDefinedProfileTree(input,tree[0],tree[1],tree[2],tree[3],checkRustArrayProfileWord(tree[4]),checkRustArrayProfileWord(tree[5]),checkRustArrayProfileWord(tree[6]),tree[7],count) }
-  if len(tree)==10 { count,err:=strconv.Atoi(tree[9]);if err!=nil { return checkruntime.ArrayUnknown() };return checkruntime.ArrayFromCoercedMultirangeDefinedProfileTree(input,tree[0],tree[1],tree[2],tree[3],tree[4],checkRustArrayProfileWord(tree[5]),checkRustArrayProfileWord(tree[6]),checkRustArrayProfileWord(tree[7]),tree[8],count) }
+  if len(tree)==9 { count,err:=strconv.Atoi(tree[8]);if err!=nil { return checkruntime.ArrayUnresolved(2) };return checkruntime.ArrayFromCoercedRangeDefinedProfileTree(input,tree[0],tree[1],tree[2],tree[3],checkRustArrayProfileWord(tree[4]),checkRustArrayProfileWord(tree[5]),checkRustArrayProfileWord(tree[6]),tree[7],count) }
+  if len(tree)==10 { count,err:=strconv.Atoi(tree[9]);if err!=nil { return checkruntime.ArrayUnresolved(2) };return checkruntime.ArrayFromCoercedMultirangeDefinedProfileTree(input,tree[0],tree[1],tree[2],tree[3],tree[4],checkRustArrayProfileWord(tree[5]),checkRustArrayProfileWord(tree[6]),checkRustArrayProfileWord(tree[7]),tree[8],count) }
   if len(tree)==7 && checkRustArrayProfileWord(tree[4])>=0 && checkRustArrayProfileWord(tree[5])>=0 && checkRustArrayProfileWord(tree[6])>=0 { return checkruntime.ArrayFromCoercedRangeProfileTree(input,tree[0],tree[1],tree[2],tree[3],checkRustArrayProfileWord(tree[4]),checkRustArrayProfileWord(tree[5]),checkRustArrayProfileWord(tree[6])) }
   if len(tree)==8 && checkRustArrayProfileWord(tree[5])>=0 && checkRustArrayProfileWord(tree[6])>=0 && checkRustArrayProfileWord(tree[7])>=0 { return checkruntime.ArrayFromCoercedMultirangeProfileTree(input,tree[0],tree[1],tree[2],tree[3],tree[4],checkRustArrayProfileWord(tree[5]),checkRustArrayProfileWord(tree[6]),checkRustArrayProfileWord(tree[7])) }
   if len(tree)>=2 { return checkruntime.ArrayFromCoercedTree(input,tree[0],tree[1]) }
@@ -1017,12 +1061,12 @@ func checkRustCompositeArrayNullness(input CheckOptional[checkruntime.ArrayValue
 func checkRustCompositeArray(input CheckOptional[checkruntime.ArrayValue],plan checkruntime.CompositeTypePlan,elementType string)checkruntime.ArrayValue{
   if !input.Set{return checkruntime.ArrayUnknown()};if input.Null{return checkruntime.ArrayNull()}
   value:=input.V;if value.Kind!=checkruntime.ArrayValueValue{return value}
-  if plan.Kind!=checkruntime.CompositeTypePlanValue||len(plan.Value.Nodes)==0{return checkruntime.ArrayUnknown()}
+  if plan.Kind!=checkruntime.CompositeTypePlanValue||len(plan.Value.Nodes)==0{return checkruntime.ArrayUnresolved(2)}
   p:=value.Value
-  if len(p.Dimensions)>6||len(p.Elements)>2147483647{return checkruntime.ArrayUnknown()}
-  for _,dimension:=range p.Dimensions{if dimension.Lower < -2147483648||dimension.Lower > 2147483647||dimension.Length < -2147483648||dimension.Length > 2147483647{return checkruntime.ArrayUnknown()}}
+  if len(p.Dimensions)>6||len(p.Elements)>2147483647{return checkRustInvalid[checkruntime.ArrayValue]()}
+  for _,dimension:=range p.Dimensions{if dimension.Lower < -2147483648||dimension.Lower > 2147483647||dimension.Length < -2147483648||dimension.Length > 2147483647{return checkRustInvalid[checkruntime.ArrayValue]()}}
   elements:=make([]checkruntime.ArrayElement,len(p.Elements))
-  for i,cell:=range p.Elements{checked,ok:=checkRustCompositeCell(cell,plan,0);if !ok{return checkruntime.ArrayUnknown()};elements[i]=checked}
+  for i,cell:=range p.Elements{checked,ok:=checkRustCompositeCell(cell,plan,0);if !ok{return checkRustInvalid[checkruntime.ArrayValue]()};elements[i]=checked}
   p.Elements=elements;value.Value=p
   return checkruntime.ArrayFromCoercedCompositePlan(value,elementType,plan)
 }
@@ -1030,7 +1074,7 @@ func checkRustComposite(input CheckOptional[checkruntime.CompositeValue],plan ch
   if !input.Set{return checkruntime.CompositeUnknown()};if input.Null{return checkruntime.CompositeNull()}
   value:=input.V;if value.Kind!=checkruntime.CompositeValueValue{return value}
   cell,ok:=checkRustCompositeCell(checkruntime.ArrayElement{Kind:checkruntime.ArrayElementComposite,Composite:value.Value},plan,0)
-  if !ok{return checkruntime.CompositeUnknown()}
+  if !ok{return checkRustInvalid[checkruntime.CompositeValue]()}
   return checkruntime.CompositeFromCoercedPlan(checkruntime.ArrayElementToComposite(cell),plan)
 }
 func checkRustCompositeCell(input checkruntime.ArrayElement,plan checkruntime.CompositeTypePlan,index int)(checkruntime.ArrayElement,bool){
@@ -1285,7 +1329,7 @@ func checkRustXid[T any](field CheckOptional[T]) checkruntime.XidValue {
     if value.Kind == checkruntime.XidValueValue { return checkruntime.MakeXidValue(value.Value) }
     if value.Kind == checkruntime.XidValueUnknown || value.Kind == checkruntime.XidValueNull || value.Kind == checkruntime.XidValueError { return value }
   }
-  return checkruntime.XidUnknown()
+  return checkruntime.XidUnresolved(2)
 }
 func checkRustCid[T any](field CheckOptional[T]) checkruntime.CidValue {
   if !field.Set { return checkruntime.CidUnknown() }
@@ -1294,7 +1338,7 @@ func checkRustCid[T any](field CheckOptional[T]) checkruntime.CidValue {
     if value.Kind == checkruntime.CidValueValue { return checkruntime.MakeCidValue(value.Value) }
     if value.Kind == checkruntime.CidValueUnknown || value.Kind == checkruntime.CidValueNull || value.Kind == checkruntime.CidValueError { return value }
   }
-  return checkruntime.CidUnknown()
+  return checkruntime.CidUnresolved(2)
 }
 func checkRustPgLsn[T any](field CheckOptional[T]) checkruntime.PgLsnValue {
   if !field.Set { return checkruntime.PgLsnUnknown() }
@@ -1303,7 +1347,7 @@ func checkRustPgLsn[T any](field CheckOptional[T]) checkruntime.PgLsnValue {
     if value.Kind == checkruntime.PgLsnValueValue { return checkruntime.MakePgLsnBits(value.Value) }
     if value.Kind == checkruntime.PgLsnValueUnknown || value.Kind == checkruntime.PgLsnValueNull || value.Kind == checkruntime.PgLsnValueError { return value }
   }
-  return checkruntime.PgLsnUnknown()
+  return checkruntime.PgLsnUnresolved(2)
 }
 func checkRustInternalChar[T any](field CheckOptional[T]) checkruntime.InternalCharValue {
   if !field.Set { return checkruntime.InternalCharUnknown() }
@@ -1312,7 +1356,7 @@ func checkRustInternalChar[T any](field CheckOptional[T]) checkruntime.InternalC
     if value.Kind == checkruntime.InternalCharValueValue { return checkruntime.MakeInternalCharValue(value.Value) }
     if value.Kind == checkruntime.InternalCharValueUnknown || value.Kind == checkruntime.InternalCharValueNull || value.Kind == checkruntime.InternalCharValueError { return value }
   }
-  return checkruntime.InternalCharUnknown()
+  return checkruntime.InternalCharUnresolved(2)
 }
 func checkRustTid[T any](field CheckOptional[T]) checkruntime.TidValue {
   if !field.Set { return checkruntime.TidUnknown() }
@@ -1321,48 +1365,48 @@ func checkRustTid[T any](field CheckOptional[T]) checkruntime.TidValue {
     if value.Kind == checkruntime.TidValueValue { return checkruntime.MakeTidValue(value.Value) }
     if value.Kind == checkruntime.TidValueUnknown || value.Kind == checkruntime.TidValueNull || value.Kind == checkruntime.TidValueError { return value }
   }
-  return checkruntime.TidUnknown()
+  return checkruntime.TidUnresolved(2)
 }
 func checkRustXml[T any](field CheckOptional[T]) checkruntime.XmlValue {
   if !field.Set { return checkruntime.XmlUnknown() }
   if field.Null { return checkruntime.XmlNull() }
   if value,ok:=any(field.V).(checkruntime.XmlValue);ok {
     if value.Kind==checkruntime.XmlValueValue {
-      if !utf8.ValidString(value.Value) || strings.IndexByte(value.Value,0)>=0 { return checkruntime.XmlUnknown() }
+      if !utf8.ValidString(value.Value) || strings.IndexByte(value.Value,0)>=0 { return checkRustInvalid[checkruntime.XmlValue]() }
       return value
     }
     if value.Kind==checkruntime.XmlValueRenderedText {
-      if !utf8.ValidString(value.RenderedText) || strings.IndexByte(value.RenderedText,0)>=0 { return checkruntime.XmlUnknown() }
+      if !utf8.ValidString(value.RenderedText) || strings.IndexByte(value.RenderedText,0)>=0 { return checkRustInvalid[checkruntime.XmlValue]() }
       return value
     }
     if value.Kind==checkruntime.XmlValueNonNull { return checkruntime.MakeXmlKnowledge(value.NonNull.Document,value.NonNull.Content) }
     if value.Kind==checkruntime.XmlValueUnknown || value.Kind==checkruntime.XmlValueNull || value.Kind==checkruntime.XmlValueError {return value}
   }
-  return checkruntime.XmlUnknown()
+  return checkruntime.XmlUnresolved(2)
 }
 func checkRustJsonpath[T any](field CheckOptional[T]) checkruntime.JsonpathValue {
   if !field.Set { return checkruntime.JsonpathUnknown() }
   if field.Null { return checkruntime.JsonpathNull() }
   if value, ok := any(field.V).(checkruntime.JsonpathValue); ok {
     if value.Kind == checkruntime.JsonpathValueStoredText {
-      if len(value.StoredText)==0 || !utf8.ValidString(value.StoredText) || strings.IndexByte(value.StoredText,0)>=0 { return checkruntime.JsonpathUnknown() }
+      if len(value.StoredText)==0 || !utf8.ValidString(value.StoredText) || strings.IndexByte(value.StoredText,0)>=0 { return checkRustInvalid[checkruntime.JsonpathValue]() }
       return value
     }
     if value.Kind == checkruntime.JsonpathValueValue {
       payload := value.Value
-      if payload.Root < 0 || payload.Root > 2147483647 || len(payload.Characters) > 2147483647 || len(payload.Nodes) > 2147483647 { return checkruntime.JsonpathUnknown() }
-      for _, character := range payload.Characters { if !utf8.ValidRune(character) { return checkruntime.JsonpathUnknown() } }
+      if payload.Root < 0 || payload.Root > 2147483647 || len(payload.Characters) > 2147483647 || len(payload.Nodes) > 2147483647 { return checkRustInvalid[checkruntime.JsonpathValue]() }
+      for _, character := range payload.Characters { if !utf8.ValidRune(character) { return checkRustInvalid[checkruntime.JsonpathValue]() } }
       for _, node := range payload.Nodes {
-        if node.Kind < -2147483648 || node.Kind > 2147483647 { return checkruntime.JsonpathUnknown() }
+        if node.Kind < -2147483648 || node.Kind > 2147483647 { return checkRustInvalid[checkruntime.JsonpathValue]() }
         for _, index := range []int{node.Next,node.Left,node.Right,node.TextStart,node.TextEnd} {
-          if index < 0 || index > 2147483647 { return checkruntime.JsonpathUnknown() }
+          if index < 0 || index > 2147483647 { return checkRustInvalid[checkruntime.JsonpathValue]() }
         }
       }
       return checkruntime.JsonpathFromCoercedValue(value)
     }
     if value.Kind == checkruntime.JsonpathValueUnknown || value.Kind == checkruntime.JsonpathValueNull || value.Kind == checkruntime.JsonpathValueError { return value }
   }
-  return checkruntime.JsonpathUnknown()
+  return checkruntime.JsonpathUnresolved(2)
 }
 func checkRustJsonb[T any](field CheckOptional[T]) checkruntime.JsonbValue {
   if !field.Set { return checkruntime.JsonbUnknown() }
@@ -1370,49 +1414,49 @@ func checkRustJsonb[T any](field CheckOptional[T]) checkruntime.JsonbValue {
   if value, ok := any(field.V).(checkruntime.JsonbValue); ok {
     if value.Kind == checkruntime.JsonbValueValue {
       payload := value.Value
-      if payload.Root < 0 || payload.Root > 2147483647 || len(payload.Characters) > 2147483647 || len(payload.Nodes) > 2147483647 { return checkruntime.JsonbUnknown() }
-      for _, character := range payload.Characters { if !utf8.ValidRune(character) { return checkruntime.JsonbUnknown() } }
+      if payload.Root < 0 || payload.Root > 2147483647 || len(payload.Characters) > 2147483647 || len(payload.Nodes) > 2147483647 { return checkRustInvalid[checkruntime.JsonbValue]() }
+      for _, character := range payload.Characters { if !utf8.ValidRune(character) { return checkRustInvalid[checkruntime.JsonbValue]() } }
       for _, node := range payload.Nodes {
-        if node.Kind < -2147483648 || node.Kind > 2147483647 { return checkruntime.JsonbUnknown() }
+        if node.Kind < -2147483648 || node.Kind > 2147483647 { return checkRustInvalid[checkruntime.JsonbValue]() }
         for _, index := range []int{node.Child,node.Next,node.KeyStart,node.KeyEnd,node.TextStart,node.TextEnd} {
-          if index < 0 || index > 2147483647 { return checkruntime.JsonbUnknown() }
+          if index < 0 || index > 2147483647 { return checkRustInvalid[checkruntime.JsonbValue]() }
         }
       }
       return checkruntime.JsonbFromCoercedValue(value)
     }
     if value.Kind == checkruntime.JsonbValueUnknown || value.Kind == checkruntime.JsonbValueNull || value.Kind == checkruntime.JsonbValueError { return value }
   }
-  return checkruntime.JsonbUnknown()
+  return checkruntime.JsonbUnresolved(2)
 }
 func checkRustJson[T any](field CheckOptional[T]) checkruntime.JsonValue {
   if !field.Set { return checkruntime.JsonUnknown() }
   if field.Null { return checkruntime.JsonNull() }
   if value, ok := any(field.V).(checkruntime.JsonValue); ok {
     if value.Kind == checkruntime.JsonValueValue {
-      if !utf8.ValidString(value.Value.Source) || strings.IndexByte(value.Value.Source,0) >= 0 { return checkruntime.JsonUnknown() }
+      if !utf8.ValidString(value.Value.Source) || strings.IndexByte(value.Value.Source,0) >= 0 { return checkRustInvalid[checkruntime.JsonValue]() }
       return checkruntime.MakeJsonValue(value.Value.Source)
     }
     if value.Kind == checkruntime.JsonValueUnknown || value.Kind == checkruntime.JsonValueNull || value.Kind == checkruntime.JsonValueError { return value }
   }
-  return checkruntime.JsonUnknown()
+  return checkruntime.JsonUnresolved(2)
 }
 func checkRustMultirange[T any](field CheckOptional[T], typeName string, rangeType string, elementType string, elementKind int, enumLabels string, enumCount int, profiles ...checkruntime.RangeBoundContext) checkruntime.MultirangeValue {
   boundProfile:=checkruntime.RangeBoundContext{};if len(profiles)>0 {boundProfile=profiles[0]}
   if !field.Set { return checkruntime.MultirangeUnknown() }
   if field.Null { return checkruntime.MultirangeNull() }
   value,ok:=any(field.V).(checkruntime.MultirangeValue)
-  if !ok { return checkruntime.MultirangeUnknown() }
+  if !ok { return checkruntime.MultirangeUnresolved(2) }
   if value.Kind==checkruntime.MultirangeValueUnknown || value.Kind==checkruntime.MultirangeValueNull || value.Kind==checkruntime.MultirangeValueError { return value }
-  if value.Kind!=checkruntime.MultirangeValueValue { return checkruntime.MultirangeUnknown() }
+  if value.Kind!=checkruntime.MultirangeValueValue { return checkRustInvalid[checkruntime.MultirangeValue]() }
   p:=value.Value
-  if p.TypeName!=typeName || p.RangeType!=rangeType || p.ElementType!=elementType || p.ElementKind!=elementKind { return checkruntime.MultirangeUnknown() }
+  if p.TypeName!=typeName || p.RangeType!=rangeType || p.ElementType!=elementType || p.ElementKind!=elementKind { return checkRustInvalid[checkruntime.MultirangeValue]() }
   ranges:=make([]checkruntime.RangeValue,len(p.Ranges))
   for i,span:=range p.Ranges {
-    if span.Kind==checkruntime.RangeValueValue && (span.Value.TypeName!=rangeType || span.Value.ElementType!=elementType || span.Value.ElementKind!=elementKind) { return checkruntime.MultirangeUnknown() }
+    if span.Kind==checkruntime.RangeValueValue && (span.Value.TypeName!=rangeType || span.Value.ElementType!=elementType || span.Value.ElementKind!=elementKind) { return checkRustInvalid[checkruntime.MultirangeValue]() }
     checked:=checkRustRange(CheckOptional[checkruntime.RangeValue]{Set:true,V:span},enumLabels,enumCount,boundProfile)
     if checked.Kind==checkruntime.RangeValueUnknown { return checkruntime.MultirangeUnknown() }
     if checked.Kind==checkruntime.RangeValueError { return checkruntime.MultirangeValue{Kind:checkruntime.MultirangeValueError,Error:checked.Error} }
-    if checked.Kind!=checkruntime.RangeValueValue || checked.Value.Empty { return checkruntime.MultirangeUnknown() }
+    if checked.Kind!=checkruntime.RangeValueValue || checked.Value.Empty { return checkRustInvalid[checkruntime.MultirangeValue]() }
     ranges[i]=checked
   }
   p.Ranges=ranges
@@ -1424,13 +1468,13 @@ func checkRustRange[T any](field CheckOptional[T], enumLabels string, enumCount 
   if !field.Set { return checkruntime.RangeUnknown() }
   if field.Null { return checkruntime.RangeNull() }
   value,ok:=any(field.V).(checkruntime.RangeValue)
-  if !ok { return checkruntime.RangeUnknown() }
+  if !ok { return checkruntime.RangeUnresolved(2) }
   if value.Kind==checkruntime.RangeValueUnknown || value.Kind==checkruntime.RangeValueNull || value.Kind==checkruntime.RangeValueError { return value }
-  if value.Kind!=checkruntime.RangeValueValue { return checkruntime.RangeUnknown() }
+  if value.Kind!=checkruntime.RangeValueValue { return checkRustInvalid[checkruntime.RangeValue]() }
   p:=value.Value
-  if !utf8.ValidString(p.TypeName) || strings.IndexByte(p.TypeName,0)>=0 || !utf8.ValidString(p.ElementType) || strings.IndexByte(p.ElementType,0)>=0 || p.ElementKind < 1 || p.ElementKind > 2147483647 || len(p.Bounds)>2 { return checkruntime.RangeUnknown() }
+  if !utf8.ValidString(p.TypeName) || strings.IndexByte(p.TypeName,0)>=0 || !utf8.ValidString(p.ElementType) || strings.IndexByte(p.ElementType,0)>=0 || p.ElementKind < 1 || p.ElementKind > 2147483647 || len(p.Bounds)>2 { return checkRustInvalid[checkruntime.RangeValue]() }
   boundDepth:=0;for _,node:=range boundProfile.Nodes {if node.Kind==41 {boundDepth++}}
-    for _,bound:=range p.Bounds { if len(boundProfile.Nodes)>0 {if _,ok:=checkRustProfiledBound(bound,boundProfile,0);!ok {return checkruntime.RangeUnknown()}} else if !checkRustArrayElement(bound,p.ElementKind,boundDepth,checkruntime.RangeBoundContext{}) {return checkruntime.RangeUnknown()} };p=checkRustRangeBoundMetadata(p,boundProfile)
+    for _,bound:=range p.Bounds { if len(boundProfile.Nodes)>0 {if _,ok:=checkRustProfiledBound(bound,boundProfile,0);!ok {return checkRustInvalid[checkruntime.RangeValue]()}} else if !checkRustArrayElement(bound,p.ElementKind,boundDepth,checkruntime.RangeBoundContext{}) {return checkRustInvalid[checkruntime.RangeValue]()} };p=checkRustRangeBoundMetadata(p,boundProfile)
   p.Support=checkruntime.RangeBuiltinSupport(p.TypeName,p.ElementType,p.ElementKind)
   p.BoundProfile=boundProfile
   p.EnumLabels=enumLabels
@@ -1442,12 +1486,12 @@ func checkRustSnapshot[T any](field CheckOptional[T]) checkruntime.SnapshotValue
   if field.Null { return checkruntime.SnapshotNull() }
   if value, ok := any(field.V).(checkruntime.SnapshotValue); ok {
     if value.Kind == checkruntime.SnapshotValueValue {
-      if len(value.Value.Xip) > 134217724 { return checkruntime.SnapshotUnknown() }
+      if len(value.Value.Xip) > 134217724 { return checkRustInvalid[checkruntime.SnapshotValue]() }
       return checkruntime.MakeSnapshotValue(value.Value)
     }
     if value.Kind == checkruntime.SnapshotValueUnknown || value.Kind == checkruntime.SnapshotValueNull || value.Kind == checkruntime.SnapshotValueError { return value }
   }
-  return checkruntime.SnapshotUnknown()
+  return checkruntime.SnapshotUnresolved(2)
 }
 func checkRustXid8[T any](field CheckOptional[T]) checkruntime.Xid8Value {
   if !field.Set { return checkruntime.Xid8Unknown() }
@@ -1456,7 +1500,7 @@ func checkRustXid8[T any](field CheckOptional[T]) checkruntime.Xid8Value {
     if value.Kind == checkruntime.Xid8ValueValue { return checkruntime.MakeXid8Bits(value.Value) }
     if value.Kind == checkruntime.Xid8ValueUnknown || value.Kind == checkruntime.Xid8ValueNull || value.Kind == checkruntime.Xid8ValueError { return value }
   }
-  return checkruntime.Xid8Unknown()
+  return checkruntime.Xid8Unresolved(2)
 }
 func checkRustOid[T any](field CheckOptional[T]) checkruntime.OidValue {
   if !field.Set { return checkruntime.OidUnknown() }
@@ -1465,31 +1509,31 @@ func checkRustOid[T any](field CheckOptional[T]) checkruntime.OidValue {
     if value.Kind == checkruntime.OidValueValue { return checkruntime.MakeOidValue(value.Value) }
     if value.Kind == checkruntime.OidValueUnknown || value.Kind == checkruntime.OidValueNull || value.Kind == checkruntime.OidValueError { return value }
   }
-  return checkruntime.OidUnknown()
+  return checkruntime.OidUnresolved(2)
 }
 func checkRustTsvector[T any](field CheckOptional[T]) checkruntime.TsvectorValue {
   if !field.Set { return checkruntime.TsvectorUnknown() }
   if field.Null { return checkruntime.TsvectorNull() }
   if value, ok := any(field.V).(checkruntime.TsvectorValue); ok {
     if value.Kind == checkruntime.TsvectorValueValue {
-      for _, lexeme := range value.Value.Lexemes {if !utf8.ValidString(lexeme.Text) || strings.IndexByte(lexeme.Text,0)>=0 {return checkruntime.TsvectorUnknown()}}
+      for _, lexeme := range value.Value.Lexemes {if !utf8.ValidString(lexeme.Text) || strings.IndexByte(lexeme.Text,0)>=0 {return checkRustInvalid[checkruntime.TsvectorValue]()}}
       return checkruntime.MakeTsvectorValue(value.Value)
     }
     if value.Kind == checkruntime.TsvectorValueUnknown || value.Kind == checkruntime.TsvectorValueNull || value.Kind == checkruntime.TsvectorValueError { return value }
   }
-  return checkruntime.TsvectorUnknown()
+  return checkruntime.TsvectorUnresolved(2)
 }
 func checkRustTsquery[T any](field CheckOptional[T]) checkruntime.TsqueryValue {
   if !field.Set { return checkruntime.TsqueryUnknown() }
   if field.Null { return checkruntime.TsqueryNull() }
   if value, ok := any(field.V).(checkruntime.TsqueryValue); ok {
     if value.Kind == checkruntime.TsqueryValueValue {
-      for _, node := range value.Value.Nodes {if !utf8.ValidString(node.Text) || strings.IndexByte(node.Text,0)>=0 {return checkruntime.TsqueryUnknown()}}
+      for _, node := range value.Value.Nodes {if !utf8.ValidString(node.Text) || strings.IndexByte(node.Text,0)>=0 {return checkRustInvalid[checkruntime.TsqueryValue]()}}
       return checkruntime.MakeTsqueryValue(value.Value)
     }
     if value.Kind == checkruntime.TsqueryValueUnknown || value.Kind == checkruntime.TsqueryValueNull || value.Kind == checkruntime.TsqueryValueError { return value }
   }
-  return checkruntime.TsqueryUnknown()
+  return checkruntime.TsqueryUnresolved(2)
 }
 func checkRustAclitem[T any](field CheckOptional[T]) checkruntime.AclitemValue {
   if !field.Set { return checkruntime.AclitemUnknown() }
@@ -1498,13 +1542,13 @@ func checkRustAclitem[T any](field CheckOptional[T]) checkruntime.AclitemValue {
     if value.Kind == checkruntime.AclitemValueValue { return checkruntime.MakeAclitemValue(value.Value.Grantee,value.Value.Grantor,value.Value.Privileges,value.Value.GrantOptions) }
     if value.Kind == checkruntime.AclitemValueUnknown || value.Kind == checkruntime.AclitemValueNull || value.Kind == checkruntime.AclitemValueError { return value }
   }
-  return checkruntime.AclitemUnknown()
+  return checkruntime.AclitemUnresolved(2)
 }
 func checkRustMoney[T any](field CheckOptional[T]) checkruntime.MoneyValue {
   if !field.Set { return checkruntime.MoneyUnknown() }
   if field.Null { return checkruntime.MoneyNull() }
   if value, ok := any(field.V).(checkruntime.MoneyValue); ok { return value }
-  return checkruntime.MoneyUnknown()
+  return checkruntime.MoneyUnresolved(2)
 }
 func checkRustPolygon[T any](field CheckOptional[T]) checkruntime.PolygonValue {
   if !field.Set { return checkruntime.PolygonUnknown() }
@@ -1513,7 +1557,7 @@ func checkRustPolygon[T any](field CheckOptional[T]) checkruntime.PolygonValue {
     if value.Kind == checkruntime.PolygonValueValue { return checkruntime.MakePolygonValue(value.Value) }
     if value.Kind == checkruntime.PolygonValueUnknown || value.Kind == checkruntime.PolygonValueNull || value.Kind == checkruntime.PolygonValueError { return value }
   }
-  return checkruntime.PolygonUnknown()
+  return checkruntime.PolygonUnresolved(2)
 }
 func checkRustPath[T any](field CheckOptional[T]) checkruntime.PathValue {
   if !field.Set { return checkruntime.PathUnknown() }
@@ -1522,13 +1566,13 @@ func checkRustPath[T any](field CheckOptional[T]) checkruntime.PathValue {
     if value.Kind == checkruntime.PathValueValue { return checkruntime.MakePathValue(value.Value) }
     if value.Kind == checkruntime.PathValueUnknown || value.Kind == checkruntime.PathValueNull || value.Kind == checkruntime.PathValueError { return value }
   }
-  return checkruntime.PathUnknown()
+  return checkruntime.PathUnresolved(2)
 }
 func checkRustCircle[T any](field CheckOptional[T]) checkruntime.CircleValue {
   if !field.Set { return checkruntime.CircleUnknown() }
   if field.Null { return checkruntime.CircleNull() }
   if value, ok := any(field.V).(checkruntime.CircleValue); ok { return value }
-  return checkruntime.CircleUnknown()
+  return checkruntime.CircleUnresolved(2)
 }
 func checkRustBox[T any](field CheckOptional[T]) checkruntime.BoxValue {
   if !field.Set { return checkruntime.BoxUnknown() }
@@ -1536,13 +1580,13 @@ func checkRustBox[T any](field CheckOptional[T]) checkruntime.BoxValue {
   if value, ok := any(field.V).(checkruntime.BoxValue); ok {
     return value
   }
-  return checkruntime.BoxUnknown()
+  return checkruntime.BoxUnresolved(2)
 }
 func checkRustLseg[T any](field CheckOptional[T]) checkruntime.LsegValue {
   if !field.Set { return checkruntime.LsegUnknown() }
   if field.Null { return checkruntime.LsegNull() }
   if value, ok := any(field.V).(checkruntime.LsegValue); ok { return value }
-  return checkruntime.LsegUnknown()
+  return checkruntime.LsegUnresolved(2)
 }
 func checkRustLine[T any](field CheckOptional[T]) checkruntime.LineValue {
   if !field.Set { return checkruntime.LineUnknown() }
@@ -1554,7 +1598,7 @@ func checkRustLine[T any](field CheckOptional[T]) checkruntime.LineValue {
     }
     return value
   }
-  return checkruntime.LineUnknown()
+  return checkruntime.LineUnresolved(2)
 }
 func checkRustPoint[T any](field CheckOptional[T]) checkruntime.PointValue {
   if !field.Set { return checkruntime.PointUnknown() }
@@ -1562,7 +1606,7 @@ func checkRustPoint[T any](field CheckOptional[T]) checkruntime.PointValue {
   if value, ok := any(field.V).(checkruntime.PointValue); ok {
     return value
   }
-  return checkruntime.PointUnknown()
+  return checkruntime.PointUnresolved(2)
 }
 func checkRustTime[T any](field CheckOptional[T]) checkruntime.TimeValue {
   if !field.Set { return checkruntime.TimeUnknown() }
@@ -1571,7 +1615,7 @@ func checkRustTime[T any](field CheckOptional[T]) checkruntime.TimeValue {
     if value.Kind == checkruntime.TimeValueValue { return checkruntime.MakeTimeValue(value.Value) }
     return value
   }
-  return checkruntime.TimeUnknown()
+  return checkruntime.TimeUnresolved(2)
 }
 func checkRustTimetz[T any](field CheckOptional[T]) checkruntime.TimetzValue {
   if !field.Set { return checkruntime.TimetzUnknown() }
@@ -1580,16 +1624,16 @@ func checkRustTimetz[T any](field CheckOptional[T]) checkruntime.TimetzValue {
     if value.Kind == checkruntime.TimetzValueValue { return checkruntime.MakeTimetzValue(value.Value.Time, value.Value.Zone) }
     return value
   }
-  return checkruntime.TimetzUnknown()
+  return checkruntime.TimetzUnresolved(2)
 }
 func checkRustInterval[T any](field CheckOptional[T]) checkruntime.IntervalValue {
   if !field.Set { return checkruntime.IntervalUnknown() }
   if field.Null { return checkruntime.IntervalNull() }
   if value, ok := any(field.V).(checkruntime.IntervalValue); ok {
-    if value.Kind == checkruntime.IntervalValueValue && (value.Value.Months < -2147483648 || value.Value.Months > 2147483647 || value.Value.Days < -2147483648 || value.Value.Days > 2147483647) { return checkruntime.IntervalUnknown() }
+    if value.Kind == checkruntime.IntervalValueValue && (value.Value.Months < -2147483648 || value.Value.Months > 2147483647 || value.Value.Days < -2147483648 || value.Value.Days > 2147483647) { return checkRustInvalid[checkruntime.IntervalValue]() }
     return value
   }
-  return checkruntime.IntervalUnknown()
+  return checkruntime.IntervalUnresolved(2)
 }
 func checkRustTimestamp[T any](field CheckOptional[T]) checkruntime.TimestampValue {
   if !field.Set { return checkruntime.TimestampUnknown() }
@@ -1598,7 +1642,7 @@ func checkRustTimestamp[T any](field CheckOptional[T]) checkruntime.TimestampVal
     if value.Kind == checkruntime.TimestampValueValue { return checkruntime.MakeStoredTimestampValue(value.Value) }
     return value
   }
-  return checkruntime.TimestampUnknown()
+  return checkruntime.TimestampUnresolved(2)
 }
 func checkRustTimestamptz[T any](field CheckOptional[T]) checkruntime.TimestamptzValue {
   if !field.Set { return checkruntime.TimestamptzUnknown() }
@@ -1607,16 +1651,17 @@ func checkRustTimestamptz[T any](field CheckOptional[T]) checkruntime.Timestampt
     if value.Kind == checkruntime.TimestamptzValueValue { return checkruntime.MakeStoredTimestamptzValue(value.Value) }
     return value
   }
-  return checkruntime.TimestamptzUnknown()
+  return checkruntime.TimestamptzUnresolved(2)
 }
 func checkRustBit[T any](field CheckOptional[T]) checkruntime.BitValue {
+  if !field.Set { return checkruntime.BitUnknown() }
   value := checkInputText(field)
-  if !value.Certain { return checkruntime.BitUnknown() }
+  if !value.Certain { return checkruntime.BitUnresolved(2) }
   if value.Value.Error != "" {
     if state, ok := checkRustState(value.Value.Error); ok {
       return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: state}
     }
-    return checkruntime.BitUnknown()
+    return checkRustInvalid[checkruntime.BitValue]()
   }
   if !value.Value.Valid { return checkruntime.BitNull() }
   return checkruntime.MakeBitValue(value.Value.Value)
@@ -1634,52 +1679,56 @@ func checkRustBytea[T any](field CheckOptional[T]) checkruntime.ByteaValue {
     for index, value := range bytes { hex[index * 2] = digits[value / 16]; hex[index * 2 + 1] = digits[value % 16] }
     return checkruntime.MakeByteaValue(string(hex))
   }
-  return checkruntime.ByteaUnknown()
+  return checkruntime.ByteaUnresolved(2)
 }
 func checkRustNetwork[T any](field CheckOptional[T]) checkruntime.NetworkValue {
+  if !field.Set { return checkruntime.NetworkUnknown() }
   value := checkInputText(field)
-  if !value.Certain { return checkruntime.NetworkUnknown() }
+  if !value.Certain { return checkruntime.NetworkUnresolved(2) }
   if value.Value.Error != "" {
     if state, ok := checkRustState(value.Value.Error); ok {
       return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueError, Error: state}
     }
-    return checkruntime.NetworkUnknown()
+    return checkRustInvalid[checkruntime.NetworkValue]()
   }
   if !value.Value.Valid { return checkruntime.NetworkNull() }
   return checkruntime.MakeNetworkValue(value.Value.Value)
 }
 func checkRustUuid[T any](field CheckOptional[T]) checkruntime.UuidValue {
+  if !field.Set { return checkruntime.UuidUnknown() }
   value := checkInputText(field)
-  if !value.Certain { return checkruntime.UuidUnknown() }
+  if !value.Certain { return checkruntime.UuidUnresolved(2) }
   if value.Value.Error != "" {
     if state, ok := checkRustState(value.Value.Error); ok {
       return checkruntime.UuidValue{Kind: checkruntime.UuidValueError, Error: state}
     }
-    return checkruntime.UuidUnknown()
+    return checkRustInvalid[checkruntime.UuidValue]()
   }
   if !value.Value.Valid { return checkruntime.UuidNull() }
   return checkruntime.MakeUuidValue(value.Value.Value)
 }
 func checkRustMacaddr[T any](field CheckOptional[T]) checkruntime.MacaddrValue {
+  if !field.Set { return checkruntime.MacaddrUnknown() }
   value := checkInputText(field)
-  if !value.Certain { return checkruntime.MacaddrUnknown() }
+  if !value.Certain { return checkruntime.MacaddrUnresolved(2) }
   if value.Value.Error != "" {
     if state, ok := checkRustState(value.Value.Error); ok {
       return checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueError, Error: state}
     }
-    return checkruntime.MacaddrUnknown()
+    return checkRustInvalid[checkruntime.MacaddrValue]()
   }
   if !value.Value.Valid { return checkruntime.MacaddrNull() }
   return checkruntime.MakeMacaddrValue(value.Value.Value)
 }
 func checkRustMacaddr8[T any](field CheckOptional[T]) checkruntime.Macaddr8Value {
+  if !field.Set { return checkruntime.Macaddr8Unknown() }
   value := checkInputText(field)
-  if !value.Certain { return checkruntime.Macaddr8Unknown() }
+  if !value.Certain { return checkruntime.Macaddr8Unresolved(2) }
   if value.Value.Error != "" {
     if state, ok := checkRustState(value.Value.Error); ok {
       return checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueError, Error: state}
     }
-    return checkruntime.Macaddr8Unknown()
+    return checkRustInvalid[checkruntime.Macaddr8Value]()
   }
   if !value.Value.Valid { return checkruntime.Macaddr8Null() }
   return checkruntime.MakeMacaddr8Value(value.Value.Value)
@@ -1703,14 +1752,16 @@ func checkRustFloat4[T any](field CheckOptional[T]) checkruntime.Float4Value {
     return checkruntime.MakeFloat4Bits(int(int32(math.Float32bits(number))))
   }
   input := checkInputFloat(field)
-  if !input.Certain { return checkruntime.Float4Unknown() }
+  if !input.Certain { return checkruntime.Float4Unresolved(2) }
   if input.Value.Error != "" {
     if state, valid := checkRustState(input.Value.Error); valid {
       return checkruntime.Float4Value{Kind: checkruntime.Float4ValueError, Error: state}
     }
-    return checkruntime.Float4Unknown()
+    return checkRustInvalid[checkruntime.Float4Value]()
   }
   if !input.Value.Valid { return checkruntime.Float4Null() }
+  // A wider number is not a float4 value; rounding it would decide a different input.
+  if number := input.Value.Value; !math.IsNaN(number) && float64(float32(number)) != number { return checkRustInvalid[checkruntime.Float4Value]() }
   return checkruntime.MakeFloat4Value(input.Value.Value)
 }
 func checkRustFloat8[T any](field CheckOptional[T]) checkruntime.Float8Value {
@@ -1718,12 +1769,12 @@ func checkRustFloat8[T any](field CheckOptional[T]) checkruntime.Float8Value {
   if field.Null { return checkruntime.Float8Null() }
   if value, ok := any(field.V).(checkruntime.Float8Value); ok { return value }
   input := checkInputFloat(field)
-  if !input.Certain { return checkruntime.Float8Unknown() }
+  if !input.Certain { return checkruntime.Float8Unresolved(2) }
   if input.Value.Error != "" {
     if state, valid := checkRustState(input.Value.Error); valid {
       return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: state}
     }
-    return checkruntime.Float8Unknown()
+    return checkRustInvalid[checkruntime.Float8Value]()
   }
   if !input.Value.Valid { return checkruntime.Float8Null() }
   return checkruntime.MakeFloat8Value(input.Value.Value)
@@ -1736,7 +1787,7 @@ func checkRustNumeric[T any](field CheckOptional[T]) checkruntime.NumericValue {
     return value
   }
   if value, ok := any(field.V).(string); ok { return checkruntime.MakeNumericValue(value) }
-  return checkruntime.NumericUnknown()
+  return checkruntime.NumericUnresolved(2)
 }
 func checkRustDate[T any](field CheckOptional[T]) checkruntime.DateValue {
   if !field.Set { return checkruntime.DateUnknown() }
@@ -1745,34 +1796,36 @@ func checkRustDate[T any](field CheckOptional[T]) checkruntime.DateValue {
     if value.Kind == checkruntime.DateValueValue { return checkruntime.MakeStoredDateValue(value.Value) }
     return value
   }
-  return checkruntime.DateUnknown()
+  return checkruntime.DateUnresolved(2)
 }
 func checkRustInt2[T any](field CheckOptional[T]) checkruntime.Int2Value {
+  if !field.Set { return checkruntime.Int2Unknown() }
   value := checkInputInteger(field)
-  if !value.Certain { return checkruntime.Int2Unknown() }
+  if !value.Certain { return checkruntime.Int2Unresolved(2) }
   if value.Value.Error != "" {
     if state, ok := checkRustState(value.Value.Error); ok {
       return checkruntime.Int2Value{Kind: checkruntime.Int2ValueError, Error: state}
     }
-    return checkruntime.Int2Unknown()
+    return checkRustInvalid[checkruntime.Int2Value]()
   }
   if !value.Value.Valid { return checkruntime.Int2Null() }
   number := value.Value.Value
-  if number < -32768 || number > 32767 { return checkruntime.Int2Unknown() }
+  if number < -32768 || number > 32767 { return checkRustInvalid[checkruntime.Int2Value]() }
   return checkruntime.MakeInt2Value(int(number))
 }
 func checkRustInt4[T any](field CheckOptional[T]) checkruntime.Int4Value {
+  if !field.Set { return checkruntime.Int4Unknown() }
   value := checkInputInteger(field)
-  if !value.Certain { return checkruntime.Int4Unknown() }
+  if !value.Certain { return checkruntime.Int4Unresolved(2) }
   if value.Value.Error != "" {
     if state, ok := checkRustState(value.Value.Error); ok {
       return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: state}
     }
-    return checkruntime.Int4Unknown()
+    return checkRustInvalid[checkruntime.Int4Value]()
   }
   if !value.Value.Valid { return checkruntime.Int4Null() }
   number := value.Value.Value
-  if number < -2147483648 || number > 2147483647 { return checkruntime.Int4Unknown() }
+  if number < -2147483648 || number > 2147483647 { return checkRustInvalid[checkruntime.Int4Value]() }
   return checkruntime.MakeInt4Value(int(number))
 }
 func checkRustNullness[T any](field CheckOptional[T]) checkruntime.BoolValue {
@@ -1790,75 +1843,86 @@ func checkRustNullness[T any](field CheckOptional[T]) checkruntime.BoolValue {
     if value, ok := any(field.V).(checkruntime.TimestamptzValue); ok { return checkruntime.TimestamptzIsNull(value) }
   }
   input := checkInputNullness(field)
+  // Nullness is undecided only for an unset input; every supplied value is null or not.
   if !input.Certain { return checkruntime.BoolUnknown() }
   return checkruntime.MakeBoolValue(input.Value.Value)
 }
 func checkRustEnum[T any](field CheckOptional[T], labels []string) checkruntime.EnumValue {
+  if !field.Set { return checkruntime.EnumUnknown() }
   input := checkInputText(field)
-  if !input.Certain { return checkruntime.EnumUnknown() }
+  if !input.Certain { return checkruntime.EnumUnresolved(2) }
   if !input.Value.Valid { return checkruntime.EnumNull() }
   for order, label := range labels {
     if label == input.Value.Value {
       return checkruntime.MakeEnumValue(order)
     }
   }
+  // A label outside the captured ones may have been added to the type since the catalog was read.
   return checkruntime.EnumUnknown()
 }
 func checkRustInt8[T any](field CheckOptional[T]) checkruntime.Int8Value {
+  if !field.Set { return checkruntime.Int8Unknown() }
   value := checkInputInteger(field)
-  if !value.Certain { return checkruntime.Int8Unknown() }
+  if !value.Certain { return checkruntime.Int8Unresolved(2) }
   if value.Value.Error != "" {
     if state, ok := checkRustState(value.Value.Error); ok {
       return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: state}
     }
-    return checkruntime.Int8Unknown()
+    return checkRustInvalid[checkruntime.Int8Value]()
   }
   if !value.Value.Valid { return checkruntime.Int8Null() }
   return checkruntime.MakeInt8Value(value.Value.Value)
 }
 func checkRustName[T any](field CheckOptional[T]) checkruntime.TextValue {
+  if !field.Set { return checkruntime.TextUnknown() }
   value := checkInputText(field)
-  if !value.Certain { return checkruntime.TextUnknown() }
+  if !value.Certain { return checkruntime.TextUnresolved(2) }
   if value.Value.Error != "" {
     if state, ok := checkRustState(value.Value.Error); ok { return checkruntime.TextValue{Kind:checkruntime.TextValueError, Error:state} }
-    return checkruntime.TextUnknown()
+    return checkRustInvalid[checkruntime.TextValue]()
   }
   if !value.Value.Valid { return checkruntime.TextNull() }
-  if !utf8.ValidString(value.Value.Value) { return checkruntime.TextUnknown() }
+  // Raw bytes reach the server as sent, and its encoding decides whether they form text.
+  if !utf8.ValidString(value.Value.Value) || strings.IndexByte(value.Value.Value,0) >= 0 { return checkruntime.TextUnknown() }
   return checkruntime.MakeNameTextValue(value.Value.Value)
 }
 func checkRustRefcursor[T any](field CheckOptional[T]) checkruntime.TextValue {
+  if !field.Set { return checkruntime.TextUnknown() }
   value := checkInputText(field)
-  if !value.Certain { return checkruntime.TextUnknown() }
+  if !value.Certain { return checkruntime.TextUnresolved(2) }
   if value.Value.Error != "" {
     if state, ok := checkRustState(value.Value.Error); ok { return checkruntime.TextValue{Kind:checkruntime.TextValueError, Error:state} }
-    return checkruntime.TextUnknown()
+    return checkRustInvalid[checkruntime.TextValue]()
   }
   if !value.Value.Valid { return checkruntime.TextNull() }
-  if !utf8.ValidString(value.Value.Value) { return checkruntime.TextUnknown() }
+  // Raw bytes reach the server as sent, and its encoding decides whether they form text.
+  if !utf8.ValidString(value.Value.Value) || strings.IndexByte(value.Value.Value,0) >= 0 { return checkruntime.TextUnknown() }
   return checkruntime.MakeRefcursorTextValue(value.Value.Value)
 }
 func checkRustText[T any](field CheckOptional[T]) checkruntime.TextValue {
+  if !field.Set { return checkruntime.TextUnknown() }
   value := checkInputText(field)
-  if !value.Certain { return checkruntime.TextUnknown() }
+  if !value.Certain { return checkruntime.TextUnresolved(2) }
   if value.Value.Error != "" {
     if state, ok := checkRustState(value.Value.Error); ok {
       return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: state}
     }
-    return checkruntime.TextUnknown()
+    return checkRustInvalid[checkruntime.TextValue]()
   }
   if !value.Value.Valid { return checkruntime.TextNull() }
+  // Raw bytes reach the server as sent, and its encoding decides whether they form text.
   if !utf8.ValidString(value.Value.Value) || strings.IndexByte(value.Value.Value,0) >= 0 { return checkruntime.TextUnknown() }
   return checkruntime.MakeTextValue(value.Value.Value)
 }
 func checkRustBool[T any](field CheckOptional[T]) checkruntime.BoolValue {
+  if !field.Set { return checkruntime.BoolUnknown() }
   value := checkInputBoolean(field)
-  if !value.Certain { return checkruntime.BoolUnknown() }
+  if !value.Certain { return checkruntime.BoolUnresolved(2) }
   if value.Value.Error != "" {
     if state, ok := checkRustState(value.Value.Error); ok {
       return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: state}
     }
-    return checkruntime.BoolUnknown()
+    return checkRustInvalid[checkruntime.BoolValue]()
   }
   if !value.Value.Valid { return checkruntime.BoolNull() }
   return checkruntime.MakeBoolValue(value.Value.Value)

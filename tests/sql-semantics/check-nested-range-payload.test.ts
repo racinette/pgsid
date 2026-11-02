@@ -249,11 +249,11 @@ func forgeEnumArray(input checkruntime.ArrayValue)checkruntime.ArrayValue{for i,
 func TestEnumPayload(t *testing.T){
 row:=enumFixture();row.V.V=forgeEnumSpan(row.V.V);row.W.V=forgeEnumSpan(row.W.V);for i,span:=range row.M.V.Value.Ranges{row.M.V.Value.Ranges[i]=forgeEnumSpan(span)};row.M.V.Value.Support=checkruntime.MakeRangeSupport(99,99);row.Items.V=forgeEnumArray(row.Items.V);row.Nested.V=forgeEnumArray(row.Nested.V)
 before:=enumFixture();before.V.V=forgeEnumSpan(before.V.V);before.W.V=forgeEnumSpan(before.W.V);for i,span:=range before.M.V.Value.Ranges{before.M.V.Value.Ranges[i]=forgeEnumSpan(span)};before.M.V.Value.Support=checkruntime.MakeRangeSupport(99,99);before.Items.V=forgeEnumArray(before.Items.V);before.Nested.V=forgeEnumArray(before.Nested.V)
-for _,c:=range EvaluatePublicArrayPayloadsChecks(row){switch c.Constraint{case "hash_range","hash_multirange","hash_items","hash_nested":if c.Result.Certain{t.Fatal("enum hash requires deployment catalog",c)};default:if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("compiled definition",c)}}}
+for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicArrayPayloadsChecks(row); if e != nil {panic(e)}; return r}(){switch c.Constraint{case "hash_range","hash_multirange","hash_items","hash_nested":if c.Result.Certain{t.Fatal("enum hash requires deployment catalog",c)};default:if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("compiled definition",c)}}}
 if !reflect.DeepEqual(row,before){t.Fatal("input mutated")}
 bad:=enumFixture().V.V;bad.Value.Bounds[0].Range.Bounds[0]=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementEnum,Enum:checkruntime.EnumPayload{Ordinal:999,LabelOid:0}};row.V=KnownCheckValue(bad)
-for _,c:=range EvaluatePublicArrayPayloadsChecks(row){if c.Constraint=="ordered"&&c.Result.Certain{t.Fatal("invalid ordinal",c)}}
-skip:=true;row.Bypass=KnownCheckValue(&skip);for _,c:=range EvaluatePublicArrayPayloadsChecks(row){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("lazy invalid bound",c)}}
+for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicArrayPayloadsChecks(row); if e != nil {return nil}; return r}(){if c.Constraint=="ordered"&&c.Result.Certain{t.Fatal("invalid ordinal",c)}}
+skip:=true;row.Bypass=KnownCheckValue(&skip);for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicArrayPayloadsChecks(row); if e != nil {panic(e)}; return r}(){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("lazy invalid bound",c)}}
 }
 `,
     )

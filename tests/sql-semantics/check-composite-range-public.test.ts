@@ -190,9 +190,10 @@ func TestCompositeRangeInputs(t *testing.T){
  evaluate:=func(a checkruntime.RangeValue,skip bool)[]CheckEvaluation{
  m:=checkruntime.MultirangeValue{Kind:checkruntime.MultirangeValueValue,Value:checkruntime.MultirangePayload{TypeName:"public.span_multirange",RangeType:"public.span",ElementType:"public.leaf",ElementKind:44,Ranges:[]checkruntime.RangeValue{a}}}
  bag:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"public.span",ElementKind:42,Dimensions:[]checkruntime.ArrayDimension{{Lower:1,Length:1}},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementRange,Range:a.Value}},NullBitmap:checkruntime.BoolValue{Kind:checkruntime.BoolValueValue,Value:false}}}
- return EvaluatePublicGateChecks(PublicGateCheckInput{A:KnownCheckValue(a),M:KnownCheckValue(m),Bag:KnownCheckValue(bag),Bypass:KnownCheckValue(skip)})}
+ return func() []CheckEvaluation {r, e := EvaluatePublicGateChecks(PublicGateCheckInput{A:KnownCheckValue(a),M:KnownCheckValue(m),Bag:KnownCheckValue(bag),Bypass:KnownCheckValue(skip)}); if e != nil {return nil}; return r}()}
  good=checkruntime.CopyRangeValue(good)
  before:=checkruntime.CopyRangeValue(good)
+ if len(evaluate(good,false))==0{t.Fatal("valid input rejected")}
  if !reflect.DeepEqual(good,before){t.Fatal("snapshot normalization") }
  for _,r:=range evaluate(good,false){if !r.Result.Certain||!r.Result.Value.Valid||!r.Result.Value.Value{t.Fatal(r)}}
  if !reflect.DeepEqual(good,before){t.Fatal("input mutated")}

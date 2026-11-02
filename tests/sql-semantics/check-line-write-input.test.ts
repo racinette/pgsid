@@ -99,7 +99,7 @@ func TestPortablePayloadStillValidates(t *testing.T) {
  input.Expected=pgsid.KnownCheckValue(&wire)
  input.Position.V.Value.WireKnown=false
  wireChecks:=0
- for _,check:=range pgsid.EvaluatePublicLineWritesChecks(input) {
+ for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicLineWritesChecks(input); if e != nil {return nil}; return r}() {
   if check.Constraint=="position_wire" {wireChecks++;if check.Result.Certain {t.Fatal("unavailable line wire precision was treated as known")}}
  }
  if wireChecks!=1 {t.Fatal("missing line wire constraint")}
@@ -107,7 +107,7 @@ func TestPortablePayloadStillValidates(t *testing.T) {
  input.Position.V.Value.WireKnown=true
  input.Position.V.Value.A=0
  input.Position.V.Value.B=0
- for _,check:=range pgsid.EvaluatePublicLineWritesChecks(input) {
+ for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicLineWritesChecks(input); if e != nil {return nil}; return r}() {
   if check.Constraint=="position_wire" {wireChecks++;if check.Result.Certain {t.Fatal("invalid line coefficient pair was treated as a known payload")}}
  }
  if wireChecks!=1 {t.Fatal("missing line wire constraint")}

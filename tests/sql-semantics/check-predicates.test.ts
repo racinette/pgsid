@@ -231,7 +231,7 @@ describe('CHECK list and range validators', () => {
         )
         await writeFile(
           join(directory, 'checks_test.go'),
-          `package checks\nimport "testing"\nfunc ptr[T any](value T) *T {return &value}\nfunc TestPredicates(t *testing.T) {\nrows := []PublicPredicateChecksCheckInput{${goRows.join(', ')}}\nresults := []map[string]EvalBool{}\nfor _, row := range rows {values := map[string]EvalBool{}; for _, check := range EvaluatePublicPredicateChecksChecks(row) {values[check.Constraint] = check.Result}; results = append(results,values)}\n${assertions.join('\n')}\n}`,
+          `package checks\nimport "testing"\nfunc ptr[T any](value T) *T {return &value}\nfunc TestPredicates(t *testing.T) {\nrows := []PublicPredicateChecksCheckInput{${goRows.join(', ')}}\nresults := []map[string]EvalBool{}\nfor _, row := range rows {values := map[string]EvalBool{}; for _, check := range func() []CheckEvaluation {r, e := EvaluatePublicPredicateChecksChecks(row); if e != nil {panic(e)}; return r}() {values[check.Constraint] = check.Result}; results = append(results,values)}\n${assertions.join('\n')}\n}`,
         )
         await run('go', ['test', './...'], {
           cwd: directory,
@@ -385,16 +385,18 @@ describe('CHECK list and range validators', () => {
       })
       expect(prepareCheckRust(expression).kind).toBe('supported')
     }
-    for (const sql of [
-      "plain IN ('a','b')",
-      'amount = ANY(plain)',
-      'amount + ANY(items)',
-      'amount OPERATOR(other.=) ANY(items)',
-    ]) {
+    for (const [sql, expected] of [
+      // Equality under a collation other than C waits on the collation provider.
+      ["plain IN ('a','b')", { kind: 'uncertain', reason: 'context' }],
+      ['amount = ANY(plain)', { kind: 'uncertain' }],
+      ['amount + ANY(items)', { kind: 'uncertain' }],
+      ['amount OPERATOR(other.=) ANY(items)', { kind: 'uncertain' }],
+    ] as const) {
       expect(
         lowerTableCheck(host, { name: 'unsupported', type: 'check', definition: `CHECK(${sql})` })
           ?.expression,
-      ).toEqual({ kind: 'uncertain' })
+        sql,
+      ).toEqual(expected)
     }
   })
 })

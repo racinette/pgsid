@@ -432,12 +432,14 @@ import("testing";"reflect";r "nestedcompositepublic/schema/public/checkrust/chec
 func TestNestedPayloads(t *testing.T){
  inner:=r.ArrayPayload{ElementType:${JSON.stringify('"public"."approved"')},ElementKind:44,Dimensions:[]r.ArrayDimension{{Lower:1,Length:1}},Elements:[]r.ArrayElement{{Kind:r.ArrayElementComposite,Composite:r.CompositePayload{TypeName:"public.leaf",Fields:[]r.ArrayElement{{Kind:r.ArrayElementInt2,Int2:2},{Kind:r.ArrayElementText,Text:"abc"}}}}}}
  value:=r.ArrayValue{Kind:r.ArrayValueValue,Value:r.ArrayPayload{ElementType:${JSON.stringify('"public"."required_batch"')},ElementKind:41,Dimensions:[]r.ArrayDimension{{Lower:1,Length:1}},Elements:[]r.ArrayElement{{Kind:r.ArrayElementArray,Array:inner}}}}
- evaluate:=func(v r.ArrayValue)[]CheckEvaluation{return EvaluatePublicBundlesChecks(PublicBundlesCheckInput{A:KnownCheckValue(v),Bypass:KnownCheckValue(false)})}
+ evaluate:=func(v r.ArrayValue)[]CheckEvaluation{return func() []CheckEvaluation {r, e := EvaluatePublicBundlesChecks(PublicBundlesCheckInput{A:KnownCheckValue(v),Bypass:KnownCheckValue(false)}); if e != nil {return nil}; return r}()}
  before:=r.CopyArrayValue(value)
+ if len(evaluate(value))==0{t.Fatal("valid input rejected")}
  for _,c:=range evaluate(value){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal(c)}}
  if !reflect.DeepEqual(value,before){t.Fatal("input mutated")}
  for i:=0;i<4;i++{v:=r.CopyArrayValue(value);switch i{case 0:v.Value.ElementType="public.batch";case 1:v.Value.Elements[0].Array.ElementType="public.leaf";case 2:v.Value.Elements[0].Array.Elements[0].Composite.TypeName="public.approved";case 3:v.Value.Elements[0].Array.Elements[0].Composite.Fields[0].Int2=40000};for _,c:=range evaluate(v){if c.Result.Certain{t.Fatal(i,c)}}}
  v:=r.CopyArrayValue(value);v.Value.Elements[0].Array.Elements[0].Composite.Fields[0].Int2=-1
+ if len(evaluate(v))==0{t.Fatal("coerced value rejected")}
  for _,c:=range evaluate(v){if !c.Result.Certain{t.Fatal("coerced value deferred",c)};if c.Constraint=="score"&&(!c.Result.Value.Valid||c.Result.Value.Value){t.Fatal(c)}}
 }
 `,

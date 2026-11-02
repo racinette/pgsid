@@ -520,10 +520,10 @@ it('validates public owned ACL arrays and preserves bitmap metadata in both targ
       join(goRoot, 'checks_test.go'),
       `package checks
 import("testing";checkruntime "acl-owned/checkrust/checkruntime")
-func TestArrays(t *testing.T){rows:=[]PublicOwnedAclsCheckInput{${rows.join(',')}};results:=[]map[string]EvalBool{};for _,row:=range rows{values:=map[string]EvalBool{};for _,c:=range EvaluatePublicOwnedAclsChecks(row){values[c.Constraint]=c.Result};results=append(results,values)}
+func TestArrays(t *testing.T){rows:=[]PublicOwnedAclsCheckInput{${rows.join(',')}};results:=[]map[string]EvalBool{};for _,row:=range rows{values:=map[string]EvalBool{};for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicOwnedAclsChecks(row); if e != nil {panic(e)}; return r}(){values[c.Constraint]=c.Result};results=append(results,values)}
 ${assertions.join('\n')}
-base:=rows[0];bad:=base.Items.V;bad.Value.Elements=append([]checkruntime.ArrayElement(nil),bad.Value.Elements...);bad.Value.Elements[0].Aclitem.Privileges=-1;base.Items=KnownCheckValue(bad);for _,c:=range EvaluatePublicOwnedAclsChecks(base){if(c.Constraint=="covers"||c.Constraint=="same")&&c.Result.Certain{t.Fatal("malformed ACL array accepted",c)}}
-base=rows[0];missing:=base.Items.V;missing.Value.NullBitmap=checkruntime.BoolValue{};base.Items=KnownCheckValue(missing);for _,c:=range EvaluatePublicOwnedAclsChecks(base){if c.Constraint=="covers"&&c.Result.Certain{t.Fatal("unknown bitmap became definite",c)}}
+base:=rows[0];bad:=base.Items.V;bad.Value.Elements=append([]checkruntime.ArrayElement(nil),bad.Value.Elements...);bad.Value.Elements[0].Aclitem.Privileges=-1;base.Items=KnownCheckValue(bad);for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicOwnedAclsChecks(base); if e != nil {return nil}; return r}(){if(c.Constraint=="covers"||c.Constraint=="same")&&c.Result.Certain{t.Fatal("malformed ACL array accepted",c)}}
+base=rows[0];missing:=base.Items.V;missing.Value.NullBitmap=checkruntime.BoolValue{};base.Items=KnownCheckValue(missing);for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicOwnedAclsChecks(base); if e != nil {return nil}; return r}(){if c.Constraint=="covers"&&c.Result.Certain{t.Fatal("unknown bitmap became definite",c)}}
 }`,
     )
     await run('go', ['test', '-p', '1', './...'], { cwd: goRoot }).catch(

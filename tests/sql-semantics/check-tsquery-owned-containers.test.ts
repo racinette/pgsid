@@ -373,9 +373,9 @@ it('validates owned tsquery arrays and record fields through native INSERTs and 
       `package checks
 import("testing";checkruntime "tsquery-owned/checkrust/checkruntime")
 func ptr(v bool)*bool{return &v}
-func TestOwned(t *testing.T){ownedRows:=getOwnedRows();results:=[]map[string]EvalBool{};for _,row:=range ownedRows{values:=map[string]EvalBool{};for _,c:=range EvaluatePublicOwnedVectorsChecks(row){values[c.Constraint]=c.Result};results=append(results,values)}
+func TestOwned(t *testing.T){ownedRows:=getOwnedRows();results:=[]map[string]EvalBool{};for _,row:=range ownedRows{values:=map[string]EvalBool{};for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicOwnedVectorsChecks(row); if e != nil {panic(e)}; return r}(){values[c.Constraint]=c.Result};results=append(results,values)}
 ${assertions.join('\n')}
-for _,badKind:=range []int{0,1,2}{row:=ownedRows[0];bad:=row.Items.V;bad.Value.Elements=append([]checkruntime.ArrayElement(nil),bad.Value.Elements...);payload:=bad.Value.Elements[0].Tsquery;payload.Nodes=append([]checkruntime.TsqueryNode(nil),payload.Nodes...);if badKind==0{payload.NativeBytes=-2};if badKind==1{payload.Nodes[0].Text="a\\x00"};if badKind==2{payload.Root=999};bad.Value.Elements[0].Tsquery=payload;row.Items=KnownCheckValue(bad);for _,c:=range EvaluatePublicOwnedVectorsChecks(row){if(c.Constraint=="same"||c.Constraint=="presence")&&c.Result.Certain{t.Fatal("malformed tsquery cell accepted",badKind,c)}}}}
+for _,badKind:=range []int{0,1,2}{row:=ownedRows[0];bad:=row.Items.V;bad.Value.Elements=append([]checkruntime.ArrayElement(nil),bad.Value.Elements...);payload:=bad.Value.Elements[0].Tsquery;payload.Nodes=append([]checkruntime.TsqueryNode(nil),payload.Nodes...);if badKind==0{payload.NativeBytes=-2};if badKind==1{payload.Nodes[0].Text="a\\x00"};if badKind==2{payload.Root=999};bad.Value.Elements[0].Tsquery=payload;row.Items=KnownCheckValue(bad);for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicOwnedVectorsChecks(row); if e != nil {return nil}; return r}(){if(c.Constraint=="same"||c.Constraint=="presence")&&c.Result.Certain{t.Fatal("malformed tsquery cell accepted",badKind,c)}}}}
 `,
     )
     await run('go', ['test', '-p', '1', './...'], { cwd: goRoot }).catch(

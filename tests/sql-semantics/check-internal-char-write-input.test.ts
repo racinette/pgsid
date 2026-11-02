@@ -99,19 +99,19 @@ func TestPortablePayloadStillValidates(t *testing.T) {
  input.Expected=pgsid.KnownCheckValue(&wire)
  input.Position.V=checkruntime.InternalCharValue{}
  wireChecks:=0
- for _,check:=range pgsid.EvaluatePublicSingleByteWritesChecks(input) {
+ for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicSingleByteWritesChecks(input); if e != nil {return nil}; return r}() {
   if check.Constraint=="position_wire" {wireChecks++;if check.Result.Certain {t.Fatal("zero single-byte wrapper did not remain unknown")}}
  }
  if wireChecks!=1 {t.Fatal("missing byte wire constraint")}
  
  for _,invalid:=range []int{-1,256} {
   input.Position.V=checkruntime.InternalCharValue{Kind:checkruntime.InternalCharValueValue,Value:invalid}
-  for _,check:=range pgsid.EvaluatePublicSingleByteWritesChecks(input) {
+  for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicSingleByteWritesChecks(input); if e != nil {return nil}; return r}() {
    if check.Constraint=="position_wire" && check.Result.Certain {t.Fatal("invalid packed byte became definite",invalid)}
   }
  }
  input.Position.V=checkruntime.MakeInternalCharValue(126)
- for _,check:=range pgsid.EvaluatePublicSingleByteWritesChecks(input) {
+ for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicSingleByteWritesChecks(input); if e != nil {panic(e)}; return r}() {
   if check.Constraint=="position_wire" && (!check.Result.Certain || !check.Result.Value.Valid || check.Result.Value.Value) {t.Fatal("changed byte did not reject wrong wire bytes")}
  }
 

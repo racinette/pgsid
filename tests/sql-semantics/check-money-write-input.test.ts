@@ -99,12 +99,12 @@ func TestPortablePayloadStillValidates(t *testing.T) {
  input.Expected=pgsid.KnownCheckValue(&wire)
  input.Position.V=checkruntime.MoneyValue{}
  wireChecks:=0
- for _,check:=range pgsid.EvaluatePublicMoneyWritesChecks(input) {
+ for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicMoneyWritesChecks(input); if e != nil {return nil}; return r}() {
   if check.Constraint=="position_wire" {wireChecks++;if check.Result.Certain {t.Fatal("zero money wrapper did not remain unknown")}}
  }
  if wireChecks!=1 {t.Fatal("missing money wire constraint")}
  input.Position.V=checkruntime.MakeMoneyValue(126)
- for _,check:=range pgsid.EvaluatePublicMoneyWritesChecks(input) {
+ for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicMoneyWritesChecks(input); if e != nil {panic(e)}; return r}() {
   if check.Constraint=="position_wire" && (!check.Result.Certain || !check.Result.Value.Valid || check.Result.Value.Value) {t.Fatal("changed money units did not reject wrong wire bytes")}
  }
 

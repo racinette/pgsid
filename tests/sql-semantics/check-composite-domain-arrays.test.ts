@@ -340,8 +340,9 @@ INSERT INTO bundles VALUES(ARRAY[ROW(2,'z','hi')::required],false);`)
 import("testing";"reflect";checkruntime "compositedomainpublic/schema/public/checkrust/checkruntime")
 func TestDomainArrayPayloads(t *testing.T){
  value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:${JSON.stringify('"public"."required"')},ElementKind:44,Dimensions:[]checkruntime.ArrayDimension{{Lower:1,Length:1}},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementComposite,Composite:checkruntime.CompositePayload{TypeName:"public.leaf",Fields:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementInt2,Int2:2},{Kind:checkruntime.ArrayElementEnum,Enum:checkruntime.EnumPayload{Ordinal:0,LabelOid:777}},{Kind:checkruntime.ArrayElementText,Text:"hi"}}}}},NullBitmap:checkruntime.BoolValue{Kind:checkruntime.BoolValueValue,Value:false}}}
- evaluate:=func(value checkruntime.ArrayValue,skip bool)[]CheckEvaluation{return EvaluatePublicBundlesChecks(PublicBundlesCheckInput{A:KnownCheckValue(value),Bypass:KnownCheckValue(skip)})}
+ evaluate:=func(value checkruntime.ArrayValue,skip bool)[]CheckEvaluation{return func() []CheckEvaluation {r, e := EvaluatePublicBundlesChecks(PublicBundlesCheckInput{A:KnownCheckValue(value),Bypass:KnownCheckValue(skip)}); if e != nil {return nil}; return r}()}
  before:=checkruntime.CopyArrayValue(value)
+ if len(evaluate(value,false))==0{t.Fatal("valid input rejected")}
  for _,result:=range evaluate(value,false){if !result.Result.Certain||!result.Result.Value.Valid||!result.Result.Value.Value{t.Fatal(result)}}
  if !reflect.DeepEqual(value,before){t.Fatal("domain array input mutated")}
  invalid:=checkruntime.CopyArrayValue(value);invalid.Value.ElementType="public.leaf"
@@ -349,6 +350,7 @@ func TestDomainArrayPayloads(t *testing.T){
  invalid=checkruntime.CopyArrayValue(value);invalid.Value.Elements[0].Composite.TypeName="public.required"
  for _,result:=range evaluate(invalid,false){if result.Result.Certain{t.Fatal("nominal name accepted as physical record",result)}}
  nullCell:=checkruntime.CopyArrayValue(value);nullCell.Value.Elements=[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementNull}};nullCell.Value.NullBitmap=checkruntime.BoolValue{Kind:checkruntime.BoolValueValue,Value:true}
+ if len(evaluate(nullCell,false))==0{t.Fatal("coerced NULL element rejected")}
  for _,result:=range evaluate(nullCell,false){if !result.Result.Certain{t.Fatal("coerced NULL element deferred",result)};if result.Constraint=="first_score"&&result.Result.Value.Valid{t.Fatal("NULL field result lost",result)};if result.Constraint=="output"&&(!result.Result.Value.Valid||result.Result.Value.Value){t.Fatal("NULL array output lost",result)}}
 }
 `,

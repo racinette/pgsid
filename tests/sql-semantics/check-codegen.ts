@@ -69,7 +69,7 @@ export type GoCheckCase = {
   timestamptzColumns?: readonly string[]
   results: {
     constraint: string
-    result: { certain: boolean; value?: boolean | null; error?: string }
+    result: { certain: boolean; value?: boolean | null; error?: string; unimplemented?: boolean }
   }[]
 }
 
@@ -700,13 +700,16 @@ export function renderGoCheckTests(
     const actualResults = go.ident('results')
     statements.push(
       go.assign(
-        [actualResults],
+        [actualResults, go.ident('err')],
         [
           go.call(go.ident('Evaluate' + goName(table.schema + '_' + table.name) + 'Checks'), [
             input,
           ]),
         ],
       ),
+      go.if(go.notEqual(go.ident('err'), go.ident('nil')), [
+        go.expression(go.call(go.selector(t, 'Fatal'), [go.ident('err')])),
+      ]),
     )
     statements.push(
       expect(go.call(go.ident('len'), [actualResults]), go.number(results.length), 'CHECK count'),

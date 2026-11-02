@@ -215,10 +215,10 @@ func TestXPathPayload(t *testing.T){
  for _,c:=range cases{for _,rendered:=range []bool{false,true}{
   path:=c.Path;value:=runtime.MakeXmlValue(c.Storage);if rendered{value=runtime.XmlValue{Kind:runtime.XmlValueRenderedText,RenderedText:c.Rendered}}
   input:=PublicXpathPayloadsCheckInput{V:KnownCheckValue(value),Path:KnownCheckValue(&path),Expected:KnownCheckValue(c.Expected),Found:KnownCheckValue(c.Found),Amount:KnownCheckValue(c.Amount),Bypass:KnownCheckValue(&bypass)}
-  for _,check:=range EvaluatePublicXpathPayloadsChecks(input){r:=check.Result
+  for _,check:=range func() []CheckEvaluation {r, e := EvaluatePublicXpathPayloadsChecks(input); if e != nil {panic(e)}; return r}(){r:=check.Result
    if rendered&&c.RenderedUnknown{if r.Certain{t.Fatal("rendered source guessed",c,check)}}else if c.Error!=""{if !r.Certain||r.Value.Error!=c.Error{t.Fatal("error lost",c,check)}}else{if !r.Certain||!r.Value.Value{t.Fatal("query result lost",c,check)}}
   }
-  bypass=true;for _,check:=range EvaluatePublicXpathPayloadsChecks(input){if !check.Result.Certain||!check.Result.Value.Value{t.Fatal("lazy query reached",c,check)}};bypass=false
+  bypass=true;for _,check:=range func() []CheckEvaluation {r, e := EvaluatePublicXpathPayloadsChecks(input); if e != nil {panic(e)}; return r}(){if !check.Result.Certain||!check.Result.Value.Value{t.Fatal("lazy query reached",c,check)}};bypass=false
  }}
 }
 `,

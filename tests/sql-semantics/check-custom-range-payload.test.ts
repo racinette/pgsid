@@ -477,11 +477,11 @@ func TestCustomProfiles(t *testing.T){
   m:=checkruntime.MultirangeValue{Kind:checkruntime.MultirangeValueValue,Value:checkruntime.MultirangePayload{TypeName:"public.word_sets",RangeType:v.Value.TypeName,ElementType:"pg_catalog.text",ElementKind:8,Support:checkruntime.MakeRangeSupport(comparison,0),Ranges:[]checkruntime.RangeValue{v}}}
   items:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:v.Value.TypeName,ElementKind:42,Dimensions:[]checkruntime.ArrayDimension{{Lower:-2,Length:3}},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementRange,Range:v.Value},{Kind:checkruntime.ArrayElementNull},{Kind:checkruntime.ArrayElementRange,Range:w.Value}},NullBitmap:checkruntime.MakeBoolValue(true)}}
   input:=PublicCustomTextPayloadsCheckInput{V:KnownCheckValue(v),W:KnownCheckValue(w),M:KnownCheckValue(m),Items:KnownCheckValue(items),Bypass:KnownCheckValue(&skip)}
-  for _,c:=range EvaluatePublicCustomTextPayloadsChecks(input){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("text profiles",comparison,c)}}
+  for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicCustomTextPayloadsChecks(input); if e != nil {panic(e)}; return r}(){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("text profiles",comparison,c)}}
   if v.Value.Support.Comparison!=comparison||v.Value.Support.Canonical!=0{t.Fatal("text input mutated")}
   bad:=checkruntime.CopyRangeValue(v);bad.Value.Bounds[0]=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementInt4,Int4:1};input.V=KnownCheckValue(bad)
-  for _,c:=range EvaluatePublicCustomTextPayloadsChecks(input){if c.Constraint=="lower_text"&&c.Result.Certain{t.Fatal("malformed text bound",c)}}
-  skip=true;for _,c:=range EvaluatePublicCustomTextPayloadsChecks(input){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("skipped text input",c)}}
+  for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicCustomTextPayloadsChecks(input); if e != nil {return nil}; return r}(){if c.Constraint=="lower_text"&&c.Result.Certain{t.Fatal("malformed text bound",c)}}
+  skip=true;for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicCustomTextPayloadsChecks(input); if e != nil {return nil}; return r}(){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("skipped text input",c)}}
  }
 
  for _,forgeArray:=range []bool{false,true}{
@@ -492,43 +492,43 @@ func TestCustomProfiles(t *testing.T){
   histories:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:fmt.Sprintf("%q.%q","public","custom_windows"),ElementKind:41,Dimensions:[]checkruntime.ArrayDimension{{Lower:1,Length:1}},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementArray,Array:checkruntime.CopyArrayValue(windows).Value}},NullBitmap:checkruntime.MakeBoolValue(false)}}
   expected:=pack("integer_set",av);expected.Value.Ranges=append(expected.Value.Ranges,bv);skipArrays:=false
   inputArrays:=PublicCustomArrayPayloadsCheckInput{Windows:KnownCheckValue(windows),Typed:KnownCheckValue(typed),Histories:KnownCheckValue(histories),Head:KnownCheckValue(av),ExpectedPack:KnownCheckValue(expected),Bypass:KnownCheckValue(&skipArrays)}
-  for _,c:=range EvaluatePublicCustomArrayPayloadsChecks(inputArrays){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("custom array",forgeArray,c)}}
+  for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicCustomArrayPayloadsChecks(inputArrays); if e != nil {panic(e)}; return r}(){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("custom array",forgeArray,c)}}
   if forgeArray && windows.Value.Elements[0].Range.Support.Comparison!=99{t.Fatal("array snapshot was mutated")}
   wrong:=checkruntime.CopyArrayValue(windows);wrong.Value.ElementType="pg_catalog.int4range";inputArrays.Windows=KnownCheckValue(wrong)
-  for _,c:=range EvaluatePublicCustomArrayPayloadsChecks(inputArrays){if c.Constraint=="counted"&&c.Result.Certain{t.Fatal("array identity",c)}}
-  skipArrays=true;for _,c:=range EvaluatePublicCustomArrayPayloadsChecks(inputArrays){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("skipped array",c)}}
+  for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicCustomArrayPayloadsChecks(inputArrays); if e != nil {return nil}; return r}(){if c.Constraint=="counted"&&c.Result.Certain{t.Fatal("array identity",c)}}
+  skipArrays=true;for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicCustomArrayPayloadsChecks(inputArrays); if e != nil {return nil}; return r}(){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("skipped array",c)}}
   mv:=pack("integer_set",av);mw:=pack("integer_set",bv)
   multis:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"public.integer_set",ElementKind:43,Dimensions:[]checkruntime.ArrayDimension{{Lower:1,Length:3}},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementMultirange,Multirange:mv.Value},{Kind:checkruntime.ArrayElementMultirange,Multirange:mv.Value},{Kind:checkruntime.ArrayElementMultirange,Multirange:mw.Value}},NullBitmap:checkruntime.MakeBoolValue(false)}}
   if forgeArray{for i:=range multis.Value.Elements{multis.Value.Elements[i].Multirange.Support=checkruntime.MakeRangeSupport(99,99);for j:=range multis.Value.Elements[i].Multirange.Ranges{multis.Value.Elements[i].Multirange.Ranges[j].Value.Support=checkruntime.MakeRangeSupport(99,99)}}}
   skipMultis:=false;multiInput:=PublicCustomMultiArrayPayloadsCheckInput{Windows:KnownCheckValue(multis),Head:KnownCheckValue(pack("integer_set",av)),Bypass:KnownCheckValue(&skipMultis)}
-  for _,c:=range EvaluatePublicCustomMultiArrayPayloadsChecks(multiInput){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("custom multirange array",forgeArray,c)}}
+  for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicCustomMultiArrayPayloadsChecks(multiInput); if e != nil {panic(e)}; return r}(){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("custom multirange array",forgeArray,c)}}
   if forgeArray&&multis.Value.Elements[0].Multirange.Support.Comparison!=99{t.Fatal("multirange array snapshot was mutated")}
   wrongMulti:=checkruntime.CopyArrayValue(multis);wrongMulti.Value.Elements[0].Multirange.RangeType="pg_catalog.int4range";multiInput.Windows=KnownCheckValue(wrongMulti)
-  for _,c:=range EvaluatePublicCustomMultiArrayPayloadsChecks(multiInput){if c.Constraint=="fetched"&&c.Result.Certain{t.Fatal("multirange array member identity",c)}}
-  skipMultis=true;for _,c:=range EvaluatePublicCustomMultiArrayPayloadsChecks(multiInput){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("skipped multirange array",c)}}
+  for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicCustomMultiArrayPayloadsChecks(multiInput); if e != nil {return nil}; return r}(){if c.Constraint=="fetched"&&c.Result.Certain{t.Fatal("multirange array member identity",c)}}
+  skipMultis=true;for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicCustomMultiArrayPayloadsChecks(multiInput); if e != nil {return nil}; return r}(){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("skipped multirange array",c)}}
  }
  for _,forge:=range []bool{false,true}{
   v:=span("integer_span",1,2,"pg_catalog.int4",forge);w:=span("integer_span",3,4,"pg_catalog.int4",forge);e:=custom.Positive(1)
   input:=PublicCustomPayloadsCheckInput{V:KnownCheckValue(v),W:KnownCheckValue(w),M:KnownCheckValue(pack("integer_set",v)),N:KnownCheckValue(pack("integer_set",w)),P:KnownCheckValue(span("positive_span",1,2,"\\"Custom.Range\\".positive",forge)),E:KnownCheckValue(&e)}
-  for _,c:=range EvaluatePublicCustomPayloadsChecks(input){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("captured support",forge,c)}}
+  for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicCustomPayloadsChecks(input); if e != nil {panic(e)}; return r}(){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("captured support",forge,c)}}
   bad:=v;bad.Value.TypeName="pg_catalog.int4range";input.V=KnownCheckValue(bad)
-  for _,c:=range EvaluatePublicCustomPayloadsChecks(input){if c.Constraint=="bound"&&c.Result.Certain{t.Fatal("nominal identity",c)}}
+  for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicCustomPayloadsChecks(input); if e != nil {return nil}; return r}(){if c.Constraint=="bound"&&c.Result.Certain{t.Fatal("nominal identity",c)}}
  }
  payload:="[1,2]";skip:=false;expectedRange:=span("integer_span",1,2,"pg_catalog.int4",false)
  imported:=PublicCustomImportsCheckInput{Payload:KnownCheckValue(&payload),Expected:KnownCheckValue(expectedRange),Bypass:KnownCheckValue(&skip)}
- for _,c:=range EvaluatePublicCustomImportsChecks(imported){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("custom input",c)}}
- payload="[bad,3]";for _,c:=range EvaluatePublicCustomImportsChecks(imported){if !c.Result.Certain||c.Result.Value.Error!="22P02"{t.Fatal("input error",c)}}
- skip=true;for _,c:=range EvaluatePublicCustomImportsChecks(imported){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("skipped input",c)}}
+ for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicCustomImportsChecks(imported); if e != nil {panic(e)}; return r}(){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("custom input",c)}}
+ payload="[bad,3]";for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicCustomImportsChecks(imported); if e != nil {panic(e)}; return r}(){if !c.Result.Certain||c.Result.Value.Error!="22P02"{t.Fatal("input error",c)}}
+ skip=true;for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicCustomImportsChecks(imported); if e != nil {panic(e)}; return r}(){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("skipped input",c)}}
  payload="{[1,2]}";skip=false
  multiImported:=PublicCustomMultiImportsCheckInput{Payload:KnownCheckValue(&payload),Expected:KnownCheckValue(pack("integer_set",expectedRange)),Bypass:KnownCheckValue(&skip)}
- for _,c:=range EvaluatePublicCustomMultiImportsChecks(multiImported){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("custom multirange input",c)}}
- payload="{[bad,3]}";for _,c:=range EvaluatePublicCustomMultiImportsChecks(multiImported){if !c.Result.Certain||c.Result.Value.Error!="22P02"{t.Fatal("multirange input error",c)}}
- skip=true;for _,c:=range EvaluatePublicCustomMultiImportsChecks(multiImported){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("skipped multirange input",c)}}
+ for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicCustomMultiImportsChecks(multiImported); if e != nil {panic(e)}; return r}(){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("custom multirange input",c)}}
+ payload="{[bad,3]}";for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicCustomMultiImportsChecks(multiImported); if e != nil {panic(e)}; return r}(){if !c.Result.Certain||c.Result.Value.Error!="22P02"{t.Fatal("multirange input error",c)}}
+ skip=true;for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicCustomMultiImportsChecks(multiImported); if e != nil {panic(e)}; return r}(){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("skipped multirange input",c)}}
  e:=int32(4);bypass:=true
  reverse:=PublicCustomCallbacksCheckInput{V:KnownCheckValue(span("reverse_span",4,1,"pg_catalog.int4",true)),W:KnownCheckValue(span("reverse_span",3,1,"pg_catalog.int4",true)),E:KnownCheckValue(&e),Bypass:KnownCheckValue(&bypass)}
- for _,c:=range EvaluatePublicCustomCallbacksChecks(reverse){if c.Constraint=="ordered"{if c.Result.Certain{t.Fatal("unavailable comparator",c)}}else if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("callback independent",c)}}
+ for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicCustomCallbacksChecks(reverse); if e != nil {panic(e)}; return r}(){if c.Constraint=="ordered"{if c.Result.Certain{t.Fatal("unavailable comparator",c)}}else if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("callback independent",c)}}
  opaque:=pack("opaque_set",span("opaque_span",1,2,"pg_catalog.int4",false));opaque.Value.Ranges=append(opaque.Value.Ranges,span("opaque_span",5,6,"pg_catalog.int4",false))
- for _,c:=range EvaluatePublicCustomHullsChecks(PublicCustomHullsCheckInput{M:KnownCheckValue(opaque)}){if c.Result.Certain{t.Fatal("unavailable canonicalizer",c)}}
+ for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicCustomHullsChecks(PublicCustomHullsCheckInput{M:KnownCheckValue(opaque)}); if e != nil {return nil}; return r}(){if c.Result.Certain{t.Fatal("unavailable canonicalizer",c)}}
 }
 `,
     )

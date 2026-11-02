@@ -99,7 +99,7 @@ func TestPortablePayloadStillValidates(t *testing.T) {
  input.Expected=pgsid.KnownCheckValue(&wire)
  input.Position.V.Value.WireKnown=false
  wireChecks:=0
- for _,check:=range pgsid.EvaluatePublicLsegWritesChecks(input) {
+ for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicLsegWritesChecks(input); if e != nil {return nil}; return r}() {
   if check.Constraint=="position_wire" {wireChecks++;if check.Result.Certain {t.Fatal("unavailable lseg wire precision was treated as known")}}
  }
  if wireChecks!=1 {t.Fatal("missing lseg wire constraint")}

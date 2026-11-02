@@ -99,18 +99,18 @@ func TestPortablePayloadStillValidates(t *testing.T) {
  input.Expected=pgsid.KnownCheckValue(&wire)
  input.Position.V.Value.Points[0].WireKnown=false
  wireChecks:=0
- for _,check:=range pgsid.EvaluatePublicPolygonWritesChecks(input) {
+ for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicPolygonWritesChecks(input); if e != nil {return nil}; return r}() {
   if check.Constraint=="position_wire" {wireChecks++;if check.Result.Certain {t.Fatal("unavailable polygon wire precision was treated as known")}}
  }
  if wireChecks!=1 {t.Fatal("missing polygon wire constraint")}
  input.Position.V.Value.Points[0].WireKnown=true
  input.Position.V.Value.Points[0].X=0x3ff0000000000000
- for _,check:=range pgsid.EvaluatePublicPolygonWritesChecks(input) {
+ for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicPolygonWritesChecks(input); if e != nil {return nil}; return r}() {
   if check.Constraint=="position_wire" && check.Result.Certain {t.Fatal("inconsistent cached bounds were accepted")}
  }
  input.Position.V.Value.Bounds=checkruntime.BoxUnknown()
  wireChecks=0
- for _,check:=range pgsid.EvaluatePublicPolygonWritesChecks(input) {
+ for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicPolygonWritesChecks(input); if e != nil {panic(e)}; return r}() {
   if check.Constraint=="position_wire" {wireChecks++;if !check.Result.Certain || !check.Result.Value.Valid || check.Result.Value.Value {t.Fatal("changed polygon coordinate did not produce its definite wire comparison")}}
  }
  if wireChecks!=1 {t.Fatal("missing polygon wire constraint")}
