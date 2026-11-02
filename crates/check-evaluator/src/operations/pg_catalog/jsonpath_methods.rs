@@ -174,8 +174,11 @@ fn jsonpath_temporal_apply(
         if let Int4Value::Value(number) = converted {
             precision = number;
         };
+        let mut precision_flavor: i32 = 0;
+        if let Int4Value::Unknown = converted { precision_flavor = 1; };
+        if let Int4Value::Unimplemented = converted { precision_flavor = 2; };
         if converted == Int4Value::Unknown || converted == Int4Value::Unimplemented {
-            return jsonpath_temporal_state(0, 0i64, 0, 0, true, false);
+            return jsonpath_temporal_state(0, 0i64, 0, 0, true, false, precision_flavor);
         };
     };
     jsonpath_temporal_convert_session(

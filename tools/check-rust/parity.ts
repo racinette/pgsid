@@ -603,7 +603,11 @@ export async function runCheckParity(
         unknownInputsPath,
         fixtures
           .flatMap((fixture, index) =>
-            JSON.stringify(fixture.row).includes('"kind":"Unknown"') ? [String(index)] : [],
+            JSON.stringify(fixture.row, (_key, value: unknown) =>
+              typeof value === 'bigint' ? String(value) : value,
+            ).includes('"kind":"Unknown"')
+              ? [String(index)]
+              : [],
           )
           .join('\n') + '\n',
       )

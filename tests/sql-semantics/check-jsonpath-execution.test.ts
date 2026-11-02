@@ -93,9 +93,11 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
   if let BoolValue::Error(failure) = answer { result = JsonbValue::Error(failure); };
   if let BoolValue::Null = answer { result = JsonbValue::Null; };
   if let BoolValue::Value(known) = answer { result = jsonpath_execution_boolean(known); };
+  if let BoolValue::Unimplemented = answer { result = JsonbValue::Unimplemented; };
  };
  if let JsonbValue::Error(failure) = result { return BoolValue::Error(failure); };
  if let JsonbValue::Unknown = result { return BoolValue::Unknown; };
+ if let JsonbValue::Unimplemented = result { return BoolValue::Unimplemented; };
  if let JsonbValue::Null = result {
   if let TextValue::Null = expected { return BoolValue::Value(true); };
   return BoolValue::Value(false);

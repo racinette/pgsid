@@ -3,6 +3,10 @@ fn jsonpath_abbreviation_resolve(
     lookup: TimezoneLookup,
     template: bool,
 ) -> JsonpathTemporalValue {
+    let mut lookup_flavor: i32 = 1;
+    if lookup.profile == TextValue::Unimplemented {
+        lookup_flavor = 2;
+    };
     let mut seconds = Int4Value::Unknown;
     if lookup.kind == 1 {
         seconds = make_int4_value(lookup.seconds);
@@ -25,7 +29,7 @@ fn jsonpath_abbreviation_resolve(
     if let Int4Value::Value(east) = seconds {
         let west = 0 - east;
         if local.kind == 3 {
-            return jsonpath_temporal_state(3, local.value, west, 0, false, false);
+            return jsonpath_temporal_state(3, local.value, west, 0, false, false, 0);
         };
         let shifted = sql__pg_catalog__int8pl__1v1h(
             Int8Value::Value(local.value),
@@ -34,7 +38,7 @@ fn jsonpath_abbreviation_resolve(
         if let Int8Value::Value(value) = shifted {
             let checked = make_timestamp_value(value);
             if let TimestampValue::Value(number) = checked {
-                return jsonpath_temporal_state(5, number, west, 0, false, false);
+                return jsonpath_temporal_state(5, number, west, 0, false, false, 0);
             };
         };
         if template {
@@ -42,7 +46,13 @@ fn jsonpath_abbreviation_resolve(
         };
         return jsonpath_temporal_invalid();
     };
-    jsonpath_temporal_state(local.kind, local.value, 0, 0, true, false)
+    if seconds == Int4Value::Unimplemented {
+        lookup_flavor = 2;
+    };
+    if local.flavor > lookup_flavor {
+        lookup_flavor = local.flavor;
+    };
+    jsonpath_temporal_state(local.kind, local.value, 0, 0, true, false, lookup_flavor)
 }
 
 fn jsonpath_temporal_decode_context(
@@ -68,7 +78,10 @@ fn jsonpath_temporal_decode_context(
             start = start - 1;
         }
         let prefix = datetime_template_find_prefix(&source, start, session, defaults, utf8);
-        if prefix.lookup.profile == TextValue::Unknown || prefix.lookup.profile == TextValue::Unimplemented {
+        if prefix.lookup.profile == TextValue::Unimplemented {
+            return jsonpath_temporal_flavored(parsed, 2);
+        };
+        if prefix.lookup.profile == TextValue::Unknown {
             return parsed;
         };
         if prefix.end != end || prefix.lookup.kind == 0 {
@@ -88,6 +101,7 @@ fn jsonpath_temporal_decode_context(
             local.error,
             local.unknown,
             local.hard,
+            local.flavor,
         );
         return jsonpath_abbreviation_resolve(zoned, prefix.lookup, false);
     };
@@ -138,6 +152,10 @@ fn jsonpath_template_parse_context(
                 let prefix = datetime_template_find_prefix(&source, index, session, defaults, utf8);
                 if prefix.lookup.profile == TextValue::Unknown || prefix.lookup.profile == TextValue::Unimplemented {
                     end = source.characters.len() + 1;
+                    // One past the overflow marker records that the lookup itself is unimplemented.
+                    if prefix.lookup.profile == TextValue::Unimplemented {
+                        end = source.characters.len() + 2;
+                    };
                 } else if prefix.lookup.kind != 0 {
                     end = prefix.end;
                 };

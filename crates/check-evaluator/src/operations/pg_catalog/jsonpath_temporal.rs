@@ -10,6 +10,7 @@ struct JsonpathTemporalValue {
     error: u32,
     unknown: bool,
     hard: bool,
+    flavor: i32,
     abbreviation_token: usize,
 }
 
@@ -33,6 +34,7 @@ fn jsonpath_temporal_state(
     error: u32,
     unknown: bool,
     hard: bool,
+    flavor: i32,
 ) -> JsonpathTemporalValue {
     JsonpathTemporalValue {
         kind: kind,
@@ -41,12 +43,30 @@ fn jsonpath_temporal_state(
         error: error,
         unknown: unknown,
         hard: hard,
+        flavor: flavor,
         abbreviation_token: 0,
     }
 }
 
+fn jsonpath_temporal_flavored(input: JsonpathTemporalValue, flavor: i32) -> JsonpathTemporalValue {
+    let mut combined = input.flavor;
+    if flavor > combined {
+        combined = flavor;
+    };
+    JsonpathTemporalValue {
+        kind: input.kind,
+        value: input.value,
+        zone: input.zone,
+        error: input.error,
+        unknown: input.unknown,
+        hard: input.hard,
+        flavor: combined,
+        abbreviation_token: input.abbreviation_token,
+    }
+}
+
 fn jsonpath_temporal_invalid() -> JsonpathTemporalValue {
-    jsonpath_temporal_state(0, 0i64, 0, JSONPATH_TEMPORAL_ARGUMENT, false, false)
+    jsonpath_temporal_state(0, 0i64, 0, JSONPATH_TEMPORAL_ARGUMENT, false, false, 0)
 }
 
 fn jsonpath_temporal_number(source: &JsonpathTemporalSource, begin: usize) -> JsonpathTemporalRead {
@@ -96,11 +116,14 @@ fn jsonpath_temporal_letter(character: char) -> bool {
 }
 
 fn jsonpath_temporal_decode(input: TextValue) -> JsonpathTemporalValue {
+    let mut input_flavor: i32 = 2;
+    if let TextValue::Unknown = input { input_flavor = 1; };
+    if let TextValue::NonNull = input { input_flavor = 1; };
     if let TextValue::Null = input {
-        return jsonpath_temporal_state(-1, 0i64, 0, 0, false, false);
+        return jsonpath_temporal_state(-1, 0i64, 0, 0, false, false, 0);
     };
     if let TextValue::Error(error) = input {
-        return jsonpath_temporal_state(0, 0i64, 0, error.state, false, false);
+        return jsonpath_temporal_state(0, 0i64, 0, error.state, false, false, 0);
     };
     if let TextValue::Value(text) = input {
         let source = JsonpathTemporalSource {
@@ -154,7 +177,7 @@ fn jsonpath_temporal_decode(input: TextValue) -> JsonpathTemporalValue {
                 following += 1;
             }
             if following == length {
-                return jsonpath_temporal_state(1, day as i64, 0, 0, false, false);
+                return jsonpath_temporal_state(1, day as i64, 0, 0, false, false, 0);
             };
             if source.characters[position] != ' ' && source.characters[position] != 'T' {
                 return jsonpath_temporal_invalid();
@@ -225,7 +248,7 @@ fn jsonpath_temporal_decode(input: TextValue) -> JsonpathTemporalValue {
                 if has_date {
                     partial_kind = 5;
                 };
-                return jsonpath_temporal_state(partial_kind, 0i64, 0, 0, true, false);
+                return jsonpath_temporal_state(partial_kind, 0i64, 0, 0, true, false, 1);
             };
             if character != '+' && character != '-' && character != ' ' {
                 return jsonpath_temporal_invalid();
@@ -268,7 +291,7 @@ fn jsonpath_temporal_decode(input: TextValue) -> JsonpathTemporalValue {
                 if zoned {
                     kind = 5;
                 };
-                return jsonpath_temporal_state(kind, value, zone, 0, false, false);
+                return jsonpath_temporal_state(kind, value, zone, 0, false, false, 0);
             };
             return jsonpath_temporal_invalid();
         };
@@ -276,9 +299,9 @@ fn jsonpath_temporal_decode(input: TextValue) -> JsonpathTemporalValue {
         if zoned {
             kind = 3;
         };
-        return jsonpath_temporal_state(kind, time, zone, 0, false, false);
+        return jsonpath_temporal_state(kind, time, zone, 0, false, false, 0);
     };
-    jsonpath_temporal_state(0, 0i64, 0, 0, true, false)
+    jsonpath_temporal_state(0, 0i64, 0, 0, true, false, input_flavor)
 }
 
 fn jsonpath_temporal_convert(
@@ -291,9 +314,9 @@ fn jsonpath_temporal_convert(
 
 fn jsonpath_temporal_timezone(use_timezone: bool) -> JsonpathTemporalValue {
     if use_timezone {
-        return jsonpath_temporal_state(0, 0i64, 0, 0, true, false);
+        return jsonpath_temporal_state(0, 0i64, 0, 0, true, false, 1);
     };
-    jsonpath_temporal_state(0, 0i64, 0, JSONPATH_TEMPORAL_FEATURE, false, true)
+    jsonpath_temporal_state(0, 0i64, 0, JSONPATH_TEMPORAL_FEATURE, false, true, 0)
 }
 
 fn jsonpath_temporal_convert_mode(
@@ -365,7 +388,7 @@ fn jsonpath_temporal_convert_parsed(
             return jsonpath_temporal_timezone(use_timezone);
         };
         if kind == 5 {
-            return jsonpath_temporal_state(0, 0i64, 0, 0, true, false);
+            return jsonpath_temporal_state(0, 0i64, 0, 0, true, false, 1);
         };
         kind = 3;
     };
@@ -379,7 +402,7 @@ fn jsonpath_temporal_convert_parsed(
         if kind == 1 {
             let timestamp = sql__pg_catalog__timestamp__swxj(DateValue::Value(value as i32));
             if let TimestampValue::Error(error) = timestamp {
-                return jsonpath_temporal_state(0, 0i64, 0, error.state, false, true);
+                return jsonpath_temporal_state(0, 0i64, 0, error.state, false, true, 0);
             };
             if let TimestampValue::Value(number) = timestamp {
                 value = number;
@@ -402,7 +425,7 @@ fn jsonpath_temporal_convert_parsed(
             digits = 6;
         };
         if digits < 0 {
-            return jsonpath_temporal_state(0, 0i64, 0, 3452619, false, true);
+            return jsonpath_temporal_state(0, 0i64, 0, 3452619, false, true, 0);
         };
         if kind == 2 || kind == 3 {
             let scaled = clock_scale_value(TimeValue::Value(value), Int4Value::Value(digits));
@@ -416,7 +439,7 @@ fn jsonpath_temporal_convert_parsed(
             };
         };
     };
-    jsonpath_temporal_state(kind, value, zone, 0, false, false)
+    jsonpath_temporal_state(kind, value, zone, 0, false, false, 0)
 }
 
 fn jsonpath_temporal_render(input: JsonpathTemporalValue) -> TextValue {
@@ -428,7 +451,9 @@ fn jsonpath_temporal_render(input: JsonpathTemporalValue) -> TextValue {
         return TextValue::Error(make_sql_error(input.error));
     };
     if input.unknown {
-        return text_unresolved(unresolved_flavor);
+        let mut input_flavor: i32 = unresolved_flavor;
+        if input.flavor > input_flavor { input_flavor = input.flavor; };
+        return text_unresolved(input_flavor);
     };
     let mut output = String::new();
     let mut bc = false;
@@ -539,7 +564,8 @@ fn jsonpath_temporal_compare_mode(
     let right_clock = right.kind == 2 || right.kind == 3;
     if (left_calendar && right_calendar) || (left_clock && right_clock) {
         if use_timezone {
-            return int4_unresolved(unresolved_flavor);
+            // Comparing across zoned and unzoned kinds needs the session time zone.
+            return int4_unresolved(resolution_context(unresolved_flavor));
         };
         return Int4Value::Error(make_sql_error(JSONPATH_TEMPORAL_FEATURE));
     };

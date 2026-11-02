@@ -62,8 +62,9 @@ fn jsonpath_regex_predicate(
     };
     let insensitive = step.flags % 2 == 1;
     let quoted = step.flags >= 16;
+    // Matching under a collation other than C waits on the collation provider.
     if context.c_collation == false && (quoted == false || insensitive) {
-        return bool_unresolved(unresolved_flavor);
+        return bool_unresolved(resolution_context(unresolved_flavor));
     };
     if let TextValue::Value(subject) = input {
         let mut pattern = String::new();
@@ -83,14 +84,14 @@ fn jsonpath_regex_predicate(
         }
         let ascii_pattern = jsonpath_regex_ascii_pattern(pattern.as_str(), quoted);
         if context.utf8 == false && (ascii_subject == false || ascii_pattern == false) {
-            return bool_unresolved(unresolved_flavor);
+            return bool_unresolved(resolution_context(unresolved_flavor));
         };
         let sensitive = jsonpath_regex_locale_neutral(pattern.as_str(), step.flags) == false;
         let use_profile = sensitive && context.ctype != 1 && context.regex_profile_supplied;
         if sensitive && use_profile == false {
             if context.ctype != 1 && (context.ctype == 2 && ascii_subject && ascii_pattern) == false
             {
-                return bool_unresolved(unresolved_flavor);
+                return bool_unresolved(resolution_context(unresolved_flavor));
             };
         };
         let mut result = MatchOutcome::Uncertain;

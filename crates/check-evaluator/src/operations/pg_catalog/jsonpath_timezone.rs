@@ -7,7 +7,7 @@ fn jsonpath_temporal_session_finish(
     let mut result = value;
     if precision != -1 {
         if precision < 0 {
-            return jsonpath_temporal_state(0, 0i64, 0, JSONPATH_EXEC_PARAMETER, false, true);
+            return jsonpath_temporal_state(0, 0i64, 0, JSONPATH_EXEC_PARAMETER, false, true, 0);
         };
         let mut digits = precision;
         if digits > 6 {
@@ -16,7 +16,7 @@ fn jsonpath_temporal_session_finish(
         if kind == 2 || kind == 3 {
             let scaled = clock_scale_value(TimeValue::Value(value), Int4Value::Value(digits));
             if let TimeValue::Error(error) = scaled {
-                return jsonpath_temporal_state(0, 0i64, 0, error.state, false, true);
+                return jsonpath_temporal_state(0, 0i64, 0, error.state, false, true, 0);
             };
             if let TimeValue::Value(number) = scaled {
                 result = number;
@@ -24,14 +24,14 @@ fn jsonpath_temporal_session_finish(
         } else {
             let scaled = temporal_adjust_precision(value, digits);
             if let Int8Value::Error(error) = scaled {
-                return jsonpath_temporal_state(0, 0i64, 0, error.state, false, true);
+                return jsonpath_temporal_state(0, 0i64, 0, error.state, false, true, 0);
             };
             if let Int8Value::Value(number) = scaled {
                 result = number;
             };
         };
     };
-    jsonpath_temporal_state(kind, result, zone, 0, false, false)
+    jsonpath_temporal_state(kind, result, zone, 0, false, false, 0)
 }
 
 fn jsonpath_temporal_convert_session(
@@ -54,16 +54,16 @@ fn jsonpath_temporal_convert_session(
     if method == 104 && parsed.kind == 5 {
         let converted = sql__pg_catalog__date__h28y(TimestamptzValue::Value(parsed.value), session);
         if let DateValue::Error(error) = converted {
-            return jsonpath_temporal_state(0, 0i64, 0, error.state, false, true);
+            return jsonpath_temporal_state(0, 0i64, 0, error.state, false, true, 0);
         };
         if let DateValue::Value(day) = converted {
-            return jsonpath_temporal_state(1, day as i64, 0, 0, false, false);
+            return jsonpath_temporal_state(1, day as i64, 0, 0, false, false, 0);
         };
     };
     if method == 109 && parsed.kind == 5 {
         let converted = sql__pg_catalog__time__az0x(TimestamptzValue::Value(parsed.value), session);
         if let TimeValue::Error(error) = converted {
-            return jsonpath_temporal_state(0, 0i64, 0, error.state, false, true);
+            return jsonpath_temporal_state(0, 0i64, 0, error.state, false, true, 0);
         };
         if let TimeValue::Value(clock) = converted {
             return jsonpath_temporal_session_finish(2, clock, 0, precision);
@@ -79,7 +79,7 @@ fn jsonpath_temporal_convert_session(
                 sql__pg_catalog__timetz__sqdw(TimestamptzValue::Value(parsed.value), session);
         };
         if let TimetzValue::Error(error) = converted {
-            return jsonpath_temporal_state(0, 0i64, 0, error.state, false, true);
+            return jsonpath_temporal_state(0, 0i64, 0, error.state, false, true, 0);
         };
         if let TimetzValue::Value(payload) = converted {
             return jsonpath_temporal_session_finish(3, payload.time, payload.zone, precision);
@@ -89,7 +89,7 @@ fn jsonpath_temporal_convert_session(
         let converted =
             sql__pg_catalog__timestamp__i0gp(TimestamptzValue::Value(parsed.value), session);
         if let TimestampValue::Error(error) = converted {
-            return jsonpath_temporal_state(0, 0i64, 0, error.state, false, true);
+            return jsonpath_temporal_state(0, 0i64, 0, error.state, false, true, 0);
         };
         if let TimestampValue::Value(local) = converted {
             return jsonpath_temporal_session_finish(4, local, 0, precision);
@@ -100,7 +100,7 @@ fn jsonpath_temporal_convert_session(
         if parsed.kind == 1 {
             let promoted = sql__pg_catalog__timestamp__swxj(DateValue::Value(parsed.value as i32));
             if let TimestampValue::Error(error) = promoted {
-                return jsonpath_temporal_state(0, 0i64, 0, error.state, false, true);
+                return jsonpath_temporal_state(0, 0i64, 0, error.state, false, true, 0);
             };
             if let TimestampValue::Value(value) = promoted {
                 local = value;
@@ -109,7 +109,7 @@ fn jsonpath_temporal_convert_session(
         let profile = session_timezone_profile(session, local, true);
         let converted = sql__pg_catalog__timestamptz__m17a(TimestampValue::Value(local), session);
         if let TimestamptzValue::Error(error) = converted {
-            return jsonpath_temporal_state(0, 0i64, 0, error.state, false, true);
+            return jsonpath_temporal_state(0, 0i64, 0, error.state, false, true, 0);
         };
         if profile.valid {
             if let TimestamptzValue::Value(value) = converted {

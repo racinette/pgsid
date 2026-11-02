@@ -72,6 +72,7 @@ struct JsonpathSequence {
     error: u32,
     hard_error: bool,
     unknown: bool,
+    flavor: i32,
 }
 
 fn jsonpath_execution_node(
@@ -375,6 +376,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
     let mut error: u32 = 0;
     let mut hard_error = false;
     let mut unknown = false;
+    let mut unknown_flavor: i32 = 0;
     while count > 0 && error == 0 && unknown == false {
         count = count - 1;
         let task = tasks[count];
@@ -480,6 +482,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
             ) == false
             {
                 unknown = true;
+                unknown_flavor = 2;
             } else {
                 pending.push(JsonpathExecutionTask {
                     mode: 3,
@@ -683,6 +686,8 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
             };
             if index == Int4Value::Unknown || index == Int4Value::Unimplemented {
                 unknown = true;
+                if let Int4Value::Unknown = index { if unknown_flavor < 1 { unknown_flavor = 1; }; };
+                if let Int4Value::Unimplemented = index { unknown_flavor = 2; };
             };
             if let Int4Value::Value(position) = index {
                 let spec = context.path_nodes[task.spec];
@@ -852,6 +857,8 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
                     let result = jsonpath_regex_predicate(&context, step, reference, text);
                     if result == BoolValue::Unknown || result == BoolValue::Unimplemented {
                         unknown = true;
+                        if let BoolValue::Unknown = result { if unknown_flavor < 1 { unknown_flavor = 1; }; };
+                        if let BoolValue::Unimplemented = result { unknown_flavor = 2; };
                     };
                     if let BoolValue::Error(failure) = result {
                         error = failure.state;
@@ -929,6 +936,8 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
                             );
                             if comparison == Int4Value::Unknown || comparison == Int4Value::Unimplemented {
                                 unknown = true;
+                                if let Int4Value::Unknown = comparison { if unknown_flavor < 1 { unknown_flavor = 1; }; };
+                                if let Int4Value::Unimplemented = comparison { unknown_flavor = 2; };
                                 ready = false;
                             };
                             if let Int4Value::Error(failure) = comparison {
@@ -968,6 +977,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
                         };
                         if result.deferred {
                             unknown = true;
+                            unknown_flavor = 2;
                         } else if result.state == 0 {
                             error_pair = true;
                             if context.lax == false {
@@ -1135,6 +1145,8 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
             };
             if admission == BoolValue::Unknown || admission == BoolValue::Unimplemented {
                 unknown = true;
+                if let BoolValue::Unknown = admission { if unknown_flavor < 1 { unknown_flavor = 1; }; };
+                if let BoolValue::Unimplemented = admission { unknown_flavor = 2; };
             };
             if error == 0 && unknown == false {
                 let offsets = jsonb_ordered_object_offsets(&payload, context.utf8);
@@ -1326,6 +1338,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
                     ) == false
                     {
                         unknown = true;
+                        unknown_flavor = 2;
                     } else if value.child > 0 {
                         pending.push(jsonpath_execution_make_task(
                             1,
@@ -1433,6 +1446,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
             } else if step.kind == JSONPATH_NODE_LAST {
                 if innermost_size < 0 {
                     unknown = true;
+                    unknown_flavor = 2;
                 } else {
                     let text = int4_to_text(Int4Value::Value(innermost_size - 1));
                     if let TextValue::Value(number) = text {
@@ -1637,6 +1651,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
                     ) == false
                     {
                         unknown = true;
+                        unknown_flavor = 2;
                     } else {
                         pending.push(jsonpath_keyvalue_task(
                             task.step,
@@ -1672,6 +1687,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
                     };
                     if temporal.unknown {
                         unknown = true;
+                        if temporal.flavor > unknown_flavor { unknown_flavor = temporal.flavor; };
                     };
                     if temporal.kind > 0 && temporal.error == 0 && temporal.unknown == false {
                         let index = temporals.len();
@@ -1792,6 +1808,8 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
                         };
                         if result == BoolValue::Unknown || result == BoolValue::Unimplemented {
                             unknown = true;
+                            if let BoolValue::Unknown = result { if unknown_flavor < 1 { unknown_flavor = 1; }; };
+                            if let BoolValue::Unimplemented = result { unknown_flavor = 2; };
                         };
                     } else if jsonpath_conversion_kind(step.kind) {
                         computed = jsonpath_conversion_numeric_value(
@@ -1821,15 +1839,19 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
                 ));
             } else {
                 unknown = true;
+                unknown_flavor = 2;
             };
         };
         if let NumericValue::Error(failure) = computed {
             error = failure.state;
         };
         let mut computed_unknown = false;
+        let mut computed_flavor: i32 = 0;
         if computed == NumericValue::Unknown || computed == NumericValue::Unimplemented {
             computed_unknown = true;
         };
+        if let NumericValue::Unknown = computed { computed_flavor = 1; };
+        if let NumericValue::Unimplemented = computed { computed_flavor = 2; };
         if let NumericValue::Value(number) = computed {
             numbers.push(NumericValue::Value(number));
         };
@@ -1837,9 +1859,13 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
             error = failure.state;
         };
         let mut text_unknown = false;
+        let mut text_flavor: i32 = 0;
         if (computed_text == TextValue::Unknown || computed_text == TextValue::Unimplemented) || computed_text == TextValue::NonNull {
             text_unknown = true;
         };
+        if let TextValue::Unknown = computed_text { text_flavor = 1; };
+        if let TextValue::NonNull = computed_text { text_flavor = 1; };
+        if let TextValue::Unimplemented = computed_text { text_flavor = 2; };
         if let TextValue::Value(value) = computed_text {
             strings.push(TextValue::Value(value));
         };
@@ -1850,12 +1876,14 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
                 && pending[index].reference.node == computed_text_index
             {
                 unknown = true;
+                if text_flavor > unknown_flavor { unknown_flavor = text_flavor; };
             };
             if computed_unknown {
                 if pending[index].reference.source == 3
                     && pending[index].reference.node == computed_index
                 {
                     unknown = true;
+                    if computed_flavor > unknown_flavor { unknown_flavor = computed_flavor; };
                 };
             };
             if count < tasks.len() {
@@ -1903,6 +1931,9 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
         selected.push(items[index]);
         index += 1;
     }
+    if unknown && unknown_flavor == 0 {
+        unknown_flavor = 2;
+    };
     JsonpathSequence {
         items: selected,
         numbers: numbers,
@@ -1913,6 +1944,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
         error: error,
         hard_error: hard_error,
         unknown: unknown,
+        flavor: unknown_flavor,
     }
 }
 
@@ -2240,7 +2272,9 @@ fn jsonpath_evaluate_session(
                     );
                     let sequence = jsonpath_execution_walk(context.clone(), mode == 0);
                     if sequence.unknown {
-                        return jsonb_unresolved(unresolved_flavor);
+                        let mut sequence_flavor: i32 = unresolved_flavor;
+                        if sequence.flavor > sequence_flavor { sequence_flavor = sequence.flavor; };
+                        return jsonb_unresolved(sequence_flavor);
                     };
                     if sequence.error > 0
                         && (suppress == false
