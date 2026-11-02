@@ -108,7 +108,8 @@ fn float_output_bits(bits: i64, single: bool, negative: bool, extra: i32, known:
     let last_value = float_output_rounded(exact,digits);
     let last = float_output_decimal(last_value,negative,digits);
     if first == text && last == text { return TextValue::Value(text); };
-    text_unresolved(unresolved_flavor)
+    // The renderings differ by precision, so the result waits on the session's extra_float_digits.
+    text_unresolved(resolution_context(unresolved_flavor))
 }
 
 pub fn float8_output_context(input: Float8Value, extra: i32, known: bool) -> TextValue {

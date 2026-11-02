@@ -49,6 +49,9 @@ fn json_object_array_known(keys: ArrayPayload, values: ArrayPayload, paired: boo
         if key == TextValue::Null {
             return JsonValue::Error(make_sql_error(JSON_OBJECT_ARRAY_NULL));
         };
+        let mut key_flavor: i32 = unresolved_flavor;
+        if (key == TextValue::Unknown || key == TextValue::NonNull) && key_flavor < 1 { key_flavor = 1; };
+        if key == TextValue::Unimplemented { key_flavor = 2; };
         let mut ready = false;
         if let TextValue::Value(text) = key {
             ready = true;
@@ -60,7 +63,7 @@ fn json_object_array_known(keys: ArrayPayload, values: ArrayPayload, paired: boo
             output.push_str(" : ");
         };
         if ready == false {
-            return json_unresolved(unresolved_flavor);
+            return json_unresolved(key_flavor);
         };
         let mut value = array_element_to_text(values.elements[index].clone());
         if paired {
@@ -70,6 +73,9 @@ fn json_object_array_known(keys: ArrayPayload, values: ArrayPayload, paired: boo
         if let TextValue::Error(error) = value {
             return JsonValue::Error(error);
         };
+        let mut value_flavor: i32 = unresolved_flavor;
+        if (value == TextValue::Unknown || value == TextValue::NonNull) && value_flavor < 1 { value_flavor = 1; };
+        if value == TextValue::Unimplemented { value_flavor = 2; };
         ready = false;
         if value == TextValue::Null {
             output.push_str("null");
@@ -81,7 +87,7 @@ fn json_object_array_known(keys: ArrayPayload, values: ArrayPayload, paired: boo
             ready = true;
         };
         if ready == false {
-            return json_unresolved(unresolved_flavor);
+            return json_unresolved(value_flavor);
         };
         index += 1;
     }
