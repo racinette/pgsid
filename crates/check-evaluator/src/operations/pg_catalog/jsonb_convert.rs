@@ -229,7 +229,8 @@ pub fn jsonb_input_from_timestamptz(input: TimestamptzValue) -> JsonbInput {
             return JsonbInput::Text("infinity".to_owned());
         };
     };
-    jsonb_input_unresolved(unresolved_flavor)
+    // A finite instant renders in the session's TimeZone.
+    jsonb_input_unresolved(resolution_context(unresolved_flavor))
 }
 
 pub fn jsonb_input_from_json_context(input: JsonValue, utf8: bool) -> JsonbInput {
