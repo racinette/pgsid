@@ -175,12 +175,12 @@ func TestPublicRanges(t *testing.T){
  expected:=int64(9007199254740993);bypass:=true
  value:=checkruntime.MakeCoercedRangeValue(checkruntime.RangePayload{TypeName:"pg_catalog.int8range",ElementType:"pg_catalog.int8",ElementKind:3,LowerInclusive:true,Bounds:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementInt8,Int8:9007199254740993},{Kind:checkruntime.ArrayElementInt8,Int8:9007199254740999}}})
  input:=PublicRangePayloadsCheckInput{Span:KnownCheckValue(value),Expected:KnownCheckValue(&expected),Bypass:KnownCheckValue(&bypass)}
- for _,c:=range EvaluatePublicRangePayloadsChecks(input){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("valid range",c)}}
+ for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicRangePayloadsChecks(input); if e != nil {panic(e)}; return r}(){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("valid range",c)}}
  bad:=value;bad.Value.TypeName="pg_catalog.int4range";input.Span=KnownCheckValue(bad)
- for _,c:=range EvaluatePublicRangePayloadsChecks(input){if c.Constraint=="guarded" {if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("lazy",c)}} else if c.Result.Certain {t.Fatal("wrong nominal identity",c)}}
- for _,kind:=range []checkruntime.ArrayElementKind{checkruntime.ArrayElementInt4,255} {bad=value;bad.Value.Bounds=append([]checkruntime.ArrayElement(nil),value.Value.Bounds...);bad.Value.Bounds[0]=checkruntime.ArrayElement{Kind:kind,Int4:1};input.Span=KnownCheckValue(bad);for _,c:=range EvaluatePublicRangePayloadsChecks(input){if c.Constraint!="guarded" && c.Result.Certain {t.Fatal("invalid bound",c)}}}
+ for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicRangePayloadsChecks(input); if e != nil {panic(e)}; return r}(){if c.Constraint=="guarded" {if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("lazy",c)}} else if c.Result.Certain {t.Fatal("wrong nominal identity",c)}}
+ for _,kind:=range []checkruntime.ArrayElementKind{checkruntime.ArrayElementInt4,255} {bad=value;bad.Value.Bounds=append([]checkruntime.ArrayElement(nil),value.Value.Bounds...);bad.Value.Bounds[0]=checkruntime.ArrayElement{Kind:kind,Int4:1};input.Span=KnownCheckValue(bad);for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicRangePayloadsChecks(input); if e != nil {return nil}; return r}(){if c.Constraint!="guarded" && c.Result.Certain {t.Fatal("invalid bound",c)}}}
  partial:=value;partial.Value.Bounds=append([]checkruntime.ArrayElement(nil),value.Value.Bounds...);partial.Value.Bounds[0]=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementUnknown};input.Span=KnownCheckValue(partial)
- for _,c:=range EvaluatePublicRangePayloadsChecks(input){if c.Constraint=="bound" {if c.Result.Certain {t.Fatal("partial bound",c)}} else if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("partial structure",c)}}
+ for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicRangePayloadsChecks(input); if e != nil {panic(e)}; return r}(){if c.Constraint=="bound" {if c.Result.Certain {t.Fatal("partial bound",c)}} else if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("partial structure",c)}}
 }
 `,
     )

@@ -400,7 +400,7 @@ it('composes vector domains, records, arrays and catalog deferrals through nativ
         )
       const scalar = (name: string) => JSON.stringify(unwrap(sample.row[name]!))
       goCases.push(
-        `{input:=PublicVectorContextCheckInput{Value:KnownCheckValue(${goArray(sample.row.value!)}),Other:KnownCheckValue(${goArray(sample.row.other!)}),RecordValue:KnownCheckValue(${goRecord(sample.row.record_value!)}),Fallback:KnownCheckValue(${goRecord(sample.row.fallback!)}),InputText:KnownCheckValue(${scalar('input_text')}),ArrayText:KnownCheckValue(${scalar('array_text')}),RecordText:KnownCheckValue(${scalar('record_text')}),Mode:KnownCheckValue(int32(${scalar('mode')})),ExpectedText:KnownCheckValue(${scalar('expected_text')}),ExpectedInt:KnownCheckValue(int32(${scalar('expected_int')})),ExpectedBool:KnownCheckValue(${scalar('expected_bool')})};before,_:=json.Marshal(input);for _,e:=range EvaluatePublicVectorContextChecks(input){want:="True";if e.Constraint==${JSON.stringify(sample.name)}{want=${JSON.stringify(state(sample.expected))}};got:="Unknown";if e.Result.Certain{if e.Result.Value.Error!=""{got=e.Result.Value.Error}else if !e.Result.Value.Valid{got="Null"}else if e.Result.Value.Value{got="True"}else{got="False"}};if got!=want{t.Fatal(${JSON.stringify(sample.name)},e.Constraint,got,want)}};after,_:=json.Marshal(input);if string(before)!=string(after){t.Fatal("mutated public inputs")}}`,
+        `{input:=PublicVectorContextCheckInput{Value:KnownCheckValue(${goArray(sample.row.value!)}),Other:KnownCheckValue(${goArray(sample.row.other!)}),RecordValue:KnownCheckValue(${goRecord(sample.row.record_value!)}),Fallback:KnownCheckValue(${goRecord(sample.row.fallback!)}),InputText:KnownCheckValue(${scalar('input_text')}),ArrayText:KnownCheckValue(${scalar('array_text')}),RecordText:KnownCheckValue(${scalar('record_text')}),Mode:KnownCheckValue(int32(${scalar('mode')})),ExpectedText:KnownCheckValue(${scalar('expected_text')}),ExpectedInt:KnownCheckValue(int32(${scalar('expected_int')})),ExpectedBool:KnownCheckValue(${scalar('expected_bool')})};before,_:=json.Marshal(input);for _,e:=range func() []CheckEvaluation {r, e := EvaluatePublicVectorContextChecks(input); if e != nil {return nil}; return r}(){want:="True";if e.Constraint==${JSON.stringify(sample.name)}{want=${JSON.stringify(state(sample.expected))}};got:="Unknown";if e.Result.Certain{if e.Result.Value.Error!=""{got=e.Result.Value.Error}else if !e.Result.Value.Valid{got="Null"}else if e.Result.Value.Value{got="True"}else{got="False"}};if got!=want{t.Fatal(${JSON.stringify(sample.name)},e.Constraint,got,want)}};after,_:=json.Marshal(input);if string(before)!=string(after){t.Fatal("mutated public inputs")}}`,
       )
     }
     const bad = structuredClone(
@@ -450,7 +450,7 @@ it('composes vector domains, records, arrays and catalog deferrals through nativ
       'value.Value.NullBitmap=checkruntime.BoolUnknown()',
     ])
       goCases.push(
-        `{value:=${goArray(nativeVector)};${mutation};input:=PublicVectorContextCheckInput{Value:KnownCheckValue(value),Mode:KnownCheckValue(int32(${[...calls.keys()].indexOf('text_alias')})),ExpectedText:KnownCheckValue("1 2")};for _,e:=range EvaluatePublicVectorContextChecks(input){if e.Constraint=="text_alias"&&e.Result.Certain{t.Fatal("malformed vector became definite",e)}}}`,
+        `{value:=${goArray(nativeVector)};${mutation};input:=PublicVectorContextCheckInput{Value:KnownCheckValue(value),Mode:KnownCheckValue(int32(${[...calls.keys()].indexOf('text_alias')})),ExpectedText:KnownCheckValue("1 2")};for _,e:=range func() []CheckEvaluation {r, e := EvaluatePublicVectorContextChecks(input); if e != nil {return nil}; return r}(){if e.Constraint=="text_alias"&&e.Result.Certain{t.Fatal("malformed vector became definite",e)}}}`,
       )
     const nativeRecord = records[2]!
     if (
@@ -486,7 +486,7 @@ it('composes vector domains, records, arrays and catalog deferrals through nativ
       'value.Value.Fields[0].Array.ElementType="other.positions"',
     ])
       goCases.push(
-        `{value:=${goRecord(nativeRecord)};${mutation};input:=PublicVectorContextCheckInput{RecordValue:KnownCheckValue(value),Mode:KnownCheckValue(int32(${[...calls.keys()].indexOf('record_text')})),ExpectedText:KnownCheckValue("")};for _,e:=range EvaluatePublicVectorContextChecks(input){if e.Constraint=="record_text"&&e.Result.Certain{t.Fatal("malformed nested vector became definite",e)}}}`,
+        `{value:=${goRecord(nativeRecord)};${mutation};input:=PublicVectorContextCheckInput{RecordValue:KnownCheckValue(value),Mode:KnownCheckValue(int32(${[...calls.keys()].indexOf('record_text')})),ExpectedText:KnownCheckValue("")};for _,e:=range func() []CheckEvaluation {r, e := EvaluatePublicVectorContextChecks(input); if e != nil {return nil}; return r}(){if e.Constraint=="record_text"&&e.Result.Certain{t.Fatal("malformed nested vector became definite",e)}}}`,
       )
     await writeFile(
       join(root, 'schema/public/vector_test.go'),

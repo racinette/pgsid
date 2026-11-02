@@ -99,14 +99,14 @@ func TestPortablePayloadStillValidates(t *testing.T) {
  input.Expected=pgsid.KnownCheckValue(&wire)
  input.Position.V.Value.WireKnown=false
  wireChecks:=0
- for _,check:=range pgsid.EvaluatePublicCircleWritesChecks(input) {
+ for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicCircleWritesChecks(input); if e != nil {return nil}; return r}() {
   if check.Constraint=="position_wire" {wireChecks++;if check.Result.Certain {t.Fatal("unavailable circle wire precision was treated as known")}}
  }
  if wireChecks!=1 {t.Fatal("missing circle wire constraint")}
  input.Position.V.Value.WireKnown=true
  input.Position.V.Value.Radius= -0x3ff8000000000000
  wireChecks=0
- for _,check:=range pgsid.EvaluatePublicCircleWritesChecks(input) {
+ for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicCircleWritesChecks(input); if e != nil {panic(e)}; return r}() {
   if check.Constraint=="position_wire" {wireChecks++;if !check.Result.Certain || !check.Result.Value.Valid || check.Result.Value.Value {t.Fatal("stored negative-radius circle did not produce its definite wire comparison")}}
  }
  if wireChecks!=1 {t.Fatal("missing circle wire constraint")}

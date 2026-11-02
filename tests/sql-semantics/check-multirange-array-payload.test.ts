@@ -286,18 +286,18 @@ it('validates multirange array and domain-cell profiles before copying public in
       goCases.push(`{
  skip:=false;value:=multirangeArraySpans${i}();domains:=multirangeArrayDomains${i}();histories:=multirangeArrayHistories${i}();head:=multirangeArrayHead${i}()
  input:=PublicMultirangeArrayPayload${i}CheckInput{Spans:KnownCheckValue(value),Domains:KnownCheckValue(domains),Histories:KnownCheckValue(histories),Head:KnownCheckValue(head),Bypass:KnownCheckValue(&skip)}
- for _,c:=range EvaluatePublicMultirangeArrayPayload${i}Checks(input){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("valid range array",c)}}
+ for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicMultirangeArrayPayload${i}Checks(input); if e != nil {panic(e)}; return r}(){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("valid range array",c)}}
  skip=true;input.Bypass=KnownCheckValue(&skip)
  for mode:=0;mode<6;mode++ {
   bad:=checkruntime.CopyArrayValue(value)
   if mode==0 {bad.Value.Elements[0].Multirange.TypeName="wrong"};if mode==1 {bad.Value.Elements[0].Multirange.ElementType="wrong"};if mode==2 {bad.Value.Elements[0].Multirange.ElementKind=43};if mode==3 {bad.Value.Elements[0].Multirange.Ranges[0].Value.Bounds=nil};if mode==4 {bad.Value.Elements[0].Multirange.Ranges[0].Value.Empty=true};if mode==5 {bad.Value.Elements[0].Multirange.Ranges[0].Value.Bounds[0]=checkruntime.ArrayElement{Kind:255}}
   input.Spans=KnownCheckValue(bad)
-  for _,c:=range EvaluatePublicMultirangeArrayPayload${i}Checks(input){if c.Constraint=="guarded"{if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("lazy range array",c)}}else if c.Constraint=="first"||c.Constraint=="shape"||c.Constraint=="present"{if c.Result.Certain{t.Fatal("invalid range array",mode,c)}}}
+  for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicMultirangeArrayPayload${i}Checks(input); if e != nil {return nil}; return r}(){if c.Constraint=="guarded"{if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("lazy range array",c)}}else if c.Constraint=="first"||c.Constraint=="shape"||c.Constraint=="present"{if c.Result.Certain{t.Fatal("invalid range array",mode,c)}}}
  }
  input.Spans=KnownCheckValue(value);badDomains:=checkruntime.CopyArrayValue(domains);badDomains.Value.ElementType="wrong";input.Domains=KnownCheckValue(badDomains)
- for _,c:=range EvaluatePublicMultirangeArrayPayload${i}Checks(input){if c.Constraint=="domain_cell"&&c.Result.Certain{t.Fatal("domain identity",c)}}
+ for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicMultirangeArrayPayload${i}Checks(input); if e != nil {return nil}; return r}(){if c.Constraint=="domain_cell"&&c.Result.Certain{t.Fatal("domain identity",c)}}
  input.Domains=KnownCheckValue(domains);badHistory:=checkruntime.CopyArrayValue(histories);badHistory.Value.Elements[0].Array.ElementType="wrong";input.Histories=KnownCheckValue(badHistory)
- for _,c:=range EvaluatePublicMultirangeArrayPayload${i}Checks(input){if c.Constraint=="nested_cell"&&c.Result.Certain{t.Fatal("nested identity",c)}}
+ for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicMultirangeArrayPayload${i}Checks(input); if e != nil {return nil}; return r}(){if c.Constraint=="nested_cell"&&c.Result.Certain{t.Fatal("nested identity",c)}}
 }`)
     }
     await writeFile(join(root, 'go.mod'), 'module multiarraypayload\n\ngo 1.25\n')

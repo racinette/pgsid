@@ -231,11 +231,11 @@ func forgeEnumArray(input checkruntime.ArrayValue)checkruntime.ArrayValue{for i,
 func TestEnumPayload(t *testing.T){
 row:=enumFixture();row.V.V=forgeEnumSpan(row.V.V);row.W.V=forgeEnumSpan(row.W.V);for i,span:=range row.M.V.Value.Ranges{row.M.V.Value.Ranges[i]=forgeEnumSpan(span)};row.M.V.Value.Support=checkruntime.MakeRangeSupport(99,99);row.Items.V=forgeEnumArray(row.Items.V);row.Nested.V=forgeEnumArray(row.Nested.V)
 before:=enumFixture();before.V.V=checkruntime.CopyRangeValue(row.V.V);before.W.V=checkruntime.CopyRangeValue(row.W.V);before.M.V=checkruntime.CopyMultirangeValue(row.M.V);before.Items.V=checkruntime.CopyArrayValue(row.Items.V);before.Nested.V=checkruntime.CopyArrayValue(row.Nested.V)
-for _,c:=range EvaluatePublicEnumPayloadsChecks(row){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("compiled definition",c)}}
+for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicEnumPayloadsChecks(row); if e != nil {panic(e)}; return r}(){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("compiled definition",c)}}
 if !reflect.DeepEqual(row,before){t.Fatal("input mutated")}
 bad:=checkruntime.CopyRangeValue(row.V.V);bad.Value.Bounds[0]=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementEnum,Enum:checkruntime.EnumPayload{Ordinal:3,LabelOid:0}};row.V=KnownCheckValue(bad)
-for _,c:=range EvaluatePublicEnumPayloadsChecks(row){if c.Constraint=="ordered"&&c.Result.Certain{t.Fatal("invalid ordinal",c)}}
-skip:=true;row.Bypass=KnownCheckValue(&skip);for _,c:=range EvaluatePublicEnumPayloadsChecks(row){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("lazy invalid bound",c)}}
+for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicEnumPayloadsChecks(row); if e != nil {return nil}; return r}(){if c.Constraint=="ordered"&&c.Result.Certain{t.Fatal("invalid ordinal",c)}}
+skip:=true;row.Bypass=KnownCheckValue(&skip);for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicEnumPayloadsChecks(row); if e != nil {panic(e)}; return r}(){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("lazy invalid bound",c)}}
 }
 `,
     )

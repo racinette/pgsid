@@ -374,30 +374,30 @@ import (
 )
 func ptr[T any](value T) *T { return &value }
 func TestMixedChecks(t *testing.T) {
-  checks := EvaluatePublicRegulatedChecks(PublicRegulatedCheckInput{Email: KnownCheckValue(ptr("b")), Amount: KnownCheckValue(ptr(int32(1))), Enabled: KnownCheckValue(ptr(true))})
+  checks := func() []CheckEvaluation {r, e := EvaluatePublicRegulatedChecks(PublicRegulatedCheckInput{Email: KnownCheckValue(ptr("b")), Amount: KnownCheckValue(ptr(int32(1))), Enabled: KnownCheckValue(ptr(true))}); if e != nil {panic(e)}; return r}()
   results := map[string]EvalBool{}
   for _, check := range checks { results[check.Constraint] = check.Result }
   if result := results["email_format"]; !result.Certain || !result.Value.Valid || result.Value.Value { t.Fatalf("Rust CHECK: %+v", result) }
   if result := results["email_length"]; !result.Certain || !result.Value.Valid || !result.Value.Value { t.Fatalf("length CHECK: %+v", result) }
   for _, name := range []string{"amount_plus", "amount_minus"} { if result := results[name]; !result.Certain || !result.Value.Valid || !result.Value.Value { t.Fatalf("arithmetic CHECK %s: %+v", name, result) } }
-  maxRows := EvaluatePublicRegulatedChecks(PublicRegulatedCheckInput{Amount: KnownCheckValue(ptr(int32(2147483647)))})
+  maxRows := func() []CheckEvaluation {r, e := EvaluatePublicRegulatedChecks(PublicRegulatedCheckInput{Amount: KnownCheckValue(ptr(int32(2147483647)))}); if e != nil {panic(e)}; return r}()
   for _, check := range maxRows { if check.Constraint == "amount_plus" && check.Result.Value.Error != "22003" { t.Fatalf("addition overflow: %+v", check.Result) } }
-  minRows := EvaluatePublicRegulatedChecks(PublicRegulatedCheckInput{Amount: KnownCheckValue(ptr(int32(-2147483648)))})
+  minRows := func() []CheckEvaluation {r, e := EvaluatePublicRegulatedChecks(PublicRegulatedCheckInput{Amount: KnownCheckValue(ptr(int32(-2147483648)))}); if e != nil {panic(e)}; return r}()
   for _, check := range minRows { if check.Constraint == "amount_minus" && check.Result.Value.Error != "22003" { t.Fatalf("subtraction overflow: %+v", check.Result) } }
   for _, name := range []string{"enabled_equal", "enabled_unequal"} { if result := results[name]; !result.Certain || !result.Value.Valid || !result.Value.Value { t.Fatalf("boolean CHECK %s: %+v", name, result) } }
   if result := results["enabled_less"]; !result.Certain || !result.Value.Valid || result.Value.Value { t.Fatalf("boolean ordering CHECK: %+v", result) }
   if result := results["id_positive"]; result.Certain { t.Fatalf("missing input: %+v", result) }
-  empty := EvaluatePublicRegulatedChecks(PublicRegulatedCheckInput{Email: KnownCheckValue(ptr(""))})
+  empty := func() []CheckEvaluation {r, e := EvaluatePublicRegulatedChecks(PublicRegulatedCheckInput{Email: KnownCheckValue(ptr(""))}); if e != nil {panic(e)}; return r}()
   for _, check := range empty { if check.Constraint == "email_length" && (!check.Result.Certain || !check.Result.Value.Valid || check.Result.Value.Value) { t.Fatalf("empty length: %+v", check.Result) } }
-  knownId := EvaluatePublicRegulatedChecks(PublicRegulatedCheckInput{Id: KnownCheckValue(int64(1))})
+  knownId := func() []CheckEvaluation {r, e := EvaluatePublicRegulatedChecks(PublicRegulatedCheckInput{Id: KnownCheckValue(int64(1))}); if e != nil {panic(e)}; return r}()
   for _, check := range knownId { if check.Constraint == "id_positive" && (!check.Result.Certain || !check.Result.Value.Valid || !check.Result.Value.Value) { t.Fatalf("fallback CHECK: %+v", check.Result) } }
-  if value := checkRustInt4(KnownCheckValue(int64(2147483648))); value.Kind != checkruntime.Int4ValueUnknown { t.Fatalf("int4 range: %+v", value) }
+  if !func() (rejected bool) { defer func() { _, rejected = recover().(checkInputFault) }(); checkRustInt4(KnownCheckValue(int64(2147483648))); return }() { t.Fatal("int4 range accepted") }
   if value := checkRustText(NullCheckValue[*string]()); value.Kind != checkruntime.TextValueNull { t.Fatalf("SQL null: %+v", value) }
   incoming := checkRustInt4(KnownCheckValue(SqlInteger{Error: "22003"}))
   if incoming.Kind != checkruntime.Int4ValueError { t.Fatalf("input error: %+v", incoming) }
   outgoing := checkRustOutcome(checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: incoming.Error})
   if !outgoing.Certain || outgoing.Value.Error != "22003" { t.Fatalf("SQLSTATE round trip: %+v", outgoing) }
-  caseRows := EvaluatePublicCaseRustChecks(PublicCaseRustCheckInput{Amount: KnownCheckValue(ptr(int32(-2))), Flag: KnownCheckValue(ptr(false)), Note: NullCheckValue[*string]()})
+  caseRows := func() []CheckEvaluation {r, e := EvaluatePublicCaseRustChecks(PublicCaseRustCheckInput{Amount: KnownCheckValue(ptr(int32(-2))), Flag: KnownCheckValue(ptr(false)), Note: NullCheckValue[*string]()}); if e != nil {panic(e)}; return r}()
   caseResults := map[string]EvalBool{}
   for _, check := range caseRows { caseResults[check.Constraint] = check.Result }
   if value := caseResults["negative_floor"]; !value.Certain || !value.Value.Valid || value.Value.Value { t.Fatalf("negative literal: %+v", value) }
@@ -406,19 +406,21 @@ func TestMixedChecks(t *testing.T) {
   for name, expected := range map[string]bool{"simple_int4": false, "simple_bool": true, "simple_text": true, "scalar_int4": false, "scalar_text": true, "scalar_bool": true, "scalar_no_else": true} {
     if value := caseResults[name]; !value.Certain || !value.Value.Valid || value.Value.Value != expected { t.Fatalf("%s: %+v", name, value) }
   }
-  partialCases := EvaluatePublicCaseRustChecks(PublicCaseRustCheckInput{Amount: KnownCheckValue(ptr(int32(1))), Flag: KnownCheckValue(ptr(true))})
+  partialCases := func() []CheckEvaluation {r, e := EvaluatePublicCaseRustChecks(PublicCaseRustCheckInput{Amount: KnownCheckValue(ptr(int32(1))), Flag: KnownCheckValue(ptr(true))}); if e != nil {panic(e)}; return r}()
   for _, check := range partialCases { if (check.Constraint == "simple_int4" || check.Constraint == "scalar_text") && check.Result.Certain { t.Fatalf("missing CASE input %s: %+v", check.Constraint, check.Result) } }
-  nullCases := EvaluatePublicCaseRustChecks(PublicCaseRustCheckInput{Amount: KnownCheckValue(ptr(int32(0))), Flag: NullCheckValue[*bool](), Note: NullCheckValue[*string]()})
+  nullCases := func() []CheckEvaluation {r, e := EvaluatePublicCaseRustChecks(PublicCaseRustCheckInput{Amount: KnownCheckValue(ptr(int32(0))), Flag: NullCheckValue[*bool](), Note: NullCheckValue[*string]()}); if e != nil {panic(e)}; return r}()
   for _, check := range nullCases { if check.Constraint == "simple_bool" && (!check.Result.Certain || check.Result.Value.Valid) { t.Fatalf("NULL simple CASE: %+v", check.Result) } }
-  lazyCase := EvaluatePublicCaseRustChecks(PublicCaseRustCheckInput{Amount: KnownCheckValue(ptr(int32(2147483647))), Flag: KnownCheckValue(ptr(false)), Note: NullCheckValue[*string]()})
+  lazyCase := func() []CheckEvaluation {r, e := EvaluatePublicCaseRustChecks(PublicCaseRustCheckInput{Amount: KnownCheckValue(ptr(int32(2147483647))), Flag: KnownCheckValue(ptr(false)), Note: NullCheckValue[*string]()}); if e != nil {panic(e)}; return r}()
   for _, check := range lazyCase { if check.Constraint == "conditional_check" && (!check.Result.Certain || !check.Result.Value.Valid || !check.Result.Value.Value) { t.Fatalf("lazy CASE: %+v", check.Result) } }
-  selectedCase := EvaluatePublicCaseRustChecks(PublicCaseRustCheckInput{Amount: KnownCheckValue(ptr(int32(2147483647))), Flag: KnownCheckValue(ptr(true)), Note: NullCheckValue[*string]()})
+  selectedCase := func() []CheckEvaluation {r, e := EvaluatePublicCaseRustChecks(PublicCaseRustCheckInput{Amount: KnownCheckValue(ptr(int32(2147483647))), Flag: KnownCheckValue(ptr(true)), Note: NullCheckValue[*string]()}); if e != nil {panic(e)}; return r}()
   for _, check := range selectedCase { if check.Constraint == "conditional_check" && check.Result.Value.Error != "22003" { t.Fatalf("selected CASE overflow: %+v", check.Result) } }
 }`,
       )
       await run(process.env.PGSID_GO_BINARY ?? 'go', ['test', '.'], {
         cwd: directory,
         env: { ...process.env, GOCACHE: join(sharedTempDirectory, 'pgsid-check-rust-go-cache') },
+      }).catch((error: { stdout: string; stderr: string }) => {
+        throw new Error(error.stdout + error.stderr, { cause: error })
       })
     } finally {
       await rm(directory, { recursive: true, force: true })
@@ -649,11 +651,13 @@ func TestMixedChecks(t *testing.T) {
       await writeFile(join(directory, 'checks.go'), goSource)
       await writeFile(
         join(directory, 'checks_test.go'),
-        `package cases\nimport "testing"\nfunc ptr[T any](value T) *T {return &value}\nfunc TestCases(t *testing.T) {\nrows := []PublicCaseRustCheckInput{${goRows.join(', ')}}\nresults := []map[string]EvalBool{}\nfor _, row := range rows {values := map[string]EvalBool{}; for _, check := range EvaluatePublicCaseRustChecks(row) {values[check.Constraint] = check.Result}; results = append(results, values)}\n${assertions.join('\n')}\n}`,
+        `package cases\nimport "testing"\nfunc ptr[T any](value T) *T {return &value}\nfunc TestCases(t *testing.T) {\nrows := []PublicCaseRustCheckInput{${goRows.join(', ')}}\nresults := []map[string]EvalBool{}\nfor _, row := range rows {values := map[string]EvalBool{}; for _, check := range func() []CheckEvaluation {r, e := EvaluatePublicCaseRustChecks(row); if e != nil {panic(e)}; return r}() {values[check.Constraint] = check.Result}; results = append(results, values)}\n${assertions.join('\n')}\n}`,
       )
       await run('go', ['test', '.'], {
         cwd: directory,
         env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
+      }).catch((error: { stdout: string; stderr: string }) => {
+        throw new Error(error.stdout + error.stderr, { cause: error })
       })
     } finally {
       await rm(directory, { recursive: true, force: true })
@@ -892,7 +896,7 @@ func main() {
     {Email: KnownCheckValue(ptr(""))},
   }
   results := [][]CheckEvaluation{}
-  for _, row := range rows { results = append(results, EvaluatePublicRegulatedChecks(row)) }
+  for _, row := range rows { results = append(results, func() []CheckEvaluation {r, e := EvaluatePublicRegulatedChecks(row); if e != nil {panic(e)}; return r}()) }
   if err := json.NewEncoder(os.Stdout).Encode(results); err != nil { panic(err) }
   failures := []bool{}
   for _, input := range []PublicRegulatedCheckInput{{}, {Email: KnownCheckValue(ptr("b"))}, {Email: KnownCheckValue(ptr("a"))}, {Email: KnownCheckValue((*string)(nil))}, {Id: KnownCheckValue(int64(-1))}} {

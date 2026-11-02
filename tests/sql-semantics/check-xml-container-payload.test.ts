@@ -171,7 +171,7 @@ func TestXmlContainerPayload(t *testing.T){
  xs:=runtime.ArrayValue{Kind:runtime.ArrayValueValue,Value:payload}
  record:=runtime.CompositeValue{Kind:runtime.CompositeValueValue,Value:runtime.CompositePayload{TypeName:"public.xml_packet",Fields:[]runtime.ArrayElement{cell,{Kind:runtime.ArrayElementArray,Array:payload}}}}
  row:=PublicXmlContainerPayloadsCheckInput{Xs:KnownCheckValue(xs),R:KnownCheckValue(record),Expected:KnownCheckValue(&expected),Bypass:KnownCheckValue(&bypass)}
- evaluate:=func()map[string]EvalBool {out:=map[string]EvalBool{};for _,c:=range EvaluatePublicXmlContainerPayloadsChecks(row){out[c.Constraint]=c.Result};return out}
+ evaluate:=func()map[string]EvalBool {out:=map[string]EvalBool{};for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicXmlContainerPayloadsChecks(row); if e != nil {panic(e)}; return r}(){out[c.Constraint]=c.Result};return out}
  check:=func(names []string,want bool){t.Helper();for _,name:=range names{got:=evaluate()[name];if got.Certain!=want || want&&(!got.Value.Value||got.Value.Error!=""){t.Fatal(name,got)}}}
  check([]string{"array_storage","record_storage"},true)
  expected="<r/>";check([]string{"array_output","record_output","nested_output"},true)
@@ -180,8 +180,8 @@ func TestXmlContainerPayload(t *testing.T){
  check([]string{"array_storage","record_storage"},false);check([]string{"array_output","record_output","nested_output"},true)
  for _,bad:=range []runtime.ArrayElement{{Kind:runtime.ArrayElementXml,Xml:"a\\x00b"},{Kind:runtime.ArrayElementXml,Xml:string([]byte{255})},{Kind:runtime.ArrayElementXmlRenderedText,XmlRenderedText:string([]byte{255})},{Kind:runtime.ArrayElementText,Text:expected}}{
   row.Xs.V.Value.Elements=[]runtime.ArrayElement{bad};row.R.V.Value.Fields=[]runtime.ArrayElement{bad,{Kind:runtime.ArrayElementArray,Array:row.Xs.V.Value}}
-  for _,result:=range evaluate(){if result.Certain{t.Fatal("bad XML container admitted",result)}}
-  bypass=true;check([]string{"array_storage","record_storage","array_output","record_output","nested_output"},true);bypass=false
+  if _,e:=EvaluatePublicXmlContainerPayloadsChecks(row);e==nil{t.Fatal("bad XML container admitted",bad)}
+  bypass=true;if _,e:=EvaluatePublicXmlContainerPayloadsChecks(row);e==nil{t.Fatal("bad XML container admitted under bypass",bad)};bypass=false
  }
  owned:=runtime.ArrayFromCoercedValue(xs,"pg_catalog.xml",45);saved:=runtime.CompositeFromCoercedValue(record)
  payload.Elements[0]=runtime.ArrayElement{Kind:runtime.ArrayElementXml,Xml:"<changed/>"};payload.Dimensions[0].Lower=9

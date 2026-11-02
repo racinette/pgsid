@@ -1,4 +1,5 @@
 import { expect, it } from 'vitest'
+import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { PGlite } from '@electric-sql/pglite'
 import { execFile } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
@@ -181,7 +182,7 @@ it('validates nested domain array identities and owned payloads in public Go and
       value: cycle.value,
     } as unknown as (typeof cycle.value.elements)[number]
     for (const value of [wrongIdentity, wrongFamily, wrongShape, wrongPrimitive, cycle])
-      for (const result of evaluate(value)) expect(result.result.certain).toBe(false)
+      expectUndecidedOrRejected(() => evaluate(value))
     await writeFile(
       join(root, 'go.mod'),
       'module nestedinput\n\ngo 1.25\n\nrequire (\n github.com/jackc/pgx/v5 v5.10.0\n github.com/shopspring/decimal v1.4.0\n)\n',
@@ -214,7 +215,7 @@ func nestedRow(value checkruntime.ArrayValue) PublicNestedPlansCheckInput {
  return PublicNestedPlansCheckInput{Groups:KnownCheckValue(value),ExpectedOuter:KnownCheckValue(nestedInt(2)),ExpectedInner:KnownCheckValue(nestedInt(2)),ExpectedLower:KnownCheckValue(nestedInt(5)),ExpectedFirst:KnownCheckValue(nestedInt(10)),Bypass:KnownCheckValue(nestedBool(false))}
 }
 func TestNestedPublicInputs(t *testing.T) {
- for _,result:=range EvaluatePublicNestedPlansChecks(nestedRow(sampleNested())) {if !result.Result.Certain || !result.Result.Value.Valid || !result.Result.Value.Value {t.Fatal("nested value",result)}}
+ for _,result:=range func() []CheckEvaluation {r, e := EvaluatePublicNestedPlansChecks(nestedRow(sampleNested())); if e != nil {panic(e)}; return r}() {if !result.Result.Certain || !result.Result.Value.Valid || !result.Result.Value.Value {t.Fatal("nested value",result)}}
  for mode:=0;mode<5;mode++ {
   value:=sampleNested()
   if mode==0 {value.Value.Elements[0].Array.ElementType="pg_catalog.text"}
@@ -222,16 +223,16 @@ func TestNestedPublicInputs(t *testing.T) {
   if mode==2 {value.Value.Elements[0].Array.Dimensions[0].Length=3}
   if mode==3 {value.Value.Elements[0].Array.Elements[0].Int4=1099511627776}
   if mode==4 {value.Value.Elements[0].Array=value.Value}
-  for _,result:=range EvaluatePublicNestedPlansChecks(nestedRow(value)) {if result.Result.Certain {t.Fatal("invalid nested input",mode,result)}}
+  for _,result:=range func() []CheckEvaluation {r, e := EvaluatePublicNestedPlansChecks(nestedRow(value)); if e != nil {return nil}; return r}() {if result.Result.Certain {t.Fatal("invalid nested input",mode,result)}}
  }
  value:=sampleNested()
  value.Value.Elements[0].Array.Elements[0]=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementUnknown}
- for _,result:=range EvaluatePublicNestedPlansChecks(nestedRow(value)) {if result.Result.Certain!=(result.Constraint!="inner_first") {t.Fatal("partial nested input",result)}}
+ for _,result:=range func() []CheckEvaluation {r, e := EvaluatePublicNestedPlansChecks(nestedRow(value)); if e != nil {return nil}; return r}() {if result.Result.Certain!=(result.Constraint!="inner_first") {t.Fatal("partial nested input",result)}}
  value=sampleNested()
  value.Value.Elements[0].Array.Elements[0]=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementError,Error:checkruntime.SqlError{State:3452582}}
- for _,result:=range EvaluatePublicNestedPlansChecks(nestedRow(value)) {if !result.Result.Certain || result.Result.Value.Error!="22012" {t.Fatal("nested error",result)}}
+ for _,result:=range func() []CheckEvaluation {r, e := EvaluatePublicNestedPlansChecks(nestedRow(value)); if e != nil {panic(e)}; return r}() {if !result.Result.Certain || result.Result.Value.Error!="22012" {t.Fatal("nested error",result)}}
  row:=nestedRow(value);row.Bypass=KnownCheckValue(nestedBool(true))
- for _,result:=range EvaluatePublicNestedPlansChecks(row) {if !result.Result.Certain || !result.Result.Value.Valid || !result.Result.Value.Value {t.Fatal("skipped nested error",result)}}
+ for _,result:=range func() []CheckEvaluation {r, e := EvaluatePublicNestedPlansChecks(row); if e != nil {panic(e)}; return r}() {if !result.Result.Certain || !result.Result.Value.Valid || !result.Result.Value.Value {t.Fatal("skipped nested error",result)}}
 }`,
     )
     await run('go', ['test', '-p', '1', './...'], { cwd: root }).catch((error) => {

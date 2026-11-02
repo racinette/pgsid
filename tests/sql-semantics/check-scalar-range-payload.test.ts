@@ -287,17 +287,17 @@ it('validates public scalar range payloads, compiled support and snapshots indep
         })
         checks.push(`{
           row:=scalarFixture${index}();bad:=checkruntime.CopyRangeValue(row.V.V);bad.Value.Bounds[0]=scalarInvalid${index}_${badIndex}();row.V=KnownCheckValue(bad)
-          for _,c:=range EvaluatePublicScalarPayload${index}Checks(row){if c.Constraint=="range_order"&&c.Result.Certain{t.Fatal(${index},${badIndex},"invalid bound",c)}}
-          skip:=true;row.Bypass=KnownCheckValue(&skip);for _,c:=range EvaluatePublicScalarPayload${index}Checks(row){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal(${index},${badIndex},"skipped invalid bound",c)}}
+          for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicScalarPayload${index}Checks(row); if e != nil {return nil}; return r}(){if c.Constraint=="range_order"&&c.Result.Certain{t.Fatal(${index},${badIndex},"invalid bound",c)}}
+          skip:=true;row.Bypass=KnownCheckValue(&skip);for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicScalarPayload${index}Checks(row); if e != nil {return nil}; return r}(){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal(${index},${badIndex},"skipped invalid bound",c)}}
         }`)
       }
       checks.push(`{
-        row:=scalarFixture${index}();for _,c:=range EvaluatePublicScalarPayload${index}Checks(row){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal(${index},"known",c)}}
+        row:=scalarFixture${index}();for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicScalarPayload${index}Checks(row); if e != nil {panic(e)}; return r}(){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal(${index},"known",c)}}
         original:=checkruntime.CopyRangeValue(row.V.V);bad:=checkruntime.CopyRangeValue(original);bad.Value.Bounds[0]=checkruntime.ArrayElement{Kind:${backend.kind === 8 ? 'checkruntime.ArrayElementInt4,Int4:0' : 'checkruntime.ArrayElementText,Text:"wrong carrier"'}};row.V=KnownCheckValue(bad)
-        for _,c:=range EvaluatePublicScalarPayload${index}Checks(row){if c.Constraint=="range_order"&&c.Result.Certain{t.Fatal(${index},"malformed",c)}}
-        skip:=true;row.Bypass=KnownCheckValue(&skip);for _,c:=range EvaluatePublicScalarPayload${index}Checks(row){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal(${index},"skip",c)}}
-        row=scalarFixture${index}();row.V,row.W=row.W,row.V;for _,c:=range EvaluatePublicScalarPayload${index}Checks(row){if c.Constraint=="range_order"&&(!c.Result.Certain||!c.Result.Value.Valid||c.Result.Value.Value){t.Fatal(${index},"wrong order",c)}}
-        row=scalarFixture${index}();row.V=KnownCheckValue(checkruntime.RangeNull());row.W=KnownCheckValue(checkruntime.RangeNull());row.M=KnownCheckValue(checkruntime.MultirangeNull());row.Items=KnownCheckValue(checkruntime.ArrayNull());for _,c:=range EvaluatePublicScalarPayload${index}Checks(row){if !c.Result.Certain||c.Result.Value.Valid||c.Result.Value.Error!=""{t.Fatal(${index},"null",c)}}
+        for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicScalarPayload${index}Checks(row); if e != nil {return nil}; return r}(){if c.Constraint=="range_order"&&c.Result.Certain{t.Fatal(${index},"malformed",c)}}
+        skip:=true;row.Bypass=KnownCheckValue(&skip);for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicScalarPayload${index}Checks(row); if e != nil {return nil}; return r}(){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal(${index},"skip",c)}}
+        row=scalarFixture${index}();row.V,row.W=row.W,row.V;for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicScalarPayload${index}Checks(row); if e != nil {panic(e)}; return r}(){if c.Constraint=="range_order"&&(!c.Result.Certain||!c.Result.Value.Valid||c.Result.Value.Value){t.Fatal(${index},"wrong order",c)}}
+        row=scalarFixture${index}();row.V=KnownCheckValue(checkruntime.RangeNull());row.W=KnownCheckValue(checkruntime.RangeNull());row.M=KnownCheckValue(checkruntime.MultirangeNull());row.Items=KnownCheckValue(checkruntime.ArrayNull());for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicScalarPayload${index}Checks(row); if e != nil {panic(e)}; return r}(){if !c.Result.Certain||c.Result.Value.Valid||c.Result.Value.Error!=""{t.Fatal(${index},"null",c)}}
       }`)
     }
     await writeFile(

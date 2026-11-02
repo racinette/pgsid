@@ -169,7 +169,9 @@ func TestXmlKnowledge(t *testing.T){
   record:=runtime.CompositeValue{Kind:runtime.CompositeValueValue,Value:runtime.CompositePayload{TypeName:"public.xml_null_packet",Fields:[]runtime.ArrayElement{cell,{Kind:runtime.ArrayElementArray,Array:array.Value}}}}
   input:=PublicXmlNullPayloadsCheckInput{X:KnownCheckValue(runtime.XmlValue{Kind:runtime.XmlValueNonNull,NonNull:knowledge}),Xs:KnownCheckValue(array),R:KnownCheckValue(record),Expected:KnownCheckValue(&expected),Bad:KnownCheckValue(&bad)}
   invalid:=document.Kind!=runtime.BoolValueUnknown&&document.Kind!=runtime.BoolValueValue
-  checks:=EvaluatePublicXmlNullPayloadsChecks(input);if len(checks)!=10{t.Fatal(checks)}
+  checks,e:=EvaluatePublicXmlNullPayloadsChecks(input)
+  if e!=nil{if !invalid{t.Fatal(document,e)};continue}
+  if len(checks)!=10{t.Fatal(checks)}
   for _,check:=range checks{
    unknown:=invalid||strings.HasSuffix(check.Constraint,"_bytes")||check.Constraint=="document"&&document.Kind==runtime.BoolValueUnknown
    if unknown {if check.Result.Certain||check.Message==""{t.Fatal(document,check)}} else {want:=check.Constraint=="document"&&document.Value;if !check.Result.Certain||!check.Result.Value.Valid||check.Result.Value.Value!=want||check.Result.Value.Error!=""||check.Message!=""{t.Fatal(document,check)}}

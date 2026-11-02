@@ -52,12 +52,14 @@ const known = (value: Extract<Input, { kind: 'Value' }>['value'] | null): Input 
 const publicResult = (outcome: Outcome) =>
   outcome.kind === 'Unknown'
     ? { certain: false }
-    : outcome.kind === 'Error'
-      ? {
-          certain: true,
-          error: outcome.value.state.toString(36).toUpperCase().padStart(5, '0'),
-        }
-      : { certain: true, value: outcome.kind === 'Null' ? null : outcome.kind === 'True' }
+    : outcome.kind === 'Unimplemented'
+      ? { certain: false, unimplemented: true }
+      : outcome.kind === 'Error'
+        ? {
+            certain: true,
+            error: outcome.value.state.toString(36).toUpperCase().padStart(5, '0'),
+          }
+        : { certain: true, value: outcome.kind === 'Null' ? null : outcome.kind === 'True' }
 const forms = {
   ordered: 'v<w',
   contained: 'm @> v',
@@ -308,8 +310,10 @@ it('validates public tsvector range, array, record and nested range inputs with 
       changeDocument(missing.row.v, (node) => {
         node.nativeBytes = -1
       })
+      // A tsvector's in-memory size follows from its lexemes and positions, so ordering a value
+      // whose size was not supplied is a missing computation rather than database state.
       for (const name of ['ordered', 'contained', 'located', 'projected', 'recursive'])
-        missing.expected[name] = { kind: 'Unknown' }
+        missing.expected[name] = { kind: 'Unimplemented' }
       for (const additional of [missing]) {
         cases.push(additional)
         for (const [name, expected] of Object.entries(additional.expected))
@@ -565,10 +569,10 @@ it('validates public tsvector range, array, record and nested range inputs with 
       )
     const assertions = profiles.map((_, family) => {
       const familyCases = cases.filter((c) => c.family === family)
-      return `{rows:=getRows${family}();results:=[]map[string]EvalBool{};for _,row:=range rows{before,_:=json.Marshal(row);values:=map[string]EvalBool{};for _,c:=range EvaluatePublicOwnedRange${family}Checks(row){values[c.Constraint]=c.Result};after,_:=json.Marshal(row);if !bytes.Equal(before,after){t.Fatal("mutated public row",${family})};results=append(results,values)}
-      ${familyCases.flatMap((c, index) => Object.entries(c.expected).map(([name, outcome]) => `if r:=results[${index}]["${name}"];${outcome.kind === 'Unknown' ? 'r.Certain' : outcome.kind === 'Error' ? `!r.Certain||r.Value.Error!="${outcome.value.state.toString(36).toUpperCase().padStart(5, '0')}"` : outcome.kind === 'Null' ? '!r.Certain||r.Value.Valid||r.Value.Error!=""' : `!r.Certain||!r.Value.Valid||r.Value.Value!=${outcome.kind === 'True'}`}{t.Fatalf("${family}/${index}/${name}: %+v",r)}`)).join('\n')}
-      row:=getRows${family}()[0];v:=row.V.V;v.Value.Support=checkruntime.RangeSupport{Comparison:1,Canonical:2};row.V=KnownCheckValue(v);for _,c:=range EvaluatePublicOwnedRange${family}Checks(row){if c.Constraint=="ordered"&&(!c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value){t.Fatal("caller support overrode compiled range",${family},c)}}
-      for field:=0;field<4;field++{for defect:=0;defect<3;defect++{row:=getRows${family}()[0];var element checkruntime.ArrayElement;name:="";switch field{case 0:element=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementRange,Range:row.V.V.Value};name="ordered";case 1:element=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementMultirange,Multirange:row.M.V.Value};name="contained";case 2:element=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementArray,Array:row.Items.V.Value};name="located";case 3:element=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementComposite,Composite:row.Bundle.V.Value};name="projected"};if !corruptDocument(&element,defect){t.Fatal("no document in public fixture",${family},field)};switch field{case 0:value:=row.V.V;value.Value=element.Range;row.V=KnownCheckValue(value);case 1:value:=row.M.V;value.Value=element.Multirange;row.M=KnownCheckValue(value);case 2:value:=row.Items.V;value.Value=element.Array;row.Items=KnownCheckValue(value);case 3:value:=row.Bundle.V;value.Value=element.Composite;row.Bundle=KnownCheckValue(value)};before,_:=json.Marshal(row);for _,c:=range EvaluatePublicOwnedRange${family}Checks(row){if c.Constraint==name&&c.Result.Certain{t.Fatal("invalid nested document accepted",${family},field,defect,c)}};after,_:=json.Marshal(row);if !bytes.Equal(before,after){t.Fatal("mutated invalid public row",${family},field,defect)};row.Bypass=KnownCheckValue(boolPtr(true));for _,c:=range EvaluatePublicOwnedRange${family}Checks(row){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("invalid document defeated lazy guard",${family},field,defect,c)}}}}
+      return `{rows:=getRows${family}();results:=[]map[string]EvalBool{};for _,row:=range rows{before,_:=json.Marshal(row);values:=map[string]EvalBool{};for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicOwnedRange${family}Checks(row); if e != nil {panic(e)}; return r}(){values[c.Constraint]=c.Result};after,_:=json.Marshal(row);if !bytes.Equal(before,after){t.Fatal("mutated public row",${family})};results=append(results,values)}
+      ${familyCases.flatMap((c, index) => Object.entries(c.expected).map(([name, outcome]) => `if r:=results[${index}]["${name}"];${outcome.kind === 'Unknown' ? 'r.Certain||r.Unimplemented' : outcome.kind === 'Unimplemented' ? 'r.Certain||!r.Unimplemented' : outcome.kind === 'Error' ? `!r.Certain||r.Value.Error!="${outcome.value.state.toString(36).toUpperCase().padStart(5, '0')}"` : outcome.kind === 'Null' ? '!r.Certain||r.Value.Valid||r.Value.Error!=""' : `!r.Certain||!r.Value.Valid||r.Value.Value!=${outcome.kind === 'True'}`}{t.Fatalf("${family}/${index}/${name}: %+v",r)}`)).join('\n')}
+      row:=getRows${family}()[0];v:=row.V.V;v.Value.Support=checkruntime.RangeSupport{Comparison:1,Canonical:2};row.V=KnownCheckValue(v);for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicOwnedRange${family}Checks(row); if e != nil {panic(e)}; return r}(){if c.Constraint=="ordered"&&(!c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value){t.Fatal("caller support overrode compiled range",${family},c)}}
+      for field:=0;field<4;field++{for defect:=0;defect<3;defect++{row:=getRows${family}()[0];var element checkruntime.ArrayElement;name:="";switch field{case 0:element=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementRange,Range:row.V.V.Value};name="ordered";case 1:element=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementMultirange,Multirange:row.M.V.Value};name="contained";case 2:element=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementArray,Array:row.Items.V.Value};name="located";case 3:element=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementComposite,Composite:row.Bundle.V.Value};name="projected"};if !corruptDocument(&element,defect){t.Fatal("no document in public fixture",${family},field)};switch field{case 0:value:=row.V.V;value.Value=element.Range;row.V=KnownCheckValue(value);case 1:value:=row.M.V;value.Value=element.Multirange;row.M=KnownCheckValue(value);case 2:value:=row.Items.V;value.Value=element.Array;row.Items=KnownCheckValue(value);case 3:value:=row.Bundle.V;value.Value=element.Composite;row.Bundle=KnownCheckValue(value)};before,_:=json.Marshal(row);for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicOwnedRange${family}Checks(row); if e != nil {return nil}; return r}(){if c.Constraint==name&&c.Result.Certain{t.Fatal("invalid nested document accepted",${family},field,defect,c)}};after,_:=json.Marshal(row);if !bytes.Equal(before,after){t.Fatal("mutated invalid public row",${family},field,defect)};row.Bypass=KnownCheckValue(boolPtr(true));for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicOwnedRange${family}Checks(row); if e != nil {return nil}; return r}(){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("invalid document defeated lazy guard",${family},field,defect,c)}}}}
       }`
     })
     await writeFile(

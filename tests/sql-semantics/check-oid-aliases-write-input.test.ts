@@ -113,7 +113,7 @@ func TestPortableAliases(t *testing.T) {
      (name) => `
  for _,invalid:=range []checkruntime.OidValue{{},{Kind:checkruntime.OidValueValue,Value:-1},{Kind:checkruntime.OidValueValue,Value:4294967296}} {
  input.Position${capital(name)}.V=invalid
- for _,check:=range pgsid.EvaluatePublicAliasWritesChecks(input) {
+ for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicAliasWritesChecks(input); if e != nil {return nil}; return r}() {
  if check.Constraint=="position_${name}_wire" && check.Result.Certain {t.Fatal("invalid alias became definite","${name}",invalid)}
  }
  }

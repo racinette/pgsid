@@ -226,11 +226,11 @@ func ptr[T any](value T)*T{return &value}
 func TestInt8(t *testing.T){
 rows:=[]PublicInt8ChecksCheckInput{${goRows.join(', ')}}
 results:=[]map[string]EvalBool{}
-for _,row:=range rows{values:=map[string]EvalBool{};for _,check:=range EvaluatePublicInt8ChecksChecks(row){values[check.Constraint]=check.Result};results=append(results,values)}
+for _,row:=range rows{values:=map[string]EvalBool{};for _,check:=range func() []CheckEvaluation {r, e := EvaluatePublicInt8ChecksChecks(row); if e != nil {panic(e)}; return r}(){values[check.Constraint]=check.Result};results=append(results,values)}
 ${assertions.join('\n')}
 domainRows:=[]PublicPositiveBigintCheckInput{${domainRows.join(', ')}}
 domainResults:=[]EvalBool{}
-for _,row:=range domainRows{domainResults=append(domainResults,EvaluatePublicPositiveBigintDomainChecks(row)[0].Result)}
+for _,row:=range domainRows{domainResults=append(domainResults,func() []CheckEvaluation {r, e := EvaluatePublicPositiveBigintDomainChecks(row); if e != nil {panic(e)}; return r}()[0].Result)}
 ${domainAssertions.join('\n')}
 }`,
       )

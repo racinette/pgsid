@@ -215,7 +215,7 @@ func TestXPathReasons(t *testing.T){
   case "rendered_storage":path="/";input.V=KnownCheckValue(runtime.XmlValue{Kind:runtime.XmlValueRenderedText,RenderedText:"<?xml version=\\"a\\"b\\"?><r/>"});wanted=map[string]string{"matches":"original XML storage","shape":"original XML storage","shape_flag":"original XML storage","present":"original XML storage"}
   case "bypass":bypass=true;wanted=map[string]string{}
   }
-  for _,check:=range EvaluatePublicXpathReasonPayloadsChecks(input){text,unknown:=wanted[check.Constraint]
+  for _,check:=range func() []CheckEvaluation {r, e := EvaluatePublicXpathReasonPayloadsChecks(input); if e != nil {panic(e)}; return r}(){text,unknown:=wanted[check.Constraint]
    if unknown {if check.Result.Certain||check.Message==""{t.Fatal(sample,check)};if text!=""&&!strings.Contains(check.Message,text){t.Fatal(sample,check)};if text==""&&(strings.Contains(check.Message,"extraFloatDigits")||strings.Contains(check.Message,"xpathPowerOfTenBits")||strings.Contains(check.Message,"original XML storage")){t.Fatal("spurious reason",sample,check)}}else if !check.Result.Certain||!check.Result.Value.Value||check.Message!=""{t.Fatal(sample,check)}
   }
  }
@@ -230,7 +230,7 @@ func TestPreparedXPath(t *testing.T){
   case "document":gate=false;input.Gate=KnownCheckValue(&gate);input.Source=KnownCheckValue(runtime.MakeXmlValue("plain"))
   case "null":input.Gate=KnownCheckValue[*bool](nil);input.Source=KnownCheckValue(runtime.XmlNull())
   }
-  for _,check:=range EvaluatePublicXpathPreparedPayloadsChecks(input){r:=check.Result
+  for _,check:=range func() []CheckEvaluation {r, e := EvaluatePublicXpathPreparedPayloadsChecks(input); if e != nil {panic(e)}; return r}(){r:=check.Result
    if check.Constraint=="prepared_path" {if !r.Certain||r.Value.Error!="10608"{t.Fatal(sample,check)}}else{
     switch sample{
     case "missing":if r.Certain {t.Fatal(sample,check)}

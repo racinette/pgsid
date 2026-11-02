@@ -71,7 +71,7 @@ func TestExplicitXmlTextCast(t *testing.T){
  if err:=queries.InsertXmlText(context.Background(),params);err!=nil||db.calls!=1{t.Fatal(err)}
  for _,c:=range []struct{source,state string}{{"<r>","2200N"},{"<!--bad--->","2200N"}}{
   source=c.source;input:=pgsid.PublicXmlTextWritesCheckInput{Source:pgsid.KnownCheckValue(&source),Expected:pgsid.KnownCheckValue(&expected),Bypass:pgsid.KnownCheckValue(&bypass)}
-  result:=pgsid.EvaluatePublicXmlTextWritesChecks(input)[0].Result
+  result:=func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicXmlTextWritesChecks(input); if e != nil {panic(e)}; return r}()[0].Result
   if !result.Certain||result.Value.Error!=c.state{t.Fatal("xml cast error lost",c,result)}
   before:=db.calls;if err:=queries.InsertXmlText(context.Background(),params);err==nil||db.calls!=before{t.Fatal("invalid cast reached database",err)}
   bypass=true;if err:=queries.InsertXmlText(context.Background(),params);err!=nil||db.calls!=before+1{t.Fatal("skipped cast failed",err)};bypass=false

@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { PGlite } from '@electric-sql/pglite'
 import { execFile } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
@@ -147,7 +148,15 @@ describe('CHECK input nullness', () => {
         const shortCircuit =
           ['conditional_presence', 'nullness_name_collision'].includes(constraint.name) &&
           row['amount'] === null
-        if (unsupported || (missing && !shortCircuit)) {
+        // Row nullness of a composite is not evaluated, while a missing input is unsupplied.
+        if (unsupported) {
+          results.push({
+            constraint: constraint.name,
+            result: { certain: false, unimplemented: true },
+          })
+          continue
+        }
+        if (missing && !shortCircuit) {
           results.push({ constraint: constraint.name, result: { certain: false } })
           continue
         }
@@ -439,7 +448,8 @@ fn nullness() {
       ])
       expect(fallback(item.row).map(({ constraint, result }) => ({ constraint, result }))).toEqual(
         item.results.map((item) =>
-          fallbackUnsupported.has(item.constraint)
+          // The fallback evaluator does not tell Unknown from Unimplemented.
+          fallbackUnsupported.has(item.constraint) || item.result.unimplemented
             ? { constraint: item.constraint, result: { certain: false } }
             : item,
         ),
@@ -464,7 +474,10 @@ fn nullness() {
         { certain: true, value: false },
       ])
       expect(pair({ kind: 'Unknown' }), name).toEqual([{ certain: false }, { certain: false }])
-      expect(pair(invalid), name).toEqual([{ certain: false }, { certain: false }])
+      expectUndecidedOrRejected(() => evaluate({ [name]: invalid }), name, [
+        name + '_null',
+        name + '_present',
+      ])
       expect(pair({ kind: 'Error', value: { state: parseInt('22012', 36) } }), name).toEqual([
         { certain: true, error: '22012' },
         { certain: true, error: '22012' },

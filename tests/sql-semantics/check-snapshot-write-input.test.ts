@@ -98,12 +98,12 @@ func TestCoercedSnapshotInputs(t *testing.T){
   {Kind:checkruntime.SnapshotValueValue,Value:checkruntime.SnapshotPayload{Xmin:1,Xmax:9,Xip:[]checkruntime.SnapshotXid{{Bits:5},{Bits:3}}}},
  }{
   input.Position=pgsid.KnownCheckValue(bad)
-  for _,check:=range pgsid.EvaluatePublicSnapshotWritesChecks(input){if (check.Constraint=="position_wire" || check.Constraint=="position_present") && check.Result.Certain{t.Fatal("invalid snapshot became definite",check)}}
+  for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicSnapshotWritesChecks(input); if e != nil {return nil}; return r}(){if (check.Constraint=="position_wire" || check.Constraint=="position_present") && check.Result.Certain{t.Fatal("invalid snapshot became definite",check)}}
  }
  input.Position=pgsid.NullCheckValue[checkruntime.SnapshotValue]()
  if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicSnapshotWritesChecks);err==nil{t.Fatal("NULL snapshot passed required presence")}
  input.Position=pgsid.KnownCheckValue(checkruntime.SnapshotValue{Kind:checkruntime.SnapshotValueError,Error:checkruntime.MakeSqlError(${parseInt('22003', 36)})})
- for _,check:=range pgsid.EvaluatePublicSnapshotWritesChecks(input){if check.Constraint=="position_wire" && (!check.Result.Certain || check.Result.Value.Error!="22003"){t.Fatal("snapshot error lost",check)}}
+ for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicSnapshotWritesChecks(input); if e != nil {panic(e)}; return r}(){if check.Constraint=="position_wire" && (!check.Result.Certain || check.Result.Value.Error!="22003"){t.Fatal("snapshot error lost",check)}}
  binaryWire,err:=hex.DecodeString("00000001000000000000000100000000000000090000000000000009");if err!=nil{t.Fatal(err)}
  binaryValue:=checkruntime.MakeSnapshotValue(checkruntime.SnapshotPayload{Xmin:1,Xmax:9,Xip:[]checkruntime.SnapshotXid{{Bits:9}}})
  input.Position=pgsid.KnownCheckValue(binaryValue);input.DomainPosition=pgsid.KnownCheckValue(binaryValue);input.Expected=pgsid.KnownCheckValue(&binaryWire)

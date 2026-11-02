@@ -75,13 +75,13 @@ func TestCoercedCursorInputs(t *testing.T) {
  if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicCursorWritesChecks);err==nil {t.Fatal("wrong cursor bytes accepted")}
  input.Expected=pgsid.KnownCheckValue(&wire)
  position="é😀"
- for _,check:=range pgsid.EvaluatePublicCursorWritesChecks(input) {if check.Constraint=="position_wire" && check.Result.Certain {t.Fatal("session-dependent cursor wire became definite")}}
+ for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicCursorWritesChecks(input); if e != nil {return nil}; return r}() {if check.Constraint=="position_wire" && check.Result.Certain {t.Fatal("session-dependent cursor wire became definite")}}
  for _,invalid:=range []string{string([]byte{0}),string([]byte{255})} {
   input.Position.V=&invalid
-  for _,check:=range pgsid.EvaluatePublicCursorWritesChecks(input) {if check.Constraint=="position_wire" && check.Result.Certain {t.Fatal("invalid cursor encoding became definite")}}
+  for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicCursorWritesChecks(input); if e != nil {return nil}; return r}() {if check.Constraint=="position_wire" && check.Result.Certain {t.Fatal("invalid cursor encoding became definite")}}
  }
  input.Position.Set=false
- for _,check:=range pgsid.EvaluatePublicCursorWritesChecks(input) {if check.Constraint=="position_wire" && check.Result.Certain {t.Fatal("missing cursor input became definite")}}
+ for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicCursorWritesChecks(input); if e != nil {return nil}; return r}() {if check.Constraint=="position_wire" && check.Result.Certain {t.Fatal("missing cursor input became definite")}}
 }
 `,
     )
