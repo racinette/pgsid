@@ -580,8 +580,10 @@ fn datetime_template_parse(
                             if part.error > 0 {
                                 return datetime_template_failure(part.error);
                             };
+                            // The server multiplies the Y,YYY year in C int arithmetic, so an overflow
+                            // gives whatever wrapped value its build produces.
                             if read.error == JSONPATH_TEMPLATE_RANGE {
-                                return datetime_template_unknown(2);
+                                return datetime_template_unknown(1);
                             };
                             let product = (read.value as i64) * 1000i64;
                             let combined = product + part.value as i64;
@@ -957,6 +959,8 @@ fn datetime_template_instant(parsed: &DatetimeTemplateParsed, session: &str) -> 
     };
     let local = base + parsed.clock;
     let mut west = Int4Value::Unknown;
+    // An unresolved zone is the session's TimeZone or one outside the bundled tables.
+    let mut zone_flavor: i32 = 1;
     if parsed.numeric_zone {
         west = Int4Value::Value(parsed.west);
     } else if parsed.abbreviation.kind == 1 {
@@ -983,6 +987,7 @@ fn datetime_template_instant(parsed: &DatetimeTemplateParsed, session: &str) -> 
                 east = Int4Value::Value(resolved.seconds);
             };
         };
+        if east == Int4Value::Unimplemented { zone_flavor = 2; };
         if let Int4Value::Value(seconds) = east {
             west = Int4Value::Value(0 - seconds);
         };
@@ -1011,7 +1016,7 @@ fn datetime_template_instant(parsed: &DatetimeTemplateParsed, session: &str) -> 
             };
         };
     };
-    timestamptz_unresolved(unresolved_flavor)
+    timestamptz_unresolved(zone_flavor)
 }
 
 pub fn sql__pg_catalog__to_timestamp__xn0m(
