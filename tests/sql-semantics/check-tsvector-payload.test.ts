@@ -1,5 +1,6 @@
 import { PGlite } from '@electric-sql/pglite'
 import { expect, it } from 'vitest'
+import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -275,7 +276,9 @@ it('validates SQL-coerced tsvector payloads, domains and optional stored size th
       'domain_value',
       'lazy',
     ])
-      expected[name] = { kind: 'Unknown' }
+      // A tsvector's in-memory size follows from its lexemes and positions, so ordering a value
+      // whose size was not supplied is a missing computation rather than database state.
+      expected[name] = { kind: 'Unimplemented' }
     for (const name of Object.keys(definitions))
       for (const origin of ['raw', 'stored'])
         fixtures.push({ name: name + '_' + origin, row, expected: expected[name]! })
@@ -337,9 +340,11 @@ it('validates SQL-coerced tsvector payloads, domains and optional stored size th
     const result = (outcome: Outcome) =>
       outcome.kind === 'Unknown'
         ? { certain: false }
-        : outcome.kind === 'Error'
-          ? { certain: true, error: outcome.value.state.toString(36).toUpperCase() }
-          : { certain: true, value: outcome.kind === 'Null' ? null : outcome.kind === 'True' }
+        : outcome.kind === 'Unimplemented'
+          ? { certain: false, unimplemented: true }
+          : outcome.kind === 'Error'
+            ? { certain: true, error: outcome.value.state.toString(36).toUpperCase() }
+            : { certain: true, value: outcome.kind === 'Null' ? null : outcome.kind === 'True' }
     const evaluate = (row: Record<string, unknown>): Record<string, unknown> =>
       Object.fromEntries(
         api
@@ -405,10 +410,12 @@ it('validates SQL-coerced tsvector payloads, domains and optional stored size th
       },
       { kind: 'Error', value: { state: -1 } },
       { kind: 'Error', value: { state: 1.5 } },
-    ]) {
-      expect(evaluate({ ...base, item: bad }).same).toEqual({ certain: false })
-      expect(evaluate({ ...base, item: bad }).presence).toEqual({ certain: false })
-    }
+    ])
+      expectUndecidedOrRejected(
+        () => evaluate({ ...base, item: bad }),
+        JSON.stringify(bad, (_key, item) => (typeof item === 'bigint' ? String(item) : item)),
+        ['same', 'presence'],
+      )
     const goRoot = join(root, 'public-go'),
       goBundle = renderGoSchemaCheckArtifacts(
         [table],
@@ -496,7 +503,7 @@ it('validates SQL-coerced tsvector payloads, domains and optional stored size th
     const assertions = publicCases.flatMap((c, i) =>
       Object.entries(c.expected).map(
         ([name, outcome]) =>
-          `if r:=results[${i}][${JSON.stringify(name)}]; ${outcome.kind === 'Unknown' ? 'r.Certain' : outcome.kind === 'Error' ? `!r.Certain || r.Value.Error != "${outcome.value.state.toString(36).toUpperCase()}"` : outcome.kind === 'Null' ? '!r.Certain || r.Value.Valid' : `!r.Certain || !r.Value.Valid || r.Value.Value != ${outcome.kind === 'True'}`} {t.Fatalf("${i} ${name}: %+v",r)}`,
+          `if r:=results[${i}][${JSON.stringify(name)}]; ${outcome.kind === 'Unknown' ? 'r.Certain || r.Unimplemented' : outcome.kind === 'Unimplemented' ? 'r.Certain || !r.Unimplemented' : outcome.kind === 'Error' ? `!r.Certain || r.Value.Error != "${outcome.value.state.toString(36).toUpperCase()}"` : outcome.kind === 'Null' ? '!r.Certain || r.Value.Valid' : `!r.Certain || !r.Value.Valid || r.Value.Value != ${outcome.kind === 'True'}`} {t.Fatalf("${i} ${name}: %+v",r)}`,
       ),
     )
     await writeFile(

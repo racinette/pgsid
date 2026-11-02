@@ -432,7 +432,7 @@ fn digest_sha512(input: ByteaValue, short: bool) -> ByteaValue {
     if let ByteaValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
-    let mut condition_flavor_434_4: i32 = unresolved_flavor; if let ByteaValue::Unknown = input { if condition_flavor_434_4 < 1 { condition_flavor_434_4 = 1; }; }; if let ByteaValue::Unimplemented = input { condition_flavor_434_4 = 2; }; if (input == ByteaValue::Unknown || input == ByteaValue::Unimplemented) {
+    let mut condition_flavor_434_4: i32 = unresolved_flavor; if let ByteaValue::Unknown = input { if condition_flavor_434_4 < 1 { condition_flavor_434_4 = 1; }; }; if let ByteaValue::Unimplemented = input { condition_flavor_434_4 = 2; }; if input == ByteaValue::Unknown || input == ByteaValue::Unimplemented {
         return bytea_unresolved(condition_flavor_434_4);
     }
     if input == ByteaValue::Null {

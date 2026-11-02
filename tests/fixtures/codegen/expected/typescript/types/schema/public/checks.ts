@@ -68,14 +68,15 @@ function checkEvaluation(owner: string, constraint: string, evaluate: () => Chec
         };
     return { owner, constraint, result };
 }
+function checkRustInvalid(name?: string): never { throw new TypeError(name === undefined ? "CHECK input holds a malformed value" : "CHECK input " + name + " holds a malformed value"); }
 function checkRustInt8(row: object, name: string): _checkRust.Int8Value {
     const input = checkInputInt8(row, name);
     if (!input.certain)
-        return _checkRust.int8Unknown();
+        return Object.hasOwn(row, name) && Reflect.get(row, name) !== undefined ? checkRustInvalid(name) : _checkRust.int8Unknown();
     if (input.value === null)
         return _checkRust.int8Null();
     if (input.value < -9223372036854775808n || input.value > 9223372036854775807n)
-        return _checkRust.int8Unknown();
+        return checkRustInvalid(name);
     return _checkRust.makeInt8Value(input.value);
 }
 function checkRustOutcome(value: _checkRust.CheckOutcome): CheckResult {

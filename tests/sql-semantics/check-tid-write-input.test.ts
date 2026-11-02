@@ -110,7 +110,7 @@ func TestPortablePayloadStillValidates(t *testing.T) {
  if checkruntime.MakeTidParts(4294967295,65535)!=checkruntime.MakeTidValue(281474976710655) {t.Fatal("tuple pointer fields lost bits")}
  for _,invalid:=range []checkruntime.TidValue{
   checkruntime.MakeTidParts(-1,1),checkruntime.MakeTidParts(4294967296,1),checkruntime.MakeTidParts(1,-1),checkruntime.MakeTidParts(1,65536),
- } {if invalid.Kind!=checkruntime.TidValueUnknown {t.Fatal("invalid tuple fields became definite",invalid)}}
+ } {if invalid.Kind!=checkruntime.TidValueUnimplemented {t.Fatal("invalid tuple fields became definite",invalid)}}
  for _,invalid:=range []int64{-1,281474976710656} {
   input.Position.V=checkruntime.TidValue{Kind:checkruntime.TidValueValue,Value:invalid}
   for _,check:=range pgsid.EvaluatePublicHeapPointerWritesChecks(input) {

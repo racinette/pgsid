@@ -136,7 +136,7 @@ fn snapshot_visible(value: Int8Value, snapshot: SnapshotValue) -> BoolValue {
     if let SnapshotValue::Error(error) = snapshot {
         return BoolValue::Error(error);
     };
-    let mut condition_flavor_139_4: i32 = unresolved_flavor; if let Int8Value::Unknown = value { if condition_flavor_139_4 < 1 { condition_flavor_139_4 = 1; }; }; if let Int8Value::Unimplemented = value { condition_flavor_139_4 = 2; }; if (value == Int8Value::Unknown || value == Int8Value::Unimplemented) {
+    let mut condition_flavor_139_4: i32 = unresolved_flavor; if let Int8Value::Unknown = value { if condition_flavor_139_4 < 1 { condition_flavor_139_4 = 1; }; }; if let Int8Value::Unimplemented = value { condition_flavor_139_4 = 2; }; if value == Int8Value::Unknown || value == Int8Value::Unimplemented {
         return bool_unresolved(condition_flavor_139_4);
     };
     let mut condition_flavor_142_4: i32 = unresolved_flavor; if let SnapshotValue::Unknown = snapshot { if condition_flavor_142_4 < 1 { condition_flavor_142_4 = 1; }; }; if let SnapshotValue::Unknown = snapshot {

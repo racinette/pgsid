@@ -234,7 +234,7 @@ fn ts_rank_cd_run(weights: ArrayValue, document: TsvectorValue, query: TsqueryVa
     if defaults == false { let mut condition_flavor_234_27: i32 = unresolved_flavor; if let ArrayValue::Unknown = weights { if condition_flavor_234_27 < 1 { condition_flavor_234_27 = 1; }; }; if let ArrayValue::Unknown = weights { return float4_unresolved(condition_flavor_234_27); }; let mut condition_flavor_234_114: i32 = unresolved_flavor; if let ArrayValue::Unimplemented = weights { condition_flavor_234_114 = 2; }; if let ArrayValue::Unimplemented = weights { return float4_unresolved(condition_flavor_234_114); }; };
     let mut condition_flavor_235_4: i32 = unresolved_flavor; if let TsvectorValue::Unknown = document { if condition_flavor_235_4 < 1 { condition_flavor_235_4 = 1; }; }; if let TsvectorValue::Unknown = document { return float4_unresolved(condition_flavor_235_4); }; let mut condition_flavor_235_95: i32 = unresolved_flavor; if let TsvectorValue::Unimplemented = document { condition_flavor_235_95 = 2; }; if let TsvectorValue::Unimplemented = document { return float4_unresolved(condition_flavor_235_95); };
     let mut condition_flavor_236_4: i32 = unresolved_flavor; if let TsqueryValue::Unknown = query { if condition_flavor_236_4 < 1 { condition_flavor_236_4 = 1; }; }; if let TsqueryValue::Unknown = query { return float4_unresolved(condition_flavor_236_4); }; let mut condition_flavor_236_91: i32 = unresolved_flavor; if let TsqueryValue::Unimplemented = query { condition_flavor_236_91 = 2; }; if let TsqueryValue::Unimplemented = query { return float4_unresolved(condition_flavor_236_91); };
-    let mut condition_flavor_237_4: i32 = unresolved_flavor; if let Int4Value::Unknown = method { if condition_flavor_237_4 < 1 { condition_flavor_237_4 = 1; }; }; if let Int4Value::Unimplemented = method { condition_flavor_237_4 = 2; }; if (method == Int4Value::Unknown || method == Int4Value::Unimplemented) { return float4_unresolved(condition_flavor_237_4); };
+    let mut condition_flavor_237_4: i32 = unresolved_flavor; if let Int4Value::Unknown = method { if condition_flavor_237_4 < 1 { condition_flavor_237_4 = 1; }; }; if let Int4Value::Unimplemented = method { condition_flavor_237_4 = 2; }; if method == Int4Value::Unknown || method == Int4Value::Unimplemented { return float4_unresolved(condition_flavor_237_4); };
     if defaults == false { if let ArrayValue::Null = weights { return Float4Value::Null; }; };
     if let TsvectorValue::Null = document { return Float4Value::Null; };
     if let TsqueryValue::Null = query { return Float4Value::Null; };
@@ -242,7 +242,8 @@ fn ts_rank_cd_run(weights: ArrayValue, document: TsvectorValue, query: TsqueryVa
     let mut selected = ts_rank_defaults();
     if defaults == false {
         let parsed = ts_rank_read_weights(weights);
-        if let TsRankWeights::Unknown = parsed { return float4_unresolved(unresolved_flavor); };
+        if let TsRankWeights::Unknown = parsed { return float4_unresolved(resolution_context(unresolved_flavor)); };
+        if let TsRankWeights::Unimplemented = parsed { return float4_unresolved(2); };
         if let TsRankWeights::Error(error) = parsed { return Float4Value::Error(error); };
         if let TsRankWeights::Value(value) = parsed { selected = value; };
     };

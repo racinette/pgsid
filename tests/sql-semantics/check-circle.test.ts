@@ -738,17 +738,17 @@ describe('portable circles', () => {
       ...knownResults,
       wire: { certain: false },
     })
+    for (const disk of [undefined, { kind: 'Unknown' }])
+      expect(Object.values(evaluate(disk))).toEqual(
+        Array.from({ length: 4 }, () => ({ certain: false })),
+      )
     for (const disk of [
-      undefined,
       '((0,0),(3,4))',
-      { kind: 'Unknown' },
       { kind: 'Value', value: { ...payload, x: 9223372036854775808n } },
       { kind: 'Value', value: { ...payload, radius: '0' } },
       { kind: 'Value', value: { ...payload, wireKnown: 'false' } },
     ])
-      expect(Object.values(evaluate(disk))).toEqual(
-        Array.from({ length: 4 }, () => ({ certain: false })),
-      )
+      expect(() => evaluate(disk)).toThrow(TypeError)
     for (const disk of [null, { kind: 'Null' }])
       expect(evaluate(disk)).toEqual({
         wire: { certain: true, value: null },

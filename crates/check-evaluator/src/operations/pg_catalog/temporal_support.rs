@@ -89,7 +89,7 @@ pub fn sql__pg_catalog__hashdate__knfp(left: DateValue) -> Int4Value {
     if let DateValue::Error(error) = left {
         return Int4Value::Error(error);
     }
-    let mut condition_flavor_92_4: i32 = unresolved_flavor; if let DateValue::Unknown = left { if condition_flavor_92_4 < 1 { condition_flavor_92_4 = 1; }; }; if let DateValue::Unimplemented = left { condition_flavor_92_4 = 2; }; if (left == DateValue::Unknown || left == DateValue::Unimplemented) {
+    let mut condition_flavor_92_4: i32 = unresolved_flavor; if let DateValue::Unknown = left { if condition_flavor_92_4 < 1 { condition_flavor_92_4 = 1; }; }; if let DateValue::Unimplemented = left { condition_flavor_92_4 = 2; }; if left == DateValue::Unknown || left == DateValue::Unimplemented {
         return int4_unresolved(condition_flavor_92_4);
     }
     if left == DateValue::Null {
@@ -137,7 +137,7 @@ pub fn sql__pg_catalog__isfinite__2dqo(left: DateValue) -> BoolValue {
     if let DateValue::Error(error) = left {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_140_4: i32 = unresolved_flavor; if let DateValue::Unknown = left { if condition_flavor_140_4 < 1 { condition_flavor_140_4 = 1; }; }; if let DateValue::Unimplemented = left { condition_flavor_140_4 = 2; }; if (left == DateValue::Unknown || left == DateValue::Unimplemented) {
+    let mut condition_flavor_140_4: i32 = unresolved_flavor; if let DateValue::Unknown = left { if condition_flavor_140_4 < 1 { condition_flavor_140_4 = 1; }; }; if let DateValue::Unimplemented = left { condition_flavor_140_4 = 2; }; if left == DateValue::Unknown || left == DateValue::Unimplemented {
         return bool_unresolved(condition_flavor_140_4);
     }
     if left == DateValue::Null {
@@ -156,7 +156,7 @@ pub fn sql__pg_catalog__isfinite__cdmf(left: TimestamptzValue) -> BoolValue {
     if let TimestamptzValue::Error(error) = left {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_159_4: i32 = unresolved_flavor; if let TimestamptzValue::Unknown = left { if condition_flavor_159_4 < 1 { condition_flavor_159_4 = 1; }; }; if let TimestamptzValue::Unimplemented = left { condition_flavor_159_4 = 2; }; if (left == TimestamptzValue::Unknown || left == TimestamptzValue::Unimplemented) {
+    let mut condition_flavor_159_4: i32 = unresolved_flavor; if let TimestamptzValue::Unknown = left { if condition_flavor_159_4 < 1 { condition_flavor_159_4 = 1; }; }; if let TimestamptzValue::Unimplemented = left { condition_flavor_159_4 = 2; }; if left == TimestamptzValue::Unknown || left == TimestamptzValue::Unimplemented {
         return bool_unresolved(condition_flavor_159_4);
     }
     if left == TimestamptzValue::Null {
@@ -177,7 +177,7 @@ pub fn sql__pg_catalog__isfinite__4zxx(left: TimestampValue) -> BoolValue {
     if let TimestampValue::Error(error) = left {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_180_4: i32 = unresolved_flavor; if let TimestampValue::Unknown = left { if condition_flavor_180_4 < 1 { condition_flavor_180_4 = 1; }; }; if let TimestampValue::Unimplemented = left { condition_flavor_180_4 = 2; }; if (left == TimestampValue::Unknown || left == TimestampValue::Unimplemented) {
+    let mut condition_flavor_180_4: i32 = unresolved_flavor; if let TimestampValue::Unknown = left { if condition_flavor_180_4 < 1 { condition_flavor_180_4 = 1; }; }; if let TimestampValue::Unimplemented = left { condition_flavor_180_4 = 2; }; if left == TimestampValue::Unknown || left == TimestampValue::Unimplemented {
         return bool_unresolved(condition_flavor_180_4);
     }
     if left == TimestampValue::Null {
@@ -227,7 +227,7 @@ pub fn sql__pg_catalog__timestamp_hash__71nv(left: TimestampValue) -> Int4Value 
     if let TimestampValue::Error(error) = left {
         return Int4Value::Error(error);
     }
-    let mut condition_flavor_230_4: i32 = unresolved_flavor; if let TimestampValue::Unknown = left { if condition_flavor_230_4 < 1 { condition_flavor_230_4 = 1; }; }; if let TimestampValue::Unimplemented = left { condition_flavor_230_4 = 2; }; if (left == TimestampValue::Unknown || left == TimestampValue::Unimplemented) {
+    let mut condition_flavor_230_4: i32 = unresolved_flavor; if let TimestampValue::Unknown = left { if condition_flavor_230_4 < 1 { condition_flavor_230_4 = 1; }; }; if let TimestampValue::Unimplemented = left { condition_flavor_230_4 = 2; }; if left == TimestampValue::Unknown || left == TimestampValue::Unimplemented {
         return int4_unresolved(condition_flavor_230_4);
     }
     if left == TimestampValue::Null {
@@ -371,7 +371,7 @@ pub fn sql__pg_catalog__timestamptz_hash__usaa(left: TimestamptzValue) -> Int4Va
     if let TimestamptzValue::Error(error) = left {
         return Int4Value::Error(error);
     }
-    let mut condition_flavor_374_4: i32 = unresolved_flavor; if let TimestamptzValue::Unknown = left { if condition_flavor_374_4 < 1 { condition_flavor_374_4 = 1; }; }; if let TimestamptzValue::Unimplemented = left { condition_flavor_374_4 = 2; }; if (left == TimestamptzValue::Unknown || left == TimestamptzValue::Unimplemented) {
+    let mut condition_flavor_374_4: i32 = unresolved_flavor; if let TimestamptzValue::Unknown = left { if condition_flavor_374_4 < 1 { condition_flavor_374_4 = 1; }; }; if let TimestamptzValue::Unimplemented = left { condition_flavor_374_4 = 2; }; if left == TimestamptzValue::Unknown || left == TimestamptzValue::Unimplemented {
         return int4_unresolved(condition_flavor_374_4);
     }
     if left == TimestamptzValue::Null {

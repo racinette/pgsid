@@ -286,7 +286,7 @@ pub fn macaddr_from_text(input: TextValue) -> MacaddrValue {
     if let TextValue::Error(error) = input {
         return MacaddrValue::Error(error);
     }
-    let mut condition_flavor_288_4: i32 = unresolved_flavor; if let TextValue::Unknown = input { if condition_flavor_288_4 < 1 { condition_flavor_288_4 = 1; }; }; if let TextValue::Unimplemented = input { condition_flavor_288_4 = 2; }; if ((input == TextValue::Unknown || input == TextValue::Unimplemented) || input == TextValue::NonNull) {
+    let mut condition_flavor_288_4: i32 = unresolved_flavor; if let TextValue::Unknown = input { if condition_flavor_288_4 < 1 { condition_flavor_288_4 = 1; }; }; if let TextValue::Unimplemented = input { condition_flavor_288_4 = 2; }; if (input == TextValue::Unknown || input == TextValue::Unimplemented) || input == TextValue::NonNull {
         return macaddr_unresolved(condition_flavor_288_4);
     }
     if input == TextValue::Null {
@@ -315,7 +315,7 @@ pub fn macaddr8_from_text(input: TextValue) -> Macaddr8Value {
     if let TextValue::Error(error) = input {
         return Macaddr8Value::Error(error);
     }
-    let mut condition_flavor_316_4: i32 = unresolved_flavor; if let TextValue::Unknown = input { if condition_flavor_316_4 < 1 { condition_flavor_316_4 = 1; }; }; if let TextValue::Unimplemented = input { condition_flavor_316_4 = 2; }; if ((input == TextValue::Unknown || input == TextValue::Unimplemented) || input == TextValue::NonNull) {
+    let mut condition_flavor_316_4: i32 = unresolved_flavor; if let TextValue::Unknown = input { if condition_flavor_316_4 < 1 { condition_flavor_316_4 = 1; }; }; if let TextValue::Unimplemented = input { condition_flavor_316_4 = 2; }; if (input == TextValue::Unknown || input == TextValue::Unimplemented) || input == TextValue::NonNull {
         return macaddr8_unresolved(condition_flavor_316_4);
     }
     if input == TextValue::Null {

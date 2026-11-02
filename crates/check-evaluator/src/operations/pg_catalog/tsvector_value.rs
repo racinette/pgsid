@@ -35,7 +35,7 @@ pub fn sql__pg_catalog__setweight__hza4(input: TsvectorValue, weight: InternalCh
     if let TsvectorValue::Error(error) = input { return TsvectorValue::Error(error); };
     if let InternalCharValue::Error(error) = weight { return TsvectorValue::Error(error); };
     let mut condition_flavor_37_4: i32 = unresolved_flavor; if let TsvectorValue::Unknown = input { if condition_flavor_37_4 < 1 { condition_flavor_37_4 = 1; }; }; if let TsvectorValue::Unknown = input { return tsvector_unresolved(condition_flavor_37_4); }; let mut condition_flavor_37_94: i32 = unresolved_flavor; if let TsvectorValue::Unimplemented = input { condition_flavor_37_94 = 2; }; if let TsvectorValue::Unimplemented = input { return tsvector_unresolved(condition_flavor_37_94); };
-    let mut condition_flavor_38_4: i32 = unresolved_flavor; if let InternalCharValue::Unknown = weight { if condition_flavor_38_4 < 1 { condition_flavor_38_4 = 1; }; }; if let InternalCharValue::Unimplemented = weight { condition_flavor_38_4 = 2; }; if (weight == InternalCharValue::Unknown || weight == InternalCharValue::Unimplemented) { return tsvector_unresolved(condition_flavor_38_4); };
+    let mut condition_flavor_38_4: i32 = unresolved_flavor; if let InternalCharValue::Unknown = weight { if condition_flavor_38_4 < 1 { condition_flavor_38_4 = 1; }; }; if let InternalCharValue::Unimplemented = weight { condition_flavor_38_4 = 2; }; if weight == InternalCharValue::Unknown || weight == InternalCharValue::Unimplemented { return tsvector_unresolved(condition_flavor_38_4); };
     if let TsvectorValue::Null = input { return TsvectorValue::Null; };
     if weight == InternalCharValue::Null { return TsvectorValue::Null; };
     if let InternalCharValue::Value(code) = weight {
@@ -112,7 +112,8 @@ fn tsvector_compare(left: TsvectorValue, right: TsvectorValue, exact: bool) -> I
                 if order != 0 {
                     let a_prefix = text_has_prefix(a.lexemes[i].text.as_str(),b.lexemes[i].text.as_str());
                     let b_prefix = text_has_prefix(b.lexemes[i].text.as_str(),a.lexemes[i].text.as_str());
-                    if exact && a_prefix == false && b_prefix == false { return int4_unresolved(unresolved_flavor); };
+                    // Without a prefix relation the exact result is the server memcmp magnitude.
+                    if exact && a_prefix == false && b_prefix == false { return int4_unresolved(resolution_context(unresolved_flavor)); };
                     return make_int4_value(order);
                 };
                 if ac > bc { return make_int4_value(-1); };

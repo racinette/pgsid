@@ -71,7 +71,8 @@ pub fn aclitem_from_text_context(input: TextValue, limit: i32, utf8: bool) -> Ac
     if let TextValue::Value(text) = input {
         let characters: Vec<char> = text.chars().collect();
         let mut identifier = aclitem_read_identifier(text.as_str(),0,limit,utf8);
-        if identifier.state == -1 { return aclitem_unresolved(unresolved_flavor); };
+        // An undeclared encoding or identifier length limit leaves the role name unread.
+        if identifier.state == -1 { return aclitem_unresolved(resolution_context(unresolved_flavor)); };
         if identifier.state == -2 { return AclitemValue::Error(make_sql_error(ACLITEM_NAME_TOO_LONG)); };
         let mut position = identifier.next;
         if position >= characters.len() || characters[position] != '=' {
@@ -79,7 +80,7 @@ pub fn aclitem_from_text_context(input: TextValue, limit: i32, utf8: bool) -> Ac
                 return AclitemValue::Error(make_sql_error(ACLITEM_INVALID_TEXT));
             };
             identifier = aclitem_read_identifier(text.as_str(),position,limit,utf8);
-            if identifier.state == -1 { return aclitem_unresolved(unresolved_flavor); };
+            if identifier.state == -1 { return aclitem_unresolved(resolution_context(unresolved_flavor)); };
             if identifier.state == -2 { return AclitemValue::Error(make_sql_error(ACLITEM_NAME_TOO_LONG)); };
             if identifier.value.as_str() == "" { return AclitemValue::Error(make_sql_error(ACLITEM_INVALID_TEXT)); };
             position = identifier.next;
@@ -100,13 +101,14 @@ pub fn aclitem_from_text_context(input: TextValue, limit: i32, utf8: bool) -> Ac
                 scanning = false;
             };
         }
-        if identifier.value.as_str() != "" { return aclitem_unresolved(unresolved_flavor); };
+        // A named grantee or grantor resolves through the deployment's roles.
+        if identifier.value.as_str() != "" { return aclitem_unresolved(resolution_context(unresolved_flavor)); };
         if position < characters.len() && characters[position] == '/' {
             let grantor = aclitem_read_identifier(text.as_str(),position + 1,limit,utf8);
-            if grantor.state == -1 { return aclitem_unresolved(unresolved_flavor); };
+            if grantor.state == -1 { return aclitem_unresolved(resolution_context(unresolved_flavor)); };
             if grantor.state == -2 { return AclitemValue::Error(make_sql_error(ACLITEM_NAME_TOO_LONG)); };
             if grantor.value.as_str() == "" { return AclitemValue::Error(make_sql_error(ACLITEM_INVALID_TEXT)); };
-            return aclitem_unresolved(unresolved_flavor);
+            return aclitem_unresolved(resolution_context(unresolved_flavor));
         };
         while position < characters.len() && numeric_space(characters[position]) { position += 1; }
         if position < characters.len() { return AclitemValue::Error(make_sql_error(ACLITEM_INVALID_TEXT)); };
@@ -322,7 +324,7 @@ pub fn sql__pg_catalog__aclcontains__90xb(input: ArrayValue, item: AclitemValue)
     if let ArrayValue::Error(error) = input { return BoolValue::Error(error); };
     if let AclitemValue::Error(error) = item { return BoolValue::Error(error); };
     let mut condition_flavor_321_4: i32 = unresolved_flavor; if let ArrayValue::Unknown = input { if condition_flavor_321_4 < 1 { condition_flavor_321_4 = 1; }; }; if let ArrayValue::Unknown = input { return bool_unresolved(condition_flavor_321_4); }; let mut condition_flavor_321_87: i32 = unresolved_flavor; if let ArrayValue::Unimplemented = input { condition_flavor_321_87 = 2; }; if let ArrayValue::Unimplemented = input { return bool_unresolved(condition_flavor_321_87); };
-    let mut condition_flavor_322_4: i32 = unresolved_flavor; if let AclitemValue::Unknown = item { if condition_flavor_322_4 < 1 { condition_flavor_322_4 = 1; }; }; if let AclitemValue::Unimplemented = item { condition_flavor_322_4 = 2; }; if (item == AclitemValue::Unknown || item == AclitemValue::Unimplemented) { return bool_unresolved(condition_flavor_322_4); };
+    let mut condition_flavor_322_4: i32 = unresolved_flavor; if let AclitemValue::Unknown = item { if condition_flavor_322_4 < 1 { condition_flavor_322_4 = 1; }; }; if let AclitemValue::Unimplemented = item { condition_flavor_322_4 = 2; }; if item == AclitemValue::Unknown || item == AclitemValue::Unimplemented { return bool_unresolved(condition_flavor_322_4); };
     if let ArrayValue::Null = input { return BoolValue::Null; };
     if item == AclitemValue::Null { return BoolValue::Null; };
     if let ArrayValue::Value(array) = input {
@@ -332,7 +334,10 @@ pub fn sql__pg_catalog__aclcontains__90xb(input: ArrayValue, item: AclitemValue)
         if array.null_bitmap == BoolValue::Value(true) {
             return BoolValue::Error(make_sql_error(ACLITEM_NULL_VALUE_NOT_ALLOWED));
         };
-        if array.null_bitmap != BoolValue::Value(false) { return bool_unresolved(unresolved_flavor); };
+        let mut bitmap_flavor: i32 = unresolved_flavor;
+        if array.null_bitmap == BoolValue::Unknown && bitmap_flavor < 1 { bitmap_flavor = 1; };
+        if array.null_bitmap == BoolValue::Unimplemented { bitmap_flavor = 2; };
+        if array.null_bitmap != BoolValue::Value(false) { return bool_unresolved(bitmap_flavor); };
         let mut position: usize = 0;
         let mut unknown = false;
         while position < array.elements.len() {
@@ -340,6 +345,8 @@ pub fn sql__pg_catalog__aclcontains__90xb(input: ArrayValue, item: AclitemValue)
             let matched = aclitem_covers(entry,item);
             if matched == BoolValue::Value(true) { return make_bool_value(true); };
             if matched != BoolValue::Value(false) { unknown = true; };
+            if matched == BoolValue::Unknown && unresolved_flavor < 1 { unresolved_flavor = 1; };
+            if matched == BoolValue::Unimplemented { unresolved_flavor = 2; };
             position += 1;
         }
         if unknown { return bool_unresolved(unresolved_flavor); };
@@ -357,7 +364,7 @@ fn aclitem_obsolete_update(input: ArrayValue, item: AclitemValue) -> ArrayValue 
     if let ArrayValue::Error(error) = input { return ArrayValue::Error(error); };
     if let AclitemValue::Error(error) = item { return ArrayValue::Error(error); };
     let mut condition_flavor_356_4: i32 = unresolved_flavor; if let ArrayValue::Unknown = input { if condition_flavor_356_4 < 1 { condition_flavor_356_4 = 1; }; }; if let ArrayValue::Unknown = input { return array_unresolved(condition_flavor_356_4); }; let mut condition_flavor_356_88: i32 = unresolved_flavor; if let ArrayValue::Unimplemented = input { condition_flavor_356_88 = 2; }; if let ArrayValue::Unimplemented = input { return array_unresolved(condition_flavor_356_88); };
-    let mut condition_flavor_357_4: i32 = unresolved_flavor; if let AclitemValue::Unknown = item { if condition_flavor_357_4 < 1 { condition_flavor_357_4 = 1; }; }; if let AclitemValue::Unimplemented = item { condition_flavor_357_4 = 2; }; if (item == AclitemValue::Unknown || item == AclitemValue::Unimplemented) { return array_unresolved(condition_flavor_357_4); };
+    let mut condition_flavor_357_4: i32 = unresolved_flavor; if let AclitemValue::Unknown = item { if condition_flavor_357_4 < 1 { condition_flavor_357_4 = 1; }; }; if let AclitemValue::Unimplemented = item { condition_flavor_357_4 = 2; }; if item == AclitemValue::Unknown || item == AclitemValue::Unimplemented { return array_unresolved(condition_flavor_357_4); };
     if let ArrayValue::Null = input { return ArrayValue::Null; };
     if item == AclitemValue::Null { return ArrayValue::Null; };
     ArrayValue::Error(make_sql_error(ACLITEM_FEATURE_NOT_SUPPORTED))

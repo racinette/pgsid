@@ -20,7 +20,7 @@ pub fn sql__pg_catalog__hashbytea__mypt(input: ByteaValue, byte_order: i32) -> I
     if let ByteaValue::Error(error) = input {
         return Int4Value::Error(error);
     }
-    let mut condition_flavor_22_4: i32 = unresolved_flavor; if let ByteaValue::Unknown = input { if condition_flavor_22_4 < 1 { condition_flavor_22_4 = 1; }; }; if let ByteaValue::Unimplemented = input { condition_flavor_22_4 = 2; }; if (input == ByteaValue::Unknown || input == ByteaValue::Unimplemented) {
+    let mut condition_flavor_22_4: i32 = unresolved_flavor; if let ByteaValue::Unknown = input { if condition_flavor_22_4 < 1 { condition_flavor_22_4 = 1; }; }; if let ByteaValue::Unimplemented = input { condition_flavor_22_4 = 2; }; if input == ByteaValue::Unknown || input == ByteaValue::Unimplemented {
         return int4_unresolved(condition_flavor_22_4);
     }
     if input == ByteaValue::Null {
@@ -73,7 +73,7 @@ fn bytea_crc(input: ByteaValue, polynomial: i64) -> Int8Value {
     if let ByteaValue::Error(error) = input {
         return Int8Value::Error(error);
     }
-    let mut condition_flavor_73_4: i32 = unresolved_flavor; if let ByteaValue::Unknown = input { if condition_flavor_73_4 < 1 { condition_flavor_73_4 = 1; }; }; if let ByteaValue::Unimplemented = input { condition_flavor_73_4 = 2; }; if (input == ByteaValue::Unknown || input == ByteaValue::Unimplemented) {
+    let mut condition_flavor_73_4: i32 = unresolved_flavor; if let ByteaValue::Unknown = input { if condition_flavor_73_4 < 1 { condition_flavor_73_4 = 1; }; }; if let ByteaValue::Unimplemented = input { condition_flavor_73_4 = 2; }; if input == ByteaValue::Unknown || input == ByteaValue::Unimplemented {
         return int8_unresolved(condition_flavor_73_4);
     }
     if input == ByteaValue::Null {

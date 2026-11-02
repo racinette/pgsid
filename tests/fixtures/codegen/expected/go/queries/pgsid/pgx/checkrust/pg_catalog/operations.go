@@ -310,7 +310,7 @@ func AclitemFromTextContext(input checkruntime.TextValue, limit int, utf8 bool) 
 		characters := []rune(text)
 		identifier := aclitemReadIdentifier(text, 0, limit, utf8)
 		if identifier.state == langruntime.CheckedSignedNegate(1) {
-			return checkruntime.AclitemUnresolved(unresolvedFlavor)
+			return checkruntime.AclitemUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		if identifier.state == langruntime.CheckedSignedNegate(2) {
 			return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueError, Error: checkruntime.MakeSqlError(aclitemNameTooLong)}
@@ -322,7 +322,7 @@ func AclitemFromTextContext(input checkruntime.TextValue, limit int, utf8 bool) 
 			}
 			identifier = copyaclitemIdentifier(aclitemReadIdentifier(text, position, limit, utf8))
 			if identifier.state == langruntime.CheckedSignedNegate(1) {
-				return checkruntime.AclitemUnresolved(unresolvedFlavor)
+				return checkruntime.AclitemUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 			}
 			if identifier.state == langruntime.CheckedSignedNegate(2) {
 				return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueError, Error: checkruntime.MakeSqlError(aclitemNameTooLong)}
@@ -353,12 +353,12 @@ func AclitemFromTextContext(input checkruntime.TextValue, limit int, utf8 bool) 
 			}
 		}
 		if identifier.value != "" {
-			return checkruntime.AclitemUnresolved(unresolvedFlavor)
+			return checkruntime.AclitemUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		if position < len(characters) && characters[position] == '/' {
 			grantor := aclitemReadIdentifier(text, langruntime.CheckedAdd(position, 1), limit, utf8)
 			if grantor.state == langruntime.CheckedSignedNegate(1) {
-				return checkruntime.AclitemUnresolved(unresolvedFlavor)
+				return checkruntime.AclitemUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 			}
 			if grantor.state == langruntime.CheckedSignedNegate(2) {
 				return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueError, Error: checkruntime.MakeSqlError(aclitemNameTooLong)}
@@ -366,7 +366,7 @@ func AclitemFromTextContext(input checkruntime.TextValue, limit int, utf8 bool) 
 			if grantor.value == "" {
 				return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueError, Error: checkruntime.MakeSqlError(aclitemInvalidText)}
 			}
-			return checkruntime.AclitemUnresolved(unresolvedFlavor)
+			return checkruntime.AclitemUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		for position < len(characters) && checkruntime.NumericSpace(characters[position]) {
 			position = langruntime.CheckedAdd(position, 1)
@@ -938,8 +938,15 @@ func Aclcontains90xb(input checkruntime.ArrayValue, item checkruntime.AclitemVal
 		if array.NullBitmap == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
 			return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: checkruntime.MakeSqlError(aclitemNullValueNotAllowed)}
 		}
+		bitmapFlavor := unresolvedFlavor
+		if array.NullBitmap == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) && bitmapFlavor < 1 {
+			bitmapFlavor = langruntime.CheckedI32(1)
+		}
+		if array.NullBitmap == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnimplemented}) {
+			bitmapFlavor = langruntime.CheckedI32(2)
+		}
 		if array.NullBitmap != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
-			return checkruntime.BoolUnresolved(unresolvedFlavor)
+			return checkruntime.BoolUnresolved(bitmapFlavor)
 		}
 		position := 0
 		unknown := false
@@ -951,6 +958,12 @@ func Aclcontains90xb(input checkruntime.ArrayValue, item checkruntime.AclitemVal
 			}
 			if matched != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
 				unknown = true
+			}
+			if matched == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) && unresolvedFlavor < 1 {
+				unresolvedFlavor = langruntime.CheckedI32(1)
+			}
+			if matched == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnimplemented}) {
+				unresolvedFlavor = langruntime.CheckedI32(2)
 			}
 			position = langruntime.CheckedAdd(position, 1)
 		}
@@ -4929,6 +4942,19 @@ func arrayStringJoin(input checkruntime.ArrayOutputPayload, rendered checkruntim
 					if separatorKnown == false {
 						known = false
 					}
+				}
+				if text.Kind == checkruntime.TextValueUnknown {
+					if unresolvedFlavor < 1 {
+						unresolvedFlavor = langruntime.CheckedI32(1)
+					}
+				}
+				if text.Kind == checkruntime.TextValueNonNull {
+					if unresolvedFlavor < 1 {
+						unresolvedFlavor = langruntime.CheckedI32(1)
+					}
+				}
+				if text.Kind == checkruntime.TextValueUnimplemented {
+					unresolvedFlavor = langruntime.CheckedI32(2)
 				}
 				fieldKnown := false
 				if text.Kind == checkruntime.TextValueValue {
@@ -77676,7 +77702,10 @@ func tsRankRun(weights checkruntime.ArrayValue, document checkruntime.TsvectorVa
 	if defaults == false {
 		parsed := tsRankReadWeights(weights)
 		if parsed.kind == tsRankWeightsUnknown {
-			return checkruntime.Float4Unresolved(unresolvedFlavor)
+			return checkruntime.Float4Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
+		}
+		if parsed.kind == tsRankWeightsUnimplemented {
+			return checkruntime.Float4Unresolved(2)
 		}
 		if parsed.kind == tsRankWeightsError {
 			error := parsed.error
@@ -78156,7 +78185,10 @@ func tsRankCdRun(weights checkruntime.ArrayValue, document checkruntime.Tsvector
 	if defaults == false {
 		parsed := tsRankReadWeights(weights)
 		if parsed.kind == tsRankWeightsUnknown {
-			return checkruntime.Float4Unresolved(unresolvedFlavor)
+			return checkruntime.Float4Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
+		}
+		if parsed.kind == tsRankWeightsUnimplemented {
+			return checkruntime.Float4Unresolved(2)
 		}
 		if parsed.kind == tsRankWeightsError {
 			error := parsed.error
@@ -78227,6 +78259,7 @@ type tsRankWeightsKind uint8
 
 const (
 	tsRankWeightsUnknown tsRankWeightsKind = iota
+	tsRankWeightsUnimplemented
 	tsRankWeightsError
 	tsRankWeightsValue
 )
@@ -78241,6 +78274,8 @@ func copytsRankWeights(value tsRankWeights) tsRankWeights {
 	switch value.kind {
 	case tsRankWeightsUnknown:
 		return tsRankWeights{kind: tsRankWeightsUnknown}
+	case tsRankWeightsUnimplemented:
+		return tsRankWeights{kind: tsRankWeightsUnimplemented}
 	case tsRankWeightsError:
 		return tsRankWeights{kind: tsRankWeightsError, error: value.error}
 	case tsRankWeightsValue:
@@ -78310,12 +78345,12 @@ func tsRankReadWeights(input checkruntime.ArrayValue) tsRankWeights {
 	if input.Kind == checkruntime.ArrayValueValue {
 		value := checkruntime.CopyArrayPayload(input.Value)
 		if value.ElementKind != 19 || value.ElementType != "pg_catalog.float4" {
-			return tsRankWeights{kind: tsRankWeightsUnknown}
+			return tsRankWeights{kind: tsRankWeightsUnimplemented}
 		}
 		if len(value.Dimensions) != 1 || len(value.Elements) < 4 {
 			return tsRankWeights{kind: tsRankWeightsError, error: checkruntime.MakeSqlError(tsRankWeightShape)}
 		}
-		uncertain := false
+		flavor := 0
 		index := 0
 		for index < len(value.Elements) {
 			element := checkruntime.CopyArrayElement(value.Elements[index])
@@ -78323,19 +78358,22 @@ func tsRankReadWeights(input checkruntime.ArrayValue) tsRankWeights {
 				return tsRankWeights{kind: tsRankWeightsError, error: checkruntime.MakeSqlError(tsRankWeightNull)}
 			}
 			if element.Kind == checkruntime.ArrayElementUnknown {
-				if value.NullBitmap != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
-					uncertain = true
+				if value.NullBitmap != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) && flavor < 1 {
+					flavor = langruntime.CheckedI32(1)
 				}
 			}
 			if element.Kind == checkruntime.ArrayElementUnimplemented {
 				if value.NullBitmap != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
-					uncertain = true
+					flavor = langruntime.CheckedI32(2)
 				}
 			}
 			index = langruntime.CheckedAdd(index, 1)
 		}
-		if uncertain {
+		if flavor == 1 {
 			return tsRankWeights{kind: tsRankWeightsUnknown}
+		}
+		if flavor == 2 {
+			return tsRankWeights{kind: tsRankWeightsUnimplemented}
 		}
 		defaults := tsRankDefaults()
 		weights := defaults
@@ -78346,8 +78384,11 @@ func tsRankReadWeights(input checkruntime.ArrayValue) tsRankWeights {
 				error := input.Error
 				return tsRankWeights{kind: tsRankWeightsError, error: error}
 			}
-			if input == (checkruntime.Float4Value{Kind: checkruntime.Float4ValueUnknown}) || input == (checkruntime.Float4Value{Kind: checkruntime.Float4ValueUnimplemented}) {
-				uncertain = true
+			if input == (checkruntime.Float4Value{Kind: checkruntime.Float4ValueUnknown}) && flavor < 1 {
+				flavor = langruntime.CheckedI32(1)
+			}
+			if input == (checkruntime.Float4Value{Kind: checkruntime.Float4ValueUnimplemented}) {
+				flavor = langruntime.CheckedI32(2)
 			}
 			bits := defaults.d
 			if index == 1 {
@@ -78383,12 +78424,15 @@ func tsRankReadWeights(input checkruntime.ArrayValue) tsRankWeights {
 			}
 			index = langruntime.CheckedAdd(index, 1)
 		}
-		if uncertain {
+		if flavor == 1 {
 			return tsRankWeights{kind: tsRankWeightsUnknown}
+		}
+		if flavor == 2 {
+			return tsRankWeights{kind: tsRankWeightsUnimplemented}
 		}
 		return tsRankWeights{kind: tsRankWeightsValue, value: weights}
 	}
-	return tsRankWeights{kind: tsRankWeightsUnknown}
+	return tsRankWeights{kind: tsRankWeightsUnimplemented}
 }
 func tsRankFind(document *checkruntime.TsvectorPayload, operand *checkruntime.TsqueryNode) tsRankWordRange {
 	low := 0
@@ -78859,7 +78903,7 @@ func tsqueryCompare(left checkruntime.TsqueryValue, right checkruntime.TsqueryVa
 				return checkruntime.MakeInt4Value(1)
 			}
 			if a.NativeBytes < 0 || b.NativeBytes < 0 {
-				return checkruntime.Int4Unresolved(unresolvedFlavor)
+				return checkruntime.Int4Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 			}
 			if a.NativeBytes < b.NativeBytes {
 				return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
@@ -78908,7 +78952,7 @@ func tsqueryCompare(left checkruntime.TsqueryValue, right checkruntime.TsqueryVa
 							}
 							order := checkruntime.TsvectorLexemeOrder(an.Text, bn.Text)
 							if exact && order != 0 && textHasPrefix(an.Text, bn.Text) == false && textHasPrefix(bn.Text, an.Text) == false {
-								return checkruntime.Int4Unresolved(unresolvedFlavor)
+								return checkruntime.Int4Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 							}
 							return checkruntime.MakeInt4Value(order)
 						}
@@ -83143,7 +83187,7 @@ func tsvectorCompare(left checkruntime.TsvectorValue, right checkruntime.Tsvecto
 					aPrefix := textHasPrefix(a.Lexemes[i].Text, b.Lexemes[i].Text)
 					bPrefix := textHasPrefix(b.Lexemes[i].Text, a.Lexemes[i].Text)
 					if exact && aPrefix == false && bPrefix == false {
-						return checkruntime.Int4Unresolved(unresolvedFlavor)
+						return checkruntime.Int4Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 					}
 					return checkruntime.MakeInt4Value(order)
 				}

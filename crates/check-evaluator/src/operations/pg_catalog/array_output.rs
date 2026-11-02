@@ -209,7 +209,7 @@ pub fn finish_array_output(
         while pending < values.elements.len() {
             let text = array_element_to_text(values.elements[pending].clone());
             if text == TextValue::NonNull { partial = true; };
-            let mut condition_flavor_210_12: i32 = unresolved_flavor; if let TextValue::Unknown = text { if condition_flavor_210_12 < 1 { condition_flavor_210_12 = 1; }; }; if let TextValue::Unimplemented = text { condition_flavor_210_12 = 2; }; if (text == TextValue::Unknown || text == TextValue::Unimplemented) { return text_unresolved(condition_flavor_210_12); };
+            let mut condition_flavor_210_12: i32 = unresolved_flavor; if let TextValue::Unknown = text { if condition_flavor_210_12 < 1 { condition_flavor_210_12 = 1; }; }; if let TextValue::Unimplemented = text { condition_flavor_210_12 = 2; }; if text == TextValue::Unknown || text == TextValue::Unimplemented { return text_unresolved(condition_flavor_210_12); };
             if let TextValue::Error(error) = text { return TextValue::Error(error); };
             pending += 1;
         }

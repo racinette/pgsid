@@ -1,5 +1,6 @@
 import { PGlite } from '@electric-sql/pglite'
 import { expect, it } from 'vitest'
+import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { execFile } from 'node:child_process'
@@ -466,12 +467,8 @@ it('validates public owned ACL arrays and preserves bitmap metadata in both targ
           ...array(['wide']),
           elements: [{ kind: 'Aclitem', value: { ...wide, [field]: invalid } }],
         }
-        expect(evaluate({ ...cases[0]!.row, items: { kind: 'Value', value } }).covers).toEqual({
-          certain: false,
-        })
-        expect(evaluate({ ...cases[0]!.row, items: { kind: 'Value', value } }).same).toEqual({
-          certain: false,
-        })
+        const row = { ...cases[0]!.row, items: { kind: 'Value', value } }
+        expectUndecidedOrRejected(() => evaluate(row), field, ['covers', 'same'])
       }
     const goRoot = join(root, 'go'),
       goBundle = renderGoSchemaCheckArtifacts(

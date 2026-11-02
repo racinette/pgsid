@@ -59,7 +59,7 @@ pub fn sql__pg_catalog__network_eq__i7hn(left: NetworkValue, right: NetworkValue
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_62_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_62_4 < 1 { condition_flavor_62_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_62_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+    let mut condition_flavor_62_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_62_4 < 1 { condition_flavor_62_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_62_4 = 2; }; if result == Int4Value::Unknown || result == Int4Value::Unimplemented {
         return bool_unresolved(condition_flavor_62_4);
     }
     if result == Int4Value::Null {
@@ -81,7 +81,7 @@ pub fn sql__pg_catalog__network_ne__vmql(left: NetworkValue, right: NetworkValue
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_84_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_84_4 < 1 { condition_flavor_84_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_84_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+    let mut condition_flavor_84_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_84_4 < 1 { condition_flavor_84_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_84_4 = 2; }; if result == Int4Value::Unknown || result == Int4Value::Unimplemented {
         return bool_unresolved(condition_flavor_84_4);
     }
     if result == Int4Value::Null {
@@ -103,7 +103,7 @@ pub fn sql__pg_catalog__network_lt__0kbr(left: NetworkValue, right: NetworkValue
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_106_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_106_4 < 1 { condition_flavor_106_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_106_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+    let mut condition_flavor_106_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_106_4 < 1 { condition_flavor_106_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_106_4 = 2; }; if result == Int4Value::Unknown || result == Int4Value::Unimplemented {
         return bool_unresolved(condition_flavor_106_4);
     }
     if result == Int4Value::Null {
@@ -125,7 +125,7 @@ pub fn sql__pg_catalog__network_le__n61s(left: NetworkValue, right: NetworkValue
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_128_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_128_4 < 1 { condition_flavor_128_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_128_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+    let mut condition_flavor_128_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_128_4 < 1 { condition_flavor_128_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_128_4 = 2; }; if result == Int4Value::Unknown || result == Int4Value::Unimplemented {
         return bool_unresolved(condition_flavor_128_4);
     }
     if result == Int4Value::Null {
@@ -147,7 +147,7 @@ pub fn sql__pg_catalog__network_gt__i6x7(left: NetworkValue, right: NetworkValue
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_150_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_150_4 < 1 { condition_flavor_150_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_150_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+    let mut condition_flavor_150_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_150_4 < 1 { condition_flavor_150_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_150_4 = 2; }; if result == Int4Value::Unknown || result == Int4Value::Unimplemented {
         return bool_unresolved(condition_flavor_150_4);
     }
     if result == Int4Value::Null {
@@ -169,7 +169,7 @@ pub fn sql__pg_catalog__network_ge__q7pc(left: NetworkValue, right: NetworkValue
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_172_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_172_4 < 1 { condition_flavor_172_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_172_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+    let mut condition_flavor_172_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_172_4 < 1 { condition_flavor_172_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_172_4 = 2; }; if result == Int4Value::Unknown || result == Int4Value::Unimplemented {
         return bool_unresolved(condition_flavor_172_4);
     }
     if result == Int4Value::Null {
@@ -619,7 +619,7 @@ pub fn sql__pg_catalog__family__2lcf(input: NetworkValue) -> Int4Value {
     if let NetworkValue::Error(error) = input {
         return Int4Value::Error(error);
     }
-    let mut condition_flavor_622_4: i32 = unresolved_flavor; if let NetworkValue::Unknown = input { if condition_flavor_622_4 < 1 { condition_flavor_622_4 = 1; }; }; if let NetworkValue::Unimplemented = input { condition_flavor_622_4 = 2; }; if (input == NetworkValue::Unknown || input == NetworkValue::Unimplemented) {
+    let mut condition_flavor_622_4: i32 = unresolved_flavor; if let NetworkValue::Unknown = input { if condition_flavor_622_4 < 1 { condition_flavor_622_4 = 1; }; }; if let NetworkValue::Unimplemented = input { condition_flavor_622_4 = 2; }; if input == NetworkValue::Unknown || input == NetworkValue::Unimplemented {
         return int4_unresolved(condition_flavor_622_4);
     }
     if input == NetworkValue::Null {
@@ -641,7 +641,7 @@ pub fn sql__pg_catalog__masklen__kk20(input: NetworkValue) -> Int4Value {
     if let NetworkValue::Error(error) = input {
         return Int4Value::Error(error);
     }
-    let mut condition_flavor_644_4: i32 = unresolved_flavor; if let NetworkValue::Unknown = input { if condition_flavor_644_4 < 1 { condition_flavor_644_4 = 1; }; }; if let NetworkValue::Unimplemented = input { condition_flavor_644_4 = 2; }; if (input == NetworkValue::Unknown || input == NetworkValue::Unimplemented) {
+    let mut condition_flavor_644_4: i32 = unresolved_flavor; if let NetworkValue::Unknown = input { if condition_flavor_644_4 < 1 { condition_flavor_644_4 = 1; }; }; if let NetworkValue::Unimplemented = input { condition_flavor_644_4 = 2; }; if input == NetworkValue::Unknown || input == NetworkValue::Unimplemented {
         return int4_unresolved(condition_flavor_644_4);
     }
     if input == NetworkValue::Null {
@@ -660,7 +660,7 @@ pub fn sql__pg_catalog__network__o215(input: NetworkValue) -> NetworkValue {
     if let NetworkValue::Error(error) = input {
         return NetworkValue::Error(error);
     }
-    let mut condition_flavor_663_4: i32 = unresolved_flavor; if let NetworkValue::Unknown = input { if condition_flavor_663_4 < 1 { condition_flavor_663_4 = 1; }; }; if let NetworkValue::Unimplemented = input { condition_flavor_663_4 = 2; }; if (input == NetworkValue::Unknown || input == NetworkValue::Unimplemented) {
+    let mut condition_flavor_663_4: i32 = unresolved_flavor; if let NetworkValue::Unknown = input { if condition_flavor_663_4 < 1 { condition_flavor_663_4 = 1; }; }; if let NetworkValue::Unimplemented = input { condition_flavor_663_4 = 2; }; if input == NetworkValue::Unknown || input == NetworkValue::Unimplemented {
         return network_unresolved(condition_flavor_663_4);
     }
     if input == NetworkValue::Null {
@@ -680,7 +680,7 @@ pub fn sql__pg_catalog__cidr__6idb(input: NetworkValue) -> NetworkValue {
     if let NetworkValue::Error(error) = input {
         return NetworkValue::Error(error);
     }
-    let mut condition_flavor_683_4: i32 = unresolved_flavor; if let NetworkValue::Unknown = input { if condition_flavor_683_4 < 1 { condition_flavor_683_4 = 1; }; }; if let NetworkValue::Unimplemented = input { condition_flavor_683_4 = 2; }; if (input == NetworkValue::Unknown || input == NetworkValue::Unimplemented) {
+    let mut condition_flavor_683_4: i32 = unresolved_flavor; if let NetworkValue::Unknown = input { if condition_flavor_683_4 < 1 { condition_flavor_683_4 = 1; }; }; if let NetworkValue::Unimplemented = input { condition_flavor_683_4 = 2; }; if input == NetworkValue::Unknown || input == NetworkValue::Unimplemented {
         return network_unresolved(condition_flavor_683_4);
     }
     if input == NetworkValue::Null {
@@ -700,7 +700,7 @@ pub fn sql__pg_catalog__broadcast__ilgu(input: NetworkValue) -> NetworkValue {
     if let NetworkValue::Error(error) = input {
         return NetworkValue::Error(error);
     }
-    let mut condition_flavor_703_4: i32 = unresolved_flavor; if let NetworkValue::Unknown = input { if condition_flavor_703_4 < 1 { condition_flavor_703_4 = 1; }; }; if let NetworkValue::Unimplemented = input { condition_flavor_703_4 = 2; }; if (input == NetworkValue::Unknown || input == NetworkValue::Unimplemented) {
+    let mut condition_flavor_703_4: i32 = unresolved_flavor; if let NetworkValue::Unknown = input { if condition_flavor_703_4 < 1 { condition_flavor_703_4 = 1; }; }; if let NetworkValue::Unimplemented = input { condition_flavor_703_4 = 2; }; if input == NetworkValue::Unknown || input == NetworkValue::Unimplemented {
         return network_unresolved(condition_flavor_703_4);
     }
     if input == NetworkValue::Null {
@@ -720,7 +720,7 @@ pub fn sql__pg_catalog__netmask__bt5i(input: NetworkValue) -> NetworkValue {
     if let NetworkValue::Error(error) = input {
         return NetworkValue::Error(error);
     }
-    let mut condition_flavor_723_4: i32 = unresolved_flavor; if let NetworkValue::Unknown = input { if condition_flavor_723_4 < 1 { condition_flavor_723_4 = 1; }; }; if let NetworkValue::Unimplemented = input { condition_flavor_723_4 = 2; }; if (input == NetworkValue::Unknown || input == NetworkValue::Unimplemented) {
+    let mut condition_flavor_723_4: i32 = unresolved_flavor; if let NetworkValue::Unknown = input { if condition_flavor_723_4 < 1 { condition_flavor_723_4 = 1; }; }; if let NetworkValue::Unimplemented = input { condition_flavor_723_4 = 2; }; if input == NetworkValue::Unknown || input == NetworkValue::Unimplemented {
         return network_unresolved(condition_flavor_723_4);
     }
     if input == NetworkValue::Null {
@@ -740,7 +740,7 @@ pub fn sql__pg_catalog__hostmask__vz12(input: NetworkValue) -> NetworkValue {
     if let NetworkValue::Error(error) = input {
         return NetworkValue::Error(error);
     }
-    let mut condition_flavor_743_4: i32 = unresolved_flavor; if let NetworkValue::Unknown = input { if condition_flavor_743_4 < 1 { condition_flavor_743_4 = 1; }; }; if let NetworkValue::Unimplemented = input { condition_flavor_743_4 = 2; }; if (input == NetworkValue::Unknown || input == NetworkValue::Unimplemented) {
+    let mut condition_flavor_743_4: i32 = unresolved_flavor; if let NetworkValue::Unknown = input { if condition_flavor_743_4 < 1 { condition_flavor_743_4 = 1; }; }; if let NetworkValue::Unimplemented = input { condition_flavor_743_4 = 2; }; if input == NetworkValue::Unknown || input == NetworkValue::Unimplemented {
         return network_unresolved(condition_flavor_743_4);
     }
     if input == NetworkValue::Null {
@@ -895,7 +895,7 @@ pub fn sql__pg_catalog__inetnot__8bow(input: NetworkValue) -> NetworkValue {
     if let NetworkValue::Error(error) = input {
         return NetworkValue::Error(error);
     }
-    let mut condition_flavor_898_4: i32 = unresolved_flavor; if let NetworkValue::Unknown = input { if condition_flavor_898_4 < 1 { condition_flavor_898_4 = 1; }; }; if let NetworkValue::Unimplemented = input { condition_flavor_898_4 = 2; }; if (input == NetworkValue::Unknown || input == NetworkValue::Unimplemented) {
+    let mut condition_flavor_898_4: i32 = unresolved_flavor; if let NetworkValue::Unknown = input { if condition_flavor_898_4 < 1 { condition_flavor_898_4 = 1; }; }; if let NetworkValue::Unimplemented = input { condition_flavor_898_4 = 2; }; if input == NetworkValue::Unknown || input == NetworkValue::Unimplemented {
         return network_unresolved(condition_flavor_898_4);
     }
     if input == NetworkValue::Null {
@@ -933,7 +933,7 @@ fn network_select(left: NetworkValue, right: NetworkValue, larger: bool) -> Netw
     if let Int4Value::Error(error) = result {
         return NetworkValue::Error(error);
     }
-    let mut condition_flavor_936_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_936_4 < 1 { condition_flavor_936_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_936_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+    let mut condition_flavor_936_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_936_4 < 1 { condition_flavor_936_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_936_4 = 2; }; if result == Int4Value::Unknown || result == Int4Value::Unimplemented {
         return network_unresolved(condition_flavor_936_4);
     }
     if result == Int4Value::Null {
@@ -994,7 +994,7 @@ pub fn sql__pg_catalog__hashinet__fhly(input: NetworkValue, byte_order: i32) -> 
     if let NetworkValue::Error(error) = input {
         return Int4Value::Error(error);
     }
-    let mut condition_flavor_997_4: i32 = unresolved_flavor; if let NetworkValue::Unknown = input { if condition_flavor_997_4 < 1 { condition_flavor_997_4 = 1; }; }; if let NetworkValue::Unimplemented = input { condition_flavor_997_4 = 2; }; if (input == NetworkValue::Unknown || input == NetworkValue::Unimplemented) {
+    let mut condition_flavor_997_4: i32 = unresolved_flavor; if let NetworkValue::Unknown = input { if condition_flavor_997_4 < 1 { condition_flavor_997_4 = 1; }; }; if let NetworkValue::Unimplemented = input { condition_flavor_997_4 = 2; }; if input == NetworkValue::Unknown || input == NetworkValue::Unimplemented {
         return int4_unresolved(condition_flavor_997_4);
     }
     if input == NetworkValue::Null {

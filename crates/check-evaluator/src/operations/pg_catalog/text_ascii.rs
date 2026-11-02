@@ -6,7 +6,7 @@ pub fn sql__pg_catalog__ascii__7m47(input: TextValue) -> Int4Value {
     if let TextValue::Error(error) = input {
         return Int4Value::Error(error);
     }
-    let mut condition_flavor_8_4: i32 = unresolved_flavor; if let TextValue::Unknown = input { if condition_flavor_8_4 < 1 { condition_flavor_8_4 = 1; }; }; if let TextValue::Unimplemented = input { condition_flavor_8_4 = 2; }; if ((input == TextValue::Unknown || input == TextValue::Unimplemented) || input == TextValue::NonNull) {
+    let mut condition_flavor_8_4: i32 = unresolved_flavor; if let TextValue::Unknown = input { if condition_flavor_8_4 < 1 { condition_flavor_8_4 = 1; }; }; if let TextValue::Unimplemented = input { condition_flavor_8_4 = 2; }; if (input == TextValue::Unknown || input == TextValue::Unimplemented) || input == TextValue::NonNull {
         return int4_unresolved(condition_flavor_8_4);
     }
     if input == TextValue::Null {

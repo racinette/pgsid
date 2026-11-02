@@ -36,7 +36,7 @@ pub fn sql__pg_catalog__macaddr_eq__uthl(left: MacaddrValue, right: MacaddrValue
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_39_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_39_4 < 1 { condition_flavor_39_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_39_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+    let mut condition_flavor_39_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_39_4 < 1 { condition_flavor_39_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_39_4 = 2; }; if result == Int4Value::Unknown || result == Int4Value::Unimplemented {
         return bool_unresolved(condition_flavor_39_4);
     }
     if result == Int4Value::Null {
@@ -58,7 +58,7 @@ pub fn sql__pg_catalog__macaddr_ne__etmb(left: MacaddrValue, right: MacaddrValue
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_61_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_61_4 < 1 { condition_flavor_61_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_61_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+    let mut condition_flavor_61_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_61_4 < 1 { condition_flavor_61_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_61_4 = 2; }; if result == Int4Value::Unknown || result == Int4Value::Unimplemented {
         return bool_unresolved(condition_flavor_61_4);
     }
     if result == Int4Value::Null {
@@ -80,7 +80,7 @@ pub fn sql__pg_catalog__macaddr_lt__8vk5(left: MacaddrValue, right: MacaddrValue
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_83_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_83_4 < 1 { condition_flavor_83_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_83_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+    let mut condition_flavor_83_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_83_4 < 1 { condition_flavor_83_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_83_4 = 2; }; if result == Int4Value::Unknown || result == Int4Value::Unimplemented {
         return bool_unresolved(condition_flavor_83_4);
     }
     if result == Int4Value::Null {
@@ -102,7 +102,7 @@ pub fn sql__pg_catalog__macaddr_le__6qq0(left: MacaddrValue, right: MacaddrValue
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_105_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_105_4 < 1 { condition_flavor_105_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_105_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+    let mut condition_flavor_105_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_105_4 < 1 { condition_flavor_105_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_105_4 = 2; }; if result == Int4Value::Unknown || result == Int4Value::Unimplemented {
         return bool_unresolved(condition_flavor_105_4);
     }
     if result == Int4Value::Null {
@@ -124,7 +124,7 @@ pub fn sql__pg_catalog__macaddr_gt__4kss(left: MacaddrValue, right: MacaddrValue
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_127_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_127_4 < 1 { condition_flavor_127_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_127_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+    let mut condition_flavor_127_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_127_4 < 1 { condition_flavor_127_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_127_4 = 2; }; if result == Int4Value::Unknown || result == Int4Value::Unimplemented {
         return bool_unresolved(condition_flavor_127_4);
     }
     if result == Int4Value::Null {
@@ -146,7 +146,7 @@ pub fn sql__pg_catalog__macaddr_ge__iuvk(left: MacaddrValue, right: MacaddrValue
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_149_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_149_4 < 1 { condition_flavor_149_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_149_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+    let mut condition_flavor_149_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_149_4 < 1 { condition_flavor_149_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_149_4 = 2; }; if result == Int4Value::Unknown || result == Int4Value::Unimplemented {
         return bool_unresolved(condition_flavor_149_4);
     }
     if result == Int4Value::Null {
@@ -197,7 +197,7 @@ pub fn sql__pg_catalog__macaddr8_eq__wy3p(left: Macaddr8Value, right: Macaddr8Va
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_200_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_200_4 < 1 { condition_flavor_200_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_200_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+    let mut condition_flavor_200_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_200_4 < 1 { condition_flavor_200_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_200_4 = 2; }; if result == Int4Value::Unknown || result == Int4Value::Unimplemented {
         return bool_unresolved(condition_flavor_200_4);
     }
     if result == Int4Value::Null {
@@ -219,7 +219,7 @@ pub fn sql__pg_catalog__macaddr8_ne__j20a(left: Macaddr8Value, right: Macaddr8Va
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_222_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_222_4 < 1 { condition_flavor_222_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_222_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+    let mut condition_flavor_222_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_222_4 < 1 { condition_flavor_222_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_222_4 = 2; }; if result == Int4Value::Unknown || result == Int4Value::Unimplemented {
         return bool_unresolved(condition_flavor_222_4);
     }
     if result == Int4Value::Null {
@@ -241,7 +241,7 @@ pub fn sql__pg_catalog__macaddr8_lt__5tsr(left: Macaddr8Value, right: Macaddr8Va
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_244_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_244_4 < 1 { condition_flavor_244_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_244_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+    let mut condition_flavor_244_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_244_4 < 1 { condition_flavor_244_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_244_4 = 2; }; if result == Int4Value::Unknown || result == Int4Value::Unimplemented {
         return bool_unresolved(condition_flavor_244_4);
     }
     if result == Int4Value::Null {
@@ -263,7 +263,7 @@ pub fn sql__pg_catalog__macaddr8_le__dmol(left: Macaddr8Value, right: Macaddr8Va
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_266_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_266_4 < 1 { condition_flavor_266_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_266_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+    let mut condition_flavor_266_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_266_4 < 1 { condition_flavor_266_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_266_4 = 2; }; if result == Int4Value::Unknown || result == Int4Value::Unimplemented {
         return bool_unresolved(condition_flavor_266_4);
     }
     if result == Int4Value::Null {
@@ -285,7 +285,7 @@ pub fn sql__pg_catalog__macaddr8_gt__o95h(left: Macaddr8Value, right: Macaddr8Va
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_288_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_288_4 < 1 { condition_flavor_288_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_288_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+    let mut condition_flavor_288_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_288_4 < 1 { condition_flavor_288_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_288_4 = 2; }; if result == Int4Value::Unknown || result == Int4Value::Unimplemented {
         return bool_unresolved(condition_flavor_288_4);
     }
     if result == Int4Value::Null {
@@ -307,7 +307,7 @@ pub fn sql__pg_catalog__macaddr8_ge__054u(left: Macaddr8Value, right: Macaddr8Va
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_310_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_310_4 < 1 { condition_flavor_310_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_310_4 = 2; }; if (result == Int4Value::Unknown || result == Int4Value::Unimplemented) {
+    let mut condition_flavor_310_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_310_4 < 1 { condition_flavor_310_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_310_4 = 2; }; if result == Int4Value::Unknown || result == Int4Value::Unimplemented {
         return bool_unresolved(condition_flavor_310_4);
     }
     if result == Int4Value::Null {
@@ -507,7 +507,7 @@ pub fn sql__pg_catalog__macaddr8__ta7j(input: MacaddrValue) -> Macaddr8Value {
     if let MacaddrValue::Error(error) = input {
         return Macaddr8Value::Error(error);
     }
-    let mut condition_flavor_510_4: i32 = unresolved_flavor; if let MacaddrValue::Unknown = input { if condition_flavor_510_4 < 1 { condition_flavor_510_4 = 1; }; }; if let MacaddrValue::Unimplemented = input { condition_flavor_510_4 = 2; }; if (input == MacaddrValue::Unknown || input == MacaddrValue::Unimplemented) {
+    let mut condition_flavor_510_4: i32 = unresolved_flavor; if let MacaddrValue::Unknown = input { if condition_flavor_510_4 < 1 { condition_flavor_510_4 = 1; }; }; if let MacaddrValue::Unimplemented = input { condition_flavor_510_4 = 2; }; if input == MacaddrValue::Unknown || input == MacaddrValue::Unimplemented {
         return macaddr8_unresolved(condition_flavor_510_4);
     }
     if input == MacaddrValue::Null {
@@ -532,7 +532,7 @@ pub fn sql__pg_catalog__macaddr__xnt6(input: Macaddr8Value) -> MacaddrValue {
     if let Macaddr8Value::Error(error) = input {
         return MacaddrValue::Error(error);
     }
-    let mut condition_flavor_535_4: i32 = unresolved_flavor; if let Macaddr8Value::Unknown = input { if condition_flavor_535_4 < 1 { condition_flavor_535_4 = 1; }; }; if let Macaddr8Value::Unimplemented = input { condition_flavor_535_4 = 2; }; if (input == Macaddr8Value::Unknown || input == Macaddr8Value::Unimplemented) {
+    let mut condition_flavor_535_4: i32 = unresolved_flavor; if let Macaddr8Value::Unknown = input { if condition_flavor_535_4 < 1 { condition_flavor_535_4 = 1; }; }; if let Macaddr8Value::Unimplemented = input { condition_flavor_535_4 = 2; }; if input == Macaddr8Value::Unknown || input == Macaddr8Value::Unimplemented {
         return macaddr_unresolved(condition_flavor_535_4);
     }
     if input == Macaddr8Value::Null {

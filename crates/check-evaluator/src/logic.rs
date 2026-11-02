@@ -128,7 +128,7 @@ pub fn distinct_nulls_finish(left_null: BoolValue, right_null: BoolValue) -> Che
 }
 
 pub fn case_guard_stops(value: CheckOutcome) -> bool {
-    if (value == CheckOutcome::Unknown || value == CheckOutcome::Unimplemented) {
+    if value == CheckOutcome::Unknown || value == CheckOutcome::Unimplemented {
         return true;
     }
     if let CheckOutcome::Error(_) = value {

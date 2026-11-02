@@ -421,8 +421,8 @@ describe('portable smallint CHECK values', () => {
     expect(evaluate(-32768)).toEqual({ certain: true, value: false })
     expect(evaluate(32767)).toEqual({ certain: true, value: true })
     expect(evaluate(null)).toEqual({ certain: true, value: null })
-    for (const a of [undefined, -32769, 32768, 1.5, '1', {}])
-      expect(evaluate(a)).toEqual({ certain: false })
+    expect(evaluate(undefined)).toEqual({ certain: false })
+    for (const a of [-32769, 32768, 1.5, '1', {}]) expect(() => evaluate(a)).toThrow(TypeError)
     for (const sql of ['a::smallint > 0', '(a % big) > 0']) {
       const probe = lowerTableCheck(
         table,

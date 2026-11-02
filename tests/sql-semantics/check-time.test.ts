@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
+import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -437,24 +438,26 @@ describe('time, timetz and interval CHECK values', () => {
       { kind: 'Value', value: -1n },
       { kind: 'Value', value: 86400000001n },
     ])
-      expect(
-        evaluate({
-          local_time: invalid,
-          zoned_time: runtime.makeTimetzValue(0n, 0),
-          span: runtime.makeIntervalValue(0, 0, 0n),
-        }).find((item: GoCheckCase['results'][number]) => item.constraint === 'local_equal')!
-          .result,
-      ).toEqual({ certain: false })
+      expectUndecidedOrRejected(
+        () =>
+          evaluate({
+            local_time: invalid,
+            zoned_time: runtime.makeTimetzValue(0n, 0),
+            span: runtime.makeIntervalValue(0, 0, 0n),
+          }),
+        undefined,
+        ['local_equal'],
+      )
     for (const invalid of [
       { kind: 'Value', value: { time: 0n, zone: 2147483648 } },
       { kind: 'Value', value: { time: 0n, zone: -2147483649 } },
       { kind: 'Value', value: { time: 0, zone: 0 } },
     ])
-      expect(
-        evaluate({ local_time: runtime.makeTimeValue(0n), zoned_time: invalid }).find(
-          (item: GoCheckCase['results'][number]) => item.constraint === 'local_equal',
-        )!.result,
-      ).toEqual({ certain: false })
+      expectUndecidedOrRejected(
+        () => evaluate({ local_time: runtime.makeTimeValue(0n), zoned_time: invalid }),
+        undefined,
+        ['local_equal'],
+      )
     const generated = renderGoSchemaArtifacts(
       { ...catalog, tables: [table] },
       parseConfigString(

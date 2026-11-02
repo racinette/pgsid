@@ -93,7 +93,7 @@ fn jsonb_float_invariant(bits: i64, single: bool) -> JsonbInput {
 pub fn jsonb_input_from_float4_context(input: Float4Value, extra: i32, known: bool, textual: bool) -> JsonbInput {
     let rendered = float4_output_context(input, extra, known);
     if known == false && textual == false {
-        if (rendered == TextValue::Unknown || rendered == TextValue::Unimplemented) {
+        if rendered == TextValue::Unknown || rendered == TextValue::Unimplemented {
             if let Float4Value::Value(bits) = input { return jsonb_float_invariant(bits as i64, true); };
         };
     };
@@ -103,7 +103,7 @@ pub fn jsonb_input_from_float4_context(input: Float4Value, extra: i32, known: bo
 pub fn jsonb_input_from_float8_context(input: Float8Value, extra: i32, known: bool, textual: bool) -> JsonbInput {
     let rendered = float8_output_context(input, extra, known);
     if known == false && textual == false {
-        if (rendered == TextValue::Unknown || rendered == TextValue::Unimplemented) {
+        if rendered == TextValue::Unknown || rendered == TextValue::Unimplemented {
             if let Float8Value::Value(bits) = input { return jsonb_float_invariant(bits, false); };
         };
     };

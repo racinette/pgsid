@@ -84,10 +84,12 @@ it('validates SQL-coerced path point lists, partial states and binary precision 
         },
       }),
     ).toEqual(known)
+    for (const bad of [undefined, { kind: 'Unknown' }])
+      expect(Object.values(evaluate(bad))).toEqual(
+        Array.from({ length: 4 }, () => ({ certain: false })),
+      )
     for (const bad of [
-      undefined,
       '[(0,0),(3,4)]',
-      { kind: 'Unknown' },
       { kind: 'Value', value: { closed: false, points: [] } },
       { kind: 'Value', value: { closed: 'false', points } },
       { kind: 'Value', value: { closed: false, points: [null] } },
@@ -95,9 +97,7 @@ it('validates SQL-coerced path point lists, partial states and binary precision 
       { kind: 'Value', value: { closed: false, points: [{ x: 9223372036854775808n, y: 0n }] } },
       { kind: 'Value', value: { closed: false, points: [{ x: 0n, y: 0n, wireKnown: 'false' }] } },
     ])
-      expect(Object.values(evaluate(bad))).toEqual(
-        Array.from({ length: 4 }, () => ({ certain: false })),
-      )
+      expect(() => evaluate(bad)).toThrow(TypeError)
     for (const nullValue of [null, { kind: 'Null' }])
       expect(evaluate(nullValue)).toEqual({
         wire: { certain: true, value: null },

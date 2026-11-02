@@ -310,7 +310,7 @@ export function aclitemFromTextContext(input: checkruntime.TextValue, limit: num
         const characters: string[] = Array.from(text);
         let identifier: AclitemIdentifier = aclitemReadIdentifier(text, 0, limit, utf8);
         if (identifier.state === langruntime.checkedSignedNegate(1)) {
-            return checkruntime.aclitemUnresolved(unresolvedFlavor);
+            return checkruntime.aclitemUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         if (identifier.state === langruntime.checkedSignedNegate(2)) {
             return { kind: "Error", value: checkruntime.makeSqlError(aclitemNameTooLong) };
@@ -322,7 +322,7 @@ export function aclitemFromTextContext(input: checkruntime.TextValue, limit: num
             }
             identifier = copyAclitemIdentifier(aclitemReadIdentifier(text, position, limit, utf8));
             if (identifier.state === langruntime.checkedSignedNegate(1)) {
-                return checkruntime.aclitemUnresolved(unresolvedFlavor);
+                return checkruntime.aclitemUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
             }
             if (identifier.state === langruntime.checkedSignedNegate(2)) {
                 return { kind: "Error", value: checkruntime.makeSqlError(aclitemNameTooLong) };
@@ -354,12 +354,12 @@ export function aclitemFromTextContext(input: checkruntime.TextValue, limit: num
             }
         }
         if (!(identifier.value === "")) {
-            return checkruntime.aclitemUnresolved(unresolvedFlavor);
+            return checkruntime.aclitemUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         if (position < characters.length && langruntime.indexChar(characters, langruntime.checkedIndex(position)) === "/") {
             const grantor: AclitemIdentifier = aclitemReadIdentifier(text, langruntime.checkedAdd(position, 1), limit, utf8);
             if (grantor.state === langruntime.checkedSignedNegate(1)) {
-                return checkruntime.aclitemUnresolved(unresolvedFlavor);
+                return checkruntime.aclitemUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
             }
             if (grantor.state === langruntime.checkedSignedNegate(2)) {
                 return { kind: "Error", value: checkruntime.makeSqlError(aclitemNameTooLong) };
@@ -367,7 +367,7 @@ export function aclitemFromTextContext(input: checkruntime.TextValue, limit: num
             if (grantor.value === "") {
                 return { kind: "Error", value: checkruntime.makeSqlError(aclitemInvalidText) };
             }
-            return checkruntime.aclitemUnresolved(unresolvedFlavor);
+            return checkruntime.aclitemUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         while (position < characters.length && checkruntime.numericSpace(langruntime.indexChar(characters, langruntime.checkedIndex(position)))) {
             position = langruntime.checkedAdd(position, 1);
@@ -920,7 +920,7 @@ export function aclcontains90xb(input: checkruntime.ArrayValue, item: checkrunti
     if (item.kind === "Unimplemented") {
         conditionFlavor3224 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalAclitemValue(item, { kind: "Unknown" }) || checkruntime.equalAclitemValue(item, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalAclitemValue(item, { kind: "Unknown" }) || checkruntime.equalAclitemValue(item, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor3224);
     }
     if (input.kind === "Null") {
@@ -937,8 +937,15 @@ export function aclcontains90xb(input: checkruntime.ArrayValue, item: checkrunti
         if (checkruntime.equalBoolValue(array.nullBitmap, { kind: "Value", value: true })) {
             return { kind: "Error", value: checkruntime.makeSqlError(aclitemNullValueNotAllowed) };
         }
+        let bitmapFlavor: number = unresolvedFlavor;
+        if (checkruntime.equalBoolValue(array.nullBitmap, { kind: "Unknown" }) && bitmapFlavor < 1) {
+            bitmapFlavor = langruntime.checkedI32(1);
+        }
+        if (checkruntime.equalBoolValue(array.nullBitmap, { kind: "Unimplemented" })) {
+            bitmapFlavor = langruntime.checkedI32(2);
+        }
         if (!(checkruntime.equalBoolValue(array.nullBitmap, { kind: "Value", value: false }))) {
-            return checkruntime.boolUnresolved(unresolvedFlavor);
+            return checkruntime.boolUnresolved(bitmapFlavor);
         }
         let position: number = 0;
         let unknown: boolean = false;
@@ -950,6 +957,12 @@ export function aclcontains90xb(input: checkruntime.ArrayValue, item: checkrunti
             }
             if (!(checkruntime.equalBoolValue(matched, { kind: "Value", value: false }))) {
                 unknown = langruntime.checkedBool(true);
+            }
+            if (checkruntime.equalBoolValue(matched, { kind: "Unknown" }) && unresolvedFlavor < 1) {
+                unresolvedFlavor = langruntime.checkedI32(1);
+            }
+            if (checkruntime.equalBoolValue(matched, { kind: "Unimplemented" })) {
+                unresolvedFlavor = langruntime.checkedI32(2);
             }
             position = langruntime.checkedAdd(position, 1);
         }
@@ -1008,7 +1021,7 @@ function aclitemObsoleteUpdate(input: checkruntime.ArrayValue, item: checkruntim
     if (item.kind === "Unimplemented") {
         conditionFlavor3574 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalAclitemValue(item, { kind: "Unknown" }) || checkruntime.equalAclitemValue(item, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalAclitemValue(item, { kind: "Unknown" }) || checkruntime.equalAclitemValue(item, { kind: "Unimplemented" })) {
         return checkruntime.arrayUnresolved(conditionFlavor3574);
     }
     if (input.kind === "Null") {
@@ -1331,7 +1344,7 @@ function arrayComparisonBoolean(input: checkruntime.Int4Value, strategy: number)
     if (input.kind === "Unimplemented") {
         conditionFlavor84 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(input, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor84);
     }
     if (input.kind === "Null") {
@@ -1505,7 +1518,7 @@ function arrayFillPayload(element: checkruntime.ArrayElement, lengths: checkrunt
     if (boundNulls.kind === "Unimplemented") {
         conditionFlavor464 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(boundNulls, { kind: "Unknown" }) || checkruntime.equalInt4Value(boundNulls, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(boundNulls, { kind: "Unknown" }) || checkruntime.equalInt4Value(boundNulls, { kind: "Unimplemented" })) {
         return checkruntime.arrayUnresolved(conditionFlavor464);
     }
     if (!(bounds.elements.length === lengths.elements.length)) {
@@ -1631,7 +1644,7 @@ function arrayFillValue(element: checkruntime.ArrayElement, lengths: checkruntim
         if (nulls.kind === "Unimplemented") {
             conditionFlavor1558 = langruntime.checkedI32(2);
         }
-        if ((checkruntime.equalInt4Value(nulls, { kind: "Unknown" }) || checkruntime.equalInt4Value(nulls, { kind: "Unimplemented" }))) {
+        if (checkruntime.equalInt4Value(nulls, { kind: "Unknown" }) || checkruntime.equalInt4Value(nulls, { kind: "Unimplemented" })) {
             return checkruntime.arrayUnresolved(conditionFlavor1558);
         }
         if (shape.elements.length > 6) {
@@ -2280,7 +2293,7 @@ function floatArrayAccumulate(input: checkruntime.ArrayValue, y: checkruntime.Fl
         if (positive.kind === "Unimplemented") {
             conditionFlavor1368 = langruntime.checkedI32(2);
         }
-        if ((checkruntime.equalCheckOutcome(positive, { kind: "Unknown" }) || checkruntime.equalCheckOutcome(positive, { kind: "Unimplemented" }))) {
+        if (checkruntime.equalCheckOutcome(positive, { kind: "Unknown" }) || checkruntime.equalCheckOutcome(positive, { kind: "Unimplemented" })) {
             return checkruntime.arrayUnresolved(conditionFlavor1368);
         }
         const oldSx: checkruntime.Float8Value = floatStateField(value, 1);
@@ -2765,7 +2778,7 @@ function floatArrayCombine(left: checkruntime.ArrayValue, right: checkruntime.Ar
                 if (result.kind === "Unimplemented") {
                     conditionFlavor34716 = langruntime.checkedI32(2);
                 }
-                if ((checkruntime.equalFloat8Value(result, { kind: "Unknown" }) || checkruntime.equalFloat8Value(result, { kind: "Unimplemented" }))) {
+                if (checkruntime.equalFloat8Value(result, { kind: "Unknown" }) || checkruntime.equalFloat8Value(result, { kind: "Unimplemented" })) {
                     return checkruntime.arrayUnresolved(conditionFlavor34716);
                 }
                 langruntime.pushStruct(results, result, checkruntime.copyFloat8Value);
@@ -3430,7 +3443,7 @@ export function int8AvgPgr2(input: checkruntime.ArrayValue): checkruntime.Numeri
     if (sum.kind === "Unimplemented") {
         conditionFlavor1584 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt8Value(sum, { kind: "Unknown" }) || checkruntime.equalInt8Value(sum, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt8Value(sum, { kind: "Unknown" }) || checkruntime.equalInt8Value(sum, { kind: "Unimplemented" })) {
         return checkruntime.numericUnresolved(conditionFlavor1584);
     }
     if (input.kind === "Value") {
@@ -3846,7 +3859,7 @@ export function finishArrayOutput(input: checkruntime.ArrayOutputPayload, render
             if (text.kind === "Unimplemented") {
                 conditionFlavor21012 = langruntime.checkedI32(2);
             }
-            if ((checkruntime.equalTextValue(text, { kind: "Unknown" }) || checkruntime.equalTextValue(text, { kind: "Unimplemented" }))) {
+            if (checkruntime.equalTextValue(text, { kind: "Unknown" }) || checkruntime.equalTextValue(text, { kind: "Unimplemented" })) {
                 return checkruntime.textUnresolved(conditionFlavor21012);
             }
             if (text.kind === "Error") {
@@ -4931,6 +4944,19 @@ function arrayStringJoin(input: checkruntime.ArrayOutputPayload, rendered: check
                     if (separatorKnown === false) {
                         known = langruntime.checkedBool(false);
                     }
+                }
+                if (text.kind === "Unknown") {
+                    if (unresolvedFlavor < 1) {
+                        unresolvedFlavor = langruntime.checkedI32(1);
+                    }
+                }
+                if (text.kind === "NonNull") {
+                    if (unresolvedFlavor < 1) {
+                        unresolvedFlavor = langruntime.checkedI32(1);
+                    }
+                }
+                if (text.kind === "Unimplemented") {
+                    unresolvedFlavor = langruntime.checkedI32(2);
                 }
                 let fieldKnown: boolean = false;
                 if (text.kind === "Value") {
@@ -7005,7 +7031,7 @@ function bitLength(input: checkruntime.BitValue): checkruntime.Int4Value {
     if (input.kind === "Unimplemented") {
         conditionFlavor724 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalBitValue(input, { kind: "Unknown" }) || checkruntime.equalBitValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalBitValue(input, { kind: "Unknown" }) || checkruntime.equalBitValue(input, { kind: "Unimplemented" })) {
         return checkruntime.int4Unresolved(conditionFlavor724);
     }
     if (checkruntime.equalBitValue(input, { kind: "Null" })) {
@@ -7053,7 +7079,7 @@ export function biteq320u(left: checkruntime.BitValue, right: checkruntime.BitVa
     if (compared.kind === "Unimplemented") {
         conditionFlavor1044 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor1044);
     }
     if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
@@ -7093,7 +7119,7 @@ export function bitgePy56(left: checkruntime.BitValue, right: checkruntime.BitVa
     if (compared.kind === "Unimplemented") {
         conditionFlavor1264 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor1264);
     }
     if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
@@ -7133,7 +7159,7 @@ export function bitgt2srl(left: checkruntime.BitValue, right: checkruntime.BitVa
     if (compared.kind === "Unimplemented") {
         conditionFlavor1484 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor1484);
     }
     if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
@@ -7173,7 +7199,7 @@ export function bitleY0d7(left: checkruntime.BitValue, right: checkruntime.BitVa
     if (compared.kind === "Unimplemented") {
         conditionFlavor1704 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor1704);
     }
     if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
@@ -7213,7 +7239,7 @@ export function bitlt6ybn(left: checkruntime.BitValue, right: checkruntime.BitVa
     if (compared.kind === "Unimplemented") {
         conditionFlavor1924 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor1924);
     }
     if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
@@ -7253,7 +7279,7 @@ export function bitneXjg3(left: checkruntime.BitValue, right: checkruntime.BitVa
     if (compared.kind === "Unimplemented") {
         conditionFlavor2144 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor2144);
     }
     if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
@@ -7311,7 +7337,7 @@ export function varbiteqD8r9(left: checkruntime.BitValue, right: checkruntime.Bi
     if (compared.kind === "Unimplemented") {
         conditionFlavor2564 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor2564);
     }
     if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
@@ -7351,7 +7377,7 @@ export function varbitge3izz(left: checkruntime.BitValue, right: checkruntime.Bi
     if (compared.kind === "Unimplemented") {
         conditionFlavor2784 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor2784);
     }
     if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
@@ -7391,7 +7417,7 @@ export function varbitgt31v4(left: checkruntime.BitValue, right: checkruntime.Bi
     if (compared.kind === "Unimplemented") {
         conditionFlavor3004 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor3004);
     }
     if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
@@ -7431,7 +7457,7 @@ export function varbitle42o0(left: checkruntime.BitValue, right: checkruntime.Bi
     if (compared.kind === "Unimplemented") {
         conditionFlavor3224 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor3224);
     }
     if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
@@ -7471,7 +7497,7 @@ export function varbitltXsv2(left: checkruntime.BitValue, right: checkruntime.Bi
     if (compared.kind === "Unimplemented") {
         conditionFlavor3444 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor3444);
     }
     if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
@@ -7511,7 +7537,7 @@ export function varbitneSbck(left: checkruntime.BitValue, right: checkruntime.Bi
     if (compared.kind === "Unimplemented") {
         conditionFlavor3664 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor3664);
     }
     if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
@@ -7858,7 +7884,7 @@ export function bitCountFri1(input: checkruntime.BitValue): checkruntime.Int8Val
     if (input.kind === "Unimplemented") {
         conditionFlavor84 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalBitValue(input, { kind: "Unknown" }) || checkruntime.equalBitValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalBitValue(input, { kind: "Unknown" }) || checkruntime.equalBitValue(input, { kind: "Unimplemented" })) {
         return checkruntime.int8Unresolved(conditionFlavor84);
     }
     if (checkruntime.equalBitValue(input, { kind: "Null" })) {
@@ -8360,7 +8386,7 @@ export function int4Lp2l(input: checkruntime.BitValue): checkruntime.Int4Value {
     if (input.kind === "Unimplemented") {
         conditionFlavor1134 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalBitValue(input, { kind: "Unknown" }) || checkruntime.equalBitValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalBitValue(input, { kind: "Unknown" }) || checkruntime.equalBitValue(input, { kind: "Unimplemented" })) {
         return checkruntime.int4Unresolved(conditionFlavor1134);
     }
     if (checkruntime.equalBitValue(input, { kind: "Null" })) {
@@ -8397,7 +8423,7 @@ export function int809r6(input: checkruntime.BitValue): checkruntime.Int8Value {
     if (input.kind === "Unimplemented") {
         conditionFlavor1364 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalBitValue(input, { kind: "Unknown" }) || checkruntime.equalBitValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalBitValue(input, { kind: "Unknown" }) || checkruntime.equalBitValue(input, { kind: "Unimplemented" })) {
         return checkruntime.int8Unresolved(conditionFlavor1364);
     }
     if (checkruntime.equalBitValue(input, { kind: "Null" })) {
@@ -8436,7 +8462,7 @@ export function varbitSendYt0j(input: checkruntime.BitValue): checkruntime.Bytea
     if (input.kind === "Unimplemented") {
         conditionFlavor124 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalBitValue(input, { kind: "Unknown" }) || checkruntime.equalBitValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalBitValue(input, { kind: "Unknown" }) || checkruntime.equalBitValue(input, { kind: "Unimplemented" })) {
         return checkruntime.byteaUnresolved(conditionFlavor124);
     }
     if (checkruntime.equalBitValue(input, { kind: "Null" })) {
@@ -9925,7 +9951,7 @@ function boxMerge(left: checkruntime.BoxValue, right: checkruntime.BoxValue, int
     if (status.kind === "Unimplemented") {
         conditionFlavor1564 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalBoolValue(status, { kind: "Unknown" }) || checkruntime.equalBoolValue(status, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalBoolValue(status, { kind: "Unknown" }) || checkruntime.equalBoolValue(status, { kind: "Unimplemented" })) {
         return checkruntime.boxUnresolved(conditionFlavor1564);
     }
     if (checkruntime.equalBoolValue(status, { kind: "Null" })) {
@@ -10084,7 +10110,7 @@ function boxArithmetic(input: checkruntime.BoxValue, point: checkruntime.PointVa
     if (status.kind === "Unimplemented") {
         conditionFlavor2354 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalBoolValue(status, { kind: "Unknown" }) || checkruntime.equalBoolValue(status, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalBoolValue(status, { kind: "Unknown" }) || checkruntime.equalBoolValue(status, { kind: "Unimplemented" })) {
         return checkruntime.boxUnresolved(conditionFlavor2354);
     }
     if (checkruntime.equalBoolValue(status, { kind: "Null" })) {
@@ -10318,7 +10344,7 @@ function boxCrossSegment(input: checkruntime.BoxValue, segment: checkruntime.Lse
             const error: checkruntime.SqlError = distance.value;
             return { intersects: { kind: "Error", value: error }, point: { kind: "Error", value: error } };
         }
-        if ((checkruntime.equalFloat8Value(distance, { kind: "Unknown" }) || checkruntime.equalFloat8Value(distance, { kind: "Unimplemented" }))) {
+        if (checkruntime.equalFloat8Value(distance, { kind: "Unknown" }) || checkruntime.equalFloat8Value(distance, { kind: "Unimplemented" })) {
             let testedFlavor: number = 1;
             if (checkruntime.equalFloat8Value(distance, { kind: "Unimplemented" })) {
                 testedFlavor = langruntime.checkedI32(2);
@@ -10337,7 +10363,7 @@ function boxCrossSegment(input: checkruntime.BoxValue, segment: checkruntime.Lse
             const error: checkruntime.SqlError = result.value;
             return { intersects: { kind: "Error", value: error }, point: { kind: "Error", value: error } };
         }
-        if ((checkruntime.equalPointValue(result, { kind: "Unknown" }) || checkruntime.equalPointValue(result, { kind: "Unimplemented" }))) {
+        if (checkruntime.equalPointValue(result, { kind: "Unknown" }) || checkruntime.equalPointValue(result, { kind: "Unimplemented" })) {
             let testedFlavor: number = 1;
             if (checkruntime.equalPointValue(result, { kind: "Unimplemented" })) {
                 testedFlavor = langruntime.checkedI32(2);
@@ -10474,7 +10500,7 @@ function boxCrossLine(input: checkruntime.BoxValue, line: checkruntime.LineValue
         if (result.kind === "Unimplemented") {
             conditionFlavor5408 = langruntime.checkedI32(2);
         }
-        if ((checkruntime.equalPointValue(result, { kind: "Unknown" }) || checkruntime.equalPointValue(result, { kind: "Unimplemented" }))) {
+        if (checkruntime.equalPointValue(result, { kind: "Unknown" }) || checkruntime.equalPointValue(result, { kind: "Unimplemented" })) {
             return checkruntime.boolUnresolved(conditionFlavor5408);
         }
         if (!(checkruntime.equalPointValue(result, { kind: "Null" }))) {
@@ -10889,7 +10915,7 @@ export function bytealtBe6e(left: checkruntime.ByteaValue, right: checkruntime.B
     if (result.kind === "Unimplemented") {
         conditionFlavor624 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor624);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -10941,7 +10967,7 @@ export function bytealeVi7d(left: checkruntime.ByteaValue, right: checkruntime.B
     if (result.kind === "Unimplemented") {
         conditionFlavor844 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor844);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -10993,7 +11019,7 @@ export function byteagt221r(left: checkruntime.ByteaValue, right: checkruntime.B
     if (result.kind === "Unimplemented") {
         conditionFlavor1064 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor1064);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -11045,7 +11071,7 @@ export function byteagePaor(left: checkruntime.ByteaValue, right: checkruntime.B
     if (result.kind === "Unimplemented") {
         conditionFlavor1284 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor1284);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -11097,7 +11123,7 @@ export function byteaLargerIqg1(left: checkruntime.ByteaValue, right: checkrunti
     if (result.kind === "Unimplemented") {
         conditionFlavor1504 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.byteaUnresolved(conditionFlavor1504);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -11152,7 +11178,7 @@ export function byteaSmallerIook(left: checkruntime.ByteaValue, right: checkrunt
     if (result.kind === "Unimplemented") {
         conditionFlavor1754 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.byteaUnresolved(conditionFlavor1754);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -11194,7 +11220,7 @@ function byteaLength(input: checkruntime.ByteaValue): checkruntime.Int4Value {
     if (input.kind === "Unimplemented") {
         conditionFlavor1974 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalByteaValue(input, { kind: "Unknown" }) || checkruntime.equalByteaValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalByteaValue(input, { kind: "Unknown" }) || checkruntime.equalByteaValue(input, { kind: "Unimplemented" })) {
         return checkruntime.int4Unresolved(conditionFlavor1974);
     }
     if (checkruntime.equalByteaValue(input, { kind: "Null" })) {
@@ -11258,7 +11284,7 @@ export function bitCountU0pl(input: checkruntime.ByteaValue): checkruntime.Int8V
     if (input.kind === "Unimplemented") {
         conditionFlavor2424 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalByteaValue(input, { kind: "Unknown" }) || checkruntime.equalByteaValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalByteaValue(input, { kind: "Unknown" }) || checkruntime.equalByteaValue(input, { kind: "Unimplemented" })) {
         return checkruntime.int8Unresolved(conditionFlavor2424);
     }
     if (checkruntime.equalByteaValue(input, { kind: "Null" })) {
@@ -12303,7 +12329,7 @@ export function hashbyteaMypt(input: checkruntime.ByteaValue, byteOrder: number)
     if (input.kind === "Unimplemented") {
         conditionFlavor224 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalByteaValue(input, { kind: "Unknown" }) || checkruntime.equalByteaValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalByteaValue(input, { kind: "Unknown" }) || checkruntime.equalByteaValue(input, { kind: "Unimplemented" })) {
         return checkruntime.int4Unresolved(conditionFlavor224);
     }
     if (checkruntime.equalByteaValue(input, { kind: "Null" })) {
@@ -12406,7 +12432,7 @@ function byteaCrc(input: checkruntime.ByteaValue, polynomial: bigint): checkrunt
     if (input.kind === "Unimplemented") {
         conditionFlavor734 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalByteaValue(input, { kind: "Unknown" }) || checkruntime.equalByteaValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalByteaValue(input, { kind: "Unknown" }) || checkruntime.equalByteaValue(input, { kind: "Unimplemented" })) {
         return checkruntime.int8Unresolved(conditionFlavor734);
     }
     if (checkruntime.equalByteaValue(input, { kind: "Null" })) {
@@ -12471,7 +12497,7 @@ export function byteaFromText(input: checkruntime.TextValue): checkruntime.Bytea
     if (input.kind === "Unimplemented") {
         conditionFlavor64 = langruntime.checkedI32(2);
     }
-    if (((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "Unimplemented" })) || checkruntime.equalTextValue(input, { kind: "NonNull" }))) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "Unimplemented" })) || checkruntime.equalTextValue(input, { kind: "NonNull" })) {
         return checkruntime.byteaUnresolved(conditionFlavor64);
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" })) {
@@ -12536,7 +12562,7 @@ function byteaIntegerValue(input: checkruntime.ByteaValue, width: number): check
     if (input.kind === "Unimplemented") {
         conditionFlavor84 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalByteaValue(input, { kind: "Unknown" }) || checkruntime.equalByteaValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalByteaValue(input, { kind: "Unknown" }) || checkruntime.equalByteaValue(input, { kind: "Unimplemented" })) {
         return checkruntime.int8Unresolved(conditionFlavor84);
     }
     if (checkruntime.equalByteaValue(input, { kind: "Null" })) {
@@ -12618,7 +12644,7 @@ export function int2Hj0w(input: checkruntime.ByteaValue): checkruntime.Int2Value
     if (result.kind === "Unimplemented") {
         conditionFlavor694 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt8Value(result, { kind: "Unknown" }) || checkruntime.equalInt8Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt8Value(result, { kind: "Unknown" }) || checkruntime.equalInt8Value(result, { kind: "Unimplemented" })) {
         return checkruntime.int2Unresolved(conditionFlavor694);
     }
     if (checkruntime.equalInt8Value(result, { kind: "Null" })) {
@@ -12659,7 +12685,7 @@ export function int4Lvgc(input: checkruntime.ByteaValue): checkruntime.Int4Value
     if (result.kind === "Unimplemented") {
         conditionFlavor904 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt8Value(result, { kind: "Unknown" }) || checkruntime.equalInt8Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt8Value(result, { kind: "Unknown" }) || checkruntime.equalInt8Value(result, { kind: "Unimplemented" })) {
         return checkruntime.int4Unresolved(conditionFlavor904);
     }
     if (checkruntime.equalInt8Value(result, { kind: "Null" })) {
@@ -12696,7 +12722,7 @@ export function int2send5wzj(input: checkruntime.Int2Value): checkruntime.ByteaV
     if (input.kind === "Unimplemented") {
         conditionFlavor1144 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt2Value(input, { kind: "Unknown" }) || checkruntime.equalInt2Value(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt2Value(input, { kind: "Unknown" }) || checkruntime.equalInt2Value(input, { kind: "Unimplemented" })) {
         return checkruntime.byteaUnresolved(conditionFlavor1144);
     }
     if (checkruntime.equalInt2Value(input, { kind: "Null" })) {
@@ -12734,7 +12760,7 @@ export function int4sendFjzt(input: checkruntime.Int4Value): checkruntime.ByteaV
     if (input.kind === "Unimplemented") {
         conditionFlavor1394 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(input, { kind: "Unimplemented" })) {
         return checkruntime.byteaUnresolved(conditionFlavor1394);
     }
     if (checkruntime.equalInt4Value(input, { kind: "Null" })) {
@@ -12772,7 +12798,7 @@ export function int8sendPjz0(input: checkruntime.Int8Value): checkruntime.ByteaV
     if (input.kind === "Unimplemented") {
         conditionFlavor1644 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt8Value(input, { kind: "Unknown" }) || checkruntime.equalInt8Value(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt8Value(input, { kind: "Unknown" }) || checkruntime.equalInt8Value(input, { kind: "Unimplemented" })) {
         return checkruntime.byteaUnresolved(conditionFlavor1644);
     }
     if (checkruntime.equalInt8Value(input, { kind: "Null" })) {
@@ -12810,7 +12836,7 @@ export function dateSendI2tv(input: checkruntime.DateValue): checkruntime.ByteaV
     if (input.kind === "Unimplemented") {
         conditionFlavor1894 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalDateValue(input, { kind: "Unknown" }) || checkruntime.equalDateValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalDateValue(input, { kind: "Unknown" }) || checkruntime.equalDateValue(input, { kind: "Unimplemented" })) {
         return checkruntime.byteaUnresolved(conditionFlavor1894);
     }
     if (checkruntime.equalDateValue(input, { kind: "Null" })) {
@@ -12845,7 +12871,7 @@ export function timestampSend3syx(input: checkruntime.TimestampValue): checkrunt
     if (input.kind === "Unimplemented") {
         conditionFlavor2104 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalTimestampValue(input, { kind: "Unknown" }) || checkruntime.equalTimestampValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalTimestampValue(input, { kind: "Unknown" }) || checkruntime.equalTimestampValue(input, { kind: "Unimplemented" })) {
         return checkruntime.byteaUnresolved(conditionFlavor2104);
     }
     if (checkruntime.equalTimestampValue(input, { kind: "Null" })) {
@@ -12880,7 +12906,7 @@ export function timestamptzSendJyu1(input: checkruntime.TimestamptzValue): check
     if (input.kind === "Unimplemented") {
         conditionFlavor2314 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalTimestamptzValue(input, { kind: "Unknown" }) || checkruntime.equalTimestamptzValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalTimestamptzValue(input, { kind: "Unknown" }) || checkruntime.equalTimestamptzValue(input, { kind: "Unimplemented" })) {
         return checkruntime.byteaUnresolved(conditionFlavor2314);
     }
     if (checkruntime.equalTimestamptzValue(input, { kind: "Null" })) {
@@ -12915,7 +12941,7 @@ export function boolsendOo82(input: checkruntime.BoolValue): checkruntime.ByteaV
     if (input.kind === "Unimplemented") {
         conditionFlavor2524 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalBoolValue(input, { kind: "Unknown" }) || checkruntime.equalBoolValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalBoolValue(input, { kind: "Unknown" }) || checkruntime.equalBoolValue(input, { kind: "Unimplemented" })) {
         return checkruntime.byteaUnresolved(conditionFlavor2524);
     }
     if (checkruntime.equalBoolValue(input, { kind: "Null" })) {
@@ -13386,7 +13412,7 @@ export function md5Vpfl(input: checkruntime.ByteaValue): checkruntime.TextValue 
     if (input.kind === "Unimplemented") {
         conditionFlavor1824 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalByteaValue(input, { kind: "Unknown" }) || checkruntime.equalByteaValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalByteaValue(input, { kind: "Unknown" }) || checkruntime.equalByteaValue(input, { kind: "Unimplemented" })) {
         return checkruntime.textUnresolved(conditionFlavor1824);
     }
     if (checkruntime.equalByteaValue(input, { kind: "Null" })) {
@@ -13425,7 +13451,7 @@ export function md5Kt50(input: checkruntime.TextValue): checkruntime.TextValue {
     if (input.kind === "Unimplemented") {
         conditionFlavor2024 = langruntime.checkedI32(2);
     }
-    if (((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "Unimplemented" })) || checkruntime.equalTextValue(input, { kind: "NonNull" }))) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "Unimplemented" })) || checkruntime.equalTextValue(input, { kind: "NonNull" })) {
         return checkruntime.textUnresolved(conditionFlavor2024);
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" })) {
@@ -13994,7 +14020,7 @@ function digestSha256(input: checkruntime.ByteaValue, short: boolean): checkrunt
     if (input.kind === "Unimplemented") {
         conditionFlavor3044 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalByteaValue(input, { kind: "Unknown" }) || checkruntime.equalByteaValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalByteaValue(input, { kind: "Unknown" }) || checkruntime.equalByteaValue(input, { kind: "Unimplemented" })) {
         return checkruntime.byteaUnresolved(conditionFlavor3044);
     }
     if (checkruntime.equalByteaValue(input, { kind: "Null" })) {
@@ -14249,7 +14275,7 @@ function digestSha512(input: checkruntime.ByteaValue, short: boolean): checkrunt
     if (input.kind === "Unimplemented") {
         conditionFlavor4344 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalByteaValue(input, { kind: "Unknown" }) || checkruntime.equalByteaValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalByteaValue(input, { kind: "Unknown" }) || checkruntime.equalByteaValue(input, { kind: "Unimplemented" })) {
         return checkruntime.byteaUnresolved(conditionFlavor4344);
     }
     if (checkruntime.equalByteaValue(input, { kind: "Null" })) {
@@ -14939,7 +14965,7 @@ export function catalogVectorFromText(input: checkruntime.TextValue, oid: boolea
                 if (value.kind === "Unimplemented") {
                     conditionFlavor11216 = langruntime.checkedI32(2);
                 }
-                if ((checkruntime.equalOidValue(value, { kind: "Unknown" }) || checkruntime.equalOidValue(value, { kind: "Unimplemented" }))) {
+                if (checkruntime.equalOidValue(value, { kind: "Unknown" }) || checkruntime.equalOidValue(value, { kind: "Unimplemented" })) {
                     return checkruntime.arrayUnresolved(conditionFlavor11216);
                 }
             }
@@ -15296,7 +15322,7 @@ export function hashoidvectorextendedHlbf(input: checkruntime.ArrayValue, seed: 
     if (seed.kind === "Unimplemented") {
         conditionFlavor2544 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt8Value(seed, { kind: "Unknown" }) || checkruntime.equalInt8Value(seed, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt8Value(seed, { kind: "Unknown" }) || checkruntime.equalInt8Value(seed, { kind: "Unimplemented" })) {
         return checkruntime.int8Unresolved(conditionFlavor2544);
     }
     if (input.kind === "Null") {
@@ -15859,7 +15885,7 @@ export function textVc4r(input: checkruntime.TextValue): checkruntime.TextValue 
     if (input.kind === "Unimplemented") {
         conditionFlavor84 = langruntime.checkedI32(2);
     }
-    if (((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "Unimplemented" })) || checkruntime.equalTextValue(input, { kind: "NonNull" }))) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "Unimplemented" })) || checkruntime.equalTextValue(input, { kind: "NonNull" })) {
         return checkruntime.textUnresolved(conditionFlavor84);
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" })) {
@@ -15905,7 +15931,7 @@ export function chr23bn(input: checkruntime.Int4Value): checkruntime.TextValue {
     if (input.kind === "Unimplemented") {
         conditionFlavor114 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(input, { kind: "Unimplemented" })) {
         return checkruntime.textUnresolved(conditionFlavor114);
     }
     if (checkruntime.equalInt4Value(input, { kind: "Null" })) {
@@ -16414,7 +16440,7 @@ function circleParse(value: string): checkruntime.CircleValue {
     if (point.kind === "Unimplemented") {
         conditionFlavor254 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalPointValue(point, { kind: "Unknown" }) || checkruntime.equalPointValue(point, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalPointValue(point, { kind: "Unknown" }) || checkruntime.equalPointValue(point, { kind: "Unimplemented" })) {
         return checkruntime.circleUnresolved(conditionFlavor254);
     }
     index = langruntime.checkedIndex(center.end);
@@ -16436,7 +16462,7 @@ function circleParse(value: string): checkruntime.CircleValue {
     if (scalar.kind === "Unimplemented") {
         conditionFlavor374 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalFloat8Value(scalar, { kind: "Unknown" }) || checkruntime.equalFloat8Value(scalar, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalFloat8Value(scalar, { kind: "Unknown" }) || checkruntime.equalFloat8Value(scalar, { kind: "Unimplemented" })) {
         return checkruntime.circleUnresolved(conditionFlavor374);
     }
     if (scalar.kind === "Value") {
@@ -16696,7 +16722,7 @@ function circleDistanceValue(left: checkruntime.CircleValue, right: checkruntime
     if (status.kind === "Unimplemented") {
         conditionFlavor1404 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalBoolValue(status, { kind: "Unknown" }) || checkruntime.equalBoolValue(status, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalBoolValue(status, { kind: "Unknown" }) || checkruntime.equalBoolValue(status, { kind: "Unimplemented" })) {
         return checkruntime.float8Unresolved(conditionFlavor1404);
     }
     if (checkruntime.equalBoolValue(status, { kind: "Null" })) {
@@ -16788,7 +16814,7 @@ function circlePointDistance(input: checkruntime.CircleValue, point: checkruntim
     if (status.kind === "Unimplemented") {
         conditionFlavor1954 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalBoolValue(status, { kind: "Unknown" }) || checkruntime.equalBoolValue(status, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalBoolValue(status, { kind: "Unknown" }) || checkruntime.equalBoolValue(status, { kind: "Unimplemented" })) {
         return checkruntime.float8Unresolved(conditionFlavor1954);
     }
     if (checkruntime.equalBoolValue(status, { kind: "Null" })) {
@@ -16826,7 +16852,7 @@ function circleArithmetic(input: checkruntime.CircleValue, point: checkruntime.P
     if (status.kind === "Unimplemented") {
         conditionFlavor2174 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalBoolValue(status, { kind: "Unknown" }) || checkruntime.equalBoolValue(status, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalBoolValue(status, { kind: "Unknown" }) || checkruntime.equalBoolValue(status, { kind: "Unimplemented" })) {
         return checkruntime.circleUnresolved(conditionFlavor2174);
     }
     if (checkruntime.equalBoolValue(status, { kind: "Null" })) {
@@ -17464,7 +17490,7 @@ function clockFieldsLegacy(units: checkruntime.TextValue, input: ClockFieldInput
     if (number.kind === "Unimplemented") {
         conditionFlavor2404 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNumericValue(number, { kind: "Unknown" }) || checkruntime.equalNumericValue(number, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNumericValue(number, { kind: "Unknown" }) || checkruntime.equalNumericValue(number, { kind: "Unimplemented" })) {
         return checkruntime.float8Unresolved(conditionFlavor2404);
     }
     if (checkruntime.equalNumericValue(number, { kind: "Null" })) {
@@ -18261,7 +18287,7 @@ export function appendCompositeOutput(input: checkruntime.TextValue, field: chec
         if (field.kind === "Unimplemented") {
             conditionFlavor2558 = langruntime.checkedI32(2);
         }
-        if ((checkruntime.equalTextValue(field, { kind: "Unknown" }) || checkruntime.equalTextValue(field, { kind: "Unimplemented" }))) {
+        if (checkruntime.equalTextValue(field, { kind: "Unknown" }) || checkruntime.equalTextValue(field, { kind: "Unimplemented" })) {
             return checkruntime.textUnresolved(conditionFlavor2558);
         }
         if (field.kind === "Value") {
@@ -18295,7 +18321,7 @@ export function appendCompositeOutput(input: checkruntime.TextValue, field: chec
         if (field.kind === "Unimplemented") {
             conditionFlavor2718 = langruntime.checkedI32(2);
         }
-        if ((checkruntime.equalTextValue(field, { kind: "Unknown" }) || checkruntime.equalTextValue(field, { kind: "Unimplemented" }))) {
+        if (checkruntime.equalTextValue(field, { kind: "Unknown" }) || checkruntime.equalTextValue(field, { kind: "Unimplemented" })) {
             return checkruntime.textUnresolved(conditionFlavor2718);
         }
         let result: string = source;
@@ -18768,7 +18794,7 @@ export function enumToText(input: checkruntime.EnumValue, labels: string, count:
     if (input.kind === "Unimplemented") {
         conditionFlavor84 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalEnumValue(input, { kind: "Unknown" }) || checkruntime.equalEnumValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalEnumValue(input, { kind: "Unknown" }) || checkruntime.equalEnumValue(input, { kind: "Unimplemented" })) {
         return checkruntime.textUnresolved(conditionFlavor84);
     }
     if (checkruntime.equalEnumValue(input, { kind: "Null" })) {
@@ -19087,7 +19113,7 @@ export function hashenumZ4zk(input: checkruntime.EnumValue): checkruntime.Int4Va
     if (input.kind === "Unimplemented") {
         conditionFlavor1964 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalEnumValue(input, { kind: "Unknown" }) || checkruntime.equalEnumValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalEnumValue(input, { kind: "Unknown" }) || checkruntime.equalEnumValue(input, { kind: "Unimplemented" })) {
         return checkruntime.int4Unresolved(conditionFlavor1964);
     }
     if (checkruntime.equalEnumValue(input, { kind: "Null" })) {
@@ -19516,7 +19542,7 @@ export function float4largerBpdf(left: checkruntime.Float4Value, right: checkrun
     if (order.kind === "Unimplemented") {
         conditionFlavor44211 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(order, { kind: "Unknown" }) || checkruntime.equalInt4Value(order, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(order, { kind: "Unknown" }) || checkruntime.equalInt4Value(order, { kind: "Unimplemented" })) {
         return checkruntime.float4Unresolved(conditionFlavor44211);
     }
     if (checkruntime.equalInt4Value(order, { kind: "Null" })) {
@@ -19578,7 +19604,7 @@ export function float4smaller1d11(left: checkruntime.Float4Value, right: checkru
     if (order.kind === "Unimplemented") {
         conditionFlavor57211 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(order, { kind: "Unknown" }) || checkruntime.equalInt4Value(order, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(order, { kind: "Unknown" }) || checkruntime.equalInt4Value(order, { kind: "Unimplemented" })) {
         return checkruntime.float4Unresolved(conditionFlavor57211);
     }
     if (checkruntime.equalInt4Value(order, { kind: "Null" })) {
@@ -19676,7 +19702,7 @@ export function float8largerB58s(left: checkruntime.Float8Value, right: checkrun
     if (order.kind === "Unimplemented") {
         conditionFlavor80183 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(order, { kind: "Unknown" }) || checkruntime.equalInt4Value(order, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(order, { kind: "Unknown" }) || checkruntime.equalInt4Value(order, { kind: "Unimplemented" })) {
         return checkruntime.float8Unresolved(conditionFlavor80183);
     }
     if (checkruntime.equalInt4Value(order, { kind: "Null" })) {
@@ -19738,7 +19764,7 @@ export function float8smallerSp3n(left: checkruntime.Float8Value, right: checkru
     if (order.kind === "Unimplemented") {
         conditionFlavor93183 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(order, { kind: "Unknown" }) || checkruntime.equalInt4Value(order, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(order, { kind: "Unknown" }) || checkruntime.equalInt4Value(order, { kind: "Unimplemented" })) {
         return checkruntime.float8Unresolved(conditionFlavor93183);
     }
     if (checkruntime.equalInt4Value(order, { kind: "Null" })) {
@@ -24982,7 +25008,7 @@ function integerComplement(input: checkruntime.Int8Value): checkruntime.Int8Valu
     if (input.kind === "Unimplemented") {
         conditionFlavor864 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt8Value(input, { kind: "Unknown" }) || checkruntime.equalInt8Value(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt8Value(input, { kind: "Unknown" }) || checkruntime.equalInt8Value(input, { kind: "Unimplemented" })) {
         return checkruntime.int8Unresolved(conditionFlavor864);
     }
     if (checkruntime.equalInt8Value(input, { kind: "Null" })) {
@@ -25095,7 +25121,7 @@ function integerBitsInt4(input: checkruntime.Int8Value): checkruntime.Int4Value 
     if (input.kind === "Unimplemented") {
         conditionFlavor1574 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt8Value(input, { kind: "Unknown" }) || checkruntime.equalInt8Value(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt8Value(input, { kind: "Unknown" }) || checkruntime.equalInt8Value(input, { kind: "Unimplemented" })) {
         return checkruntime.int4Unresolved(conditionFlavor1574);
     }
     if (checkruntime.equalInt8Value(input, { kind: "Null" })) {
@@ -25128,7 +25154,7 @@ function integerBitsInt2(input: checkruntime.Int8Value): checkruntime.Int2Value 
     if (input.kind === "Unimplemented") {
         conditionFlavor1764 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt8Value(input, { kind: "Unknown" }) || checkruntime.equalInt8Value(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt8Value(input, { kind: "Unknown" }) || checkruntime.equalInt8Value(input, { kind: "Unimplemented" })) {
         return checkruntime.int2Unresolved(conditionFlavor1764);
     }
     if (checkruntime.equalInt8Value(input, { kind: "Null" })) {
@@ -25350,7 +25376,7 @@ function integerBaseText(input: checkruntime.Int8Value, fullWidth: boolean, radi
     if (input.kind === "Unimplemented") {
         conditionFlavor84 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt8Value(input, { kind: "Unknown" }) || checkruntime.equalInt8Value(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt8Value(input, { kind: "Unknown" }) || checkruntime.equalInt8Value(input, { kind: "Unimplemented" })) {
         return checkruntime.textUnresolved(conditionFlavor84);
     }
     if (checkruntime.equalInt8Value(input, { kind: "Null" })) {
@@ -25412,7 +25438,7 @@ export function int8ToText(input: checkruntime.Int8Value): checkruntime.TextValu
     if (input.kind === "Unimplemented") {
         conditionFlavor564 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt8Value(input, { kind: "Unknown" }) || checkruntime.equalInt8Value(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt8Value(input, { kind: "Unknown" }) || checkruntime.equalInt8Value(input, { kind: "Unimplemented" })) {
         return checkruntime.textUnresolved(conditionFlavor564);
     }
     if (checkruntime.equalInt8Value(input, { kind: "Null" })) {
@@ -25449,7 +25475,7 @@ export function int2ToText(input: checkruntime.Int2Value): checkruntime.TextValu
     if (input.kind === "Unimplemented") {
         conditionFlavor804 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt2Value(input, { kind: "Unknown" }) || checkruntime.equalInt2Value(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt2Value(input, { kind: "Unknown" }) || checkruntime.equalInt2Value(input, { kind: "Unimplemented" })) {
         return checkruntime.textUnresolved(conditionFlavor804);
     }
     if (checkruntime.equalInt2Value(input, { kind: "Null" })) {
@@ -25590,7 +25616,7 @@ function integerHash(input: checkruntime.Int8Value): checkruntime.Int4Value {
     if (result.kind === "Unimplemented") {
         conditionFlavor634 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt8Value(result, { kind: "Unknown" }) || checkruntime.equalInt8Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt8Value(result, { kind: "Unknown" }) || checkruntime.equalInt8Value(result, { kind: "Unimplemented" })) {
         return checkruntime.int4Unresolved(conditionFlavor634);
     }
     if (checkruntime.equalInt8Value(result, { kind: "Null" })) {
@@ -25655,7 +25681,7 @@ export function gistTranslateCmptypeCommonAi1r(input: checkruntime.Int4Value): c
     if (input.kind === "Unimplemented") {
         conditionFlavor84 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(input, { kind: "Unimplemented" })) {
         return checkruntime.int2Unresolved(conditionFlavor84);
     }
     if (checkruntime.equalInt4Value(input, { kind: "Null" })) {
@@ -25709,7 +25735,7 @@ export function pgEncodingMaxLengthAj1r(input: checkruntime.Int4Value): checkrun
     if (input.kind === "Unimplemented") {
         conditionFlavor484 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(input, { kind: "Unimplemented" })) {
         return checkruntime.int4Unresolved(conditionFlavor484);
     }
     if (checkruntime.equalInt4Value(input, { kind: "Null" })) {
@@ -25755,7 +25781,7 @@ export function pgSizePretty24qt(input: checkruntime.Int8Value): checkruntime.Te
     if (input.kind === "Unimplemented") {
         conditionFlavor814 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt8Value(input, { kind: "Unknown" }) || checkruntime.equalInt8Value(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt8Value(input, { kind: "Unknown" }) || checkruntime.equalInt8Value(input, { kind: "Unimplemented" })) {
         return checkruntime.textUnresolved(conditionFlavor814);
     }
     if (checkruntime.equalInt8Value(input, { kind: "Null" })) {
@@ -26592,7 +26618,7 @@ export function boolGxv7(input: checkruntime.Int4Value): checkruntime.BoolValue 
     if (input.kind === "Unimplemented") {
         conditionFlavor3294 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(input, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor3294);
     }
     if (checkruntime.equalInt4Value(input, { kind: "Null" })) {
@@ -26625,7 +26651,7 @@ export function int4I3jf(input: checkruntime.BoolValue): checkruntime.Int4Value 
     if (input.kind === "Unimplemented") {
         conditionFlavor3484 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalBoolValue(input, { kind: "Unknown" }) || checkruntime.equalBoolValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalBoolValue(input, { kind: "Unknown" }) || checkruntime.equalBoolValue(input, { kind: "Unimplemented" })) {
         return checkruntime.int4Unresolved(conditionFlavor3484);
     }
     if (checkruntime.equalBoolValue(input, { kind: "Null" })) {
@@ -28846,7 +28872,7 @@ function jsonbArrayPathSelect(input: checkruntime.JsonbValue, path: checkruntime
     if (state.kind === "Unimplemented") {
         conditionFlavor494 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(state, { kind: "Unknown" }) || checkruntime.equalInt4Value(state, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(state, { kind: "Unknown" }) || checkruntime.equalInt4Value(state, { kind: "Unimplemented" })) {
         return checkruntime.jsonbUnresolved(conditionFlavor494);
     }
     const partial: checkruntime.JsonbValue = checkruntime.copyJsonbValue(input);
@@ -29573,7 +29599,7 @@ export function jsonInputFromNumeric(input: checkruntime.NumericValue): checkrun
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" })) {
         return { kind: "ScalarUnknown", value: "1001000" };
     }
     const output: checkruntime.TextValue = arrayNumericOutput(input);
@@ -31907,7 +31933,7 @@ export function jsonbInputFromFloat4Context(input: checkruntime.Float4Value, ext
     textual = langruntime.checkedBool(textual);
     const rendered: checkruntime.TextValue = float4OutputContext(input, extra, known);
     if (known === false && textual === false) {
-        if ((checkruntime.equalTextValue(rendered, { kind: "Unknown" }) || checkruntime.equalTextValue(rendered, { kind: "Unimplemented" }))) {
+        if (checkruntime.equalTextValue(rendered, { kind: "Unknown" }) || checkruntime.equalTextValue(rendered, { kind: "Unimplemented" })) {
             if (input.kind === "Value") {
                 const bits: number = langruntime.checkedI32(input.value);
                 return jsonbFloatInvariant(BigInt(langruntime.checkedI32(bits)), true);
@@ -31922,7 +31948,7 @@ export function jsonbInputFromFloat8Context(input: checkruntime.Float8Value, ext
     textual = langruntime.checkedBool(textual);
     const rendered: checkruntime.TextValue = float8OutputContext(input, extra, known);
     if (known === false && textual === false) {
-        if ((checkruntime.equalTextValue(rendered, { kind: "Unknown" }) || checkruntime.equalTextValue(rendered, { kind: "Unimplemented" }))) {
+        if (checkruntime.equalTextValue(rendered, { kind: "Unknown" }) || checkruntime.equalTextValue(rendered, { kind: "Unimplemented" })) {
             if (input.kind === "Value") {
                 const bits: bigint = langruntime.checkedI64(input.value);
                 return jsonbFloatInvariant(bits, false);
@@ -32718,7 +32744,7 @@ export function jsonbDeleteCow2(input: checkruntime.JsonbValue, key: checkruntim
     if (key.kind === "Unimplemented") {
         conditionFlavor3534 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalTextValue(key, { kind: "Unknown" }) || checkruntime.equalTextValue(key, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalTextValue(key, { kind: "Unknown" }) || checkruntime.equalTextValue(key, { kind: "Unimplemented" })) {
         return checkruntime.jsonbUnresolved(conditionFlavor3534);
     }
     if (input.kind === "Null") {
@@ -32825,7 +32851,7 @@ export function jsonbDeleteBtgy(input: checkruntime.JsonbValue, index: checkrunt
     if (index.kind === "Unimplemented") {
         conditionFlavor4304 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(index, { kind: "Unknown" }) || checkruntime.equalInt4Value(index, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(index, { kind: "Unknown" }) || checkruntime.equalInt4Value(index, { kind: "Unimplemented" })) {
         return checkruntime.jsonbUnresolved(conditionFlavor4304);
     }
     if (input.kind === "Null") {
@@ -33161,7 +33187,7 @@ export function jsonbArrayElement08oi(input: checkruntime.JsonbValue, index: che
     if (index.kind === "Unimplemented") {
         conditionFlavor2254 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(index, { kind: "Unknown" }) || checkruntime.equalInt4Value(index, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(index, { kind: "Unknown" }) || checkruntime.equalInt4Value(index, { kind: "Unimplemented" })) {
         return checkruntime.jsonbUnresolved(conditionFlavor2254);
     }
     if (input.kind === "NonNull") {
@@ -33502,7 +33528,7 @@ export function jsonbStripNullsRuwp(input: checkruntime.JsonbValue, arrays: chec
     if (arrays.kind === "Unimplemented") {
         conditionFlavor884 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalBoolValue(arrays, { kind: "Unknown" }) || checkruntime.equalBoolValue(arrays, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalBoolValue(arrays, { kind: "Unknown" }) || checkruntime.equalBoolValue(arrays, { kind: "Unimplemented" })) {
         return checkruntime.jsonbUnresolved(conditionFlavor884);
     }
     if (input.kind === "Null") {
@@ -33752,7 +33778,7 @@ function jsonbHashContext(input: checkruntime.JsonbValue, seed: checkruntime.Int
     if (seed.kind === "Unimplemented") {
         conditionFlavor2014 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt8Value(seed, { kind: "Unknown" }) || checkruntime.equalInt8Value(seed, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt8Value(seed, { kind: "Unknown" }) || checkruntime.equalInt8Value(seed, { kind: "Unimplemented" })) {
         return checkruntime.int8Unresolved(conditionFlavor2014);
     }
     if (input.kind === "Null") {
@@ -33769,7 +33795,7 @@ function jsonbHashContext(input: checkruntime.JsonbValue, seed: checkruntime.Int
                 return jsonbHashPayload(value, salt, byteOrder, utf8, extended);
             }
             const little: checkruntime.Int8Value = jsonbHashPayload(value, salt, 1, utf8, extended);
-            if ((checkruntime.equalInt8Value(little, { kind: "Unknown" }) || checkruntime.equalInt8Value(little, { kind: "Unimplemented" }))) {
+            if (checkruntime.equalInt8Value(little, { kind: "Unknown" }) || checkruntime.equalInt8Value(little, { kind: "Unimplemented" })) {
                 return little;
             }
             const big: checkruntime.Int8Value = jsonbHashPayload(value, salt, 2, utf8, extended);
@@ -34401,7 +34427,7 @@ function jsonbBulkKeyMatches(input: checkruntime.JsonbPayload, node: checkruntim
             const error: checkruntime.SqlError = key.value;
             return { kind: "Error", value: error };
         }
-        if (((checkruntime.equalTextValue(key, { kind: "Unknown" }) || checkruntime.equalTextValue(key, { kind: "Unimplemented" })) || checkruntime.equalTextValue(key, { kind: "NonNull" }))) {
+        if ((checkruntime.equalTextValue(key, { kind: "Unknown" }) || checkruntime.equalTextValue(key, { kind: "Unimplemented" })) || checkruntime.equalTextValue(key, { kind: "NonNull" })) {
             uncertain = langruntime.checkedBool(true);
         }
         if (key.kind === "Value") {
@@ -34545,7 +34571,7 @@ export function jsonbDelete11uh(input: checkruntime.JsonbValue, keys: checkrunti
                 if (matched.kind === "Unimplemented") {
                     conditionFlavor14916 = langruntime.checkedI32(2);
                 }
-                if ((checkruntime.equalBoolValue(matched, { kind: "Unknown" }) || checkruntime.equalBoolValue(matched, { kind: "Unimplemented" }))) {
+                if (checkruntime.equalBoolValue(matched, { kind: "Unknown" }) || checkruntime.equalBoolValue(matched, { kind: "Unimplemented" })) {
                     return checkruntime.jsonbUnresolved(conditionFlavor14916);
                 }
                 if (checkruntime.equalBoolValue(matched, checkruntime.makeBoolValue(true))) {
@@ -35236,7 +35262,7 @@ export function jsonbSetLaxLecq(input: checkruntime.JsonbValue, path: checkrunti
     if (create.kind === "Unimplemented") {
         conditionFlavor7994 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalBoolValue(create, { kind: "Unknown" }) || checkruntime.equalBoolValue(create, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalBoolValue(create, { kind: "Unknown" }) || checkruntime.equalBoolValue(create, { kind: "Unimplemented" })) {
         return checkruntime.jsonbUnresolved(conditionFlavor7994);
     }
     if (checkruntime.equalTextValue(treatment, { kind: "Null" })) {
@@ -35251,7 +35277,7 @@ export function jsonbSetLaxLecq(input: checkruntime.JsonbValue, path: checkrunti
     if (treatment.kind === "Unimplemented") {
         conditionFlavor8054 = langruntime.checkedI32(2);
     }
-    if (((checkruntime.equalTextValue(treatment, { kind: "Unknown" }) || checkruntime.equalTextValue(treatment, { kind: "Unimplemented" })) || checkruntime.equalTextValue(treatment, { kind: "NonNull" }))) {
+    if ((checkruntime.equalTextValue(treatment, { kind: "Unknown" }) || checkruntime.equalTextValue(treatment, { kind: "Unimplemented" })) || checkruntime.equalTextValue(treatment, { kind: "NonNull" })) {
         return checkruntime.jsonbUnresolved(conditionFlavor8054);
     }
     let conditionFlavor8084: number = unresolvedFlavor;
@@ -39636,7 +39662,7 @@ function geometryReadPoint(source: GeometryInputText, begin: number): GeometryIn
         const error: checkruntime.SqlError = firstValue.value;
         return { value: { kind: "Error", value: error }, end: first.end };
     }
-    if ((checkruntime.equalFloat8Value(firstValue, { kind: "Unknown" }) || checkruntime.equalFloat8Value(firstValue, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalFloat8Value(firstValue, { kind: "Unknown" }) || checkruntime.equalFloat8Value(firstValue, { kind: "Unimplemented" })) {
         let testedFlavor: number = 1;
         if (checkruntime.equalFloat8Value(firstValue, { kind: "Unimplemented" })) {
             testedFlavor = langruntime.checkedI32(2);
@@ -39653,7 +39679,7 @@ function geometryReadPoint(source: GeometryInputText, begin: number): GeometryIn
         const error: checkruntime.SqlError = secondValue.value;
         return { value: { kind: "Error", value: error }, end: second.end };
     }
-    if ((checkruntime.equalFloat8Value(secondValue, { kind: "Unknown" }) || checkruntime.equalFloat8Value(secondValue, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalFloat8Value(secondValue, { kind: "Unknown" }) || checkruntime.equalFloat8Value(secondValue, { kind: "Unimplemented" })) {
         let testedFlavor: number = 1;
         if (checkruntime.equalFloat8Value(secondValue, { kind: "Unimplemented" })) {
             testedFlavor = langruntime.checkedI32(2);
@@ -39693,7 +39719,7 @@ function lineParseCoefficients(source: GeometryInputText, begin: number): checkr
         if (numberValue.kind === "Unimplemented") {
             conditionFlavor2088 = langruntime.checkedI32(2);
         }
-        if ((checkruntime.equalFloat8Value(numberValue, { kind: "Unknown" }) || checkruntime.equalFloat8Value(numberValue, { kind: "Unimplemented" }))) {
+        if (checkruntime.equalFloat8Value(numberValue, { kind: "Unknown" }) || checkruntime.equalFloat8Value(numberValue, { kind: "Unimplemented" })) {
             return checkruntime.lineUnresolved(conditionFlavor2088);
         }
         if (count === 0) {
@@ -39721,7 +39747,7 @@ function lineParseCoefficients(source: GeometryInputText, begin: number): checkr
         return { kind: "Error", value: checkruntime.makeSqlError(floatInputInvalid) };
     }
     const result: checkruntime.LineValue = lineFromScalars(first, second, third);
-    if ((checkruntime.equalLineValue(result, { kind: "Unknown" }) || checkruntime.equalLineValue(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalLineValue(result, { kind: "Unknown" }) || checkruntime.equalLineValue(result, { kind: "Unimplemented" })) {
         return { kind: "Error", value: checkruntime.makeSqlError(floatInputInvalid) };
     }
     return result;
@@ -39782,7 +39808,7 @@ function geometryReadPair(source: GeometryInputText, begin: number): GeometryInp
         const error: checkruntime.SqlError = firstValue.value;
         return geometryPairFailure({ kind: "Error", value: error });
     }
-    if ((checkruntime.equalPointValue(firstValue, { kind: "Unknown" }) || checkruntime.equalPointValue(firstValue, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalPointValue(firstValue, { kind: "Unknown" }) || checkruntime.equalPointValue(firstValue, { kind: "Unimplemented" })) {
         let testedFlavor: number = 1;
         if (checkruntime.equalPointValue(firstValue, { kind: "Unimplemented" })) {
             testedFlavor = langruntime.checkedI32(2);
@@ -39799,7 +39825,7 @@ function geometryReadPair(source: GeometryInputText, begin: number): GeometryInp
         const error: checkruntime.SqlError = secondValue.value;
         return geometryPairFailure({ kind: "Error", value: error });
     }
-    if ((checkruntime.equalPointValue(secondValue, { kind: "Unknown" }) || checkruntime.equalPointValue(secondValue, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalPointValue(secondValue, { kind: "Unknown" }) || checkruntime.equalPointValue(secondValue, { kind: "Unimplemented" })) {
         let testedFlavor: number = 1;
         if (checkruntime.equalPointValue(secondValue, { kind: "Unimplemented" })) {
             testedFlavor = langruntime.checkedI32(2);
@@ -40017,7 +40043,7 @@ function lineIntersectionPredicate(left: checkruntime.LineValue, right: checkrun
     if (result.kind === "Unimplemented") {
         conditionFlavor1164 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalPointValue(result, { kind: "Unknown" }) || checkruntime.equalPointValue(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalPointValue(result, { kind: "Unknown" }) || checkruntime.equalPointValue(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor1164);
     }
     return checkruntime.makeBoolValue((checkruntime.equalPointValue(result, { kind: "Null" })) === parallel);
@@ -40176,7 +40202,7 @@ export function lineDistanceA9ql(left: checkruntime.LineValue, right: checkrunti
     if (intersection.kind === "Unimplemented") {
         conditionFlavor2144 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalPointValue(intersection, { kind: "Unknown" }) || checkruntime.equalPointValue(intersection, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalPointValue(intersection, { kind: "Unknown" }) || checkruntime.equalPointValue(intersection, { kind: "Unimplemented" })) {
         return checkruntime.float8Unresolved(conditionFlavor2144);
     }
     if (!(checkruntime.equalPointValue(intersection, { kind: "Null" }))) {
@@ -41481,7 +41507,7 @@ function segmentIntersectionResult(point: checkruntime.PointValue): checkruntime
     if (point.kind === "Unimplemented") {
         conditionFlavor2234 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalPointValue(point, { kind: "Unknown" }) || checkruntime.equalPointValue(point, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalPointValue(point, { kind: "Unknown" }) || checkruntime.equalPointValue(point, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor2234);
     }
     return checkruntime.makeBoolValue(!(checkruntime.equalPointValue(point, { kind: "Null" })));
@@ -41513,7 +41539,7 @@ function segmentProjectLine(segment: checkruntime.LsegValue, line: checkruntime.
         const error: checkruntime.SqlError = intersection.value;
         return segmentClosestFromStatus({ kind: "Error", value: error });
     }
-    if ((checkruntime.equalPointValue(intersection, { kind: "Unknown" }) || checkruntime.equalPointValue(intersection, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalPointValue(intersection, { kind: "Unknown" }) || checkruntime.equalPointValue(intersection, { kind: "Unimplemented" })) {
         let testedFlavor: number = 1;
         if (checkruntime.equalPointValue(intersection, { kind: "Unimplemented" })) {
             testedFlavor = langruntime.checkedI32(2);
@@ -41560,7 +41586,7 @@ function segmentProjectPoint(segment: checkruntime.LsegValue, point: checkruntim
             const error: checkruntime.SqlError = distance.value;
             return segmentClosestError({ kind: "Error", value: error });
         }
-        if ((checkruntime.equalFloat8Value(distance, { kind: "Unknown" }) || checkruntime.equalFloat8Value(distance, { kind: "Unimplemented" }))) {
+        if (checkruntime.equalFloat8Value(distance, { kind: "Unknown" }) || checkruntime.equalFloat8Value(distance, { kind: "Unimplemented" })) {
             return segmentClosestError(distance);
         }
         return { point: closest.point, distance: pointDistance2haq(closest.point, point) };
@@ -41589,7 +41615,7 @@ function segmentNearestPair(left: checkruntime.LsegValue, right: checkruntime.Ls
         const error: checkruntime.SqlError = intersection.value;
         return segmentClosestFromStatus({ kind: "Error", value: error });
     }
-    if ((checkruntime.equalPointValue(intersection, { kind: "Unknown" }) || checkruntime.equalPointValue(intersection, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalPointValue(intersection, { kind: "Unknown" }) || checkruntime.equalPointValue(intersection, { kind: "Unimplemented" })) {
         let testedFlavor: number = 1;
         if (checkruntime.equalPointValue(intersection, { kind: "Unimplemented" })) {
             testedFlavor = langruntime.checkedI32(2);
@@ -41641,7 +41667,7 @@ function segmentClosestPoint(closest: SegmentClosest): checkruntime.PointValue {
     if (distance.kind === "Unimplemented") {
         conditionFlavor3864 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalFloat8Value(distance, { kind: "Unknown" }) || checkruntime.equalFloat8Value(distance, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalFloat8Value(distance, { kind: "Unknown" }) || checkruntime.equalFloat8Value(distance, { kind: "Unimplemented" })) {
         return checkruntime.pointUnresolved(conditionFlavor3864);
     }
     if (checkruntime.equalFloat8Value(distance, { kind: "Null" })) {
@@ -41869,7 +41895,7 @@ export function macaddrEqUthl(left: checkruntime.MacaddrValue, right: checkrunti
     if (result.kind === "Unimplemented") {
         conditionFlavor394 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor394);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -41909,7 +41935,7 @@ export function macaddrNeEtmb(left: checkruntime.MacaddrValue, right: checkrunti
     if (result.kind === "Unimplemented") {
         conditionFlavor614 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor614);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -41949,7 +41975,7 @@ export function macaddrLt8vk5(left: checkruntime.MacaddrValue, right: checkrunti
     if (result.kind === "Unimplemented") {
         conditionFlavor834 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor834);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -41989,7 +42015,7 @@ export function macaddrLe6qq0(left: checkruntime.MacaddrValue, right: checkrunti
     if (result.kind === "Unimplemented") {
         conditionFlavor1054 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor1054);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -42029,7 +42055,7 @@ export function macaddrGt4kss(left: checkruntime.MacaddrValue, right: checkrunti
     if (result.kind === "Unimplemented") {
         conditionFlavor1274 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor1274);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -42069,7 +42095,7 @@ export function macaddrGeIuvk(left: checkruntime.MacaddrValue, right: checkrunti
     if (result.kind === "Unimplemented") {
         conditionFlavor1494 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor1494);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -42166,7 +42192,7 @@ export function macaddr8EqWy3p(left: checkruntime.Macaddr8Value, right: checkrun
     if (result.kind === "Unimplemented") {
         conditionFlavor2004 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor2004);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -42206,7 +42232,7 @@ export function macaddr8NeJ20a(left: checkruntime.Macaddr8Value, right: checkrun
     if (result.kind === "Unimplemented") {
         conditionFlavor2224 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor2224);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -42246,7 +42272,7 @@ export function macaddr8Lt5tsr(left: checkruntime.Macaddr8Value, right: checkrun
     if (result.kind === "Unimplemented") {
         conditionFlavor2444 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor2444);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -42286,7 +42312,7 @@ export function macaddr8LeDmol(left: checkruntime.Macaddr8Value, right: checkrun
     if (result.kind === "Unimplemented") {
         conditionFlavor2664 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor2664);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -42326,7 +42352,7 @@ export function macaddr8GtO95h(left: checkruntime.Macaddr8Value, right: checkrun
     if (result.kind === "Unimplemented") {
         conditionFlavor2884 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor2884);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -42366,7 +42392,7 @@ export function macaddr8Ge054u(left: checkruntime.Macaddr8Value, right: checkrun
     if (result.kind === "Unimplemented") {
         conditionFlavor3104 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor3104);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -42592,7 +42618,7 @@ export function macaddr8Ta7j(input: checkruntime.MacaddrValue): checkruntime.Mac
     if (input.kind === "Unimplemented") {
         conditionFlavor5104 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalMacaddrValue(input, { kind: "Unknown" }) || checkruntime.equalMacaddrValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalMacaddrValue(input, { kind: "Unknown" }) || checkruntime.equalMacaddrValue(input, { kind: "Unimplemented" })) {
         return checkruntime.macaddr8Unresolved(conditionFlavor5104);
     }
     if (checkruntime.equalMacaddrValue(input, { kind: "Null" })) {
@@ -42626,7 +42652,7 @@ export function macaddrXnt6(input: checkruntime.Macaddr8Value): checkruntime.Mac
     if (input.kind === "Unimplemented") {
         conditionFlavor5354 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalMacaddr8Value(input, { kind: "Unknown" }) || checkruntime.equalMacaddr8Value(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalMacaddr8Value(input, { kind: "Unknown" }) || checkruntime.equalMacaddr8Value(input, { kind: "Unimplemented" })) {
         return checkruntime.macaddrUnresolved(conditionFlavor5354);
     }
     if (checkruntime.equalMacaddr8Value(input, { kind: "Null" })) {
@@ -42719,7 +42745,7 @@ export function macaddrToText(input: checkruntime.MacaddrValue): checkruntime.Te
     if (input.kind === "Unimplemented") {
         conditionFlavor634 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalMacaddrValue(input, { kind: "Unknown" }) || checkruntime.equalMacaddrValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalMacaddrValue(input, { kind: "Unknown" }) || checkruntime.equalMacaddrValue(input, { kind: "Unimplemented" })) {
         return checkruntime.textUnresolved(conditionFlavor634);
     }
     if (checkruntime.equalMacaddrValue(input, { kind: "Null" })) {
@@ -42753,7 +42779,7 @@ export function macaddrSendFk4p(input: checkruntime.MacaddrValue): checkruntime.
     if (input.kind === "Unimplemented") {
         conditionFlavor834 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalMacaddrValue(input, { kind: "Unknown" }) || checkruntime.equalMacaddrValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalMacaddrValue(input, { kind: "Unknown" }) || checkruntime.equalMacaddrValue(input, { kind: "Unimplemented" })) {
         return checkruntime.byteaUnresolved(conditionFlavor834);
     }
     if (checkruntime.equalMacaddrValue(input, { kind: "Null" })) {
@@ -42788,7 +42814,7 @@ export function hashmacaddrIh2y(input: checkruntime.MacaddrValue, byteOrder: num
     if (input.kind === "Unimplemented") {
         conditionFlavor1034 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalMacaddrValue(input, { kind: "Unknown" }) || checkruntime.equalMacaddrValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalMacaddrValue(input, { kind: "Unknown" }) || checkruntime.equalMacaddrValue(input, { kind: "Unimplemented" })) {
         return checkruntime.int4Unresolved(conditionFlavor1034);
     }
     if (checkruntime.equalMacaddrValue(input, { kind: "Null" })) {
@@ -42878,7 +42904,7 @@ export function macaddr8ToText(input: checkruntime.Macaddr8Value): checkruntime.
     if (input.kind === "Unimplemented") {
         conditionFlavor1544 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalMacaddr8Value(input, { kind: "Unknown" }) || checkruntime.equalMacaddr8Value(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalMacaddr8Value(input, { kind: "Unknown" }) || checkruntime.equalMacaddr8Value(input, { kind: "Unimplemented" })) {
         return checkruntime.textUnresolved(conditionFlavor1544);
     }
     if (checkruntime.equalMacaddr8Value(input, { kind: "Null" })) {
@@ -42912,7 +42938,7 @@ export function macaddr8SendQten(input: checkruntime.Macaddr8Value): checkruntim
     if (input.kind === "Unimplemented") {
         conditionFlavor1744 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalMacaddr8Value(input, { kind: "Unknown" }) || checkruntime.equalMacaddr8Value(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalMacaddr8Value(input, { kind: "Unknown" }) || checkruntime.equalMacaddr8Value(input, { kind: "Unimplemented" })) {
         return checkruntime.byteaUnresolved(conditionFlavor1744);
     }
     if (checkruntime.equalMacaddr8Value(input, { kind: "Null" })) {
@@ -42947,7 +42973,7 @@ export function hashmacaddr872kw(input: checkruntime.Macaddr8Value, byteOrder: n
     if (input.kind === "Unimplemented") {
         conditionFlavor1944 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalMacaddr8Value(input, { kind: "Unknown" }) || checkruntime.equalMacaddr8Value(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalMacaddr8Value(input, { kind: "Unknown" }) || checkruntime.equalMacaddr8Value(input, { kind: "Unimplemented" })) {
         return checkruntime.int4Unresolved(conditionFlavor1944);
     }
     if (checkruntime.equalMacaddr8Value(input, { kind: "Null" })) {
@@ -43308,7 +43334,7 @@ function moneyRatio(left: checkruntime.MoneyValue, right: checkruntime.MoneyValu
     if (status.kind === "Unimplemented") {
         conditionFlavor1634 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(status, { kind: "Unknown" }) || checkruntime.equalInt4Value(status, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(status, { kind: "Unknown" }) || checkruntime.equalInt4Value(status, { kind: "Unimplemented" })) {
         return checkruntime.float8Unresolved(conditionFlavor1634);
     }
     if (checkruntime.equalInt4Value(status, { kind: "Null" })) {
@@ -45331,7 +45357,7 @@ function multirangeConstructNormalize(input: checkruntime.MultirangePayload): ch
                         if (adjacent.kind === "Unimplemented") {
                             conditionFlavor31024 = langruntime.checkedI32(2);
                         }
-                        if ((checkruntime.equalBoolValue(adjacent, { kind: "Unknown" }) || checkruntime.equalBoolValue(adjacent, { kind: "Unimplemented" }))) {
+                        if (checkruntime.equalBoolValue(adjacent, { kind: "Unknown" }) || checkruntime.equalBoolValue(adjacent, { kind: "Unimplemented" })) {
                             return checkruntime.multirangeUnresolved(conditionFlavor31024);
                         }
                         if (checkruntime.equalBoolValue(adjacent, { kind: "Value", value: false })) {
@@ -45349,7 +45375,7 @@ function multirangeConstructNormalize(input: checkruntime.MultirangePayload): ch
                             if (before.kind === "Unimplemented") {
                                 conditionFlavor31828 = langruntime.checkedI32(2);
                             }
-                            if ((checkruntime.equalBoolValue(before, { kind: "Unknown" }) || checkruntime.equalBoolValue(before, { kind: "Unimplemented" }))) {
+                            if (checkruntime.equalBoolValue(before, { kind: "Unknown" }) || checkruntime.equalBoolValue(before, { kind: "Unimplemented" })) {
                                 return checkruntime.multirangeUnresolved(conditionFlavor31828);
                             }
                             emitMember = langruntime.checkedBool(checkruntime.equalBoolValue(before, { kind: "Value", value: true }));
@@ -46899,7 +46925,7 @@ export function networkEqI7hn(left: checkruntime.NetworkValue, right: checkrunti
     if (result.kind === "Unimplemented") {
         conditionFlavor624 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor624);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -46939,7 +46965,7 @@ export function networkNeVmql(left: checkruntime.NetworkValue, right: checkrunti
     if (result.kind === "Unimplemented") {
         conditionFlavor844 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor844);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -46979,7 +47005,7 @@ export function networkLt0kbr(left: checkruntime.NetworkValue, right: checkrunti
     if (result.kind === "Unimplemented") {
         conditionFlavor1064 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor1064);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -47019,7 +47045,7 @@ export function networkLeN61s(left: checkruntime.NetworkValue, right: checkrunti
     if (result.kind === "Unimplemented") {
         conditionFlavor1284 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor1284);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -47059,7 +47085,7 @@ export function networkGtI6x7(left: checkruntime.NetworkValue, right: checkrunti
     if (result.kind === "Unimplemented") {
         conditionFlavor1504 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor1504);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -47099,7 +47125,7 @@ export function networkGeQ7pc(left: checkruntime.NetworkValue, right: checkrunti
     if (result.kind === "Unimplemented") {
         conditionFlavor1724 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor1724);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -47751,7 +47777,7 @@ export function family2lcf(input: checkruntime.NetworkValue): checkruntime.Int4V
     if (input.kind === "Unimplemented") {
         conditionFlavor6224 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNetworkValue(input, { kind: "Unknown" }) || checkruntime.equalNetworkValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNetworkValue(input, { kind: "Unknown" }) || checkruntime.equalNetworkValue(input, { kind: "Unimplemented" })) {
         return checkruntime.int4Unresolved(conditionFlavor6224);
     }
     if (checkruntime.equalNetworkValue(input, { kind: "Null" })) {
@@ -47787,7 +47813,7 @@ export function masklenKk20(input: checkruntime.NetworkValue): checkruntime.Int4
     if (input.kind === "Unimplemented") {
         conditionFlavor6444 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNetworkValue(input, { kind: "Unknown" }) || checkruntime.equalNetworkValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNetworkValue(input, { kind: "Unknown" }) || checkruntime.equalNetworkValue(input, { kind: "Unimplemented" })) {
         return checkruntime.int4Unresolved(conditionFlavor6444);
     }
     if (checkruntime.equalNetworkValue(input, { kind: "Null" })) {
@@ -47820,7 +47846,7 @@ export function networkO215(input: checkruntime.NetworkValue): checkruntime.Netw
     if (input.kind === "Unimplemented") {
         conditionFlavor6634 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNetworkValue(input, { kind: "Unknown" }) || checkruntime.equalNetworkValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNetworkValue(input, { kind: "Unknown" }) || checkruntime.equalNetworkValue(input, { kind: "Unimplemented" })) {
         return checkruntime.networkUnresolved(conditionFlavor6634);
     }
     if (checkruntime.equalNetworkValue(input, { kind: "Null" })) {
@@ -47854,7 +47880,7 @@ export function cidr6idb(input: checkruntime.NetworkValue): checkruntime.Network
     if (input.kind === "Unimplemented") {
         conditionFlavor6834 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNetworkValue(input, { kind: "Unknown" }) || checkruntime.equalNetworkValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNetworkValue(input, { kind: "Unknown" }) || checkruntime.equalNetworkValue(input, { kind: "Unimplemented" })) {
         return checkruntime.networkUnresolved(conditionFlavor6834);
     }
     if (checkruntime.equalNetworkValue(input, { kind: "Null" })) {
@@ -47888,7 +47914,7 @@ export function broadcastIlgu(input: checkruntime.NetworkValue): checkruntime.Ne
     if (input.kind === "Unimplemented") {
         conditionFlavor7034 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNetworkValue(input, { kind: "Unknown" }) || checkruntime.equalNetworkValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNetworkValue(input, { kind: "Unknown" }) || checkruntime.equalNetworkValue(input, { kind: "Unimplemented" })) {
         return checkruntime.networkUnresolved(conditionFlavor7034);
     }
     if (checkruntime.equalNetworkValue(input, { kind: "Null" })) {
@@ -47922,7 +47948,7 @@ export function netmaskBt5i(input: checkruntime.NetworkValue): checkruntime.Netw
     if (input.kind === "Unimplemented") {
         conditionFlavor7234 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNetworkValue(input, { kind: "Unknown" }) || checkruntime.equalNetworkValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNetworkValue(input, { kind: "Unknown" }) || checkruntime.equalNetworkValue(input, { kind: "Unimplemented" })) {
         return checkruntime.networkUnresolved(conditionFlavor7234);
     }
     if (checkruntime.equalNetworkValue(input, { kind: "Null" })) {
@@ -47956,7 +47982,7 @@ export function hostmaskVz12(input: checkruntime.NetworkValue): checkruntime.Net
     if (input.kind === "Unimplemented") {
         conditionFlavor7434 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNetworkValue(input, { kind: "Unknown" }) || checkruntime.equalNetworkValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNetworkValue(input, { kind: "Unknown" }) || checkruntime.equalNetworkValue(input, { kind: "Unimplemented" })) {
         return checkruntime.networkUnresolved(conditionFlavor7434);
     }
     if (checkruntime.equalNetworkValue(input, { kind: "Null" })) {
@@ -48203,7 +48229,7 @@ export function inetnot8bow(input: checkruntime.NetworkValue): checkruntime.Netw
     if (input.kind === "Unimplemented") {
         conditionFlavor8984 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNetworkValue(input, { kind: "Unknown" }) || checkruntime.equalNetworkValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNetworkValue(input, { kind: "Unknown" }) || checkruntime.equalNetworkValue(input, { kind: "Unimplemented" })) {
         return checkruntime.networkUnresolved(conditionFlavor8984);
     }
     if (checkruntime.equalNetworkValue(input, { kind: "Null" })) {
@@ -48259,7 +48285,7 @@ function networkSelect(left: checkruntime.NetworkValue, right: checkruntime.Netw
     if (result.kind === "Unimplemented") {
         conditionFlavor9364 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.networkUnresolved(conditionFlavor9364);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -48326,7 +48352,7 @@ export function hashinetFhly(input: checkruntime.NetworkValue, byteOrder: number
     if (input.kind === "Unimplemented") {
         conditionFlavor9974 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNetworkValue(input, { kind: "Unknown" }) || checkruntime.equalNetworkValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNetworkValue(input, { kind: "Unknown" }) || checkruntime.equalNetworkValue(input, { kind: "Unimplemented" })) {
         return checkruntime.int4Unresolved(conditionFlavor9974);
     }
     if (checkruntime.equalNetworkValue(input, { kind: "Null" })) {
@@ -48594,7 +48620,7 @@ function networkOutput(input: checkruntime.NetworkValue, mode: number): checkrun
     if (input.kind === "Unimplemented") {
         conditionFlavor1854 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNetworkValue(input, { kind: "Unknown" }) || checkruntime.equalNetworkValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNetworkValue(input, { kind: "Unknown" }) || checkruntime.equalNetworkValue(input, { kind: "Unimplemented" })) {
         return checkruntime.textUnresolved(conditionFlavor1854);
     }
     if (checkruntime.equalNetworkValue(input, { kind: "Null" })) {
@@ -48649,7 +48675,7 @@ function networkSend(input: checkruntime.NetworkValue, cidr: boolean): checkrunt
     if (input.kind === "Unimplemented") {
         conditionFlavor2264 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNetworkValue(input, { kind: "Unknown" }) || checkruntime.equalNetworkValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNetworkValue(input, { kind: "Unknown" }) || checkruntime.equalNetworkValue(input, { kind: "Unimplemented" })) {
         return checkruntime.byteaUnresolved(conditionFlavor2264);
     }
     if (checkruntime.equalNetworkValue(input, { kind: "Null" })) {
@@ -50700,7 +50726,7 @@ export function numericEqFw7r(left: checkruntime.NumericValue, right: checkrunti
     if (result.kind === "Unimplemented") {
         conditionFlavor964 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor964);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -50740,7 +50766,7 @@ export function numericGeW8pw(left: checkruntime.NumericValue, right: checkrunti
     if (result.kind === "Unimplemented") {
         conditionFlavor1184 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor1184);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -50780,7 +50806,7 @@ export function numericGtH1pi(left: checkruntime.NumericValue, right: checkrunti
     if (result.kind === "Unimplemented") {
         conditionFlavor1404 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor1404);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -50820,7 +50846,7 @@ export function numericLeBbpc(left: checkruntime.NumericValue, right: checkrunti
     if (result.kind === "Unimplemented") {
         conditionFlavor1624 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor1624);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -50860,7 +50886,7 @@ export function numericLtZl16(left: checkruntime.NumericValue, right: checkrunti
     if (result.kind === "Unimplemented") {
         conditionFlavor1844 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor1844);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -50900,7 +50926,7 @@ export function numericNeGyip(left: checkruntime.NumericValue, right: checkrunti
     if (result.kind === "Unimplemented") {
         conditionFlavor2064 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor2064);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -51557,7 +51583,7 @@ function numericCommon(left: checkruntime.NumericValue, right: checkruntime.Nume
                 if (remainder.kind === "Unimplemented") {
                     conditionFlavor6616 = langruntime.checkedI32(2);
                 }
-                if ((checkruntime.equalNumericValue(remainder, { kind: "Unknown" }) || checkruntime.equalNumericValue(remainder, { kind: "Unimplemented" }))) {
+                if (checkruntime.equalNumericValue(remainder, { kind: "Unknown" }) || checkruntime.equalNumericValue(remainder, { kind: "Unimplemented" })) {
                     return checkruntime.numericUnresolved(conditionFlavor6616);
                 }
                 dividend = langruntime.checkedString(langruntime.checkedString(divisor));
@@ -51967,7 +51993,7 @@ export function numericExpFi9j(input: checkruntime.NumericValue): checkruntime.N
     if (input.kind === "Unimplemented") {
         conditionFlavor1094 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" })) {
         return checkruntime.numericUnresolved(conditionFlavor1094);
     }
     if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
@@ -52018,7 +52044,7 @@ export function factorialTah6(input: checkruntime.Int8Value): checkruntime.Numer
     if (input.kind === "Unimplemented") {
         conditionFlavor84 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt8Value(input, { kind: "Unknown" }) || checkruntime.equalInt8Value(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt8Value(input, { kind: "Unknown" }) || checkruntime.equalInt8Value(input, { kind: "Unimplemented" })) {
         return checkruntime.numericUnresolved(conditionFlavor84);
     }
     if (checkruntime.equalInt8Value(input, { kind: "Null" })) {
@@ -52133,7 +52159,7 @@ export function hashNumeric0e7w(input: checkruntime.NumericValue, byteOrder: num
     if (input.kind === "Unimplemented") {
         conditionFlavor484 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" })) {
         return checkruntime.int4Unresolved(conditionFlavor484);
     }
     if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
@@ -52257,7 +52283,7 @@ export function absM5ih(input: checkruntime.NumericValue): checkruntime.NumericV
     if (input.kind === "Unimplemented") {
         conditionFlavor60 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" })) {
         return checkruntime.numericUnresolved(conditionFlavor60);
     }
     if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
@@ -52303,7 +52329,7 @@ export function minScaleB8o1(input: checkruntime.NumericValue): checkruntime.Int
     if (input.kind === "Unimplemented") {
         conditionFlavor260 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" })) {
         return checkruntime.int4Unresolved(conditionFlavor260);
     }
     if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
@@ -52343,7 +52369,7 @@ export function numericAbs6g5e(input: checkruntime.NumericValue): checkruntime.N
     if (input.kind === "Unimplemented") {
         conditionFlavor420 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" })) {
         return checkruntime.numericUnresolved(conditionFlavor420);
     }
     if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
@@ -52400,7 +52426,7 @@ export function numericLarger4j2h(input: checkruntime.NumericValue, right: check
     if (result.kind === "Unimplemented") {
         conditionFlavor700 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.numericUnresolved(conditionFlavor700);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -52443,7 +52469,7 @@ export function numericSmallerB9i1(input: checkruntime.NumericValue, right: chec
     if (result.kind === "Unimplemented") {
         conditionFlavor840 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.numericUnresolved(conditionFlavor840);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -52479,7 +52505,7 @@ export function numericUminusWcmy(input: checkruntime.NumericValue): checkruntim
     if (input.kind === "Unimplemented") {
         conditionFlavor950 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" })) {
         return checkruntime.numericUnresolved(conditionFlavor950);
     }
     if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
@@ -52526,7 +52552,7 @@ export function numericUplus2a0z(input: checkruntime.NumericValue): checkruntime
     if (input.kind === "Unimplemented") {
         conditionFlavor1150 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" })) {
         return checkruntime.numericUnresolved(conditionFlavor1150);
     }
     if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
@@ -52566,7 +52592,7 @@ export function scaleSvql(input: checkruntime.NumericValue): checkruntime.Int4Va
     if (input.kind === "Unimplemented") {
         conditionFlavor1330 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" })) {
         return checkruntime.int4Unresolved(conditionFlavor1330);
     }
     if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
@@ -52606,7 +52632,7 @@ export function sign2rsu(input: checkruntime.NumericValue): checkruntime.Numeric
     if (input.kind === "Unimplemented") {
         conditionFlavor1490 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" })) {
         return checkruntime.numericUnresolved(conditionFlavor1490);
     }
     if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
@@ -52652,7 +52678,7 @@ export function trimScale3rbp(input: checkruntime.NumericValue): checkruntime.Nu
     if (input.kind === "Unimplemented") {
         conditionFlavor1670 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" })) {
         return checkruntime.numericUnresolved(conditionFlavor1670);
     }
     if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
@@ -52694,7 +52720,7 @@ function numericIntegerValue(input: checkruntime.NumericValue): checkruntime.Int
     if (input.kind === "Unimplemented") {
         conditionFlavor114 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" })) {
         return checkruntime.int8Unresolved(conditionFlavor114);
     }
     if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
@@ -52775,7 +52801,7 @@ export function int2Zpjn(input: checkruntime.NumericValue): checkruntime.Int2Val
     if (converted.kind === "Unimplemented") {
         conditionFlavor794 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt8Value(converted, { kind: "Unknown" }) || checkruntime.equalInt8Value(converted, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt8Value(converted, { kind: "Unknown" }) || checkruntime.equalInt8Value(converted, { kind: "Unimplemented" })) {
         return checkruntime.int2Unresolved(conditionFlavor794);
     }
     if (checkruntime.equalInt8Value(converted, { kind: "Null" })) {
@@ -52812,7 +52838,7 @@ export function int4Z4rh(input: checkruntime.NumericValue): checkruntime.Int4Val
     if (converted.kind === "Unimplemented") {
         conditionFlavor1024 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt8Value(converted, { kind: "Unknown" }) || checkruntime.equalInt8Value(converted, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt8Value(converted, { kind: "Unknown" }) || checkruntime.equalInt8Value(converted, { kind: "Unimplemented" })) {
         return checkruntime.int4Unresolved(conditionFlavor1024);
     }
     if (checkruntime.equalInt8Value(converted, { kind: "Null" })) {
@@ -52851,7 +52877,7 @@ export function numericItt9(input: checkruntime.Int2Value): checkruntime.Numeric
     if (input.kind === "Unimplemented") {
         conditionFlavor1284 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt2Value(input, { kind: "Unknown" }) || checkruntime.equalInt2Value(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt2Value(input, { kind: "Unknown" }) || checkruntime.equalInt2Value(input, { kind: "Unimplemented" })) {
         return checkruntime.numericUnresolved(conditionFlavor1284);
     }
     if (checkruntime.equalInt2Value(input, { kind: "Null" })) {
@@ -52885,7 +52911,7 @@ export function numericNcrk(input: checkruntime.Int4Value): checkruntime.Numeric
     if (input.kind === "Unimplemented") {
         conditionFlavor1484 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(input, { kind: "Unimplemented" })) {
         return checkruntime.numericUnresolved(conditionFlavor1484);
     }
     if (checkruntime.equalInt4Value(input, { kind: "Null" })) {
@@ -52919,7 +52945,7 @@ export function numeric11bc(input: checkruntime.Int8Value): checkruntime.Numeric
     if (input.kind === "Unimplemented") {
         conditionFlavor1684 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt8Value(input, { kind: "Unknown" }) || checkruntime.equalInt8Value(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt8Value(input, { kind: "Unknown" }) || checkruntime.equalInt8Value(input, { kind: "Unimplemented" })) {
         return checkruntime.numericUnresolved(conditionFlavor1684);
     }
     if (checkruntime.equalInt8Value(input, { kind: "Null" })) {
@@ -53057,7 +53083,7 @@ export function numericLnOkv6(input: checkruntime.NumericValue): checkruntime.Nu
     if (input.kind === "Unimplemented") {
         conditionFlavor1154 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" })) {
         return checkruntime.numericUnresolved(conditionFlavor1154);
     }
     if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
@@ -53621,7 +53647,7 @@ function numericRangeValues(value: string, base: string, offset: string, subtrac
     if (compared.kind === "Unimplemented") {
         conditionFlavor634 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor634);
     }
     if (compared.kind === "Value") {
@@ -53771,7 +53797,7 @@ export function ceil8geh(input: checkruntime.NumericValue): checkruntime.Numeric
     if (input.kind === "Unimplemented") {
         conditionFlavor60 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" })) {
         return checkruntime.numericUnresolved(conditionFlavor60);
     }
     if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
@@ -53808,7 +53834,7 @@ export function ceilingPr5v(input: checkruntime.NumericValue): checkruntime.Nume
     if (input.kind === "Unimplemented") {
         conditionFlavor210 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" })) {
         return checkruntime.numericUnresolved(conditionFlavor210);
     }
     if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
@@ -53845,7 +53871,7 @@ export function floorX7mh(input: checkruntime.NumericValue): checkruntime.Numeri
     if (input.kind === "Unimplemented") {
         conditionFlavor360 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" })) {
         return checkruntime.numericUnresolved(conditionFlavor360);
     }
     if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
@@ -53882,7 +53908,7 @@ export function roundMmpo(input: checkruntime.NumericValue): checkruntime.Numeri
     if (input.kind === "Unimplemented") {
         conditionFlavor510 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" })) {
         return checkruntime.numericUnresolved(conditionFlavor510);
     }
     if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
@@ -53977,7 +54003,7 @@ export function truncDghz(input: checkruntime.NumericValue): checkruntime.Numeri
     if (input.kind === "Unimplemented") {
         conditionFlavor840 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" })) {
         return checkruntime.numericUnresolved(conditionFlavor840);
     }
     if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
@@ -54132,7 +54158,7 @@ export function numericSend3mnb(input: checkruntime.NumericValue): checkruntime.
     if (input.kind === "Unimplemented") {
         conditionFlavor624 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" })) {
         return checkruntime.byteaUnresolved(conditionFlavor624);
     }
     if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
@@ -54241,7 +54267,7 @@ export function pgSizePrettyAxtn(input: checkruntime.NumericValue): checkruntime
     if (input.kind === "Unimplemented") {
         conditionFlavor154 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" })) {
         return checkruntime.textUnresolved(conditionFlavor154);
     }
     if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
@@ -54475,7 +54501,7 @@ export function numericSqrtT0uy(input: checkruntime.NumericValue): checkruntime.
     if (input.kind === "Unimplemented") {
         conditionFlavor1744 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" })) {
         return checkruntime.numericUnresolved(conditionFlavor1744);
     }
     if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
@@ -55829,7 +55855,7 @@ function pathMinDistance(current: checkruntime.Float8Value, candidate: checkrunt
     if (candidate.kind === "Unimplemented") {
         conditionFlavor194 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalFloat8Value(candidate, { kind: "Unknown" }) || checkruntime.equalFloat8Value(candidate, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalFloat8Value(candidate, { kind: "Unknown" }) || checkruntime.equalFloat8Value(candidate, { kind: "Unimplemented" })) {
         return checkruntime.float8Unresolved(conditionFlavor194);
     }
     if (first || checkruntime.equalBoolValue(float8ltVp07(candidate, current), { kind: "Value", value: true })) {
@@ -55869,7 +55895,7 @@ export function distPpathE16q(point: checkruntime.PointValue, input: checkruntim
     if (point.kind === "Unimplemented") {
         conditionFlavor394 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalPointValue(point, { kind: "Unknown" }) || checkruntime.equalPointValue(point, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalPointValue(point, { kind: "Unknown" }) || checkruntime.equalPointValue(point, { kind: "Unimplemented" })) {
         return checkruntime.float8Unresolved(conditionFlavor394);
     }
     let conditionFlavor424: number = unresolvedFlavor;
@@ -55923,7 +55949,7 @@ export function distPpathE16q(point: checkruntime.PointValue, input: checkruntim
             if (result.kind === "Unimplemented") {
                 conditionFlavor7112 = langruntime.checkedI32(2);
             }
-            if ((checkruntime.equalFloat8Value(result, { kind: "Unknown" }) || checkruntime.equalFloat8Value(result, { kind: "Unimplemented" }))) {
+            if (checkruntime.equalFloat8Value(result, { kind: "Unknown" }) || checkruntime.equalFloat8Value(result, { kind: "Unimplemented" })) {
                 return checkruntime.float8Unresolved(conditionFlavor7112);
             }
             haveMin = langruntime.checkedBool(true);
@@ -56044,7 +56070,7 @@ export function pathDistance3309(left: checkruntime.PathValue, right: checkrunti
                     if (result.kind === "Unimplemented") {
                         conditionFlavor14420 = langruntime.checkedI32(2);
                     }
-                    if ((checkruntime.equalFloat8Value(result, { kind: "Unknown" }) || checkruntime.equalFloat8Value(result, { kind: "Unimplemented" }))) {
+                    if (checkruntime.equalFloat8Value(result, { kind: "Unknown" }) || checkruntime.equalFloat8Value(result, { kind: "Unimplemented" })) {
                         return checkruntime.float8Unresolved(conditionFlavor14420);
                     }
                     haveMin = langruntime.checkedBool(true);
@@ -56126,7 +56152,7 @@ function pathParse(value: string): checkruntime.PathValue {
         if (point.kind === "Unimplemented") {
             conditionFlavor548 = langruntime.checkedI32(2);
         }
-        if ((checkruntime.equalPointValue(point, { kind: "Unknown" }) || checkruntime.equalPointValue(point, { kind: "Unimplemented" }))) {
+        if (checkruntime.equalPointValue(point, { kind: "Unknown" }) || checkruntime.equalPointValue(point, { kind: "Unimplemented" })) {
             return checkruntime.pathUnresolved(conditionFlavor548);
         }
         if (point.kind === "Value") {
@@ -56238,7 +56264,7 @@ function pathPointTransform(input: checkruntime.PathValue, vector: checkruntime.
     if (vector.kind === "Unimplemented") {
         conditionFlavor254 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalPointValue(vector, { kind: "Unknown" }) || checkruntime.equalPointValue(vector, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalPointValue(vector, { kind: "Unknown" }) || checkruntime.equalPointValue(vector, { kind: "Unimplemented" })) {
         return checkruntime.pathUnresolved(conditionFlavor254);
     }
     if (input.kind === "Null") {
@@ -56720,7 +56746,7 @@ export function onPpath8fo6(point: checkruntime.PointValue, input: checkruntime.
     if (point.kind === "Unimplemented") {
         conditionFlavor2594 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalPointValue(point, { kind: "Unknown" }) || checkruntime.equalPointValue(point, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalPointValue(point, { kind: "Unknown" }) || checkruntime.equalPointValue(point, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor2594);
     }
     let conditionFlavor2624: number = unresolvedFlavor;
@@ -57681,7 +57707,7 @@ function pointParse(value: string): checkruntime.PointValue {
     if (firstValue.kind === "Unimplemented") {
         conditionFlavor1254 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalFloat8Value(firstValue, { kind: "Unknown" }) || checkruntime.equalFloat8Value(firstValue, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalFloat8Value(firstValue, { kind: "Unknown" }) || checkruntime.equalFloat8Value(firstValue, { kind: "Unimplemented" })) {
         return checkruntime.pointUnresolved(conditionFlavor1254);
     }
     index = langruntime.checkedIndex(first.end);
@@ -57704,7 +57730,7 @@ function pointParse(value: string): checkruntime.PointValue {
     if (secondValue.kind === "Unimplemented") {
         conditionFlavor1384 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalFloat8Value(secondValue, { kind: "Unknown" }) || checkruntime.equalFloat8Value(secondValue, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalFloat8Value(secondValue, { kind: "Unknown" }) || checkruntime.equalFloat8Value(secondValue, { kind: "Unimplemented" })) {
         return checkruntime.pointUnresolved(conditionFlavor1384);
     }
     index = langruntime.checkedIndex(second.end);
@@ -58556,7 +58582,7 @@ function polygonPointDistance(point: checkruntime.PointPayload, polygon: checkru
     if (distance.kind === "Unimplemented") {
         conditionFlavor124 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalFloat8Value(distance, { kind: "Unknown" }) || checkruntime.equalFloat8Value(distance, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalFloat8Value(distance, { kind: "Unknown" }) || checkruntime.equalFloat8Value(distance, { kind: "Unimplemented" })) {
         return checkruntime.float8Unresolved(conditionFlavor124);
     }
     let index: number = 0;
@@ -58577,7 +58603,7 @@ function polygonPointDistance(point: checkruntime.PointPayload, polygon: checkru
         if (distance.kind === "Unimplemented") {
             conditionFlavor198 = langruntime.checkedI32(2);
         }
-        if ((checkruntime.equalFloat8Value(distance, { kind: "Unknown" }) || checkruntime.equalFloat8Value(distance, { kind: "Unimplemented" }))) {
+        if (checkruntime.equalFloat8Value(distance, { kind: "Unknown" }) || checkruntime.equalFloat8Value(distance, { kind: "Unimplemented" })) {
             return checkruntime.float8Unresolved(conditionFlavor198);
         }
         index = langruntime.checkedAdd(index, 1);
@@ -58616,7 +58642,7 @@ export function distPpolyR23k(point: checkruntime.PointValue, input: checkruntim
     if (point.kind === "Unimplemented") {
         conditionFlavor334 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalPointValue(point, { kind: "Unknown" }) || checkruntime.equalPointValue(point, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalPointValue(point, { kind: "Unknown" }) || checkruntime.equalPointValue(point, { kind: "Unimplemented" })) {
         return checkruntime.float8Unresolved(conditionFlavor334);
     }
     let conditionFlavor344: number = unresolvedFlavor;
@@ -58691,7 +58717,7 @@ export function distCpoly8q0w(input: checkruntime.CircleValue, polygon: checkrun
     if (input.kind === "Unimplemented") {
         conditionFlavor574 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalCircleValue(input, { kind: "Unknown" }) || checkruntime.equalCircleValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalCircleValue(input, { kind: "Unknown" }) || checkruntime.equalCircleValue(input, { kind: "Unimplemented" })) {
         return checkruntime.float8Unresolved(conditionFlavor574);
     }
     let conditionFlavor584: number = unresolvedFlavor;
@@ -59129,7 +59155,7 @@ function polygonSegmentInside(a: checkruntime.PointPayload, b: checkruntime.Poin
             if (point.kind === "Unimplemented") {
                 conditionFlavor15112 = langruntime.checkedI32(2);
             }
-            if ((checkruntime.equalPointValue(point, { kind: "Unknown" }) || checkruntime.equalPointValue(point, { kind: "Unimplemented" }))) {
+            if (checkruntime.equalPointValue(point, { kind: "Unknown" }) || checkruntime.equalPointValue(point, { kind: "Unimplemented" })) {
                 return checkruntime.boolUnresolved(conditionFlavor15112);
             }
             if (point.kind === "Value") {
@@ -59436,7 +59462,7 @@ function rangeBinaryAppend(output: checkruntime.ByteaValue, bound: checkruntime.
     if (bound.kind === "Unimplemented") {
         conditionFlavor484 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalByteaValue(bound, { kind: "Unknown" }) || checkruntime.equalByteaValue(bound, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalByteaValue(bound, { kind: "Unknown" }) || checkruntime.equalByteaValue(bound, { kind: "Unimplemented" })) {
         return checkruntime.byteaUnresolved(conditionFlavor484);
     }
     if (bound.kind === "Null") {
@@ -59511,7 +59537,7 @@ export function rangeSendB1w5(input: checkruntime.RangeValue, lower: checkruntim
                 const error: checkruntime.SqlError = result.value;
                 return { kind: "Error", value: error };
             }
-            if ((checkruntime.equalByteaValue(result, { kind: "Unknown" }) || checkruntime.equalByteaValue(result, { kind: "Unimplemented" }))) {
+            if (checkruntime.equalByteaValue(result, { kind: "Unknown" }) || checkruntime.equalByteaValue(result, { kind: "Unimplemented" })) {
                 return result;
             }
         }
@@ -61161,7 +61187,7 @@ export function hashRangeExtendedAxg0(input: checkruntime.RangeValue, seed: chec
     if (seed.kind === "Unimplemented") {
         conditionFlavor1274 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt8Value(seed, { kind: "Unknown" }) || checkruntime.equalInt8Value(seed, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt8Value(seed, { kind: "Unknown" }) || checkruntime.equalInt8Value(seed, { kind: "Unimplemented" })) {
         return checkruntime.int8Unresolved(conditionFlavor1274);
     }
     if (flags.kind === "Error") {
@@ -62462,7 +62488,7 @@ function rangePayloadSet(left: checkruntime.RangePayload, right: checkruntime.Ra
                 if (adjacent.kind === "Unimplemented") {
                     conditionFlavor15616 = langruntime.checkedI32(2);
                 }
-                if ((checkruntime.equalBoolValue(adjacent, { kind: "Unknown" }) || checkruntime.equalBoolValue(adjacent, { kind: "Unimplemented" }))) {
+                if (checkruntime.equalBoolValue(adjacent, { kind: "Unknown" }) || checkruntime.equalBoolValue(adjacent, { kind: "Unimplemented" })) {
                     return checkruntime.rangeUnresolved(conditionFlavor15616);
                 }
                 if (adjacent.kind === "Value") {
@@ -63577,7 +63603,7 @@ function snapshotVisible(value: checkruntime.Int8Value, snapshot: checkruntime.S
     if (value.kind === "Unimplemented") {
         conditionFlavor1394 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt8Value(value, { kind: "Unknown" }) || checkruntime.equalInt8Value(value, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt8Value(value, { kind: "Unknown" }) || checkruntime.equalInt8Value(value, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor1394);
     }
     let conditionFlavor1424: number = unresolvedFlavor;
@@ -64251,7 +64277,7 @@ export function dateBvna(left: checkruntime.TimestampValue): checkruntime.DateVa
     if (left.kind === "Unimplemented") {
         conditionFlavor104 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalTimestampValue(left, { kind: "Unknown" }) || checkruntime.equalTimestampValue(left, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalTimestampValue(left, { kind: "Unknown" }) || checkruntime.equalTimestampValue(left, { kind: "Unimplemented" })) {
         return checkruntime.dateUnresolved(conditionFlavor104);
     }
     if (checkruntime.equalTimestampValue(left, { kind: "Null" })) {
@@ -64537,7 +64563,7 @@ export function timestampSwxj(left: checkruntime.DateValue): checkruntime.Timest
     if (left.kind === "Unimplemented") {
         conditionFlavor1744 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalDateValue(left, { kind: "Unknown" }) || checkruntime.equalDateValue(left, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalDateValue(left, { kind: "Unknown" }) || checkruntime.equalDateValue(left, { kind: "Unimplemented" })) {
         return checkruntime.timestampUnresolved(conditionFlavor1744);
     }
     if (checkruntime.equalDateValue(left, { kind: "Null" })) {
@@ -67948,7 +67974,7 @@ export function hashdateKnfp(left: checkruntime.DateValue): checkruntime.Int4Val
     if (left.kind === "Unimplemented") {
         conditionFlavor924 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalDateValue(left, { kind: "Unknown" }) || checkruntime.equalDateValue(left, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalDateValue(left, { kind: "Unknown" }) || checkruntime.equalDateValue(left, { kind: "Unimplemented" })) {
         return checkruntime.int4Unresolved(conditionFlavor924);
     }
     if (checkruntime.equalDateValue(left, { kind: "Null" })) {
@@ -68035,7 +68061,7 @@ export function isfinite2dqo(left: checkruntime.DateValue): checkruntime.BoolVal
     if (left.kind === "Unimplemented") {
         conditionFlavor1404 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalDateValue(left, { kind: "Unknown" }) || checkruntime.equalDateValue(left, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalDateValue(left, { kind: "Unknown" }) || checkruntime.equalDateValue(left, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor1404);
     }
     if (checkruntime.equalDateValue(left, { kind: "Null" })) {
@@ -68068,7 +68094,7 @@ export function isfiniteCdmf(left: checkruntime.TimestamptzValue): checkruntime.
     if (left.kind === "Unimplemented") {
         conditionFlavor1594 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalTimestamptzValue(left, { kind: "Unknown" }) || checkruntime.equalTimestamptzValue(left, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalTimestamptzValue(left, { kind: "Unknown" }) || checkruntime.equalTimestamptzValue(left, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor1594);
     }
     if (checkruntime.equalTimestamptzValue(left, { kind: "Null" })) {
@@ -68101,7 +68127,7 @@ export function isfinite4zxx(left: checkruntime.TimestampValue): checkruntime.Bo
     if (left.kind === "Unimplemented") {
         conditionFlavor1804 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalTimestampValue(left, { kind: "Unknown" }) || checkruntime.equalTimestampValue(left, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalTimestampValue(left, { kind: "Unknown" }) || checkruntime.equalTimestampValue(left, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor1804);
     }
     if (checkruntime.equalTimestampValue(left, { kind: "Null" })) {
@@ -68188,7 +68214,7 @@ export function timestampHash71nv(left: checkruntime.TimestampValue): checkrunti
     if (left.kind === "Unimplemented") {
         conditionFlavor2304 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalTimestampValue(left, { kind: "Unknown" }) || checkruntime.equalTimestampValue(left, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalTimestampValue(left, { kind: "Unknown" }) || checkruntime.equalTimestampValue(left, { kind: "Unimplemented" })) {
         return checkruntime.int4Unresolved(conditionFlavor2304);
     }
     if (checkruntime.equalTimestampValue(left, { kind: "Null" })) {
@@ -68443,7 +68469,7 @@ export function timestamptzHashUsaa(left: checkruntime.TimestamptzValue): checkr
     if (left.kind === "Unimplemented") {
         conditionFlavor3744 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalTimestamptzValue(left, { kind: "Unknown" }) || checkruntime.equalTimestamptzValue(left, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalTimestamptzValue(left, { kind: "Unknown" }) || checkruntime.equalTimestamptzValue(left, { kind: "Unimplemented" })) {
         return checkruntime.int4Unresolved(conditionFlavor3744);
     }
     if (checkruntime.equalTimestamptzValue(left, { kind: "Null" })) {
@@ -68898,7 +68924,7 @@ function temporalTimestampLegacyValue(number: checkruntime.NumericValue, unit: s
     if (number.kind === "Unimplemented") {
         conditionFlavor84 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNumericValue(number, { kind: "Unknown" }) || checkruntime.equalNumericValue(number, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalNumericValue(number, { kind: "Unknown" }) || checkruntime.equalNumericValue(number, { kind: "Unimplemented" })) {
         return checkruntime.float8Unresolved(conditionFlavor84);
     }
     if (checkruntime.equalNumericValue(number, { kind: "Null" })) {
@@ -69010,7 +69036,7 @@ export function lengthEhpe(value: checkruntime.TextValue): checkruntime.Int4Valu
     if (value.kind === "Unimplemented") {
         conditionFlavor444 = langruntime.checkedI32(2);
     }
-    if (((checkruntime.equalTextValue(value, { kind: "Unknown" }) || checkruntime.equalTextValue(value, { kind: "Unimplemented" })) || checkruntime.equalTextValue(value, { kind: "NonNull" }))) {
+    if ((checkruntime.equalTextValue(value, { kind: "Unknown" }) || checkruntime.equalTextValue(value, { kind: "Unimplemented" })) || checkruntime.equalTextValue(value, { kind: "NonNull" })) {
         return checkruntime.int4Unresolved(conditionFlavor444);
     }
     if (checkruntime.equalTextValue(value, { kind: "Null" })) {
@@ -69503,7 +69529,7 @@ export function ascii7m47(input: checkruntime.TextValue): checkruntime.Int4Value
     if (input.kind === "Unimplemented") {
         conditionFlavor84 = langruntime.checkedI32(2);
     }
-    if (((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "Unimplemented" })) || checkruntime.equalTextValue(input, { kind: "NonNull" }))) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "Unimplemented" })) || checkruntime.equalTextValue(input, { kind: "NonNull" })) {
         return checkruntime.int4Unresolved(conditionFlavor84);
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" })) {
@@ -69566,7 +69592,7 @@ export function textVuvi(input: checkruntime.BoolValue): checkruntime.TextValue 
     if (input.kind === "Unimplemented") {
         conditionFlavor84 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalBoolValue(input, { kind: "Unknown" }) || checkruntime.equalBoolValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalBoolValue(input, { kind: "Unknown" }) || checkruntime.equalBoolValue(input, { kind: "Unimplemented" })) {
         return checkruntime.textUnresolved(conditionFlavor84);
     }
     if (checkruntime.equalBoolValue(input, { kind: "Null" })) {
@@ -69608,7 +69634,7 @@ function textCaseValue(input: checkruntime.TextValue, mode: number): checkruntim
     if (input.kind === "Unimplemented") {
         conditionFlavor84 = langruntime.checkedI32(2);
     }
-    if (((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "Unimplemented" })) || checkruntime.equalTextValue(input, { kind: "NonNull" }))) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "Unimplemented" })) || checkruntime.equalTextValue(input, { kind: "NonNull" })) {
         return checkruntime.textUnresolved(conditionFlavor84);
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" })) {
@@ -70154,7 +70180,7 @@ function formatChoiceBounds(input: TextFormatState, original: checkruntime.Array
         const candidate: checkruntime.TextValue = formatChoiceValue(source, family, index);
         const bounds: TextFormatBounds = copyTextFormatBounds(formatCandidateBounds(input, candidate, quoteAll));
         result = copyTextFormatBounds(formatMergeBounds(result, bounds));
-        if ((checkruntime.equalCheckOutcome(result.status, { kind: "Unknown" }) || checkruntime.equalCheckOutcome(result.status, { kind: "Unimplemented" }))) {
+        if (checkruntime.equalCheckOutcome(result.status, { kind: "Unknown" }) || checkruntime.equalCheckOutcome(result.status, { kind: "Unimplemented" })) {
             return result;
         }
         index = langruntime.checkedI32(langruntime.checkedSignedAdd(index, 1));
@@ -70386,7 +70412,7 @@ function formatAcceptWithBounds(input: TextFormatState, value: checkruntime.Text
     let output: TextFormatOutput = input.output;
     if (phase === 1) {
         let parsed: checkruntime.Int8Value = scalarIntegerFromText(value, 32);
-        if ((checkruntime.equalInt8Value(parsed, { kind: "Unknown" }) || checkruntime.equalInt8Value(parsed, { kind: "Unimplemented" }))) {
+        if (checkruntime.equalInt8Value(parsed, { kind: "Unknown" }) || checkruntime.equalInt8Value(parsed, { kind: "Unimplemented" })) {
             const hintedWidth: checkruntime.Int4Value = hint.width;
             if (hintedWidth.kind === "Value") {
                 const width1: number = langruntime.checkedI32(hintedWidth.value);
@@ -70429,7 +70455,7 @@ function formatAcceptWithBounds(input: TextFormatState, value: checkruntime.Text
         const rendered: checkruntime.TextValue = formatQuotedValue(value, input.conversion, quoteAll);
         const prepared: checkruntime.TextValue = rendered;
         let facts: TextFormatBounds = copyTextFormatBounds(formatPreparedBounds(prepared, width));
-        if ((checkruntime.equalCheckOutcome(facts.status, { kind: "Unknown" }) || checkruntime.equalCheckOutcome(facts.status, { kind: "Unimplemented" }))) {
+        if (checkruntime.equalCheckOutcome(facts.status, { kind: "Unknown" }) || checkruntime.equalCheckOutcome(facts.status, { kind: "Unimplemented" })) {
             facts = copyTextFormatBounds(hint);
         }
         output = formatAppendOutput(output, rendered, facts, width, input.left);
@@ -70721,7 +70747,7 @@ function textHashValue(input: checkruntime.TextValue, trimSpaces: boolean, byteO
     if (input.kind === "Unimplemented") {
         conditionFlavor84 = langruntime.checkedI32(2);
     }
-    if (((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "Unimplemented" })) || checkruntime.equalTextValue(input, { kind: "NonNull" }))) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "Unimplemented" })) || checkruntime.equalTextValue(input, { kind: "NonNull" })) {
         return checkruntime.int4Unresolved(conditionFlavor84);
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" })) {
@@ -71360,7 +71386,7 @@ export function bpcharLargerClri(left: checkruntime.TextValue, right: checkrunti
     if (compared.kind === "Unimplemented") {
         conditionFlavor114 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" })) {
         return checkruntime.textUnresolved(conditionFlavor114);
     }
     if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
@@ -71413,7 +71439,7 @@ export function bpcharPatternGeDv6p(left: checkruntime.TextValue, right: checkru
     if (compared.kind === "Unimplemented") {
         conditionFlavor364 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor364);
     }
     if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
@@ -71463,7 +71489,7 @@ export function bpcharPatternGtTnmi(left: checkruntime.TextValue, right: checkru
     if (compared.kind === "Unimplemented") {
         conditionFlavor584 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor584);
     }
     if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
@@ -71513,7 +71539,7 @@ export function bpcharPatternLe5vh3(left: checkruntime.TextValue, right: checkru
     if (compared.kind === "Unimplemented") {
         conditionFlavor804 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor804);
     }
     if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
@@ -71563,7 +71589,7 @@ export function bpcharPatternLt5798(left: checkruntime.TextValue, right: checkru
     if (compared.kind === "Unimplemented") {
         conditionFlavor1024 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor1024);
     }
     if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
@@ -71613,7 +71639,7 @@ export function bpcharSmaller0mnx(left: checkruntime.TextValue, right: checkrunt
     if (compared.kind === "Unimplemented") {
         conditionFlavor1244 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" })) {
         return checkruntime.textUnresolved(conditionFlavor1244);
     }
     if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
@@ -71678,7 +71704,7 @@ export function textLargerSsmm(left: checkruntime.TextValue, right: checkruntime
     if (compared.kind === "Unimplemented") {
         conditionFlavor1654 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" })) {
         return checkruntime.textUnresolved(conditionFlavor1654);
     }
     if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
@@ -71731,7 +71757,7 @@ export function textPatternGeV6bi(left: checkruntime.TextValue, right: checkrunt
     if (compared.kind === "Unimplemented") {
         conditionFlavor1904 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor1904);
     }
     if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
@@ -71781,7 +71807,7 @@ export function textPatternGt99dz(left: checkruntime.TextValue, right: checkrunt
     if (compared.kind === "Unimplemented") {
         conditionFlavor2124 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor2124);
     }
     if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
@@ -71831,7 +71857,7 @@ export function textPatternLeDpvx(left: checkruntime.TextValue, right: checkrunt
     if (compared.kind === "Unimplemented") {
         conditionFlavor2344 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor2344);
     }
     if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
@@ -71881,7 +71907,7 @@ export function textPatternLtQftf(left: checkruntime.TextValue, right: checkrunt
     if (compared.kind === "Unimplemented") {
         conditionFlavor2564 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor2564);
     }
     if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
@@ -71931,7 +71957,7 @@ export function textSmallerT2nd(left: checkruntime.TextValue, right: checkruntim
     if (compared.kind === "Unimplemented") {
         conditionFlavor2784 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" })) {
         return checkruntime.textUnresolved(conditionFlavor2784);
     }
     if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
@@ -72363,7 +72389,7 @@ export function quoteLiteralOutput(input: checkruntime.TextValue, sqlText: boole
     if (input.kind === "Unimplemented") {
         conditionFlavor184 = langruntime.checkedI32(2);
     }
-    if (((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "Unimplemented" })) || checkruntime.equalTextValue(input, { kind: "NonNull" }))) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "Unimplemented" })) || checkruntime.equalTextValue(input, { kind: "NonNull" })) {
         return checkruntime.textUnresolved(conditionFlavor184);
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" })) {
@@ -73202,7 +73228,7 @@ export function pgSizeBytesGgrt(input: checkruntime.TextValue): checkruntime.Int
     if (input.kind === "Unimplemented") {
         conditionFlavor114 = langruntime.checkedI32(2);
     }
-    if (((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "Unimplemented" })) || checkruntime.equalTextValue(input, { kind: "NonNull" }))) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "Unimplemented" })) || checkruntime.equalTextValue(input, { kind: "NonNull" })) {
         return checkruntime.int8Unresolved(conditionFlavor114);
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" })) {
@@ -73616,7 +73642,7 @@ export function reverse5pr1(input: checkruntime.TextValue): checkruntime.TextVal
     if (input.kind === "Unimplemented") {
         conditionFlavor1634 = langruntime.checkedI32(2);
     }
-    if (((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "Unimplemented" })) || checkruntime.equalTextValue(input, { kind: "NonNull" }))) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "Unimplemented" })) || checkruntime.equalTextValue(input, { kind: "NonNull" })) {
         return checkruntime.textUnresolved(conditionFlavor1634);
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" })) {
@@ -73726,7 +73752,7 @@ export function toAsciiCulg(value: checkruntime.TextValue): checkruntime.TextVal
     if (value.kind === "Unimplemented") {
         conditionFlavor964 = langruntime.checkedI32(2);
     }
-    if (((checkruntime.equalTextValue(value, { kind: "Unknown" }) || checkruntime.equalTextValue(value, { kind: "Unimplemented" })) || checkruntime.equalTextValue(value, { kind: "NonNull" }))) {
+    if ((checkruntime.equalTextValue(value, { kind: "Unknown" }) || checkruntime.equalTextValue(value, { kind: "Unimplemented" })) || checkruntime.equalTextValue(value, { kind: "NonNull" })) {
         return checkruntime.textUnresolved(conditionFlavor964);
     }
     if (checkruntime.equalTextValue(value, { kind: "Null" })) {
@@ -73845,7 +73871,7 @@ export function unistrN58m(input: checkruntime.TextValue): checkruntime.TextValu
     if (input.kind === "Unimplemented") {
         conditionFlavor114 = langruntime.checkedI32(2);
     }
-    if (((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "Unimplemented" })) || checkruntime.equalTextValue(input, { kind: "NonNull" }))) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "Unimplemented" })) || checkruntime.equalTextValue(input, { kind: "NonNull" })) {
         return checkruntime.textUnresolved(conditionFlavor114);
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" })) {
@@ -74178,7 +74204,7 @@ function textMeasureValue(value: checkruntime.TextValue, trimSpaces: boolean, mo
     if (value.kind === "Unimplemented") {
         conditionFlavor554 = langruntime.checkedI32(2);
     }
-    if (((checkruntime.equalTextValue(value, { kind: "Unknown" }) || checkruntime.equalTextValue(value, { kind: "Unimplemented" })) || checkruntime.equalTextValue(value, { kind: "NonNull" }))) {
+    if ((checkruntime.equalTextValue(value, { kind: "Unknown" }) || checkruntime.equalTextValue(value, { kind: "Unimplemented" })) || checkruntime.equalTextValue(value, { kind: "NonNull" })) {
         return checkruntime.int4Unresolved(conditionFlavor554);
     }
     if (checkruntime.equalTextValue(value, { kind: "Null" })) {
@@ -75886,7 +75912,7 @@ export function timeLarger98xe(left: checkruntime.TimeValue, right: checkruntime
     if (order.kind === "Unimplemented") {
         conditionFlavor1124 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(order, { kind: "Unknown" }) || checkruntime.equalInt4Value(order, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(order, { kind: "Unknown" }) || checkruntime.equalInt4Value(order, { kind: "Unimplemented" })) {
         return checkruntime.timeUnresolved(conditionFlavor1124);
     }
     if (checkruntime.equalInt4Value(order, { kind: "Null" })) {
@@ -75938,7 +75964,7 @@ export function timeSmallerA0k2(left: checkruntime.TimeValue, right: checkruntim
     if (order.kind === "Unimplemented") {
         conditionFlavor1494 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(order, { kind: "Unknown" }) || checkruntime.equalInt4Value(order, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(order, { kind: "Unknown" }) || checkruntime.equalInt4Value(order, { kind: "Unimplemented" })) {
         return checkruntime.timeUnresolved(conditionFlavor1494);
     }
     if (checkruntime.equalInt4Value(order, { kind: "Null" })) {
@@ -76047,7 +76073,7 @@ export function timetzLargerYvok(left: checkruntime.TimetzValue, right: checkrun
     if (order.kind === "Unimplemented") {
         conditionFlavor2164 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(order, { kind: "Unknown" }) || checkruntime.equalInt4Value(order, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(order, { kind: "Unknown" }) || checkruntime.equalInt4Value(order, { kind: "Unimplemented" })) {
         return checkruntime.timetzUnresolved(conditionFlavor2164);
     }
     if (checkruntime.equalInt4Value(order, { kind: "Null" })) {
@@ -76099,7 +76125,7 @@ export function timetzSmaller5wru(left: checkruntime.TimetzValue, right: checkru
     if (order.kind === "Unimplemented") {
         conditionFlavor2534 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(order, { kind: "Unknown" }) || checkruntime.equalInt4Value(order, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(order, { kind: "Unknown" }) || checkruntime.equalInt4Value(order, { kind: "Unimplemented" })) {
         return checkruntime.timetzUnresolved(conditionFlavor2534);
     }
     if (checkruntime.equalInt4Value(order, { kind: "Null" })) {
@@ -76208,7 +76234,7 @@ export function intervalLargerVd9t(left: checkruntime.IntervalValue, right: chec
     if (order.kind === "Unimplemented") {
         conditionFlavor3234 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(order, { kind: "Unknown" }) || checkruntime.equalInt4Value(order, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(order, { kind: "Unknown" }) || checkruntime.equalInt4Value(order, { kind: "Unimplemented" })) {
         return checkruntime.intervalUnresolved(conditionFlavor3234);
     }
     if (checkruntime.equalInt4Value(order, { kind: "Null" })) {
@@ -76260,7 +76286,7 @@ export function intervalSmallerNs56(left: checkruntime.IntervalValue, right: che
     if (order.kind === "Unimplemented") {
         conditionFlavor3634 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(order, { kind: "Unknown" }) || checkruntime.equalInt4Value(order, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(order, { kind: "Unknown" }) || checkruntime.equalInt4Value(order, { kind: "Unimplemented" })) {
         return checkruntime.intervalUnresolved(conditionFlavor3634);
     }
     if (checkruntime.equalInt4Value(order, { kind: "Null" })) {
@@ -78149,7 +78175,7 @@ function tsRankRun(weights: checkruntime.ArrayValue, document: checkruntime.Tsve
     if (method.kind === "Unimplemented") {
         conditionFlavor1334 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(method, { kind: "Unknown" }) || checkruntime.equalInt4Value(method, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(method, { kind: "Unknown" }) || checkruntime.equalInt4Value(method, { kind: "Unimplemented" })) {
         return checkruntime.float4Unresolved(conditionFlavor1334);
     }
     if (defaults === false) {
@@ -78170,7 +78196,10 @@ function tsRankRun(weights: checkruntime.ArrayValue, document: checkruntime.Tsve
     if (defaults === false) {
         const parsed: TsRankWeights = copyTsRankWeights(tsRankReadWeights(weights));
         if (parsed.kind === "Unknown") {
-            return checkruntime.float4Unresolved(unresolvedFlavor);
+            return checkruntime.float4Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
+        }
+        if (parsed.kind === "Unimplemented") {
+            return checkruntime.float4Unresolved(2);
         }
         if (parsed.kind === "Error") {
             const error: checkruntime.SqlError = parsed.value;
@@ -78620,7 +78649,7 @@ function tsRankCdRun(weights: checkruntime.ArrayValue, document: checkruntime.Ts
     if (method.kind === "Unimplemented") {
         conditionFlavor2374 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(method, { kind: "Unknown" }) || checkruntime.equalInt4Value(method, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(method, { kind: "Unknown" }) || checkruntime.equalInt4Value(method, { kind: "Unimplemented" })) {
         return checkruntime.float4Unresolved(conditionFlavor2374);
     }
     if (defaults === false) {
@@ -78641,7 +78670,10 @@ function tsRankCdRun(weights: checkruntime.ArrayValue, document: checkruntime.Ts
     if (defaults === false) {
         const parsed: TsRankWeights = copyTsRankWeights(tsRankReadWeights(weights));
         if (parsed.kind === "Unknown") {
-            return checkruntime.float4Unresolved(unresolvedFlavor);
+            return checkruntime.float4Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
+        }
+        if (parsed.kind === "Unimplemented") {
+            return checkruntime.float4Unresolved(2);
         }
         if (parsed.kind === "Error") {
             const error: checkruntime.SqlError = parsed.value;
@@ -78706,6 +78738,8 @@ function copyTsRankWeightSet(value: TsRankWeightSet): TsRankWeightSet {
 type TsRankWeights = {
     kind: "Unknown";
 } | {
+    kind: "Unimplemented";
+} | {
     kind: "Error";
     value: checkruntime.SqlError;
 } | {
@@ -78715,6 +78749,7 @@ type TsRankWeights = {
 function copyTsRankWeights(value: TsRankWeights): TsRankWeights {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
+        case "Unimplemented": return { kind: "Unimplemented" };
         case "Error": return { kind: "Error", value: value.value };
         case "Value": return { kind: "Value", value: copyTsRankWeightSet(value.value) };
     }
@@ -78776,12 +78811,12 @@ function tsRankReadWeights(input: checkruntime.ArrayValue): TsRankWeights {
     if (input.kind === "Value") {
         const value: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(input.value);
         if (!(value.elementKind === 19) || !(value.elementType === "pg_catalog.float4")) {
-            return { kind: "Unknown" };
+            return { kind: "Unimplemented" };
         }
         if (!(value.dimensions.length === 1) || value.elements.length < 4) {
             return { kind: "Error", value: checkruntime.makeSqlError(tsRankWeightShape) };
         }
-        let uncertain: boolean = false;
+        let flavor: number = 0;
         let index: number = 0;
         while (index < value.elements.length) {
             const element: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(value.elements, langruntime.checkedIndex(index), checkruntime.copyArrayElement));
@@ -78789,19 +78824,22 @@ function tsRankReadWeights(input: checkruntime.ArrayValue): TsRankWeights {
                 return { kind: "Error", value: checkruntime.makeSqlError(tsRankWeightNull) };
             }
             if (element.kind === "Unknown") {
-                if (!(checkruntime.equalBoolValue(value.nullBitmap, { kind: "Value", value: false }))) {
-                    uncertain = langruntime.checkedBool(true);
+                if (!(checkruntime.equalBoolValue(value.nullBitmap, { kind: "Value", value: false })) && flavor < 1) {
+                    flavor = langruntime.checkedI32(1);
                 }
             }
             if (element.kind === "Unimplemented") {
                 if (!(checkruntime.equalBoolValue(value.nullBitmap, { kind: "Value", value: false }))) {
-                    uncertain = langruntime.checkedBool(true);
+                    flavor = langruntime.checkedI32(2);
                 }
             }
             index = langruntime.checkedAdd(index, 1);
         }
-        if (uncertain) {
+        if (flavor === 1) {
             return { kind: "Unknown" };
+        }
+        if (flavor === 2) {
+            return { kind: "Unimplemented" };
         }
         const defaults: TsRankWeightSet = copyTsRankWeightSet(tsRankDefaults());
         let weights: TsRankWeightSet = copyTsRankWeightSet(defaults);
@@ -78812,8 +78850,11 @@ function tsRankReadWeights(input: checkruntime.ArrayValue): TsRankWeights {
                 const error: checkruntime.SqlError = input1.value;
                 return { kind: "Error", value: error };
             }
-            if ((checkruntime.equalFloat4Value(input1, { kind: "Unknown" }) || checkruntime.equalFloat4Value(input1, { kind: "Unimplemented" }))) {
-                uncertain = langruntime.checkedBool(true);
+            if (checkruntime.equalFloat4Value(input1, { kind: "Unknown" }) && flavor < 1) {
+                flavor = langruntime.checkedI32(1);
+            }
+            if (checkruntime.equalFloat4Value(input1, { kind: "Unimplemented" })) {
+                flavor = langruntime.checkedI32(2);
             }
             let bits: number = defaults.d;
             if (index === 1) {
@@ -78849,12 +78890,15 @@ function tsRankReadWeights(input: checkruntime.ArrayValue): TsRankWeights {
             }
             index = langruntime.checkedAdd(index, 1);
         }
-        if (uncertain) {
+        if (flavor === 1) {
             return { kind: "Unknown" };
+        }
+        if (flavor === 2) {
+            return { kind: "Unimplemented" };
         }
         return { kind: "Value", value: copyTsRankWeightSet(weights) };
     }
-    return { kind: "Unknown" };
+    return { kind: "Unimplemented" };
 }
 function tsRankFind(document: checkruntime.TsvectorPayload, operand: checkruntime.TsqueryNode): TsRankWordRange {
     let low: number = 0;
@@ -79326,7 +79370,7 @@ function tsqueryCompare(left: checkruntime.TsqueryValue, right: checkruntime.Tsq
                 return checkruntime.makeInt4Value(1);
             }
             if (a.nativeBytes < 0 || b.nativeBytes < 0) {
-                return checkruntime.int4Unresolved(unresolvedFlavor);
+                return checkruntime.int4Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
             }
             if (a.nativeBytes < b.nativeBytes) {
                 return checkruntime.makeInt4Value(langruntime.checkedSignedNegate(1));
@@ -79375,7 +79419,7 @@ function tsqueryCompare(left: checkruntime.TsqueryValue, right: checkruntime.Tsq
                             }
                             const order: number = checkruntime.tsvectorLexemeOrder(an.text, bn.text);
                             if (exact && !(order === 0) && textHasPrefix(an.text, bn.text) === false && textHasPrefix(bn.text, an.text) === false) {
-                                return checkruntime.int4Unresolved(unresolvedFlavor);
+                                return checkruntime.int4Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
                             }
                             return checkruntime.makeInt4Value(order);
                         }
@@ -79744,7 +79788,7 @@ function tsqueryJoin(left: checkruntime.TsqueryValue, right: checkruntime.Tsquer
     if (distance.kind === "Unimplemented") {
         conditionFlavor394 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(distance, { kind: "Unknown" }) || checkruntime.equalInt4Value(distance, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(distance, { kind: "Unknown" }) || checkruntime.equalInt4Value(distance, { kind: "Unimplemented" })) {
         return checkruntime.tsqueryUnresolved(conditionFlavor394);
     }
     if (left.kind === "Null") {
@@ -82604,7 +82648,7 @@ function tsvectorSelectArray(input: checkruntime.TsvectorValue, weight: checkrun
     if (weight.kind === "Unimplemented") {
         conditionFlavor654 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInternalCharValue(weight, { kind: "Unknown" }) || checkruntime.equalInternalCharValue(weight, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInternalCharValue(weight, { kind: "Unknown" }) || checkruntime.equalInternalCharValue(weight, { kind: "Unimplemented" })) {
         return checkruntime.tsvectorUnresolved(conditionFlavor654);
     }
     let conditionFlavor664: number = unresolvedFlavor;
@@ -82667,7 +82711,7 @@ function tsvectorSelectArray(input: checkruntime.TsvectorValue, weight: checkrun
                     if (cell.kind === "Unimplemented") {
                         conditionFlavor8320 = langruntime.checkedI32(2);
                     }
-                    if ((checkruntime.equalTextValue(cell, { kind: "Unknown" }) || checkruntime.equalTextValue(cell, { kind: "Unimplemented" }))) {
+                    if (checkruntime.equalTextValue(cell, { kind: "Unknown" }) || checkruntime.equalTextValue(cell, { kind: "Unimplemented" })) {
                         return checkruntime.tsvectorUnresolved(conditionFlavor8320);
                     }
                     if (cell.kind === "Value") {
@@ -82748,7 +82792,7 @@ export function tsDeleteY2kd(input: checkruntime.TsvectorValue, selector: checkr
     if (selector.kind === "Unimplemented") {
         conditionFlavor1144 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalTextValue(selector, { kind: "Unknown" }) || checkruntime.equalTextValue(selector, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalTextValue(selector, { kind: "Unknown" }) || checkruntime.equalTextValue(selector, { kind: "Unimplemented" })) {
         return checkruntime.tsvectorUnresolved(conditionFlavor1144);
     }
     if (input.kind === "Null") {
@@ -82867,7 +82911,7 @@ export function tsFilter82l1(input: checkruntime.TsvectorValue, weights: checkru
                 if (cell.kind === "Unimplemented") {
                     conditionFlavor15216 = langruntime.checkedI32(2);
                 }
-                if ((checkruntime.equalInternalCharValue(cell, { kind: "Unknown" }) || checkruntime.equalInternalCharValue(cell, { kind: "Unimplemented" }))) {
+                if (checkruntime.equalInternalCharValue(cell, { kind: "Unknown" }) || checkruntime.equalInternalCharValue(cell, { kind: "Unimplemented" })) {
                     return checkruntime.tsvectorUnresolved(conditionFlavor15216);
                 }
                 if (checkruntime.equalInternalCharValue(cell, { kind: "Null" })) {
@@ -82945,7 +82989,7 @@ export function arrayToTsvectorY8ia(input: checkruntime.ArrayValue, utf8: boolea
             if (cell.kind === "Unimplemented") {
                 conditionFlavor19412 = langruntime.checkedI32(2);
             }
-            if ((checkruntime.equalTextValue(cell, { kind: "Unknown" }) || checkruntime.equalTextValue(cell, { kind: "Unimplemented" }))) {
+            if (checkruntime.equalTextValue(cell, { kind: "Unknown" }) || checkruntime.equalTextValue(cell, { kind: "Unimplemented" })) {
                 return checkruntime.tsvectorUnresolved(conditionFlavor19412);
             }
             if (checkruntime.equalTextValue(cell, { kind: "Null" })) {
@@ -83463,7 +83507,7 @@ export function setweightHza4(input: checkruntime.TsvectorValue, weight: checkru
     if (weight.kind === "Unimplemented") {
         conditionFlavor384 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInternalCharValue(weight, { kind: "Unknown" }) || checkruntime.equalInternalCharValue(weight, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInternalCharValue(weight, { kind: "Unknown" }) || checkruntime.equalInternalCharValue(weight, { kind: "Unimplemented" })) {
         return checkruntime.tsvectorUnresolved(conditionFlavor384);
     }
     if (input.kind === "Null") {
@@ -83637,7 +83681,7 @@ function tsvectorCompare(left: checkruntime.TsvectorValue, right: checkruntime.T
                     const aPrefix: boolean = textHasPrefix(langruntime.indexStruct(a.lexemes, langruntime.checkedIndex(i), checkruntime.copyTsvectorLexeme).text, langruntime.indexStruct(b.lexemes, langruntime.checkedIndex(i), checkruntime.copyTsvectorLexeme).text);
                     const bPrefix: boolean = textHasPrefix(langruntime.indexStruct(b.lexemes, langruntime.checkedIndex(i), checkruntime.copyTsvectorLexeme).text, langruntime.indexStruct(a.lexemes, langruntime.checkedIndex(i), checkruntime.copyTsvectorLexeme).text);
                     if (exact && aPrefix === false && bPrefix === false) {
-                        return checkruntime.int4Unresolved(unresolvedFlavor);
+                        return checkruntime.int4Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
                     }
                     return checkruntime.makeInt4Value(order);
                 }
@@ -83864,7 +83908,7 @@ export function uuidEq6czo(left: checkruntime.UuidValue, right: checkruntime.Uui
     if (result.kind === "Unimplemented") {
         conditionFlavor534 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor534);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -83904,7 +83948,7 @@ export function uuidNeN2xp(left: checkruntime.UuidValue, right: checkruntime.Uui
     if (result.kind === "Unimplemented") {
         conditionFlavor754 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor754);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -83944,7 +83988,7 @@ export function uuidLt50za(left: checkruntime.UuidValue, right: checkruntime.Uui
     if (result.kind === "Unimplemented") {
         conditionFlavor974 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor974);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -83984,7 +84028,7 @@ export function uuidLeG9j5(left: checkruntime.UuidValue, right: checkruntime.Uui
     if (result.kind === "Unimplemented") {
         conditionFlavor1194 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor1194);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -84024,7 +84068,7 @@ export function uuidGt0fj1(left: checkruntime.UuidValue, right: checkruntime.Uui
     if (result.kind === "Unimplemented") {
         conditionFlavor1414 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor1414);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -84064,7 +84108,7 @@ export function uuidGe098n(left: checkruntime.UuidValue, right: checkruntime.Uui
     if (result.kind === "Unimplemented") {
         conditionFlavor1634 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" }) || checkruntime.equalInt4Value(result, { kind: "Unimplemented" })) {
         return checkruntime.boolUnresolved(conditionFlavor1634);
     }
     if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
@@ -84097,7 +84141,7 @@ export function uuidToText(input: checkruntime.UuidValue): checkruntime.TextValu
     if (input.kind === "Unimplemented") {
         conditionFlavor1824 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalUuidValue(input, { kind: "Unknown" }) || checkruntime.equalUuidValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalUuidValue(input, { kind: "Unknown" }) || checkruntime.equalUuidValue(input, { kind: "Unimplemented" })) {
         return checkruntime.textUnresolved(conditionFlavor1824);
     }
     if (checkruntime.equalUuidValue(input, { kind: "Null" })) {
@@ -84168,7 +84212,7 @@ export function uuidSend32nf(input: checkruntime.UuidValue): checkruntime.ByteaV
     if (input.kind === "Unimplemented") {
         conditionFlavor274 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalUuidValue(input, { kind: "Unknown" }) || checkruntime.equalUuidValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalUuidValue(input, { kind: "Unknown" }) || checkruntime.equalUuidValue(input, { kind: "Unimplemented" })) {
         return checkruntime.byteaUnresolved(conditionFlavor274);
     }
     if (checkruntime.equalUuidValue(input, { kind: "Null" })) {
@@ -84209,7 +84253,7 @@ export function uuidHash8nnn(input: checkruntime.UuidValue, byteOrder: number): 
     if (input.kind === "Unimplemented") {
         conditionFlavor534 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalUuidValue(input, { kind: "Unknown" }) || checkruntime.equalUuidValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalUuidValue(input, { kind: "Unknown" }) || checkruntime.equalUuidValue(input, { kind: "Unimplemented" })) {
         return checkruntime.int4Unresolved(conditionFlavor534);
     }
     if (checkruntime.equalUuidValue(input, { kind: "Null" })) {
@@ -84299,7 +84343,7 @@ export function uuidExtractVersionYdwe(input: checkruntime.UuidValue): checkrunt
     if (input.kind === "Unimplemented") {
         conditionFlavor1044 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalUuidValue(input, { kind: "Unknown" }) || checkruntime.equalUuidValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalUuidValue(input, { kind: "Unknown" }) || checkruntime.equalUuidValue(input, { kind: "Unimplemented" })) {
         return checkruntime.int2Unresolved(conditionFlavor1044);
     }
     if (checkruntime.equalUuidValue(input, { kind: "Null" })) {
@@ -84335,7 +84379,7 @@ export function uuidExtractTimestampP52j(input: checkruntime.UuidValue): checkru
     if (input.kind === "Unimplemented") {
         conditionFlavor84 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalUuidValue(input, { kind: "Unknown" }) || checkruntime.equalUuidValue(input, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalUuidValue(input, { kind: "Unknown" }) || checkruntime.equalUuidValue(input, { kind: "Unimplemented" })) {
         return checkruntime.timestamptzUnresolved(conditionFlavor84);
     }
     if (checkruntime.equalUuidValue(input, { kind: "Null" })) {
@@ -84733,7 +84777,7 @@ export function xmlConcatAppend(input: checkruntime.XmlConcatState, value: check
     if (value.kind === "Null") {
         return input;
     }
-    if ((checkruntime.equalCheckOutcome(input.status, { kind: "Unknown" }) || checkruntime.equalCheckOutcome(input.status, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalCheckOutcome(input.status, { kind: "Unknown" }) || checkruntime.equalCheckOutcome(input.status, { kind: "Unimplemented" })) {
         return input;
     }
     if (value.kind === "Value") {
@@ -84777,7 +84821,7 @@ export function xmlConcatFinish(input: checkruntime.XmlConcatState): checkruntim
         const error: checkruntime.SqlError = status.value;
         return { kind: "Error", value: error };
     }
-    if ((checkruntime.equalCheckOutcome(input.status, { kind: "Unknown" }) || checkruntime.equalCheckOutcome(input.status, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalCheckOutcome(input.status, { kind: "Unknown" }) || checkruntime.equalCheckOutcome(input.status, { kind: "Unimplemented" })) {
         return checkruntime.xmlUnresolved(unresolvedFlavor);
     }
     if (input.hasValue === false) {
@@ -86391,7 +86435,7 @@ export function xmlElementFinish(name: string, mapped: boolean, attributes: chec
     if (validity.kind === "Unimplemented") {
         conditionFlavor1224 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalCheckOutcome(validity, { kind: "Unknown" }) || checkruntime.equalCheckOutcome(validity, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalCheckOutcome(validity, { kind: "Unknown" }) || checkruntime.equalCheckOutcome(validity, { kind: "Unimplemented" })) {
         return checkruntime.xmlUnresolved(conditionFlavor1224);
     }
     let target: string = name;
@@ -86455,7 +86499,7 @@ export function xmlForestFinish(content: checkruntime.TextValue, validity: check
     if (validity.kind === "Unimplemented") {
         conditionFlavor1534 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalCheckOutcome(validity, { kind: "Unknown" }) || checkruntime.equalCheckOutcome(validity, { kind: "Unimplemented" }))) {
+    if (checkruntime.equalCheckOutcome(validity, { kind: "Unknown" }) || checkruntime.equalCheckOutcome(validity, { kind: "Unimplemented" })) {
         return checkruntime.xmlUnresolved(conditionFlavor1534);
     }
     if (content.kind === "Null") {

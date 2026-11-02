@@ -146,8 +146,7 @@ it('preserves validated partial XML knowledge through public scalars, arrays and
     )
     for (const value of invalid) {
       const input = row({ kind: 'NonNull', value }, { kind: 'XmlNonNull', value })
-      for (const check of evaluate(input))
-        expect(check.result, check.constraint).toEqual({ certain: false })
+      expect(() => evaluate(input), JSON.stringify(value)).toThrow(TypeError)
     }
     for (const file of ['go.mod', 'go.sum'])
       await writeFile(

@@ -274,9 +274,9 @@ it('admits projected dates through generated public row adapters and checked rec
         ),
       })
     }
-    expect(
-      evaluate({ d: { kind: 'Value', value: 0.5 }, expected: '', bypass: false })[0].result,
-    ).toEqual({ certain: false })
+    expect(() =>
+      evaluate({ d: { kind: 'Value', value: 0.5 }, expected: '', bypass: false }),
+    ).toThrow(TypeError)
     const goRoot = join(root, 'go')
     await mkdir(goRoot)
     const generated = renderGoSchemaArtifacts(

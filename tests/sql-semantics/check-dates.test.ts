@@ -382,9 +382,9 @@ describe('portable Rust CHECK dates', () => {
         result,
       })),
     })
-    expect(evaluate({ a: new Date('2000-01-01'), b: runtime.makeDateValue(0) })[0].result).toEqual({
-      certain: false,
-    })
+    expect(() => evaluate({ a: new Date('2000-01-01'), b: runtime.makeDateValue(0) })).toThrow(
+      TypeError,
+    )
     for (const payload of [-2451546, 2145031949])
       expect(runtime.makeDateValue(payload)).toEqual({
         kind: 'Error',

@@ -42,7 +42,7 @@ pub fn finish_domain_conversion(input: ArrayElement, result: CheckOutcome) -> Ar
     if let CheckOutcome::Error(error) = result {
         return ArrayElement::Error(error);
     };
-    let mut condition_flavor_45_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = result { if condition_flavor_45_4 < 1 { condition_flavor_45_4 = 1; }; }; if let CheckOutcome::Unimplemented = result { condition_flavor_45_4 = 2; }; if (result == CheckOutcome::Unknown || result == CheckOutcome::Unimplemented) {
+    let mut condition_flavor_45_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = result { if condition_flavor_45_4 < 1 { condition_flavor_45_4 = 1; }; }; if let CheckOutcome::Unimplemented = result { condition_flavor_45_4 = 2; }; if result == CheckOutcome::Unknown || result == CheckOutcome::Unimplemented {
         return array_element_unresolved(condition_flavor_45_4);
     };
     input
@@ -58,7 +58,7 @@ pub fn finish_xml_domain_conversion(input: XmlValue, result: CheckOutcome) -> Xm
     if let CheckOutcome::Error(error) = result {
         return XmlValue::Error(error);
     };
-    let mut condition_flavor_60_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = result { if condition_flavor_60_4 < 1 { condition_flavor_60_4 = 1; }; }; if let CheckOutcome::Unimplemented = result { condition_flavor_60_4 = 2; }; if (result == CheckOutcome::Unknown || result == CheckOutcome::Unimplemented) {
+    let mut condition_flavor_60_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = result { if condition_flavor_60_4 < 1 { condition_flavor_60_4 = 1; }; }; if let CheckOutcome::Unimplemented = result { condition_flavor_60_4 = 2; }; if result == CheckOutcome::Unknown || result == CheckOutcome::Unimplemented {
         return xml_unresolved(condition_flavor_60_4);
     };
     input
@@ -85,7 +85,7 @@ pub fn finish_array_domain_conversion(input: ArrayValue, result: CheckOutcome) -
     if let CheckOutcome::Error(error) = result {
         return ArrayValue::Error(error);
     };
-    let mut condition_flavor_87_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = result { if condition_flavor_87_4 < 1 { condition_flavor_87_4 = 1; }; }; if let CheckOutcome::Unimplemented = result { condition_flavor_87_4 = 2; }; if (result == CheckOutcome::Unknown || result == CheckOutcome::Unimplemented) {
+    let mut condition_flavor_87_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = result { if condition_flavor_87_4 < 1 { condition_flavor_87_4 = 1; }; }; if let CheckOutcome::Unimplemented = result { condition_flavor_87_4 = 2; }; if result == CheckOutcome::Unknown || result == CheckOutcome::Unimplemented {
         return array_unresolved(condition_flavor_87_4);
     };
     input
@@ -100,7 +100,7 @@ pub fn finish_range_domain_conversion(input: RangeValue, result: CheckOutcome) -
     if let CheckOutcome::Error(error) = result {
         return RangeValue::Error(error);
     };
-    let mut condition_flavor_102_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = result { if condition_flavor_102_4 < 1 { condition_flavor_102_4 = 1; }; }; if let CheckOutcome::Unimplemented = result { condition_flavor_102_4 = 2; }; if (result == CheckOutcome::Unknown || result == CheckOutcome::Unimplemented) {
+    let mut condition_flavor_102_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = result { if condition_flavor_102_4 < 1 { condition_flavor_102_4 = 1; }; }; if let CheckOutcome::Unimplemented = result { condition_flavor_102_4 = 2; }; if result == CheckOutcome::Unknown || result == CheckOutcome::Unimplemented {
         return range_unresolved(condition_flavor_102_4);
     };
     input
@@ -118,7 +118,7 @@ pub fn finish_multirange_domain_conversion(
     if let CheckOutcome::Error(error) = result {
         return MultirangeValue::Error(error);
     };
-    let mut condition_flavor_120_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = result { if condition_flavor_120_4 < 1 { condition_flavor_120_4 = 1; }; }; if let CheckOutcome::Unimplemented = result { condition_flavor_120_4 = 2; }; if (result == CheckOutcome::Unknown || result == CheckOutcome::Unimplemented) {
+    let mut condition_flavor_120_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = result { if condition_flavor_120_4 < 1 { condition_flavor_120_4 = 1; }; }; if let CheckOutcome::Unimplemented = result { condition_flavor_120_4 = 2; }; if result == CheckOutcome::Unknown || result == CheckOutcome::Unimplemented {
         return multirange_unresolved(condition_flavor_120_4);
     };
     input
@@ -131,7 +131,7 @@ pub fn finish_tsvector_domain_conversion(input: TsvectorValue, result: CheckOutc
     if let TsvectorValue::Unimplemented = input { unresolved_flavor = 2; };
     if let CheckOutcome::Unimplemented = result { unresolved_flavor = 2; };
     if let CheckOutcome::Error(error) = result { return TsvectorValue::Error(error); };
-    let mut condition_flavor_133_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = result { if condition_flavor_133_4 < 1 { condition_flavor_133_4 = 1; }; }; if let CheckOutcome::Unimplemented = result { condition_flavor_133_4 = 2; }; if (result == CheckOutcome::Unknown || result == CheckOutcome::Unimplemented) { return tsvector_unresolved(condition_flavor_133_4); };
+    let mut condition_flavor_133_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = result { if condition_flavor_133_4 < 1 { condition_flavor_133_4 = 1; }; }; if let CheckOutcome::Unimplemented = result { condition_flavor_133_4 = 2; }; if result == CheckOutcome::Unknown || result == CheckOutcome::Unimplemented { return tsvector_unresolved(condition_flavor_133_4); };
     input
 }
 
@@ -142,6 +142,6 @@ pub fn finish_tsquery_domain_conversion(input: TsqueryValue, result: CheckOutcom
     if let TsqueryValue::Unimplemented = input { unresolved_flavor = 2; };
     if let CheckOutcome::Unimplemented = result { unresolved_flavor = 2; };
     if let CheckOutcome::Error(error) = result { return TsqueryValue::Error(error); };
-    let mut condition_flavor_144_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = result { if condition_flavor_144_4 < 1 { condition_flavor_144_4 = 1; }; }; if let CheckOutcome::Unimplemented = result { condition_flavor_144_4 = 2; }; if (result == CheckOutcome::Unknown || result == CheckOutcome::Unimplemented) { return tsquery_unresolved(condition_flavor_144_4); };
+    let mut condition_flavor_144_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = result { if condition_flavor_144_4 < 1 { condition_flavor_144_4 = 1; }; }; if let CheckOutcome::Unimplemented = result { condition_flavor_144_4 = 2; }; if result == CheckOutcome::Unknown || result == CheckOutcome::Unimplemented { return tsquery_unresolved(condition_flavor_144_4); };
     input
 }

@@ -351,7 +351,7 @@ pub fn sql__pg_catalog__jsonb_delete__cow2(input: JsonbValue, key: TextValue) ->
     }; let mut condition_flavor_350_7: i32 = unresolved_flavor; if let JsonbValue::Unimplemented = input { condition_flavor_350_7 = 2; }; if let JsonbValue::Unimplemented = input {
         return jsonb_unresolved(condition_flavor_350_7);
     };
-    let mut condition_flavor_353_4: i32 = unresolved_flavor; if let TextValue::Unknown = key { if condition_flavor_353_4 < 1 { condition_flavor_353_4 = 1; }; }; if let TextValue::Unimplemented = key { condition_flavor_353_4 = 2; }; if (key == TextValue::Unknown || key == TextValue::Unimplemented) {
+    let mut condition_flavor_353_4: i32 = unresolved_flavor; if let TextValue::Unknown = key { if condition_flavor_353_4 < 1 { condition_flavor_353_4 = 1; }; }; if let TextValue::Unimplemented = key { condition_flavor_353_4 = 2; }; if key == TextValue::Unknown || key == TextValue::Unimplemented {
         return jsonb_unresolved(condition_flavor_353_4);
     };
     if let JsonbValue::Null = input {
@@ -428,7 +428,7 @@ pub fn sql__pg_catalog__jsonb_delete__btgy(input: JsonbValue, index: Int4Value) 
     }; let mut condition_flavor_427_7: i32 = unresolved_flavor; if let JsonbValue::Unimplemented = input { condition_flavor_427_7 = 2; }; if let JsonbValue::Unimplemented = input {
         return jsonb_unresolved(condition_flavor_427_7);
     };
-    let mut condition_flavor_430_4: i32 = unresolved_flavor; if let Int4Value::Unknown = index { if condition_flavor_430_4 < 1 { condition_flavor_430_4 = 1; }; }; if let Int4Value::Unimplemented = index { condition_flavor_430_4 = 2; }; if (index == Int4Value::Unknown || index == Int4Value::Unimplemented) {
+    let mut condition_flavor_430_4: i32 = unresolved_flavor; if let Int4Value::Unknown = index { if condition_flavor_430_4 < 1 { condition_flavor_430_4 = 1; }; }; if let Int4Value::Unimplemented = index { condition_flavor_430_4 = 2; }; if index == Int4Value::Unknown || index == Int4Value::Unimplemented {
         return jsonb_unresolved(condition_flavor_430_4);
     };
     if let JsonbValue::Null = input {

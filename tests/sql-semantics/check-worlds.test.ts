@@ -1667,7 +1667,7 @@ describe('world CHECK INSERT parity', () => {
   })
 
   it.runIf(worlds.some((world) => world.name === '027_survey_positions'))(
-    'defers malformed and oversized portable point payloads without throwing',
+    'rejects malformed and oversized portable point payloads and defers an unsupplied one',
     () => {
       const table = catalog.tables.find(
         (table) => table.schema === 'world_027_survey_positions' && table.name === 'survey_matches',
@@ -1683,8 +1683,11 @@ describe('world CHECK INSERT parity', () => {
         recorded_coalesced: new Uint8Array(16),
         skip_validation: false,
       }
+      for (const result of evaluate({ ...baseline, candidate_point: undefined })) {
+        expect(result.result.certain, result.constraint).toBe(false)
+        expect(result.message, result.constraint).toBeTruthy()
+      }
       for (const candidate of [
-        undefined,
         '(0,0)',
         {},
         { kind: 'Invalid' },
@@ -1698,12 +1701,12 @@ describe('world CHECK INSERT parity', () => {
         { kind: 'Value', value: { x: 0n, y: -9223372036854775809n } },
         { kind: 'Value', value: { x: 0n, y: 0n, wireKnown: 'yes' } },
       ]) {
-        const results = evaluate({ ...baseline, candidate_point: candidate })
-        expect(results).toHaveLength(3)
-        for (const result of results) {
-          expect(result.result.certain, result.constraint).toBe(false)
-          expect(result.message, result.constraint).toBeTruthy()
-        }
+        expect(
+          () => evaluate({ ...baseline, candidate_point: candidate }),
+          JSON.stringify(candidate, (_key, item) =>
+            typeof item === 'bigint' ? String(item) : item,
+          ),
+        ).toThrow(TypeError)
       }
       const missing: Record<string, unknown> = { ...baseline }
       delete missing.candidate_point

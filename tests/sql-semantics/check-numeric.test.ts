@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
+import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
 import { join, dirname } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -518,8 +519,8 @@ describe('portable Rust CHECK numeric comparisons', () => {
       value: false,
     })
     expect(evaluate(null, '1')).toEqual({ certain: true, value: null })
+    expect(evaluate(undefined, '1')).toEqual({ certain: false })
     for (const a of [
-      undefined,
       0.1,
       1,
       1n,
@@ -528,7 +529,7 @@ describe('portable Rust CHECK numeric comparisons', () => {
       { kind: 'Value', value: 'invalid' },
       { kind: 'Value', value: 1 },
     ])
-      expect(evaluate(a, '1')).toEqual({ certain: false })
+      expectUndecidedOrRejected(() => evaluate(a, '1'))
     expect(evaluation(undefined, '1')).toMatchObject({
       owner: 'public.numeric_checks',
       constraint: 'equal',

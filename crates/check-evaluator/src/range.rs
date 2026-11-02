@@ -797,13 +797,13 @@ fn range_bound_value_valid(input: ArrayElement, cidr: bool) -> bool {
         if let TsvectorValue::Value(_) = checked { return true; };
         return false;
     };
-    if let ArrayElement::AclitemCatalog(value) = input { return (make_aclitem_catalog_value(value.privileges,value.grant_options,value.public_grantee,value.invalid_grantor) != AclitemValue::Unknown && make_aclitem_catalog_value(value.privileges,value.grant_options,value.public_grantee,value.invalid_grantor) != AclitemValue::Unimplemented); };
-    if let ArrayElement::Aclitem(value) = input { return (make_aclitem_value(value.grantee,value.grantor,value.privileges,value.grant_options) != AclitemValue::Unknown && make_aclitem_value(value.grantee,value.grantor,value.privileges,value.grant_options) != AclitemValue::Unimplemented); };
+    if let ArrayElement::AclitemCatalog(value) = input { return make_aclitem_catalog_value(value.privileges,value.grant_options,value.public_grantee,value.invalid_grantor) != AclitemValue::Unknown && make_aclitem_catalog_value(value.privileges,value.grant_options,value.public_grantee,value.invalid_grantor) != AclitemValue::Unimplemented; };
+    if let ArrayElement::Aclitem(value) = input { return make_aclitem_value(value.grantee,value.grantor,value.privileges,value.grant_options) != AclitemValue::Unknown && make_aclitem_value(value.grantee,value.grantor,value.privileges,value.grant_options) != AclitemValue::Unimplemented; };
     if let ArrayElement::Int2(value) = input {
-        return (make_int2_value(value) != Int2Value::Unknown && make_int2_value(value) != Int2Value::Unimplemented);
+        return make_int2_value(value) != Int2Value::Unknown && make_int2_value(value) != Int2Value::Unimplemented;
     };
     if let ArrayElement::Bit(value) = input {
-        return (make_bit_value(value.as_str()) != BitValue::Unknown && make_bit_value(value.as_str()) != BitValue::Unimplemented);
+        return make_bit_value(value.as_str()) != BitValue::Unknown && make_bit_value(value.as_str()) != BitValue::Unimplemented;
     };
     if let ArrayElement::Bytea(value) = input {
         let parsed = make_bytea_value(value.as_str());
@@ -813,19 +813,19 @@ fn range_bound_value_valid(input: ArrayElement, cidr: bool) -> bool {
         return false;
     };
     if let ArrayElement::Time(value) = input {
-        return (make_time_value(value) != TimeValue::Unknown && make_time_value(value) != TimeValue::Unimplemented);
+        return make_time_value(value) != TimeValue::Unknown && make_time_value(value) != TimeValue::Unimplemented;
     };
     if let ArrayElement::Timetz(value) = input {
-        return (make_timetz_value(value.time, value.zone) != TimetzValue::Unknown && make_timetz_value(value.time, value.zone) != TimetzValue::Unimplemented);
+        return make_timetz_value(value.time, value.zone) != TimetzValue::Unknown && make_timetz_value(value.time, value.zone) != TimetzValue::Unimplemented;
     };
     if let ArrayElement::InternalChar(value) = input {
-        return (make_internal_char_value(value) != InternalCharValue::Unknown && make_internal_char_value(value) != InternalCharValue::Unimplemented);
+        return make_internal_char_value(value) != InternalCharValue::Unknown && make_internal_char_value(value) != InternalCharValue::Unimplemented;
     };
     if let ArrayElement::Oid(value) = input {
-        return (make_oid_value(value) != OidValue::Unknown && make_oid_value(value) != OidValue::Unimplemented);
+        return make_oid_value(value) != OidValue::Unknown && make_oid_value(value) != OidValue::Unimplemented;
     };
     if let ArrayElement::Tid(value) = input {
-        return (make_tid_value(value) != TidValue::Unknown && make_tid_value(value) != TidValue::Unimplemented);
+        return make_tid_value(value) != TidValue::Unknown && make_tid_value(value) != TidValue::Unimplemented;
     };
     if let ArrayElement::Network(value) = input {
         if value.family != 4 && value.family != 6 {

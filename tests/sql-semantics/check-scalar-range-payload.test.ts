@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
+import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -206,21 +207,21 @@ it('validates public scalar range payloads, compiled support and snapshots indep
             ? { kind: 'Int4', value: 0 }
             : { kind: 'Text', value: 'wrong carrier' },
         )
-        expect(map(evaluate(bad)).range_order).toMatchObject({ certain: false })
-        for (const r of Object.values(map(evaluate({ ...bad, bypass: true }))))
-          expect(r).toEqual({ certain: true, value: true })
+        expect(() => evaluate(bad)).toThrow(TypeError)
         const nominal = structuredClone(row)
         nominal.v.value.typeName = 'pg_catalog.int4range'
-        expect(map(evaluate(nominal)).range_order).toMatchObject({ certain: false })
+        expectUndecidedOrRejected(() => map(evaluate(nominal)), undefined, ['range_order'])
         for (const bound of invalidScalarRangeBounds(
           row.v.value.bounds[0]!,
           backend.type === 'pg_catalog.cidr',
         )) {
           const malformed = structuredClone(row)
           malformed.v.value.bounds[0] = bound
-          expect(map(evaluate(malformed)).range_order).toMatchObject({ certain: false })
-          for (const r of Object.values(map(evaluate({ ...malformed, bypass: true }))))
-            expect(r).toEqual({ certain: true, value: true })
+          expectUndecidedOrRejected(
+            () => map(evaluate(malformed)),
+            JSON.stringify(bound, (_key, item) => (typeof item === 'bigint' ? String(item) : item)),
+            ['range_order'],
+          )
           expect(row).toEqual(before)
         }
         for (const r of Object.values(

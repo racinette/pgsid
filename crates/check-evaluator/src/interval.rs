@@ -478,7 +478,7 @@ fn interval_units_from_text(input: TextValue, field_mask: i32, style: i32) -> In
                 };
                 let mut whole = interval_input_whole(token.as_str());
                 let mut year_month = false;
-                if (whole == Int8Value::Unknown || whole == Int8Value::Unimplemented) {
+                if whole == Int8Value::Unknown || whole == Int8Value::Unimplemented {
                     whole = interval_input_year_month(token.as_str());
                     year_month = true;
                 };
@@ -488,7 +488,7 @@ fn interval_units_from_text(input: TextValue, field_mask: i32, style: i32) -> In
                 if let Int8Value::Error(error) = whole {
                     return IntervalValue::Error(error);
                 };
-                let mut condition_flavor_490_16: i32 = unresolved_flavor; if let Int8Value::Unknown = whole { if condition_flavor_490_16 < 1 { condition_flavor_490_16 = 1; }; }; if let Int8Value::Unimplemented = whole { condition_flavor_490_16 = 2; }; if (whole == Int8Value::Unknown || whole == Int8Value::Unimplemented) {
+                let mut condition_flavor_490_16: i32 = unresolved_flavor; if let Int8Value::Unknown = whole { if condition_flavor_490_16 < 1 { condition_flavor_490_16 = 1; }; }; if let Int8Value::Unimplemented = whole { condition_flavor_490_16 = 2; }; if whole == Int8Value::Unknown || whole == Int8Value::Unimplemented {
                     let mut ascii_field = false;
                     let mut scan: usize = 0;
                     while scan < token_chars.len() {
@@ -643,7 +643,7 @@ fn interval_input_clock(input: IntervalInputAcc, text: &str, field_mask: i32) ->
         if let Int8Value::Error(error) = last_number {
             return interval_input_fail(input, interval_clock_error_state(error, range_error));
         };
-        if (last_number == Int8Value::Unknown || last_number == Int8Value::Unimplemented) {
+        if last_number == Int8Value::Unknown || last_number == Int8Value::Unimplemented {
             return interval_input_fail(input, INTERVAL_INPUT_SYNTAX);
         };
         if let Int8Value::Value(number) = last_number {

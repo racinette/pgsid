@@ -62,7 +62,7 @@ fn jsonb_number_text(source: &JsonSyntaxSource, token: JsonReadToken, utf8: bool
     if let BoolValue::Error(error) = ready {
         return TextValue::Error(error);
     };
-    let mut condition_flavor_65_4: i32 = unresolved_flavor; if let BoolValue::Unknown = ready { if condition_flavor_65_4 < 1 { condition_flavor_65_4 = 1; }; }; if let BoolValue::Unimplemented = ready { condition_flavor_65_4 = 2; }; if (ready == BoolValue::Unknown || ready == BoolValue::Unimplemented) {
+    let mut condition_flavor_65_4: i32 = unresolved_flavor; if let BoolValue::Unknown = ready { if condition_flavor_65_4 < 1 { condition_flavor_65_4 = 1; }; }; if let BoolValue::Unimplemented = ready { condition_flavor_65_4 = 2; }; if ready == BoolValue::Unknown || ready == BoolValue::Unimplemented {
         return text_unresolved(condition_flavor_65_4);
     };
     let mut position = token.start;
@@ -339,7 +339,7 @@ fn jsonb_parse_text_context(input: TextValue, admission: bool, utf8: bool) -> Js
                 if let BoolValue::Error(error) = decision {
                     return JsonbValue::Error(error);
                 };
-                let mut condition_flavor_341_16: i32 = unresolved_flavor; if let BoolValue::Unknown = decision { if condition_flavor_341_16 < 1 { condition_flavor_341_16 = 1; }; }; if let BoolValue::Unimplemented = decision { condition_flavor_341_16 = 2; }; if (decision == BoolValue::Unknown || decision == BoolValue::Unimplemented) {
+                let mut condition_flavor_341_16: i32 = unresolved_flavor; if let BoolValue::Unknown = decision { if condition_flavor_341_16 < 1 { condition_flavor_341_16 = 1; }; }; if let BoolValue::Unimplemented = decision { condition_flavor_341_16 = 2; }; if decision == BoolValue::Unknown || decision == BoolValue::Unimplemented {
                     return jsonb_unresolved(condition_flavor_341_16);
                 };
             };
@@ -359,7 +359,7 @@ fn jsonb_parse_text_context(input: TextValue, admission: bool, utf8: bool) -> Js
                     if let BoolValue::Error(error) = decision {
                         return JsonbValue::Error(error);
                     };
-                    let mut condition_flavor_361_20: i32 = unresolved_flavor; if let BoolValue::Unknown = decision { if condition_flavor_361_20 < 1 { condition_flavor_361_20 = 1; }; }; if let BoolValue::Unimplemented = decision { condition_flavor_361_20 = 2; }; if (decision == BoolValue::Unknown || decision == BoolValue::Unimplemented) {
+                    let mut condition_flavor_361_20: i32 = unresolved_flavor; if let BoolValue::Unknown = decision { if condition_flavor_361_20 < 1 { condition_flavor_361_20 = 1; }; }; if let BoolValue::Unimplemented = decision { condition_flavor_361_20 = 2; }; if decision == BoolValue::Unknown || decision == BoolValue::Unimplemented {
                         return jsonb_unresolved(condition_flavor_361_20);
                     };
                 };
@@ -400,7 +400,7 @@ fn jsonb_parse_text_context(input: TextValue, admission: bool, utf8: bool) -> Js
                         if let BoolValue::Error(error) = ready {
                             return JsonbValue::Error(error);
                         };
-                        let mut condition_flavor_402_24: i32 = unresolved_flavor; if let BoolValue::Unknown = ready { if condition_flavor_402_24 < 1 { condition_flavor_402_24 = 1; }; }; if let BoolValue::Unimplemented = ready { condition_flavor_402_24 = 2; }; if (ready == BoolValue::Unknown || ready == BoolValue::Unimplemented) {
+                        let mut condition_flavor_402_24: i32 = unresolved_flavor; if let BoolValue::Unknown = ready { if condition_flavor_402_24 < 1 { condition_flavor_402_24 = 1; }; }; if let BoolValue::Unimplemented = ready { condition_flavor_402_24 = 2; }; if ready == BoolValue::Unknown || ready == BoolValue::Unimplemented {
                             return jsonb_unresolved(condition_flavor_402_24);
                         };
                         let size_text = decoded.clone();
@@ -421,7 +421,7 @@ fn jsonb_parse_text_context(input: TextValue, admission: bool, utf8: bool) -> Js
                             if let BoolValue::Error(error) = decision {
                                 return JsonbValue::Error(error);
                             };
-                            let mut condition_flavor_423_28: i32 = unresolved_flavor; if let BoolValue::Unknown = decision { if condition_flavor_423_28 < 1 { condition_flavor_423_28 = 1; }; }; if let BoolValue::Unimplemented = decision { condition_flavor_423_28 = 2; }; if (decision == BoolValue::Unknown || decision == BoolValue::Unimplemented) {
+                            let mut condition_flavor_423_28: i32 = unresolved_flavor; if let BoolValue::Unknown = decision { if condition_flavor_423_28 < 1 { condition_flavor_423_28 = 1; }; }; if let BoolValue::Unimplemented = decision { condition_flavor_423_28 = 2; }; if decision == BoolValue::Unknown || decision == BoolValue::Unimplemented {
                                 return jsonb_unresolved(condition_flavor_423_28);
                             };
                         };

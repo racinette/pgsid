@@ -113,7 +113,7 @@ fn line_intersection_predicate(left: LineValue, right: LineValue, parallel: bool
     if let PointValue::Error(error) = result {
         return BoolValue::Error(error);
     };
-    let mut condition_flavor_116_4: i32 = unresolved_flavor; if let PointValue::Unknown = result { if condition_flavor_116_4 < 1 { condition_flavor_116_4 = 1; }; }; if let PointValue::Unimplemented = result { condition_flavor_116_4 = 2; }; if (result == PointValue::Unknown || result == PointValue::Unimplemented) {
+    let mut condition_flavor_116_4: i32 = unresolved_flavor; if let PointValue::Unknown = result { if condition_flavor_116_4 < 1 { condition_flavor_116_4 = 1; }; }; if let PointValue::Unimplemented = result { condition_flavor_116_4 = 2; }; if result == PointValue::Unknown || result == PointValue::Unimplemented {
         return bool_unresolved(condition_flavor_116_4);
     };
     make_bool_value((result == PointValue::Null) == parallel)
@@ -211,7 +211,7 @@ pub fn sql__pg_catalog__line_distance__a9ql(left: LineValue, right: LineValue) -
     if let PointValue::Error(error) = intersection {
         return Float8Value::Error(error);
     };
-    let mut condition_flavor_214_4: i32 = unresolved_flavor; if let PointValue::Unknown = intersection { if condition_flavor_214_4 < 1 { condition_flavor_214_4 = 1; }; }; if let PointValue::Unimplemented = intersection { condition_flavor_214_4 = 2; }; if (intersection == PointValue::Unknown || intersection == PointValue::Unimplemented) {
+    let mut condition_flavor_214_4: i32 = unresolved_flavor; if let PointValue::Unknown = intersection { if condition_flavor_214_4 < 1 { condition_flavor_214_4 = 1; }; }; if let PointValue::Unimplemented = intersection { condition_flavor_214_4 = 2; }; if intersection == PointValue::Unknown || intersection == PointValue::Unimplemented {
         return float8_unresolved(condition_flavor_214_4);
     };
     if intersection != PointValue::Null {

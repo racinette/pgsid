@@ -92,7 +92,7 @@ fn clock_grammar_normalized(input: TextValue) -> TextValue {
                     if let DateValue::Error(error) = parsed {
                         return TextValue::Error(error);
                     };
-                    let mut condition_flavor_94_20: i32 = unresolved_flavor; if let DateValue::Unknown = parsed { if condition_flavor_94_20 < 1 { condition_flavor_94_20 = 1; }; }; if let DateValue::Unimplemented = parsed { condition_flavor_94_20 = 2; }; if (parsed == DateValue::Unknown || parsed == DateValue::Unimplemented) {
+                    let mut condition_flavor_94_20: i32 = unresolved_flavor; if let DateValue::Unknown = parsed { if condition_flavor_94_20 < 1 { condition_flavor_94_20 = 1; }; }; if let DateValue::Unimplemented = parsed { condition_flavor_94_20 = 2; }; if parsed == DateValue::Unknown || parsed == DateValue::Unimplemented {
                         return text_unresolved(condition_flavor_94_20);
                     };
                     start = position + 1;

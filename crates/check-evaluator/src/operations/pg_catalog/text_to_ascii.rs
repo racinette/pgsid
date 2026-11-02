@@ -94,7 +94,7 @@ pub fn sql__pg_catalog__to_ascii__culg(value: TextValue) -> TextValue {
     if let TextValue::Error(error) = value {
         return TextValue::Error(error);
     }
-    let mut condition_flavor_96_4: i32 = unresolved_flavor; if let TextValue::Unknown = value { if condition_flavor_96_4 < 1 { condition_flavor_96_4 = 1; }; }; if let TextValue::Unimplemented = value { condition_flavor_96_4 = 2; }; if ((value == TextValue::Unknown || value == TextValue::Unimplemented) || value == TextValue::NonNull) {
+    let mut condition_flavor_96_4: i32 = unresolved_flavor; if let TextValue::Unknown = value { if condition_flavor_96_4 < 1 { condition_flavor_96_4 = 1; }; }; if let TextValue::Unimplemented = value { condition_flavor_96_4 = 2; }; if (value == TextValue::Unknown || value == TextValue::Unimplemented) || value == TextValue::NonNull {
         return text_unresolved(condition_flavor_96_4);
     }
     if value == TextValue::Null {

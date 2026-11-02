@@ -77,7 +77,7 @@ fn format_accept_with_bounds(
     let mut output = input.output;
     if phase == 1 {
         let mut parsed = scalar_integer_from_text(value, 32);
-        if (parsed == Int8Value::Unknown || parsed == Int8Value::Unimplemented) {
+        if parsed == Int8Value::Unknown || parsed == Int8Value::Unimplemented {
             let hinted_width = hint.width;
             if let Int4Value::Value(width) = hinted_width {
                 let number = width as i64;
@@ -115,7 +115,7 @@ fn format_accept_with_bounds(
         let rendered = format_quoted_value(value, input.conversion, quote_all);
         let prepared = rendered.clone();
         let mut facts = format_prepared_bounds(prepared, width);
-        if (facts.status == CheckOutcome::Unknown || facts.status == CheckOutcome::Unimplemented) {
+        if facts.status == CheckOutcome::Unknown || facts.status == CheckOutcome::Unimplemented {
             facts = hint;
         };
         output = format_append_output(output, rendered, facts, width, input.left);

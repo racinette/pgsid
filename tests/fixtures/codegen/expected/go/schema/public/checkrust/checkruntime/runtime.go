@@ -596,8 +596,8 @@ func MakeXmlKnowledge(document BoolValue, content BoolValue) XmlValue {
 	if content.Kind == BoolValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
-	validDocument := (document == (BoolValue{Kind: BoolValueUnknown}) || document == (BoolValue{Kind: BoolValueUnimplemented}))
-	validContent := (content == (BoolValue{Kind: BoolValueUnknown}) || content == (BoolValue{Kind: BoolValueUnimplemented}))
+	validDocument := document == (BoolValue{Kind: BoolValueUnknown}) || document == (BoolValue{Kind: BoolValueUnimplemented})
+	validContent := content == (BoolValue{Kind: BoolValueUnknown}) || content == (BoolValue{Kind: BoolValueUnimplemented})
 	if document.Kind == BoolValueValue {
 		validDocument = true
 	}
@@ -14412,19 +14412,19 @@ func rangeBoundValueValid(input ArrayElement, cidr bool) bool {
 	}
 	if input.Kind == ArrayElementAclitemCatalog {
 		value := input.AclitemCatalog
-		return (MakeAclitemCatalogValue(value.Privileges, value.GrantOptions, value.PublicGrantee, value.InvalidGrantor) != (AclitemValue{Kind: AclitemValueUnknown}) && MakeAclitemCatalogValue(value.Privileges, value.GrantOptions, value.PublicGrantee, value.InvalidGrantor) != (AclitemValue{Kind: AclitemValueUnimplemented}))
+		return MakeAclitemCatalogValue(value.Privileges, value.GrantOptions, value.PublicGrantee, value.InvalidGrantor) != (AclitemValue{Kind: AclitemValueUnknown}) && MakeAclitemCatalogValue(value.Privileges, value.GrantOptions, value.PublicGrantee, value.InvalidGrantor) != (AclitemValue{Kind: AclitemValueUnimplemented})
 	}
 	if input.Kind == ArrayElementAclitem {
 		value := input.Aclitem
-		return (MakeAclitemValue(value.Grantee, value.Grantor, value.Privileges, value.GrantOptions) != (AclitemValue{Kind: AclitemValueUnknown}) && MakeAclitemValue(value.Grantee, value.Grantor, value.Privileges, value.GrantOptions) != (AclitemValue{Kind: AclitemValueUnimplemented}))
+		return MakeAclitemValue(value.Grantee, value.Grantor, value.Privileges, value.GrantOptions) != (AclitemValue{Kind: AclitemValueUnknown}) && MakeAclitemValue(value.Grantee, value.Grantor, value.Privileges, value.GrantOptions) != (AclitemValue{Kind: AclitemValueUnimplemented})
 	}
 	if input.Kind == ArrayElementInt2 {
 		value := langruntime.CheckedI32(input.Int2)
-		return (MakeInt2Value(value) != (Int2Value{Kind: Int2ValueUnknown}) && MakeInt2Value(value) != (Int2Value{Kind: Int2ValueUnimplemented}))
+		return MakeInt2Value(value) != (Int2Value{Kind: Int2ValueUnknown}) && MakeInt2Value(value) != (Int2Value{Kind: Int2ValueUnimplemented})
 	}
 	if input.Kind == ArrayElementBit {
 		value := langruntime.CheckedString(input.Bit)
-		return (MakeBitValue(value) != (BitValue{Kind: BitValueUnknown}) && MakeBitValue(value) != (BitValue{Kind: BitValueUnimplemented}))
+		return MakeBitValue(value) != (BitValue{Kind: BitValueUnknown}) && MakeBitValue(value) != (BitValue{Kind: BitValueUnimplemented})
 	}
 	if input.Kind == ArrayElementBytea {
 		value := langruntime.CheckedString(input.Bytea)
@@ -14437,23 +14437,23 @@ func rangeBoundValueValid(input ArrayElement, cidr bool) bool {
 	}
 	if input.Kind == ArrayElementTime {
 		value := input.Time
-		return (MakeTimeValue(value) != (TimeValue{Kind: TimeValueUnknown}) && MakeTimeValue(value) != (TimeValue{Kind: TimeValueUnimplemented}))
+		return MakeTimeValue(value) != (TimeValue{Kind: TimeValueUnknown}) && MakeTimeValue(value) != (TimeValue{Kind: TimeValueUnimplemented})
 	}
 	if input.Kind == ArrayElementTimetz {
 		value := input.Timetz
-		return (MakeTimetzValue(value.Time, value.Zone) != (TimetzValue{Kind: TimetzValueUnknown}) && MakeTimetzValue(value.Time, value.Zone) != (TimetzValue{Kind: TimetzValueUnimplemented}))
+		return MakeTimetzValue(value.Time, value.Zone) != (TimetzValue{Kind: TimetzValueUnknown}) && MakeTimetzValue(value.Time, value.Zone) != (TimetzValue{Kind: TimetzValueUnimplemented})
 	}
 	if input.Kind == ArrayElementInternalChar {
 		value := langruntime.CheckedI32(input.InternalChar)
-		return (MakeInternalCharValue(value) != (InternalCharValue{Kind: InternalCharValueUnknown}) && MakeInternalCharValue(value) != (InternalCharValue{Kind: InternalCharValueUnimplemented}))
+		return MakeInternalCharValue(value) != (InternalCharValue{Kind: InternalCharValueUnknown}) && MakeInternalCharValue(value) != (InternalCharValue{Kind: InternalCharValueUnimplemented})
 	}
 	if input.Kind == ArrayElementOid {
 		value := input.Oid
-		return (MakeOidValue(value) != (OidValue{Kind: OidValueUnknown}) && MakeOidValue(value) != (OidValue{Kind: OidValueUnimplemented}))
+		return MakeOidValue(value) != (OidValue{Kind: OidValueUnknown}) && MakeOidValue(value) != (OidValue{Kind: OidValueUnimplemented})
 	}
 	if input.Kind == ArrayElementTid {
 		value := input.Tid
-		return (MakeTidValue(value) != (TidValue{Kind: TidValueUnknown}) && MakeTidValue(value) != (TidValue{Kind: TidValueUnimplemented}))
+		return MakeTidValue(value) != (TidValue{Kind: TidValueUnknown}) && MakeTidValue(value) != (TidValue{Kind: TidValueUnimplemented})
 	}
 	if input.Kind == ArrayElementNetwork {
 		value := input.Network
@@ -15793,7 +15793,7 @@ func ArrayValidityFinish(left CheckOutcome, right CheckOutcome) CheckOutcome {
 	return right
 }
 func ArrayValidityUnknown(input CheckOutcome) bool {
-	return (input == (CheckOutcome{Kind: CheckOutcomeUnknown}) || input == (CheckOutcome{Kind: CheckOutcomeUnimplemented}))
+	return input == (CheckOutcome{Kind: CheckOutcomeUnknown}) || input == (CheckOutcome{Kind: CheckOutcomeUnimplemented})
 }
 func ArrayValidityPossible(input CheckOutcome) CheckOutcome {
 	unresolvedFlavor := 0

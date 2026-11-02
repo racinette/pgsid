@@ -95,10 +95,12 @@ it('validates public polygon payloads, cached bounds, malformed inputs and parti
       ...known,
       bounds_wire: { certain: false },
     })
+    for (const bad of [undefined, { kind: 'Unknown' }])
+      expect(Object.values(evaluate(bad))).toEqual(
+        Array.from({ length: 6 }, () => ({ certain: false })),
+      )
     for (const bad of [
-      undefined,
       '((0,0))',
-      { kind: 'Unknown' },
       { kind: 'Value', value: { points: [] } },
       { kind: 'Value', value: { points: [null] } },
       { kind: 'Value', value: { points: [{ x: 0, y: 0n }] } },
@@ -109,9 +111,10 @@ it('validates public polygon payloads, cached bounds, malformed inputs and parti
       { kind: 'Value', value: { points, bounds: { kind: 'Null' } } },
       { kind: 'Value', value: { points, bounds: { kind: 'Error', value: { state: 1 } } } },
     ])
-      expect(Object.values(evaluate(bad))).toEqual(
-        Array.from({ length: 6 }, () => ({ certain: false })),
-      )
+      expect(
+        () => evaluate(bad),
+        JSON.stringify(bad, (_key, item) => (typeof item === 'bigint' ? String(item) : item)),
+      ).toThrow(TypeError)
     for (const shape of [null, { kind: 'Null' }])
       expect(evaluate(shape)).toEqual({
         wire: { certain: true, value: null },

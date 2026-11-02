@@ -90,8 +90,11 @@ describe.each(['"char"'] as const)('public %s payloads', (type) => {
         value: true,
       })
     }
+    for (const amount of [undefined])
+      expect(Object.values(evaluate(amount))).toEqual(
+        Array.from({ length: 5 }, () => ({ certain: false })),
+      )
     for (const amount of [
-      undefined,
       '\\377',
       1.25,
       maximum,
@@ -100,9 +103,7 @@ describe.each(['"char"'] as const)('public %s payloads', (type) => {
       { kind: 'Value', value: invalidHigh },
       { kind: 'Value', value: invalidLow },
     ])
-      expect(Object.values(evaluate(amount))).toEqual(
-        Array.from({ length: 5 }, () => ({ certain: false })),
-      )
+      expect(() => evaluate(amount)).toThrow(TypeError)
     for (const amount of [null, { kind: 'Null' }])
       expect(evaluate(amount)).toEqual({
         wire: { certain: true, value: null },

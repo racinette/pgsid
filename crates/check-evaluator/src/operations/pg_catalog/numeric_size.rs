@@ -12,7 +12,7 @@ pub fn sql__pg_catalog__pg_size_pretty__axtn(input: NumericValue) -> TextValue {
     if let NumericValue::Error(error) = input {
         return TextValue::Error(error);
     }
-    let mut condition_flavor_15_4: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_15_4 < 1 { condition_flavor_15_4 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_15_4 = 2; }; if (input == NumericValue::Unknown || input == NumericValue::Unimplemented) {
+    let mut condition_flavor_15_4: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_15_4 < 1 { condition_flavor_15_4 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_15_4 = 2; }; if input == NumericValue::Unknown || input == NumericValue::Unimplemented {
         return text_unresolved(condition_flavor_15_4);
     }
     if input == NumericValue::Null {

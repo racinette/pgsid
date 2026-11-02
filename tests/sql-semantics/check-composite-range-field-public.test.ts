@@ -177,12 +177,6 @@ INSERT INTO gate SELECT a,span_multirange(a),ARRAY[a],false FROM(SELECT span(ROW
       (v) => {
         Object.assign(v.a.value.bounds[0]!.value.fields[0]!, { kind: 'Int2', value: 40000 })
       },
-      (v) => {
-        Object.assign(v.a.value.bounds[0]!.value.fields[1]!, {
-          kind: 'Enum',
-          value: { ordinal: 99, labelOid: 0n },
-        })
-      },
     ]
     mutations.push(
       (v) => {
@@ -196,13 +190,20 @@ INSERT INTO gate SELECT a,span_multirange(a),ARRAY[a],false FROM(SELECT span(ROW
         p.bounds[0]!.value = 40000
       },
     )
-    for (const mutate of mutations) {
+    for (const [index, mutate] of mutations.entries()) {
       const invalid = structuredClone(row)
       mutate(invalid)
-      for (const result of Object.values(evaluate(invalid)))
-        expect(result).toMatchObject({ certain: false })
-      expect(evaluate({ ...invalid, bypass: true })).toEqual(expected)
+      expect(() => evaluate(invalid), String(index)).toThrow(TypeError)
     }
+    // An enum ordinal outside the captured labels is decoded, and the catalog decides it.
+    const outsideLabels = structuredClone(row)
+    Object.assign(outsideLabels.a.value.bounds[0]!.value.fields[1]!, {
+      kind: 'Enum',
+      value: { ordinal: 99, labelOid: 0n },
+    })
+    for (const result of Object.values(evaluate(outsideLabels)))
+      expect(result).toMatchObject({ certain: false })
+    expect(evaluate({ ...outsideLabels, bypass: true })).toEqual(expected)
     const partial = structuredClone(row)
     Object.assign(partial.a.value.bounds[0]!.value.fields[0]!, { kind: 'Unknown' })
     expect(evaluate(partial).lower_n).toMatchObject({ certain: false })

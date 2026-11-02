@@ -233,7 +233,7 @@ pub fn timestamptz_from_text_context(
     if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     let parsed = timestamptz_from_text_order(input.clone(), date_order);
-    if (parsed != TimestamptzValue::Unknown && parsed != TimestamptzValue::Unimplemented) {
+    if parsed != TimestamptzValue::Unknown && parsed != TimestamptzValue::Unimplemented {
         return parsed;
     };
     let local = timestamp_from_text_order(input.clone(), date_order);
@@ -321,7 +321,7 @@ fn timestamptz_from_text_trailing_zone(
             };
             return timestamptz_unresolved(unresolved_flavor);
         };
-        if (zoned != TimestamptzValue::Unknown && zoned != TimestamptzValue::Unimplemented) {
+        if zoned != TimestamptzValue::Unknown && zoned != TimestamptzValue::Unimplemented {
             return timestamptz_unresolved(unresolved_flavor);
         };
         let local = timestamp_from_text_order(remainder, date_order);
@@ -373,7 +373,7 @@ pub fn timetz_from_text_context(input: TextValue, zone: &str) -> TimetzValue {
     if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     let parsed = timetz_from_text(input.clone());
-    if (parsed != TimetzValue::Unknown && parsed != TimetzValue::Unimplemented) {
+    if parsed != TimetzValue::Unknown && parsed != TimetzValue::Unimplemented {
         return parsed;
     };
     let clock = time_from_text(input);

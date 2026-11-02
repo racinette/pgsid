@@ -51,7 +51,7 @@ fn path_parse(value: &str) -> PathValue {
         if let PointValue::Error(error) = point {
             return PathValue::Error(error);
         };
-        let mut condition_flavor_54_8: i32 = unresolved_flavor; if let PointValue::Unknown = point { if condition_flavor_54_8 < 1 { condition_flavor_54_8 = 1; }; }; if let PointValue::Unimplemented = point { condition_flavor_54_8 = 2; }; if (point == PointValue::Unknown || point == PointValue::Unimplemented) {
+        let mut condition_flavor_54_8: i32 = unresolved_flavor; if let PointValue::Unknown = point { if condition_flavor_54_8 < 1 { condition_flavor_54_8 = 1; }; }; if let PointValue::Unimplemented = point { condition_flavor_54_8 = 2; }; if point == PointValue::Unknown || point == PointValue::Unimplemented {
             return path_unresolved(condition_flavor_54_8);
         };
         if let PointValue::Value(payload) = point {

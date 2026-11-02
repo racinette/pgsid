@@ -360,7 +360,7 @@ describe('portable Rust CHECK timestamp and timezone offsets', () => {
       'UTC' + '0'.repeat(129),
     ]) {
       for (const name of ['zone_to_utc', 'zone_from_utc']) {
-        const unresolved = ['UTC2DST', 'UTC2FOO', 'UTC+2 ', '+1:02:03:04'].includes(zone)
+        const unresolved = ['+1:02:03:04'].includes(zone)
         const expected: Outcome = unresolved
           ? { kind: 'Unknown' }
           : outcome(
@@ -581,14 +581,12 @@ describe('portable Rust CHECK timestamp and timezone offsets', () => {
         await pg.exec('ROLLBACK')
       }
       const result: GoCheckCase['results'][number]['result'] =
-        zone === 'UTC2DST'
-          ? { certain: false }
-          : sqlstate && sqlstate !== '23514'
-            ? { certain: true, error: sqlstate }
-            : {
-                certain: true,
-                value: active && (zone === null || local === null) ? null : sqlstate !== '23514',
-              }
+        sqlstate && sqlstate !== '23514'
+          ? { certain: true, error: sqlstate }
+          : {
+              certain: true,
+              value: active && (zone === null || local === null) ? null : sqlstate !== '23514',
+            }
       expect(evaluateFixed(wrapped)[0].result).toEqual(result)
       cases.push({
         name: `${zone} / ${local} / ${instant} / ${active}`,
@@ -607,9 +605,9 @@ describe('portable Rust CHECK timestamp and timezone offsets', () => {
       { kind: 'Value', value: 0 },
       { kind: 'Value', value: 9223372036854775808n },
     ])
-      expect(
-        evaluate({ local_at: invalid, instant_at: runtime.makeTimestamptzValue(0n) })[0].result,
-      ).toEqual({ certain: false })
+      expect(() =>
+        evaluate({ local_at: invalid, instant_at: runtime.makeTimestamptzValue(0n) }),
+      ).toThrow(TypeError)
     expect(evaluateDomain({ value: runtime.makeTimestampValue(-1n) })[0].result).toEqual({
       certain: true,
       value: false,

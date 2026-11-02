@@ -155,7 +155,7 @@ pub fn sql__pg_catalog__int8_avg__pgr2(input: ArrayValue) -> NumericValue {
     if sum == Int8Value::Null {
         return NumericValue::Null;
     };
-    let mut condition_flavor_158_4: i32 = unresolved_flavor; if let Int8Value::Unknown = sum { if condition_flavor_158_4 < 1 { condition_flavor_158_4 = 1; }; }; if let Int8Value::Unimplemented = sum { condition_flavor_158_4 = 2; }; if (sum == Int8Value::Unknown || sum == Int8Value::Unimplemented) {
+    let mut condition_flavor_158_4: i32 = unresolved_flavor; if let Int8Value::Unknown = sum { if condition_flavor_158_4 < 1 { condition_flavor_158_4 = 1; }; }; if let Int8Value::Unimplemented = sum { condition_flavor_158_4 = 2; }; if sum == Int8Value::Unknown || sum == Int8Value::Unimplemented {
         return numeric_unresolved(condition_flavor_158_4);
     };
     if let ArrayValue::Value(value) = input {

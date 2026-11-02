@@ -559,8 +559,11 @@ describe('portable stored money', () => {
         value: true,
       })
     }
+    for (const amount of [undefined])
+      expect(Object.values(evaluate(amount))).toEqual(
+        Array.from({ length: 5 }, () => ({ certain: false })),
+      )
     for (const amount of [
-      undefined,
       '$1.25',
       1.25,
       125n,
@@ -569,9 +572,7 @@ describe('portable stored money', () => {
       { kind: 'Value', value: 9223372036854775808n },
       { kind: 'Value', value: -9223372036854775809n },
     ])
-      expect(Object.values(evaluate(amount))).toEqual(
-        Array.from({ length: 5 }, () => ({ certain: false })),
-      )
+      expect(() => evaluate(amount)).toThrow(TypeError)
     for (const amount of [null, { kind: 'Null' }])
       expect(evaluate(amount)).toEqual({
         wire: { certain: true, value: null },

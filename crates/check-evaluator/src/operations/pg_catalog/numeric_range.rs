@@ -60,7 +60,7 @@ fn numeric_range_values(
     if let Int4Value::Error(error) = compared {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_63_4: i32 = unresolved_flavor; if let Int4Value::Unknown = compared { if condition_flavor_63_4 < 1 { condition_flavor_63_4 = 1; }; }; if let Int4Value::Unimplemented = compared { condition_flavor_63_4 = 2; }; if (compared == Int4Value::Unknown || compared == Int4Value::Unimplemented) {
+    let mut condition_flavor_63_4: i32 = unresolved_flavor; if let Int4Value::Unknown = compared { if condition_flavor_63_4 < 1 { condition_flavor_63_4 = 1; }; }; if let Int4Value::Unimplemented = compared { condition_flavor_63_4 = 2; }; if compared == Int4Value::Unknown || compared == Int4Value::Unimplemented {
         return bool_unresolved(condition_flavor_63_4);
     }
     if let Int4Value::Value(order) = compared {

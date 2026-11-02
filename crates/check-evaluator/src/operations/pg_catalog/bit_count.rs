@@ -5,7 +5,7 @@ pub fn sql__pg_catalog__bit_count__fri1(input: BitValue) -> Int8Value {
     if let BitValue::Error(error) = input {
         return Int8Value::Error(error);
     }
-    let mut condition_flavor_8_4: i32 = unresolved_flavor; if let BitValue::Unknown = input { if condition_flavor_8_4 < 1 { condition_flavor_8_4 = 1; }; }; if let BitValue::Unimplemented = input { condition_flavor_8_4 = 2; }; if (input == BitValue::Unknown || input == BitValue::Unimplemented) {
+    let mut condition_flavor_8_4: i32 = unresolved_flavor; if let BitValue::Unknown = input { if condition_flavor_8_4 < 1 { condition_flavor_8_4 = 1; }; }; if let BitValue::Unimplemented = input { condition_flavor_8_4 = 2; }; if input == BitValue::Unknown || input == BitValue::Unimplemented {
         return int8_unresolved(condition_flavor_8_4);
     }
     if input == BitValue::Null {

@@ -154,7 +154,7 @@ fn geometry_read_point(source: &GeometryInputText, begin: usize) -> GeometryInpu
             end: first.end,
         };
     };
-    if (first_value == Float8Value::Unknown || first_value == Float8Value::Unimplemented) {
+    if first_value == Float8Value::Unknown || first_value == Float8Value::Unimplemented {
         let mut tested_flavor: i32 = 1;
         if first_value == Float8Value::Unimplemented {
             tested_flavor = 2;
@@ -179,7 +179,7 @@ fn geometry_read_point(source: &GeometryInputText, begin: usize) -> GeometryInpu
             end: second.end,
         };
     };
-    if (second_value == Float8Value::Unknown || second_value == Float8Value::Unimplemented) {
+    if second_value == Float8Value::Unknown || second_value == Float8Value::Unimplemented {
         let mut tested_flavor: i32 = 1;
         if second_value == Float8Value::Unimplemented {
             tested_flavor = 2;
@@ -217,7 +217,7 @@ fn line_parse_coefficients(source: &GeometryInputText, begin: usize) -> LineValu
         if let Float8Value::Error(error) = number_value {
             return LineValue::Error(error);
         };
-        let mut condition_flavor_208_8: i32 = unresolved_flavor; if let Float8Value::Unknown = number_value { if condition_flavor_208_8 < 1 { condition_flavor_208_8 = 1; }; }; if let Float8Value::Unimplemented = number_value { condition_flavor_208_8 = 2; }; if (number_value == Float8Value::Unknown || number_value == Float8Value::Unimplemented) {
+        let mut condition_flavor_208_8: i32 = unresolved_flavor; if let Float8Value::Unknown = number_value { if condition_flavor_208_8 < 1 { condition_flavor_208_8 = 1; }; }; if let Float8Value::Unimplemented = number_value { condition_flavor_208_8 = 2; }; if number_value == Float8Value::Unknown || number_value == Float8Value::Unimplemented {
             return line_unresolved(condition_flavor_208_8);
         };
         if count == 0 {
@@ -243,7 +243,7 @@ fn line_parse_coefficients(source: &GeometryInputText, begin: usize) -> LineValu
         return LineValue::Error(make_sql_error(FLOAT_INPUT_INVALID));
     };
     let result = line_from_scalars(first, second, third);
-    if (result == LineValue::Unknown || result == LineValue::Unimplemented) {
+    if result == LineValue::Unknown || result == LineValue::Unimplemented {
         return LineValue::Error(make_sql_error(FLOAT_INPUT_INVALID));
     };
     result
@@ -301,7 +301,7 @@ fn geometry_read_pair(source: &GeometryInputText, begin: usize) -> GeometryInput
     if let PointValue::Error(error) = first_value {
         return geometry_pair_failure(PointValue::Error(error));
     };
-    if (first_value == PointValue::Unknown || first_value == PointValue::Unimplemented) {
+    if first_value == PointValue::Unknown || first_value == PointValue::Unimplemented {
         let mut tested_flavor: i32 = 1;
         if first_value == PointValue::Unimplemented {
             tested_flavor = 2;
@@ -317,7 +317,7 @@ fn geometry_read_pair(source: &GeometryInputText, begin: usize) -> GeometryInput
     if let PointValue::Error(error) = second_value {
         return geometry_pair_failure(PointValue::Error(error));
     };
-    if (second_value == PointValue::Unknown || second_value == PointValue::Unimplemented) {
+    if second_value == PointValue::Unknown || second_value == PointValue::Unimplemented {
         let mut tested_flavor: i32 = 1;
         if second_value == PointValue::Unimplemented {
             tested_flavor = 2;

@@ -1,5 +1,6 @@
 import { readTsqueryFixture } from './check-tsquery-fixtures.js'
 import { PGlite } from '@electric-sql/pglite'
+import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { expect, it } from 'vitest'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -479,13 +480,14 @@ it('matches owned vectors and binary-origin queries through Rust and public Go a
       )
 
     for (const bad of ['a', {}, { kind: 'Value', value: { ...pattern.value, root: 999 } }])
-      expect(evaluate({ ...base, reference: bad }).same).toEqual({ certain: false })
+      expectUndecidedOrRejected(() => evaluate({ ...base, reference: bad }), undefined, ['same'])
     const saved = structuredClone(base)
     evaluate(base)
     expect(base).toEqual(saved)
     const good = complete.value
+    expect(evaluate({ ...base, item: undefined }).same).toEqual({ certain: false })
+    expect(evaluate({ ...base, item: undefined }).presence).toEqual({ certain: false })
     for (const bad of [
-      undefined,
       'a:1',
       3,
       {},
@@ -520,10 +522,12 @@ it('matches owned vectors and binary-origin queries through Rust and public Go a
       },
       { kind: 'Error', value: { state: -1 } },
       { kind: 'Error', value: { state: 1.5 } },
-    ]) {
-      expect(evaluate({ ...base, item: bad }).same).toEqual({ certain: false })
-      expect(evaluate({ ...base, item: bad }).presence).toEqual({ certain: false })
-    }
+    ])
+      expectUndecidedOrRejected(
+        () => evaluate({ ...base, item: bad }),
+        JSON.stringify(bad, (_key, item) => (typeof item === 'bigint' ? String(item) : item)),
+        ['same', 'presence'],
+      )
     const goRoot = join(root, 'public-go'),
       goBundle = renderGoSchemaCheckArtifacts(
         [table],

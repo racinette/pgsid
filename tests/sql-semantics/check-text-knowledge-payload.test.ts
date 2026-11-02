@@ -103,11 +103,6 @@ it('validates partial text cells in public arrays and nested records', async () 
         nullness: { certain: true, error: '22003' },
         bytes: { certain: true, error: '22003' },
       },
-      {
-        cell: { kind: 'Xml', value: 'plain' },
-        nullness: { certain: false },
-        bytes: { certain: false },
-      },
     ]
     const reference: unknown[] = []
     for (const fixture of fixtures) {
@@ -134,6 +129,21 @@ it('validates partial text cells in public arrays and nested records', async () 
       }
       reference.push({ cell: fixture.cell, results })
     }
+    // A cell of another family is not a text value.
+    const foreign = { kind: 'Xml', value: 'plain' }
+    expect(() =>
+      generated.evaluatePublicTextKnowledgeChecks({
+        xs: array(foreign),
+        r: {
+          kind: 'Value',
+          value: {
+            typeName: 'public.text_knowledge_packet',
+            fields: [foreign, { kind: 'Array', value: array(foreign).value }],
+          },
+        },
+        expected: 'present',
+      }),
+    ).toThrow(TypeError)
     for (const file of ['go.mod', 'go.sum'])
       await writeFile(
         join(root, file),

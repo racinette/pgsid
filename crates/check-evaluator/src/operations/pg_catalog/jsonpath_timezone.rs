@@ -127,7 +127,7 @@ fn jsonpath_temporal_compare_session(
     session: &str,
 ) -> Int4Value {
     let prior = jsonpath_temporal_compare_mode(left, right, use_timezone);
-    if (prior != Int4Value::Unknown && prior != Int4Value::Unimplemented) {
+    if prior != Int4Value::Unknown && prior != Int4Value::Unimplemented {
         return prior;
     };
     if left.kind == 1 && right.kind == 5 {

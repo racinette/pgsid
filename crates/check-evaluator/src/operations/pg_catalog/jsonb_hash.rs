@@ -198,7 +198,7 @@ fn jsonb_hash_context(
     }; let mut condition_flavor_198_7: i32 = unresolved_flavor; if let JsonbValue::Unimplemented = input { condition_flavor_198_7 = 2; }; if let JsonbValue::Unimplemented = input {
         return int8_unresolved(condition_flavor_198_7);
     };
-    let mut condition_flavor_201_4: i32 = unresolved_flavor; if let Int8Value::Unknown = seed { if condition_flavor_201_4 < 1 { condition_flavor_201_4 = 1; }; }; if let Int8Value::Unimplemented = seed { condition_flavor_201_4 = 2; }; if (seed == Int8Value::Unknown || seed == Int8Value::Unimplemented) {
+    let mut condition_flavor_201_4: i32 = unresolved_flavor; if let Int8Value::Unknown = seed { if condition_flavor_201_4 < 1 { condition_flavor_201_4 = 1; }; }; if let Int8Value::Unimplemented = seed { condition_flavor_201_4 = 2; }; if seed == Int8Value::Unknown || seed == Int8Value::Unimplemented {
         return int8_unresolved(condition_flavor_201_4);
     };
     if let JsonbValue::Null = input {
@@ -213,7 +213,7 @@ fn jsonb_hash_context(
                 return jsonb_hash_payload(&value, salt, byte_order, utf8, extended);
             };
             let little = jsonb_hash_payload(&value, salt, 1, utf8, extended);
-            if (little == Int8Value::Unknown || little == Int8Value::Unimplemented) {
+            if little == Int8Value::Unknown || little == Int8Value::Unimplemented {
                 return little;
             };
             let big = jsonb_hash_payload(&value, salt, 2, utf8, extended);

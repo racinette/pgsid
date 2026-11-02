@@ -137,7 +137,7 @@ fn float_array_accumulate(
         };
         let old_n = float_state_field(&value, 0);
         let positive = float_transition_test(old_n, 0);
-        let mut condition_flavor_136_8: i32 = unresolved_flavor; if let CheckOutcome::Unknown = positive { if condition_flavor_136_8 < 1 { condition_flavor_136_8 = 1; }; }; if let CheckOutcome::Unimplemented = positive { condition_flavor_136_8 = 2; }; if (positive == CheckOutcome::Unknown || positive == CheckOutcome::Unimplemented) {
+        let mut condition_flavor_136_8: i32 = unresolved_flavor; if let CheckOutcome::Unknown = positive { if condition_flavor_136_8 < 1 { condition_flavor_136_8 = 1; }; }; if let CheckOutcome::Unimplemented = positive { condition_flavor_136_8 = 2; }; if positive == CheckOutcome::Unknown || positive == CheckOutcome::Unimplemented {
             return array_unresolved(condition_flavor_136_8);
         };
         let old_sx = float_state_field(&value, 1);
@@ -354,7 +354,7 @@ fn float_array_combine(left: ArrayValue, right: ArrayValue, regression: bool) ->
                 if let Float8Value::Error(error) = result {
                     return ArrayValue::Error(error);
                 };
-                let mut condition_flavor_347_16: i32 = unresolved_flavor; if let Float8Value::Unknown = result { if condition_flavor_347_16 < 1 { condition_flavor_347_16 = 1; }; }; if let Float8Value::Unimplemented = result { condition_flavor_347_16 = 2; }; if (result == Float8Value::Unknown || result == Float8Value::Unimplemented) {
+                let mut condition_flavor_347_16: i32 = unresolved_flavor; if let Float8Value::Unknown = result { if condition_flavor_347_16 < 1 { condition_flavor_347_16 = 1; }; }; if let Float8Value::Unimplemented = result { condition_flavor_347_16 = 2; }; if result == Float8Value::Unknown || result == Float8Value::Unimplemented {
                     return array_unresolved(condition_flavor_347_16);
                 };
                 results.push(result);

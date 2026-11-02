@@ -26,7 +26,7 @@ fn jsonb_bulk_key_matches(
         if let TextValue::Error(error) = key {
             return BoolValue::Error(error);
         };
-        if ((key == TextValue::Unknown || key == TextValue::Unimplemented) || key == TextValue::NonNull) {
+        if (key == TextValue::Unknown || key == TextValue::Unimplemented) || key == TextValue::NonNull {
             uncertain = true;
         };
         if let TextValue::Value(text) = key {
@@ -146,7 +146,7 @@ pub fn sql__pg_catalog__jsonb_delete__11uh(input: JsonbValue, keys: ArrayValue) 
                 if let BoolValue::Error(error) = matched {
                     return JsonbValue::Error(error);
                 };
-                let mut condition_flavor_149_16: i32 = unresolved_flavor; if let BoolValue::Unknown = matched { if condition_flavor_149_16 < 1 { condition_flavor_149_16 = 1; }; }; if let BoolValue::Unimplemented = matched { condition_flavor_149_16 = 2; }; if (matched == BoolValue::Unknown || matched == BoolValue::Unimplemented) {
+                let mut condition_flavor_149_16: i32 = unresolved_flavor; if let BoolValue::Unknown = matched { if condition_flavor_149_16 < 1 { condition_flavor_149_16 = 1; }; }; if let BoolValue::Unimplemented = matched { condition_flavor_149_16 = 2; }; if matched == BoolValue::Unknown || matched == BoolValue::Unimplemented {
                     return jsonb_unresolved(condition_flavor_149_16);
                 };
                 if matched == make_bool_value(true) {
@@ -797,13 +797,13 @@ pub fn sql__pg_catalog__jsonb_set_lax__lecq(
     }; let mut condition_flavor_796_7: i32 = unresolved_flavor; if let ArrayValue::Unimplemented = path { condition_flavor_796_7 = 2; }; if let ArrayValue::Unimplemented = path {
         return jsonb_unresolved(condition_flavor_796_7);
     };
-    let mut condition_flavor_799_4: i32 = unresolved_flavor; if let BoolValue::Unknown = create { if condition_flavor_799_4 < 1 { condition_flavor_799_4 = 1; }; }; if let BoolValue::Unimplemented = create { condition_flavor_799_4 = 2; }; if (create == BoolValue::Unknown || create == BoolValue::Unimplemented) {
+    let mut condition_flavor_799_4: i32 = unresolved_flavor; if let BoolValue::Unknown = create { if condition_flavor_799_4 < 1 { condition_flavor_799_4 = 1; }; }; if let BoolValue::Unimplemented = create { condition_flavor_799_4 = 2; }; if create == BoolValue::Unknown || create == BoolValue::Unimplemented {
         return jsonb_unresolved(condition_flavor_799_4);
     };
     if treatment == TextValue::Null {
         return JsonbValue::Error(make_sql_error(JSONB_PATH_PARAMETER));
     };
-    let mut condition_flavor_805_4: i32 = unresolved_flavor; if let TextValue::Unknown = treatment { if condition_flavor_805_4 < 1 { condition_flavor_805_4 = 1; }; }; if let TextValue::Unimplemented = treatment { condition_flavor_805_4 = 2; }; if ((treatment == TextValue::Unknown || treatment == TextValue::Unimplemented) || treatment == TextValue::NonNull) {
+    let mut condition_flavor_805_4: i32 = unresolved_flavor; if let TextValue::Unknown = treatment { if condition_flavor_805_4 < 1 { condition_flavor_805_4 = 1; }; }; if let TextValue::Unimplemented = treatment { condition_flavor_805_4 = 2; }; if (treatment == TextValue::Unknown || treatment == TextValue::Unimplemented) || treatment == TextValue::NonNull {
         return jsonb_unresolved(condition_flavor_805_4);
     };
     let mut condition_flavor_808_4: i32 = unresolved_flavor; if let JsonbValue::Unknown = replacement { if condition_flavor_808_4 < 1 { condition_flavor_808_4 = 1; }; }; if let JsonbValue::Unknown = replacement {

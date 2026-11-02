@@ -22,7 +22,7 @@ fn circle_parse(value: &str) -> CircleValue {
     if let PointValue::Error(error) = point {
         return CircleValue::Error(error);
     };
-    let mut condition_flavor_25_4: i32 = unresolved_flavor; if let PointValue::Unknown = point { if condition_flavor_25_4 < 1 { condition_flavor_25_4 = 1; }; }; if let PointValue::Unimplemented = point { condition_flavor_25_4 = 2; }; if (point == PointValue::Unknown || point == PointValue::Unimplemented) {
+    let mut condition_flavor_25_4: i32 = unresolved_flavor; if let PointValue::Unknown = point { if condition_flavor_25_4 < 1 { condition_flavor_25_4 = 1; }; }; if let PointValue::Unimplemented = point { condition_flavor_25_4 = 2; }; if point == PointValue::Unknown || point == PointValue::Unimplemented {
         return circle_unresolved(condition_flavor_25_4);
     };
     index = center.end;
@@ -34,7 +34,7 @@ fn circle_parse(value: &str) -> CircleValue {
     if let Float8Value::Error(error) = scalar {
         return CircleValue::Error(error);
     };
-    let mut condition_flavor_37_4: i32 = unresolved_flavor; if let Float8Value::Unknown = scalar { if condition_flavor_37_4 < 1 { condition_flavor_37_4 = 1; }; }; if let Float8Value::Unimplemented = scalar { condition_flavor_37_4 = 2; }; if (scalar == Float8Value::Unknown || scalar == Float8Value::Unimplemented) {
+    let mut condition_flavor_37_4: i32 = unresolved_flavor; if let Float8Value::Unknown = scalar { if condition_flavor_37_4 < 1 { condition_flavor_37_4 = 1; }; }; if let Float8Value::Unimplemented = scalar { condition_flavor_37_4 = 2; }; if scalar == Float8Value::Unknown || scalar == Float8Value::Unimplemented {
         return circle_unresolved(condition_flavor_37_4);
     };
     if let Float8Value::Value(bits) = scalar {

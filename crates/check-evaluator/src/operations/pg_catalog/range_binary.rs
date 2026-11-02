@@ -47,7 +47,7 @@ fn range_binary_append(output: ByteaValue, bound: ByteaValue) -> ByteaValue {
     if let ByteaValue::Error(error) = bound {
         return ByteaValue::Error(error);
     };
-    let mut condition_flavor_48_4: i32 = unresolved_flavor; if let ByteaValue::Unknown = bound { if condition_flavor_48_4 < 1 { condition_flavor_48_4 = 1; }; }; if let ByteaValue::Unimplemented = bound { condition_flavor_48_4 = 2; }; if (bound == ByteaValue::Unknown || bound == ByteaValue::Unimplemented) {
+    let mut condition_flavor_48_4: i32 = unresolved_flavor; if let ByteaValue::Unknown = bound { if condition_flavor_48_4 < 1 { condition_flavor_48_4 = 1; }; }; if let ByteaValue::Unimplemented = bound { condition_flavor_48_4 = 2; }; if bound == ByteaValue::Unknown || bound == ByteaValue::Unimplemented {
         return bytea_unresolved(condition_flavor_48_4);
     };
     if let ByteaValue::Null = bound {
@@ -101,7 +101,7 @@ pub fn sql__pg_catalog__range_send__b1w5(
             if let ByteaValue::Error(error) = result {
                 return ByteaValue::Error(error);
             };
-            if (result == ByteaValue::Unknown || result == ByteaValue::Unimplemented) {
+            if result == ByteaValue::Unknown || result == ByteaValue::Unimplemented {
                 return result;
             };
         };

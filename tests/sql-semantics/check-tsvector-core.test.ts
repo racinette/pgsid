@@ -23,6 +23,7 @@ const comparisonHelpers = String.raw`
 pub fn tsvector_test_text(actual:TextValue,expected:TextValue)->BoolValue {
  if let TextValue::Error(error)=actual {return BoolValue::Error(error);};
  if let TextValue::Unknown=actual {return BoolValue::Unknown;};
+ if let TextValue::Unimplemented=actual {return BoolValue::Unimplemented;};
  if actual==TextValue::Null && expected==TextValue::Null {return make_bool_value(true);};
  if actual==TextValue::Null || expected==TextValue::Null {return make_bool_value(false);};
  sql__pg_catalog__texteq__aet8(actual,expected)
@@ -30,11 +31,12 @@ pub fn tsvector_test_text(actual:TextValue,expected:TextValue)->BoolValue {
 pub fn tsvector_test_number(actual:Int4Value,expected:Int4Value)->BoolValue {
  if let Int4Value::Error(error)=actual {return BoolValue::Error(error);};
  if actual==Int4Value::Unknown {return BoolValue::Unknown;};
+ if actual==Int4Value::Unimplemented {return BoolValue::Unimplemented;};
  make_bool_value(actual==expected)
 }
 pub fn tsvector_test_boolean(actual:BoolValue,expected:BoolValue)->BoolValue {
  if let BoolValue::Error(error)=actual {return BoolValue::Error(error);};
- if actual==BoolValue::Unknown {return BoolValue::Unknown;};
+ if actual==BoolValue::Unknown || actual==BoolValue::Unimplemented {return actual;};
  make_bool_value(actual==expected)
 }
 pub fn tsvector_test_array(input:ArrayValue)->TextValue {
@@ -432,7 +434,7 @@ pub fn tsvector_test_model(mode:i32)->BoolValue {
   let stored=tsvector_from_stored_text_context(input,true);
   if sql__pg_catalog__length__grcw(stored.clone())!=make_int4_value(1) {return make_bool_value(false);};
   let order=sql__pg_catalog__tsvector_cmp__xinv(stored.clone(),stored.clone());
-  if order!=Int4Value::Unknown {return make_bool_value(false);};
+  if order!=Int4Value::Unimplemented {return make_bool_value(false);};
   let output=tsvector_to_text(stored);
   return make_bool_value(sql__pg_catalog__length__ehpe(output)==make_int4_value(2049));
  };
@@ -470,7 +472,7 @@ fn tsvector_test_payload(mode:i32)->BoolValue {
   if mode==7 {bytes=1073741824;};
   let value=make_tsvector_value(TsvectorPayload {lexemes:lexemes,native_bytes:bytes});
   if mode==6 {return make_bool_value(tsvector_is_null(value)==make_bool_value(false));};
-  if let TsvectorValue::Unknown=value {return make_bool_value(true);};
+  if let TsvectorValue::Unimplemented=value {return make_bool_value(true);};
  };
  make_bool_value(false)
 }

@@ -104,8 +104,13 @@ it('validates public XML storage/rendered profiles in Go and TypeScript without 
       certain: true,
       value: true,
     })
+    expect(Object.values(evaluate(undefined, 'expected'))).toEqual([
+      { certain: false },
+      { certain: false },
+      { certain: false },
+    ])
+    expect(evaluate(undefined, 'expected', true).storage).toEqual({ certain: true, value: true })
     for (const v of [
-      undefined,
       raw,
       42,
       {},
@@ -118,13 +123,8 @@ it('validates public XML storage/rendered profiles in Go and TypeScript without 
       { kind: 'Error', value: { state: 1.5 } },
       { kind: 'Other', value: 'valid' },
     ]) {
-      const checks = evaluate(v, 'expected')
-      expect(Object.values(checks)).toEqual([
-        { certain: false },
-        { certain: false },
-        { certain: false },
-      ])
-      expect(evaluate(v, 'expected', true).storage).toEqual({ certain: true, value: true })
+      expect(() => evaluate(v, 'expected')).toThrow(TypeError)
+      expect(() => evaluate(v, 'expected', true)).toThrow(TypeError)
     }
     expect(evaluate(null, null).storage).toEqual({ certain: true, value: true })
     expect(evaluate(null, null).present).toEqual({ certain: true, value: false })

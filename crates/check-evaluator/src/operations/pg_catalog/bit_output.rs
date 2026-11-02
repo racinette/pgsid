@@ -9,7 +9,7 @@ pub fn sql__pg_catalog__varbit_send__yt0j(input: BitValue) -> ByteaValue {
     if let BitValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
-    let mut condition_flavor_12_4: i32 = unresolved_flavor; if let BitValue::Unknown = input { if condition_flavor_12_4 < 1 { condition_flavor_12_4 = 1; }; }; if let BitValue::Unimplemented = input { condition_flavor_12_4 = 2; }; if (input == BitValue::Unknown || input == BitValue::Unimplemented) {
+    let mut condition_flavor_12_4: i32 = unresolved_flavor; if let BitValue::Unknown = input { if condition_flavor_12_4 < 1 { condition_flavor_12_4 = 1; }; }; if let BitValue::Unimplemented = input { condition_flavor_12_4 = 2; }; if input == BitValue::Unknown || input == BitValue::Unimplemented {
         return bytea_unresolved(condition_flavor_12_4);
     }
     if input == BitValue::Null {

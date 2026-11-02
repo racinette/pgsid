@@ -60,7 +60,7 @@ pub fn macaddr_to_text(input: MacaddrValue) -> TextValue {
     if let MacaddrValue::Error(error) = input {
         return TextValue::Error(error);
     }
-    let mut condition_flavor_63_4: i32 = unresolved_flavor; if let MacaddrValue::Unknown = input { if condition_flavor_63_4 < 1 { condition_flavor_63_4 = 1; }; }; if let MacaddrValue::Unimplemented = input { condition_flavor_63_4 = 2; }; if (input == MacaddrValue::Unknown || input == MacaddrValue::Unimplemented) {
+    let mut condition_flavor_63_4: i32 = unresolved_flavor; if let MacaddrValue::Unknown = input { if condition_flavor_63_4 < 1 { condition_flavor_63_4 = 1; }; }; if let MacaddrValue::Unimplemented = input { condition_flavor_63_4 = 2; }; if input == MacaddrValue::Unknown || input == MacaddrValue::Unimplemented {
         return text_unresolved(condition_flavor_63_4);
     }
     if input == MacaddrValue::Null {
@@ -80,7 +80,7 @@ pub fn sql__pg_catalog__macaddr_send__fk4p(input: MacaddrValue) -> ByteaValue {
     if let MacaddrValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
-    let mut condition_flavor_83_4: i32 = unresolved_flavor; if let MacaddrValue::Unknown = input { if condition_flavor_83_4 < 1 { condition_flavor_83_4 = 1; }; }; if let MacaddrValue::Unimplemented = input { condition_flavor_83_4 = 2; }; if (input == MacaddrValue::Unknown || input == MacaddrValue::Unimplemented) {
+    let mut condition_flavor_83_4: i32 = unresolved_flavor; if let MacaddrValue::Unknown = input { if condition_flavor_83_4 < 1 { condition_flavor_83_4 = 1; }; }; if let MacaddrValue::Unimplemented = input { condition_flavor_83_4 = 2; }; if input == MacaddrValue::Unknown || input == MacaddrValue::Unimplemented {
         return bytea_unresolved(condition_flavor_83_4);
     }
     if input == MacaddrValue::Null {
@@ -100,7 +100,7 @@ pub fn sql__pg_catalog__hashmacaddr__ih2y(input: MacaddrValue, byte_order: i32) 
     if let MacaddrValue::Error(error) = input {
         return Int4Value::Error(error);
     }
-    let mut condition_flavor_103_4: i32 = unresolved_flavor; if let MacaddrValue::Unknown = input { if condition_flavor_103_4 < 1 { condition_flavor_103_4 = 1; }; }; if let MacaddrValue::Unimplemented = input { condition_flavor_103_4 = 2; }; if (input == MacaddrValue::Unknown || input == MacaddrValue::Unimplemented) {
+    let mut condition_flavor_103_4: i32 = unresolved_flavor; if let MacaddrValue::Unknown = input { if condition_flavor_103_4 < 1 { condition_flavor_103_4 = 1; }; }; if let MacaddrValue::Unimplemented = input { condition_flavor_103_4 = 2; }; if input == MacaddrValue::Unknown || input == MacaddrValue::Unimplemented {
         return int4_unresolved(condition_flavor_103_4);
     }
     if input == MacaddrValue::Null {
@@ -151,7 +151,7 @@ pub fn macaddr8_to_text(input: Macaddr8Value) -> TextValue {
     if let Macaddr8Value::Error(error) = input {
         return TextValue::Error(error);
     }
-    let mut condition_flavor_154_4: i32 = unresolved_flavor; if let Macaddr8Value::Unknown = input { if condition_flavor_154_4 < 1 { condition_flavor_154_4 = 1; }; }; if let Macaddr8Value::Unimplemented = input { condition_flavor_154_4 = 2; }; if (input == Macaddr8Value::Unknown || input == Macaddr8Value::Unimplemented) {
+    let mut condition_flavor_154_4: i32 = unresolved_flavor; if let Macaddr8Value::Unknown = input { if condition_flavor_154_4 < 1 { condition_flavor_154_4 = 1; }; }; if let Macaddr8Value::Unimplemented = input { condition_flavor_154_4 = 2; }; if input == Macaddr8Value::Unknown || input == Macaddr8Value::Unimplemented {
         return text_unresolved(condition_flavor_154_4);
     }
     if input == Macaddr8Value::Null {
@@ -171,7 +171,7 @@ pub fn sql__pg_catalog__macaddr8_send__qten(input: Macaddr8Value) -> ByteaValue 
     if let Macaddr8Value::Error(error) = input {
         return ByteaValue::Error(error);
     }
-    let mut condition_flavor_174_4: i32 = unresolved_flavor; if let Macaddr8Value::Unknown = input { if condition_flavor_174_4 < 1 { condition_flavor_174_4 = 1; }; }; if let Macaddr8Value::Unimplemented = input { condition_flavor_174_4 = 2; }; if (input == Macaddr8Value::Unknown || input == Macaddr8Value::Unimplemented) {
+    let mut condition_flavor_174_4: i32 = unresolved_flavor; if let Macaddr8Value::Unknown = input { if condition_flavor_174_4 < 1 { condition_flavor_174_4 = 1; }; }; if let Macaddr8Value::Unimplemented = input { condition_flavor_174_4 = 2; }; if input == Macaddr8Value::Unknown || input == Macaddr8Value::Unimplemented {
         return bytea_unresolved(condition_flavor_174_4);
     }
     if input == Macaddr8Value::Null {
@@ -191,7 +191,7 @@ pub fn sql__pg_catalog__hashmacaddr8__72kw(input: Macaddr8Value, byte_order: i32
     if let Macaddr8Value::Error(error) = input {
         return Int4Value::Error(error);
     }
-    let mut condition_flavor_194_4: i32 = unresolved_flavor; if let Macaddr8Value::Unknown = input { if condition_flavor_194_4 < 1 { condition_flavor_194_4 = 1; }; }; if let Macaddr8Value::Unimplemented = input { condition_flavor_194_4 = 2; }; if (input == Macaddr8Value::Unknown || input == Macaddr8Value::Unimplemented) {
+    let mut condition_flavor_194_4: i32 = unresolved_flavor; if let Macaddr8Value::Unknown = input { if condition_flavor_194_4 < 1 { condition_flavor_194_4 = 1; }; }; if let Macaddr8Value::Unimplemented = input { condition_flavor_194_4 = 2; }; if input == Macaddr8Value::Unknown || input == Macaddr8Value::Unimplemented {
         return int4_unresolved(condition_flavor_194_4);
     }
     if input == Macaddr8Value::Null {

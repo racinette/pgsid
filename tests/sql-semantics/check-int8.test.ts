@@ -162,10 +162,9 @@ it.each([true, false])(
           9223372036854775808n,
           -9223372036854775809n,
         ]) {
-          const positive = generated
-            .evaluatePublicInt8ChecksChecks({ amount: value })
-            .find((check: { constraint: string }) => check.constraint === 'positive')
-          expect(positive.result).toEqual({ certain: false })
+          expect(() => generated.evaluatePublicInt8ChecksChecks({ amount: value })).toThrow(
+            TypeError,
+          )
         }
         const positive = generated
           .evaluatePublicInt8ChecksChecks({ amount: 42 })

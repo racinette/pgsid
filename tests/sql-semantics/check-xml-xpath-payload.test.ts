@@ -184,16 +184,17 @@ it('evaluates public XPath XML payloads and recovers query-invariant rendered st
             expect(check.result).toEqual({ certain: true, value: true })
         }
       }
+    const unsupplied = { path: '/*', expected: '<r/>', found: true, amount: 1, bypass: false }
+    for (const check of evaluate(unsupplied)) expect(check.result).toEqual({ certain: false })
+    for (const check of evaluate({ ...unsupplied, bypass: true }))
+      expect(check.result).toEqual({ certain: true, value: true })
     for (const v of [
-      undefined,
       '<r/>',
       { kind: 'Value', value: '\0' },
       { kind: 'RenderedText', value: '\ud800' },
     ]) {
       const row = { v, path: '/*', expected: '<r/>', found: true, amount: 1, bypass: false }
-      for (const check of evaluate(row)) expect(check.result).toEqual({ certain: false })
-      for (const check of evaluate({ ...row, bypass: true }))
-        expect(check.result).toEqual({ certain: true, value: true })
+      expect(() => evaluate(row)).toThrow(TypeError)
     }
     for (const file of ['go.mod', 'go.sum'])
       await writeFile(

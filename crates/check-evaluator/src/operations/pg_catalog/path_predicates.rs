@@ -256,7 +256,7 @@ pub fn sql__pg_catalog__on_ppath__8fo6(point: PointValue, input: PathValue) -> B
     if let PathValue::Error(error) = input {
         return BoolValue::Error(error);
     };
-    let mut condition_flavor_259_4: i32 = unresolved_flavor; if let PointValue::Unknown = point { if condition_flavor_259_4 < 1 { condition_flavor_259_4 = 1; }; }; if let PointValue::Unimplemented = point { condition_flavor_259_4 = 2; }; if (point == PointValue::Unknown || point == PointValue::Unimplemented) {
+    let mut condition_flavor_259_4: i32 = unresolved_flavor; if let PointValue::Unknown = point { if condition_flavor_259_4 < 1 { condition_flavor_259_4 = 1; }; }; if let PointValue::Unimplemented = point { condition_flavor_259_4 = 2; }; if point == PointValue::Unknown || point == PointValue::Unimplemented {
         return bool_unresolved(condition_flavor_259_4);
     };
     let mut condition_flavor_262_4: i32 = unresolved_flavor; if let PathValue::Unknown = input { if condition_flavor_262_4 < 1 { condition_flavor_262_4 = 1; }; }; if let PathValue::Unknown = input {

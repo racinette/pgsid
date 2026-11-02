@@ -6,7 +6,7 @@ fn bytea_integer_value(input: ByteaValue, width: i32) -> Int8Value {
     if let ByteaValue::Error(error) = input {
         return Int8Value::Error(error);
     }
-    let mut condition_flavor_8_4: i32 = unresolved_flavor; if let ByteaValue::Unknown = input { if condition_flavor_8_4 < 1 { condition_flavor_8_4 = 1; }; }; if let ByteaValue::Unimplemented = input { condition_flavor_8_4 = 2; }; if (input == ByteaValue::Unknown || input == ByteaValue::Unimplemented) {
+    let mut condition_flavor_8_4: i32 = unresolved_flavor; if let ByteaValue::Unknown = input { if condition_flavor_8_4 < 1 { condition_flavor_8_4 = 1; }; }; if let ByteaValue::Unimplemented = input { condition_flavor_8_4 = 2; }; if input == ByteaValue::Unknown || input == ByteaValue::Unimplemented {
         return int8_unresolved(condition_flavor_8_4);
     }
     if input == ByteaValue::Null {
@@ -68,7 +68,7 @@ pub fn sql__pg_catalog__int2__hj0w(input: ByteaValue) -> Int2Value {
     if let Int8Value::Error(error) = result {
         return Int2Value::Error(error);
     }
-    let mut condition_flavor_69_4: i32 = unresolved_flavor; if let Int8Value::Unknown = result { if condition_flavor_69_4 < 1 { condition_flavor_69_4 = 1; }; }; if let Int8Value::Unimplemented = result { condition_flavor_69_4 = 2; }; if (result == Int8Value::Unknown || result == Int8Value::Unimplemented) {
+    let mut condition_flavor_69_4: i32 = unresolved_flavor; if let Int8Value::Unknown = result { if condition_flavor_69_4 < 1 { condition_flavor_69_4 = 1; }; }; if let Int8Value::Unimplemented = result { condition_flavor_69_4 = 2; }; if result == Int8Value::Unknown || result == Int8Value::Unimplemented {
         return int2_unresolved(condition_flavor_69_4);
     }
     if result == Int8Value::Null {
@@ -90,7 +90,7 @@ pub fn sql__pg_catalog__int4__lvgc(input: ByteaValue) -> Int4Value {
     if let Int8Value::Error(error) = result {
         return Int4Value::Error(error);
     }
-    let mut condition_flavor_90_4: i32 = unresolved_flavor; if let Int8Value::Unknown = result { if condition_flavor_90_4 < 1 { condition_flavor_90_4 = 1; }; }; if let Int8Value::Unimplemented = result { condition_flavor_90_4 = 2; }; if (result == Int8Value::Unknown || result == Int8Value::Unimplemented) {
+    let mut condition_flavor_90_4: i32 = unresolved_flavor; if let Int8Value::Unknown = result { if condition_flavor_90_4 < 1 { condition_flavor_90_4 = 1; }; }; if let Int8Value::Unimplemented = result { condition_flavor_90_4 = 2; }; if result == Int8Value::Unknown || result == Int8Value::Unimplemented {
         return int4_unresolved(condition_flavor_90_4);
     }
     if result == Int8Value::Null {
@@ -114,7 +114,7 @@ pub fn sql__pg_catalog__int2send__5wzj(input: Int2Value) -> ByteaValue {
     if let Int2Value::Error(error) = input {
         return ByteaValue::Error(error);
     }
-    let mut condition_flavor_114_4: i32 = unresolved_flavor; if let Int2Value::Unknown = input { if condition_flavor_114_4 < 1 { condition_flavor_114_4 = 1; }; }; if let Int2Value::Unimplemented = input { condition_flavor_114_4 = 2; }; if (input == Int2Value::Unknown || input == Int2Value::Unimplemented) {
+    let mut condition_flavor_114_4: i32 = unresolved_flavor; if let Int2Value::Unknown = input { if condition_flavor_114_4 < 1 { condition_flavor_114_4 = 1; }; }; if let Int2Value::Unimplemented = input { condition_flavor_114_4 = 2; }; if input == Int2Value::Unknown || input == Int2Value::Unimplemented {
         return bytea_unresolved(condition_flavor_114_4);
     }
     if input == Int2Value::Null {
@@ -139,7 +139,7 @@ pub fn sql__pg_catalog__int4send__fjzt(input: Int4Value) -> ByteaValue {
     if let Int4Value::Error(error) = input {
         return ByteaValue::Error(error);
     }
-    let mut condition_flavor_139_4: i32 = unresolved_flavor; if let Int4Value::Unknown = input { if condition_flavor_139_4 < 1 { condition_flavor_139_4 = 1; }; }; if let Int4Value::Unimplemented = input { condition_flavor_139_4 = 2; }; if (input == Int4Value::Unknown || input == Int4Value::Unimplemented) {
+    let mut condition_flavor_139_4: i32 = unresolved_flavor; if let Int4Value::Unknown = input { if condition_flavor_139_4 < 1 { condition_flavor_139_4 = 1; }; }; if let Int4Value::Unimplemented = input { condition_flavor_139_4 = 2; }; if input == Int4Value::Unknown || input == Int4Value::Unimplemented {
         return bytea_unresolved(condition_flavor_139_4);
     }
     if input == Int4Value::Null {
@@ -164,7 +164,7 @@ pub fn sql__pg_catalog__int8send__pjz0(input: Int8Value) -> ByteaValue {
     if let Int8Value::Error(error) = input {
         return ByteaValue::Error(error);
     }
-    let mut condition_flavor_164_4: i32 = unresolved_flavor; if let Int8Value::Unknown = input { if condition_flavor_164_4 < 1 { condition_flavor_164_4 = 1; }; }; if let Int8Value::Unimplemented = input { condition_flavor_164_4 = 2; }; if (input == Int8Value::Unknown || input == Int8Value::Unimplemented) {
+    let mut condition_flavor_164_4: i32 = unresolved_flavor; if let Int8Value::Unknown = input { if condition_flavor_164_4 < 1 { condition_flavor_164_4 = 1; }; }; if let Int8Value::Unimplemented = input { condition_flavor_164_4 = 2; }; if input == Int8Value::Unknown || input == Int8Value::Unimplemented {
         return bytea_unresolved(condition_flavor_164_4);
     }
     if input == Int8Value::Null {
@@ -189,7 +189,7 @@ pub fn sql__pg_catalog__date_send__i2tv(input: DateValue) -> ByteaValue {
     if let DateValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
-    let mut condition_flavor_189_4: i32 = unresolved_flavor; if let DateValue::Unknown = input { if condition_flavor_189_4 < 1 { condition_flavor_189_4 = 1; }; }; if let DateValue::Unimplemented = input { condition_flavor_189_4 = 2; }; if (input == DateValue::Unknown || input == DateValue::Unimplemented) {
+    let mut condition_flavor_189_4: i32 = unresolved_flavor; if let DateValue::Unknown = input { if condition_flavor_189_4 < 1 { condition_flavor_189_4 = 1; }; }; if let DateValue::Unimplemented = input { condition_flavor_189_4 = 2; }; if input == DateValue::Unknown || input == DateValue::Unimplemented {
         return bytea_unresolved(condition_flavor_189_4);
     }
     if input == DateValue::Null {
@@ -210,7 +210,7 @@ pub fn sql__pg_catalog__timestamp_send__3syx(input: TimestampValue) -> ByteaValu
     if let TimestampValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
-    let mut condition_flavor_210_4: i32 = unresolved_flavor; if let TimestampValue::Unknown = input { if condition_flavor_210_4 < 1 { condition_flavor_210_4 = 1; }; }; if let TimestampValue::Unimplemented = input { condition_flavor_210_4 = 2; }; if (input == TimestampValue::Unknown || input == TimestampValue::Unimplemented) {
+    let mut condition_flavor_210_4: i32 = unresolved_flavor; if let TimestampValue::Unknown = input { if condition_flavor_210_4 < 1 { condition_flavor_210_4 = 1; }; }; if let TimestampValue::Unimplemented = input { condition_flavor_210_4 = 2; }; if input == TimestampValue::Unknown || input == TimestampValue::Unimplemented {
         return bytea_unresolved(condition_flavor_210_4);
     }
     if input == TimestampValue::Null {
@@ -231,7 +231,7 @@ pub fn sql__pg_catalog__timestamptz_send__jyu1(input: TimestamptzValue) -> Bytea
     if let TimestamptzValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
-    let mut condition_flavor_231_4: i32 = unresolved_flavor; if let TimestamptzValue::Unknown = input { if condition_flavor_231_4 < 1 { condition_flavor_231_4 = 1; }; }; if let TimestamptzValue::Unimplemented = input { condition_flavor_231_4 = 2; }; if (input == TimestamptzValue::Unknown || input == TimestamptzValue::Unimplemented) {
+    let mut condition_flavor_231_4: i32 = unresolved_flavor; if let TimestamptzValue::Unknown = input { if condition_flavor_231_4 < 1 { condition_flavor_231_4 = 1; }; }; if let TimestamptzValue::Unimplemented = input { condition_flavor_231_4 = 2; }; if input == TimestamptzValue::Unknown || input == TimestamptzValue::Unimplemented {
         return bytea_unresolved(condition_flavor_231_4);
     }
     if input == TimestamptzValue::Null {
@@ -252,7 +252,7 @@ pub fn sql__pg_catalog__boolsend__oo82(input: BoolValue) -> ByteaValue {
     if let BoolValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
-    let mut condition_flavor_252_4: i32 = unresolved_flavor; if let BoolValue::Unknown = input { if condition_flavor_252_4 < 1 { condition_flavor_252_4 = 1; }; }; if let BoolValue::Unimplemented = input { condition_flavor_252_4 = 2; }; if (input == BoolValue::Unknown || input == BoolValue::Unimplemented) {
+    let mut condition_flavor_252_4: i32 = unresolved_flavor; if let BoolValue::Unknown = input { if condition_flavor_252_4 < 1 { condition_flavor_252_4 = 1; }; }; if let BoolValue::Unimplemented = input { condition_flavor_252_4 = 2; }; if input == BoolValue::Unknown || input == BoolValue::Unimplemented {
         return bytea_unresolved(condition_flavor_252_4);
     }
     if input == BoolValue::Null {

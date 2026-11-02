@@ -110,7 +110,7 @@ pub fn sql__pg_catalog__int4__lp2l(input: BitValue) -> Int4Value {
     if let BitValue::Error(error) = input {
         return Int4Value::Error(error);
     }
-    let mut condition_flavor_113_4: i32 = unresolved_flavor; if let BitValue::Unknown = input { if condition_flavor_113_4 < 1 { condition_flavor_113_4 = 1; }; }; if let BitValue::Unimplemented = input { condition_flavor_113_4 = 2; }; if (input == BitValue::Unknown || input == BitValue::Unimplemented) {
+    let mut condition_flavor_113_4: i32 = unresolved_flavor; if let BitValue::Unknown = input { if condition_flavor_113_4 < 1 { condition_flavor_113_4 = 1; }; }; if let BitValue::Unimplemented = input { condition_flavor_113_4 = 2; }; if input == BitValue::Unknown || input == BitValue::Unimplemented {
         return int4_unresolved(condition_flavor_113_4);
     }
     if input == BitValue::Null {
@@ -133,7 +133,7 @@ pub fn sql__pg_catalog__int8__09r6(input: BitValue) -> Int8Value {
     if let BitValue::Error(error) = input {
         return Int8Value::Error(error);
     }
-    let mut condition_flavor_136_4: i32 = unresolved_flavor; if let BitValue::Unknown = input { if condition_flavor_136_4 < 1 { condition_flavor_136_4 = 1; }; }; if let BitValue::Unimplemented = input { condition_flavor_136_4 = 2; }; if (input == BitValue::Unknown || input == BitValue::Unimplemented) {
+    let mut condition_flavor_136_4: i32 = unresolved_flavor; if let BitValue::Unknown = input { if condition_flavor_136_4 < 1 { condition_flavor_136_4 = 1; }; }; if let BitValue::Unimplemented = input { condition_flavor_136_4 = 2; }; if input == BitValue::Unknown || input == BitValue::Unimplemented {
         return int8_unresolved(condition_flavor_136_4);
     }
     if input == BitValue::Null {

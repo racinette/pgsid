@@ -253,16 +253,9 @@ describe('catalog CHECK lowering', () => {
         certain: true,
         value: null,
       })
-      const outsideInt4 = generated.evaluatePublicRegulatedChecks({
-        email: 'a',
-        amount: 2147483648n,
-      }) as typeof result
-      expect(outsideInt4.find((item) => item.constraint === 'with_unknown')?.result).toEqual({
-        certain: false,
-      })
-      expect(outsideInt4.find((item) => item.constraint === 'with_unknown')).toMatchObject({
-        message: expect.any(String),
-      })
+      expect(() =>
+        generated.evaluatePublicRegulatedChecks({ email: 'a', amount: 2147483648n }),
+      ).toThrow(TypeError)
       expect(generated.evaluatePublicRegulatedChecks({ email: 'a', pattern: '(' })).toEqual(
         expect.arrayContaining([
           expect.objectContaining({

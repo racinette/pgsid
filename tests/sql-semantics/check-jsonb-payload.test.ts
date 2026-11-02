@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
+import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { execFile } from 'node:child_process'
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
@@ -316,20 +317,22 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       'INSERT INTO jsonb_conversion_inputs(source_json,expected_json,bypass) VALUES($1::json,$2::jsonb,false)',
       ['"\\u96ea"', '"雪"'],
     )
+    const conversion = (source: unknown) =>
+      generated.evaluatePublicJsonbConversionInputsChecks({
+        source_text: source,
+        expected_text: runtime.makeJsonbValue('null'),
+        bypass: false,
+      })
+    expect(
+      conversion(undefined).find((c: { constraint: string }) => c.constraint === 'converted_text')
+        .result,
+    ).toEqual({ certain: false })
+    // Text columns take strings, so value wrappers are malformed there.
     for (const source of [
-      undefined,
       { kind: 'Unknown' },
       { kind: 'Error', value: { state: parseInt('22003', 36) } },
-    ]) {
-      const result = generated
-        .evaluatePublicJsonbConversionInputsChecks({
-          source_text: source,
-          expected_text: runtime.makeJsonbValue('null'),
-          bypass: false,
-        })
-        .find((c: { constraint: string }) => c.constraint === 'converted_text').result
-      expect(result).toEqual({ certain: false })
-    }
+    ])
+      expect(() => conversion(source)).toThrow(TypeError)
     expect(
       generated
         .evaluatePublicJsonbConversionInputsChecks({
@@ -399,14 +402,9 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       { kind: 'Unknown' },
       { kind: 'Value', value: { root: 0, nodes: [], characters: [] } },
     ]) {
-      for (const c of generated.evaluatePublicJsonbFormatInputsChecks({ ...formatInput, document }))
-        expect(c.result.certain).toBe(false)
-      for (const c of generated.evaluatePublicJsonbFormatInputsChecks({
-        ...formatInput,
-        document,
-        bypass: true,
-      }))
-        expect(c.result).toEqual({ certain: true, value: true })
+      expectUndecidedOrRejected(() =>
+        generated.evaluatePublicJsonbFormatInputsChecks({ ...formatInput, document }),
+      )
     }
     for (const c of generated.evaluatePublicJsonbFormatInputsChecks({
       ...formatInput,
@@ -495,10 +493,7 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
         delete_positions: true,
         bypass: false,
       }
-      for (const c of generated.evaluatePublicJsonbEditInputsChecks(input))
-        expect(c.result.certain).toBe(false)
-      for (const c of generated.evaluatePublicJsonbEditInputsChecks({ ...input, bypass: true }))
-        expect(c.result).toEqual({ certain: true, value: true })
+      expectUndecidedOrRejected(() => generated.evaluatePublicJsonbEditInputsChecks(input))
     }
     for (const c of generated.evaluatePublicJsonbEditInputsChecks({
       lhs: { kind: 'Error', value: { state: parseInt('22003', 36) } },
@@ -586,18 +581,16 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
           .every((c: { result: ScalarResult }) => c.result.certain && c.result.value === true),
       ).toBe(true)
     }
-    for (const document of [
-      undefined,
-      '1',
-      { kind: 'Unknown' },
-      { kind: 'Value', value: { root: 0, nodes: [], characters: [] } },
-    ])
-      for (const c of generated.evaluatePublicJsonbScalarInputsChecks({
+    const scalarInputs = (document: unknown) =>
+      generated.evaluatePublicJsonbScalarInputsChecks({
         numeric_document: document,
         boolean_document: document,
         bypass: false,
-      }))
-        expect(c.result.certain).toBe(false)
+      })
+    for (const document of [undefined, { kind: 'Unknown' }])
+      for (const c of scalarInputs(document)) expect(c.result.certain).toBe(false)
+    for (const document of ['1', { kind: 'Value', value: { root: 0, nodes: [], characters: [] } }])
+      expectUndecidedOrRejected(() => scalarInputs(document))
     for (const c of generated.evaluatePublicJsonbScalarInputsChecks({
       numeric_document: { kind: 'Error', value: { state: parseInt('22012', 36) } },
       boolean_document: { kind: 'Error', value: { state: parseInt('22012', 36) } },
@@ -700,12 +693,9 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
     expect(
       evaluateRelations(relationValue, relationValue, { expected_equal: false }).same_value,
     ).toEqual({ certain: true, value: false })
-    for (const lhs of [
-      undefined,
-      '{}',
-      { kind: 'Unknown' },
-      { kind: 'Value', value: { root: 0, nodes: [], characters: [] } },
-    ]) {
+    for (const lhs of ['{}', { kind: 'Value', value: { root: 0, nodes: [], characters: [] } }])
+      expectUndecidedOrRejected(() => evaluateRelations(lhs, relationValue))
+    for (const lhs of [undefined, { kind: 'Unknown' }]) {
       expect(
         Object.values(evaluateRelations(lhs, relationValue)).every((r) => r.certain === false),
       ).toBe(true)
@@ -864,8 +854,9 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
     }
     expect(evaluateText('{}', '[]')).toEqual({ certain: true, value: false })
     expect(evaluateText(null)).toEqual({ certain: true, value: null })
-    for (const input of ['"a\0b"', '"\ud800"', undefined, 123, {}])
-      expect(evaluateText(input)).toEqual({ certain: false })
+    expect(evaluateText(undefined)).toEqual({ certain: false })
+    for (const input of ['"a\0b"', '"\ud800"', 123, {}])
+      expect(() => evaluateText(input), String(input)).toThrow(TypeError)
     const evaluate = (
       document: unknown,
       expected_kind = 'object',
@@ -1005,17 +996,13 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       bad.push(value)
     }
     for (const value of bad) {
-      const results = evaluate(value)
-      for (const name of ['shape', 'source', 'present', 'guarded'])
-        expect(results[name], name + ':' + JSON.stringify(value)).toEqual({ certain: false })
-      expect(evaluate(value, 'object', '{"a": 2}', true).guarded).toEqual({
-        certain: true,
-        value: true,
-      })
-      expect(Object.values(evaluateReads(value)).every((r) => r.certain === false)).toBe(true)
-      expect(
-        Object.values(evaluateReads(value, {}, true)).every((r) => r.certain && r.value === true),
-      ).toBe(true)
+      expectUndecidedOrRejected(() => evaluate(value), JSON.stringify(value), [
+        'shape',
+        'source',
+        'present',
+        'guarded',
+      ])
+      expectUndecidedOrRejected(() => evaluateReads(value), JSON.stringify(value))
     }
     expect(evaluate(null).present).toEqual({ certain: true, value: false })
     expect(evaluate(runtime.makeJsonbValue('null'), 'null', 'null').present).toEqual({

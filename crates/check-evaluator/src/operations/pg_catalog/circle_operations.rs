@@ -139,7 +139,7 @@ fn circle_distance_value(left: CircleValue, right: CircleValue) -> Float8Value {
     if let BoolValue::Error(error) = status {
         return Float8Value::Error(error);
     };
-    let mut condition_flavor_140_4: i32 = unresolved_flavor; if let BoolValue::Unknown = status { if condition_flavor_140_4 < 1 { condition_flavor_140_4 = 1; }; }; if let BoolValue::Unimplemented = status { condition_flavor_140_4 = 2; }; if (status == BoolValue::Unknown || status == BoolValue::Unimplemented) {
+    let mut condition_flavor_140_4: i32 = unresolved_flavor; if let BoolValue::Unknown = status { if condition_flavor_140_4 < 1 { condition_flavor_140_4 = 1; }; }; if let BoolValue::Unimplemented = status { condition_flavor_140_4 = 2; }; if status == BoolValue::Unknown || status == BoolValue::Unimplemented {
         return float8_unresolved(condition_flavor_140_4);
     };
     if status == BoolValue::Null {
@@ -194,7 +194,7 @@ fn circle_point_distance(input: CircleValue, point: PointValue) -> Float8Value {
     if let BoolValue::Error(error) = status {
         return Float8Value::Error(error);
     };
-    let mut condition_flavor_195_4: i32 = unresolved_flavor; if let BoolValue::Unknown = status { if condition_flavor_195_4 < 1 { condition_flavor_195_4 = 1; }; }; if let BoolValue::Unimplemented = status { condition_flavor_195_4 = 2; }; if (status == BoolValue::Unknown || status == BoolValue::Unimplemented) {
+    let mut condition_flavor_195_4: i32 = unresolved_flavor; if let BoolValue::Unknown = status { if condition_flavor_195_4 < 1 { condition_flavor_195_4 = 1; }; }; if let BoolValue::Unimplemented = status { condition_flavor_195_4 = 2; }; if status == BoolValue::Unknown || status == BoolValue::Unimplemented {
         return float8_unresolved(condition_flavor_195_4);
     };
     if status == BoolValue::Null {
@@ -216,7 +216,7 @@ fn circle_arithmetic(input: CircleValue, point: PointValue, mode: i32) -> Circle
     if let BoolValue::Error(error) = status {
         return CircleValue::Error(error);
     };
-    let mut condition_flavor_217_4: i32 = unresolved_flavor; if let BoolValue::Unknown = status { if condition_flavor_217_4 < 1 { condition_flavor_217_4 = 1; }; }; if let BoolValue::Unimplemented = status { condition_flavor_217_4 = 2; }; if (status == BoolValue::Unknown || status == BoolValue::Unimplemented) {
+    let mut condition_flavor_217_4: i32 = unresolved_flavor; if let BoolValue::Unknown = status { if condition_flavor_217_4 < 1 { condition_flavor_217_4 = 1; }; }; if let BoolValue::Unimplemented = status { condition_flavor_217_4 = 2; }; if status == BoolValue::Unknown || status == BoolValue::Unimplemented {
         return circle_unresolved(condition_flavor_217_4);
     };
     if status == BoolValue::Null {

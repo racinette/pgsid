@@ -215,6 +215,9 @@ fn array_string_join(
                         known = false;
                     };
                 };
+                if let TextValue::Unknown = text { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
+                if let TextValue::NonNull = text { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
+                if let TextValue::Unimplemented = text { unresolved_flavor = 2; };
                 let mut field_known = false;
                 if let TextValue::Value(field) = text {
                     output.push_str(field.as_str());

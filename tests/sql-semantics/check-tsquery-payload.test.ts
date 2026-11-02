@@ -1,5 +1,6 @@
 import { readTsqueryFixture } from './check-tsquery-fixtures.js'
 import { PGlite } from '@electric-sql/pglite'
+import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { expect, it } from 'vitest'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -317,10 +318,12 @@ it('validates SQL-coerced tsquery payloads, domains and optional stored size thr
       { kind: 'Error', value: { state: -1 } },
       { kind: 'Error', value: { state: 1.5 } },
     ]
-    for (const bad of malformed) {
-      expect(evaluate({ ...base, item: bad }).rendered).toEqual({ certain: false })
-      expect(evaluate({ ...base, item: bad }).presence).toEqual({ certain: false })
-    }
+    for (const bad of malformed)
+      expectUndecidedOrRejected(
+        () => evaluate({ ...base, item: bad }),
+        JSON.stringify(bad, (_key, item) => (typeof item === 'bigint' ? String(item) : item)),
+        ['rendered', 'presence'],
+      )
     const goRoot = join(root, 'public-go'),
       goBundle = renderGoSchemaCheckArtifacts(
         [table],

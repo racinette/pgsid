@@ -124,7 +124,7 @@ pub fn xml_element_finish(name: &str, mapped: bool, attributes: TextValue, conte
     if let CheckOutcome::Error(error) = validity { return XmlValue::Error(error); };
     if let TextValue::Error(error) = attributes { return XmlValue::Error(error); };
     if let TextValue::Error(error) = content { return XmlValue::Error(error); };
-    let mut condition_flavor_122_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = validity { if condition_flavor_122_4 < 1 { condition_flavor_122_4 = 1; }; }; if let CheckOutcome::Unimplemented = validity { condition_flavor_122_4 = 2; }; if (validity == CheckOutcome::Unknown || validity == CheckOutcome::Unimplemented) { return xml_unresolved(condition_flavor_122_4); };
+    let mut condition_flavor_122_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = validity { if condition_flavor_122_4 < 1 { condition_flavor_122_4 = 1; }; }; if let CheckOutcome::Unimplemented = validity { condition_flavor_122_4 = 2; }; if validity == CheckOutcome::Unknown || validity == CheckOutcome::Unimplemented { return xml_unresolved(condition_flavor_122_4); };
     let mut target = name.to_owned();
     if mapped == false { target = xml_constructor_name(name); };
     if let TextValue::Value(attrs) = attributes {
@@ -156,7 +156,7 @@ pub fn xml_forest_finish(content: TextValue, validity: CheckOutcome) -> XmlValue
     if let CheckOutcome::Unimplemented = validity { unresolved_flavor = 2; };
     if let CheckOutcome::Error(error) = validity { return XmlValue::Error(error); };
     if let TextValue::Error(error) = content { return XmlValue::Error(error); };
-    let mut condition_flavor_153_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = validity { if condition_flavor_153_4 < 1 { condition_flavor_153_4 = 1; }; }; if let CheckOutcome::Unimplemented = validity { condition_flavor_153_4 = 2; }; if (validity == CheckOutcome::Unknown || validity == CheckOutcome::Unimplemented) { return xml_unresolved(condition_flavor_153_4); };
+    let mut condition_flavor_153_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = validity { if condition_flavor_153_4 < 1 { condition_flavor_153_4 = 1; }; }; if let CheckOutcome::Unimplemented = validity { condition_flavor_153_4 = 2; }; if validity == CheckOutcome::Unknown || validity == CheckOutcome::Unimplemented { return xml_unresolved(condition_flavor_153_4); };
     if let TextValue::Null = content { return XmlValue::Null; };
     if let TextValue::Value(value) = content { return make_xml_value(value.as_str()); };
     xml_unresolved(unresolved_flavor)

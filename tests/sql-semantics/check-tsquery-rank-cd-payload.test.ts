@@ -1,6 +1,7 @@
 import { readTsqueryFixture } from './check-tsquery-fixtures.js'
 import { PGlite } from '@electric-sql/pglite'
 import { expect, it } from 'vitest'
+import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -633,7 +634,11 @@ it('ranks owned minimal covers and binary-origin queries with public weight arra
       )
 
     for (const bad of ['a', {}, { kind: 'Value', value: { ...pattern.value, root: 999 } }])
-      expect(evaluate({ ...base, reference: bad }).same).toEqual({ certain: false })
+      expectUndecidedOrRejected(
+        () => evaluate({ ...base, reference: bad }),
+        JSON.stringify(bad, (_key, item) => (typeof item === 'bigint' ? String(item) : item)),
+        ['same'],
+      )
     const saved = structuredClone(base)
     evaluate(base)
     expect(base).toEqual(saved)
@@ -674,10 +679,12 @@ it('ranks owned minimal covers and binary-origin queries with public weight arra
       },
       { kind: 'Error', value: { state: -1 } },
       { kind: 'Error', value: { state: 1.5 } },
-    ]) {
-      expect(evaluate({ ...base, item: bad }).same).toEqual({ certain: false })
-      expect(evaluate({ ...base, item: bad }).presence).toEqual({ certain: false })
-    }
+    ])
+      expectUndecidedOrRejected(
+        () => evaluate({ ...base, item: bad }),
+        JSON.stringify(bad, (_key, item) => (typeof item === 'bigint' ? String(item) : item)),
+        ['same', 'presence'],
+      )
     const goRoot = join(root, 'public-go'),
       goBundle = renderGoSchemaCheckArtifacts(
         [table],

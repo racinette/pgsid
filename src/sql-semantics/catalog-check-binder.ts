@@ -3209,7 +3209,8 @@ export function bindCatalogCheck(
         value: { kind: 'check', type: 'pg_catalog.bool', expression: selected.expression },
       }
     }
-    const parentChild = unboundChild
+    const parentChild = unboundChild,
+      priorOther = unboundObstacles.other
     unboundChild = false
     let result: Bound
     try {
@@ -3217,7 +3218,14 @@ export function bindCatalogCheck(
     } finally {
       unboundChild = parentChild
     }
-    if (result.value === null && result.type === null) unboundChild = true
+    if (result.value === null && result.type === null) {
+      unboundChild = true
+      // A stable or volatile call over plain operands is computed only when the database runs it.
+      if (fields(node)?.['FuncCall'] && runtimeOpaque(node)) {
+        unboundObstacles.other = priorOther
+        unboundObstacles.context = true
+      }
+    }
     if (capturedExpressions?.has(node))
       capturedExpressions.set(node, {
         expression:
@@ -8872,10 +8880,12 @@ export function bindCatalogCheck(
     }
     if (value.type === 'pg_catalog.bool' && value.value)
       return { kind: 'eval-scalar', expression: value.value }
+    // A call whose every candidate is stable or volatile is computed only when the database runs it.
+    const opaque = runtimeOpaque(node)
     return {
       kind: 'uncertain',
-      ...(runtimeOpaque(node) ? { preparation: 'runtime' as const } : {}),
-      ...((obstacles.context && !obstacles.other) || collationProviderOnly(node)
+      ...(opaque ? { preparation: 'runtime' as const } : {}),
+      ...(opaque || (obstacles.context && !obstacles.other) || collationProviderOnly(node)
         ? { reason: 'context' as const }
         : {}),
     }

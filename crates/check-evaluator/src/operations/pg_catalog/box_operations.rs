@@ -161,7 +161,7 @@ fn box_merge(left: BoxValue, right: BoxValue, intersection: bool) -> BoxValue {
     if let BoolValue::Error(error) = status {
         return BoxValue::Error(error);
     };
-    let mut condition_flavor_156_4: i32 = unresolved_flavor; if let BoolValue::Unknown = status { if condition_flavor_156_4 < 1 { condition_flavor_156_4 = 1; }; }; if let BoolValue::Unimplemented = status { condition_flavor_156_4 = 2; }; if (status == BoolValue::Unknown || status == BoolValue::Unimplemented) {
+    let mut condition_flavor_156_4: i32 = unresolved_flavor; if let BoolValue::Unknown = status { if condition_flavor_156_4 < 1 { condition_flavor_156_4 = 1; }; }; if let BoolValue::Unimplemented = status { condition_flavor_156_4 = 2; }; if status == BoolValue::Unknown || status == BoolValue::Unimplemented {
         return box_unresolved(condition_flavor_156_4);
     };
     if status == BoolValue::Null {
@@ -243,7 +243,7 @@ fn box_arithmetic(input: BoxValue, point: PointValue, mode: i32) -> BoxValue {
     if let BoolValue::Error(error) = status {
         return BoxValue::Error(error);
     };
-    let mut condition_flavor_235_4: i32 = unresolved_flavor; if let BoolValue::Unknown = status { if condition_flavor_235_4 < 1 { condition_flavor_235_4 = 1; }; }; if let BoolValue::Unimplemented = status { condition_flavor_235_4 = 2; }; if (status == BoolValue::Unknown || status == BoolValue::Unimplemented) {
+    let mut condition_flavor_235_4: i32 = unresolved_flavor; if let BoolValue::Unknown = status { if condition_flavor_235_4 < 1 { condition_flavor_235_4 = 1; }; }; if let BoolValue::Unimplemented = status { condition_flavor_235_4 = 2; }; if status == BoolValue::Unknown || status == BoolValue::Unimplemented {
         return box_unresolved(condition_flavor_235_4);
     };
     if status == BoolValue::Null {
@@ -422,7 +422,7 @@ fn box_cross_segment(
                 point: PointValue::Error(error),
             };
         };
-        if (distance == Float8Value::Unknown || distance == Float8Value::Unimplemented) {
+        if distance == Float8Value::Unknown || distance == Float8Value::Unimplemented {
             let mut tested_flavor: i32 = 1;
             if distance == Float8Value::Unimplemented {
                 tested_flavor = 2;
@@ -451,7 +451,7 @@ fn box_cross_segment(
                 point: PointValue::Error(error),
             };
         };
-        if (result == PointValue::Unknown || result == PointValue::Unimplemented) {
+        if result == PointValue::Unknown || result == PointValue::Unimplemented {
             let mut tested_flavor: i32 = 1;
             if result == PointValue::Unimplemented {
                 tested_flavor = 2;
@@ -559,7 +559,7 @@ fn box_cross_line(input: BoxValue, line: LineValue) -> BoolValue {
         if let PointValue::Error(error) = result {
             return BoolValue::Error(error);
         };
-        let mut condition_flavor_540_8: i32 = unresolved_flavor; if let PointValue::Unknown = result { if condition_flavor_540_8 < 1 { condition_flavor_540_8 = 1; }; }; if let PointValue::Unimplemented = result { condition_flavor_540_8 = 2; }; if (result == PointValue::Unknown || result == PointValue::Unimplemented) {
+        let mut condition_flavor_540_8: i32 = unresolved_flavor; if let PointValue::Unknown = result { if condition_flavor_540_8 < 1 { condition_flavor_540_8 = 1; }; }; if let PointValue::Unimplemented = result { condition_flavor_540_8 = 2; }; if result == PointValue::Unknown || result == PointValue::Unimplemented {
             return bool_unresolved(condition_flavor_540_8);
         };
         if result != PointValue::Null {

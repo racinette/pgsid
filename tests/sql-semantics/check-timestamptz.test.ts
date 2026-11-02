@@ -359,11 +359,9 @@ describe('portable Rust CHECK timestamptz', () => {
         result,
       })),
     })
-    expect(
-      evaluate({ a: new Date('2000-01-01'), b: runtime.makeTimestamptzValue(0n) })[0].result,
-    ).toEqual({
-      certain: false,
-    })
+    expect(() =>
+      evaluate({ a: new Date('2000-01-01'), b: runtime.makeTimestamptzValue(0n) }),
+    ).toThrow(TypeError)
     for (const payload of [-211813488000000001n, 9223371331200000000n])
       expect(runtime.makeTimestamptzValue(payload)).toEqual({
         kind: 'Error',
@@ -414,9 +412,7 @@ describe('portable Rust CHECK timestamptz', () => {
       { kind: 'Value', value: 0 },
       { kind: 'Value', value: 9223372036854775808n },
     ])
-      expect(evaluate({ a: invalid, b: runtime.makeTimestamptzValue(0n) })[0].result).toEqual({
-        certain: false,
-      })
+      expect(() => evaluate({ a: invalid, b: runtime.makeTimestamptzValue(0n) })).toThrow(TypeError)
     expect(
       evaluate({
         a: runtime.makeTimestamptzValue(9223371331200000000n),

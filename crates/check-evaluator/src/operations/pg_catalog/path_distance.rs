@@ -18,7 +18,7 @@ fn path_min_distance(current: Float8Value, candidate: Float8Value, first: bool) 
     if let Float8Value::Error(error) = candidate {
         return Float8Value::Error(error);
     };
-    let mut condition_flavor_19_4: i32 = unresolved_flavor; if let Float8Value::Unknown = candidate { if condition_flavor_19_4 < 1 { condition_flavor_19_4 = 1; }; }; if let Float8Value::Unimplemented = candidate { condition_flavor_19_4 = 2; }; if (candidate == Float8Value::Unknown || candidate == Float8Value::Unimplemented) {
+    let mut condition_flavor_19_4: i32 = unresolved_flavor; if let Float8Value::Unknown = candidate { if condition_flavor_19_4 < 1 { condition_flavor_19_4 = 1; }; }; if let Float8Value::Unimplemented = candidate { condition_flavor_19_4 = 2; }; if candidate == Float8Value::Unknown || candidate == Float8Value::Unimplemented {
         return float8_unresolved(condition_flavor_19_4);
     };
     if first || sql__pg_catalog__float8lt__vp07(candidate, current) == BoolValue::Value(true) {
@@ -38,7 +38,7 @@ pub fn sql__pg_catalog__dist_ppath__e16q(point: PointValue, input: PathValue) ->
     if let PathValue::Error(error) = input {
         return Float8Value::Error(error);
     };
-    let mut condition_flavor_39_4: i32 = unresolved_flavor; if let PointValue::Unknown = point { if condition_flavor_39_4 < 1 { condition_flavor_39_4 = 1; }; }; if let PointValue::Unimplemented = point { condition_flavor_39_4 = 2; }; if (point == PointValue::Unknown || point == PointValue::Unimplemented) {
+    let mut condition_flavor_39_4: i32 = unresolved_flavor; if let PointValue::Unknown = point { if condition_flavor_39_4 < 1 { condition_flavor_39_4 = 1; }; }; if let PointValue::Unimplemented = point { condition_flavor_39_4 = 2; }; if point == PointValue::Unknown || point == PointValue::Unimplemented {
         return float8_unresolved(condition_flavor_39_4);
     };
     let mut condition_flavor_42_4: i32 = unresolved_flavor; if let PathValue::Unknown = input { if condition_flavor_42_4 < 1 { condition_flavor_42_4 = 1; }; }; if let PathValue::Unknown = input {
@@ -70,7 +70,7 @@ pub fn sql__pg_catalog__dist_ppath__e16q(point: PointValue, input: PathValue) ->
             if let Float8Value::Error(error) = result {
                 return Float8Value::Error(error);
             };
-            let mut condition_flavor_71_12: i32 = unresolved_flavor; if let Float8Value::Unknown = result { if condition_flavor_71_12 < 1 { condition_flavor_71_12 = 1; }; }; if let Float8Value::Unimplemented = result { condition_flavor_71_12 = 2; }; if (result == Float8Value::Unknown || result == Float8Value::Unimplemented) {
+            let mut condition_flavor_71_12: i32 = unresolved_flavor; if let Float8Value::Unknown = result { if condition_flavor_71_12 < 1 { condition_flavor_71_12 = 1; }; }; if let Float8Value::Unimplemented = result { condition_flavor_71_12 = 2; }; if result == Float8Value::Unknown || result == Float8Value::Unimplemented {
                 return float8_unresolved(condition_flavor_71_12);
             };
             have_min = true;
@@ -143,7 +143,7 @@ pub fn sql__pg_catalog__path_distance__3309(left: PathValue, right: PathValue) -
                     if let Float8Value::Error(error) = result {
                         return Float8Value::Error(error);
                     };
-                    let mut condition_flavor_144_20: i32 = unresolved_flavor; if let Float8Value::Unknown = result { if condition_flavor_144_20 < 1 { condition_flavor_144_20 = 1; }; }; if let Float8Value::Unimplemented = result { condition_flavor_144_20 = 2; }; if (result == Float8Value::Unknown || result == Float8Value::Unimplemented) {
+                    let mut condition_flavor_144_20: i32 = unresolved_flavor; if let Float8Value::Unknown = result { if condition_flavor_144_20 < 1 { condition_flavor_144_20 = 1; }; }; if let Float8Value::Unimplemented = result { condition_flavor_144_20 = 2; }; if result == Float8Value::Unknown || result == Float8Value::Unimplemented {
                         return float8_unresolved(condition_flavor_144_20);
                     };
                     have_min = true;

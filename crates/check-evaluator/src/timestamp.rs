@@ -298,7 +298,7 @@ fn parse_temporal_text(
     if let TextValue::Error(error) = value {
         return Int8Value::Error(error);
     }
-    let mut condition_flavor_218_4: i32 = unresolved_flavor; if let TextValue::Unknown = value { if condition_flavor_218_4 < 1 { condition_flavor_218_4 = 1; }; }; if let TextValue::Unimplemented = value { condition_flavor_218_4 = 2; }; if ((value == TextValue::Unknown || value == TextValue::Unimplemented) || value == TextValue::NonNull) {
+    let mut condition_flavor_218_4: i32 = unresolved_flavor; if let TextValue::Unknown = value { if condition_flavor_218_4 < 1 { condition_flavor_218_4 = 1; }; }; if let TextValue::Unimplemented = value { condition_flavor_218_4 = 2; }; if (value == TextValue::Unknown || value == TextValue::Unimplemented) || value == TextValue::NonNull {
         return int8_unresolved(condition_flavor_218_4);
     }
     if value == TextValue::Null {
@@ -1024,7 +1024,7 @@ fn parse_temporal_text(
         {
             let after_clock =
                 temporal_number_after_clock(hour, minute, second, compact_clock, year_overflow);
-            let mut condition_flavor_931_12: i32 = unresolved_flavor; if let Int8Value::Unknown = after_clock { if condition_flavor_931_12 < 1 { condition_flavor_931_12 = 1; }; }; if let Int8Value::Unimplemented = after_clock { condition_flavor_931_12 = 2; }; if (after_clock == Int8Value::Unknown || after_clock == Int8Value::Unimplemented) {
+            let mut condition_flavor_931_12: i32 = unresolved_flavor; if let Int8Value::Unknown = after_clock { if condition_flavor_931_12 < 1 { condition_flavor_931_12 = 1; }; }; if let Int8Value::Unimplemented = after_clock { condition_flavor_931_12 = 2; }; if after_clock == Int8Value::Unknown || after_clock == Int8Value::Unimplemented {
                 return int8_unresolved(condition_flavor_931_12);
             }
             if let Int8Value::Error(error) = after_clock {

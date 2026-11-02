@@ -108,7 +108,7 @@ pub fn array_quantifier_finish(input: CheckOutcome, validity: CheckOutcome) -> B
     if let CheckOutcome::Error(error) = validity {
         return BoolValue::Error(error);
     };
-    let mut condition_flavor_107_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = validity { if condition_flavor_107_4 < 1 { condition_flavor_107_4 = 1; }; }; if let CheckOutcome::Unimplemented = validity { condition_flavor_107_4 = 2; }; if (validity == CheckOutcome::Unknown || validity == CheckOutcome::Unimplemented) {
+    let mut condition_flavor_107_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = validity { if condition_flavor_107_4 < 1 { condition_flavor_107_4 = 1; }; }; if let CheckOutcome::Unimplemented = validity { condition_flavor_107_4 = 2; }; if validity == CheckOutcome::Unknown || validity == CheckOutcome::Unimplemented {
         return bool_unresolved(condition_flavor_107_4);
     };
     bool_from_check(input)
