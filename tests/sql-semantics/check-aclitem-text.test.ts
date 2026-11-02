@@ -101,11 +101,10 @@ it.each(['declared', 'width_only', 'absent'])(
         ...['word', 'USER foo=r/', '"user" ', '"a""b"', '"unterminated', 'does_not_exist=z/'].map(
           (source) => ({ source, state: '22P02', width: true }),
         ),
+        // Without a grantor the server records the bootstrap superuser, so no role lookup is needed.
+        ...['=', '=*', '=r'].map((source) => ({ source })),
         ...[
           'user =r/',
-          '=',
-          '=*',
-          '=r',
           '=r/acl_text_reader',
           'does_not_exist=r/',
           'acl_text_reader=r/',

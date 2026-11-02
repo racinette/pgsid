@@ -334,8 +334,15 @@ it('preserves runtime ACL cast errors before JSON strictness, arity and later ar
                   : undefined,
             )
             nativeInserts++
+            // Named roles resolve through the catalog. '=r' parses without one, but rendering it
+            // names the bootstrap superuser: each check tests for NULL, so only a non-NULL result,
+            // which rendered the item, waits on the catalog.
             const expected: Outcome =
-                source !== null && source !== '' && source !== '=r/' && source !== ';'
+                source !== null &&
+                source !== '' &&
+                source !== '=r/' &&
+                source !== ';' &&
+                (source !== '=r' || native.kind === 'False')
                   ? { kind: 'Unknown' }
                   : native,
               row: Row = {

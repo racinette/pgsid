@@ -63,6 +63,9 @@ fn json_build_layout(
                 if let TextValue::Error(error) = key {
                     return JsonValue::Error(error);
                 };
+                let mut key_flavor: i32 = unresolved_flavor;
+                if (key == TextValue::Unknown || key == TextValue::NonNull) && key_flavor < 1 { key_flavor = 1; };
+                if key == TextValue::Unimplemented { key_flavor = 2; };
                 let mut ready = false;
                 if let TextValue::Value(value) = key {
                     let quoted = json_quote_string(value.as_str());
@@ -75,7 +78,7 @@ fn json_build_layout(
                     ready = true;
                 };
                 if ready == false {
-                    return json_unresolved(unresolved_flavor);
+                    return json_unresolved(key_flavor);
                 };
                 index += 1;
             };
