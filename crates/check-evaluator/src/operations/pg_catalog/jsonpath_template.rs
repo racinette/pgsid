@@ -444,8 +444,10 @@ fn jsonpath_template_parse_prefixes(
                         };
                         if token.kind == 33 {
                             read = jsonpath_template_read_integer(&source, position, 1, true);
+                            // The server multiplies the Y,YYY year in C int arithmetic, so an overflow
+                            // gives whatever wrapped value its build produces.
                             if read.error == JSONPATH_TEMPLATE_RANGE {
-                                return jsonpath_temporal_state(0, 0i64, 0, 0, true, false, 2);
+                                return jsonpath_temporal_state(0, 0i64, 0, 0, true, false, 1);
                             };
                             if read.error == 0 {
                                 if read.end == source.characters.len()
