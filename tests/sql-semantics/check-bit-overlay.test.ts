@@ -233,13 +233,13 @@ describe('Rust CHECK bit overlay', () => {
       record('bounded', { ...known, position: value, count: error }, error as Outcome)
       record('bounded', { ...known, a: value, b: error, position: other }, error as Outcome)
       record('bounded', { ...known, b: value, position: error }, error as Outcome)
-      record('bounded', { ...known, a: value, b: input(null), count: unknown }, { kind: 'Unknown' })
+      record('bounded', { ...known, a: value, b: input(null), count: unknown }, { kind: 'Null' })
     }
     for (const column of ['a', 'b', 'position']) {
       record('omitted', { ...known, [column]: unknown }, { kind: 'Unknown' })
       record('omitted', { ...known, [column]: error }, error as Outcome)
     }
-    record('bounded', { ...known, a: input('b101') }, { kind: 'Unknown' })
+    record('bounded', { ...known, a: input('b101') }, { kind: 'Unimplemented' })
     record('omitted', { ...known, count: error, expected: input('111010101') }, { kind: 'True' })
     record('lazy', { ...known, a: error, skip: input(true) }, { kind: 'True' })
     record('defaulted', { ...known, a: error, expected: input('101010101') }, { kind: 'True' })

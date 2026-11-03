@@ -304,7 +304,15 @@ it('restores stored array bitmap traits through arrays, domains and records with
           fixtures.push({
             name: mode,
             row: { observation: known(observation), minimum: known(0), bypass: known(bypass) },
-            expected: { kind: bypass ? 'True' : observation === null ? 'Null' : 'Unknown' },
+            expected: {
+              kind: bypass
+                ? 'True'
+                : observation === null
+                  ? 'Null'
+                  : mode === 'missing' || mode === 'stale' || mode === 'duplicate'
+                    ? 'Unknown'
+                    : 'Unimplemented',
+            },
           })
     }
     const group = prepareCheckRustGroup(plans, {

@@ -2316,7 +2316,10 @@ export function emitCheckRustEvaluator(
           )
         }
         restored = bind(`apply_array_storage(${cell},&${plan})`)
-      } else restored = bind(`forget_array_storage(${cell})`)
+      } else
+        restored = bind(
+          `${node.arrayStorage === undefined ? 'forget' : 'discard'}_array_storage(${cell})`,
+        )
       return { name: bind(`array_element_to_${prefix}(${restored})`), type: value.type }
     }
     if (

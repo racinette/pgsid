@@ -222,7 +222,7 @@ describe('Rust CHECK bit substring', () => {
       record('bounded', { ...known, a: value, position: error, count: other }, error as Outcome)
       record('bounded', { ...known, position: value, count: error }, error as Outcome)
     }
-    record('bounded', { ...known, a: input('b101') }, { kind: 'Unknown' })
+    record('bounded', { ...known, a: input('b101') }, { kind: 'Unimplemented' })
     record('suffix', { ...known, count: error, expected: input('01010101') }, { kind: 'True' })
     record('lazy', { ...known, a: error, skip: input(true) }, { kind: 'True' })
     record('defaulted', { ...known, a: error, expected: input('101010101') }, { kind: 'True' })

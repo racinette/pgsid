@@ -291,7 +291,10 @@ it('preserves stored scalar and array bound facets through ranges, multiranges a
           fixtures.push({
             name: label,
             row,
-            expected: f.name === 'document' ? padded(row) : { kind: bypass ? 'True' : 'Unknown' },
+            expected:
+              f.name === 'document'
+                ? padded(row)
+                : { kind: bypass ? 'True' : mode === 'extra' ? 'Unimplemented' : 'Unknown' },
           })
         }
       }

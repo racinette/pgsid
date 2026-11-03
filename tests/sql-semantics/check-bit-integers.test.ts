@@ -268,7 +268,7 @@ describe('Rust CHECK integer and bit conversions', () => {
         record(name, { ...known, [column]: value, width: other }, other as Outcome)
       record(name, { ...known, width: unknown }, { kind: 'Unknown' })
     }
-    record('decode_int', { ...known, bits: input('xF') }, { kind: 'Unknown' })
+    record('decode_int', { ...known, bits: input('xF') }, { kind: 'Unimplemented' })
     record('lazy', { ...known, bits: error, skip: input(true) }, { kind: 'True' })
     record('coalesce', { ...known, bits: error }, { kind: 'True' })
     for (const name of Object.keys(transforms))

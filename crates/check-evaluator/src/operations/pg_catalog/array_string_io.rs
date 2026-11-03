@@ -14,7 +14,8 @@ fn array_string_field(input: &str, marker: TextValue, deterministic: bool) -> Ar
             return array_element_from_text(make_text_value(input));
         };
     };
-    array_element_unresolved(unresolved_flavor)
+    // Without a known deterministic collation, the marker comparison follows the deployment's collation.
+    array_element_unresolved(resolution_context(unresolved_flavor))
 }
 
 fn array_string_finish(input: ArrayArguments, count: i32) -> ArrayValue {
@@ -84,8 +85,9 @@ fn array_string_split(
                 builder = append_array_argument(builder, element);
                 return array_string_finish(builder, 1);
             };
+            // Without a known deterministic collation, separator matching follows the deployment's collation.
             if deterministic == false {
-                return array_unresolved(unresolved_flavor);
+                return array_unresolved(resolution_context(unresolved_flavor));
             };
             let mut field = String::new();
             while position < characters.len() {

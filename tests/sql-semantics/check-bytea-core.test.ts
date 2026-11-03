@@ -221,8 +221,8 @@ describe('Rust CHECK bytea inspection and ordering', () => {
     for (const name of [...comparisons, ...inspections]) {
       record(name, { ...base, a: unknown }, { kind: 'Unknown' })
       record(name, { ...base, a: error }, error as Outcome)
-      record(name, { ...base, a: input('0') }, { kind: 'Unknown' })
-      record(name, { ...base, a: input('gg') }, { kind: 'Unknown' })
+      record(name, { ...base, a: input('0') }, { kind: 'Unimplemented' })
+      record(name, { ...base, a: input('gg') }, { kind: 'Unimplemented' })
     }
     for (const name of comparisons) {
       record(name, { ...base, a: error, b: other }, error as Outcome)

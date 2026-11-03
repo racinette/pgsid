@@ -174,7 +174,7 @@ describe('Rust CHECK bit binary send', () => {
     const other: Input = { kind: 'Error', value: { state: parseInt('22003', 36) } }
     record('fixed', { ...known, a: unknown }, { kind: 'Unknown' })
     record('fixed', { ...known, a: error }, error as Outcome)
-    record('fixed', { ...known, a: input('b101') }, { kind: 'Unknown' })
+    record('fixed', { ...known, a: input('b101') }, { kind: 'Unimplemented' })
     record('fixed', { ...known, a: error, expected: other }, error as Outcome)
     for (const value of [unknown, input(null)])
       record('fixed', { ...known, a: value, expected: error }, error as Outcome)
