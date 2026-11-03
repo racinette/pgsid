@@ -5802,14 +5802,16 @@ export function emitCheckRustEvaluator(
         )
       ) {
         let argument = ownedOperand(operands[0]!)
-        if (implementation.args[0] === 'pg_catalog.bpchar')
-          argument = bind(`sql__pg_catalog__text__vc4r(${argument})`)
-        return {
-          name: bind(
-            `name_from_text_context(${argument},${executionContext.maxIdentifierBytes ?? -1},${executionContext.serverEncoding === 'UTF8'})`,
-          ),
-          type: call.type,
+        if (implementation.args[0] === 'pg_catalog.bpchar') {
+          const text = fresh('value')
+          destination.push(`let ${text} = sql__pg_catalog__text__vc4r(${argument});`)
+          argument = text
         }
+        const clipped = fresh('value')
+        destination.push(
+          `let ${clipped} = name_from_text_context(${argument},${executionContext.maxIdentifierBytes ?? -1},${executionContext.serverEncoding === 'UTF8'});`,
+        )
+        return { name: clipped, type: call.type }
       }
       if (isIdentifierParseCallable(call.signature))
         arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
