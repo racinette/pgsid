@@ -131,7 +131,7 @@ it('binds qualified catalog array names like ordinary array spellings across rep
       'artifacts/array-catalog-names/families.json',
       JSON.stringify({ types, inserts, fixtures: fixtures.length }, null, 2) + '\n',
     )
-    expect(inserts).toBe(1140)
+    expect(inserts).toBe(1500)
     expect(fixtures).toHaveLength(3000)
     for (let offset = 0; offset < plans.length; offset += 64) {
       const batch = plans.slice(offset, offset + 64)

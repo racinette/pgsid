@@ -131,6 +131,8 @@ fn jsonpath_predicate_pair(
     };
     if a.kind == 3 {
         let result = numeric_compare(left_number, right_number);
+        let mut deferred_flavor: i32 = 2;
+        if let Int4Value::Unknown = result { deferred_flavor = 1; };
         let mut known = false;
         if let Int4Value::Value(value) = result {
             order = value;
@@ -139,7 +141,7 @@ fn jsonpath_predicate_pair(
         if known == false {
             return JsonpathPredicateValue {
                 state: 0,
-                deferred: 2,
+                deferred: deferred_flavor,
             };
         };
     };

@@ -771,8 +771,9 @@ fn jsonpath_execution_input(document:TextValue)->JsonbValue {
           document: value('{"x":"2024"}'),
           path: value('(-$.x.datetime("TMMonth") == 1)'),
         },
-        // The evaluator does not walk arithmetic over a method chain, whatever the locale decides.
-        expected: { kind: 'Unimplemented' },
+        // A source path reaches the locale's template, while a stored one stops at arithmetic over a
+        // method chain, which the evaluator does not walk.
+        expected: { kind: variant.stored ? 'Unimplemented' : 'Unknown' },
       })
     }
     for (const variant of variants) {
