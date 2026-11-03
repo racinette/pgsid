@@ -269,7 +269,9 @@ it('retains or reconstructs actual PostgreSQL NULL bitmaps independently of logi
             let expected: Outcome
             if (mode >= 20) {
               if (input === null) expected = { kind: 'Null' }
-              else if (mode === 23) expected = { kind: 'Unknown' }
+              // The bitmap of a sorted result follows from its elements; the evaluator does not
+              // track it yet.
+              else if (mode === 23) expected = { kind: 'Unimplemented' }
               else {
                 const nulls = (
                   await pg.query<{ v: boolean }>(

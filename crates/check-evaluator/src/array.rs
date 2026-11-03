@@ -2795,6 +2795,7 @@ pub(crate) fn prepare_array_bucket(
         };
         let mut known_null = false;
         let mut unknown_null = false;
+        let mut null_flavor: i32 = 0;
         let mut position: usize = 0;
         while position < array.elements.len() {
             let cell = array.elements[position].clone();
@@ -2806,8 +2807,10 @@ pub(crate) fn prepare_array_bucket(
             };
             if let ArrayElement::Unknown = cell {
                 unknown_null = true;
+                if null_flavor < 1 { null_flavor = 1; };
             }; if let ArrayElement::Unimplemented = cell {
                 unknown_null = true;
+                null_flavor = 2;
             };
             position += 1;
         }
@@ -2815,7 +2818,7 @@ pub(crate) fn prepare_array_bucket(
             return array_comparison_state(-2, make_sql_error(ARRAY_BUCKET_NULL_ELEMENT), 0);
         };
         if unknown_null {
-            return array_comparison_state(-1, make_sql_error(0), 0);
+            return array_comparison_unresolved(null_flavor, 0);
         };
         if available == false {
             return array_comparison_state(-2, make_sql_error(ARRAY_COMPARISON_UNDEFINED), 0);

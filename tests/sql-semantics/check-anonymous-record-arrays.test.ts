@@ -587,8 +587,10 @@ it('preserves record-array cast controls and exact recursive sort ties while exp
           }
           expect(failure).toBe(state ?? (value === false ? '23514' : undefined))
           const expected: Outcome =
+              // The server's own sort fixes the order of equal values with different scales; the
+              // evaluator does not reproduce that tie order yet.
               name === 'different_scales' && sample[5] !== null && !bypass
-                ? { kind: 'Unknown' }
+                ? { kind: 'Unimplemented' }
                 : state
                   ? { kind: 'Error', value: { state: parseInt(state, 36) } }
                   : { kind: value === null ? 'Null' : value ? 'True' : 'False' },
