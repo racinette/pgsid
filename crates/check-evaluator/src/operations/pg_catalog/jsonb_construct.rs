@@ -8,7 +8,7 @@ fn jsonb_build_key(input: JsonbInput) -> TextValue {
         return TextValue::Error(error);
     };
     if let JsonbInput::ScalarUnknown(_) = input {
-        return text_unresolved(unresolved_flavor);
+        return text_unresolved(1);
     };
     let mut condition_flavor_13_4: i32 = unresolved_flavor; if let JsonbInput::Unknown = input { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let JsonbInput::Unknown = input {
         return text_unresolved(condition_flavor_13_4);

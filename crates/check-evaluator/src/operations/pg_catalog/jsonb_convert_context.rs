@@ -289,6 +289,10 @@ pub fn geometry_circle_output_context(input: CircleValue, extra: i32, known: boo
     if let CircleValue::Value(value) = input {
         let center = jsonb_geometry_pair(value.x, value.y, extra, known);
         let radius = jsonb_geometry_number(value.radius, extra, known);
+        let mut rendered_flavor: i32 = unresolved_flavor;
+        if (center == TextValue::Unknown || center == TextValue::NonNull) && rendered_flavor < 1 { rendered_flavor = 1; };
+        if (radius == TextValue::Unknown || radius == TextValue::NonNull) && rendered_flavor < 1 { rendered_flavor = 1; };
+        if center == TextValue::Unimplemented || radius == TextValue::Unimplemented { rendered_flavor = 2; };
         if let TextValue::Value(point) = center {
             if let TextValue::Value(number) = radius {
                 let mut output = "<".to_owned();
@@ -299,6 +303,7 @@ pub fn geometry_circle_output_context(input: CircleValue, extra: i32, known: boo
                 return TextValue::Value(output);
             };
         };
+        return text_unresolved(rendered_flavor);
     };
     text_unresolved(unresolved_flavor)
 }

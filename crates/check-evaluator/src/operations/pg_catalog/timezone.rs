@@ -67,11 +67,12 @@ fn read_timezone_number(text: &TimezoneText, start: usize, maximum: i32) -> Time
     }
 }
 
+// Text that is not a numeric offset is a zone name, which the server's zone database resolves.
 fn timezone_fixed_offset(name: &str) -> Int4Value {
     let unresolved_flavor: i32 = 0;
     let chars: Vec<char> = name.chars().collect();
     if chars.len() > 128 {
-        return int4_unresolved(unresolved_flavor);
+        return int4_unresolved(resolution_context(unresolved_flavor));
     }
     let text = TimezoneText { chars: chars };
     let mut index = 0;
@@ -94,14 +95,14 @@ fn timezone_fixed_offset(name: &str) -> Int4Value {
         && text.chars[index] != '+'
         && text.chars[index] != '-'
     {
-        return int4_unresolved(unresolved_flavor);
+        return int4_unresolved(resolution_context(unresolved_flavor));
     }
     let mut scan = index;
     while scan < text.chars.len() {
         let character = text.chars[scan];
         if timezone_digit(character) < 0 && character != '+' && character != '-' && character != ':'
         {
-            return int4_unresolved(unresolved_flavor);
+            return int4_unresolved(resolution_context(unresolved_flavor));
         }
         scan += 1;
     }
@@ -144,7 +145,7 @@ fn timezone_fixed_offset(name: &str) -> Int4Value {
         }
     }
     if index < text.chars.len() {
-        return int4_unresolved(unresolved_flavor);
+        return int4_unresolved(resolution_context(unresolved_flavor));
     }
     // POSIX signs measure seconds west of UTC, unlike timestamp literal offsets.
     Int4Value::Value(sign * (hour.value * 3600 + minute * 60 + second))
@@ -203,11 +204,12 @@ fn timezone_forced_history(zone: usize, spelling: &str, seconds: i64) -> Int4Val
     Int4Value::Null
 }
 
+// An abbreviation's offset through its zone comes from the server's zone history.
 fn timezone_forced_offset(name: &str, spelling: &str, microseconds: i64, local: bool) -> Int4Value {
     let unresolved_flavor: i32 = 0;
     let zone = find_zone_name(name, false);
     if zone >= ZONE_NAMES.len() {
-        return int4_unresolved(unresolved_flavor);
+        return int4_unresolved(resolution_context(unresolved_flavor));
     };
     let mut probe = microseconds / 1000000i64;
     let mut fallback: i32 = 0;
@@ -217,7 +219,7 @@ fn timezone_forced_offset(name: &str, spelling: &str, microseconds: i64, local: 
         };
         let profile = session_timezone_profile(name, microseconds, true);
         if profile.valid == false {
-            return int4_unresolved(unresolved_flavor);
+            return int4_unresolved(resolution_context(unresolved_flavor));
         };
         fallback = profile.seconds;
         probe = probe - (fallback as i64);
@@ -230,12 +232,12 @@ fn timezone_forced_offset(name: &str, spelling: &str, microseconds: i64, local: 
     if local == false {
         let profile = session_timezone_profile(name, microseconds, false);
         if profile.valid == false {
-            let mut local_flavor_233_12: i32 = unresolved_flavor; if let Int4Value::Unknown = found { if local_flavor_233_12 < 1 { local_flavor_233_12 = 1; }; }; if let Int4Value::Unimplemented = found { local_flavor_233_12 = 2; }; return int4_unresolved(local_flavor_233_12);
+            let mut local_flavor_233_12: i32 = unresolved_flavor; if let Int4Value::Unknown = found { if local_flavor_233_12 < 1 { local_flavor_233_12 = 1; }; }; if let Int4Value::Unimplemented = found { local_flavor_233_12 = 2; }; return int4_unresolved(resolution_context(local_flavor_233_12));
         };
         let projected = microseconds + (profile.seconds as i64) * 1000000i64;
         let adjusted = session_timezone_profile(name, projected, true);
         if adjusted.valid == false {
-            let mut local_flavor_238_12: i32 = unresolved_flavor; if let Int4Value::Unknown = found { if local_flavor_238_12 < 1 { local_flavor_238_12 = 1; }; }; if let Int4Value::Unimplemented = found { local_flavor_238_12 = 2; }; return int4_unresolved(local_flavor_238_12);
+            let mut local_flavor_238_12: i32 = unresolved_flavor; if let Int4Value::Unknown = found { if local_flavor_238_12 < 1 { local_flavor_238_12 = 1; }; }; if let Int4Value::Unimplemented = found { local_flavor_238_12 = 2; }; return int4_unresolved(resolution_context(local_flavor_238_12));
         };
         fallback = adjusted.seconds;
     };
@@ -307,7 +309,7 @@ pub fn sql__pg_catalog__timezone__9nbk(
                 } else {
                     let profile = session_timezone_profile(name.as_str(), microseconds, true);
                     if profile.valid == false {
-                        return timestamptz_unresolved(unresolved_flavor);
+                        return timestamptz_unresolved(resolution_context(unresolved_flavor));
                     };
                     seconds = profile.seconds;
                 };
@@ -315,7 +317,7 @@ pub fn sql__pg_catalog__timezone__9nbk(
             return make_timestamptz_value(microseconds - (seconds as i64) * 1000000i64);
         };
     };
-    timestamptz_unresolved(unresolved_flavor)
+    timestamptz_unresolved(resolution_context(unresolved_flavor))
 }
 
 pub fn sql__pg_catalog__timezone__blof(
@@ -379,21 +381,21 @@ pub fn sql__pg_catalog__timezone__blof(
             } else if selected.kind == 0 {
                 let profile = session_timezone_profile(name.as_str(), microseconds, false);
                 if profile.valid == false {
-                    return timestamp_unresolved(unresolved_flavor);
+                    return timestamp_unresolved(resolution_context(unresolved_flavor));
                 };
                 seconds = profile.seconds;
             };
             return make_timestamp_value(microseconds + (seconds as i64) * 1000000i64);
         };
     };
-    timestamp_unresolved(unresolved_flavor)
+    timestamp_unresolved(resolution_context(unresolved_flavor))
 }
 
 fn timezone_forced_fixed_offset(name: &str, spelling: &str) -> Int4Value {
     let unresolved_flavor: i32 = 0;
     let zone = find_zone_name(name, false);
     if zone >= ZONE_NAMES.len() {
-        return int4_unresolved(unresolved_flavor);
+        return int4_unresolved(resolution_context(unresolved_flavor));
     };
     let upper = timezone_lookup_ascii(spelling, true);
     let mut fixed = timezone_forced_type(ZONE_FORCE_INITIAL_TYPES[zone], upper.as_str());
@@ -402,7 +404,7 @@ fn timezone_forced_fixed_offset(name: &str, spelling: &str) -> Int4Value {
         let found = timezone_forced_type(ZONE_FORCE_TYPE_IDS[index] as usize, upper.as_str());
         if found != Int4Value::Null {
             if fixed != Int4Value::Null && fixed != found {
-                return int4_unresolved(unresolved_flavor);
+                return int4_unresolved(resolution_context(unresolved_flavor));
             };
             fixed = found;
         };
@@ -414,7 +416,7 @@ fn timezone_forced_fixed_offset(name: &str, spelling: &str) -> Int4Value {
             let found = timezone_forced_type(index, upper.as_str());
             if found != Int4Value::Null {
                 if fixed != Int4Value::Null && fixed != found {
-                    return int4_unresolved(unresolved_flavor);
+                    return int4_unresolved(resolution_context(unresolved_flavor));
                 };
                 fixed = found;
             };
@@ -476,5 +478,5 @@ pub fn sql__pg_catalog__timezone__nsm6(
             );
         };
     };
-    timetz_unresolved(unresolved_flavor)
+    timetz_unresolved(resolution_context(unresolved_flavor))
 }

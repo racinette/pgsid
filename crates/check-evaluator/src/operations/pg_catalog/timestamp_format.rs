@@ -83,7 +83,7 @@ fn timestamp_format_field(
         return make_text_value("");
     };
     if fields.known == false && (kind < 10 || kind > 17) {
-        return text_unresolved(unresolved_flavor);
+        return text_unresolved(resolution_context(unresolved_flavor));
     };
     let calendar = fields.calendar;
     let span = IntervalPayload {
@@ -164,7 +164,7 @@ fn timestamp_format_field(
     };
     if kind >= 44 && kind <= 47 {
         if translated && (fields.locale_c == false || fields.collation_c == false) {
-            return text_unresolved(unresolved_flavor);
+            return text_unresolved(resolution_context(unresolved_flavor));
         };
         let mut name = String::new();
         if kind == 44 || kind == 45 {
@@ -272,6 +272,7 @@ fn timestamp_format_render(fields: &TimestampFormatFields, format: &str) -> Text
     };
     let mut output = String::new();
     let mut unknown = false;
+    let mut unknown_flavor: i32 = unresolved_flavor;
     let mut position: usize = 0;
     while position < source.characters.len() {
         let fill = jsonpath_template_matches(&source, position, "FM")
@@ -300,13 +301,16 @@ fn timestamp_format_render(fields: &TimestampFormatFields, format: &str) -> Text
             {
                 position += 2;
             };
+            // A negative weekday indexes outside the server's name table, so its build decides.
             if fields.known && (kind == 46 || kind == 47) && (fields.julian + 1i64) % 7i64 < 0i64 {
-                return text_unresolved(unresolved_flavor);
+                return text_unresolved(resolution_context(unresolved_flavor));
             };
             let field = timestamp_format_field(fields, kind, name, fill, translated);
             if let TextValue::Error(error) = field {
                 return TextValue::Error(error);
             };
+            if let TextValue::Unknown = field { if unknown_flavor < 1 { unknown_flavor = 1; }; };
+            if let TextValue::Unimplemented = field { unknown_flavor = 2; };
             let mut field_known = false;
             if let TextValue::Value(text) = field {
                 field_known = true;
@@ -359,7 +363,7 @@ fn timestamp_format_render(fields: &TimestampFormatFields, format: &str) -> Text
     }
 
     if unknown {
-        return text_unresolved(unresolved_flavor);
+        return text_unresolved(unknown_flavor);
     };
     TextValue::Value(output)
 }

@@ -489,7 +489,8 @@ it('owns typed array bounds through range construction, relations, sets and mult
     }
     cases.push({ rust: 'bag_snapshots()', expected: { kind: 'True' } })
     for (let mode = 0; mode < 12; mode++)
-      cases.push({ rust: `bag_invalid(${mode})`, expected: { kind: 'Unknown' } })
+      // A forged bound bag is no database fact.
+      cases.push({ rust: `bag_invalid(${mode})`, expected: { kind: 'Unimplemented' } })
     for (let mode = 0; mode < 7; mode++)
       cases.push({
         rust: `bag_context_boundary(${mode})`,

@@ -1226,6 +1226,9 @@ pub fn jsonb_input_from_bool(input: BoolValue) -> JsonbInput {
     if let BoolValue::Value(value) = input {
         return JsonbInput::Boolean(value);
     };
+    if let BoolValue::Unimplemented = input {
+        return JsonbInput::Unimplemented;
+    };
     JsonbInput::ScalarUnknown("1110000".to_owned())
 }
 
@@ -1238,6 +1241,9 @@ pub fn jsonb_input_from_numeric(input: NumericValue) -> JsonbInput {
     };
     if let NumericValue::Value(value) = input {
         return JsonbInput::Number(value);
+    };
+    if let NumericValue::Unimplemented = input {
+        return JsonbInput::Unimplemented;
     };
     JsonbInput::ScalarUnknown("1001000".to_owned())
 }

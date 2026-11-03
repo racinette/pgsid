@@ -238,7 +238,8 @@ it('matches JSONB equality and iterative containment, exact numerics, unordered 
     add('implicit', baseline, { kind: 'True' })
     add('implicit', { ...baseline, lhs: known('2') }, { kind: 'False' })
     for (const name of ['equal', 'contains', 'contained'])
-      add(name, { ...baseline, lhs: known('[1,]') }, { kind: 'Unknown' })
+      // A malformed document value is no database fact.
+      add(name, { ...baseline, lhs: known('[1,]') }, { kind: 'Unimplemented' })
     for (const source of ['{"a":[1,2],"b":3}', '{"a":{"aa":1,"é":2},"b":3}'])
       add('extracted', { ...baseline, lhs: known(source), rhs: known(source) }, { kind: 'True' })
     for (const depth of [128, 16384]) {

@@ -206,7 +206,7 @@ it('retains decisive results for safe unresolved branches while preserving possi
     add('pure_ascii_and', { ...safe, note: earlierError }, earlierError)
     add('pure_numeric_or', { ...safe, decimal_amount: earlierError }, earlierError)
     add('pure_uuid_and', { ...safe, identifier: earlierError }, earlierError)
-    fixtures.push({ name: 'opaque_choice', row: safe, expected: { kind: 'Unknown' } })
+    fixtures.push({ name: 'opaque_choice', row: safe, expected: { kind: 'Unimplemented' } })
     fixtures.push({
       name: 'opaque_choice',
       row: { ...safe, flag: known(false) },

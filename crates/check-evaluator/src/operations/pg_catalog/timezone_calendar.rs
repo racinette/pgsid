@@ -351,7 +351,7 @@ fn timezone_explicit_interval(
     if let TextValue::Value(name) = selected {
         return timezone_interval_add(input, amount, name.as_str(), subtract);
     };
-    timestamptz_unresolved(unresolved_flavor)
+    timestamptz_unresolved(resolution_context(unresolved_flavor))
 }
 
 pub fn sql__pg_catalog__date_add__kklw(

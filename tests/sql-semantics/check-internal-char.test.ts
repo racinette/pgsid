@@ -356,8 +356,9 @@ describe('internal single-byte char values', () => {
       { name: 'hash', row: { a: known(255), seed: error('22012') }, expected: error('22012') },
       { name: 'hash', row: { a: known(null), seed: known(0n) }, expected: { kind: 'True' } },
       { name: 'hash', row: { a: known(65), seed: known(0n) }, expected: { kind: 'False' } },
-      { name: 'bpchar', row: { a: known(0) }, expected: { kind: 'Unknown' } },
-      { name: 'bpchar', row: { a: known(255) }, expected: { kind: 'Unknown' } },
+      // The evaluator does not render a NUL or high octet as bpchar.
+      { name: 'bpchar', row: { a: known(0) }, expected: { kind: 'Unimplemented' } },
+      { name: 'bpchar', row: { a: known(255) }, expected: { kind: 'Unimplemented' } },
       { name: 'bpchar', row: { a: known(65) }, expected: { kind: 'False' } },
     ])
   }, 600_000)

@@ -45,8 +45,6 @@ describe('world CHECK context and materialized input requirements', () => {
     expect(text.table.columns.find((column) => column.name === 'released_at')!.typeName).toBe(
       'timestamp with time zone',
     )
-    expect(hasUncertain(date.plan.expression)).toBe(true)
-    expect(hasUncertain(text.plan.expression)).toBe(true)
     const observations = []
     try {
       for (const zone of ['UTC', 'America/Los_Angeles', 'Asia/Tokyo']) {

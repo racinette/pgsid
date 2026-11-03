@@ -412,7 +412,8 @@ it('matches all JSONB scalar casts, JSON null, exact decimal scale, integer roun
           { kind: 'True' },
         )
       }
-      add('cast_' + target.name, { ...base, document: known('[1,]') }, { kind: 'Unknown' })
+      // A malformed document value is no database fact.
+      add('cast_' + target.name, { ...base, document: known('[1,]') }, { kind: 'Unimplemented' })
     }
     for (const [source, scale] of [
       ['1.2300', 4],

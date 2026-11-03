@@ -234,11 +234,12 @@ describe('portable line value foundation', () => {
     ] as const) {
       await expect(pg.query('SELECT $1::line', [text])).rejects.toMatchObject({ code: '22P02' })
       const invalid = { ...row, a: known(payload) }
-      add('absent', invalid, { kind: 'Unknown' })
-      add('present', invalid, { kind: 'Unknown' })
-      add('coalesced', invalid, { kind: 'Unknown' })
+      // A degenerate line value is no database fact.
+      add('absent', invalid, { kind: 'Unimplemented' })
+      add('present', invalid, { kind: 'Unimplemented' })
+      add('coalesced', invalid, { kind: 'Unimplemented' })
       add('lazy', invalid, { kind: 'True' })
-      for (const name of arities.keys()) add(name, invalid, { kind: 'Unknown' })
+      for (const name of arities.keys()) add(name, invalid, { kind: 'Unimplemented' })
     }
     await runCheckParity(
       directory,

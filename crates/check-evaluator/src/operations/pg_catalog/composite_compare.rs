@@ -100,8 +100,9 @@ pub fn record_comparison_pair(
     if available == 0 {
         return Int4Value::Error(make_sql_error(RECORD_COMPARISON_UNDEFINED));
     };
+    // Uncaptured or disagreeing field support is decided by the deployment's operator classes.
     if available != 1 {
-        return int4_unresolved(unresolved_flavor);
+        return int4_unresolved(resolution_context(unresolved_flavor));
     };
     array_comparison_pair(left, right, equality)
 }

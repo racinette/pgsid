@@ -222,6 +222,10 @@ pub fn sql__pg_catalog__make_timestamptz__nko2(
         if let TextValue::Error(error) = clipped {
             return TimestamptzValue::Error(error);
         };
+        let mut clipped_flavor: i32 = unresolved_flavor;
+        if let TextValue::Unknown = clipped { if clipped_flavor < 1 { clipped_flavor = 1; }; };
+        if let TextValue::Unimplemented = clipped { clipped_flavor = 2; };
+        return timestamptz_unresolved(clipped_flavor);
     };
     let mut local_flavor_224_4: i32 = unresolved_flavor; if let TimestampValue::Unknown = local { if local_flavor_224_4 < 1 { local_flavor_224_4 = 1; }; }; if let TimestampValue::Unimplemented = local { local_flavor_224_4 = 2; }; timestamptz_unresolved(local_flavor_224_4)
 }

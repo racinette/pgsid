@@ -151,7 +151,11 @@ it('binds SQL-coerced jsonb values, source output, domains, SQL NULL and lazy co
     add('shape', { ...base, expected_kind: known('array') }, { kind: 'False' })
     add('source', { ...base, expected_source: known('false') }, { kind: 'False' })
     for (const document of [{ kind: 'Unknown' } as const, error, known('NaN'), known('[1,]')]) {
-      const expected: Outcome = document.kind === 'Error' ? error : { kind: 'Unknown' }
+      // A malformed document value is no database fact.
+      const expected: Outcome =
+        document.kind === 'Error'
+          ? error
+          : { kind: document.kind === 'Unknown' ? 'Unknown' : 'Unimplemented' }
       for (const name of ['shape', 'source', 'absent', 'present', 'selected', 'coalesced'])
         add(name, { ...base, document }, expected)
       add('guarded', { ...base, document }, { kind: 'True' })

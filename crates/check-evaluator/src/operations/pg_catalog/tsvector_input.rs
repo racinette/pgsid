@@ -122,7 +122,8 @@ fn tsvector_parse_text(input: TextValue, utf8: bool, stored: bool) -> TsvectorVa
                     let mut position: i32 = 0;
                     while index < chars.len() && (chars[index] as i32) >= 48 && (chars[index] as i32) <= 57 {
                         let digit = (chars[index] as i32) - 48;
-                        if position > 214748364 || (position == 214748364 && digit > 7) { return tsvector_unresolved(unresolved_flavor); };
+                        // A position past 32 bits is read by the server C library's atoi.
+                        if position > 214748364 || (position == 214748364 && digit > 7) { return tsvector_unresolved(resolution_context(unresolved_flavor)); };
                         position = position * 10 + digit;
                         index += 1;
                     }

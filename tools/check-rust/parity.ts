@@ -36,7 +36,7 @@ import {
 } from './multirange-input.js'
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
-import { mkdir, readdir, readFile, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
@@ -724,15 +724,15 @@ ${
 `
     : ''
 }${
-  flavorReport
-    ? `        if expected == "U" && actual == "I" {
+        flavorReport
+          ? `        if expected == "U" && actual == "I" {
             use std::io::Write;
             let mut report = std::fs::OpenOptions::new().create(true).append(true).open(${rustStringLiteral(flavorReport)}).unwrap();
             writeln!(report, "{}\\t{}\\t{}", ${rustStringLiteral(directory)}, names[check], fixture).unwrap();
         }
 `
-    : ''
-}        if actual != expected${lenient ? ' && !(expected == "U" && actual == "I")' : ''} {
+          : ''
+      }        if actual != expected${lenient ? ' && !(expected == "U" && actual == "I")' : ''} {
             mismatches.push(format!("{} {}: expected {} got {}", names[check], fixture, expected, actual));
         }
     }
@@ -1086,8 +1086,11 @@ func TestChecksMatchPostgres(t *testing.T) {
   ] as const) {
     await mkdir(join(directory, folder), { recursive: true })
     await writeFile(join(directory, folder, 'checks.ts'), split.typescript.checks)
-    for (const entry of await readdir(join(runtimeTypescript, runtime)))
+    // A suite may run several groups through one directory, so an earlier group's link is replaced.
+    for (const entry of await readdir(join(runtimeTypescript, runtime))) {
+      await rm(join(directory, folder, entry), { recursive: true, force: true })
       await symlink(join(runtimeTypescript, runtime, entry), join(directory, folder, entry))
+    }
   }
   await run(process.execPath, [
     'node_modules/typescript/bin/tsc',

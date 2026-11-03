@@ -230,6 +230,19 @@ fn range_output_bound(input: ArrayElement, kind: i32, cidr: bool, alias_mode: i3
             };
         };
     };
+    // Temporal, interval, money, bytea, geometric, XML and privilege bounds render through
+    // session settings or catalog names.
+    if kind == 4
+        || kind == 5
+        || kind == 7
+        || kind == 15
+        || kind == 23
+        || (kind >= 24 && kind <= 31)
+        || kind == 45
+        || kind == 46
+    {
+        return text_unresolved(resolution_context(unresolved_flavor));
+    };
     text_unresolved(unresolved_flavor)
 }
 

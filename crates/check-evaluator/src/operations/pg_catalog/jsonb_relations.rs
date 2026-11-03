@@ -320,7 +320,8 @@ fn jsonb_relation_partial(a: JsonbKnowledge, b: JsonbKnowledge, contains: bool) 
             };
         };
     };
-    bool_unresolved(unresolved_flavor)
+    // Partial knowledge stands for a value whose remaining contents are Unknown.
+    bool_unresolved(resolution_context(unresolved_flavor))
 }
 
 // Whether two nodes, either of which may be a hole, can have the same kind.
@@ -529,7 +530,8 @@ fn jsonb_relation_values(
             if related >= 0 {
                 return make_bool_value((related == 1) != invert);
             };
-            return bool_unresolved(unresolved_flavor);
+            // Shapes that do not settle the relation leave it to contents that are Unknown.
+            return bool_unresolved(resolution_context(unresolved_flavor));
         };
         let a = jsonb_root_facts(left, false);
         let b = jsonb_root_facts(right, false);

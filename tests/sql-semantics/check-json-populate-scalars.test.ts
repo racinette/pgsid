@@ -189,7 +189,8 @@ it('routes JSON record scalar fields through captured input functions and modifi
         ) {
           if (f.fn.endsWith('_valid')) expect(bool).toBe(false)
           else expect(expected).toEqual({ kind: 'Error', value: { state: parseInt('22008', 36) } })
-          expected = { kind: 'Unknown' }
+          // Nested digit text the server rejects is a date reading the evaluator defers.
+          expected = { kind: 'Unimplemented' }
         }
         const row: Row = {
           data: known(data),

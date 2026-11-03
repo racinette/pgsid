@@ -169,8 +169,10 @@ describe('line text input and point construction', () => {
         expected: error('22P02'),
       })
     for (const text of [...deferredLinePlatformForms, '{' + '0'.repeat(4097) + ',1,0}']) {
+      // Text past the evaluator's length cap is no database fact.
+      const kind = deferredLinePlatformForms.includes(text) ? 'Unknown' : 'Unimplemented'
       for (const name of ['wire', 'same', 'present'])
-        add(name, { ...baseline, source: value(text) }, { kind: 'Unknown' })
+        add(name, { ...baseline, source: value(text) }, { kind })
       add('lazy', { ...baseline, source: value(text) }, { kind: 'True' })
     }
     for (const state of [{ kind: 'Null' }, { kind: 'Unknown' }, error('22012')] as Input[]) {

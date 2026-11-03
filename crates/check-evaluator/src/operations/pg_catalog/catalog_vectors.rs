@@ -77,9 +77,10 @@ pub fn catalog_vector_from_text(input: TextValue, oid: bool) -> ArrayValue {
             if oid && position < chars.len() && chars[position] == '0' {
                 radix = 8i64;
                 if position + 1 < chars.len() && (chars[position + 1] == 'x' || chars[position + 1] == 'X') {
-                    if position + 2 == chars.len() { return array_unresolved(unresolved_flavor); };
+                    // The server's strtoul decides how bare hex and binary prefixes parse.
+                    if position + 2 == chars.len() { return array_unresolved(resolution_context(unresolved_flavor)); };
                     let next = chars[position + 2];
-                    if oid_input_space(next) || next == '+' || next == '-' { return array_unresolved(unresolved_flavor); };
+                    if oid_input_space(next) || next == '+' || next == '-' { return array_unresolved(resolution_context(unresolved_flavor)); };
                 };
                 if position + 2 < chars.len() {
                     let next = chars[position + 1];
@@ -88,7 +89,7 @@ pub fn catalog_vector_from_text(input: TextValue, oid: bool) -> ArrayValue {
                         radix = 16i64; position += 2;
                     };
                     if (next == 'b' || next == 'B') && (digit == 0i64 || digit == 1i64) {
-                        return array_unresolved(unresolved_flavor);
+                        return array_unresolved(resolution_context(unresolved_flavor));
                     };
                 };
             };

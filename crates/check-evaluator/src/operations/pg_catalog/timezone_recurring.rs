@@ -447,11 +447,11 @@ fn recurring_zone_abbreviation(value: &str, daylight: bool) -> TextValue {
     let mut end = skip_zone_rule_name(&text, start);
     if daylight {
         let standard = read_zone_rule_clock(&text, end);
-        if standard.valid == false { return text_unresolved(unresolved_flavor); };
+        if standard.valid == false { return text_unresolved(resolution_context(unresolved_flavor)); };
         start = standard.next;
         end = skip_zone_rule_name(&text, start);
     };
-    if end > text.chars.len() || end == start { return text_unresolved(unresolved_flavor); };
+    if end > text.chars.len() || end == start { return text_unresolved(resolution_context(unresolved_flavor)); };
     if text.chars[start] == '<' { start += 1; end = end - 1; };
     let mut result = String::new();
     while start < end {

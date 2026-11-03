@@ -38,7 +38,8 @@ pub fn xml_from_text_context(input: TextValue, mode: i32, utf8: bool) -> XmlValu
             if xml_well_formed(value.as_str(),true) && xml_well_formed(value.as_str(),false) {
                 return make_xml_value(value.as_str());
             };
-            return xml_unresolved(unresolved_flavor);
+            // Text well-formed in only one mode waits on the session's XML option.
+            return xml_unresolved(resolution_context(unresolved_flavor));
         };
         if mode != 1 && mode != 2 { return xml_unresolved(unresolved_flavor); };
         let text = TextValue::Value(value);
@@ -319,6 +320,8 @@ pub fn sql__pg_catalog__xml_is_well_formed__wikq(input: TextValue, mode: i32) ->
         let document = xml_well_formed(value.as_str(),true);
         let content = xml_well_formed(value.as_str(),false);
         if document == content { return BoolValue::Value(document); };
+        // Text well-formed in only one mode waits on the session's XML option.
+        return bool_unresolved(resolution_context(unresolved_flavor));
     };
     bool_unresolved(unresolved_flavor)
 }

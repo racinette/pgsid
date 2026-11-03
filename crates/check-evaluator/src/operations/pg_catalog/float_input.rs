@@ -24,8 +24,9 @@ fn float_input_terminal(kind: i32) -> FloatInputLayout {
 
 fn decode_float_input(value: &str) -> FloatInputLayout {
     let chars: Vec<char> = value.chars().collect();
+    // Text past the evaluator's length cap is kind 6, apart from the C library forms of kind 4.
     if chars.len() > 1000000 {
-        return float_input_terminal(4);
+        return float_input_terminal(6);
     }
     let mut begin: usize = 0;
     let mut end = chars.len();
@@ -250,6 +251,7 @@ fn float_input_single(layout: FloatInputLayout) -> Float4Value {
     make_float4_bits(bits)
 }
 
+// Hexadecimal, signed NaN and NaN payload forms are read by the server C library's strtod.
 pub fn float4_from_text(input: TextValue) -> Float4Value {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
@@ -275,6 +277,9 @@ pub fn float4_from_text(input: TextValue) -> Float4Value {
         if layout.kind == 3 {
             return Float4Value::UnspecifiedNan;
         }
+        if layout.kind == 4 {
+            return float4_unresolved(resolution_context(unresolved_flavor));
+        }
         if layout.kind == 0 {
             return float_input_single(layout);
         }
@@ -282,6 +287,7 @@ pub fn float4_from_text(input: TextValue) -> Float4Value {
     float4_unresolved(unresolved_flavor)
 }
 
+// Hexadecimal, signed NaN and NaN payload forms are read by the server C library's strtod.
 pub fn float8_from_text(input: TextValue) -> Float8Value {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
@@ -306,6 +312,9 @@ pub fn float8_from_text(input: TextValue) -> Float8Value {
         }
         if layout.kind == 3 {
             return Float8Value::UnspecifiedNan;
+        }
+        if layout.kind == 4 {
+            return float8_unresolved(resolution_context(unresolved_flavor));
         }
         if layout.kind == 0 {
             if layout.zero {

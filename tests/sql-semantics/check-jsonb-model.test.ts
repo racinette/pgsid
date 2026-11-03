@@ -210,8 +210,9 @@ pub fn jsonb_test_snapshot(input: JsonbValue) -> TextValue {
           unavailableEscape || (keyEncoding && ['output', 'coerced', 'snapshot'].includes(name))
             ? { kind: 'Unknown' }
             : state
-              ? name === 'coerced'
-                ? { kind: 'Unknown' }
+              ? // Coercing text the server rejects builds a malformed value, no database fact.
+                name === 'coerced'
+                ? { kind: 'Unimplemented' }
                 : error(state)
               : name === 'nullness'
                 ? { kind: 'False' }

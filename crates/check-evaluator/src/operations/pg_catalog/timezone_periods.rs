@@ -71,12 +71,16 @@ pub fn sql__pg_catalog__in_range__o9l2(
                         if let TimestamptzValue::Error(error) = boundary {
                             return BoolValue::Error(error);
                         };
+                        let mut boundary_flavor: i32 = unresolved_flavor;
+                        if let TimestamptzValue::Unknown = boundary { if boundary_flavor < 1 { boundary_flavor = 1; }; };
+                        if let TimestamptzValue::Unimplemented = boundary { boundary_flavor = 2; };
                         if let TimestamptzValue::Value(point) = boundary {
                             if lower {
                                 return make_bool_value(input <= point);
                             };
                             return make_bool_value(input >= point);
                         };
+                        return bool_unresolved(boundary_flavor);
                     };
                 };
             };

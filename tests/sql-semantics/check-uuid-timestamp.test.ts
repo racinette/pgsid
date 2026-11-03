@@ -217,7 +217,8 @@ describe('Rust CHECK UUID timestamp extraction', () => {
     ]) {
       record(name, { ...base, identifier: error }, error as Outcome)
       record(name, { ...base, identifier: { kind: 'Unknown' } }, { kind: 'Unknown' })
-      record(name, { ...base, identifier: input('malformed') }, { kind: 'Unknown' })
+      // A malformed uuid value is no database fact.
+      record(name, { ...base, identifier: input('malformed') }, { kind: 'Unimplemented' })
     }
     record('timestamp', { ...base, identifier: error, recorded_at: other }, error as Outcome)
     record(

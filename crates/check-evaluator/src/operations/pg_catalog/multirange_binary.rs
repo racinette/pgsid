@@ -1,4 +1,7 @@
 pub(crate) fn multirange_binary_payload(input: MultirangeValue) -> MultirangePayload {
+    // A missing payload keeps its input's flavor in the element kind, so its count defers alike.
+    let mut element_kind: i32 = -2;
+    if let MultirangeValue::Unknown = input { element_kind = -1; };
     if let MultirangeValue::Value(payload) = input {
         return payload;
     };
@@ -7,7 +10,7 @@ pub(crate) fn multirange_binary_payload(input: MultirangeValue) -> MultirangePay
         type_name: String::new(),
         range_type: String::new(),
         element_type: String::new(),
-        element_kind: 0,
+        element_kind: element_kind,
         support: range_unknown_support(),
         ranges: ranges,
     }
@@ -15,6 +18,9 @@ pub(crate) fn multirange_binary_payload(input: MultirangeValue) -> MultirangePay
 
 pub(crate) fn multirange_binary_count(input: &MultirangePayload) -> Int4Value {
     let unresolved_flavor: i32 = 0;
+    if input.type_name.as_str() == "" && input.element_kind == -1 {
+        return int4_unresolved(1);
+    };
     if input.type_name.as_str() == "" || input.ranges.len() > 2147483647 {
         return int4_unresolved(unresolved_flavor);
     };

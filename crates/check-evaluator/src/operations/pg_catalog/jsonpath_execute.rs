@@ -971,13 +971,13 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
                                 };
                                 result = JsonpathPredicateValue {
                                     state: state,
-                                    deferred: false,
+                                    deferred: 0,
                                 };
                             };
                         };
-                        if result.deferred {
+                        if result.deferred > 0 {
                             unknown = true;
-                            unknown_flavor = 2;
+                            if result.deferred > unknown_flavor { unknown_flavor = result.deferred; };
                         } else if result.state == 0 {
                             error_pair = true;
                             if context.lax == false {

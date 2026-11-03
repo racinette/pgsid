@@ -246,7 +246,8 @@ it('matches C/UTF8 JSONB ordering, exact comparator values, container counts, Un
         expect(witness.rows[0]!.result, name + ' strict NULL witness').toBe(false)
       }
       add(name, { ...base, lhs: { kind: 'Unknown' }, rhs: known(null) }, { kind: 'False' })
-      add(name, { ...base, lhs: known('[1,]') }, { kind: 'Unknown' })
+      // A malformed document value is no database fact.
+      add(name, { ...base, lhs: known('[1,]') }, { kind: 'Unimplemented' })
     }
     add('lower', { ...base, expected_lower: known(true) }, { kind: 'False' })
     add('comparator', { ...base, expected_order: known(1) }, { kind: 'False' })

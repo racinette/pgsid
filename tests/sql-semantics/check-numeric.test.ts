@@ -217,12 +217,17 @@ describe('portable Rust CHECK numeric comparisons', () => {
       '1e1073741824',
       '१२',
     ]) {
+      // A malformed numeric value is no database fact.
       fixtures.push({
         name: 'equal',
         row: { a: value(a), b: value('0') },
-        expected: { kind: 'Unknown' },
+        expected: { kind: 'Unimplemented' },
       })
-      fixtures.push({ name: 'null_test', row: { a: value(a) }, expected: { kind: 'Unknown' } })
+      fixtures.push({
+        name: 'null_test',
+        row: { a: value(a) },
+        expected: { kind: 'Unimplemented' },
+      })
     }
     const error: Input = { kind: 'Error', value: { state: parseInt('22003', 36) } }
     fixtures.push(

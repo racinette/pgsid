@@ -136,6 +136,8 @@ fn internal_char_hash_word(input: InternalCharValue) -> Int4Value {
     if input == InternalCharValue::Null { return Int4Value::Null; };
     if let InternalCharValue::Value(octet) = input {
         if octet < 128 { return make_int4_value(octet); };
+        // A high octet hashes as the server platform's signed or unsigned char.
+        return int4_unresolved(resolution_context(unresolved_flavor));
     };
     int4_unresolved(unresolved_flavor)
 }

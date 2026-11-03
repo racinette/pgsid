@@ -98,6 +98,9 @@ const deferred = [
   '2000-01-01 America/New_York 12:00',
   '2000-01-01 00:00+05 America/New_York',
 ]
+// The current date, the server's zone database and the session's abbreviation table decide
+// these; the rest of the deferred forms are parser gaps.
+const deferredByDatabase = ['today', '2000-01-01 00:00 America/Nowhere', '2000-01-01 12:00 XYZ']
 const input = (value: string | bigint | boolean | null): Input =>
   value === null ? { kind: 'Null' } : { kind: 'Value', value }
 const outcome = (value: boolean | null): Outcome => ({
@@ -197,7 +200,10 @@ it('resolves timestamptz text through the configured session time zone and date 
                 (ordered.includes(raw) && profile.order === undefined) ||
                 (abbreviated.includes(raw) && !profile.abbreviations))
             if (defers && readsRaw) {
-              expected = { kind: 'Unknown' }
+              expected =
+                deferred.includes(raw) && !deferredByDatabase.includes(raw)
+                  ? { kind: 'Unimplemented' }
+                  : { kind: 'Unknown' }
             } else {
               try {
                 expected = outcome(

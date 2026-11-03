@@ -270,8 +270,15 @@ it('uses supplied character facts through public JSONPath settings without repla
                 ((item.unicode && !p.encoding) ||
                   (item.locale &&
                     p.ctype !== 1 &&
-                    (p.name === 'bad_profile' || (!p.facts && !(p.ctype === 2 && item.ascii))))))
+                    p.name !== 'bad_profile' &&
+                    !p.facts &&
+                    !(p.ctype === 2 && item.ascii))))
+            // A malformed character profile is no database fact, so matching under it stays
+            // unimplemented.
+            const malformed =
+              !missing && !item.hard && item.locale && p.ctype !== 1 && p.name === 'bad_profile'
             if (missing) expected = { kind: 'Unknown' }
+            if (malformed) expected = { kind: 'Unimplemented' }
             const row: Row = {
               document: known(document),
               path: known(item.raw ? '$' : path),

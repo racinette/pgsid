@@ -60,7 +60,7 @@ fn timezone_extract_number(
             };
             let profile = session_timezone_profile(session, value, false);
             if profile.valid == false {
-                return numeric_unresolved(unresolved_flavor);
+                return numeric_unresolved(resolution_context(unresolved_flavor));
             };
             let mut seconds = profile.seconds;
             if offset_field > 0 {
@@ -75,7 +75,7 @@ fn timezone_extract_number(
             return temporal_extract_timestamp_value(projected, unit.as_str(), true);
         };
     };
-    numeric_unresolved(unresolved_flavor)
+    numeric_unresolved(resolution_context(unresolved_flavor))
 }
 
 pub fn sql__pg_catalog__extract__yxyk(
@@ -112,7 +112,7 @@ pub fn sql__pg_catalog__date_part__jhr8(
             {
                 let profile = session_timezone_profile(session, value, false);
                 if profile.valid == false {
-                    return float8_unresolved(unresolved_flavor);
+                    return float8_unresolved(resolution_context(unresolved_flavor));
                 };
                 return temporal_timestamp_legacy_value(
                     number,

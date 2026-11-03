@@ -40,16 +40,17 @@ pub fn oid_from_text(input: TextValue) -> OidValue {
             start += 1;
         };
         if digits == false {
-            if radix == 16i64 && start == end { return oid_unresolved(unresolved_flavor); };
+            // The server's strtoul decides how a bare hex prefix, wide overflow or negative wrap parses.
+            if radix == 16i64 && start == end { return oid_unresolved(resolution_context(unresolved_flavor)); };
             return OidValue::Error(SqlError { state: OID_INPUT_INVALID });
         };
         if overflow { return OidValue::Error(SqlError { state: SQLSTATE_NUMERIC_VALUE_OUT_OF_RANGE }); };
         if high != 0i64 {
-            if start != end || (negative && high == 4294967295i64 && units != 0i64) || (negative == false && high == 4294967295i64 && units >= 2147483648i64) { return oid_unresolved(unresolved_flavor); };
+            if start != end || (negative && high == 4294967295i64 && units != 0i64) || (negative == false && high == 4294967295i64 && units >= 2147483648i64) { return oid_unresolved(resolution_context(unresolved_flavor)); };
             return OidValue::Error(SqlError { state: SQLSTATE_NUMERIC_VALUE_OUT_OF_RANGE });
         };
         if start != end { return OidValue::Error(SqlError { state: OID_INPUT_INVALID }); };
-        if negative && units > 2147483648i64 { return oid_unresolved(unresolved_flavor); };
+        if negative && units > 2147483648i64 { return oid_unresolved(resolution_context(unresolved_flavor)); };
         if negative && units != 0i64 { units = 4294967296i64 - units; };
         return make_oid_value(units);
     };

@@ -7,7 +7,7 @@ fn timezone_truncate_value(zone: &str, value: i64, code: i32) -> TimestamptzValu
     }
     let profile = session_timezone_profile(zone, probe, false);
     if profile.valid == false {
-        return timestamptz_unresolved(unresolved_flavor);
+        return timestamptz_unresolved(resolution_context(unresolved_flavor));
     };
     if code <= 0 {
         if code == -1 {
@@ -29,7 +29,7 @@ fn timezone_truncate_value(zone: &str, value: i64, code: i32) -> TimestamptzValu
         if code >= 6 {
             let adjusted = session_timezone_profile(zone, result, true);
             if adjusted.valid == false {
-                return timestamptz_unresolved(unresolved_flavor);
+                return timestamptz_unresolved(resolution_context(unresolved_flavor));
             };
             final_offset = adjusted.seconds as i64;
         }
@@ -90,7 +90,7 @@ pub fn sql__pg_catalog__date_trunc__6323(
             };
         };
     };
-    timestamptz_unresolved(unresolved_flavor)
+    timestamptz_unresolved(resolution_context(unresolved_flavor))
 }
 
 pub fn sql__pg_catalog__date_trunc__7d7s(
@@ -148,5 +148,5 @@ pub fn sql__pg_catalog__date_trunc__7d7s(
             return timezone_truncate_value(session, value, code);
         };
     };
-    timestamptz_unresolved(unresolved_flavor)
+    timestamptz_unresolved(resolution_context(unresolved_flavor))
 }

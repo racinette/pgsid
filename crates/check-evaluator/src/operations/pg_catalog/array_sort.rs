@@ -241,8 +241,12 @@ pub(crate) fn array_sort_step(input: ArraySortPayload, compared: Int4Value) -> A
                 state = -2;
                 error = failed;
             };
-            if (compared == Int4Value::Unknown || compared == Int4Value::Unimplemented) || compared == Int4Value::Null {
+            // An undecided comparison stops at 3 when it is Unknown and at 5 otherwise.
+            if compared == Int4Value::Unknown {
                 state = 3;
+            };
+            if compared == Int4Value::Unimplemented || compared == Int4Value::Null {
+                state = 5;
             };
             if let Int4Value::Value(value) = compared {
                 comparison = value;
@@ -664,10 +668,14 @@ pub(crate) fn finish_array_sort(input: ArraySortPayload) -> ArrayValue {
         });
     };
     let mut elements: Vec<ArrayElement> = Vec::new();
-    if input.state == 3 {
+    if input.state == 3 || input.state == 5 {
         let mut position: usize = 0;
         while position < input.elements.len() {
-            elements.push(ArrayElement::Unknown);
+            if input.state == 3 {
+                elements.push(ArrayElement::Unknown);
+            } else {
+                elements.push(ArrayElement::Unimplemented);
+            };
             position += 1;
         }
     } else if input.state == 4 {
@@ -704,10 +712,11 @@ pub(crate) fn finish_array_sort(input: ArraySortPayload) -> ArrayValue {
                     };
                     candidate = candidate + 1;
                 }
+                // The server's own sort fixes the order of distinguishable ties.
                 if same {
                     consensus.push(element);
                 } else {
-                    consensus.push(ArrayElement::Unknown);
+                    consensus.push(ArrayElement::Unimplemented);
                 };
                 column = column + 1;
             }

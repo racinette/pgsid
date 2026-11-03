@@ -129,7 +129,12 @@ it('matches polygon input grammar and error order, typed literals, domains, NaN 
     }
     for (const form of [...deferredPolygonPlatformForms, '((0,0))' + ' '.repeat(4097)])
       for (const name of ['parsed', 'constructor', 'domain_cast', 'count', 'bounds_length'])
-        add(name, { ...base, input: known(form) }, { kind: 'Unknown' })
+        add(
+          name,
+          { ...base, input: known(form) },
+          // Text past the evaluator's length cap is no database fact.
+          { kind: deferredPolygonPlatformForms.includes(form) ? 'Unknown' : 'Unimplemented' },
+        )
     for (const state of [{ kind: 'Unknown' }, { kind: 'Null' }, failure('22012')] as Input[])
       for (const name of ['parsed', 'constructor', 'domain_cast', 'count', 'bounds_length'])
         add(name, { ...base, input: state }, state as Outcome)

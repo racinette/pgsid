@@ -194,8 +194,9 @@ describe('portable PostgreSQL network output', () => {
       )
     }
     record('wire', { ...known, expected_wire: input('022000040A010203') }, { kind: 'True' })
+    // A malformed bytea value is no database fact.
     for (const hex of ['0', 'not-hex', '\\x00'])
-      record('wire', { ...known, expected_wire: input(hex) }, { kind: 'Unknown' })
+      record('wire', { ...known, expected_wire: input(hex) }, { kind: 'Unimplemented' })
     await runCheckParity(directory, 'networkoutput', group, fixtureNames, fixtures)
   }, 180000)
 })

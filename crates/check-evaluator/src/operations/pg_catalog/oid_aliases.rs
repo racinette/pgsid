@@ -33,8 +33,85 @@ pub fn oid_alias_from_text(input: TextValue, dash: bool, grammar: i32) -> OidVal
             if grammar == 2 { return OidValue::Error(make_sql_error(OID_ALIAS_INVALID_TYPE)); };
             return OidValue::Error(make_sql_error(OID_ALIAS_INVALID_NAME));
         };
+        if oid_alias_grammar_read(text.as_str(), grammar) == false { return oid_unresolved(unresolved_flavor); };
     };
-    oid_unresolved(unresolved_flavor)
+    // A name resolves through the deployment's catalog.
+    oid_unresolved(resolution_context(unresolved_flavor))
+}
+
+// Whether the evaluator reads the name's shape, leaving only the catalog lookup: quotes close,
+// dotted parts are present and at most three, and parentheses and brackets balance. Type names
+// must also start like an identifier.
+fn oid_alias_grammar_read(text: &str, grammar: i32) -> bool {
+    let chars: Vec<char> = text.chars().collect();
+    let mut quoted = false;
+    let mut parts: i32 = 1;
+    let mut part_length: i32 = 0;
+    let mut empty_part = false;
+    let mut depth: i32 = 0;
+    let mut brackets: i32 = 0;
+    let mut balanced = true;
+    let mut first = ' ';
+    let mut index: usize = 0;
+    while index < chars.len() {
+        let ch = chars[index];
+        if first == ' ' && oid_input_space(ch) == false {
+            first = ch;
+        };
+        let mut consumed = false;
+        if ch == '"' {
+            quoted = quoted == false;
+            part_length = part_length + 1;
+            consumed = true;
+        };
+        if consumed == false && quoted {
+            part_length = part_length + 1;
+            consumed = true;
+        };
+        if consumed == false && ch == '.' && depth == 0 {
+            if part_length == 0 {
+                empty_part = true;
+            };
+            parts = parts + 1;
+            part_length = 0;
+            consumed = true;
+        };
+        if consumed == false {
+            if ch == '(' {
+                depth = depth + 1;
+            };
+            if ch == ')' {
+                depth = depth - 1;
+            };
+            if ch == '[' {
+                brackets = brackets + 1;
+            };
+            if ch == ']' {
+                brackets = brackets - 1;
+            };
+            if depth < 0 || brackets < 0 {
+                balanced = false;
+            };
+            if oid_input_space(ch) == false {
+                part_length = part_length + 1;
+            };
+        };
+        index += 1;
+    }
+    if parts > 1 && part_length == 0 {
+        empty_part = true;
+    };
+    if quoted || empty_part || depth != 0 || brackets != 0 || balanced == false {
+        return false;
+    };
+    if grammar != 1 && parts > 3 {
+        return false;
+    };
+    let code = first as i32;
+    if grammar == 2 && ((code >= 48 && code <= 57) || first == '+' || first == '-') {
+        return false;
+    };
+    true
 }
 
 pub fn oid_alias_to_text(input: OidValue, dash: bool) -> TextValue {
@@ -110,5 +187,6 @@ pub fn sql__pg_catalog__regclass__wqix(input: TextValue) -> OidValue {
         };
         if whitespace { return OidValue::Error(make_sql_error(OID_ALIAS_INVALID_NAME)); };
     };
-    oid_unresolved(unresolved_flavor)
+    // A relation name resolves through the deployment's catalog and search path.
+    oid_unresolved(resolution_context(unresolved_flavor))
 }

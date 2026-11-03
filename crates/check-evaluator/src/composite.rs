@@ -104,13 +104,16 @@ pub fn composite_field_at(input: CompositeValue, index: Int4Value) -> ArrayEleme
     if let CompositeValue::Error(error) = checked { return ArrayElement::Error(error); };
     if let Int4Value::Error(error) = index { return ArrayElement::Error(error); };
     if let CompositeValue::Null = checked { return ArrayElement::Null; };
+    let mut checked_flavor: i32 = unresolved_flavor;
+    if let CompositeValue::Unknown = checked { if checked_flavor < 1 { checked_flavor = 1; }; };
+    if let CompositeValue::Unimplemented = checked { checked_flavor = 2; };
     if let CompositeValue::Value(value) = checked {
         if let Int4Value::Value(offset) = index {
             let position = usize::try_from(offset).unwrap_or(value.fields.len());
             if offset >= 0 && position < value.fields.len() { return value.fields[position].clone(); };
         };
     };
-    array_element_unresolved(unresolved_flavor)
+    array_element_unresolved(checked_flavor)
 }
 
 pub fn composite_datum_is_null(input: CompositeValue) -> BoolValue {
@@ -133,6 +136,7 @@ fn composite_row_null_test(input: CompositeValue, negated: bool) -> BoolValue {
     if let CompositeValue::Null = checked { return make_bool_value(negated == false); };
     if let CompositeValue::Value(value) = checked {
         let mut unknown = false;
+        let mut field_flavor: i32 = unresolved_flavor;
         let mut index: usize = 0;
         while index < value.fields.len() {
             let field = value.fields[index].clone();
@@ -140,9 +144,11 @@ fn composite_row_null_test(input: CompositeValue, negated: bool) -> BoolValue {
             if let ArrayElement::Unknown = field {
                 unknown = true;
                 known = false;
+                if field_flavor < 1 { field_flavor = 1; };
             }; if let ArrayElement::Unimplemented = field {
                 unknown = true;
                 known = false;
+                field_flavor = 2;
             };
             if known {
                 let mut is_null = false;
@@ -151,7 +157,7 @@ fn composite_row_null_test(input: CompositeValue, negated: bool) -> BoolValue {
             };
             index += 1;
         }
-        if unknown { return bool_unresolved(unresolved_flavor); };
+        if unknown { return bool_unresolved(field_flavor); };
         return make_bool_value(true);
     };
     bool_unresolved(unresolved_flavor)

@@ -2341,7 +2341,7 @@ export function bindCatalogCheck(
     context: 'i' | 'e',
     depth = 0,
     site?: unknown,
-  ): { kind: 'io' } | { kind: 'row'; mapping: number[] } | null => {
+  ): { kind: 'io' } | { kind: 'row'; mapping: number[] } | { kind: 'context' } | null => {
     if (rowCoercionContext) {
       if (!rowCoercionContext.complete) return null
       const sourceIdentity = compositeProfile(source)?.identity,
@@ -2351,6 +2351,8 @@ export function bindCatalogCheck(
           (c) => c.source === sourceIdentity && c.target === targetIdentity && c.depth === depth,
         ),
         kinds = new Set(matches.map((c) => c.kind))
+      // A cast through a function runs code the deployment's catalog defines.
+      if (kinds.has('function')) return { kind: 'context' }
       if (kinds.size !== 1) return null
       if (kinds.has('io')) return { kind: 'io' }
       if (!kinds.has('row')) return null
@@ -3184,8 +3186,17 @@ export function bindCatalogCheck(
         activeCoercions.delete(node)
       }
     }
-    if (selected?.kind === 'scalar')
+    if (selected?.kind === 'scalar') {
+      // The capture leaves out a scalar it cannot express, such as one holding deployment OIDs,
+      // while an ambiguous alignment is left undefined.
+      if (selected.expression === null || selected.expression === undefined) {
+        const result = selected.expression === null ? unboundContext() : unbound()
+        // Callers see an unbound child, so they pass its obstacle on instead of adding their own.
+        unboundChild = true
+        return result
+      }
       return bind(selected.expression, expectedType, implicitDomainInput, rowSite)
+    }
     if (selected?.kind === 'call') {
       const outer = storedArguments
       storedArguments = (index) =>
@@ -3245,6 +3256,8 @@ export function bindCatalogCheck(
   ): Bound => {
     const wrapper = fields(node)
     if (!wrapper) return unbound()
+    // Current date, time and user values belong to the transaction and session.
+    if (fields(wrapper['SQLValueFunction'])) return unboundContext()
     if (fields(wrapper['PgsidStoredCaseTest'])) return storedCaseTest ?? unbound()
     const storedConstructor = fields(wrapper['PgsidStoredRow'])
     if (storedConstructor) {
@@ -5639,6 +5652,15 @@ export function bindCatalogCheck(
             operand.literal?.kind === 'string'
               ? materialize(operand, 'pg_catalog.text')
               : operand.value
+          // A text source the enum's input does not read goes through a cast the deployment's
+          // catalog defines.
+          if (
+            text &&
+            operand.literal?.kind !== 'string' &&
+            definition.inputSources !== undefined &&
+            !definition.inputSources.includes(operand.type!)
+          )
+            return unboundContext()
           if (
             text &&
             (operand.literal?.kind === 'string' || definition.inputSources?.includes(operand.type!))
@@ -5702,8 +5724,9 @@ export function bindCatalogCheck(
           const targetRow = compositeProfile(scalarType),
             sourceRow = compositeProfile(operand.type ?? '')
           if (targetRow && sourceRow && targetRow.identity !== sourceRow.identity) {
-            if (selectedRowCoercion(operand.type!, scalarType, 'e', 0, rowSite)?.kind !== 'io')
-              return unbound()
+            const coercion = selectedRowCoercion(operand.type!, scalarType, 'e', 0, rowSite)
+            if (coercion?.kind === 'context') return unboundContext()
+            if (coercion?.kind !== 'io') return unbound()
           }
           if (chain.some((item) => item.baseTypeMod === undefined)) return unboundContext()
           if (
@@ -6170,6 +6193,7 @@ export function bindCatalogCheck(
         const coercion = operand.type
           ? selectedRowCoercion(operand.type, composite, 'e', 0, rowSite)
           : null
+        if (coercion?.kind === 'context') return unboundContext()
         if (coercion?.kind === 'io' && operand.value) {
           const value = compositeIoOperand(operand.value, composite)
           return value ? { type: composite, value } : unbound()
@@ -8137,10 +8161,11 @@ export function bindCatalogCheck(
         (p) => p.identity === callable.result || p.multirange === callable.result,
       )
     const type = catalogBaseScalarType(callable.result, undefined, domains, rangeTypes)
-    const unavailable: Bound = unbound()
+    // Recording the obstacle only on failure keeps a bound call from marking its check.
+    const unavailable = (): Bound => unbound()
     const implementation = profile ? rangeConstructorImplementation(profile, callable) : null
     if (!implementation || !type || (!isRangeType(type) && !isMultirangeType(type)))
-      return unavailable
+      return unavailable()
     if (
       implementation === 'multirange_constructor2' &&
       !selection.expanded &&
@@ -8277,17 +8302,24 @@ export function bindCatalogCheck(
           undefined,
           rowContext ? alignStoredRowConstructors(node, rowContext) : undefined,
         )
-        return converted.inputs.length === 0 &&
+        if (
+          converted.inputs.length === 0 &&
           converted.expression.kind === 'eval-scalar' &&
           converted.expression.expression.kind === 'null-test'
-          ? converted.expression.expression.operand
+        )
+          return converted.expression.expression.operand
+        // A default that needs database context, such as a session or deployment function,
+        // keeps that reason.
+        return converted.expression.kind === 'uncertain' &&
+          converted.expression.reason === 'context'
+          ? { ...unavailableDefault, reason: 'context' }
           : unavailableDefault
       } catch {
         return unavailableDefault
       }
     })
     if (!operands.every((operand): operand is EvalExpression => operand !== null))
-      return unavailable
+      return unavailable()
     return {
       type,
       value: {
@@ -8745,7 +8777,9 @@ export function bindCatalogCheck(
   }
   const deploymentFunction = (node: unknown): boolean => {
     const names = strings(fields(fields(node)?.['FuncCall'])?.['funcname'])
-    if (!names || names.length > 2 || (names.length === 2 && names[0] === 'pg_catalog')) return false
+    if (!names || names.length > 2 || (names.length === 2 && names[0] === 'pg_catalog'))
+      return false
+    if (names.length === 2) return true
     const name = names.at(-1)
     return !callables.some(({ item }) => item.schema === 'pg_catalog' && item.name === name)
   }
