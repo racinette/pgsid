@@ -494,7 +494,8 @@ it('owns typed array bounds through range construction, relations, sets and mult
     for (let mode = 0; mode < 7; mode++)
       cases.push({
         rust: `bag_context_boundary(${mode})`,
-        expected: { kind: mode === 0 || mode === 2 ? 'Unknown' : 'True' },
+        // Conflicting labels in a forged context are no database fact; a missing comparison is.
+        expected: { kind: mode === 0 ? 'Unimplemented' : mode === 2 ? 'Unknown' : 'True' },
       })
     cases.push(
       { rust: 'bag_partial(false)', expected: { kind: 'False' } },

@@ -19,7 +19,7 @@ pub fn xid8_from_text(input: TextValue) -> Xid8Value {
         let mut radix = 10i64;
         if start + 1 < end && chars[start] == '0' {
             if chars[start + 1] == 'x' || chars[start + 1] == 'X' { radix = 16i64; start += 2; }
-            else if chars[start + 1] == 'b' || chars[start + 1] == 'B' { return xid8_unresolved(unresolved_flavor); }
+            else if chars[start + 1] == 'b' || chars[start + 1] == 'B' { return xid8_unresolved(resolution_context(unresolved_flavor)); }
             else { radix = 8i64; };
         };
         let mut units = 0i64;
@@ -39,7 +39,8 @@ pub fn xid8_from_text(input: TextValue) -> Xid8Value {
             start += 1;
         };
         if digits == false {
-            if radix == 16i64 && start == end { return xid8_unresolved(unresolved_flavor); };
+            // A bare hexadecimal or binary prefix is read by the server C library's strtoull.
+            if radix == 16i64 && start == end { return xid8_unresolved(resolution_context(unresolved_flavor)); };
             return Xid8Value::Error(SqlError { state: OID_INPUT_INVALID });
         };
         if overflow { return Xid8Value::Error(SqlError { state: SQLSTATE_NUMERIC_VALUE_OUT_OF_RANGE }); };

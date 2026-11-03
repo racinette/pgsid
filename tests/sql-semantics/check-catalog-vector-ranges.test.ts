@@ -429,6 +429,7 @@ it.each(families)(
               (family === 'type_span' || family === 'domain_type_span') &&
               name === 'array_sort' &&
               i === 4
+            // The session's work_mem orders distinguishable ties.
             if (representationTie) expected = { kind: 'Unknown' }
             const row = {
               ...rows[i]!,

@@ -360,19 +360,20 @@ pub fn range_array_state_probe(mode:Int4Value)->BoolValue {
         },
       ],
     }
+    // Forged bounds and cells are no database fact.
     const expected: Outcome[] = [
       { kind: 'True' },
       { kind: 'Unknown' },
       { kind: 'Error', value: { state: parseInt('22012', 36) } },
-      { kind: 'Unknown' },
-      { kind: 'Unknown' },
-      { kind: 'Unknown' },
+      { kind: 'Unimplemented' },
+      { kind: 'Unimplemented' },
+      { kind: 'Unimplemented' },
       { kind: 'Error', value: { state: parseInt('22012', 36) } },
       { kind: 'True' },
-      { kind: 'Unknown' },
-      { kind: 'Unknown' },
+      { kind: 'Unimplemented' },
+      { kind: 'Unimplemented' },
       { kind: 'Error', value: { state: parseInt('22012', 36) } },
-      { kind: 'Unknown' },
+      { kind: 'Unimplemented' },
       { kind: 'Error', value: { state: parseInt('22003', 36) } },
       { kind: 'True' },
     ]

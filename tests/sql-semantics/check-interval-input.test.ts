@@ -165,7 +165,15 @@ describe('interval text input and catalog literals', () => {
       expect(outputs.size, text).toBe(2)
     }
     for (const text of [...deferredIntervalContextForms, ...unimplementedIntervalGrammarForms]) {
-      add('input', { source: value(text), expected: value('') }, { kind: 'Unknown' })
+      add(
+        'input',
+        { source: value(text), expected: value('') },
+        {
+          kind: (deferredIntervalContextForms as readonly string[]).includes(text)
+            ? 'Unknown'
+            : 'Unimplemented',
+        },
+      )
       add(
         'lazy_input',
         { source: value(text), expected: value(''), skip: value(true) },

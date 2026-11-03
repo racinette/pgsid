@@ -64,13 +64,15 @@ fn multirange_component(
     if let RangeValue::Error(error) = supported {
         return RangeValue::Error(error);
     };
+    let mut member_flavor: i32 = unresolved_flavor;
+    if let RangeValue::Unknown = supported { member_flavor = 1; };
     if let RangeValue::Value(payload) = supported {
         if payload.empty {
             return range_unresolved(unresolved_flavor);
         };
         return RangeValue::Value(payload);
     };
-    range_unresolved(unresolved_flavor)
+    range_unresolved(member_flavor)
 }
 
 pub fn make_coerced_multirange_value(input: MultirangePayload) -> MultirangeValue {

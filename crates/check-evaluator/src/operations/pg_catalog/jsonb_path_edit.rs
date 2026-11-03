@@ -20,12 +20,15 @@ fn jsonb_bulk_key_matches(
         end = node.key_end;
     };
     let mut uncertain = false;
+    let mut key_flavor: i32 = unresolved_flavor;
     let mut index: usize = 0;
     while index < keys.elements.len() {
         let key = array_element_to_text(keys.elements[index].clone());
         if let TextValue::Error(error) = key {
             return BoolValue::Error(error);
         };
+        if key == TextValue::Unknown || key == TextValue::NonNull { if key_flavor < 1 { key_flavor = 1; }; };
+        if key == TextValue::Unimplemented { key_flavor = 2; };
         if (key == TextValue::Unknown || key == TextValue::Unimplemented) || key == TextValue::NonNull {
             uncertain = true;
         };
@@ -40,7 +43,7 @@ fn jsonb_bulk_key_matches(
         index += 1;
     }
     if uncertain {
-        return bool_unresolved(unresolved_flavor);
+        return bool_unresolved(key_flavor);
     };
     make_bool_value(false)
 }

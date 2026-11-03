@@ -99,6 +99,8 @@ pub fn jsonpath_validate_utf8(input: TextValue, c_collation: bool) -> BoolValue 
     if let JsonpathValue::Value(_) = result {
         return BoolValue::Value(true);
     };
+    if let JsonpathValue::Unknown = result { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
+    if let JsonpathValue::Unimplemented = result { unresolved_flavor = 2; };
     bool_unresolved(unresolved_flavor)
 }
 

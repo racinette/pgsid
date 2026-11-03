@@ -11,7 +11,8 @@ fn range_input_bound(input: TextValue, kind: i32, cidr: bool, name: bool, alias_
     if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if kind == 6 {
         if let TextValue::Value(_) = input {
-            if enum_count < 0 { return array_element_unresolved(unresolved_flavor); };
+            // Uncaptured enum labels are held in the deployment's catalog.
+            if enum_count < 0 { return array_element_unresolved(resolution_context(unresolved_flavor)); };
         };
         return array_element_from_enum(scalar_enum_from_text(input, enum_labels, enum_count));
     };

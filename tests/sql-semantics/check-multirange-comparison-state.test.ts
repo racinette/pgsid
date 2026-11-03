@@ -168,6 +168,7 @@ pub fn multirange_partial_probe(mode:Int4Value)->BoolValue {
 }
 `,
       })
+    // Comparing across forged type names is no database fact.
     const extra: Outcome[] = [
       { kind: 'False' },
       { kind: 'Unknown' },
@@ -182,7 +183,7 @@ pub fn multirange_partial_probe(mode:Int4Value)->BoolValue {
       { kind: 'Unknown' },
       error('22012'),
       { kind: 'False' },
-      { kind: 'Unknown' },
+      { kind: 'Unimplemented' },
     ]
     extra.forEach((expected, mode) =>
       fixtures.push({ name: 'partial', row: { mode: { kind: 'Value', value: mode } }, expected }),

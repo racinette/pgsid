@@ -200,8 +200,8 @@ it('retains identical Unicode JSONB sort ties through scalar, range, multirange 
                 inserts++
                 const uncertain = !bypass && sample.uncertain && form.name !== 'count'
                 if (uncertain) ambiguous++
-                // The server's own sort fixes the order of distinguishable ties.
-                const result: Outcome = uncertain ? { kind: 'Unimplemented' } : native
+                // The session's work_mem orders distinguishable ties.
+                const result: Outcome = uncertain ? { kind: 'Unknown' } : native
                 references.push({
                   family: form.name,
                   type: form.type,

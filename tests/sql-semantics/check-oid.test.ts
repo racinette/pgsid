@@ -271,7 +271,8 @@ describe('portable OID values', () => {
       fixtures.push({
         name: 'parsed',
         row: { source: known(text), expected: known('00') },
-        expected: { kind: 'Unknown' },
+        // Text past the evaluator's length cap is no database fact.
+        expected: { kind: text.length > 4096 ? 'Unimplemented' : 'Unknown' },
       })
     fixtures.push(
       {

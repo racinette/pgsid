@@ -103,6 +103,7 @@ it('retains exact range and multirange sort ties while deferring unspecified une
                 wire:
                   expectedWire === null ? { kind: 'Null' } : { kind: 'Value', value: expectedWire },
               },
+              // The session's work_mem orders distinguishable ties.
               expected: { kind: uncertain ? 'Unknown' : mismatch ? 'False' : 'True' },
             })
         }

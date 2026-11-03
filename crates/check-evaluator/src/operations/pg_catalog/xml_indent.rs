@@ -126,7 +126,8 @@ pub fn xml_indent_utf8(input: XmlValue, document: bool, utf8: bool) -> TextValue
         if xml_text_encoding_available(value.as_str(),utf8) == false { return text_unresolved(resolution_context(unresolved_flavor)); };
         if xml_well_formed(value.as_str(),document) == false { return TextValue::Error(make_sql_error(SQLSTATE_NOT_XML_DOCUMENT)); };
         let tree = xml_tree_parse(value.as_str(),document,false);
-        if tree.serialization_known == false { return text_unresolved(unresolved_flavor); };
+        // The server's XML library orders a document's notation declarations.
+        if tree.serialization_known == false { return text_unresolved(resolution_context(unresolved_flavor)); };
         let mut output = String::new();
         if tree.flags.document && tree.flags.declaration {
             let version = xml_tree_text(&tree,tree.flags.version);

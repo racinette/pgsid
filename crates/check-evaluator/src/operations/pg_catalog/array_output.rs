@@ -111,7 +111,21 @@ pub fn array_float8_output(input: Float8Value) -> TextValue {
     text_unresolved(unresolved_flavor)
 }
 
+// A non-null cell renders through an output function the deployment's catalog selects.
 pub fn array_contextual_output(input: ArrayElement) -> TextValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
+    if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
+    if let ArrayElement::Error(error) = input {
+        return TextValue::Error(error);
+    };
+    if let ArrayElement::Null = input {
+        return TextValue::Null;
+    };
+    text_unresolved(resolution_context(unresolved_flavor))
+}
+
+pub fn array_unsupported_output(input: ArrayElement) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
     if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };

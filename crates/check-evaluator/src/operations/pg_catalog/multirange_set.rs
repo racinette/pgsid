@@ -350,8 +350,9 @@ pub fn sql__pg_catalog__range_merge__f619(input: MultirangeValue) -> RangeValue 
         };
         if let RangeValue::Value(a) = first {
             if let RangeValue::Value(b) = last {
+                // Uncaptured canonical and comparison support is defined by the deployment's catalog.
                 if payload.support.canonical == 0 {
-                    return range_unresolved(unresolved_flavor);
+                    return range_unresolved(resolution_context(unresolved_flavor));
                 };
                 if payload.support.comparison == 0 {
                     let mut unbounded = false;
@@ -364,7 +365,7 @@ pub fn sql__pg_catalog__range_merge__f619(input: MultirangeValue) -> RangeValue 
                         unbounded = true;
                     };
                     if unbounded == false {
-                        return range_unresolved(unresolved_flavor);
+                        return range_unresolved(resolution_context(unresolved_flavor));
                     };
                 };
                 return range_from_typed_bounds(

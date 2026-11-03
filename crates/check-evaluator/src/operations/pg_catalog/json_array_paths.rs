@@ -271,8 +271,9 @@ fn jsonb_array_path_exists(input: JsonbValue, keys: ArrayValue, all: bool) -> Bo
                 };
                 position += 1;
             }
+            // Keys left unmatched against partial knowledge wait on contents that are Unknown.
             if uncertain {
-                return bool_unresolved(unresolved_flavor);
+                return bool_unresolved(resolution_context(unresolved_flavor));
             };
             return make_bool_value(all);
         };

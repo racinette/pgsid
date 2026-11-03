@@ -444,10 +444,15 @@ pub(crate) fn json_read_array_path(
             }
             let document = parse_json_array_path_document(value.source.as_str(), utf8);
             if document.state == -2 {
+                // A path key that is not known decides whether the document is reached.
                 if uncertain {
-                    return text_unresolved(unresolved_flavor);
+                    return text_unresolved(resolution_context(unresolved_flavor));
                 };
                 return TextValue::Error(document.error);
+            };
+            // A document that needs its escapes decoded waits on the server's encoding.
+            if (document.state != 1 || document.root == 0) && utf8 == false {
+                return text_unresolved(resolution_context(unresolved_flavor));
             };
             if document.state != 1 || document.root == 0 {
                 return text_unresolved(unresolved_flavor);

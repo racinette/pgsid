@@ -3498,7 +3498,7 @@ export function emitCheckRustEvaluator(
           } catch (error) {
             if (!(error instanceof UnsupportedCheckRustExpression)) throw error
             inner.length = 0
-            conversion = `array_contextual_output(${cell})`
+            conversion = `${error.context ? 'array_contextual_output' : 'array_unsupported_output'}(${cell})`
             hint = 0
           }
           const original = hint ? fresh('format_original') : null
@@ -3595,7 +3595,7 @@ export function emitCheckRustEvaluator(
           } catch (error) {
             if (!(error instanceof UnsupportedCheckRustExpression)) throw error
             rendered.length = 0
-            conversion = `array_contextual_output(${cell})`
+            conversion = `${error.context ? 'array_contextual_output' : 'array_unsupported_output'}(${cell})`
           }
           const output = fresh('concat_rendered')
           rendered.push(

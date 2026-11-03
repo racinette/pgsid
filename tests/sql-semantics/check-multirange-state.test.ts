@@ -143,21 +143,24 @@ pub fn multirange_state_probe(mode:Int4Value)->BoolValue {
         },
       ],
     }
+    // Forged members and type names are no database fact, while an Unknown member stays Unknown.
     const expected: Outcome[] = [
       { kind: 'True' },
       { kind: 'Unknown' },
       { kind: 'Error', value: { state: parseInt('22012', 36) } },
       { kind: 'True' },
       { kind: 'True' },
-      ...Array.from({ length: 6 }, () => ({ kind: 'Unknown' as const })),
+      { kind: 'Unimplemented' },
+      { kind: 'Unknown' },
+      ...Array.from({ length: 4 }, () => ({ kind: 'Unimplemented' as const })),
       { kind: 'Error', value: { state: parseInt('22012', 36) } },
       { kind: 'Unknown' },
       { kind: 'Error', value: { state: parseInt('22003', 36) } },
       { kind: 'Error', value: { state: parseInt('22012', 36) } },
-      ...Array.from({ length: 3 }, () => ({ kind: 'Unknown' as const })),
+      ...Array.from({ length: 3 }, () => ({ kind: 'Unimplemented' as const })),
       { kind: 'True' },
       { kind: 'True' },
-      ...Array.from({ length: 4 }, () => ({ kind: 'Unknown' as const })),
+      ...Array.from({ length: 4 }, () => ({ kind: 'Unimplemented' as const })),
       { kind: 'Error', value: { state: parseInt('22012', 36) } },
       { kind: 'Unknown' },
     ]

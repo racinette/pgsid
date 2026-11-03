@@ -66,6 +66,10 @@ pub fn json_strip_nulls_context(input: JsonValue, arrays: BoolValue, utf8: bool)
             if document.state == -2 {
                 return JsonValue::Error(document.error);
             };
+            // A document that needs its escapes decoded waits on the server's encoding.
+            if document.state != 1 && utf8 == false {
+                return json_unresolved(resolution_context(unresolved_flavor));
+            };
             if document.state != 1 {
                 return json_unresolved(unresolved_flavor);
             };
