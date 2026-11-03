@@ -177,16 +177,16 @@ fn support_owned_snapshots()->BoolValue {
 }
 fn support_mismatch()->BoolValue {
  let first=support_construct("public.continuous",1,1,2,"[]");let second=support_construct("public.continuous",2,1,2,"[]");
- if sql__pg_catalog__range_cmp__8jgl(first.clone(),second.clone())!=Int4Value::Unknown {return BoolValue::Value(false);};
- if range_is_null(range_require_support(first,RangeSupport {comparison:2,canonical:2}))!=BoolValue::Unknown {return BoolValue::Value(false);};
+ if sql__pg_catalog__range_cmp__8jgl(first.clone(),second.clone())!=Int4Value::Unimplemented {return BoolValue::Value(false);};
+ if range_is_null(range_require_support(first,RangeSupport {comparison:2,canonical:2}))!=BoolValue::Unimplemented {return BoolValue::Value(false);};
  let mut ranges:Vec<RangeValue>=Vec::new();ranges.push(second);
  let mixed=multirange_from_profiled_ranges("public.multi","public.continuous","pg_catalog.int4",2,ranges,RangeSupport {comparison:2,canonical:1});
- if multirange_is_null(mixed)!=BoolValue::Unknown {return BoolValue::Value(false);};
+ if multirange_is_null(mixed)!=BoolValue::Unimplemented {return BoolValue::Value(false);};
  let empty:Vec<RangeValue>=Vec::new();
  let invalid=multirange_from_profiled_ranges("public.multi","public.continuous","pg_catalog.int4",2,empty,RangeSupport {comparison:3,canonical:1});
- if multirange_is_null(invalid)!=BoolValue::Unknown {return BoolValue::Value(false);};
+ if multirange_is_null(invalid)!=BoolValue::Unimplemented {return BoolValue::Value(false);};
  let forged=range_from_profiled_bounds("pg_catalog.int4range","pg_catalog.int4",2,true,false,false,ArrayElement::Null,ArrayElement::Null,RangeSupport {comparison:2,canonical:1});
- BoolValue::Value(range_is_null(forged)==BoolValue::Unknown)
+ BoolValue::Value(range_is_null(forged)==BoolValue::Unimplemented)
 }
 fn support_missing_comparison()->BoolValue {
  let stored=support_stored(0,1);let empty=support_empty("public.unavailable",0,1);

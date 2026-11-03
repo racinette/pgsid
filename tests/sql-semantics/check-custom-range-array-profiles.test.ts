@@ -482,19 +482,23 @@ fn profile_state_unknown(input:ArrayValue)->BoolValue {
  if let ArrayValue::Unknown=input{return BoolValue::Value(true);};
  BoolValue::Value(false)
 }
+fn profile_state_unimplemented(input:ArrayValue)->BoolValue {
+ if let ArrayValue::Unimplemented=input{return BoolValue::Value(true);};
+ BoolValue::Value(false)
+}
 pub fn profile_state_case(mode:Int4Value)->BoolValue {
  let mut selected:i32=0;
  if let Int4Value::Value(value)=mode{selected=value;};
  let error=ArrayElement::Error(make_sql_error(PROFILE_ARRAY_PROBE_ERROR));
  let malformed=profile_state_range("p.span",0);
  if selected==0 {let payload=profile_state_payload(error,malformed,42,"p.span");return profile_state_error(profile_state_convert(ArrayValue::Value(payload)));};
- if selected==1 {let payload=profile_state_payload(malformed,error,42,"p.span");return profile_state_unknown(profile_state_convert(ArrayValue::Value(payload)));};
+ if selected==1 {let payload=profile_state_payload(malformed,error,42,"p.span");return profile_state_unimplemented(profile_state_convert(ArrayValue::Value(payload)));};
  if selected==2 {
   let child=profile_state_payload(error,malformed,42,"p.span");
   let outer=profile_state_payload(ArrayElement::Array(child),ArrayElement::Null,41,"public.history");
   return profile_state_error(array_from_coerced_range_profile_tree(ArrayValue::Value(outer),"public.history\0p.span",")*","p.span","pg_catalog.int4",2,2,1));
  };
- if selected==3 {let wrong=profile_state_range("wrong.span",2);let payload=profile_state_payload(error,wrong,42,"p.span");return profile_state_unknown(profile_state_convert(ArrayValue::Value(payload)));};
+ if selected==3 {let wrong=profile_state_range("wrong.span",2);let payload=profile_state_payload(error,wrong,42,"p.span");return profile_state_unimplemented(profile_state_convert(ArrayValue::Value(payload)));};
  if selected==4 || selected==5 {
   let mut first=RangeValue::Error(make_sql_error(PROFILE_ARRAY_PROBE_ERROR));
   if selected==5{first=RangeValue::Null;};
@@ -505,9 +509,9 @@ pub fn profile_state_case(mode:Int4Value)->BoolValue {
   let payload=profile_state_payload(multi,ArrayElement::Null,43,"p.multi");
   let output=array_from_coerced_multirange_profile_tree(ArrayValue::Value(payload),"p.multi","+","p.multi","p.span","pg_catalog.int4",2,2,1);
   if selected==4{return profile_state_error(output);};
-  return profile_state_unknown(output);
+  return profile_state_unimplemented(output);
  };
- if selected==6 {let payload=profile_state_payload(ArrayElement::Null,ArrayElement::Unknown,42,"wrong.array");return profile_state_unknown(profile_state_convert(ArrayValue::Value(payload)));};
+ if selected==6 {let payload=profile_state_payload(ArrayElement::Null,ArrayElement::Unknown,42,"wrong.array");return profile_state_unimplemented(profile_state_convert(ArrayValue::Value(payload)));};
  if selected==7 {return BoolValue::Value(array_is_null(profile_state_convert(ArrayValue::Null))==BoolValue::Value(true));};
  if selected==8 {return profile_state_unknown(profile_state_convert(ArrayValue::Unknown));};
  if selected==9 {return profile_state_error(profile_state_convert(ArrayValue::Error(make_sql_error(PROFILE_ARRAY_PROBE_ERROR))));};
@@ -520,7 +524,7 @@ pub fn profile_state_case(mode:Int4Value)->BoolValue {
  if selected==12 {
   let child=profile_state_payload(ArrayElement::Null,ArrayElement::Unknown,42,"wrong.array");
   let outer=profile_state_payload(ArrayElement::Array(child),error,41,"public.history");
-  return profile_state_unknown(array_from_coerced_range_profile_tree(ArrayValue::Value(outer),"public.history\0p.span",")*","p.span","pg_catalog.int4",2,2,1));
+  return profile_state_unimplemented(array_from_coerced_range_profile_tree(ArrayValue::Value(outer),"public.history\0p.span",")*","p.span","pg_catalog.int4",2,2,1));
  };
  if selected==13 {
   let span=profile_state_range("p.span",2);

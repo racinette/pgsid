@@ -135,9 +135,9 @@ pub fn multirange_plan_snapshot(input:TextValue)->BoolValue {
  let premature=finish_multirange_text(saved.clone(),"pg_catalog.int4multirange","pg_catalog.int4range","pg_catalog.int4",2,make_range_support(2,2));
  let final_value=finish_multirange_text(revised,"pg_catalog.int4multirange","pg_catalog.int4range","pg_catalog.int4",2,make_range_support(2,2));
  let final_text=multirange_to_text(final_value);
- BoolValue::Value(isolated && multirange_text_member(&saved)==make_text_value("[1,3)") && saved.ranges.len()==0 && multirange_text_member(&next)==make_text_value("[5,7)") && next.ranges.len()==1 && matches_multirange_unknown(premature) && final_text==make_text_value("{[1,3),[5,7)}"))
+ BoolValue::Value(isolated && multirange_text_member(&saved)==make_text_value("[1,3)") && saved.ranges.len()==0 && multirange_text_member(&next)==make_text_value("[5,7)") && next.ranges.len()==1 && matches_multirange_unimplemented(premature) && final_text==make_text_value("{[1,3),[5,7)}"))
 }
-fn matches_multirange_unknown(input:MultirangeValue)->bool {if let MultirangeValue::Unknown=input {return true;};false}
+fn matches_multirange_unimplemented(input:MultirangeValue)->bool {if let MultirangeValue::Unimplemented=input {return true;};false}
 `,
       })
     const group: ReturnType<typeof prepareCheckRustGroup> = {

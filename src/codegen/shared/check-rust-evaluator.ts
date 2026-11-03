@@ -344,7 +344,15 @@ export const isJsonBuilder = (
       item.args[0] === 'pg_catalog."any"' &&
       item.variadic === 'pg_catalog."any"'))
 
-export class UnsupportedCheckRustExpression extends Error {}
+// An expression the evaluator cannot run; `context` marks one that waits only on a database fact.
+export class UnsupportedCheckRustExpression extends Error {
+  constructor(
+    message?: string,
+    readonly context = false,
+  ) {
+    super(message)
+  }
+}
 
 const rangeContextExpression = (
   profile: RangeProfile,
@@ -3671,6 +3679,7 @@ export function emitCheckRustEvaluator(
       )
         throw new UnsupportedCheckRustExpression(
           'JSONB ordering requires declared database default collation C and server encoding UTF8',
+          true,
         )
       const jsonbConversion =
         implementation.kind === 'function' &&
@@ -3873,8 +3882,10 @@ export function emitCheckRustEvaluator(
         implementation.returnsSet ||
         (!builder && implementation.args.length !== operands.length)
       )
+        // A stable or volatile callable is computed only when the database runs it.
         throw new UnsupportedCheckRustExpression(
           `Unsupported Rust CHECK callable: ${call.signature}`,
+          implementation.volatility !== 'i',
         )
       const defaultTextOrdering =
         call.kind !== 'cast' &&
@@ -3906,6 +3917,7 @@ export function emitCheckRustEvaluator(
       )
         throw new UnsupportedCheckRustExpression(
           `Unsupported Rust CHECK text collation: ${call.signature}`,
+          true,
         )
       rustType(call.type)
       if (
@@ -9569,6 +9581,7 @@ export function emitCheckRustEvaluator(
         if (!checkRustCallableNames().has(implementation.rustName))
           throw new UnsupportedCheckRustExpression(
             'Array quantifier scalar implementation unavailable',
+            implementation.volatility !== 'i',
           )
         const compared = emitCall(
           node.comparison.kind !== 'cast' &&
@@ -9583,7 +9596,7 @@ export function emitCheckRustEvaluator(
       } catch (error) {
         if (!(error instanceof UnsupportedCheckRustExpression)) throw error
         comparisonLines.length = 0
-        comparisonLines.push(`${pair} = bool_unresolved(2);`)
+        comparisonLines.push(`${pair} = bool_unresolved(${error.context ? 1 : 2});`)
         appendArrayValidity({ name: pair, type: node.type }, safe, comparisonLines)
       } finally {
         arrayValidityScope = outer

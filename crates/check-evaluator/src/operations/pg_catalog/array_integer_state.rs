@@ -13,7 +13,10 @@ fn integer_array_state_valid(input: &ArrayPayload) -> BoolValue {
     if input.null_bitmap == BoolValue::Value(false) {
         return BoolValue::Value(true);
     };
-    bool_unresolved(unresolved_flavor)
+    let mut bitmap_flavor: i32 = unresolved_flavor;
+    if input.null_bitmap == BoolValue::Unknown && bitmap_flavor < 1 { bitmap_flavor = 1; };
+    if input.null_bitmap == BoolValue::Unimplemented { bitmap_flavor = 2; };
+    bool_unresolved(bitmap_flavor)
 }
 
 fn integer_state_adjust(input: Int8Value, delta: i64) -> Int8Value {
@@ -125,7 +128,10 @@ fn integer_state_sum(input: ArrayValue) -> Int8Value {
             return Int8Value::Error(error);
         };
         if validity != BoolValue::Value(true) {
-            return int8_unresolved(unresolved_flavor);
+            let mut validity_flavor: i32 = unresolved_flavor;
+            if validity == BoolValue::Unknown && validity_flavor < 1 { validity_flavor = 1; };
+            if validity == BoolValue::Unimplemented { validity_flavor = 2; };
+            return int8_unresolved(validity_flavor);
         };
         let count = array_element_to_int8(value.elements[0].clone());
         if count == Int8Value::Value(0i64) {
@@ -136,6 +142,10 @@ fn integer_state_sum(input: ArrayValue) -> Int8Value {
                 return array_element_to_int8(value.elements[1].clone());
             };
         };
+        let mut count_flavor: i32 = unresolved_flavor;
+        if count == Int8Value::Unknown && count_flavor < 1 { count_flavor = 1; };
+        if count == Int8Value::Unimplemented { count_flavor = 2; };
+        return int8_unresolved(count_flavor);
     };
     int8_unresolved(unresolved_flavor)
 }

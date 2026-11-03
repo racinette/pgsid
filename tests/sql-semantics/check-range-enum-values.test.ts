@@ -238,7 +238,7 @@ fn enum_span_snapshots()->BoolValue {
  let array=make_array_value(ArrayPayload {element_type:"public.enum_span".to_owned(),element_kind:42,dimensions,elements:cells,null_bitmap:make_bool_value(false)});
  let extracted=array_element_to_range(array_flat_element(array.clone(),make_int4_value(0)));
  let changed=range_with_enum_definition(extracted,"different",1);
- if range_is_null(changed)!=BoolValue::Unknown {return BoolValue::Value(false);};
+ if range_is_null(changed)!=BoolValue::Unimplemented {return BoolValue::Value(false);};
  let retained=array_element_to_range(array_flat_element(array,make_int4_value(0)));
  BoolValue::Value(range_to_text(retained)==expected)
 }
@@ -256,7 +256,7 @@ fn enum_span_context()->BoolValue {
   let failed=enum_span_input(make_text_value("[bad,a]"),0,0);
   if range_is_null(failed)!=BoolValue::Error(make_sql_error(3484946)) {return BoolValue::Value(false);};
   let mixed=range_with_enum_definition(RangeValue::Value(payload.clone()),${rustStringLiteral(['other', ...labels.slice(1)].join('\0'))},${labels.length});
-  if sql__pg_catalog__range_eq__loxq(RangeValue::Value(payload),mixed)!=BoolValue::Unknown {return BoolValue::Value(false);};
+  if sql__pg_catalog__range_eq__loxq(RangeValue::Value(payload),mixed)!=BoolValue::Unimplemented {return BoolValue::Value(false);};
   return BoolValue::Value(true);
  };BoolValue::Value(false)
 }
