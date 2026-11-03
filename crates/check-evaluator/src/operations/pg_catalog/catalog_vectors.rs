@@ -191,7 +191,10 @@ pub fn sql__pg_catalog__oidvectortypes__w22j(input: ArrayValue) -> TextValue {
         while index < value.elements.len() {
             let name = oid_alias_to_text(array_element_to_oid(value.elements[index].clone()), true);
             if let TextValue::Error(error) = name { return TextValue::Error(error); };
-            if name != make_text_value("-") { let mut local_flavor_193_46: i32 = unresolved_flavor; if let BoolValue::Unknown = status { if local_flavor_193_46 < 1 { local_flavor_193_46 = 1; }; }; if let BoolValue::Unimplemented = status { local_flavor_193_46 = 2; }; return text_unresolved(local_flavor_193_46); };
+            // A type OID's name is a catalog fact; a known name is simply not rendered here yet.
+            let mut name_flavor: i32 = 2;
+            if let TextValue::Unknown = name { name_flavor = 1; };
+            if name != make_text_value("-") { return text_unresolved(name_flavor); };
             if index > 0 { output.push_str(", "); };
             output.push('-');
             index += 1;

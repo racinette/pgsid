@@ -950,7 +950,7 @@ it('owns typed flattened array values, bounds, NULL elements and metadata in eve
             dimension: value(1),
             expected: value(''),
           },
-          expected: { kind: 'Unknown' },
+          expected: { kind: 'Unimplemented' },
         })
     for (const shape of ['[]', '[[1,2]]'])
       for (const count of [1, 3])
@@ -963,7 +963,7 @@ it('owns typed flattened array values, bounds, NULL elements and metadata in eve
             dimension: value(1),
             expected: value(''),
           },
-          expected: { kind: 'Unknown' },
+          expected: { kind: 'Unimplemented' },
         })
     for (const name of modes.slice(0, 7))
       for (const input of [

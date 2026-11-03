@@ -17,7 +17,11 @@ fn float_array_state_valid(input: &ArrayPayload, width: usize) -> BoolValue {
     if input.null_bitmap == BoolValue::Value(false) {
         return BoolValue::Value(true);
     };
-    bool_unresolved(unresolved_flavor)
+    let bitmap = input.null_bitmap;
+    let mut bitmap_flavor: i32 = unresolved_flavor;
+    if let BoolValue::Unknown = bitmap { bitmap_flavor = 1; };
+    if let BoolValue::Unimplemented = bitmap { bitmap_flavor = 2; };
+    bool_unresolved(bitmap_flavor)
 }
 
 fn float_state_field(input: &ArrayPayload, index: usize) -> Float8Value {

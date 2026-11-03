@@ -264,7 +264,7 @@ describe('Rust CHECK bit casts and width coercion', () => {
     for (const name of ['fixed', 'direct_fixed', 'output']) {
       record(name, { ...known, a: unknown }, { kind: 'Unknown' })
       record(name, { ...known, a: error }, error as Outcome)
-      record(name, { ...known, a: input('b101') }, { kind: 'Unknown' })
+      record(name, { ...known, a: input('b101') }, { kind: 'Unimplemented' })
     }
     for (const name of ['parsed_fixed', 'parsed_varying', 'parsed_default', 'parsed_unbounded']) {
       record(name, { ...known, source: unknown }, { kind: 'Unknown' })

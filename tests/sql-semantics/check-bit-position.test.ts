@@ -194,12 +194,16 @@ describe('Rust CHECK bit position', () => {
     for (const column of ['a', 'b']) {
       record('fixed', { ...known, [column]: unknown }, { kind: 'Unknown' })
       record('fixed', { ...known, [column]: error }, error as Outcome)
-      record('fixed', { ...known, [column]: input('b101') }, { kind: 'Unknown' })
+      record('fixed', { ...known, [column]: input('b101') }, { kind: 'Unimplemented' })
     }
     record('fixed', { ...known, a: error, b: other }, error as Outcome)
     for (const value of [unknown, input(null)]) {
       record('fixed', { ...known, a: value, b: error }, error as Outcome)
-      record('fixed', { ...known, a: value, b: unknown }, { kind: 'Unknown' })
+      record(
+        'fixed',
+        { ...known, a: value, b: unknown },
+        { kind: value.kind === 'Null' ? 'Null' : 'Unknown' },
+      )
     }
     record('lazy', { ...known, a: error, b: other, skip: input(true) }, { kind: 'True' })
     record(

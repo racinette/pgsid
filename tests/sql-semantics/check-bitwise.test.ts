@@ -250,7 +250,7 @@ describe('Rust CHECK bitwise operations and shifts', () => {
       record(name, { ...known, a: unknown }, { kind: 'Unknown' })
       record(name, { ...known, a: error }, error as Outcome)
       for (const invalid of ['2', 'b101', ' 101', '０１'])
-        record(name, { ...known, a: input(invalid) }, { kind: 'Unknown' })
+        record(name, { ...known, a: input(invalid) }, { kind: 'Unimplemented' })
     }
     for (const name of ['left', 'right', 'direct_left', 'direct_right']) {
       record(name, { ...known, distance: unknown }, { kind: 'Unknown' })

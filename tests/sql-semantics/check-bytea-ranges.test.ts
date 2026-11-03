@@ -289,7 +289,7 @@ describe('Rust CHECK bytea manipulation', () => {
     for (const name of Object.keys(transforms)) {
       record(name, { ...known, a: unknown }, { kind: 'Unknown' })
       record(name, { ...known, a: error }, error as Outcome)
-      record(name, { ...known, a: input('g0') }, { kind: 'Unknown' })
+      record(name, { ...known, a: input('g0') }, { kind: 'Unimplemented' })
     }
     for (const name of pairNames) {
       record(name, { ...known, a: error, b: other }, error as Outcome)

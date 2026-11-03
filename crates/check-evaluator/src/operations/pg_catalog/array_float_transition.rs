@@ -133,7 +133,10 @@ fn float_array_accumulate(
             return ArrayValue::Error(error);
         };
         if validity != BoolValue::Value(true) {
-            return array_unresolved(unresolved_flavor);
+            let mut validity_flavor: i32 = unresolved_flavor;
+            if let BoolValue::Unknown = validity { if validity_flavor < 1 { validity_flavor = 1; }; };
+            if let BoolValue::Unimplemented = validity { validity_flavor = 2; };
+            return array_unresolved(validity_flavor);
         };
         let old_n = float_state_field(&value, 0);
         let positive = float_transition_test(old_n, 0);
@@ -299,7 +302,12 @@ fn float_array_combine(left: ArrayValue, right: ArrayValue, regression: bool) ->
                 return ArrayValue::Error(error);
             };
             if first_valid != BoolValue::Value(true) || second_valid != BoolValue::Value(true) {
-                return array_unresolved(unresolved_flavor);
+                let mut validity_flavor: i32 = unresolved_flavor;
+                if let BoolValue::Unknown = first_valid { if validity_flavor < 1 { validity_flavor = 1; }; };
+                if let BoolValue::Unknown = second_valid { if validity_flavor < 1 { validity_flavor = 1; }; };
+                if let BoolValue::Unimplemented = first_valid { validity_flavor = 2; };
+                if let BoolValue::Unimplemented = second_valid { validity_flavor = 2; };
+                return array_unresolved(validity_flavor);
             };
             let n1 = float_state_field(&first, 0);
             let n2 = float_state_field(&second, 0);

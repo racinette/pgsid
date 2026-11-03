@@ -464,7 +464,11 @@ describe('portable boxes', () => {
       add('invalid_literal', { ...row, skip: known(skip) }, failure('22P02'))
     for (const source of [...deferredBoxPlatformForms, '[' + '0'.repeat(4096) + ']'])
       for (const name of ['wire', 'same', 'present'])
-        add(name, { ...row, source: known(source) }, { kind: 'Unknown' })
+        add(
+          name,
+          { ...row, source: known(source) },
+          { kind: deferredBoxPlatformForms.includes(source) ? 'Unknown' : 'Unimplemented' },
+        )
     for (const state of [{ kind: 'Unknown' }, { kind: 'Null' }, failure('22012')] as Input[]) {
       for (const name of ['wire', 'varying', 'domain', 'typename', 'same', 'lazy'])
         add(name, { ...row, source: state, skip: known(false) }, state as Outcome)

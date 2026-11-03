@@ -1952,6 +1952,9 @@ pub fn append_array_subscript(
     if let ArraySubscripts::Value(payload) = input {
         let mut state = -1;
         let mut value: i32 = 0;
+        if let Int4Value::Unimplemented = index {
+            state = -2;
+        };
         if let Int4Value::Null = index {
             state = 0;
         };
@@ -2014,10 +2017,13 @@ fn array_subscript_state(input: &ArraySubscriptPayload) -> i32 {
             bound = input.lower[position - input.upper.len()];
         };
         if bound.provided {
-            if bound.state == -1 {
+            if bound.state == -2 {
+                state = -2;
+            };
+            if bound.state == -1 && state != -2 {
                 state = -1;
             };
-            if bound.state == 0 && state != -1 {
+            if bound.state == 0 && state > 0 {
                 state = 0;
             };
         };
@@ -2046,8 +2052,10 @@ pub fn array_fetch_subscript(input: ArrayValue, indices: ArraySubscripts) -> Arr
     };
     if let ArraySubscripts::Value(bounds) = indices {
         let state = array_subscript_state(&bounds);
-        if state == -1 {
-            return array_element_unresolved(unresolved_flavor);
+        if state < 0 {
+            let mut bound_flavor: i32 = 1;
+            if state == -2 { bound_flavor = 2; };
+            return array_element_unresolved(bound_flavor);
         };
         if state == 0 {
             return ArrayElement::Null;
@@ -2126,8 +2134,10 @@ pub fn array_slice_subscript(input: ArrayValue, indices: ArraySubscripts) -> Arr
     };
     if let ArraySubscripts::Value(bounds) = indices {
         let state = array_subscript_state(&bounds);
-        if state == -1 {
-            return array_unresolved(unresolved_flavor);
+        if state < 0 {
+            let mut bound_flavor: i32 = 1;
+            if state == -2 { bound_flavor = 2; };
+            return array_unresolved(bound_flavor);
         };
         if state == 0 {
             return ArrayValue::Null;

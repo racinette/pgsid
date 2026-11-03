@@ -218,20 +218,28 @@ fn array_storage_child_path(path: &str, index: usize) -> String {
     child
 }
 
-fn array_storage_missing_bitmap(input: &ArrayPayload) -> BoolValue {
-    let unresolved_flavor: i32 = 0;
+fn array_storage_missing_bitmap(input: &ArrayPayload, unresolved_flavor: i32) -> BoolValue {
     let elements = array_elements_bitmap(input);
     if elements == BoolValue::Value(true) { return elements; };
     let mut local_flavor_225_4: i32 = unresolved_flavor; if let BoolValue::Unknown = elements { if local_flavor_225_4 < 1 { local_flavor_225_4 = 1; }; }; if let BoolValue::Unimplemented = elements { local_flavor_225_4 = 2; }; bool_unresolved(local_flavor_225_4)
 }
 
+// Without captured storage, whether the stored constant carries a null bitmap is a catalog fact.
 pub fn forget_array_storage(input: ArrayElement) -> ArrayElement {
+    forget_array_storage_as(input, 1)
+}
+
+pub fn discard_array_storage(input: ArrayElement) -> ArrayElement {
+    forget_array_storage_as(input, 2)
+}
+
+fn forget_array_storage_as(input: ArrayElement, flavor: i32) -> ArrayElement {
     if let ArrayElement::Array(value) = input {
-        let bitmap = array_storage_missing_bitmap(&value);
+        let bitmap = array_storage_missing_bitmap(&value, flavor);
         let mut elements: Vec<ArrayElement> = Vec::new();
         let mut i: usize = 0;
         while i < value.elements.len() {
-            elements.push(forget_array_storage(value.elements[i].clone()));
+            elements.push(forget_array_storage_as(value.elements[i].clone(), flavor));
             i += 1;
         }
         return ArrayElement::Array(ArrayPayload {element_type:value.element_type,element_kind:value.element_kind,
@@ -241,7 +249,7 @@ pub fn forget_array_storage(input: ArrayElement) -> ArrayElement {
         let mut fields: Vec<ArrayElement> = Vec::new();
         let mut i: usize = 0;
         while i < value.fields.len() {
-            fields.push(forget_array_storage(value.fields[i].clone()));
+            fields.push(forget_array_storage_as(value.fields[i].clone(), flavor));
             i += 1;
         }
         return ArrayElement::Composite(CompositePayload {type_name:value.type_name,fields:fields});
@@ -250,7 +258,7 @@ pub fn forget_array_storage(input: ArrayElement) -> ArrayElement {
         let mut bounds: Vec<ArrayElement> = Vec::new();
         let mut i: usize = 0;
         while i < value.bounds.len() {
-            bounds.push(forget_array_storage(value.bounds[i].clone()));
+            bounds.push(forget_array_storage_as(value.bounds[i].clone(), flavor));
             i += 1;
         }
         return ArrayElement::Range(range_payload_with_bounds(value,bounds));
@@ -260,7 +268,7 @@ pub fn forget_array_storage(input: ArrayElement) -> ArrayElement {
         let mut i: usize = 0;
         while i < value.ranges.len() {
             let member = array_element_from_range(value.ranges[i].clone());
-            let restored = forget_array_storage(member);
+            let restored = forget_array_storage_as(member, flavor);
             ranges.push(array_element_to_range(restored));
             i += 1;
         }
@@ -279,7 +287,7 @@ struct ArrayStorageResult {
 fn apply_array_storage_at(input: ArrayElement, plan: &ArrayStoragePlan, path: &str) -> ArrayStorageResult {
     if let ArrayElement::Array(value) = input {
         let mut matched: usize = 0;
-        let mut bitmap = array_storage_missing_bitmap(&value);
+        let mut bitmap = array_storage_missing_bitmap(&value, 2);
         let mut valid = true;
         let mut i: usize = 0;
         while i < plan.entries.len() {
@@ -365,5 +373,5 @@ fn apply_array_storage_at(input: ArrayElement, plan: &ArrayStoragePlan, path: &s
 pub fn apply_array_storage(input: ArrayElement, plan: &ArrayStoragePlan) -> ArrayElement {
     let result = apply_array_storage_at(input,plan,"");
     if plan.valid && result.valid && result.matched == plan.entries.len() { return result.value; };
-    forget_array_storage(result.value)
+    discard_array_storage(result.value)
 }

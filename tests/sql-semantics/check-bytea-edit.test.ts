@@ -287,7 +287,7 @@ describe('Rust CHECK bytea access and editing', () => {
     for (const name of Object.keys(transforms)) {
       record(name, { ...known, a: unknown }, { kind: 'Unknown' })
       record(name, { ...known, a: error }, error as Outcome)
-      record(name, { ...known, a: input('g0') }, { kind: 'Unknown' })
+      record(name, { ...known, a: input('g0') }, { kind: 'Unimplemented' })
     }
     for (const [name, position] of [
       ['get_byte', 'position'],

@@ -232,7 +232,7 @@ describe('Rust CHECK bytea hashes and checksums', () => {
     for (const name of Object.keys(transforms)) {
       record(name, { ...known, a: unknown }, { kind: 'Unknown' })
       record(name, { ...known, a: error }, error as Outcome)
-      record(name, { ...known, a: input('g0') }, { kind: 'Unknown' })
+      record(name, { ...known, a: input('g0') }, { kind: 'Unimplemented' })
     }
     record('seeded', { ...known, a: error, seed: other }, error as Outcome)
     for (const value of [unknown, input(null)])

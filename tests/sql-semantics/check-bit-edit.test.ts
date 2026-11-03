@@ -276,7 +276,7 @@ describe('Rust CHECK bit concatenation and editing', () => {
     record('set', { ...known, position: unknown, replacement: other }, other as Outcome)
     record('get', { ...known, position: unknown }, { kind: 'Unknown' })
     record('set', { ...known, replacement: unknown }, { kind: 'Unknown' })
-    record('get', { ...known, a: input('b101') }, { kind: 'Unknown' })
+    record('get', { ...known, a: input('b101') }, { kind: 'Unimplemented' })
     record('lazy', { ...known, a: error, skip: input(true) }, { kind: 'True' })
     record('coalesce', { ...known, a: error, expected: input('101') }, { kind: 'True' })
     for (const name of Object.keys(transforms))
