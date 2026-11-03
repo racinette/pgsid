@@ -236,10 +236,11 @@ describe('portable Rust CHECK numeric comparisons', () => {
         row: { a: { kind: 'Unknown' }, b: value('0') },
         expected: { kind: 'Unknown' },
       },
+      // A NULL operand makes the strict comparison NULL whatever the other operand is.
       {
         name: 'equal',
         row: { a: { kind: 'Unknown' }, b: { kind: 'Null' } },
-        expected: { kind: 'Unknown' },
+        expected: { kind: 'Null' },
       },
       { name: 'equal', row: { a: error, b: { kind: 'Unknown' } }, expected: error },
       { name: 'equal', row: { a: { kind: 'Null' }, b: error }, expected: error },
@@ -378,8 +379,10 @@ describe('portable Rust CHECK numeric comparisons', () => {
       }
     const missing: Input = { kind: 'Unknown' }
     const inputError: Input & Outcome = { kind: 'Error', value: { state: parseInt('22003', 36) } }
+    // The domain cast on a runs before the strict comparison and can raise, so a NULL b decides
+    // nothing while a NULL a, which the domain accepts, makes the comparison NULL.
     addConstrained({ a: missing, b: value(null) }, { kind: 'Unknown' })
-    addConstrained({ a: value(null), b: missing }, { kind: 'Unknown' })
+    addConstrained({ a: value(null), b: missing }, { kind: 'Null' })
     addConstrained(
       { a: value('-0.001'), b: missing },
       { kind: 'Error', value: { state: parseInt('23514', 36) } },

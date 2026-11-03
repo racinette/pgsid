@@ -16,21 +16,8 @@ it('converts text cells and represented scalar/enum arrays through catalog I/O w
     await pg.exec(
       "SET TIME ZONE 'UTC';SET DateStyle='ISO, MDY';SET IntervalStyle='iso_8601';CREATE TYPE array_stage AS ENUM ('new','done');CREATE TABLE array_io_families(marker integer,payload text,expected text)",
     )
-    const contextual = new Set([
-      'timestamp',
-      'timestamptz',
-      'date',
-      'bytea',
-      'interval',
-      'point',
-      'line',
-      'lseg',
-      'box',
-      'path',
-      'polygon',
-      'circle',
-      'money',
-    ])
+    // Geometry is left out: these coordinates render alike at every extra_float_digits setting.
+    const contextual = new Set(['timestamp', 'timestamptz', 'date', 'bytea', 'interval', 'money'])
     const forms: {
       name: string
       output: string

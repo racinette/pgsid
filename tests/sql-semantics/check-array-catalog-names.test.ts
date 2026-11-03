@@ -30,7 +30,7 @@ it('binds qualified catalog array names like ordinary array spellings across rep
          ORDER BY t.typname`,
       )
     ).rows.filter((type) => catalogScalarType('pg_catalog.' + type.name)?.startsWith('array:'))
-    expect(types).toHaveLength(57)
+    expect(types).toHaveLength(75)
     const forms = types.flatMap((type, index) =>
       (['input', 'constructor'] as const).map((mode) => {
         const alias = 'pg_catalog.' + (mode === 'input' ? type.name : '"' + type.name + '"')
@@ -132,7 +132,7 @@ it('binds qualified catalog array names like ordinary array spellings across rep
       JSON.stringify({ types, inserts, fixtures: fixtures.length }, null, 2) + '\n',
     )
     expect(inserts).toBe(1140)
-    expect(fixtures).toHaveLength(2280)
+    expect(fixtures).toHaveLength(3000)
     for (let offset = 0; offset < plans.length; offset += 64) {
       const batch = plans.slice(offset, offset + 64)
       const group = prepareCheckRustGroup(batch, {

@@ -143,8 +143,9 @@ describe('mixed smallint/integer CHECK arithmetic', () => {
     for (const fn of callables) {
       const [left, right] = fn.args.map((type) => (type === 'pg_catalog.int2' ? 'small' : 'wide'))
       for (const [a, b, expected] of [
-        [{ kind: 'Unknown' }, { kind: 'Null' }, { kind: 'Unknown' }],
-        [{ kind: 'Null' }, { kind: 'Unknown' }, { kind: 'Unknown' }],
+        // A NULL argument makes the strict call NULL whatever the other is.
+        [{ kind: 'Unknown' }, { kind: 'Null' }, { kind: 'Null' }],
+        [{ kind: 'Null' }, { kind: 'Unknown' }, { kind: 'Null' }],
         [error, { kind: 'Unknown' }, error],
         [{ kind: 'Unknown' }, otherError, otherError],
         [error, otherError, error],
@@ -211,7 +212,7 @@ describe('mixed smallint/integer CHECK arithmetic', () => {
         },
       ])
       expect(group.checks[0]!.kind).toBe('supported')
-      expect(group.evaluatorSource).not.toContain('check_unknown()')
+      expect(group.evaluatorSource).not.toMatch(/check_unknown\(\)|check_unresolved\(/)
     }
   })
 })

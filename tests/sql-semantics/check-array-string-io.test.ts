@@ -217,21 +217,8 @@ it('joins every represented scalar and enum using the shared catalog output rend
     await expect(
       pg.query('SELECT array_to_string($1::money[],NULL) value', ['{not-money}']),
     ).rejects.toMatchObject({ code: '22P02' })
-    const deferred = new Set([
-      'timestamp',
-      'timestamptz',
-      'date',
-      'bytea',
-      'interval',
-      'point',
-      'line',
-      'lseg',
-      'box',
-      'path',
-      'polygon',
-      'circle',
-      'money',
-    ])
+    // Geometry is left out: these coordinates render alike at every extra_float_digits setting.
+    const deferred = new Set(['timestamp', 'timestamptz', 'date', 'bytea', 'interval', 'money'])
     const forms: { name: string; sql: string; type: string; array: string; marked: boolean }[] = []
     for (const [index, [type, literal]] of arrayScalarProfiles.entries()) {
       const array = (

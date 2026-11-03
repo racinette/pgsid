@@ -192,11 +192,12 @@ it('matches both PostgreSQL byte-order branches, native digit/tuple layouts, exp
             state.kind === 'Error' ? firstError : secondError,
           )
         }
+        // A NULL seed makes the strict hash NULL, so neither the value nor the profile matters.
         add(
           context,
           input + '_64',
           { ...base, [input]: { kind: 'Unknown' }, seed: known(null) },
-          { kind: 'Unknown' },
+          { kind: 'Null' },
         )
       }
     for (const context of Object.keys(contexts)) {

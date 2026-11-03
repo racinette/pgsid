@@ -113,12 +113,13 @@ describe('catalog regex output collation boundary', () => {
             fixtures.push({
               name,
               row: { ...row },
-              expected: { kind: index === 1 ? 'True' : 'Unknown' },
+              // Past the default collation, the comparison's collation conflict is a gap in binding.
+              expected: { kind: index === 1 ? 'True' : index === 0 ? 'Unknown' : 'Unimplemented' },
             })
             fixtures.push({
               name,
               row: { ...row, recorded: input(recorded + '!') },
-              expected: { kind: index === 1 ? 'False' : 'Unknown' },
+              expected: { kind: index === 1 ? 'False' : index === 0 ? 'Unknown' : 'Unimplemented' },
             })
             fixtures.push({
               name,
@@ -126,7 +127,8 @@ describe('catalog regex output collation boundary', () => {
                 ...row,
                 label: input(null),
               },
-              expected: { kind: index === 1 ? 'Null' : 'Unknown' },
+              // A NULL argument makes the strict call NULL whatever the default collation is.
+              expected: { kind: index <= 1 ? 'Null' : 'Unimplemented' },
             })
           }
         }

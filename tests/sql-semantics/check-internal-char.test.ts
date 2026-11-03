@@ -235,7 +235,8 @@ describe('internal single-byte char values', () => {
     for (const [a, b, outcome] of [
       [{ kind: 'Unknown' }, known(1), { kind: 'Unknown' }],
       [known(null), known(1), { kind: 'Null' }],
-      [known(null), { kind: 'Unknown' }, { kind: 'Unknown' }],
+      // A NULL argument makes the strict comparison NULL whatever the other is.
+      [known(null), { kind: 'Unknown' }, { kind: 'Null' }],
       [{ kind: 'Unknown' }, error('22012'), error('22012')],
       [error('22003'), error('22012'), error('22003')],
     ] as [Input, Input, Outcome][])
@@ -362,7 +363,8 @@ describe('internal single-byte char values', () => {
     })
     await run('hash_state', prepared, [
       { name: 'hash', row: { a: known(255), seed: known(0n) }, expected: { kind: 'Unknown' } },
-      { name: 'hash', row: { a: known(255), seed: known(null) }, expected: { kind: 'Unknown' } },
+      // A NULL seed makes the strict hash NULL, so char signedness is never consulted.
+      { name: 'hash', row: { a: known(255), seed: known(null) }, expected: { kind: 'True' } },
       { name: 'hash', row: { a: known(255), seed: error('22012') }, expected: error('22012') },
       { name: 'hash', row: { a: known(null), seed: known(0n) }, expected: { kind: 'True' } },
       { name: 'hash', row: { a: known(65), seed: known(0n) }, expected: { kind: 'False' } },

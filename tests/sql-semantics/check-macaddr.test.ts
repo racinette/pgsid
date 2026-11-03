@@ -284,11 +284,8 @@ describe('portable Rust CHECK MAC addresses', () => {
             value.kind === 'Error' ? error : otherError,
           )
           record(type + '_' + name, { ...known, [a]: otherError, [b]: value }, otherError)
-          record(
-            type + '_' + name,
-            { ...known, [a]: { kind: 'Unknown' }, [b]: input(null) },
-            { kind: 'Unknown' },
-          )
+          // A NULL argument decides the strict call, so the other one can stay unread.
+          await oracle(type + '_' + name, { ...known, [a]: { kind: 'Unknown' }, [b]: input(null) })
         }
         for (const name of ['is_null', 'is_not_null'])
           record(
@@ -409,7 +406,7 @@ describe('portable Rust CHECK MAC addresses', () => {
       ])
       const check = group.checks[0]!
       if (check.kind === 'supported')
-        expect(group.evaluatorSource, sql).toContain('check_unknown()')
+        expect(group.evaluatorSource, sql).toContain('check_unresolved(2)')
       else expect(check.kind, sql).toBe('unsupported')
     }
   })

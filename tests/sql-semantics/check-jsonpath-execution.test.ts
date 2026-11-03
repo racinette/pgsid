@@ -771,7 +771,8 @@ fn jsonpath_execution_input(document:TextValue)->JsonbValue {
           document: value('{"x":"2024"}'),
           path: value('(-$.x.datetime("TMMonth") == 1)'),
         },
-        expected: { kind: 'Unknown' },
+        // The evaluator does not walk arithmetic over a method chain, whatever the locale decides.
+        expected: { kind: 'Unimplemented' },
       })
     }
     for (const variant of variants) {

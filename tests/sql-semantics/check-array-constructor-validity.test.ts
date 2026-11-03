@@ -8,6 +8,7 @@ import { lowerTableCheck } from '../../src/sql-semantics/catalog-checks.js'
 import { prepareCheckRustGroup } from '../../src/codegen/shared/check-rust-source.js'
 import { hasUncertain } from '../../scripts/check-measurements/probes.js'
 import { portableCheckAtoms } from '../../src/codegen/shared/check-atom-support.js'
+import { readRangeFixture } from './check-range-fixtures.js'
 import {
   runCheckParity,
   type Input,
@@ -121,6 +122,16 @@ it('preserves computed ARRAY element validity, lazy branches, safe unknown value
       ['1', 0, 0, false],
       ['2147483648', 1, 2, true],
     ] as const
+    const opaqueRange: Input = {
+      kind: 'Value',
+      value: await readRangeFixture(
+        pg,
+        'SELECT $1::int4range span',
+        'span',
+        'pg_catalog.int4range',
+        ['[1,2)'],
+      ),
+    }
     for (const values of concrete) {
       await pg.exec('TRUNCATE constructor_validity_oracle')
       await pg.query('INSERT INTO constructor_validity_oracle VALUES($1,$2,$3,$4,int4range(1,2))', [
@@ -131,7 +142,7 @@ it('preserves computed ARRAY element validity, lazy branches, safe unknown value
         quantity: known(values[1]),
         other: known(values[2]),
         flag: known(values[3]),
-        opaque: known('[1,2)'),
+        opaque: opaqueRange,
       }
       for (const [name, sql] of Object.entries(forms)) {
         let expected: Outcome

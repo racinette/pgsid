@@ -3218,7 +3218,9 @@ export function emitCheckRustEvaluator(
             if (diagnosticCall(call)) diagnostics.flow(value, operands, lines)
             const target = diagnostics.declared(name, destination, '0')
             const reason = diagnostics.reason(value, lines)
-            lines.push(`${target} = ${reason};`)
+            lines.push(
+              `${target} = ${reason === '-1' || reason === '0' ? `check_requirement_code(${reason})` : reason};`,
+            )
           }
           destination.push(
             `let mut ${name}: ${rustType(value.type)} = ${rustValuePrefix(rustType(value.type))}_null();`,

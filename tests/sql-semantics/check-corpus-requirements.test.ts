@@ -105,16 +105,21 @@ describe('world CHECK context and materialized input requirements', () => {
         },
       })),
     )
+    const commissioned: Row[string] = { kind: 'Value', value: 0 }
     const fixtures: { name: string; row: Row; expected: Outcome }[] = [
       {
         name: names[0]!,
-        row: { energized_at: { kind: 'Value', value: 0n } },
+        row: { energized_at: { kind: 'Value', value: 0n }, commissioned_on: commissioned },
         expected: { kind: 'Unknown' },
       },
-      { name: names[0]!, row: { energized_at: { kind: 'Null' } }, expected: { kind: 'True' } },
       {
         name: names[0]!,
-        row: { energized_at: { kind: 'Unknown' } },
+        row: { energized_at: { kind: 'Null' }, commissioned_on: commissioned },
+        expected: { kind: 'True' },
+      },
+      {
+        name: names[0]!,
+        row: { energized_at: { kind: 'Unknown' }, commissioned_on: commissioned },
         expected: { kind: 'Unknown' },
       },
       {
