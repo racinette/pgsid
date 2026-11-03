@@ -712,11 +712,12 @@ pub(crate) fn finish_array_sort(input: ArraySortPayload) -> ArrayValue {
                     };
                     candidate = candidate + 1;
                 }
-                // The server's own sort fixes the order of distinguishable ties.
+                // Whether the server sorts in memory or spills follows work_mem, which orders
+                // distinguishable ties.
                 if same {
                     consensus.push(element);
                 } else {
-                    consensus.push(ArrayElement::Unimplemented);
+                    consensus.push(ArrayElement::Unknown);
                 };
                 column = column + 1;
             }

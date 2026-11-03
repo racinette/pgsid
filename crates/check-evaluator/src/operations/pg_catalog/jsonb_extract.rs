@@ -338,7 +338,8 @@ pub fn sql__pg_catalog__jsonb_array_length__1gng(input: JsonbValue) -> Int4Value
         if jsonb_has_shape(&facts) && jsonb_root_allows(&facts, 5) == false {
             return Int4Value::Error(make_sql_error(JSONB_EXTRACT_PARAMETER));
         };
-        return int4_unresolved(unresolved_flavor);
+        // Partial knowledge of an unknown length stands for contents that are Unknown.
+        return int4_unresolved(resolution_context(unresolved_flavor));
     };
     if let JsonbValue::Value(value) = input {
         let root = value.nodes[value.root];

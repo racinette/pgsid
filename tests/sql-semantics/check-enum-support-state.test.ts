@@ -184,7 +184,8 @@ it('preserves non-strict argument validity, partial bounds, empty/singleton enum
     add('singleton_first', { ...base, one: unknown, expected: known('only') }, { kind: 'True' })
     add('empty_calculated', { ...base, quantity: unknown, divisor: known(0) }, { kind: 'Unknown' })
     add('all', { ...base, stage: error('22012') }, error('22012'))
-    add('all', { ...base, stage: known(99) }, { kind: 'Unknown' })
+    // An ordinal past the enum's labels is a malformed value, no database fact.
+    add('all', { ...base, stage: known(99) }, { kind: 'Unimplemented' })
     add('bounds', { ...base, stage: error('22012'), peer: error('22003') }, error('22012'))
     add('bounds', { ...base, stage: unknown, peer: error('22003') }, error('22003'))
     add('empty_all', { ...base, zero: error('22012') }, error('22012'))

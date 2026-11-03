@@ -20,7 +20,7 @@ pub fn oid_from_text(input: TextValue) -> OidValue {
         let mut radix = 10i64;
         if start + 1 < end && chars[start] == '0' {
             if chars[start + 1] == 'x' || chars[start + 1] == 'X' { radix = 16i64; start += 2; }
-            else if chars[start + 1] == 'b' || chars[start + 1] == 'B' { return oid_unresolved(unresolved_flavor); }
+            else if chars[start + 1] == 'b' || chars[start + 1] == 'B' { return oid_unresolved(resolution_context(unresolved_flavor)); }
             else { radix = 8i64; };
         };
         let mut units = 0i64;

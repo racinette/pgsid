@@ -3344,7 +3344,7 @@ pub fn make_tsvector_value(input: TsvectorPayload) -> TsvectorValue {
     let unresolved_flavor: i32 = 0;
     if input.native_bytes > 1073741823 { return tsvector_unresolved(unresolved_flavor); };
     if tsvector_canonical_bytes(&input) < 0 { return tsvector_unresolved(unresolved_flavor); };
-    if input.native_bytes != -1 && input.native_bytes < 8 + (input.lexemes.len() as i32) * 4 {
+    if input.native_bytes != -1 && input.native_bytes != -2 && input.native_bytes < 8 + (input.lexemes.len() as i32) * 4 {
         return tsvector_unresolved(unresolved_flavor);
     };
     let mut index: usize = 0;

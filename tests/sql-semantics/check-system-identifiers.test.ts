@@ -357,7 +357,8 @@ describe('portable transaction and command identifiers', () => {
         ...(type === 'xid8' ? deferredXid8PlatformForms : deferredIdentifier32PlatformForms),
         '9'.repeat(4097),
       ])
-        add(known(text), known('00'), { kind: 'Unknown' })
+        // Text past the evaluator's length cap is no database fact.
+        add(known(text), known('00'), { kind: text.length > 4096 ? 'Unimplemented' : 'Unknown' })
       add(known(null), known('00'), { kind: 'Null' })
       add({ kind: 'Unknown' }, known('00'), { kind: 'Unknown' })
       add(error('22012'), known('00'), error('22012'))

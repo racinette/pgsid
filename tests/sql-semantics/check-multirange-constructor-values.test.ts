@@ -338,6 +338,7 @@ pub fn multirange_construct_state_probe(mode:Int4Value)->BoolValue {
       kind: 'Error',
       value: { state: parseInt(code, 36) },
     })
+    // Forged spans and cells are no database fact.
     const expected: Outcome[] = [
       { kind: 'True' },
       { kind: 'True' },
@@ -353,12 +354,12 @@ pub fn multirange_construct_state_probe(mode:Int4Value)->BoolValue {
       { kind: 'True' },
       { kind: 'True' },
       { kind: 'Unknown' },
-      { kind: 'Unknown' },
-      { kind: 'Unknown' },
-      { kind: 'Unknown' },
+      { kind: 'Unimplemented' },
+      { kind: 'Unimplemented' },
+      { kind: 'Unimplemented' },
       error('22012'),
       { kind: 'True' },
-      { kind: 'Unknown' },
+      { kind: 'Unimplemented' },
     ]
     const fixtures = expected.map((outcome, mode) => ({
       name: 'state',

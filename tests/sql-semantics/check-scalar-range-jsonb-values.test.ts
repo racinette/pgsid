@@ -163,7 +163,8 @@ it('reuses logical JSONB bounds in owned ranges and multiranges with exact order
       })
     }
     for (let mode = 0; mode < 10; mode++)
-      cases.push({ rust: `jsonb_span_invalid(${mode})`, expected: { kind: 'Unknown' } })
+      // A forged document is no database fact.
+      cases.push({ rust: `jsonb_span_invalid(${mode})`, expected: { kind: 'Unimplemented' } })
     cases.push(
       { rust: 'jsonb_span_snapshots()', expected: { kind: 'True' } },
       { rust: 'jsonb_span_partial_states()', expected: { kind: 'True' } },

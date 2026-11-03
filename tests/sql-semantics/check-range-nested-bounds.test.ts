@@ -504,7 +504,8 @@ CREATE TYPE ranges_span AS RANGE(subtype=int4range,multirange_type_name=ranges_s
       expected: { kind: 'Error', value: { state: parseInt('22003', 36) } },
     })
     for (const mode of [0, 1, 2, 3])
-      cases.push({ rust: `nested_invalid(${mode})`, expected: { kind: 'Unknown' } })
+      // A forged bound profile is no database fact.
+      cases.push({ rust: `nested_invalid(${mode})`, expected: { kind: 'Unimplemented' } })
     const emptySet = await bound(
       profiles.find((p) => p.name === 'sets')!,
       '{}',
@@ -518,7 +519,8 @@ CREATE TYPE ranges_span AS RANGE(subtype=int4range,multirange_type_name=ranges_s
           mode === 0
             ? { kind: 'False' }
             : mode === 1
-              ? { kind: 'Unknown' }
+              ? // A forged type name is no database fact.
+                { kind: 'Unimplemented' }
               : mode === 2
                 ? { kind: 'Error', value: { state: parseInt('22003', 36) } }
                 : { kind: 'False' },

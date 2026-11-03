@@ -149,8 +149,12 @@ describe('point text input and literals', () => {
         expected: error('22P02'),
       })
     for (const text of [...deferredPointPlatformForms, '(' + '0'.repeat(4097) + ',0)']) {
-      add('input', { ...baseline, source: value(text) }, { kind: 'Unknown' })
-      add('lazy', { ...baseline, source: value(text), skip: value(false) }, { kind: 'Unknown' })
+      // Text past the evaluator's length cap is no database fact.
+      const kind = (deferredPointPlatformForms as readonly string[]).includes(text)
+        ? 'Unknown'
+        : 'Unimplemented'
+      add('input', { ...baseline, source: value(text) }, { kind })
+      add('lazy', { ...baseline, source: value(text), skip: value(false) }, { kind })
       add('lazy', { ...baseline, source: value(text), skip: value(true) }, { kind: 'True' })
     }
     for (const state of [{ kind: 'Null' }, { kind: 'Unknown' }, error('22012')] as Input[]) {

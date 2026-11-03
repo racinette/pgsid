@@ -341,7 +341,8 @@ describe('Rust CHECK MAC transforms and casts', () => {
         )
     }
     for (const name of ['text6', 'text8'])
-      record(name, { ...base, raw: input('0'.repeat(257)) }, { kind: 'Unknown' })
+      // Text past the evaluator's length cap is no database fact.
+      record(name, { ...base, raw: input('0'.repeat(257)) }, { kind: 'Unimplemented' })
     for (const name of Object.keys(transforms).filter((name) => !name.startsWith('eq'))) {
       const column = six.has(name) ? 'a' : 'd'
       if (

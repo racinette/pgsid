@@ -147,7 +147,8 @@ it('owns enum range label context through input, output, sets and multiranges wi
         }
     }
     for (let mode = 0; mode < 9; mode++)
-      cases.push({ rust: `enum_span_invalid(${mode})`, expected: { kind: 'Unknown' } })
+      // A forged enum bound or definition is no database fact.
+      cases.push({ rust: `enum_span_invalid(${mode})`, expected: { kind: 'Unimplemented' } })
     cases.push(
       { rust: 'enum_span_snapshots()', expected: { kind: 'True' } },
       { rust: 'enum_span_context()', expected: { kind: 'True' } },

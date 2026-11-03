@@ -270,7 +270,14 @@ it('preserves reached scalar, domain, array and record defaults through range co
             expected: known(false),
             bypass: known(bypass),
           },
-          expected: { kind: bypass ? 'True' : 'Unknown' },
+          // Without a usable capture the stored size stays a catalog fact; a corrupt one is none.
+          expected: {
+            kind: bypass
+              ? 'True'
+              : mode === 'wrong_count' || mode === 'invalid_size'
+                ? 'Unimplemented'
+                : 'Unknown',
+          },
         })
     }
     const group = prepareCheckRustGroup(plans, {

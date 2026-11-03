@@ -97,7 +97,8 @@ fn tsvector_compare(left: TsvectorValue, right: TsvectorValue, exact: bool) -> I
     if let TsvectorValue::Null = right { return Int4Value::Null; };
     if let TsvectorValue::Value(a) = left {
         if let TsvectorValue::Value(b) = right {
-            if a.native_bytes < 0 || b.native_bytes < 0 { return int4_unresolved(unresolved_flavor); };
+            if a.native_bytes == -1 || b.native_bytes == -1 { return int4_unresolved(unresolved_flavor); };
+            if a.native_bytes < 0 || b.native_bytes < 0 { return int4_unresolved(resolution_context(unresolved_flavor)); };
             if a.native_bytes < b.native_bytes { return make_int4_value(-1); };
             if a.native_bytes > b.native_bytes { return make_int4_value(1); };
             if a.lexemes.len() < b.lexemes.len() { return make_int4_value(-1); };

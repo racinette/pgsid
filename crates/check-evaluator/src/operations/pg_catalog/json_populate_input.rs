@@ -46,7 +46,8 @@ pub(crate) fn json_populate_text(input: JsonbInput, quoted: bool, utf8: bool) ->
         };
         return jsonb_extract_text(scalar, utf8);
     };
-    text_unresolved(unresolved_flavor)
+    // A partial input stands for contents that are Unknown.
+    text_unresolved(resolution_context(unresolved_flavor))
 }
 
 pub(crate) fn json_populate_jsonb(input: JsonbInput, utf8: bool) -> JsonbValue {

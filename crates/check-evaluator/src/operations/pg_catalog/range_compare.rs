@@ -207,8 +207,9 @@ fn range_bounds_adjacent(left: &RangePayload, right: &RangePayload) -> BoolValue
         if order == 0 {
             return BoolValue::Value(left.upper_inclusive != right.lower_inclusive);
         };
+        // An uncaptured canonical function is defined by the deployment's catalog.
         if order < 0 && left.support.canonical == 0 {
-            return bool_unresolved(unresolved_flavor);
+            return bool_unresolved(resolution_context(unresolved_flavor));
         };
         if order < 0
             && (left.support.canonical == 2

@@ -278,6 +278,7 @@ it('retains or reconstructs actual PostgreSQL NULL bitmaps independently of logi
                     `SELECT array_position(ARRAY(SELECT unnest(${base})),NULL) IS NOT NULL v`,
                   )
                 ).rows[0]!.v
+                // A false bitmap over a NULL element is forged, no database fact.
                 expected = {
                   kind:
                     mode === 20
@@ -286,7 +287,7 @@ it('retains or reconstructs actual PostgreSQL NULL bitmaps independently of logi
                         : 'Unknown'
                       : mode === 21
                         ? nulls
-                          ? 'Unknown'
+                          ? 'Unimplemented'
                           : 'False'
                         : 'True',
                 }
@@ -322,24 +323,25 @@ it('retains or reconstructs actual PostgreSQL NULL bitmaps independently of logi
         row: { family: known(family) },
         expected: { kind: 'True' },
       })
+    // A false bitmap over a NULL element is forged, no database fact.
     for (const [mode, kind] of [
       'Unknown',
       'False',
       'True',
       'True',
-      'Unknown',
+      'Unimplemented',
       'True',
       'Unknown',
       'False',
       'Unknown',
       'True',
-      'Unknown',
+      'Unimplemented',
       'True',
     ].entries())
       fixtures.push({
         name: entries[2]!,
         row: { mode: known(mode) },
-        expected: { kind: kind as 'True' | 'False' | 'Unknown' },
+        expected: { kind: kind as 'True' | 'False' | 'Unknown' | 'Unimplemented' },
       })
     await mkdir('artifacts/goal-checks/array-bitmap', { recursive: true })
     await writeFile(

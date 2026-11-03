@@ -111,7 +111,11 @@ pub fn xml_indent_probe(input: TextValue, expected: TextValue, mode: i32) -> Boo
           expected: known('unused'),
           outcome: rendered && !document ? { kind: 'Unimplemented' } : error,
         },
-        { input: known(notation), expected: known(permutations[0]!), outcome: { kind: 'Unknown' } },
+        {
+          input: known(notation),
+          expected: known(permutations[0]!),
+          outcome: { kind: rendered ? 'Unimplemented' : 'Unknown' },
+        },
         {
           input: known(notation),
           expected: { kind: 'Error', value: { state: parseInt('22023', 36) } },
