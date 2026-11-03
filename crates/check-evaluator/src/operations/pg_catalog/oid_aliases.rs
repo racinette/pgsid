@@ -186,6 +186,7 @@ pub fn sql__pg_catalog__regclass__wqix(input: TextValue) -> OidValue {
             index += 1;
         };
         if whitespace { return OidValue::Error(make_sql_error(OID_ALIAS_INVALID_NAME)); };
+        if oid_alias_grammar_read(text.as_str(), 0) == false { return oid_unresolved(unresolved_flavor); };
     };
     // A relation name resolves through the deployment's catalog and search path.
     oid_unresolved(resolution_context(unresolved_flavor))

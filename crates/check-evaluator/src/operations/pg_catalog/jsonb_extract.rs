@@ -109,7 +109,8 @@ fn jsonb_extract_text(input: JsonbValue, utf8: bool) -> TextValue {
         if facts.kind > 0 {
             return TextValue::NonNull;
         };
-        return text_unresolved(unresolved_flavor);
+        // Partial knowledge of an unknown kind stands for contents that are Unknown.
+        return text_unresolved(resolution_context(unresolved_flavor));
     };
     if let JsonbValue::Value(value) = input {
         let node = value.nodes[value.root];

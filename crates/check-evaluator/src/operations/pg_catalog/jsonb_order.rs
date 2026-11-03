@@ -417,7 +417,7 @@ fn jsonb_order_shape_root(a: &JsonbPayload, b: &JsonbPayload) -> i32 {
 }
 
 fn jsonb_order_partial(a: JsonbKnowledge, b: JsonbKnowledge) -> Int4Value {
-    let unresolved_flavor: i32 = 0;
+    let unresolved_flavor: i32 = 1;
     if a.kind < 0 || b.kind < 0 {
         return int4_unresolved(unresolved_flavor);
     };
