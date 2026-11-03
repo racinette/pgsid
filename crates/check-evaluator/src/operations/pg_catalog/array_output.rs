@@ -67,7 +67,8 @@ fn array_float_number_output(number: f64, negative: bool) -> TextValue {
             return TextValue::Value(output);
         };
     };
-    text_unresolved(unresolved_flavor)
+    // Other floats render through the session's extra_float_digits, which array output lacks.
+    text_unresolved(resolution_context(unresolved_flavor))
 }
 
 pub fn array_float4_output(input: Float4Value) -> TextValue {

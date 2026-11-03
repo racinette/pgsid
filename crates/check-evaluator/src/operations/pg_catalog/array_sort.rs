@@ -94,6 +94,11 @@ pub(crate) fn prepare_array_sort(
     if descending == BoolValue::Null || nulls_first == BoolValue::Null {
         return array_sort_status(0, make_sql_error(0));
     };
+    // An undecided input or ordering argument keeps its flavor: -3 stops on database state.
+    let mut deferred_state: i32 = -3;
+    if let ArrayValue::Unimplemented = input { deferred_state = -1; };
+    if let BoolValue::Unimplemented = descending { deferred_state = -1; };
+    if let BoolValue::Unimplemented = nulls_first { deferred_state = -1; };
     if let ArrayValue::Value(value) = input {
         if let BoolValue::Value(reverse) = descending {
             if let BoolValue::Value(null_order) = nulls_first {
@@ -114,7 +119,7 @@ pub(crate) fn prepare_array_sort(
             };
         };
     };
-    array_sort_status(-1, make_sql_error(0))
+    array_sort_status(deferred_state, make_sql_error(0))
 }
 
 pub(crate) fn array_sort_continues(input: &ArraySortPayload) -> bool {
@@ -645,6 +650,9 @@ pub(crate) fn finish_array_sort(input: ArraySortPayload) -> ArrayValue {
     };
     if input.state == -1 {
         return array_unresolved(unresolved_flavor);
+    };
+    if input.state == -3 {
+        return array_unresolved(1);
     };
     if input.state == 2 {
         return make_array_value(ArrayPayload {

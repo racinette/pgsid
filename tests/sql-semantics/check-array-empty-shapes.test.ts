@@ -224,7 +224,8 @@ it('preserves native shaped-empty arrays through public carriers, array operatio
                       mode: known(mode),
                       expected_text: known(''),
                     },
-                    { kind: 'Unknown' },
+                    // Sorting rows of zero width needs no database fact; it is a missing computation.
+                    { kind: 'Unimplemented' },
                   )
                   deferredSorts++
                   continue
@@ -324,7 +325,7 @@ it('preserves native shaped-empty arrays through public carriers, array operatio
     add(
       'sort',
       { a: wideEmpty, mode: known([...calls.keys()].indexOf('sort')), expected_text: known('') },
-      { kind: 'Unknown' },
+      { kind: 'Unimplemented' },
     )
     add(
       'reverse',
@@ -338,7 +339,8 @@ it('preserves native shaped-empty arrays through public carriers, array operatio
       { ...shaped.value, dimensions: [{ length: 0, lower: -2147483648 }] },
       { ...shaped.value, elements: [{ kind: 'Int2' as const, value: 1 }] },
     ])
-      add('count', { ...countRow, a: known(value) }, { kind: 'Unknown' })
+      // A malformed shape is not an array the evaluator reads, so it is not database state.
+      add('count', { ...countRow, a: known(value) }, { kind: 'Unimplemented' })
     for (const bitmap of [{ kind: 'Unknown' } as const, { kind: 'Value', value: true } as const])
       add(
         'count',

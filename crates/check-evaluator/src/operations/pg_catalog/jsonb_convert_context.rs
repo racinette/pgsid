@@ -81,7 +81,8 @@ fn jsonb_float_invariant(bits: i64, single: bool) -> JsonbInput {
         let mut ready = false;
         if let TextValue::Value(text) = normalized {
             ready = true;
-            if extra > -15 && previous != text { return jsonb_input_unresolved(unresolved_flavor); };
+            // Renderings that differ by precision wait on the session's extra_float_digits.
+            if extra > -15 && previous != text { return jsonb_input_unresolved(resolution_context(unresolved_flavor)); };
             previous = text;
         };
         if ready == false { return jsonb_input_unresolved(unresolved_flavor); };
@@ -126,6 +127,9 @@ fn jsonb_geometry_values(
     let mut index: usize = 0;
     while index < values.len() {
         let rendered = jsonb_geometry_number(values[index].bits, extra, known);
+        let mut rendered_flavor: i32 = unresolved_flavor;
+        if (rendered == TextValue::Unknown || rendered == TextValue::NonNull) && rendered_flavor < 1 { rendered_flavor = 1; };
+        if rendered == TextValue::Unimplemented { rendered_flavor = 2; };
         let mut ready = false;
         if let TextValue::Value(text) = rendered {
             ready = true;
@@ -135,7 +139,7 @@ fn jsonb_geometry_values(
             output.push_str(text.as_str());
         };
         if ready == false {
-            return text_unresolved(unresolved_flavor);
+            return text_unresolved(rendered_flavor);
         };
         index += 1;
     }
@@ -157,6 +161,9 @@ fn jsonb_geometry_points(points: Vec<PointPayload>, opening: &str, ending: &str,
     while index < points.len() {
         let point = points[index];
         let rendered = jsonb_geometry_pair(point.x, point.y, extra, known);
+        let mut rendered_flavor: i32 = unresolved_flavor;
+        if (rendered == TextValue::Unknown || rendered == TextValue::NonNull) && rendered_flavor < 1 { rendered_flavor = 1; };
+        if rendered == TextValue::Unimplemented { rendered_flavor = 2; };
         let mut ready = false;
         if let TextValue::Value(text) = rendered {
             ready = true;
@@ -166,7 +173,7 @@ fn jsonb_geometry_points(points: Vec<PointPayload>, opening: &str, ending: &str,
             output.push_str(text.as_str());
         };
         if ready == false {
-            return text_unresolved(unresolved_flavor);
+            return text_unresolved(rendered_flavor);
         };
         index += 1;
     }
