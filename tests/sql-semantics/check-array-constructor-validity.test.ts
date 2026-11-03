@@ -124,13 +124,13 @@ it('preserves computed ARRAY element validity, lazy branches, safe unknown value
     ] as const
     const opaqueRange: Input = {
       kind: 'Value',
-      value: await readRangeFixture(
+      value: (await readRangeFixture(
         pg,
         'SELECT $1::int4range span',
         'span',
         'pg_catalog.int4range',
         ['[1,2)'],
-      ),
+      ))!,
     }
     for (const values of concrete) {
       await pg.exec('TRUNCATE constructor_validity_oracle')
