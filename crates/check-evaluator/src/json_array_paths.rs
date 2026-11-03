@@ -466,9 +466,12 @@ pub(crate) fn json_read_array_path(
             index = 0;
             while index < keys.elements.len() {
                 let key = array_element_to_text(keys.elements[index].clone());
+                let mut key_flavor: i32 = unresolved_flavor;
+                if key == TextValue::Unknown || key == TextValue::NonNull { if key_flavor < 1 { key_flavor = 1; }; };
+                if key == TextValue::Unimplemented { key_flavor = 2; };
                 candidates = json_array_path_next(&document, candidates, key);
                 if candidates.state != 1 {
-                    return text_unresolved(unresolved_flavor);
+                    return text_unresolved(key_flavor);
                 };
                 if candidates.nodes.len() == 0 {
                     return TextValue::Null;

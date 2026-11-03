@@ -131,7 +131,7 @@ pub fn xml_indent_probe(input: TextValue, expected: TextValue, mode: i32) -> Boo
         {
           input: known('<r>é</r>'),
           expected: known('<r>&#xE9;</r>'),
-          outcome: { kind: rendered || ascii ? 'Unknown' : 'True' },
+          outcome: { kind: rendered ? 'Unimplemented' : ascii ? 'Unknown' : 'True' },
         },
         {
           input: known('<r>&#xE9;</r>'),
@@ -143,7 +143,7 @@ pub fn xml_indent_probe(input: TextValue, expected: TextValue, mode: i32) -> Boo
           expected: known(
             document ? '<?xml version="1.0" encoding="UTF-8"?>\n<r>é</r>' : '<r>&#xE9;</r>',
           ),
-          outcome: { kind: rendered || (ascii && document) ? 'Unknown' : 'True' },
+          outcome: { kind: rendered ? 'Unimplemented' : ascii && document ? 'Unknown' : 'True' },
         },
       ]
       for (const item of cases)

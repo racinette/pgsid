@@ -12,8 +12,9 @@ fn jsonpath_execution_numeric(
     if node.kind != 3 {
         return NumericValue::Null;
     };
+    // A number without text is a keyvalue id, a byte offset that waits on the server's encoding.
     if node.text_start == node.text_end {
-        return numeric_unresolved(unresolved_flavor);
+        return numeric_unresolved(resolution_context(unresolved_flavor));
     };
     let mut text = String::new();
     let mut position = node.text_start;

@@ -179,7 +179,7 @@ pub fn tsvector_from_stored_text_context(input: TextValue, utf8: bool) -> Tsvect
     // A stored constant without its capture has the size the catalog holds, marked apart from a row
     // value that carries no size.
     if let TsvectorValue::Value(payload) = value {
-        return make_tsvector_value(TsvectorPayload {lexemes:payload.lexemes,native_bytes:-2});
+        return TsvectorValue::Value(TsvectorPayload {lexemes:payload.lexemes,native_bytes:-2});
     };
     if let TsvectorValue::Error(_) = value { return tsvector_unresolved(unresolved_flavor); };
     value

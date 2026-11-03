@@ -431,7 +431,8 @@ it('preserves path decoding errors, UTF8 requirements, eager arguments and typed
       )
       add('raw', { ...base, document: known(null), path: known('bad') }, error('22P02'))
       add('raw', { ...base, document: error('22003'), path: known('bad') }, error('22003'))
-      add('raw', { ...base, document: known('[1,]') }, { kind: 'Unknown' })
+      // A malformed document value is no database fact.
+      add('raw', { ...base, document: known('[1,]') }, { kind: 'Unimplemented' })
       add(
         'guarded',
         { ...base, document: error('22003'), path: known('bad'), bypass: known(true) },

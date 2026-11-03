@@ -478,7 +478,11 @@ const arrayElementOutput = (
     metadata.result !== 'pg_catalog.cstring' ||
     (definition && enumType(definition) !== elementType)
   )
-    throw new UnsupportedCheckRustExpression('Array output requires its element catalog identity')
+    // An output function outside the builtins is defined by the deployment's catalog.
+    throw new UnsupportedCheckRustExpression(
+      'Array output requires its element catalog identity',
+      !!elementOutput && !metadata,
+    )
   const prefix = rustValuePrefix(rustType(elementType))
   let conversion: string | null = null
   if (isGeometryConstantType(elementType))

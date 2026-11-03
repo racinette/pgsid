@@ -30,8 +30,9 @@ fn jsonb_storage_decision(size: JsonbStorageSize) -> BoolValue {
     if size.low > JSONB_STORAGE_LIMIT {
         return BoolValue::Error(make_sql_error(JSONB_STORAGE_ERROR));
     };
+    // Sizes that straddle the limit differ by how the server's encoding widens the text.
     if size.high > JSONB_STORAGE_LIMIT {
-        return bool_unresolved(unresolved_flavor);
+        return bool_unresolved(resolution_context(unresolved_flavor));
     };
     BoolValue::Value(true)
 }

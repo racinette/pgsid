@@ -460,12 +460,12 @@ it('shares supplied character facts across parent CHECKs and nested domain check
             } catch (error) {
               expected = failure((error as { code: string }).code)
             }
-            if (
-              !bypass &&
-              value !== null &&
-              (profile.name === 'missing' || profile.name === 'invalid')
-            )
+            // Missing character facts wait on the deployment, while malformed ones are no database
+            // fact.
+            if (!bypass && value !== null && profile.name === 'missing')
               expected = { kind: 'Unknown' }
+            if (!bypass && value !== null && profile.name === 'invalid')
+              expected = { kind: 'Unimplemented' }
             for (const origin of ['source', 'stored'])
               fixtures.push({
                 name: profile.name + '_' + name + '_' + origin,
