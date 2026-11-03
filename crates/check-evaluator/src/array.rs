@@ -172,6 +172,8 @@ pub(crate) fn array_cast_validity(
         {
             return CheckOutcome::True;
         };
+        // Near the range limits, whether the cast overflows depends on the session zone's offset.
+        return check_unresolved(resolution_context(unresolved_flavor));
     };
     check_unresolved(unresolved_flavor)
 }

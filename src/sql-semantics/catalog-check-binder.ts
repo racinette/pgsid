@@ -3220,8 +3220,9 @@ export function bindCatalogCheck(
     }
     if (result.value === null && result.type === null) {
       unboundChild = true
-      // A stable or volatile call over plain operands is computed only when the database runs it.
-      if (fields(node)?.['FuncCall'] && runtimeOpaque(node)) {
+      // A stable or volatile call over plain operands is computed only when the database runs it,
+      // and a function that is not a builtin is defined by the deployment's catalog.
+      if (fields(node)?.['FuncCall'] && (runtimeOpaque(node) || deploymentFunction(node))) {
         unboundObstacles.other = priorOther
         unboundObstacles.context = true
       }
@@ -8741,6 +8742,12 @@ export function bindCatalogCheck(
     return isGenericLiteralQuote(resolved.item)
       ? strictQuotedCall(result, { ...args[0]!, value: resolved.operands[0]! })
       : result
+  }
+  const deploymentFunction = (node: unknown): boolean => {
+    const names = strings(fields(fields(node)?.['FuncCall'])?.['funcname'])
+    if (!names || names.length > 2 || (names.length === 2 && names[0] === 'pg_catalog')) return false
+    const name = names.at(-1)
+    return !callables.some(({ item }) => item.schema === 'pg_catalog' && item.name === name)
   }
   const runtimeOpaque = (node: unknown): boolean => {
     const wrapper = fields(node)

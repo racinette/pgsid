@@ -79,7 +79,8 @@ pub fn sql__pg_catalog__timestamptz__m17a(input: TimestampValue, zone: &str) -> 
             return make_timestamptz_value(value - (profile.seconds as i64) * 1000000i64);
         };
     };
-    timestamptz_unresolved(unresolved_flavor)
+    // The session zone's offset is unknown, or the zone lies outside the bundled tables.
+    timestamptz_unresolved(resolution_context(unresolved_flavor))
 }
 
 pub fn sql__pg_catalog__timestamptz__6zge(input: DateValue, zone: &str) -> TimestamptzValue {
@@ -108,7 +109,8 @@ pub fn sql__pg_catalog__timestamptz__6zge(input: DateValue, zone: &str) -> Times
             return make_timestamptz_value(local - (profile.seconds as i64) * 1000000i64);
         };
     };
-    timestamptz_unresolved(unresolved_flavor)
+    // The session zone's offset is unknown, or the zone lies outside the bundled tables.
+    timestamptz_unresolved(resolution_context(unresolved_flavor))
 }
 
 pub fn sql__pg_catalog__timestamp__i0gp(input: TimestamptzValue, zone: &str) -> TimestampValue {
@@ -130,7 +132,8 @@ pub fn sql__pg_catalog__timestamp__i0gp(input: TimestamptzValue, zone: &str) -> 
             return make_timestamp_value(value + (profile.seconds as i64) * 1000000i64);
         };
     };
-    timestamp_unresolved(unresolved_flavor)
+    // The session zone's offset is unknown, or the zone lies outside the bundled tables.
+    timestamp_unresolved(resolution_context(unresolved_flavor))
 }
 
 pub fn sql__pg_catalog__date__h28y(input: TimestamptzValue, zone: &str) -> DateValue {
@@ -160,7 +163,8 @@ pub fn sql__pg_catalog__date__h28y(input: TimestamptzValue, zone: &str) -> DateV
             return DateValue::Value(day as i32);
         };
     };
-    date_unresolved(unresolved_flavor)
+    // The session zone's offset is unknown, or the zone lies outside the bundled tables.
+    date_unresolved(resolution_context(unresolved_flavor))
 }
 
 pub fn sql__pg_catalog__time__az0x(input: TimestamptzValue, zone: &str) -> TimeValue {
@@ -187,7 +191,8 @@ pub fn sql__pg_catalog__time__az0x(input: TimestamptzValue, zone: &str) -> TimeV
             return make_time_value(clock);
         };
     };
-    time_unresolved(unresolved_flavor)
+    // The session zone's offset is unknown, or the zone lies outside the bundled tables.
+    time_unresolved(resolution_context(unresolved_flavor))
 }
 
 pub fn sql__pg_catalog__timetz__sqdw(input: TimestamptzValue, zone: &str) -> TimetzValue {
@@ -214,7 +219,8 @@ pub fn sql__pg_catalog__timetz__sqdw(input: TimestamptzValue, zone: &str) -> Tim
             return make_timetz_value(clock, 0 - profile.seconds);
         };
     };
-    timetz_unresolved(unresolved_flavor)
+    // The session zone's offset is unknown, or the zone lies outside the bundled tables.
+    timetz_unresolved(resolution_context(unresolved_flavor))
 }
 
 // Timestamptz input without a zone takes the session time zone through the same local-time
