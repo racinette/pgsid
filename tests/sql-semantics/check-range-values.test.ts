@@ -307,13 +307,13 @@ let payload=RangePayload{bound_profile:empty_range_bound_context(),enum_labels:S
 let value=make_coerced_range_value(payload.clone());bounds[0]=ArrayElement::Numeric("99".to_owned());
 let saved=range_require_type(value.clone(),"pg_catalog.numrange","pg_catalog.\\\"numeric\\\"",10);
 assert!(array_element_to_numeric(range_bound(saved.clone(),false))==make_numeric_value("1.00"));
-assert!(matches!(range_require_type(saved.clone(),"other","pg_catalog.\\\"numeric\\\"",10),RangeValue::Unknown));
-assert!(matches!(range_require_type(saved.clone(),"pg_catalog.numrange","other",10),RangeValue::Unknown));
-assert!(matches!(range_require_type(saved,"pg_catalog.numrange","pg_catalog.\\\"numeric\\\"",2),RangeValue::Unknown));
-let mut invalid=payload.clone();invalid.empty=true;assert!(matches!(make_coerced_range_value(invalid),RangeValue::Unknown));
-let mut invalid=payload.clone();invalid.bounds.clear();assert!(matches!(make_coerced_range_value(invalid),RangeValue::Unknown));
-let mut invalid=payload.clone();invalid.bounds[0]=ArrayElement::Null;assert!(matches!(make_coerced_range_value(invalid),RangeValue::Unknown));
-let mut invalid=payload.clone();invalid.bounds[0]=ArrayElement::Int8(1i64);assert!(matches!(make_coerced_range_value(invalid),RangeValue::Unknown));
+assert!(matches!(range_require_type(saved.clone(),"other","pg_catalog.\\\"numeric\\\"",10),RangeValue::Unimplemented));
+assert!(matches!(range_require_type(saved.clone(),"pg_catalog.numrange","other",10),RangeValue::Unimplemented));
+assert!(matches!(range_require_type(saved,"pg_catalog.numrange","pg_catalog.\\\"numeric\\\"",2),RangeValue::Unimplemented));
+let mut invalid=payload.clone();invalid.empty=true;assert!(matches!(make_coerced_range_value(invalid),RangeValue::Unimplemented));
+let mut invalid=payload.clone();invalid.bounds.clear();assert!(matches!(make_coerced_range_value(invalid),RangeValue::Unimplemented));
+let mut invalid=payload.clone();invalid.bounds[0]=ArrayElement::Null;assert!(matches!(make_coerced_range_value(invalid),RangeValue::Unimplemented));
+let mut invalid=payload.clone();invalid.bounds[0]=ArrayElement::Int8(1i64);assert!(matches!(make_coerced_range_value(invalid),RangeValue::Unimplemented));
 let mut partial=payload;partial.bounds[0]=ArrayElement::Unknown;
 let partial=make_coerced_range_value(partial);assert!(range_bound_flag(partial.clone(),false,true)==BoolValue::Value(false));assert!(matches!(range_bound(partial,false),ArrayElement::Unknown));
 }`,
@@ -368,13 +368,13 @@ value:=checkruntime.MakeCoercedRangeValue(payload);bounds[0].Numeric="99"
 saved:=checkruntime.RangeRequireType(value,"pg_catalog.numrange","pg_catalog.\\\"numeric\\\"",10);value.Value.Bounds[0].Numeric="88"
 if checkruntime.RangeBound(saved,false).Numeric!="1.00" {t.Fatal("range snapshot alias")}
 selected:=checkruntime.RangeBound(saved,false);selected.Numeric="77";if checkruntime.RangeBound(saved,false).Numeric!="1.00" {t.Fatal("extracted bound alias")}
-if checkruntime.RangeRequireType(saved,"other","pg_catalog.\\\"numeric\\\"",10).Kind!=checkruntime.RangeValueUnknown {t.Fatal("nominal identity")}
-if checkruntime.RangeRequireType(saved,"pg_catalog.numrange","other",10).Kind!=checkruntime.RangeValueUnknown {t.Fatal("subtype identity")}
-if checkruntime.RangeRequireType(saved,"pg_catalog.numrange","pg_catalog.\\\"numeric\\\"",2).Kind!=checkruntime.RangeValueUnknown {t.Fatal("subtype family")}
-invalid:=payload;invalid.Empty=true;if checkruntime.MakeCoercedRangeValue(invalid).Kind!=checkruntime.RangeValueUnknown {t.Fatal("empty shape")}
-invalid=payload;invalid.Bounds=nil;if checkruntime.MakeCoercedRangeValue(invalid).Kind!=checkruntime.RangeValueUnknown {t.Fatal("missing bounds")}
-invalid=payload;invalid.Bounds=[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementNull},{Kind:checkruntime.ArrayElementNumeric,Numeric:"2"}};if checkruntime.MakeCoercedRangeValue(invalid).Kind!=checkruntime.RangeValueUnknown {t.Fatal("infinite inclusive")}
-invalid=payload;invalid.Bounds=[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementInt8,Int8:1},{Kind:checkruntime.ArrayElementNumeric,Numeric:"2"}};if checkruntime.MakeCoercedRangeValue(invalid).Kind!=checkruntime.RangeValueUnknown {t.Fatal("bound family")}
+if checkruntime.RangeRequireType(saved,"other","pg_catalog.\\\"numeric\\\"",10).Kind!=checkruntime.RangeValueUnimplemented {t.Fatal("nominal identity")}
+if checkruntime.RangeRequireType(saved,"pg_catalog.numrange","other",10).Kind!=checkruntime.RangeValueUnimplemented {t.Fatal("subtype identity")}
+if checkruntime.RangeRequireType(saved,"pg_catalog.numrange","pg_catalog.\\\"numeric\\\"",2).Kind!=checkruntime.RangeValueUnimplemented {t.Fatal("subtype family")}
+invalid:=payload;invalid.Empty=true;if checkruntime.MakeCoercedRangeValue(invalid).Kind!=checkruntime.RangeValueUnimplemented {t.Fatal("empty shape")}
+invalid=payload;invalid.Bounds=nil;if checkruntime.MakeCoercedRangeValue(invalid).Kind!=checkruntime.RangeValueUnimplemented {t.Fatal("missing bounds")}
+invalid=payload;invalid.Bounds=[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementNull},{Kind:checkruntime.ArrayElementNumeric,Numeric:"2"}};if checkruntime.MakeCoercedRangeValue(invalid).Kind!=checkruntime.RangeValueUnimplemented {t.Fatal("infinite inclusive")}
+invalid=payload;invalid.Bounds=[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementInt8,Int8:1},{Kind:checkruntime.ArrayElementNumeric,Numeric:"2"}};if checkruntime.MakeCoercedRangeValue(invalid).Kind!=checkruntime.RangeValueUnimplemented {t.Fatal("bound family")}
 partial:=payload;partial.Bounds=[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementUnknown},{Kind:checkruntime.ArrayElementNumeric,Numeric:"2"}};p:=checkruntime.MakeCoercedRangeValue(partial);if checkruntime.RangeBound(p,false).Kind!=checkruntime.ArrayElementUnknown || checkruntime.RangeBoundFlag(p,false,true).Value {t.Fatal("finite unavailable bound")}
 }`,
     )
@@ -449,7 +449,7 @@ partial:=payload;partial.Bounds=[]checkruntime.ArrayElement{{Kind:checkruntime.A
       ['pg_catalog.numrange', 'pg_catalog."numeric"', 2],
     ] as const)
       expect(runtime.rangeRequireType(saved, identity, subtype, family)).toEqual({
-        kind: 'Unknown',
+        kind: 'Unimplemented',
       })
     for (const change of [
       { type_name: '' },
@@ -467,7 +467,7 @@ partial:=payload;partial.Bounds=[]checkruntime.ArrayElement{{Kind:checkruntime.A
       },
     ])
       expect(runtime.makeCoercedRangeValue(tsPayload({ ...payload, ...change }))).toEqual({
-        kind: 'Unknown',
+        kind: 'Unimplemented',
       })
     const partial = runtime.makeCoercedRangeValue(
       tsPayload({

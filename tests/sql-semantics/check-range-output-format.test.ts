@@ -66,7 +66,7 @@ pub fn range_output_state_probe() -> BoolValue {
   let both = range_from_coerced_bounds("pg_catalog.int4range", "pg_catalog.int4", 2, false, true, false, lower, upper);
   if range_format_text(both.clone(), TextValue::Unknown, failure.clone()) != TextValue::Unknown { return BoolValue::Value(false); };
   if range_format_text(both.clone(), failure.clone(), TextValue::Unknown) != failure { return BoolValue::Value(false); };
-  if range_format_text(both, TextValue::Null, failure.clone()) != TextValue::Unknown { return BoolValue::Value(false); };
+  if range_format_text(both, TextValue::Null, failure.clone()) != TextValue::Unimplemented { return BoolValue::Value(false); };
   let empty = range_from_coerced_bounds("pg_catalog.int4range", "pg_catalog.int4", 2, true, false, false, ArrayElement::Unknown, ArrayElement::Unknown);
   if range_format_text(empty, failure.clone(), TextValue::Unknown) != make_text_value("empty") { return BoolValue::Value(false); };
   if range_format_text(RangeValue::Null, failure.clone(), failure.clone()) != TextValue::Null { return BoolValue::Value(false); };

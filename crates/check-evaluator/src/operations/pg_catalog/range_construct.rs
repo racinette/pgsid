@@ -414,8 +414,9 @@ fn range_builtin_canonical(input: RangeValue) -> RangeValue {
         if value.empty {
             return RangeValue::Value(value);
         };
+        // An uncaptured canonical function is defined by the deployment's catalog.
         if value.support.canonical == 0 {
-            return range_unresolved(unresolved_flavor);
+            return range_unresolved(resolution_context(unresolved_flavor));
         };
         if value.support.canonical == 1 {
             return RangeValue::Value(value);

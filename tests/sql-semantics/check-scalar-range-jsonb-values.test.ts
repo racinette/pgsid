@@ -265,7 +265,7 @@ fn jsonb_span_snapshots()->BoolValue {
  let owned=jsonb_span_coerced(lower,upper,make_range_support(12,1));
  let saved=owned.clone();
  if let ArrayElement::Jsonb(value)=retained_lower {let changed=jsonb_span_changed(value,8);
-  if jsonb_is_null(jsonb_from_coerced_value(JsonbValue::Value(changed)))!=BoolValue::Unknown {return BoolValue::Value(false);};};
+  if jsonb_is_null(jsonb_from_coerced_value(JsonbValue::Value(changed)))!=BoolValue::Unimplemented {return BoolValue::Value(false);};};
  let expected=range_to_text(saved.clone());
  if range_to_text(owned.clone())!=expected {return BoolValue::Value(false);};
  let multi=multirange_construct_single_with_support(owned,"public.jsonb_spans","public.jsonb_span","pg_catalog.jsonb",12,make_range_support(12,1));
@@ -286,7 +286,7 @@ fn jsonb_span_snapshots()->BoolValue {
  let restored=array_element_to_range(array_flat_element(array.clone(),make_int4_value(0)));
  let restored_lower=range_bound(restored,false);
  if let ArrayElement::Jsonb(value)=restored_lower {let changed=jsonb_span_changed(value,8);
-  if jsonb_is_null(jsonb_from_coerced_value(JsonbValue::Value(changed)))!=BoolValue::Unknown {return BoolValue::Value(false);};};
+  if jsonb_is_null(jsonb_from_coerced_value(JsonbValue::Value(changed)))!=BoolValue::Unimplemented {return BoolValue::Value(false);};};
  let retained=array_element_to_range(array_flat_element(array,make_int4_value(0)));
  BoolValue::Value(range_to_text(retained)==expected && multi_text!=TextValue::Unknown && multirange_to_text(multi_saved)==multi_text)
 }

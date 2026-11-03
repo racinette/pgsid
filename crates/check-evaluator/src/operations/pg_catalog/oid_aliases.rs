@@ -49,7 +49,8 @@ pub fn oid_alias_to_text(input: OidValue, dash: bool) -> TextValue {
             return TextValue::Value("0".to_owned());
         };
     };
-    text_unresolved(unresolved_flavor)
+    // A nonzero alias renders the object's name, which the deployment's catalog holds.
+    text_unresolved(resolution_context(unresolved_flavor))
 }
 
 fn oid_alias_lookup(input: TextValue, dash: bool, grammar: i32) -> OidValue {
