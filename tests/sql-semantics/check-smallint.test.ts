@@ -197,8 +197,9 @@ describe('portable smallint CHECK values', () => {
       const leftName = column(fn.args[0]!, 0)
       const rightName = column(fn.args[1]!, 1)
       for (const [left, right, expected] of [
-        [{ kind: 'Unknown' }, { kind: 'Null' }, { kind: 'Unknown' }],
-        [{ kind: 'Null' }, { kind: 'Unknown' }, { kind: 'Unknown' }],
+        // A NULL argument makes the strict call NULL whatever the other is.
+        [{ kind: 'Unknown' }, { kind: 'Null' }, { kind: 'Null' }],
+        [{ kind: 'Null' }, { kind: 'Unknown' }, { kind: 'Null' }],
         [error, { kind: 'Unknown' }, error],
         [{ kind: 'Unknown' }, otherError, otherError],
         [error, otherError, error],
@@ -247,8 +248,9 @@ describe('portable smallint CHECK values', () => {
       row: { a: error, b: value(1), flag: value(false) },
       expected: { kind: 'True' },
     })
+    // A value outside int2 is no database fact.
     for (const a of [-32769, 32768])
-      fixtures.push({ name: 'positive', row: { a: value(a) }, expected: { kind: 'Unknown' } })
+      fixtures.push({ name: 'positive', row: { a: value(a) }, expected: { kind: 'Unimplemented' } })
     await runCheckParity(directory, 'smallintchecks', group, ordered, fixtures)
   }, 120_000)
 
@@ -312,8 +314,9 @@ describe('portable smallint CHECK values', () => {
         }
     for (const name of ['addition', 'subtraction', 'multiplication', 'division', 'remainder'])
       for (const [a, b, expected] of [
-        [{ kind: 'Unknown' }, { kind: 'Null' }, { kind: 'Unknown' }],
-        [{ kind: 'Null' }, { kind: 'Unknown' }, { kind: 'Unknown' }],
+        // A NULL operand makes the strict call NULL whatever the other is.
+        [{ kind: 'Unknown' }, { kind: 'Null' }, { kind: 'Null' }],
+        [{ kind: 'Null' }, { kind: 'Unknown' }, { kind: 'Null' }],
         [error, { kind: 'Unknown' }, error],
         [{ kind: 'Unknown' }, otherError, otherError],
         [error, otherError, error],

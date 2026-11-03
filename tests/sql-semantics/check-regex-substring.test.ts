@@ -145,6 +145,13 @@ describe('Rust CHECK regular-expression substring overloads', () => {
           row.escape = input(escape)
           let value: string | null
           try {
+            // A CHECK inlines the body, so the escape translation runs before the strict check on
+            // the subject, which a plain SELECT with parameters does not show.
+            if (fn.args.length === 3 && subject === null && pattern !== null && escape !== null)
+              await pg.query('SELECT pg_catalog.similar_to_escape($1::text,$2::text)', [
+                pattern,
+                escape,
+              ])
             value = (
               await pg.query<{ value: string | null }>(
                 `SELECT pg_catalog.substring($1::text COLLATE "C",$2::text COLLATE "C"${fn.args.length === 3 ? ',$3::text COLLATE "C"' : ''}) AS value`,

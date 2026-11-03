@@ -230,10 +230,11 @@ describe('Rust bigint CHECK arithmetic', () => {
         expected: incoming,
       },
       { name: 'add', row: { ...base, big: value(null), other: incoming }, expected: incoming },
+      // A NULL operand makes the strict addition NULL whatever the other operand is.
       {
         name: 'add',
         row: { ...base, big: { kind: 'Unknown' }, other: value(null) },
-        expected: { kind: 'Unknown' },
+        expected: { kind: 'Null' },
       },
       {
         name: 'add',
@@ -393,7 +394,7 @@ describe('Rust bigint CHECK arithmetic', () => {
         },
       ])
       expect(group.checks[0]!.kind).toBe('supported')
-      expect(group.evaluatorSource).not.toContain('check_unknown()')
+      expect(group.evaluatorSource).not.toMatch(/check_unknown\(\)|check_unresolved\(/)
     }
   })
 })

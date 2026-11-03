@@ -26,21 +26,8 @@ it('outputs source and stored array casts with the catalog element representatio
     await pg.exec(
       "SET TIME ZONE 'UTC'; SET DateStyle='ISO, MDY'; SET IntervalStyle='iso_8601'; SET array_nulls=on; CREATE TYPE array_stage AS ENUM ('new','done'); CREATE TABLE output_values(source text, expected text)",
     )
-    const deferred = new Set([
-      'timestamp',
-      'timestamptz',
-      'date',
-      'bytea',
-      'interval',
-      'point',
-      'line',
-      'lseg',
-      'box',
-      'path',
-      'polygon',
-      'circle',
-      'money',
-    ])
+    // Geometry is left out: these coordinates render alike at every extra_float_digits setting.
+    const deferred = new Set(['timestamp', 'timestamptz', 'date', 'bytea', 'interval', 'money'])
     const forms: {
       name: string
       sql: string

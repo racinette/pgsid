@@ -916,7 +916,7 @@ fn number_format_prepare(template: &str, numeric_c: bool, monetary_c: bool) -> N
 fn number_format_template_state(format: &NumberFormat) -> TextValue {
     let unresolved_flavor: i32 = 0;
     if format.error == 1 {
-        return text_unresolved(unresolved_flavor);
+        return text_unresolved(resolution_context(unresolved_flavor));
     };
     if format.error != 0 {
         return TextValue::Error(make_sql_error(format.error));
@@ -1634,10 +1634,10 @@ fn number_format_float(
     let mut pre = format.pre;
     let mut scaled = value;
     if format.multiplied {
-        // pow(10, multi) is exact only through 10^22; float4 rounds it and the product to
-        // single precision, as its float arithmetic does.
+        // pow(10, multi) is exact only through 10^22, and past that the server C library rounds it;
+        // float4 rounds it and the product to single precision, as its float arithmetic does.
         if format.multi > 22 {
-            return text_unresolved(unresolved_flavor);
+            return text_unresolved(resolution_context(unresolved_flavor));
         };
         let mut factor = 1.0f64;
         let mut count: i32 = 0;

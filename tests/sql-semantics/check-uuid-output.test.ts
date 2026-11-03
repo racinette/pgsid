@@ -242,10 +242,15 @@ describe('Rust CHECK UUID output and inspection', () => {
       record(name, { ...base, identifier: input('malformed') }, { kind: 'Unimplemented' })
     }
     record('seeded', { ...base, identifier: error, seed: other }, error as Outcome)
-    for (const identifier of [{ kind: 'Unknown' }, { kind: 'Null' }] as Input[]) {
+    for (const identifier of [{ kind: 'Unknown' }, { kind: 'Null' }] as Input[])
       record('seeded', { ...base, identifier, seed: error }, error as Outcome)
-      record('seeded', { ...base, identifier, seed: { kind: 'Unknown' } }, { kind: 'Unknown' })
-    }
+    record(
+      'seeded',
+      { ...base, identifier: { kind: 'Unknown' }, seed: { kind: 'Unknown' } },
+      { kind: 'Unknown' },
+    )
+    // A NULL identifier decides the strict hash, so the seed can stay unread.
+    await oracle('seeded', { ...base, identifier: input(null), seed: { kind: 'Unknown' } })
     record('seeded', { ...base, seed: { kind: 'Unknown' } }, { kind: 'Unknown' })
     record('lazy', { ...base, skip: input(true), identifier: error, seed: other }, { kind: 'True' })
     record('selected_wire', { ...base, skip: input(true), identifier: error }, { kind: 'True' })

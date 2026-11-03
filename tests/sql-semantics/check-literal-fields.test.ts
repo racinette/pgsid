@@ -135,7 +135,7 @@ fn literal_fields_states()->BoolValue {
  let original=literal_text_fields(make_text_value("[a,z]"),0);
  let saved=original.clone();
  if let ArrayValue::Value(value)=original {let mut changed=value.elements;changed[0]=ArrayElement::Unknown;};
- if array_is_null(literal_text_fields(make_text_value("{}"),99))!=BoolValue::Unknown{return BoolValue::Value(false);};
+ if array_is_null(literal_text_fields(make_text_value("{}"),99))!=BoolValue::Unimplemented{return BoolValue::Value(false);};
  literal_fields_equal(saved,literal_text_fields(make_text_value("[a,z]"),0))
 }
 pub fn literal_fields_probe(mode:Int4Value)->BoolValue {

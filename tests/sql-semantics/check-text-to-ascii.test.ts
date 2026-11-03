@@ -206,9 +206,10 @@ describe('Rust CHECK legacy byte-to-ASCII conversion', () => {
               const expected: Outcome =
                 error?.kind === 'Error'
                   ? error
-                  : operands.some((operand) => operand.kind === 'Unknown')
-                    ? { kind: 'Unknown' }
-                    : { kind: 'Null' }
+                  : // A NULL operand makes the strict call NULL whatever the other is.
+                    operands.some((operand) => operand.kind === 'Null')
+                    ? { kind: 'Null' }
+                    : { kind: 'Unknown' }
               add({ ...base(), label, encoding }, expected)
               add({ ...base(), label, encoding, skip: input(true) }, { kind: 'True' })
             }

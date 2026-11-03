@@ -112,7 +112,8 @@ describe('catalog regex collation boundary', () => {
                 ...row,
                 [fn.args[0] === 'pg_catalog.bpchar' ? 'fixed_label' : 'label']: input(null),
               },
-              expected: { kind: index === 1 ? 'Null' : 'Unknown' },
+              // A NULL argument makes the strict call NULL whatever the default collation is.
+              expected: { kind: index <= 1 ? 'Null' : 'Unknown' },
             })
           }
         }

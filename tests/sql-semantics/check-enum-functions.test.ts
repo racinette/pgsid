@@ -265,9 +265,10 @@ describe('Rust CHECK enum catalog functions', () => {
             row.stage = error('22003')
             row[arguments_[1]!] = error('22P02')
             add(name, row, error('22003'))
+            // A NULL enum makes the strict call NULL whatever the other argument is.
             row.stage = input(null)
             row[arguments_[1]!] = { kind: 'Unknown' }
-            add(name, row, { kind: 'Unknown' })
+            add(name, row, { kind: 'Null' })
           }
           const skipped = base()
           for (const field of Object.keys(skipped)) skipped[field] = error('22003')
