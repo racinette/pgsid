@@ -277,16 +277,15 @@ describe('catalog OID aliases', () => {
           }
         }
       }
-      for (const text of [
-        ...forms.contextRequired,
-        ...forms.platformDependent,
-        ...forms.unimplementedGrammar,
-        '9'.repeat(4097),
-      ]) {
-        add(name + '_input', { ...base, source: known(text) }, { kind: 'Unknown' })
-        if (functionsFor(name))
-          add(name + '_lookup', { ...base, source: known(text) }, { kind: 'Unknown' })
-      }
+      for (const [texts, kind] of [
+        [[...forms.contextRequired, ...forms.platformDependent], 'Unknown'],
+        // Grammar the evaluator does not read and text past its length cap are no database fact.
+        [[...forms.unimplementedGrammar, '9'.repeat(4097)], 'Unimplemented'],
+      ] as const)
+        for (const text of texts) {
+          add(name + '_input', { ...base, source: known(text) }, { kind })
+          if (functionsFor(name)) add(name + '_lookup', { ...base, source: known(text) }, { kind })
+        }
       for (const operation of functionsFor(name) ? ['input', 'lookup'] : ['input']) {
         add(name + '_' + operation, { ...base, source: known(null) }, { kind: 'Null' })
         add(name + '_' + operation, { ...base, source: error('22012') }, error('22012'))

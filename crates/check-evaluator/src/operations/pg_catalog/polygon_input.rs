@@ -21,6 +21,9 @@ fn polygon_parse(value: &str) -> PolygonValue {
     if let PathValue::Error(error) = parsed {
         return PolygonValue::Error(error);
     };
+    let mut parsed_flavor: i32 = unresolved_flavor;
+    if let PathValue::Unknown = parsed { if parsed_flavor < 1 { parsed_flavor = 1; }; };
+    if let PathValue::Unimplemented = parsed { parsed_flavor = 2; };
     if let PathValue::Value(payload) = parsed {
         if payload.closed == false {
             return PolygonValue::Error(make_sql_error(FLOAT_INPUT_INVALID));
@@ -30,7 +33,7 @@ fn polygon_parse(value: &str) -> PolygonValue {
             bounds: BoxValue::Unknown,
         });
     };
-    polygon_unresolved(unresolved_flavor)
+    polygon_unresolved(parsed_flavor)
 }
 pub fn polygon_from_text(input: TextValue) -> PolygonValue {
     let mut unresolved_flavor: i32 = 0;

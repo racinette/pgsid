@@ -1,6 +1,8 @@
 pub fn sql__pg_catalog__to_jsonb__9y7o(input: JsonbInput) -> JsonbValue {
     let mut unresolved_flavor: i32 = 0;
     if let JsonbInput::Unknown = input { unresolved_flavor = 1; };
+    if let JsonbInput::ScalarUnknown(_) = input { unresolved_flavor = 1; };
+    if let JsonbInput::JsonNonNull = input { unresolved_flavor = 1; };
     if let JsonbInput::Unimplemented = input { unresolved_flavor = 2; };
     if let JsonbInput::JsonbNonNull(maximum) = input {
         return JsonbValue::NonNull(maximum);

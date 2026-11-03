@@ -4100,7 +4100,8 @@ export function emitCheckRustEvaluator(
           selected?: string | null,
           definition?: EnumDefinition,
         ): string => {
-          if (!type) return bindBinary(`container_binary_missing(${cell}.clone(),false)`, lines)
+          if (!type)
+            return bindBinary(`container_binary_missing(${cell}.clone(),false,true)`, lines)
           type = arrayElementBaseType(type)
           const signature = selected === undefined ? sendSignature(type) : selected
           const metadata = signature
@@ -4116,7 +4117,7 @@ export function emitCheckRustEvaluator(
             metadata.args.length !== 1
           )
             return bindBinary(
-              `container_binary_missing(${cell}.clone(),${signature === null})`,
+              `container_binary_missing(${cell}.clone(),${signature === null},false)`,
               lines,
             )
           const prefix = rustValuePrefix(rustType(type))
@@ -4129,7 +4130,8 @@ export function emitCheckRustEvaluator(
             metadata.args[0] === 'pg_catalog.anyenum'
           ) {
             const labels = definition ?? binaryEnums.get(type)
-            if (!labels) return bindBinary(`container_binary_missing(${cell}.clone(),false)`, lines)
+            if (!labels)
+              return bindBinary(`container_binary_missing(${cell}.clone(),false,true)`, lines)
             const text = bindBinary(
               `enum_to_text(${scalar()},${rustStringLiteral(labels.values.join('\0'))},${labels.values.length})`,
               lines,
@@ -4149,7 +4151,7 @@ export function emitCheckRustEvaluator(
             )
           }
           if (!checkRustCallableNames().has(metadata.rustName))
-            return bindBinary(`container_binary_missing(${cell}.clone(),false)`, lines)
+            return bindBinary(`container_binary_missing(${cell}.clone(),false,false)`, lines)
           const parameter = metadata.args[0]!
           const generic = [
             type,
@@ -4160,7 +4162,7 @@ export function emitCheckRustEvaluator(
           ].includes(parameter)
           const shared = !generic && rustType(type) === rustType(parameter)
           if (!generic && !shared && builtinCast(type, parameter)?.method !== 'b')
-            return bindBinary(`container_binary_missing(${cell}.clone(),false)`, lines)
+            return bindBinary(`container_binary_missing(${cell}.clone(),false,false)`, lines)
           let argument = { name: scalar(), type }
           if (!generic)
             argument = shared
@@ -4982,16 +4984,26 @@ export function emitCheckRustEvaluator(
                     field.collation === 'default'
                       ? executionContext.defaultCollation
                       : field.collation
+                // A hash support function outside the builtins is defined by the deployment.
+                if (!scalar)
+                  throw new UnsupportedCheckRustExpression(
+                    'Record field hashing requires its selected implementation',
+                    !field.signature.startsWith('function:["pg_catalog",'),
+                  )
+                // An enum hashes its label's OID, which the deployment's catalog assigns.
+                if (type.startsWith('enum:'))
+                  throw new UnsupportedCheckRustExpression(
+                    'Record field hashing requires enum label OIDs',
+                    true,
+                  )
                 if (
-                  !scalar ||
                   scalar.kind !== 'function' ||
                   scalar.schema !== 'pg_catalog' ||
                   !scalar.strict ||
                   scalar.volatility !== 'i' ||
                   scalar.returnsSet ||
                   scalar.result !== call.type ||
-                  !checkRustCallableNames().has(scalar.rustName) ||
-                  type.startsWith('enum:')
+                  !checkRustCallableNames().has(scalar.rustName)
                 )
                   throw new UnsupportedCheckRustExpression(
                     'Record field hashing requires its selected implementation',
@@ -5002,6 +5014,7 @@ export function emitCheckRustEvaluator(
                 if (text && !supportsTextCallableCollation(field.signature, collation))
                   throw new UnsupportedCheckRustExpression(
                     'Record field hashing requires its collation',
+                    true,
                   )
                 const value = fresh('record_hash_scalar')
                 body.push(
@@ -5054,7 +5067,9 @@ export function emitCheckRustEvaluator(
                 lines.push(...body.map((line) => '        ' + line))
               } catch (error) {
                 if (!(error instanceof UnsupportedCheckRustExpression)) throw error
-                lines.push(`        ${hash}=${extended ? 'int8' : 'int4'}_unresolved(2);`)
+                lines.push(
+                  `        ${hash}=${extended ? 'int8' : 'int4'}_unresolved(${error.context ? 1 : 2});`,
+                )
               }
               lines.push('    }', `    ${totals[i]}=array_hash_step${width}(${totals[i]},${hash});`)
             }

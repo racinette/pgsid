@@ -132,17 +132,18 @@ it('preserves SQL-coerced json source, cached root type, SQL NULL and incoming e
         expected: source.kind === 'Null' ? { kind: 'True' } : source,
       })
     }
+    // A malformed document value is no database fact.
     for (const value of ['', '[1,]', '{"a":}', 'NaN']) {
       for (const name of ['kind', 'source'])
         fixtures.push({
           name,
           row: { source: known(value), expected: known('unused') },
-          expected: { kind: 'Unknown' },
+          expected: { kind: 'Unimplemented' },
         })
       fixtures.push({
         name: 'nullness',
         row: { source: known(value) },
-        expected: { kind: 'Unknown' },
+        expected: { kind: 'Unimplemented' },
       })
     }
     await runCheckParity(

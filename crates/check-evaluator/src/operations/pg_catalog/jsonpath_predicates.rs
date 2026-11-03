@@ -10,9 +10,10 @@ struct JsonpathExecutionScope {
 }
 
 #[derive(Clone, Copy)]
+// A deferred predicate carries its flavor: 1 waits on a database fact, 2 on the evaluator.
 struct JsonpathPredicateValue {
     state: i32,
-    deferred: bool,
+    deferred: i32,
 }
 
 fn jsonpath_execution_empty_scope() -> JsonpathExecutionScope {
@@ -99,7 +100,7 @@ fn jsonpath_predicate_pair(
         if a.kind != 4 || b.kind != 4 {
             return JsonpathPredicateValue {
                 state: 0,
-                deferred: false,
+                deferred: 0,
             };
         };
     } else if same_type == false {
@@ -110,18 +111,18 @@ fn jsonpath_predicate_pair(
             };
             return JsonpathPredicateValue {
                 state: result,
-                deferred: false,
+                deferred: 0,
             };
         };
         return JsonpathPredicateValue {
             state: 0,
-            deferred: false,
+            deferred: 0,
         };
     };
     if a.kind >= 5 {
         return JsonpathPredicateValue {
             state: 0,
-            deferred: false,
+            deferred: 0,
         };
     };
     let mut order: i32 = 0;
@@ -138,7 +139,7 @@ fn jsonpath_predicate_pair(
         if known == false {
             return JsonpathPredicateValue {
                 state: 0,
-                deferred: true,
+                deferred: 2,
             };
         };
     };
@@ -172,7 +173,7 @@ fn jsonpath_predicate_pair(
         if unicode && context.utf8 == false {
             return JsonpathPredicateValue {
                 state: 0,
-                deferred: true,
+                deferred: 1,
             };
         };
         if kind == JSONPATH_NODE_STARTS {
@@ -196,7 +197,7 @@ fn jsonpath_predicate_pair(
             };
             return JsonpathPredicateValue {
                 state: result,
-                deferred: false,
+                deferred: 0,
             };
         };
         first = a.text_start;
@@ -246,6 +247,6 @@ fn jsonpath_predicate_pair(
     };
     JsonpathPredicateValue {
         state: state,
-        deferred: false,
+        deferred: 0,
     }
 }

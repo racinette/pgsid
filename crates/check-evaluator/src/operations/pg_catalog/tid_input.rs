@@ -95,6 +95,8 @@ pub fn tid_from_text(input: TextValue) -> TidValue {
         if let Int8Value::Value(high) = block {
             if let Int4Value::Value(low) = offset { return make_tid_parts(high, low); };
         };
+        // A word that wraps through a negative sign is read by the server C library's strtol.
+        return tid_unresolved(resolution_context(unresolved_flavor));
     };
     tid_unresolved(unresolved_flavor)
 }

@@ -467,7 +467,8 @@ fn jsonb_order_partial(a: JsonbKnowledge, b: JsonbKnowledge) -> Int4Value {
             return make_int4_value(0);
         };
     };
-    int4_unresolved(unresolved_flavor)
+    // Partial knowledge stands for a value whose remaining contents are Unknown.
+    int4_unresolved(resolution_context(unresolved_flavor))
 }
 
 pub fn sql__pg_catalog__jsonb_cmp__n2cx(left: JsonbValue, right: JsonbValue) -> Int4Value {

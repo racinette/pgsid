@@ -335,6 +335,10 @@ fn range_builtin_compare(lower: ArrayElement, upper: ArrayElement, kind: i32) ->
     if kind == 47 {
         return tsvector_order(array_element_to_tsvector(lower), array_element_to_tsvector(upper));
     };
+    // An unavailable comparison is the deployment's operator class or collation.
+    if range_comparison_unavailable(kind) {
+        return int4_unresolved(resolution_context(unresolved_flavor));
+    };
     int4_unresolved(unresolved_flavor)
 }
 

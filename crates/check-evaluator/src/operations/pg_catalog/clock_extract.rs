@@ -217,6 +217,8 @@ fn clock_fields_numeric(units: TextValue, input: ClockFieldInput) -> NumericValu
     if let IntervalValue::Error(error) = interval_value {
         return NumericValue::Error(error);
     };
+    if let IntervalValue::Unknown = interval_value { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
+    if let IntervalValue::Unimplemented = interval_value { unresolved_flavor = 2; };
     let mut condition_flavor_213_4: i32 = unresolved_flavor; if let TextValue::Unknown = units { if condition_flavor_213_4 < 1 { condition_flavor_213_4 = 1; }; }; if let TextValue::Unimplemented = units { condition_flavor_213_4 = 2; }; if ((units == TextValue::Unknown || units == TextValue::Unimplemented) || units == TextValue::NonNull) || (input.value == IntervalValue::Unknown || input.value == IntervalValue::Unimplemented) {
         return numeric_unresolved(condition_flavor_213_4);
     };

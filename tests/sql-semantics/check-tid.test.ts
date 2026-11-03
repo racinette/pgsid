@@ -258,7 +258,8 @@ describe('portable heap tuple identifiers', () => {
       fixtures.push({
         name: c.name,
         row: { source: known(text), expected: known('00') },
-        expected: { kind: 'Unknown' },
+        // Text past the evaluator's length cap is no database fact.
+        expected: { kind: deferredTidPlatformForms.includes(text) ? 'Unknown' : 'Unimplemented' },
       })
     for (const [source, expected] of [
       [known(null), { kind: 'Null' }],

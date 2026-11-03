@@ -251,6 +251,8 @@ pub fn xml_value_binary(input: ByteaValue, mode: i32) -> TextValue {
             }
             return TextValue::Value(output);
         };
+        // Without a declared encoding, the session's binary encoding setting decides.
+        return text_unresolved(resolution_context(unresolved_flavor));
     };
     text_unresolved(unresolved_flavor)
 }

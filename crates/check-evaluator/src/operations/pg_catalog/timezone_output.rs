@@ -27,6 +27,8 @@ fn timezone_output_offset(seconds: i32, json: bool) -> String {
     result
 }
 
+// An invalid profile leaves the zone to the server's zone database, whose release may differ from
+// the bundled tables.
 fn session_timezone_profile(name: &str, microseconds: i64, local: bool) -> SessionTimezone {
     let invalid = SessionTimezone {
         seconds: 0,
@@ -174,7 +176,7 @@ pub fn timestamptz_output_context(
     if let TimestamptzValue::Value(value) = input {
         let profile = session_timezone_profile(zone, value, false);
         if profile.valid == false {
-            return text_unresolved(unresolved_flavor);
+            return text_unresolved(resolution_context(unresolved_flavor));
         };
         let seconds = profile.seconds as i64;
         let local = value + seconds * 1000000i64;

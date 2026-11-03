@@ -277,7 +277,8 @@ it.each(scalarRangeBatchStarts)(
                       expected: cell('false'),
                       bypass: cell(bypass),
                     },
-                    expected: { kind: bypass ? 'True' : 'Unknown' },
+                    // A malformed bound is no database fact.
+                    expected: { kind: bypass ? 'True' : 'Unimplemented' },
                   })
                 }
           }

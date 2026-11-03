@@ -431,11 +431,11 @@ fn record_multirange_count(input:MultirangeValue,expected:i32)->BoolValue{
       },
       {
         rust: `range_empty_state(${span(record('public.other', [int(1), text('a')]), nullCell, '[]')})`,
-        expected: { kind: 'Unknown' },
+        expected: { kind: 'Unimplemented' },
       },
       {
         rust: `range_empty_state(${span(record('public.leaf', [int(1)]), nullCell, '[]')})`,
-        expected: { kind: 'Unknown' },
+        expected: { kind: 'Unimplemented' },
       },
     )
     await native(

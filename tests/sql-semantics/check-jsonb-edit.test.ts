@@ -337,7 +337,8 @@ it('matches JSONB concatenation and top-level text/index deletion, ownership, ex
         expect(witness.rows[0]!.result, name + ' strict NULL witness').toBe(false)
       }
       add(name, { ...base, lhs: { kind: 'Unknown' }, [key]: known(null) }, { kind: 'False' })
-      add(name, { ...base, lhs: known('[1,]') }, { kind: 'Unknown' })
+      // A malformed document value is no database fact.
+      add(name, { ...base, lhs: known('[1,]') }, { kind: 'Unimplemented' })
     }
     add('concat', { ...base, expected: known('{}') }, { kind: 'False' })
     add('text_delete', { ...base, expected: known('{"a":1}') }, { kind: 'False' })

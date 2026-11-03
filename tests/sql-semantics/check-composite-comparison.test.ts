@@ -638,15 +638,15 @@ it('owns comparison frames and preserves unavailable runtime states before field
       },
       {
         rust: 'record_frame_state(make_composite_fields("public.other"),make_composite_fields("public.pair"),"public.pair",0)',
-        expected: { kind: 'Unknown' },
+        expected: { kind: 'Unimplemented' },
       },
       {
         rust: 'record_frame_state(make_composite_fields("public.pair"),make_composite_fields("public.pair"),"public.pair",1)',
-        expected: { kind: 'Unknown' },
+        expected: { kind: 'Unimplemented' },
       },
       {
         rust: 'record_frame_state(make_composite_fields("public.pair"),make_composite_fields("public.pair"),"public.pair",-1)',
-        expected: { kind: 'Unknown' },
+        expected: { kind: 'Unimplemented' },
       },
       {
         rust: 'sql__pg_catalog__record_eq__rc7m(record_comparison_pair(ArrayElement::Unknown,ArrayElement::Null,true,1,true))',

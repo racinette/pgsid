@@ -91,7 +91,7 @@ fn named_zone_abbreviation(zone: usize, microseconds: i64) -> TextValue {
             };
             let recurring = next_recurring_boundary(rules, microseconds, cutoff, before);
             if recurring.valid == false {
-                return text_unresolved(unresolved_flavor);
+                return text_unresolved(resolution_context(unresolved_flavor));
             };
             return recurring_zone_abbreviation(ZONE_FUTURE_RULES[zone], recurring.before_daylight);
         };
@@ -179,7 +179,7 @@ fn named_zone_offset(zone: usize, microseconds: i64, local: bool) -> Int4Value {
             }
             let recurring = next_recurring_boundary(rules, probe, cutoff, before);
             if recurring.valid == false {
-                return int4_unresolved(unresolved_flavor);
+                return int4_unresolved(resolution_context(unresolved_flavor));
             }
             return resolve_zone_boundary(
                 microseconds,

@@ -99,17 +99,17 @@ pub fn xml_indent_probe(input: TextValue, expected: TextValue, mode: i32) -> Boo
         {
           input: known('<r/>'),
           expected: known('<r/>'),
-          outcome: { kind: rendered ? 'Unknown' : 'True' },
+          outcome: { kind: rendered ? 'Unimplemented' : 'True' },
         },
         {
           input: known('<a/><b/>'),
           expected: known('unused'),
-          outcome: document ? error : { kind: rendered ? 'Unknown' : 'False' },
+          outcome: document ? error : { kind: rendered ? 'Unimplemented' : 'False' },
         },
         {
           input: known('<r>'),
           expected: known('unused'),
-          outcome: rendered && !document ? { kind: 'Unknown' } : error,
+          outcome: rendered && !document ? { kind: 'Unimplemented' } : error,
         },
         { input: known(notation), expected: known(permutations[0]!), outcome: { kind: 'Unknown' } },
         {
@@ -132,7 +132,7 @@ pub fn xml_indent_probe(input: TextValue, expected: TextValue, mode: i32) -> Boo
         {
           input: known('<r>&#xE9;</r>'),
           expected: known('<r>&#xE9;</r>'),
-          outcome: { kind: rendered ? 'Unknown' : 'True' },
+          outcome: { kind: rendered ? 'Unimplemented' : 'True' },
         },
         {
           input: known('<?xml version="1.0"?><r>&#xE9;</r>'),

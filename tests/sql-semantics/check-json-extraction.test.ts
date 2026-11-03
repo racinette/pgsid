@@ -237,7 +237,11 @@ it('preserves JSON extraction source spans, last duplicate keys, signed indices,
     add('field', { ...base, expected_json: known('1') }, { kind: 'False' })
     add('field_text', { ...base, expected_text: known('wrong') }, { kind: 'False' })
     for (const document of [{ kind: 'Unknown' } as const, error('22003'), known('[1,]')]) {
-      const expected: Outcome = document.kind === 'Error' ? document : { kind: 'Unknown' }
+      // A malformed document value is no database fact.
+      const expected: Outcome =
+        document.kind === 'Error'
+          ? document
+          : { kind: document.kind === 'Unknown' ? 'Unknown' : 'Unimplemented' }
       for (const name of Object.keys(expressions)) add(name, { ...base, document }, expected)
       add('guarded', { ...base, document, bypass: known(true) }, { kind: 'True' })
     }

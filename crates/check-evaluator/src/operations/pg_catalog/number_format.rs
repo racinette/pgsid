@@ -1014,13 +1014,15 @@ fn number_format_int8(
             };
             scaled = value * factor;
         } else {
+            // A 32-bit multiplier or product past its range overflows in the server's C code,
+            // so the server's build decides the digits.
             if format.multi >= 10 {
-                return text_unresolved(unresolved_flavor);
+                return text_unresolved(resolution_context(unresolved_flavor));
             };
             let factor = number_format_power(format.multi);
             let product = value * factor;
             if product > 2147483647i64 || product < -2147483648i64 {
-                return text_unresolved(unresolved_flavor);
+                return text_unresolved(resolution_context(unresolved_flavor));
             };
             scaled = product;
         };

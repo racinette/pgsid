@@ -207,7 +207,11 @@ describe('portable Rust CHECK MAC addresses', () => {
             ).rows[0]!.value
           } catch {
             expect(spelling).not.toBe(original)
-            record(type + '_eq', { [a]: input(spelling), [b]: input(zero) }, { kind: 'Unknown' })
+            record(
+              type + '_eq',
+              { [a]: input(spelling), [b]: input(zero) },
+              { kind: 'Unimplemented' },
+            )
             continue
           }
           const row = { [a]: input(spelling), [b]: input(canonical) }
@@ -249,10 +253,11 @@ describe('portable Rust CHECK MAC addresses', () => {
         await expect(pg.query(`SELECT $1::${type}`, [spelling])).rejects.toMatchObject({
           code: expect.any(String),
         })
-        record(type + '_eq', { [a]: input(spelling), [b]: input(zero) }, { kind: 'Unknown' })
+        record(type + '_eq', { [a]: input(spelling), [b]: input(zero) }, { kind: 'Unimplemented' })
       }
+      // Malformed address values are no database fact.
       for (const spelling of ['0'.repeat(257), '08002b010203\0'])
-        record(type + '_eq', { [a]: input(spelling), [b]: input(zero) }, { kind: 'Unknown' })
+        record(type + '_eq', { [a]: input(spelling), [b]: input(zero) }, { kind: 'Unimplemented' })
       const error: Input = { kind: 'Error', value: { state: parseInt('22012', 36) } }
       const otherError: Input = { kind: 'Error', value: { state: parseInt('22003', 36) } }
       const known: Row = {

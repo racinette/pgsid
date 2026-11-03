@@ -16,7 +16,8 @@ pub fn sql__pg_catalog__age__0wjc(input: TimestampValue) -> IntervalValue {
             return interval_infinity(-1);
         };
     };
-    interval_unresolved(unresolved_flavor)
+    // A finite input is measured from the transaction's current date.
+    interval_unresolved(resolution_context(unresolved_flavor))
 }
 
 pub fn sql__pg_catalog__age__62n0(input: TimestamptzValue) -> IntervalValue {
@@ -37,5 +38,6 @@ pub fn sql__pg_catalog__age__62n0(input: TimestamptzValue) -> IntervalValue {
             return interval_infinity(-1);
         };
     };
-    interval_unresolved(unresolved_flavor)
+    // A finite input is measured from the transaction's current date.
+    interval_unresolved(resolution_context(unresolved_flavor))
 }

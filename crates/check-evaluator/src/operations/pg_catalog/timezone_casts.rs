@@ -53,6 +53,7 @@ pub fn sql__pg_catalog__timetz__qcb2(input: TimeValue, zone: &str) -> TimetzValu
         if let Int4Value::Value(seconds) = offset {
             return make_timetz_value(clock, 0 - seconds);
         };
+        return timetz_unresolved(resolution_context(unresolved_flavor));
     };
     timetz_unresolved(unresolved_flavor)
 }
@@ -253,7 +254,18 @@ pub fn timestamptz_from_text_context(
         };
         return timestamptz_unresolved(unresolved_flavor);
     };
-    timestamptz_from_text_trailing_zone(input, date_order, zone, abbreviations, limit, utf8)
+    let mut reading_flavor: i32 = unresolved_flavor;
+    if let TimestampValue::Unknown = local { if reading_flavor < 1 { reading_flavor = 1; }; };
+    if let TimestampValue::Unimplemented = local { reading_flavor = 2; };
+    timestamptz_from_text_trailing_zone(
+        input,
+        date_order,
+        zone,
+        abbreviations,
+        limit,
+        utf8,
+        reading_flavor,
+    )
 }
 
 fn timestamptz_text_space(value: char) -> bool {
@@ -277,6 +289,7 @@ fn timestamptz_from_text_trailing_zone(
     abbreviations: bool,
     limit: i32,
     utf8: bool,
+    reading_flavor: i32,
 ) -> TimestamptzValue {
     let mut unresolved_flavor: i32 = 0;
     if let TextValue::Unknown = input { unresolved_flavor = 1; };
@@ -302,8 +315,11 @@ fn timestamptz_from_text_trailing_zone(
             };
             zone_start = zone_start - 1;
         }
-        if zone_start == 0 || (slash == false && (letters == false || abbreviations == false)) {
-            return timestamptz_unresolved(unresolved_flavor);
+        // Without a trailing zone word, the whole text's own reading decides.
+        if zone_start == 0 || (slash == false && letters == false) {
+            let mut text_flavor: i32 = unresolved_flavor;
+            if reading_flavor > text_flavor { text_flavor = reading_flavor; };
+            return timestamptz_unresolved(text_flavor);
         };
         let mut name = String::new();
         let mut cursor = zone_start;
@@ -312,7 +328,7 @@ fn timestamptz_from_text_trailing_zone(
             cursor += 1;
         }
         if slash && find_zone_name(name.as_str(), false) >= ZONE_NAMES.len() {
-            return timestamptz_unresolved(unresolved_flavor);
+            return timestamptz_unresolved(resolution_context(unresolved_flavor));
         };
         let mut rest = String::new();
         cursor = 0;
@@ -333,6 +349,9 @@ fn timestamptz_from_text_trailing_zone(
             return timestamptz_unresolved(unresolved_flavor);
         };
         let local = timestamp_from_text_order(remainder, date_order);
+        let mut local_flavor: i32 = unresolved_flavor;
+        if let TimestampValue::Unknown = local { if local_flavor < 1 { local_flavor = 1; }; };
+        if let TimestampValue::Unimplemented = local { local_flavor = 2; };
         if let TimestampValue::Value(value) = local {
             if value <= -211813488000000000i64 + 86400000000i64
                 || value >= 9223371331200000000i64 - 86400000000i64
@@ -341,6 +360,24 @@ fn timestamptz_from_text_trailing_zone(
             };
             if slash {
                 return sql__pg_catalog__timestamptz__m17a(local, name.as_str());
+            };
+            // Without declared abbreviations, the session's abbreviation table decides the word,
+            // unless the word only names a zone, which the evaluator does not read after a local
+            // time.
+            if abbreviations == false {
+                let lower = timezone_lookup_ascii(name.as_str(), false);
+                let mut abbreviation = false;
+                let mut entry: usize = 0;
+                while entry < ZONE_DEFAULT_ABBREVIATION_NAMES.len() {
+                    if lower == ZONE_DEFAULT_ABBREVIATION_NAMES[entry] {
+                        abbreviation = true;
+                    };
+                    entry += 1;
+                }
+                if abbreviation == false && find_zone_name(name.as_str(), false) < ZONE_NAMES.len() {
+                    return timestamptz_unresolved(unresolved_flavor);
+                };
+                return timestamptz_unresolved(resolution_context(unresolved_flavor));
             };
             let lookup = timezone_lookup_classify(
                 TextValue::Value(name.clone()),
@@ -367,7 +404,17 @@ fn timestamptz_from_text_trailing_zone(
             if let Int4Value::Value(seconds) = east {
                 return make_timestamptz_value(value - (seconds as i64) * 1000000i64);
             };
+            let mut east_flavor: i32 = unresolved_flavor;
+            if lookup.profile == TextValue::Unknown {
+                east_flavor = resolution_context(east_flavor);
+            };
+            if lookup.kind == 2 {
+                if let Int4Value::Unknown = east { east_flavor = resolution_context(east_flavor); };
+                if let Int4Value::Unimplemented = east { east_flavor = 2; };
+            };
+            return timestamptz_unresolved(east_flavor);
         };
+        return timestamptz_unresolved(local_flavor);
     };
     timestamptz_unresolved(unresolved_flavor)
 }

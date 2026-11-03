@@ -362,7 +362,8 @@ it('attaches compiled custom range profiles throughout owned arrays while preser
                 bypass: { kind: 'Value', value: false },
                 mode: { kind: 'Value', value: mode },
               },
-              expected: { kind: 'Unknown' },
+              // A forged type name or bound count is no database fact.
+              expected: { kind: 'Unimplemented' },
             })
       }
       for (const input of [

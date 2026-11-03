@@ -244,7 +244,8 @@ describe('Rust CHECK MAC output and hashes', () => {
       record(name, { ...base, [column]: { kind: 'Unknown' } }, { kind: 'Unknown' })
       record(name, { ...base, [column]: error }, error as Outcome)
       record(name, { ...base, [column]: input(null) }, { kind: 'Null' })
-      record(name, { ...base, [column]: input('garbage') }, { kind: 'Unknown' })
+      // A malformed address value is no database fact.
+      record(name, { ...base, [column]: input('garbage') }, { kind: 'Unimplemented' })
     }
     for (const name of ['seeded6', 'seeded8']) {
       const column = name === 'seeded6' ? 'a' : 'd'

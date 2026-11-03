@@ -6,7 +6,7 @@ fn timezone_interval_rebuild(zone: &str, day: i64, clock: i64) -> TimestamptzVal
     let local = day * 86400000000i64 + clock;
     let profile = session_timezone_profile(zone, local, true);
     if profile.valid == false {
-        return timestamptz_unresolved(unresolved_flavor);
+        return timestamptz_unresolved(resolution_context(unresolved_flavor));
     };
     let adjustment = (profile.seconds as i64) * 1000000i64;
     if adjustment < 0i64 && local > 9223372036854775807i64 + adjustment {
@@ -23,7 +23,7 @@ fn timezone_interval_step(zone: &str, value: i64, months: i32, days: i32) -> Tim
     let unresolved_flavor: i32 = 0;
     let profile = session_timezone_profile(zone, value, false);
     if profile.valid == false {
-        return timestamptz_unresolved(unresolved_flavor);
+        return timestamptz_unresolved(resolution_context(unresolved_flavor));
     };
     let local = value + (profile.seconds as i64) * 1000000i64;
     let mut day = local / 86400000000i64;
@@ -149,7 +149,7 @@ fn timezone_interval_add(
             };
         };
     };
-    timestamptz_unresolved(unresolved_flavor)
+    timestamptz_unresolved(resolution_context(unresolved_flavor))
 }
 
 pub fn sql__pg_catalog__timestamptz_pl_interval__wpau(

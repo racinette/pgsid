@@ -51,7 +51,8 @@ fn tsquery_read_token(input: &TsqueryText, start: usize, utf8: bool) -> TsqueryT
             index += 1;
             if index == input.chars.len() { state = 1; break; };
             let escaped = input.chars[index];
-            if escaped == '\0' || (utf8 == false && (escaped as i32) > 127) { state = 2; break; };
+            if escaped == '\0' { state = 4; break; };
+            if utf8 == false && (escaped as i32) > 127 { state = 2; break; };
             text.push(escaped);
             index += 1;
         } else if quoted && value == '\'' {
@@ -60,7 +61,8 @@ fn tsquery_read_token(input: &TsqueryText, start: usize, utf8: bool) -> TsqueryT
         } else if quoted == false && (numeric_space(value) || tsquery_delimiter(value) || value == ':') {
             break;
         } else {
-            if value == '\0' || (utf8 == false && (value as i32) > 127) { state = 2; break; };
+            if value == '\0' { state = 4; break; };
+            if utf8 == false && (value as i32) > 127 { state = 2; break; };
             text.push(value);
             index += 1;
         };
@@ -136,7 +138,9 @@ pub fn tsquery_from_text_context(input: TextValue, utf8: bool) -> TsqueryValue {
                 if value == ':' || tsquery_delimiter(value) { return TsqueryValue::Error(make_sql_error(TSQUERY_SYNTAX_ERROR)); };
                 let token = tsquery_read_token(&text,index,utf8);
                 if token.state == 1 { return TsqueryValue::Error(make_sql_error(TSQUERY_SYNTAX_ERROR)); };
-                if token.state == 2 { return tsquery_unresolved(unresolved_flavor); };
+                // Non-ASCII text waits on the server's encoding, while a NUL is no value it can hold.
+                if token.state == 2 { return tsquery_unresolved(resolution_context(unresolved_flavor)); };
+                if token.state == 4 { return tsquery_unresolved(unresolved_flavor); };
                 if token.state == 3 || pool >= 1048575 { return TsqueryValue::Error(make_sql_error(TSQUERY_PROGRAM_LIMIT)); };
                 pool = pool + tsvector_lexeme_bytes(token.text.as_str()) + 1;
                 index = token.end;

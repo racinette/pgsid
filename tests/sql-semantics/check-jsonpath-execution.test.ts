@@ -693,7 +693,8 @@ fn jsonpath_execution_input(document:TextValue)->JsonbValue {
                 silent: value(silent),
                 expected: output === null ? { kind: 'Null' } : value(output),
               },
-              expected: variant.stored && !storedSafe ? { kind: 'Unknown' } : expected,
+              // Stored path shapes the evaluator cannot walk yet are no database fact.
+              expected: variant.stored && !storedSafe ? { kind: 'Unimplemented' } : expected,
             })
         }
       }

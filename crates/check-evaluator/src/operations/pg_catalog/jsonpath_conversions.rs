@@ -315,7 +315,7 @@ fn jsonpath_conversion_text_predicate(
             if unicode && utf8 == false {
                 return JsonpathPredicateValue {
                     state: 0,
-                    deferred: true,
+                    deferred: 1,
                 };
             };
             index = 0;
@@ -374,12 +374,12 @@ fn jsonpath_conversion_text_predicate(
             };
             return JsonpathPredicateValue {
                 state: state,
-                deferred: false,
+                deferred: 0,
             };
         };
     };
     JsonpathPredicateValue {
         state: 0,
-        deferred: true,
+        deferred: 2,
     }
 }

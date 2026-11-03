@@ -238,7 +238,8 @@ describe('Rust CHECK UUID output and inspection', () => {
     for (const name of ['wire', 'hash', 'seeded', 'zero', 'version', 'version_null']) {
       record(name, { ...base, identifier: { kind: 'Unknown' } }, { kind: 'Unknown' })
       record(name, { ...base, identifier: error }, error as Outcome)
-      record(name, { ...base, identifier: input('malformed') }, { kind: 'Unknown' })
+      // A malformed uuid value is no database fact.
+      record(name, { ...base, identifier: input('malformed') }, { kind: 'Unimplemented' })
     }
     record('seeded', { ...base, identifier: error, seed: other }, error as Outcome)
     for (const identifier of [{ kind: 'Unknown' }, { kind: 'Null' }] as Input[]) {

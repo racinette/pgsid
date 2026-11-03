@@ -220,6 +220,8 @@ fn jsonb_hash_context(
             if byte_order == 0 && little == big {
                 return little;
             };
+            // Differing orders leave the hash to the server platform's byte order.
+            return int8_unresolved(resolution_context(unresolved_flavor));
         };
     };
     int8_unresolved(unresolved_flavor)

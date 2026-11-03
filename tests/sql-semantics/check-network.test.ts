@@ -225,10 +225,11 @@ describe('portable Rust CHECK INET/CIDR', () => {
       ' 127.0.0.1',
       '१२',
     ])
+      // A malformed address value is no database fact.
       fixtures.push({
         name: 'equal_raw',
         row: { a: input(a), b: input('::') },
-        expected: { kind: 'Unknown' },
+        expected: { kind: 'Unimplemented' },
       })
     const error: Input = { kind: 'Error', value: { state: parseInt('22003', 36) } }
     const otherError: Input = { kind: 'Error', value: { state: parseInt('22012', 36) } }

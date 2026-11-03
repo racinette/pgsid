@@ -52,7 +52,10 @@ pub fn json_input_from_numeric(input: NumericValue) -> JsonbInput {
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = input { unresolved_flavor = 1; };
     if let NumericValue::Unimplemented = input { unresolved_flavor = 2; };
-    if input == NumericValue::Unknown || input == NumericValue::Unimplemented {
+    if input == NumericValue::Unimplemented {
+        return JsonbInput::Unimplemented;
+    };
+    if input == NumericValue::Unknown {
         return JsonbInput::ScalarUnknown("1001000".to_owned());
     };
     let output = array_numeric_output(input);
@@ -127,6 +130,7 @@ pub(crate) fn json_array_input_value(
 ) -> JsonValue {
     let mut unresolved_flavor: i32 = 0;
     if let BoolValue::Unknown = pretty { unresolved_flavor = 1; };
+    if input.state == -3 { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
     if let BoolValue::Unimplemented = pretty { unresolved_flavor = 2; };
     if input.state == -2 {
         return JsonValue::Error(input.error);

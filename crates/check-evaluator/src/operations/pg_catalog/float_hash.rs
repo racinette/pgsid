@@ -27,8 +27,9 @@ pub fn sql__pg_catalog__hashfloat8__p4el(input: Float8Value, byte_order: i32) ->
     };
     if let Float8Value::Value(bits) = input {
         let value = float8_number(bits);
+        // A NaN hashes the server platform's canonical NaN bits.
         if value != value {
-            return int4_unresolved(unresolved_flavor);
+            return int4_unresolved(resolution_context(unresolved_flavor));
         };
         if value == 0.0f64 {
             return Int4Value::Value(0);
@@ -66,7 +67,7 @@ pub fn sql__pg_catalog__hashfloat8extended__7sph(
         if let Int8Value::Value(salt) = seed {
             let value = float8_number(bits);
             if value != value {
-                return int8_unresolved(unresolved_flavor);
+                return int8_unresolved(resolution_context(unresolved_flavor));
             };
             if value == 0.0f64 {
                 return Int8Value::Value(salt);

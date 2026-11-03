@@ -190,7 +190,8 @@ it('retains CIDR subtype-domain validation and output when captured comparison s
                       expected: cell(text),
                       bypass: cell(bypass),
                     },
-                    expected: { kind: bypass ? 'True' : 'Unknown' },
+                    // A malformed bound is no database fact.
+                    expected: { kind: bypass ? 'True' : 'Unimplemented' },
                   })
                 }
         }

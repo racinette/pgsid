@@ -81,7 +81,7 @@ pub fn sql__pg_catalog__age__74kj(
             let first = session_timezone_profile(session, a, false);
             let second = session_timezone_profile(session, b, false);
             if first.valid == false || second.valid == false {
-                return interval_unresolved(unresolved_flavor);
+                return interval_unresolved(resolution_context(unresolved_flavor));
             };
             let first_local = a + (first.seconds as i64) * 1000000i64;
             let second_local = b + (second.seconds as i64) * 1000000i64;

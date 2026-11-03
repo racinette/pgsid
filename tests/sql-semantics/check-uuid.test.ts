@@ -239,8 +239,9 @@ describe('portable Rust CHECK UUID values', () => {
       for (const name of ['lazy_cast', 'lazy_arm'])
         await oracle(name, { ...row, flag: input(true) })
       record('null_test', { ...base, a: input(text) }, { kind: 'False' })
+      // A malformed uuid value is no database fact.
       for (const name of ['eq', 'text_cast', 'roundtrip'])
-        record(name, { ...base, a: input(text) }, { kind: 'Unknown' })
+        record(name, { ...base, a: input(text) }, { kind: 'Unimplemented' })
     }
     await oracle('text_parse', { ...base, raw: input(zero) })
     await oracle('text_cast', { ...base, expected_text: input(sample.toUpperCase()) })

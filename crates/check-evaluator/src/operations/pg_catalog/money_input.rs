@@ -25,5 +25,6 @@ pub fn money_from_text(input: TextValue) -> MoneyValue {
             return make_money_value(0i64);
         };
     };
-    money_unresolved(unresolved_flavor)
+    // Nonzero money text is read through the session's monetary locale.
+    money_unresolved(resolution_context(unresolved_flavor))
 }

@@ -176,21 +176,25 @@ it('owns heterogeneous composite fields and preserves PostgreSQL row NULL semant
         `text_is_null(array_element_to_text(composite_field_at(${pair('ArrayElement::Unknown', text('known'))},make_int4_value(1))))`,
         { kind: 'False' },
       ],
-      ['empty_identity', 'composite_row_is_null(make_composite_fields(""))', { kind: 'Unknown' }],
+      [
+        'empty_identity',
+        'composite_row_is_null(make_composite_fields(""))',
+        { kind: 'Unimplemented' },
+      ],
       [
         'nul_identity',
         'composite_row_is_null(make_composite_fields("bad\\0name"))',
-        { kind: 'Unknown' },
+        { kind: 'Unimplemented' },
       ],
       [
         'negative_field',
         `int4_is_null(array_element_to_int4(composite_field_at(${pair('ArrayElement::Int4(1)', 'ArrayElement::Null')},make_int4_value(-1))))`,
-        { kind: 'Unknown' },
+        { kind: 'Unimplemented' },
       ],
       [
         'past_field',
         `int4_is_null(array_element_to_int4(composite_field_at(${pair('ArrayElement::Int4(1)', 'ArrayElement::Null')},make_int4_value(2))))`,
-        { kind: 'Unknown' },
+        { kind: 'Unimplemented' },
       ],
       [
         'eager_error',

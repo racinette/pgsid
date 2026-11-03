@@ -160,7 +160,10 @@ pub(crate) fn prepare_json_record_pending(
     input: CompositeValue,
     pretty: BoolValue,
 ) -> JsonRecordInputPayload {
+    // An unresolved record or flag stops at -1 when it is Unknown and at -3 when it is Unimplemented.
     let mut state: i32 = -1;
+    if let CompositeValue::Unimplemented = input { state = -3; };
+    if let BoolValue::Unimplemented = pretty { state = -3; };
     let mut error = make_sql_error(0);
     let fields: Vec<ArrayElement> = Vec::new();
     let values: Vec<JsonbInput> = Vec::new();
@@ -303,6 +306,9 @@ fn json_record_arguments(input: JsonRecordInputPayload) -> JsonbArguments {
     };
     if input.state == 0 {
         return JsonbArguments::Null;
+    };
+    if input.state == -1 {
+        return jsonb_arguments_unresolved(1);
     };
     if input.values.len() > 2147483647 || input.position > 2147483647 {
         return jsonb_arguments_unresolved(unresolved_flavor);

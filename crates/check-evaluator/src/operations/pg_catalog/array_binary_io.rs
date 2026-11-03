@@ -26,7 +26,7 @@ pub(crate) fn array_binary_initial(input: &ArrayOutputPayload, support: i32) -> 
     bytea_unresolved(array_output_flavor(input.state, unresolved_flavor))
 }
 
-pub(crate) fn container_binary_missing(input: ArrayElement, absent: bool) -> ByteaValue {
+pub(crate) fn container_binary_missing(input: ArrayElement, absent: bool, catalog: bool) -> ByteaValue {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayElement::Unknown = input { unresolved_flavor = 1; };
     if let ArrayElement::Unimplemented = input { unresolved_flavor = 2; };
@@ -43,6 +43,10 @@ pub(crate) fn container_binary_missing(input: ArrayElement, absent: bool) -> Byt
     };
     if absent {
         return ByteaValue::Error(make_sql_error(CONTAINER_BINARY_MISSING_SEND_ERROR));
+    };
+    // An element type or enum definition left uncaptured is held in the deployment's catalog.
+    if catalog {
+        return bytea_unresolved(resolution_context(unresolved_flavor));
     };
     bytea_unresolved(unresolved_flavor)
 }
