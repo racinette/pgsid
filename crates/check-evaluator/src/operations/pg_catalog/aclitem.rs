@@ -270,7 +270,8 @@ fn aclitem_role_match(left: AclitemValue, right: AclitemValue) -> BoolValue {
     if let AclitemValue::Value(l) = left {
         if let AclitemValue::Value(r) = right { return make_bool_value(l.grantee == r.grantee && l.grantor == r.grantor); };
     };
-    bool_unresolved(unresolved_flavor)
+    // Roles the capture holds only as catalog facts are compared through the deployment's catalog.
+    bool_unresolved(resolution_context(unresolved_flavor))
 }
 
 fn aclitem_covers(left: AclitemValue, right: AclitemValue) -> BoolValue {

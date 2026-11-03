@@ -288,7 +288,7 @@ fn jsonb_relation_walk_from(
 }
 
 fn jsonb_relation_partial(a: JsonbKnowledge, b: JsonbKnowledge, contains: bool) -> BoolValue {
-    let unresolved_flavor: i32 = 0;
+    let unresolved_flavor: i32 = 1;
     if a.kind < 0 || b.kind < 0 {
         return bool_unresolved(unresolved_flavor);
     };
