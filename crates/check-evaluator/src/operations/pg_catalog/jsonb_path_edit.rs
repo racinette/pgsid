@@ -524,6 +524,9 @@ fn jsonb_path_edit_known(
                 return jsonb_partial_shape(facts.maximum, facts.kind, length);
             };
         };
+        let mut key_flavor: i32 = unresolved_flavor;
+        if (converted == TextValue::Unknown || converted == TextValue::NonNull) && key_flavor < 1 { key_flavor = 1; };
+        if converted == TextValue::Unimplemented { key_flavor = 2; };
         let mut ready = false;
         if let TextValue::Value(key) = converted {
             ready = true;
@@ -625,7 +628,7 @@ fn jsonb_path_edit_known(
             parent = selected;
         };
         if ready == false {
-            return jsonb_unresolved(unresolved_flavor);
+            return jsonb_unresolved(key_flavor);
         };
         position += 1;
     }

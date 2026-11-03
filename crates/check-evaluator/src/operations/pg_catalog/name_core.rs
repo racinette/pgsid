@@ -12,7 +12,8 @@ pub fn name_from_text_with_limit(input: TextValue, limit: Int4Value) -> TextValu
         let chars: Vec<char> = text.chars().collect();
         if chars.len() == 0 { return TextValue::Value(text); };
         if let Int4Value::Value(maximum) = limit {
-            if maximum < 0 { return text_unresolved(unresolved_flavor); };
+            // A negative limit means the server's identifier byte limit was not declared.
+            if maximum < 0 { return text_unresolved(resolution_context(unresolved_flavor)); };
             let mut output = String::new();
             let mut bytes: i32 = 0;
             let mut index: usize = 0;
