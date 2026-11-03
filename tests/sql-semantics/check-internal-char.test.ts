@@ -189,7 +189,17 @@ describe('internal single-byte char values', () => {
             b: known(b),
             [textResult ? 'expected_text' : 'expected']: known(result),
           },
-          expected: { kind: deferred ? 'Unknown' : result === null ? 'Null' : 'True' },
+          // A NUL or high octet has no bpchar rendering in the evaluator, while its hash follows the
+          // server platform's char signedness.
+          expected: {
+            kind: deferred
+              ? call.bpchar
+                ? 'Unimplemented'
+                : 'Unknown'
+              : result === null
+                ? 'Null'
+                : 'True',
+          },
         })
       }
       for (const name of [

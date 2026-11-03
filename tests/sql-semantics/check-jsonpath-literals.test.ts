@@ -245,11 +245,16 @@ pub fn jsonpath_numeric_probe(input: TextValue, expected: TextValue) -> BoolValu
       [limited],
     )
     expect(admitted.rows[0]!.accepted).toBe(true)
-    fixtures.push({ name: 'utf8_c', row: { input: value(limited) }, expected: { kind: 'Unknown' } })
+    // The regex compiler's assertion-depth limit is the evaluator's own.
+    fixtures.push({
+      name: 'utf8_c',
+      row: { input: value(limited) },
+      expected: { kind: 'Unimplemented' },
+    })
     oracle.push({
       input: limited,
       postgres: { kind: 'True' },
-      local: { kind: 'Unknown' },
+      local: { kind: 'Unimplemented' },
       requirement: 'Existing regex compiler assertion-depth limit',
     })
     for (const [input, expected] of [

@@ -172,7 +172,8 @@ describe('temporal epoch and fractional input rounding', () => {
         add(
           'parse',
           { raw: input(raw), anchor: input(null), skip: input(false) },
-          { kind: 'Unknown' },
+          // A leading sign is a parser gap, while the words are looked up in the session.
+          { kind: raw === '+epoch' ? 'Unimplemented' : 'Unknown' },
         )
       for (const fixture of fixtures)
         for (const name of ['raw', 'anchor', 'skip']) fixture.row[name] ??= { kind: 'Unknown' }

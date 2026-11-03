@@ -8801,7 +8801,9 @@ export function bindCatalogCheck(
       return (
         !!cast &&
         !!fields(fields(cast['arg'])?.['A_Const']) &&
-        (typeNames?.join('.') === 'pg_catalog.text' || typeNames?.join('.') === 'text') &&
+        ['pg_catalog.text', 'text', 'pg_catalog.unknown', 'unknown'].includes(
+          typeNames?.join('.') ?? '',
+        ) &&
         (!Array.isArray(type?.['typmods']) || type['typmods'].length === 0) &&
         (!Array.isArray(type?.['arrayBounds']) || type['arrayBounds'].length === 0)
       )
