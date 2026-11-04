@@ -21740,7 +21740,93 @@ function temporalTextAnyOrder(input: string, withTimezone: boolean, dateOnly: bo
     }
     return int8Unresolved(flavor);
 }
+function temporalFirstDateField(chars: string[]): string[] {
+    chars = langruntime.checkedChars(chars);
+    let start: number = 0;
+    while (start < chars.length && dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(start)))) {
+        start = langruntime.checkedAdd(start, 1);
+    }
+    let firstEnd: number = start;
+    while (firstEnd < chars.length && dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(firstEnd))) >= 0) {
+        firstEnd = langruntime.checkedAdd(firstEnd, 1);
+    }
+    if (firstEnd === start || firstEnd === chars.length) {
+        return chars;
+    }
+    const delimiter: string = langruntime.indexChar(chars, langruntime.checkedIndex(firstEnd));
+    if (!(delimiter === "-") && !(delimiter === "/")) {
+        return chars;
+    }
+    let fieldEnd: number = firstEnd;
+    let parts: number = 1;
+    let run: number = 0;
+    let collapsed: boolean = false;
+    while (fieldEnd < chars.length && (langruntime.indexChar(chars, langruntime.checkedIndex(fieldEnd)) === delimiter || dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(fieldEnd))) >= 0)) {
+        if (langruntime.indexChar(chars, langruntime.checkedIndex(fieldEnd)) === delimiter) {
+            run = langruntime.checkedI32(langruntime.checkedSignedAdd(run, 1));
+            if (run > 1) {
+                collapsed = langruntime.checkedBool(true);
+            }
+        }
+        else {
+            if (run > 0) {
+                parts = langruntime.checkedI32(langruntime.checkedSignedAdd(parts, 1));
+            }
+            run = langruntime.checkedI32(0);
+        }
+        fieldEnd = langruntime.checkedAdd(fieldEnd, 1);
+    }
+    if (fieldEnd < chars.length && englishDateLetter(langruntime.indexChar(chars, langruntime.checkedIndex(fieldEnd)))) {
+        return chars;
+    }
+    if (run >= 2) {
+        const rejected: string[] = [];
+        return rejected;
+    }
+    const trailing: boolean = run === 1 && parts >= 2;
+    if (collapsed === false && trailing === false) {
+        return chars;
+    }
+    let copyEnd: number = fieldEnd;
+    if (trailing) {
+        copyEnd = langruntime.checkedIndex(langruntime.checkedSubtract(fieldEnd, 1));
+    }
+    let output: string[] = [];
+    let index: number = 0;
+    while (index < chars.length) {
+        const character: string = langruntime.indexChar(chars, langruntime.checkedIndex(index));
+        const inside: boolean = index >= firstEnd && index < fieldEnd;
+        if (inside === false || (index < copyEnd && (!(character === delimiter) || !(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(index, 1))) === delimiter)))) {
+            langruntime.pushChar(output, character);
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return output;
+}
 function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: boolean, dateOrder: number): Int8Value {
+    withTimezone = langruntime.checkedBool(withTimezone);
+    dateOnly = langruntime.checkedBool(dateOnly);
+    dateOrder = langruntime.checkedI32(dateOrder);
+    let spelled: TextValue = value;
+    if (value.kind === "Value") {
+        const text: string = langruntime.checkedString(value.value);
+        const typed: string[] = Array.from(text);
+        const typedLength: number = typed.length;
+        const fields: string[] = temporalFirstDateField(typed);
+        if (fields.length === 0 && !(typedLength === 0)) {
+            return { kind: "Error", value: { state: invalidTimestampText } };
+        }
+        let output: string = "";
+        let index: number = 0;
+        while (index < fields.length) {
+            output = output + langruntime.checkedChar(langruntime.indexChar(fields, langruntime.checkedIndex(index)));
+            index = langruntime.checkedAdd(index, 1);
+        }
+        spelled = { kind: "Value", value: output };
+    }
+    return parseTemporalFields(spelled, withTimezone, dateOnly, dateOrder);
+}
+function parseTemporalFields(value: TextValue, withTimezone: boolean, dateOnly: boolean, dateOrder: number): Int8Value {
     withTimezone = langruntime.checkedBool(withTimezone);
     dateOnly = langruntime.checkedBool(dateOnly);
     dateOrder = langruntime.checkedI32(dateOrder);

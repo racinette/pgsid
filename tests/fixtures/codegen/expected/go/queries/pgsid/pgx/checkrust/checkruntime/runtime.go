@@ -21753,7 +21753,91 @@ func temporalTextAnyOrder(input string, withTimezone bool, dateOnly bool) Int8Va
 	}
 	return Int8Unresolved(flavor)
 }
+func temporalFirstDateField(chars []rune) []rune {
+	chars = langruntime.CheckedChars(chars)
+	start := 0
+	for start < len(chars) && dateTextSpace(chars[start]) {
+		start = langruntime.CheckedAdd(start, 1)
+	}
+	firstEnd := start
+	for firstEnd < len(chars) && dateTextDigit(chars[firstEnd]) >= 0 {
+		firstEnd = langruntime.CheckedAdd(firstEnd, 1)
+	}
+	if firstEnd == start || firstEnd == len(chars) {
+		return chars
+	}
+	delimiter := chars[firstEnd]
+	if delimiter != '-' && delimiter != '/' {
+		return chars
+	}
+	fieldEnd := firstEnd
+	parts := 1
+	run := 0
+	collapsed := false
+	for fieldEnd < len(chars) && (chars[fieldEnd] == delimiter || dateTextDigit(chars[fieldEnd]) >= 0) {
+		if chars[fieldEnd] == delimiter {
+			run = langruntime.CheckedI32(langruntime.CheckedSignedAdd(run, 1))
+			if run > 1 {
+				collapsed = true
+			}
+		} else {
+			if run > 0 {
+				parts = langruntime.CheckedI32(langruntime.CheckedSignedAdd(parts, 1))
+			}
+			run = langruntime.CheckedI32(0)
+		}
+		fieldEnd = langruntime.CheckedAdd(fieldEnd, 1)
+	}
+	if fieldEnd < len(chars) && englishDateLetter(chars[fieldEnd]) {
+		return chars
+	}
+	if run >= 2 {
+		rejected := []rune{}
+		return rejected
+	}
+	trailing := run == 1 && parts >= 2
+	if collapsed == false && trailing == false {
+		return chars
+	}
+	copyEnd := fieldEnd
+	if trailing {
+		copyEnd = langruntime.CheckedIndex(langruntime.CheckedSubtract(fieldEnd, 1))
+	}
+	output := []rune{}
+	index := 0
+	for index < len(chars) {
+		character := chars[index]
+		inside := index >= firstEnd && index < fieldEnd
+		if inside == false || (index < copyEnd && (character != delimiter || chars[langruntime.CheckedSubtract(index, 1)] != delimiter)) {
+			langruntime.CheckedAdd(len(output), 1)
+			output = append(output, langruntime.CheckedChar(character))
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return output
+}
 func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool, dateOrder int) Int8Value {
+	dateOrder = langruntime.CheckedI32(dateOrder)
+	spelled := value
+	if value.Kind == TextValueValue {
+		text := langruntime.CheckedString(value.Value)
+		typed := []rune(text)
+		typedLength := len(typed)
+		fields := temporalFirstDateField(typed)
+		if len(fields) == 0 && typedLength != 0 {
+			return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampText}}
+		}
+		output := langruntime.NewTextBuffer("")
+		index := 0
+		for index < len(fields) {
+			output = append(output, string(langruntime.CheckedChar(fields[index]))...)
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		spelled = TextValue{Kind: TextValueValue, Value: string(output)}
+	}
+	return parseTemporalFields(spelled, withTimezone, dateOnly, dateOrder)
+}
+func parseTemporalFields(value TextValue, withTimezone bool, dateOnly bool, dateOrder int) Int8Value {
 	dateOrder = langruntime.CheckedI32(dateOrder)
 	unresolvedFlavor := 0
 	if value.Kind == TextValueUnknown {
