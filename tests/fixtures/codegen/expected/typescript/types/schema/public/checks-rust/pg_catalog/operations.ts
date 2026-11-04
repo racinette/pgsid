@@ -9801,9 +9801,6 @@ export function boxFromText(input: checkruntime.TextValue): checkruntime.BoxValu
     if (input.kind === "Value") {
         const value: string = langruntime.checkedString(input.value);
         const chars: string[] = Array.from(value);
-        if (chars.length > 4096) {
-            return checkruntime.boxUnresolved(unresolvedFlavor);
-        }
         const source: GeometryInputText = { chars: chars };
         const index: number = geometryInputSpace(source, 0);
         if (index < source.chars.length && langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === "[") {
@@ -16564,9 +16561,6 @@ function circleParse(value: string): checkruntime.CircleValue {
     value = langruntime.checkedString(value);
     const unresolvedFlavor: number = 0;
     const chars: string[] = Array.from(value);
-    if (chars.length > 4096) {
-        return checkruntime.circleUnresolved(unresolvedFlavor);
-    }
     const source: GeometryInputText = { chars: chars };
     let index: number = geometryInputSpace(source, 0);
     let depth: number = 0;
@@ -40063,11 +40057,7 @@ function lineParseCoefficients(source: GeometryInputText, begin: number): checkr
 }
 function lineParse(value: string): checkruntime.LineValue {
     value = langruntime.checkedString(value);
-    const unresolvedFlavor: number = 0;
     const chars: string[] = Array.from(value);
-    if (chars.length > 4096) {
-        return checkruntime.lineUnresolved(unresolvedFlavor);
-    }
     const source: GeometryInputText = { chars: chars };
     let index: number = geometryInputSpace(source, 0);
     if (index < source.chars.length && langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === "{") {
@@ -41337,9 +41327,6 @@ export function lsegFromText(input: checkruntime.TextValue): checkruntime.LsegVa
     if (input.kind === "Value") {
         const value: string = langruntime.checkedString(input.value);
         const chars: string[] = Array.from(value);
-        if (chars.length > 4096) {
-            return checkruntime.lsegUnresolved(unresolvedFlavor);
-        }
         const source: GeometryInputText = { chars: chars };
         const index: number = geometryInputSpace(source, 0);
         const pair: GeometryInputPair = copyGeometryInputPair(geometryReadPair(source, index));
@@ -55204,9 +55191,6 @@ function oidAliasRead(input: checkruntime.TextValue, dash: boolean, grammar: num
     if (input.kind === "Value") {
         const text: string = langruntime.checkedString(input.value);
         const chars: string[] = Array.from(text);
-        if (chars.length > 4096) {
-            return checkruntime.oidUnresolved(unresolvedFlavor);
-        }
         if (dash && chars.length === 1 && langruntime.indexChar(chars, langruntime.checkedIndex(0)) === "-") {
             return checkruntime.makeOidValue(0n);
         }
@@ -55575,9 +55559,6 @@ export function regclassWqix(input: checkruntime.TextValue): checkruntime.OidVal
     if (input.kind === "Value") {
         const text: string = langruntime.checkedString(input.value);
         const chars: string[] = Array.from(text);
-        if (chars.length > 4096) {
-            return checkruntime.oidUnresolved(unresolvedFlavor);
-        }
         const parts: number = oidAliasNameParts(text, 0, chars.length);
         if (parts < 1) {
             return { kind: "Error", value: checkruntime.makeSqlError(oidAliasInvalidName) };
@@ -55903,9 +55884,6 @@ export function oidFromText(input: checkruntime.TextValue): checkruntime.OidValu
     if (input.kind === "Value") {
         const text: string = langruntime.checkedString(input.value);
         const chars: string[] = Array.from(text);
-        if (chars.length > 4096) {
-            return checkruntime.oidUnresolved(unresolvedFlavor);
-        }
         let start: number = 0;
         let end: number = chars.length;
         while (start < end && oidInputSpace(langruntime.indexChar(chars, langruntime.checkedIndex(start)))) {
@@ -56616,9 +56594,6 @@ function pathParse(value: string): checkruntime.PathValue {
     value = langruntime.checkedString(value);
     const unresolvedFlavor: number = 0;
     const chars: string[] = Array.from(value);
-    if (chars.length > 4096) {
-        return checkruntime.pathUnresolved(unresolvedFlavor);
-    }
     const source: GeometryInputText = { chars: chars };
     let commas: number = 0;
     let lastParen: number = 0;
@@ -58208,9 +58183,6 @@ function pointParse(value: string): checkruntime.PointValue {
     value = langruntime.checkedString(value);
     const unresolvedFlavor: number = 0;
     const chars: string[] = Array.from(value);
-    if (chars.length > 4096) {
-        return checkruntime.pointUnresolved(unresolvedFlavor);
-    }
     const source: GeometryInputText = { chars: chars };
     let index: number = geometryInputSpace(source, 0);
     let parenthesized: boolean = false;
@@ -59369,9 +59341,6 @@ function polygonParse(value: string): checkruntime.PolygonValue {
     value = langruntime.checkedString(value);
     const unresolvedFlavor: number = 0;
     const chars: string[] = Array.from(value);
-    if (chars.length > 4096) {
-        return checkruntime.polygonUnresolved(unresolvedFlavor);
-    }
     const source: GeometryInputText = { chars: chars };
     const start: number = geometryInputSpace(source, 0);
     if (start < source.chars.length) {
@@ -75453,9 +75422,6 @@ export function tidFromText(input: checkruntime.TextValue): checkruntime.TidValu
         const text: string = langruntime.checkedString(input.value);
         const chars: string[] = Array.from(text);
         const data: TidInputText = { chars: chars };
-        if (data.chars.length > 4096) {
-            return checkruntime.tidUnresolved(unresolvedFlavor);
-        }
         let index: number = 0;
         let count: number = 0;
         let first: number = 0;
@@ -85206,9 +85172,6 @@ export function xid8FromText(input: checkruntime.TextValue): checkruntime.Xid8Va
     if (input.kind === "Value") {
         const text: string = langruntime.checkedString(input.value);
         const chars: string[] = Array.from(text);
-        if (chars.length > 4096) {
-            return checkruntime.xid8Unresolved(unresolvedFlavor);
-        }
         let start: number = 0;
         let end: number = chars.length;
         while (start < end && oidInputSpace(langruntime.indexChar(chars, langruntime.checkedIndex(start)))) {

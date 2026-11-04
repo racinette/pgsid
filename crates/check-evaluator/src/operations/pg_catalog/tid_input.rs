@@ -72,7 +72,6 @@ pub fn tid_from_text(input: TextValue) -> TidValue {
     if let TextValue::Value(text) = input {
         let chars: Vec<char> = text.chars().collect();
         let data = TidInputText { chars: chars };
-        if data.chars.len() > 4096 { return tid_unresolved(unresolved_flavor); };
         let mut index: usize = 0;
         let mut count = 0;
         let mut first: usize = 0;

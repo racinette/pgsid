@@ -435,7 +435,6 @@ const inputForms = [
     ...forms,
     suite: 'tests/sql-semantics/check-oid-aliases.test.ts',
     deferred: [...forms.contextRequired, ...forms.platformDependent, ...forms.unimplementedGrammar],
-    inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
     ...(forms.type === 'pg_catalog.regclass'
       ? {
           textCastRequirement:
@@ -456,7 +455,6 @@ const inputForms = [
     platformDependent: deferredTidPlatformForms,
     contextRequired: [],
     unimplementedGrammar: [],
-    inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
   },
   {
     type: 'pg_catalog.pg_lsn',
@@ -476,7 +474,6 @@ const inputForms = [
     platformDependent: deferredIdentifier32PlatformForms,
     contextRequired: [],
     unimplementedGrammar: [],
-    inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
   },
   {
     type: 'pg_catalog.cid',
@@ -486,7 +483,6 @@ const inputForms = [
     platformDependent: deferredIdentifier32PlatformForms,
     contextRequired: [],
     unimplementedGrammar: [],
-    inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
   },
   {
     type: 'pg_catalog.xid8',
@@ -496,7 +492,6 @@ const inputForms = [
     platformDependent: deferredXid8PlatformForms,
     contextRequired: [],
     unimplementedGrammar: [],
-    inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
   },
   {
     type: 'pg_catalog.oid',
@@ -506,7 +501,6 @@ const inputForms = [
     platformDependent: deferredOidPlatformForms,
     contextRequired: [],
     unimplementedGrammar: [],
-    inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
   },
   {
     type: 'pg_catalog.money',
@@ -517,7 +511,6 @@ const inputForms = [
     platformDependent: [],
     contextRequired: deferredMoneyContextForms,
     unimplementedGrammar: [],
-    inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
   },
   {
     type: 'pg_catalog.refcursor',
@@ -551,7 +544,6 @@ const inputForms = [
     platformDependent: deferredPolygonPlatformForms,
     contextRequired: [],
     unimplementedGrammar: [],
-    inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
     computedNanBinaryOutput: 'Unknown',
     cachedBounds: {
       explicitRowBits: 'preserved',
@@ -571,7 +563,6 @@ const inputForms = [
     platformDependent: deferredPathPlatformForms,
     contextRequired: [],
     unimplementedGrammar: [],
-    inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
     computedNanBinaryOutput: 'Unknown',
   },
   {
@@ -583,7 +574,6 @@ const inputForms = [
     platformDependent: deferredCirclePlatformForms,
     contextRequired: [],
     unimplementedGrammar: [],
-    inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
     computedNanBinaryOutput: 'Unknown',
   },
   {
@@ -595,7 +585,6 @@ const inputForms = [
     platformDependent: deferredBoxPlatformForms,
     contextRequired: [],
     unimplementedGrammar: [],
-    inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
     computedNanBinaryOutput: 'Unknown',
   },
   {
@@ -607,7 +596,6 @@ const inputForms = [
     platformDependent: deferredLsegPlatformForms,
     contextRequired: [],
     unimplementedGrammar: [],
-    inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
     computedNanBinaryOutput: 'Unknown',
   },
   {
@@ -619,7 +607,6 @@ const inputForms = [
     platformDependent: deferredLinePlatformForms,
     contextRequired: [],
     unimplementedGrammar: [],
-    inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
     computedNanBinaryOutput: 'Unknown',
   },
   {
@@ -631,7 +618,6 @@ const inputForms = [
     platformDependent: deferredPointPlatformForms,
     contextRequired: [],
     unimplementedGrammar: [],
-    inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
   },
   {
     type: 'pg_catalog."interval"',

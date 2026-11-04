@@ -11,9 +11,6 @@ pub fn lseg_from_text(input: TextValue) -> LsegValue {
     };
     if let TextValue::Value(value) = input {
         let chars: Vec<char> = value.chars().collect();
-        if chars.len() > 4096 {
-            return lseg_unresolved(unresolved_flavor);
-        };
         let source = GeometryInputText { chars };
         let index = geometry_input_space(&source, 0);
         let pair = geometry_read_pair(&source, index);

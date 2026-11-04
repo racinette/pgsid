@@ -18,7 +18,6 @@ fn oid_alias_read(input: TextValue, dash: bool, grammar: i32, soft: bool) -> Oid
     if input == TextValue::Null { return OidValue::Null; };
     if let TextValue::Value(text) = input {
         let chars: Vec<char> = text.chars().collect();
-        if chars.len() > 4096 { return oid_unresolved(unresolved_flavor); };
         if dash && chars.len() == 1 && chars[0] == '-' { return make_oid_value(0i64); };
         let mut numeric = chars.len() != 0;
         let mut index: usize = 0;
@@ -246,7 +245,6 @@ pub fn sql__pg_catalog__regclass__wqix(input: TextValue) -> OidValue {
     if input == TextValue::Null { return OidValue::Null; };
     if let TextValue::Value(text) = input {
         let chars: Vec<char> = text.chars().collect();
-        if chars.len() > 4096 { return oid_unresolved(unresolved_flavor); };
         let parts = oid_alias_name_parts(text.as_str(), 0, chars.len());
         if parts < 1 { return OidValue::Error(make_sql_error(OID_ALIAS_INVALID_NAME)); };
         if parts > 3 { return OidValue::Error(make_sql_error(OID_ALIAS_INVALID_TYPE)); };

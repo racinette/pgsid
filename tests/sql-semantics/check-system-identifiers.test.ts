@@ -341,7 +341,7 @@ describe('portable transaction and command identifiers', () => {
             expected: outcome,
           })
       }
-      for (const text of forms) {
+      for (const text of [...forms, '9'.repeat(4097)]) {
         try {
           const wire = (
             await pg.query<{ wire: string }>(`SELECT encode(${type}send($1::${type}),'hex') wire`, [
@@ -353,12 +353,10 @@ describe('portable transaction and command identifiers', () => {
           add(known(text), known('00'), error((e as { code: string }).code))
         }
       }
-      for (const text of [
-        ...(type === 'xid8' ? deferredXid8PlatformForms : deferredIdentifier32PlatformForms),
-        '9'.repeat(4097),
-      ])
-        // Text past the evaluator's length cap is no database fact.
-        add(known(text), known('00'), { kind: text.length > 4096 ? 'Unimplemented' : 'Unknown' })
+      for (const text of type === 'xid8'
+        ? deferredXid8PlatformForms
+        : deferredIdentifier32PlatformForms)
+        add(known(text), known('00'), { kind: 'Unknown' })
       add(known(null), known('00'), { kind: 'Null' })
       add({ kind: 'Unknown' }, known('00'), { kind: 'Unknown' })
       add(error('22012'), known('00'), error('22012'))

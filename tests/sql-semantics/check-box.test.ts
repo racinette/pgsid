@@ -417,7 +417,7 @@ describe('portable boxes', () => {
       for (const suffix of ['raw', 'stored'])
         fixtures.push({ name: name + '_' + suffix, row, expected })
     }
-    for (const source of boxInputForms) {
+    for (const source of [...boxInputForms, '[' + '0'.repeat(4096) + ']']) {
       let wire: string | null = null,
         expected: Outcome
       try {
@@ -462,13 +462,9 @@ describe('portable boxes', () => {
     add('null_literal', row, { kind: 'Null' })
     for (const skip of [true, false])
       add('invalid_literal', { ...row, skip: known(skip) }, failure('22P02'))
-    for (const source of [...deferredBoxPlatformForms, '[' + '0'.repeat(4096) + ']'])
+    for (const source of deferredBoxPlatformForms)
       for (const name of ['wire', 'same', 'present'])
-        add(
-          name,
-          { ...row, source: known(source) },
-          { kind: deferredBoxPlatformForms.includes(source) ? 'Unknown' : 'Unimplemented' },
-        )
+        add(name, { ...row, source: known(source) }, { kind: 'Unknown' })
     for (const state of [{ kind: 'Unknown' }, { kind: 'Null' }, failure('22012')] as Input[]) {
       for (const name of ['wire', 'varying', 'domain', 'typename', 'same', 'lazy'])
         add(name, { ...row, source: state, skip: known(false) }, state as Outcome)

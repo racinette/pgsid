@@ -250,7 +250,7 @@ describe('catalog OID aliases', () => {
     for (const forms of oidAliasInputForms) {
       const { type } = forms
       const name = type.slice('pg_catalog.'.length)
-      for (const text of forms.handled) {
+      for (const text of [...forms.handled, '9'.repeat(4097)]) {
         for (const operation of functionsFor(name) ? ['input', 'lookup'] : ['input']) {
           const sql = operation === 'input' ? `$1::text::${type}` : `to_${name}($1::text)`
           // The text-to-regclass function reads digits as a relation name.
@@ -280,8 +280,7 @@ describe('catalog OID aliases', () => {
       }
       for (const [texts, kind] of [
         [[...forms.contextRequired, ...forms.platformDependent], 'Unknown'],
-        // Text past the length cap is no database fact.
-        [[...forms.unimplementedGrammar, '9'.repeat(4097)], 'Unimplemented'],
+        [forms.unimplementedGrammar, 'Unimplemented'],
       ] as const)
         for (const text of texts) {
           add(name + '_input', { ...base, source: known(text) }, { kind })

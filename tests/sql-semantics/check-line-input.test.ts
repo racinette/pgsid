@@ -109,7 +109,7 @@ describe('line text input and point construction', () => {
       for (const suffix of ['raw', 'stored'])
         fixtures.push({ name: name + '_' + suffix, row, expected })
     }
-    for (const text of lineInputForms) {
+    for (const text of [...lineInputForms, '{' + '0'.repeat(4097) + ',1,0}']) {
       let wire: string | null = null,
         expected: Outcome,
         sameExpected: Outcome,
@@ -168,9 +168,8 @@ describe('line text input and point construction', () => {
         row: { ...baseline, skip: value(skip) },
         expected: error('22P02'),
       })
-    for (const text of [...deferredLinePlatformForms, '{' + '0'.repeat(4097) + ',1,0}']) {
-      // Text past the evaluator's length cap is no database fact.
-      const kind = deferredLinePlatformForms.includes(text) ? 'Unknown' : 'Unimplemented'
+    for (const text of deferredLinePlatformForms) {
+      const kind = 'Unknown'
       for (const name of ['wire', 'same', 'present'])
         add(name, { ...baseline, source: value(text) }, { kind })
       add('lazy', { ...baseline, source: value(text) }, { kind: 'True' })

@@ -1,9 +1,6 @@
 fn path_parse(value: &str) -> PathValue {
     let unresolved_flavor: i32 = 0;
     let chars: Vec<char> = value.chars().collect();
-    if chars.len() > 4096 {
-        return path_unresolved(unresolved_flavor);
-    };
     let source = GeometryInputText { chars: chars };
     let mut commas: i32 = 0;
     let mut last_paren: usize = 0;

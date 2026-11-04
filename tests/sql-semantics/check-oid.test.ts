@@ -247,7 +247,7 @@ describe('portable OID values', () => {
       },
     ])
     expect(group.checks[0]!.kind).toBe('supported')
-    const portable = oidInputForms
+    const portable = [...oidInputForms, '9'.repeat(4097)]
     const fixtures: { name: string; row: Row; expected: Outcome }[] = []
     for (const text of portable) {
       try {
@@ -267,12 +267,11 @@ describe('portable OID values', () => {
         })
       }
     }
-    for (const text of [...deferredOidPlatformForms, '9'.repeat(4097)])
+    for (const text of deferredOidPlatformForms)
       fixtures.push({
         name: 'parsed',
         row: { source: known(text), expected: known('00') },
-        // Text past the evaluator's length cap is no database fact.
-        expected: { kind: text.length > 4096 ? 'Unimplemented' : 'Unknown' },
+        expected: { kind: 'Unknown' },
       })
     fixtures.push(
       {
