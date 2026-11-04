@@ -285,7 +285,99 @@ fn temporal_text_any_order(input: String, with_timezone: bool, date_only: bool) 
     int8_unresolved(flavor)
 }
 
+// The server reads leading digits joined by a repeated '-' or '/' as one date field, and its date
+// splitter skips runs of separators and one trailing separator but rejects a field ending in two.
+// Collapsing those leaves the grammar below one spelling to read; no characters come back when
+// the server rejects the field. Only a leading field is read this way, since a later date field
+// can be a zone name, and only one without letters, which would extend it.
+fn temporal_first_date_field(chars: Vec<char>) -> Vec<char> {
+    let mut start: usize = 0;
+    while start < chars.len() && date_text_space(chars[start]) {
+        start += 1;
+    }
+    let mut first_end = start;
+    while first_end < chars.len() && date_text_digit(chars[first_end]) >= 0 {
+        first_end += 1;
+    }
+    if first_end == start || first_end == chars.len() {
+        return chars;
+    }
+    let delimiter = chars[first_end];
+    if delimiter != '-' && delimiter != '/' {
+        return chars;
+    }
+    let mut field_end = first_end;
+    let mut parts: i32 = 1;
+    let mut run: i32 = 0;
+    let mut collapsed = false;
+    while field_end < chars.len() && (chars[field_end] == delimiter || date_text_digit(chars[field_end]) >= 0) {
+        if chars[field_end] == delimiter {
+            run = run + 1;
+            if run > 1 {
+                collapsed = true;
+            };
+        } else {
+            if run > 0 {
+                parts = parts + 1;
+            };
+            run = 0;
+        };
+        field_end += 1;
+    }
+    if field_end < chars.len() && english_date_letter(chars[field_end]) {
+        return chars;
+    }
+    if run >= 2 {
+        let rejected: Vec<char> = Vec::new();
+        return rejected;
+    }
+    let trailing = run == 1 && parts >= 2;
+    if collapsed == false && trailing == false {
+        return chars;
+    }
+    let mut copy_end = field_end;
+    if trailing {
+        copy_end = field_end - 1;
+    }
+    let mut output: Vec<char> = Vec::new();
+    let mut index: usize = 0;
+    while index < chars.len() {
+        let character = chars[index];
+        let inside = index >= first_end && index < field_end;
+        if inside == false || (index < copy_end && (character != delimiter || chars[index - 1] != delimiter)) {
+            output.push(character);
+        };
+        index += 1;
+    }
+    output
+}
+
 fn parse_temporal_text(
+    value: TextValue,
+    with_timezone: bool,
+    date_only: bool,
+    date_order: i32,
+) -> Int8Value {
+    let mut spelled = value.clone();
+    if let TextValue::Value(text) = value {
+        let typed: Vec<char> = text.chars().collect();
+        let typed_length = typed.len();
+        let fields = temporal_first_date_field(typed);
+        if fields.len() == 0 && typed_length != 0 {
+            return Int8Value::Error(SqlError { state: INVALID_TIMESTAMP_TEXT });
+        }
+        let mut output = String::new();
+        let mut index: usize = 0;
+        while index < fields.len() {
+            output.push(fields[index]);
+            index += 1;
+        }
+        spelled = TextValue::Value(output);
+    };
+    parse_temporal_fields(spelled, with_timezone, date_only, date_order)
+}
+
+fn parse_temporal_fields(
     value: TextValue,
     with_timezone: bool,
     date_only: bool,

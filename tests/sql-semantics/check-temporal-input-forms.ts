@@ -864,7 +864,21 @@ export const ordinalUnknownText = [
   '5888000-001 BC',
 ]
 
+// The date splitter skips separator runs and one trailing separator, and rejects two.
+const separatorRunText = [
+  '2000-01--01',
+  '2000--01-01',
+  '2000-01---01',
+  '2000-01-01-',
+  '2000/01/01/',
+]
+const separatorRunLocalText = ['2000-01--01 12:00', '2000-01-01- 12:00']
+const separatorRunErrorText = ['2000-01-01--', '2000--', '2000-01-']
+
 export const dateHandledText = [
+  ...separatorRunText,
+  ...separatorRunLocalText,
+  ...separatorRunErrorText,
   ...compactDateText,
   ...ordinalDateText,
   ...ordinalErrorText,
@@ -960,12 +974,13 @@ export const dateDeferredText = [
   'now',
   '01-02-03',
   '01/02/2000',
-  '2000-01--01',
-  '2000-01-01-',
   'J1e2',
 ]
 
 export const timestampHandledText = [
+  ...separatorRunText,
+  ...separatorRunLocalText,
+  ...separatorRunErrorText,
   ...compactDateText,
   ...compactTimestampText,
   ...ordinalDateText,
@@ -1107,6 +1122,7 @@ export const timestampDeferredText = [
 ]
 
 export const timestamptzHandledText = [
+  ...separatorRunErrorText,
   ...compactTimestampText,
   ...ordinalErrorText,
   ...ordinalTimestampText,
