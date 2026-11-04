@@ -284,6 +284,7 @@ async function summarize() {
       null: number
       error: number
       unknown: number
+      unimplemented: number
     }[]
   }
   const manifest = JSON.parse(await readFile(new URL('shapes.json', root), 'utf8')) as {
@@ -295,15 +296,32 @@ async function summarize() {
     if (!match) return []
     const shape = manifest.find((m) => m.index === Number(match[1]))!
     const definite = c.true + c.false + c.null + c.error
-    return [{ shape: shape.id, template: match[2]!, definite, unknown: c.unknown }]
+    return [
+      {
+        shape: shape.id,
+        template: match[2]!,
+        definite,
+        unknown: c.unknown,
+        unimplemented: c.unimplemented,
+      },
+    ]
   })
   await writeFile(new URL('summary.json', root), JSON.stringify(rows, null, 2) + '\n')
-  const byTemplate = new Map<string, { shapes: number; allDefinite: number; unknown: number }>()
+  const byTemplate = new Map<
+    string,
+    { shapes: number; allDefinite: number; unknown: number; unimplemented: number }
+  >()
   for (const row of rows) {
-    const entry = byTemplate.get(row.template) ?? { shapes: 0, allDefinite: 0, unknown: 0 }
+    const entry = byTemplate.get(row.template) ?? {
+      shapes: 0,
+      allDefinite: 0,
+      unknown: 0,
+      unimplemented: 0,
+    }
     entry.shapes++
-    if (row.unknown === 0) entry.allDefinite++
+    if (row.unknown + row.unimplemented === 0) entry.allDefinite++
     entry.unknown += row.unknown
+    entry.unimplemented += row.unimplemented
     byTemplate.set(row.template, entry)
   }
   console.table(Object.fromEntries(byTemplate))

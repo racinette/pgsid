@@ -61,9 +61,10 @@ named Unknown cases, and required materialized generated-column inputs. A CHECK
 reads a supplied generated value; its source columns do not supply that value.
 Write-hook metadata identifies tables whose INSERT inputs may be rewritten before
 PostgreSQL evaluates their CHECKs, including hooks on descendant partitions.
-World outcomes distinguish definite values, SQL errors,
-Unknown results, and constraints without INSERT cases. A prepared Unknown is
-deferred work, and an unexercised constraint supplies no execution evidence.
+World outcomes distinguish definite values, SQL errors, Unknown results that wait
+on a database fact, Unimplemented results that wait on the evaluator, and
+constraints without INSERT cases. An unexercised constraint supplies no execution
+evidence.
 
 The coercion census probes explicit catalog casts between represented types and
 their runtime text input/output paths, retaining actual type I/O identities.
@@ -110,8 +111,9 @@ The shape census is exploratory and stays out of the gate. It enumerates nested
 domain, array, range and composite shapes over hand-written scalar edge values,
 writes them as generated worlds, and measures stored constants, text input and
 text output through the world INSERT runner. PostgreSQL decides each row; a
-generated check must agree or stay Unknown. Unknown cells form the precision map,
-and a mismatch is a defect to reproduce in a maintained owner:
+generated check must agree or defer. Unknown cells wait on a database fact and
+Unimplemented cells on the evaluator; a mismatch is a defect to reproduce in a
+maintained owner:
 
 ```sh
 node --import tsx scripts/check-measurements/shapes.ts
