@@ -15,6 +15,7 @@ import {
   prepareCheckRustGroup,
 } from '../../src/codegen/shared/check-rust-source.js'
 import { emitCheckRustEvaluator } from '../../src/codegen/shared/check-rust-evaluator.js'
+import { hasUncertain } from '../../scripts/check-measurements/probes.js'
 import {
   runCheckParity,
   type Input,
@@ -131,8 +132,8 @@ describe('CHECK text collation', () => {
         expect(prepareCheckRust(plan.expression).kind, group.name).toBe('supported')
   })
 
-  // Provider-defined collation behavior needs the database; conflicts and bytewise deterministic
-  // operations do not.
+  // Provider-defined collation behavior needs the database only on rows a NULL argument does not
+  // decide, so those expressions bind; conflicts and bytewise deterministic operations do not.
   const providerDependent = new Set([
     'nondeterministic',
     'nondeterministic_peers',
@@ -142,13 +143,12 @@ describe('CHECK text collation', () => {
     'foreign_c',
     'custom_ordering',
   ])
-  it.each(Object.entries(unsupported))('keeps %s uncertain', (name, sql) => {
+  it.each(Object.entries(unsupported))('defers %s', (name, sql) => {
     const expression = bind(sql)
-    expect(expression).toEqual(
-      providerDependent.has(name)
-        ? { kind: 'uncertain', reason: 'context' }
-        : { kind: 'uncertain' },
-    )
+    if (providerDependent.has(name)) {
+      expect(expression.kind).toBe('eval-scalar')
+      expect(hasUncertain(expression)).toBe(false)
+    } else expect(expression).toEqual({ kind: 'uncertain' })
   })
 
   it('retains default ordering for resolution through declared execution context', () => {
@@ -175,7 +175,7 @@ describe('CHECK text collation', () => {
     ).rejects.toMatchObject({ code: '42P22' })
   })
 
-  it('rejects deterministic evidence for ordering in the Rust emitter', () => {
+  it('does not order by deterministic evidence in the Rust emitter', () => {
     const expression = bind('plain < (\'z\' COLLATE pg_catalog."C")')
     expect(expression.kind).toBe('eval-scalar')
     if (expression.kind !== 'eval-scalar' || expression.expression.kind !== 'call')
@@ -183,15 +183,15 @@ describe('CHECK text collation', () => {
     const call = expression.expression
     if (call.call.kind === 'cast') throw new Error('Expected operator')
     const operation = call.call
-    expect(() =>
+    expect(
       emitCheckRustEvaluator({
         ...expression,
         expression: {
           ...call,
           call: { ...operation, collation: 'deterministic' },
         },
-      }),
-    ).toThrow(/collation/)
+      }).source,
+    ).not.toMatch(/sql__pg_catalog__text_lt__/u)
   })
 
   it('matches PGlite in native Rust and both transpiled targets', async () => {

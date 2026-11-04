@@ -3909,20 +3909,29 @@ export function emitCheckRustEvaluator(
           : call.kind === 'cast'
             ? undefined
             : call.collation
+      // A strict call answers NULL on a NULL argument before any collation is consulted, so only
+      // its other rows wait on what the catalog says about a declared collation.
+      const textArgument = implementation.args.some((type) =>
+        [
+          'pg_catalog.name',
+          'pg_catalog.text',
+          'pg_catalog."varchar"',
+          'pg_catalog.bpchar',
+        ].includes(type),
+      )
+      const declaredTextCollation =
+        textArgument &&
+        call.kind !== 'cast' &&
+        call.collation !== undefined &&
+        implementation.strict === true
       if (
-        implementation.args.some((type) =>
-          [
-            'pg_catalog.name',
-            'pg_catalog.text',
-            'pg_catalog."varchar"',
-            'pg_catalog.bpchar',
-          ].includes(type),
-        ) &&
+        textArgument &&
         !arrayRegex &&
         !xmlCast &&
         !supportsTextCallableCollation(call.signature, textCollation) &&
         !defaultTextOrdering &&
-        !defaultTextCtype
+        !defaultTextCtype &&
+        !declaredTextCollation
       )
         throw new UnsupportedCheckRustExpression(
           `Unsupported Rust CHECK text collation: ${call.signature}`,
@@ -4029,7 +4038,9 @@ export function emitCheckRustEvaluator(
       for (const operand of operands) rustType(operand.type)
       if (folded) return folded
       if (
-        (defaultTextOrdering || defaultTextCtype) &&
+        (defaultTextOrdering || defaultTextCtype || declaredTextCollation) &&
+        !arrayRegex &&
+        !xmlCast &&
         !supportsTextCallableCollation(call.signature, textCollation)
       ) {
         const guard = fresh('ordering_context')

@@ -787,15 +787,32 @@ const unboundContext = (): Bound => {
 // Set while classifying an unbound expression: text callables then bind under any collation, so a
 // binding that succeeds shows the collation provider's behavior was the only obstacle.
 let assumeCollationProvider = false
+// Whether the assumption reached anything but a strict scalar call, which cannot be evaluated row by
+// row and so keeps the whole expression waiting on the provider.
+let collationAssumedBeyondStrictCalls = false
 // Only provider-defined behavior needs the database: nondeterministic or foreign collations, and
 // ordering or character classification under a non-C collation. A conflict raises 42P22 and a
 // deterministic comparison is bytewise, so neither depends on the provider.
-const providerCollationAssumed = (signature: string, collation?: BoundCollation | null): boolean =>
-  assumeCollationProvider &&
-  !!collation &&
-  collation.identity !== 'conflict' &&
-  (collation.kind === 'other' ||
-    (collation.kind !== 'C' && (isTextOrderingCallable(signature) || isCtypeCallable(signature))))
+const providerCollationAssumed = (
+  signature: string,
+  collation?: BoundCollation | null,
+  scalarCall = false,
+): boolean => {
+  const assumed =
+    assumeCollationProvider &&
+    !!collation &&
+    collation.identity !== 'conflict' &&
+    (collation.kind === 'other' ||
+      (collation.kind !== 'C' && (isTextOrderingCallable(signature) || isCtypeCallable(signature))))
+  if (assumed && !(scalarCall && strictScalarCall(signature)))
+    collationAssumedBeyondStrictCalls = true
+  return assumed
+}
+const strictScalarCall = (signature: string): boolean => {
+  const metadata = builtinMetadata(signature)
+  const called = metadata.kind === 'operator' ? builtinMetadata(metadata.implementation) : metadata
+  return called.kind === 'function' && called.strict && !called.sqlBody && !called.returnsSet
+}
 
 const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null => {
   if (type === 'pg_catalog.xml' && (literal.kind === 'null' || literal.kind === 'string'))
@@ -1471,9 +1488,9 @@ const candidate = (
           'pg_catalog.bpchar',
         ].includes(type),
       ) &&
-      !providerCollationAssumed(signature, collation) &&
       !supportsBoundTextCallableCollation(signature, collation) &&
-      !isRegexArrayCallable(signature)
+      !isRegexArrayCallable(signature) &&
+      !providerCollationAssumed(signature, collation, true)
     )
       return []
     const multirangeTypes = fullArgs.flatMap((arg, index) =>
@@ -8925,21 +8942,28 @@ export function bindCatalogCheck(
       return { kind: 'eval-scalar', expression: value.value }
     // A call whose every candidate is stable or volatile is computed only when the database runs it.
     const opaque = runtimeOpaque(node)
+    const provider = opaque ? null : collationProviderBinding(node)
+    // A strict call needs the provider only on rows without a NULL argument.
+    if (provider?.strictCallsOnly && provider.expression)
+      return { kind: 'eval-scalar', expression: provider.expression }
     return {
       kind: 'uncertain',
       ...(opaque ? { preparation: 'runtime' as const } : {}),
-      ...(opaque || (obstacles.context && !obstacles.other) || collationProviderOnly(node)
+      ...(opaque || (obstacles.context && !obstacles.other) || provider
         ? { reason: 'context' as const }
         : {}),
     }
   }
   // An expression that binds once collation behavior is assumed needs only the collation provider.
-  const collationProviderOnly = (node: unknown): boolean => {
-    if (assumeCollationProvider) return false
+  const collationProviderBinding = (node: unknown) => {
+    if (assumeCollationProvider) return null
     assumeCollationProvider = true
+    collationAssumedBeyondStrictCalls = false
     try {
       const value = bind(node)
       return value.type === 'pg_catalog.bool' && value.value !== null
+        ? { expression: value.value, strictCallsOnly: !collationAssumedBeyondStrictCalls }
+        : null
     } finally {
       assumeCollationProvider = false
     }
