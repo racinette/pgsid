@@ -41,6 +41,11 @@ fn xpath_sql_unknown(state: i32) -> XPathSqlResult {
     XPathSqlResult { state, present: BoolValue::Unknown, output: ArrayValue::Unknown }
 }
 
+// An input the evaluator could not produce, or an impossible mapping array, is a gap, not a fact.
+fn xpath_sql_unimplemented() -> XPathSqlResult {
+    XPathSqlResult { state: XPATH_SQL_INPUT, present: BoolValue::Unimplemented, output: ArrayValue::Unimplemented }
+}
+
 fn xpath_sql_error(error: SqlError) -> XPathSqlResult {
     XPathSqlResult { state: XPATH_RESULT_SQL_ERROR, present: BoolValue::Error(error), output: ArrayValue::Error(error) }
 }
@@ -80,6 +85,9 @@ pub(crate) fn xpath_sql_execute_profile(expression: TextValue, input: XmlValue, 
     if let XmlValue::Null = input { is_null = true; };
     if let ArrayValue::Null = mappings { is_null = true; };
     if is_null { return XPathSqlResult { state: XPATH_SQL_NULL, present: BoolValue::Null, output: ArrayValue::Null }; };
+    if let TextValue::Unimplemented = expression { return xpath_sql_unimplemented(); };
+    if let XmlValue::Unimplemented = input { return xpath_sql_unimplemented(); };
+    if let ArrayValue::Unimplemented = mappings { return xpath_sql_unimplemented(); };
     let path_nullness = text_is_null(expression.clone());
     let input_nullness = xml_is_null(input.clone());
     if path_nullness != BoolValue::Value(false) || input_nullness != BoolValue::Value(false) { return xpath_sql_unknown(XPATH_SQL_INPUT); };
@@ -98,11 +106,11 @@ pub(crate) fn xpath_sql_execute_profile(expression: TextValue, input: XmlValue, 
     if let XmlValue::Value(value) = stored { source = value; known_input = true; };
     if let XmlValue::RenderedText(value) = input { source = value; known_input = true; rendered = true; };
     if let ArrayValue::Value(mapping) = mappings {
-        if mapping.element_type.as_str() != "pg_catalog.text" || mapping.element_kind != 8 { return xpath_sql_unknown(XPATH_SQL_INPUT); };
+        if mapping.element_type.as_str() != "pg_catalog.text" || mapping.element_kind != 8 { return xpath_sql_unimplemented(); };
         if mapping.dimensions.len() != 0 && (mapping.dimensions.len() != 2 || mapping.dimensions[1].length != 2) {
             return xpath_sql_error(make_sql_error(SQLSTATE_XML_NAMESPACE_ARRAY));
         };
-        if (mapping.elements.len() as i32)%2 != 0 || (mapping.dimensions.len() == 0 && mapping.elements.len() != 0) { return xpath_sql_unknown(XPATH_SQL_INPUT); };
+        if (mapping.elements.len() as i32)%2 != 0 || (mapping.dimensions.len() == 0 && mapping.elements.len() != 0) { return xpath_sql_unimplemented(); };
         if known_path == false { return xpath_sql_unknown(XPATH_SQL_INPUT); };
         if path.as_str() == "" { return xpath_sql_error(make_sql_error(SQLSTATE_INVALID_XPATH)); };
         if utf8 == false { return xpath_sql_unknown(XPATH_SQL_ENCODING); };

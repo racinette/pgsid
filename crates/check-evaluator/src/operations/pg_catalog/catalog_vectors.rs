@@ -211,6 +211,7 @@ fn catalog_vector_hash_bytes(input: ArrayValue) -> VectorHashBytes {
     let mut bytes: Vec<HashByte> = Vec::new();
     if let ArrayValue::Error(error) = input { return VectorHashBytes { bytes, state: CheckOutcome::Error(error) }; };
     if let ArrayValue::Null = input { return VectorHashBytes { bytes, state: CheckOutcome::Null }; };
+    if let ArrayValue::Unimplemented = input { return VectorHashBytes { bytes, state: CheckOutcome::Unimplemented }; };
     if let ArrayValue::Value(value) = input {
         let status = catalog_vector_status(&value, true);
         if let BoolValue::Error(error) = status { return VectorHashBytes { bytes, state: CheckOutcome::Error(error) }; };

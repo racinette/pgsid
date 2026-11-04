@@ -98,6 +98,9 @@ fn timezone_compare_date(
         if left == DateValue::Unimplemented {
             tested_flavor = 2;
         };
+        if right == TimestamptzValue::Unimplemented {
+            tested_flavor = 2;
+        };
         return timezone_comparison_result(int4_unresolved(tested_flavor));
     };
     if left == DateValue::Null || right == TimestamptzValue::Null {
@@ -148,6 +151,9 @@ fn timezone_compare_timestamp(
     if (left == TimestampValue::Unknown || left == TimestampValue::Unimplemented) || (right == TimestamptzValue::Unknown || right == TimestamptzValue::Unimplemented) {
         let mut tested_flavor: i32 = 1;
         if left == TimestampValue::Unimplemented {
+            tested_flavor = 2;
+        };
+        if right == TimestamptzValue::Unimplemented {
             tested_flavor = 2;
         };
         return timezone_comparison_result(int4_unresolved(tested_flavor));
