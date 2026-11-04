@@ -583,6 +583,13 @@ export async function runCheckParity(
         : outcome.kind === 'Unimplemented'
           ? 'I'
           : outcome.kind[0]!
+    // A check without fixtures still names its input tables in the generated runners.
+    for (const { inputs } of entries.values())
+      for (const input of inputs) {
+        const prefix = prefixOf(input.nullness ? 'pg_catalog.bool' : input.type)
+        if (!tables.has(prefix))
+          tables.set(prefix, { rust: [], go: [], index: new Map(), jsonpath: false })
+      }
     const caseLines: string[] = []
     for (const [index, fixture] of fixtures.entries()) {
       const check = entries.get(fixture.name)!
@@ -710,7 +717,7 @@ ${
                 let site = format!("{}@{}:{}{}", label, parity_origin_path(file), line, parity_origin_text(file, *line));
                 if !sites.contains(&site) { sites.push(site); }
             }
-            if sites.is_empty() && unknown_inputs.contains(fixture) {
+            if unknown_inputs.contains(fixture) {
                 sites.push("U@fixture-input".to_string());
             }
             if sites.is_empty() {
