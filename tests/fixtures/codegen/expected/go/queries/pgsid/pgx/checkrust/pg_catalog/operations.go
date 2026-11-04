@@ -73731,6 +73731,7 @@ func Reverse5pr1(input checkruntime.TextValue) checkruntime.TextValue {
 const asciiUndefinedEncoding = 6820852
 const asciiUnsupportedEncoding = 466560
 
+var asciiOtherEncodingNames = []string{"abc", "alt", "big5", "euccn", "eucjis2004", "eucjp", "euckr", "euctw", "gb18030", "gbk", "iso885910", "iso885913", "iso885914", "iso885916", "iso88593", "iso88594", "iso88595", "iso88596", "iso88597", "iso88598", "iso88599", "johab", "koi8", "koi8r", "koi8u", "latin10", "latin3", "latin4", "latin5", "latin6", "latin7", "latin8", "mskanji", "muleinternal", "shiftjis", "shiftjis2004", "sjis", "sqlascii", "tcvn", "tcvn5712", "uhc", "unicode", "utf8", "vscii", "win", "win1251", "win1252", "win1253", "win1254", "win1255", "win1256", "win1257", "win1258", "win866", "win874", "win932", "win936", "win949", "win950", "windows1251", "windows1252", "windows1253", "windows1254", "windows1255", "windows1256", "windows1257", "windows1258", "windows866", "windows874", "windows932", "windows936", "windows949", "windows950"}
 var asciiLatin1 = []int{32, 32, 99, 76, 32, 89, 32, 32, 34, 67, 97, 32, 32, 45, 82, 32, 32, 32, 32, 32, 39, 117, 32, 46, 44, 32, 32, 32, 32, 32, 32, 63, 65, 65, 65, 65, 65, 65, 65, 67, 69, 69, 69, 69, 73, 73, 73, 73, 32, 78, 79, 79, 79, 79, 79, 120, 79, 85, 85, 85, 85, 89, 84, 66, 97, 97, 97, 97, 97, 97, 97, 99, 101, 101, 101, 101, 105, 105, 105, 105, 32, 110, 111, 111, 111, 111, 111, 47, 111, 117, 117, 117, 117, 121, 116, 121}
 var asciiLatin2 = []int{32, 65, 32, 76, 32, 76, 83, 32, 34, 83, 83, 84, 90, 45, 90, 90, 32, 97, 44, 108, 39, 108, 115, 32, 44, 115, 115, 116, 122, 34, 122, 122, 82, 65, 65, 65, 65, 76, 67, 67, 67, 69, 69, 69, 69, 73, 73, 68, 68, 78, 78, 79, 79, 79, 79, 120, 82, 85, 85, 85, 85, 89, 84, 66, 114, 97, 97, 97, 97, 108, 99, 99, 99, 101, 101, 101, 101, 105, 105, 100, 100, 110, 110, 111, 111, 111, 111, 47, 114, 117, 117, 117, 117, 121, 116, 46}
 var asciiLatin9 = []int{32, 32, 99, 76, 32, 89, 83, 32, 115, 67, 97, 32, 32, 45, 82, 32, 32, 32, 32, 32, 90, 117, 32, 46, 122, 32, 32, 32, 69, 101, 89, 63, 65, 65, 65, 65, 65, 65, 65, 67, 69, 69, 69, 69, 73, 73, 73, 73, 32, 78, 79, 79, 79, 79, 79, 120, 79, 85, 85, 85, 85, 89, 84, 66, 97, 97, 97, 97, 97, 97, 97, 99, 101, 101, 101, 101, 105, 105, 105, 105, 32, 110, 111, 111, 111, 111, 111, 47, 111, 117, 117, 117, 117, 121, 116, 121}
@@ -73881,6 +73882,101 @@ func ToAsciiUqov(value checkruntime.TextValue, encoding checkruntime.Int4Value) 
 				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(asciiUndefinedEncoding)}
 			}
 			if code != 8 && code != 9 && code != 16 && code != 29 {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(asciiUnsupportedEncoding)}
+			}
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: asciiEncodingText(text, code)}
+		}
+	}
+	return checkruntime.TextUnresolved(unresolvedFlavor)
+}
+func asciiEncodingName(name string) int {
+	name = langruntime.CheckedString(name)
+	characters := []rune(name)
+	key := langruntime.NewTextBuffer("")
+	foreign := false
+	index := 0
+	for index < len(characters) {
+		character := characters[index]
+		code := int(langruntime.CheckedChar(character))
+		if (code >= 48 && code <= 57) || (code >= 97 && code <= 122) {
+			key = append(key, string(langruntime.CheckedChar(character))...)
+		} else if code >= 65 && code <= 90 {
+			key = append(key, string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(code, 32)), ' ')))...)
+		} else if code >= 128 {
+			foreign = true
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	encoding := langruntime.CheckedSignedNegate(1)
+	if string(key) == "latin1" || string(key) == "iso88591" {
+		encoding = langruntime.CheckedI32(8)
+	} else if string(key) == "latin2" || string(key) == "iso88592" {
+		encoding = langruntime.CheckedI32(9)
+	} else if string(key) == "latin9" || string(key) == "iso885915" {
+		encoding = langruntime.CheckedI32(16)
+	} else if string(key) == "win1250" || string(key) == "windows1250" {
+		encoding = langruntime.CheckedI32(29)
+	} else {
+		index = langruntime.CheckedIndex(0)
+		for index < len(asciiOtherEncodingNames) {
+			if asciiOtherEncodingNames[index] == string(key) {
+				encoding = langruntime.CheckedI32(0)
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+	}
+	if foreign && encoding != langruntime.CheckedSignedNegate(1) {
+		return langruntime.CheckedSignedNegate(2)
+	}
+	return encoding
+}
+func ToAscii654m(value checkruntime.TextValue, encoding checkruntime.TextValue) checkruntime.TextValue {
+	unresolvedFlavor := 0
+	if value.Kind == checkruntime.TextValueUnknown {
+		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if value.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
+	if encoding.Kind == checkruntime.TextValueUnknown {
+		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if encoding.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
+	if value.Kind == checkruntime.TextValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if encoding.Kind == checkruntime.TextValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if value.Kind == checkruntime.TextValueError {
+		error := value.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if encoding.Kind == checkruntime.TextValueError {
+		error := encoding.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if value == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || encoding == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if value.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(value.Value)
+		if encoding.Kind == checkruntime.TextValueValue {
+			name := langruntime.CheckedString(encoding.Value)
+			code := asciiEncodingName(name)
+			if code == langruntime.CheckedSignedNegate(2) {
+				return checkruntime.TextUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
+			}
+			if code == langruntime.CheckedSignedNegate(1) {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(asciiUndefinedEncoding)}
+			}
+			if code == 0 {
 				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(asciiUnsupportedEncoding)}
 			}
 			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: asciiEncodingText(text, code)}

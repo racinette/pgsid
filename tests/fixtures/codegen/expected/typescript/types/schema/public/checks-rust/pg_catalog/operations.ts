@@ -74207,6 +74207,7 @@ export function reverse5pr1(input: checkruntime.TextValue): checkruntime.TextVal
 }
 const asciiUndefinedEncoding = 6820852;
 const asciiUnsupportedEncoding = 466560;
+const asciiOtherEncodingNames: ReadonlyArray<string> = ["abc", "alt", "big5", "euccn", "eucjis2004", "eucjp", "euckr", "euctw", "gb18030", "gbk", "iso885910", "iso885913", "iso885914", "iso885916", "iso88593", "iso88594", "iso88595", "iso88596", "iso88597", "iso88598", "iso88599", "johab", "koi8", "koi8r", "koi8u", "latin10", "latin3", "latin4", "latin5", "latin6", "latin7", "latin8", "mskanji", "muleinternal", "shiftjis", "shiftjis2004", "sjis", "sqlascii", "tcvn", "tcvn5712", "uhc", "unicode", "utf8", "vscii", "win", "win1251", "win1252", "win1253", "win1254", "win1255", "win1256", "win1257", "win1258", "win866", "win874", "win932", "win936", "win949", "win950", "windows1251", "windows1252", "windows1253", "windows1254", "windows1255", "windows1256", "windows1257", "windows1258", "windows866", "windows874", "windows932", "windows936", "windows949", "windows950"];
 const asciiLatin1: ReadonlyArray<number> = [32, 32, 99, 76, 32, 89, 32, 32, 34, 67, 97, 32, 32, 45, 82, 32, 32, 32, 32, 32, 39, 117, 32, 46, 44, 32, 32, 32, 32, 32, 32, 63, 65, 65, 65, 65, 65, 65, 65, 67, 69, 69, 69, 69, 73, 73, 73, 73, 32, 78, 79, 79, 79, 79, 79, 120, 79, 85, 85, 85, 85, 89, 84, 66, 97, 97, 97, 97, 97, 97, 97, 99, 101, 101, 101, 101, 105, 105, 105, 105, 32, 110, 111, 111, 111, 111, 111, 47, 111, 117, 117, 117, 117, 121, 116, 121];
 const asciiLatin2: ReadonlyArray<number> = [32, 65, 32, 76, 32, 76, 83, 32, 34, 83, 83, 84, 90, 45, 90, 90, 32, 97, 44, 108, 39, 108, 115, 32, 44, 115, 115, 116, 122, 34, 122, 122, 82, 65, 65, 65, 65, 76, 67, 67, 67, 69, 69, 69, 69, 73, 73, 68, 68, 78, 78, 79, 79, 79, 79, 120, 82, 85, 85, 85, 85, 89, 84, 66, 114, 97, 97, 97, 97, 108, 99, 99, 99, 101, 101, 101, 101, 105, 105, 100, 100, 110, 110, 111, 111, 111, 111, 47, 114, 117, 117, 117, 117, 121, 116, 46];
 const asciiLatin9: ReadonlyArray<number> = [32, 32, 99, 76, 32, 89, 83, 32, 115, 67, 97, 32, 32, 45, 82, 32, 32, 32, 32, 32, 90, 117, 32, 46, 122, 32, 32, 32, 69, 101, 89, 63, 65, 65, 65, 65, 65, 65, 65, 67, 69, 69, 69, 69, 73, 73, 73, 73, 32, 78, 79, 79, 79, 79, 79, 120, 79, 85, 85, 85, 85, 89, 84, 66, 97, 97, 97, 97, 97, 97, 97, 99, 101, 101, 101, 101, 105, 105, 105, 105, 32, 110, 111, 111, 111, 111, 111, 47, 111, 117, 117, 117, 117, 121, 116, 121];
@@ -74362,6 +74363,107 @@ export function toAsciiUqov(value: checkruntime.TextValue, encoding: checkruntim
                 return { kind: "Error", value: checkruntime.makeSqlError(asciiUndefinedEncoding) };
             }
             if (!(code === 8) && !(code === 9) && !(code === 16) && !(code === 29)) {
+                return { kind: "Error", value: checkruntime.makeSqlError(asciiUnsupportedEncoding) };
+            }
+            return { kind: "Value", value: asciiEncodingText(text, code) };
+        }
+    }
+    return checkruntime.textUnresolved(unresolvedFlavor);
+}
+function asciiEncodingName(name: string): number {
+    name = langruntime.checkedString(name);
+    const characters: string[] = Array.from(name);
+    let key: string = "";
+    let foreign: boolean = false;
+    let index: number = 0;
+    while (index < characters.length) {
+        const character: string = langruntime.indexChar(characters, langruntime.checkedIndex(index));
+        const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+        if ((code >= 48 && code <= 57) || (code >= 97 && code <= 122)) {
+            key = key + langruntime.checkedChar(character);
+        }
+        else if (code >= 65 && code <= 90) {
+            key = key + langruntime.checkedChar(langruntime.characterFromI32((langruntime.checkedSignedAdd(code, 32)), " "));
+        }
+        else if (code >= 128) {
+            foreign = langruntime.checkedBool(true);
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let encoding: number = langruntime.checkedSignedNegate(1);
+    if (key === "latin1" || key === "iso88591") {
+        encoding = langruntime.checkedI32(8);
+    }
+    else if (key === "latin2" || key === "iso88592") {
+        encoding = langruntime.checkedI32(9);
+    }
+    else if (key === "latin9" || key === "iso885915") {
+        encoding = langruntime.checkedI32(16);
+    }
+    else if (key === "win1250" || key === "windows1250") {
+        encoding = langruntime.checkedI32(29);
+    }
+    else {
+        index = langruntime.checkedIndex(0);
+        while (index < asciiOtherEncodingNames.length) {
+            if (langruntime.indexStatic(asciiOtherEncodingNames, langruntime.checkedIndex(index)) === key) {
+                encoding = langruntime.checkedI32(0);
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+    }
+    if (foreign && !(encoding === langruntime.checkedSignedNegate(1))) {
+        return langruntime.checkedSignedNegate(2);
+    }
+    return encoding;
+}
+export function toAscii654m(value: checkruntime.TextValue, encoding: checkruntime.TextValue): checkruntime.TextValue {
+    let unresolvedFlavor: number = 0;
+    if (value.kind === "Unknown") {
+        unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (value.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
+    if (encoding.kind === "Unknown") {
+        unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (encoding.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
+    if (value.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (encoding.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (value.kind === "Error") {
+        const error: checkruntime.SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (encoding.kind === "Error") {
+        const error: checkruntime.SqlError = encoding.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(value, { kind: "Null" }) || checkruntime.equalTextValue(encoding, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (value.kind === "Value") {
+        const text: string = langruntime.checkedString(value.value);
+        if (encoding.kind === "Value") {
+            const name: string = langruntime.checkedString(encoding.value);
+            const code: number = asciiEncodingName(name);
+            if (code === langruntime.checkedSignedNegate(2)) {
+                return checkruntime.textUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
+            }
+            if (code === langruntime.checkedSignedNegate(1)) {
+                return { kind: "Error", value: checkruntime.makeSqlError(asciiUndefinedEncoding) };
+            }
+            if (code === 0) {
                 return { kind: "Error", value: checkruntime.makeSqlError(asciiUnsupportedEncoding) };
             }
             return { kind: "Value", value: asciiEncodingText(text, code) };
