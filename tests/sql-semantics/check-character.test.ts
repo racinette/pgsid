@@ -284,12 +284,12 @@ describe('Rust CHECK character comparisons', () => {
     const call = expression.expression
     const operation = call.call
     if (operation.kind !== 'operator') throw new Error('Expected operator')
-    expect(() =>
+    expect(
       emitCheckRustEvaluator({
         ...expression,
         expression: { ...call, call: { ...operation, collation: 'deterministic' } },
-      }),
-    ).toThrow(/collation/u)
+      }).source,
+    ).not.toMatch(/sql__pg_catalog__bpcharlt__/u)
     const cast = {
       kind: 'call' as const,
       call: { kind: 'cast' as const, signature: null, type: 'pg_catalog.text' },

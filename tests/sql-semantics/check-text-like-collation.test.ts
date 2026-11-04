@@ -145,8 +145,8 @@ describe('text LIKE and escape collations', () => {
                 [fn.args[0] === 'pg_catalog.bpchar' ? 'fixed_label' : argName(fn.args[0]!, 0)]:
                   input(null),
               },
-              // Default-collation ILIKE binds and defers by ctype, but a NULL argument decides it.
-              expected: { kind: deferred && !(folded(fn) && index === 0) ? 'Unknown' : 'Null' },
+              // A NULL argument decides the strict call before the collation matters.
+              expected: { kind: 'Null' },
             })
           }
         }

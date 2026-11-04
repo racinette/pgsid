@@ -94,7 +94,7 @@ describe('text hash and index comparator collations', () => {
               [],
               catalog.domains,
             )!
-            expect(plan.expression.kind === 'uncertain', name).toBe(!supported)
+            expect(plan.expression.kind, name).toBe('eval-scalar')
             checks.push({
               expression: plan.expression,
               identity: { schema: 'public', kind: 'table', owner: table.name, constraint: name },
@@ -141,7 +141,7 @@ describe('text hash and index comparator collations', () => {
             fixtures.push({
               name,
               row: { ...row, [argName(fn.args[0]!, 0)]: input(null) },
-              expected: { kind: supported ? 'Null' : 'Unknown' },
+              expected: { kind: 'Null' },
             })
           }
         }

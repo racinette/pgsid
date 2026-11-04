@@ -138,7 +138,7 @@ describe('text searching and overlay collations', () => {
             fixtures.push({
               name,
               row: { ...row, [argName(fn.args[0]!, 0)]: input(null) },
-              expected: { kind: deferred ? 'Unknown' : 'Null' },
+              expected: { kind: 'Null' },
             })
           }
         }
