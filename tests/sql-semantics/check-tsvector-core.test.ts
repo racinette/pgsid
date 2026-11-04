@@ -434,7 +434,7 @@ pub fn tsvector_test_model(mode:i32)->BoolValue {
   let stored=tsvector_from_stored_text_context(input,true);
   if sql__pg_catalog__length__grcw(stored.clone())!=make_int4_value(1) {return make_bool_value(false);};
   let order=sql__pg_catalog__tsvector_cmp__xinv(stored.clone(),stored.clone());
-  if order!=Int4Value::Unimplemented {return make_bool_value(false);};
+  if order!=Int4Value::Unknown {return make_bool_value(false);};
   let output=tsvector_to_text(stored);
   return make_bool_value(sql__pg_catalog__length__ehpe(output)==make_int4_value(2049));
  };
