@@ -55176,6 +55176,12 @@ const oidAliasInvalidType = 6819553;
 export function oidAliasFromText(input: checkruntime.TextValue, dash: boolean, grammar: number): checkruntime.OidValue {
     dash = langruntime.checkedBool(dash);
     grammar = langruntime.checkedI32(grammar);
+    return oidAliasRead(input, dash, grammar, false);
+}
+function oidAliasRead(input: checkruntime.TextValue, dash: boolean, grammar: number, soft: boolean): checkruntime.OidValue {
+    dash = langruntime.checkedBool(dash);
+    grammar = langruntime.checkedI32(grammar);
+    soft = langruntime.checkedBool(soft);
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -55205,49 +55211,201 @@ export function oidAliasFromText(input: checkruntime.TextValue, dash: boolean, g
             return checkruntime.makeOidValue(0n);
         }
         let numeric: boolean = !(chars.length === 0);
-        let whitespace: boolean = true;
-        let quoted: boolean = false;
-        let signature: boolean = false;
         let index: number = 0;
         while (index < chars.length) {
-            const ch: string = langruntime.indexChar(chars, langruntime.checkedIndex(index));
-            const code: number = langruntime.checkedChar(ch).codePointAt(0)!;
+            const code: number = langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index))).codePointAt(0)!;
             if (code < 48 || code > 57) {
                 numeric = langruntime.checkedBool(false);
-            }
-            if (oidInputSpace(ch) === false) {
-                whitespace = langruntime.checkedBool(false);
-            }
-            if (ch === "\"") {
-                quoted = langruntime.checkedBool(quoted === false);
-            }
-            if (ch === "(" && quoted === false) {
-                signature = langruntime.checkedBool(true);
             }
             index = langruntime.checkedAdd(index, 1);
         }
         if (numeric) {
-            return oidFromText({ kind: "Value", value: text });
-        }
-        if (grammar === 1 && signature === false) {
-            return { kind: "Error", value: checkruntime.makeSqlError(oidAliasInvalidSignature) };
-        }
-        if (whitespace) {
-            if (grammar === 2) {
-                return { kind: "Error", value: checkruntime.makeSqlError(oidAliasInvalidType) };
+            const value: checkruntime.OidValue = oidFromText({ kind: "Value", value: text });
+            if (soft) {
+                if (value.kind === "Error") {
+                    return { kind: "Null" };
+                }
             }
+            return value;
+        }
+        let outcome: number = 0;
+        if (grammar === 1) {
+            outcome = langruntime.checkedI32(oidAliasSignatureRead(text));
+        }
+        else if (grammar === 2) {
+            outcome = langruntime.checkedI32(oidAliasTypeRead(text));
+        }
+        else {
+            const parts: number = oidAliasNameParts(text, 0, chars.length);
+            if (parts < 1 || (grammar === 3 && !(parts === 1))) {
+                outcome = langruntime.checkedI32(1);
+            }
+            if (!(grammar === 3) && parts > 3) {
+                outcome = langruntime.checkedI32(3);
+            }
+        }
+        if (soft && (outcome === 1 || outcome === 2 || outcome === 4)) {
+            return { kind: "Null" };
+        }
+        if (outcome === 1) {
             return { kind: "Error", value: checkruntime.makeSqlError(oidAliasInvalidName) };
         }
-        if (oidAliasGrammarRead(text, grammar) === false) {
-            return checkruntime.oidUnresolved(unresolvedFlavor);
+        if (outcome === 2) {
+            return { kind: "Error", value: checkruntime.makeSqlError(oidAliasInvalidSignature) };
+        }
+        if (outcome === 3 || outcome === 4) {
+            return { kind: "Error", value: checkruntime.makeSqlError(oidAliasInvalidType) };
         }
     }
     return checkruntime.oidUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
 }
-function oidAliasGrammarRead(text: string, grammar: number): boolean {
+function oidAliasNameParts(text: string, start: number, end: number): number {
     text = langruntime.checkedString(text);
-    grammar = langruntime.checkedI32(grammar);
+    start = langruntime.checkedIndex(start);
+    end = langruntime.checkedIndex(end);
     const chars: string[] = Array.from(text);
+    let index: number = start;
+    while (index < end && oidInputSpace(langruntime.indexChar(chars, langruntime.checkedIndex(index)))) {
+        index = langruntime.checkedAdd(index, 1);
+    }
+    if (index === end) {
+        return 0;
+    }
+    let parts: number = 0;
+    while (index < end) {
+        if (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "\"") {
+            index = langruntime.checkedAdd(index, 1);
+            let closed: boolean = false;
+            while (index < end && closed === false) {
+                if (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "\"") {
+                    if (langruntime.checkedAdd(index, 1) < end && langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 1))) === "\"") {
+                        index = langruntime.checkedAdd(index, 2);
+                    }
+                    else {
+                        closed = langruntime.checkedBool(true);
+                        index = langruntime.checkedAdd(index, 1);
+                    }
+                }
+                else {
+                    index = langruntime.checkedAdd(index, 1);
+                }
+            }
+            if (closed === false) {
+                return langruntime.checkedSignedNegate(1);
+            }
+        }
+        else {
+            const first: number = index;
+            while (index < end && !(langruntime.indexChar(chars, langruntime.checkedIndex(index)) === ".") && oidInputSpace(langruntime.indexChar(chars, langruntime.checkedIndex(index))) === false) {
+                index = langruntime.checkedAdd(index, 1);
+            }
+            if (index === first) {
+                return langruntime.checkedSignedNegate(1);
+            }
+        }
+        parts = langruntime.checkedI32(langruntime.checkedSignedAdd(parts, 1));
+        while (index < end && oidInputSpace(langruntime.indexChar(chars, langruntime.checkedIndex(index)))) {
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (index < end) {
+            if (!(langruntime.indexChar(chars, langruntime.checkedIndex(index)) === ".")) {
+                return langruntime.checkedSignedNegate(1);
+            }
+            index = langruntime.checkedAdd(index, 1);
+            while (index < end && oidInputSpace(langruntime.indexChar(chars, langruntime.checkedIndex(index)))) {
+                index = langruntime.checkedAdd(index, 1);
+            }
+            if (index === end) {
+                return langruntime.checkedSignedNegate(1);
+            }
+        }
+    }
+    return parts;
+}
+function oidAliasSignatureRead(text: string): number {
+    text = langruntime.checkedString(text);
+    const chars: string[] = Array.from(text);
+    const end: number = chars.length;
+    let quoted: boolean = false;
+    let open: number = end;
+    let index: number = 0;
+    while (index < end && open === end) {
+        if (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "\"") {
+            quoted = langruntime.checkedBool(quoted === false);
+        }
+        else if (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "(" && quoted === false) {
+            open = langruntime.checkedIndex(index);
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    if (open === end) {
+        return 2;
+    }
+    if (oidAliasNameParts(text, 0, open) < 1) {
+        return 1;
+    }
+    let close: number = end;
+    while (close > langruntime.checkedAdd(open, 1) && oidInputSpace(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(close, 1))))) {
+        close = langruntime.checkedIndex(langruntime.checkedSubtract(close, 1));
+    }
+    if (close === langruntime.checkedAdd(open, 1) || !(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(close, 1))) === ")")) {
+        return 2;
+    }
+    const last: number = langruntime.checkedSubtract(close, 1);
+    index = langruntime.checkedIndex(langruntime.checkedAdd(open, 1));
+    while (index < last && oidInputSpace(langruntime.indexChar(chars, langruntime.checkedIndex(index)))) {
+        index = langruntime.checkedAdd(index, 1);
+    }
+    quoted = langruntime.checkedBool(false);
+    let depth: number = 0;
+    while (index < last) {
+        const ch: string = langruntime.indexChar(chars, langruntime.checkedIndex(index));
+        if (ch === "\"") {
+            quoted = langruntime.checkedBool(quoted === false);
+        }
+        else if (ch === "," && quoted === false && depth === 0) {
+            break;
+        }
+        else if (quoted === false) {
+            if (ch === "(" || ch === "[") {
+                depth = langruntime.checkedI32(langruntime.checkedSignedAdd(depth, 1));
+            }
+            if (ch === ")" || ch === "]") {
+                depth = langruntime.checkedI32(langruntime.checkedSignedSubtract(depth, 1));
+            }
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    if (quoted || !(depth === 0)) {
+        return 2;
+    }
+    return 0;
+}
+function oidAliasTypeRead(text: string): number {
+    text = langruntime.checkedString(text);
+    const chars: string[] = Array.from(text);
+    let first: string = " ";
+    let index: number = 0;
+    while (index < chars.length) {
+        const ch: string = langruntime.indexChar(chars, langruntime.checkedIndex(index));
+        if (ch === "'" || ch === "$") {
+            return 0;
+        }
+        if (langruntime.checkedAdd(index, 1) < chars.length && ((ch === "-" && langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 1))) === "-") || (ch === "/" && langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 1))) === "*"))) {
+            return 0;
+        }
+        if (first === " " && oidInputSpace(ch) === false) {
+            first = langruntime.checkedChar(ch);
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    if (first === " ") {
+        return 4;
+    }
+    const code: number = langruntime.checkedChar(first).codePointAt(0)!;
+    if ((code >= 48 && code <= 57) || first === "+" || first === "-") {
+        return 3;
+    }
     let quoted: boolean = false;
     let parts: number = 1;
     let partLength: number = 0;
@@ -55255,32 +55413,24 @@ function oidAliasGrammarRead(text: string, grammar: number): boolean {
     let depth: number = 0;
     let brackets: number = 0;
     let balanced: boolean = true;
-    let first: string = " ";
-    let index: number = 0;
+    index = langruntime.checkedIndex(0);
     while (index < chars.length) {
         const ch: string = langruntime.indexChar(chars, langruntime.checkedIndex(index));
-        if (first === " " && oidInputSpace(ch) === false) {
-            first = langruntime.checkedChar(ch);
-        }
-        let consumed: boolean = false;
         if (ch === "\"") {
             quoted = langruntime.checkedBool(quoted === false);
             partLength = langruntime.checkedI32(langruntime.checkedSignedAdd(partLength, 1));
-            consumed = langruntime.checkedBool(true);
         }
-        if (consumed === false && quoted) {
+        else if (quoted) {
             partLength = langruntime.checkedI32(langruntime.checkedSignedAdd(partLength, 1));
-            consumed = langruntime.checkedBool(true);
         }
-        if (consumed === false && ch === "." && depth === 0) {
+        else if (ch === "." && depth === 0) {
             if (partLength === 0) {
                 emptyPart = langruntime.checkedBool(true);
             }
             parts = langruntime.checkedI32(langruntime.checkedSignedAdd(parts, 1));
             partLength = langruntime.checkedI32(0);
-            consumed = langruntime.checkedBool(true);
         }
-        if (consumed === false) {
+        else {
             if (ch === "(") {
                 depth = langruntime.checkedI32(langruntime.checkedSignedAdd(depth, 1));
             }
@@ -55305,17 +55455,10 @@ function oidAliasGrammarRead(text: string, grammar: number): boolean {
     if (parts > 1 && partLength === 0) {
         emptyPart = langruntime.checkedBool(true);
     }
-    if (quoted || emptyPart || !(depth === 0) || !(brackets === 0) || balanced === false) {
-        return false;
+    if (quoted || emptyPart || parts > 3 || !(depth === 0) || !(brackets === 0) || balanced === false) {
+        return 3;
     }
-    if (!(grammar === 1) && parts > 3) {
-        return false;
-    }
-    const code: number = langruntime.checkedChar(first).codePointAt(0)!;
-    if (grammar === 2 && ((code >= 48 && code <= 57) || first === "+" || first === "-")) {
-        return false;
-    }
-    return true;
+    return 0;
 }
 export function oidAliasToText(input: checkruntime.OidValue, dash: boolean): checkruntime.TextValue {
     dash = langruntime.checkedBool(dash);
@@ -55347,15 +55490,7 @@ export function oidAliasToText(input: checkruntime.OidValue, dash: boolean): che
 function oidAliasLookup(input: checkruntime.TextValue, dash: boolean, grammar: number): checkruntime.OidValue {
     dash = langruntime.checkedBool(dash);
     grammar = langruntime.checkedI32(grammar);
-    if (input.kind === "Error") {
-        const error: checkruntime.SqlError = input.value;
-        return { kind: "Error", value: error };
-    }
-    const value: checkruntime.OidValue = oidAliasFromText(input, dash, grammar);
-    if (value.kind === "Error") {
-        return { kind: "Null" };
-    }
-    return value;
+    return oidAliasRead(input, dash, grammar, true);
 }
 export function regclasssendC6c0(input: checkruntime.OidValue): checkruntime.ByteaValue {
     return oidsendKq2v(input);
@@ -55379,7 +55514,7 @@ export function regnamespacesendJpj3(input: checkruntime.OidValue): checkruntime
     return oidsendKq2v(input);
 }
 export function toRegnamespace525a(input: checkruntime.TextValue): checkruntime.OidValue {
-    return oidAliasLookup(input, true, 0);
+    return oidAliasLookup(input, true, 3);
 }
 export function regopersend4lv2(input: checkruntime.OidValue): checkruntime.ByteaValue {
     return oidsendKq2v(input);
@@ -55409,7 +55544,7 @@ export function regrolesendA3kd(input: checkruntime.OidValue): checkruntime.Byte
     return oidsendKq2v(input);
 }
 export function toRegrole2dsk(input: checkruntime.TextValue): checkruntime.OidValue {
-    return oidAliasLookup(input, true, 0);
+    return oidAliasLookup(input, true, 3);
 }
 export function regtypesend42nl(input: checkruntime.OidValue): checkruntime.ByteaValue {
     return oidsendKq2v(input);
@@ -55443,19 +55578,12 @@ export function regclassWqix(input: checkruntime.TextValue): checkruntime.OidVal
         if (chars.length > 4096) {
             return checkruntime.oidUnresolved(unresolvedFlavor);
         }
-        let whitespace: boolean = true;
-        let index: number = 0;
-        while (index < chars.length) {
-            if (oidInputSpace(langruntime.indexChar(chars, langruntime.checkedIndex(index))) === false) {
-                whitespace = langruntime.checkedBool(false);
-            }
-            index = langruntime.checkedAdd(index, 1);
-        }
-        if (whitespace) {
+        const parts: number = oidAliasNameParts(text, 0, chars.length);
+        if (parts < 1) {
             return { kind: "Error", value: checkruntime.makeSqlError(oidAliasInvalidName) };
         }
-        if (oidAliasGrammarRead(text, 0) === false) {
-            return checkruntime.oidUnresolved(unresolvedFlavor);
+        if (parts > 3) {
+            return { kind: "Error", value: checkruntime.makeSqlError(oidAliasInvalidType) };
         }
     }
     return checkruntime.oidUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
@@ -60985,7 +61113,7 @@ function rangeBuiltinCompare(lower: checkruntime.ArrayElement, upper: checkrunti
         const right: checkruntime.InternalCharValue = checkruntime.arrayElementToInternalChar(upper);
         return btcharcmpGfia(left, right);
     }
-    if (kind === 33 || (kind >= 331 && kind <= 335)) {
+    if (kind === 33 || (kind >= 331 && kind <= 336)) {
         const left: checkruntime.OidValue = checkruntime.arrayElementToOid(lower);
         const right: checkruntime.OidValue = checkruntime.arrayElementToOid(upper);
         return btoidcmp48b8(left, right);
@@ -61765,6 +61893,9 @@ function rangeInputBound(input: checkruntime.TextValue, kind: number, cidr: bool
             }
             if (aliasMode === 5) {
                 grammar = langruntime.checkedI32(2);
+            }
+            if (aliasMode === 6) {
+                grammar = langruntime.checkedI32(3);
             }
             return checkruntime.arrayElementFromOid(oidAliasFromText(input, dash, grammar));
         }

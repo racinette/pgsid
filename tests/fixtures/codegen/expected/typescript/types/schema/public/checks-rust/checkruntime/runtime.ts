@@ -13918,10 +13918,10 @@ export function rangeSupportJsonbUtf8(input: RangeSupport): boolean {
 }
 export function rangeOidAliasMode(input: RangeSupport, elementType: string): number {
     elementType = langruntime.checkedString(elementType);
-    if (input.comparison >= 331 && input.comparison <= 335) {
+    if (input.comparison >= 331 && input.comparison <= 336) {
         return langruntime.checkedSignedSubtract(input.comparison, 330);
     }
-    if (input.comparison >= 301 && input.comparison <= 305) {
+    if (input.comparison >= 301 && input.comparison <= 306) {
         return langruntime.checkedSignedSubtract(input.comparison, 300);
     }
     if (elementType === "pg_catalog.regoper") {
@@ -13936,8 +13936,11 @@ export function rangeOidAliasMode(input: RangeSupport, elementType: string): num
     if (elementType === "pg_catalog.regtype") {
         return 5;
     }
-    if (elementType === "pg_catalog.regclass" || elementType === "pg_catalog.regcollation" || elementType === "pg_catalog.regconfig" || elementType === "pg_catalog.regdictionary" || elementType === "pg_catalog.regnamespace" || elementType === "pg_catalog.regproc" || elementType === "pg_catalog.regrole") {
+    if (elementType === "pg_catalog.regclass" || elementType === "pg_catalog.regcollation" || elementType === "pg_catalog.regconfig" || elementType === "pg_catalog.regdictionary" || elementType === "pg_catalog.regproc") {
         return 1;
+    }
+    if (elementType === "pg_catalog.regnamespace" || elementType === "pg_catalog.regrole") {
+        return 6;
     }
     return 0;
 }

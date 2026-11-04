@@ -89,6 +89,7 @@ fn range_input_bound(input: TextValue, kind: i32, cidr: bool, name: bool, alias_
             let mut grammar: i32 = 0;
             if alias_mode == 3 || alias_mode == 4 { grammar = 1; };
             if alias_mode == 5 { grammar = 2; };
+            if alias_mode == 6 { grammar = 3; };
             return array_element_from_oid(oid_alias_from_text(input, dash, grammar));
         };
         return array_element_from_oid(oid_from_text(input));

@@ -253,7 +253,8 @@ describe('catalog OID aliases', () => {
       for (const text of forms.handled) {
         for (const operation of functionsFor(name) ? ['input', 'lookup'] : ['input']) {
           const sql = operation === 'input' ? `$1::text::${type}` : `to_${name}($1::text)`
-          if (name === 'regclass' && operation === 'input' && text.trim() !== '') {
+          // The text-to-regclass function reads digits as a relation name.
+          if (name === 'regclass' && operation === 'input' && /^[-0-9]+$/u.test(text)) {
             add(name + '_input', { ...base, source: known(text) }, { kind: 'Unknown' })
             continue
           }
@@ -279,7 +280,7 @@ describe('catalog OID aliases', () => {
       }
       for (const [texts, kind] of [
         [[...forms.contextRequired, ...forms.platformDependent], 'Unknown'],
-        // Grammar the evaluator does not read and text past its length cap are no database fact.
+        // Text past the length cap is no database fact.
         [[...forms.unimplementedGrammar, '9'.repeat(4097)], 'Unimplemented'],
       ] as const)
         for (const text of texts) {

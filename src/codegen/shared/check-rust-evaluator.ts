@@ -400,6 +400,21 @@ export const isJsonbSetLax = (item: ReturnType<typeof builtinMetadata>): boolean
   !item.returnsSet
 
 // Codes for the session DateStyle field order that temporal text input reads: 0 when unknown.
+// The runtime's name grammars: 0 a qualified name, 1 a name with an argument list, 2 a type name
+// and 3 a single unqualified name.
+const oidAliasFromText = (text: string, type: string): string => {
+  const dash = !['pg_catalog.regoper', 'pg_catalog.regoperator'].includes(type)
+  const grammar =
+    type === 'pg_catalog.regtype'
+      ? 2
+      : ['pg_catalog.regprocedure', 'pg_catalog.regoperator'].includes(type)
+        ? 1
+        : ['pg_catalog.regnamespace', 'pg_catalog.regrole'].includes(type)
+          ? 3
+          : 0
+  return `oid_alias_from_text(${text}, ${dash}, ${grammar})`
+}
+
 const dateStyleOrderCode = (context: Pick<CheckExecutionContext, 'dateStyle'>): number =>
   context.dateStyle?.order === 'MDY'
     ? 1
@@ -1743,14 +1758,7 @@ export function emitCheckRustEvaluator(
     else if (family === 13)
       scalar = `${elementType === 'pg_catalog.cidr' ? 'cidr' : 'network'}_from_text(${event})`
     else if (family === 33 && isOidAliasType(elementType)) {
-      const dash = !['pg_catalog.regoper', 'pg_catalog.regoperator'].includes(elementType)
-      const grammar =
-        elementType === 'pg_catalog.regtype'
-          ? 2
-          : ['pg_catalog.regprocedure', 'pg_catalog.regoperator'].includes(elementType)
-            ? 1
-            : 0
-      scalar = `oid_alias_from_text(${event}, ${dash}, ${grammar})`
+      scalar = oidAliasFromText(event, elementType)
     } else if (family === 31 && stored && moneyLiterals?.length) {
       scalar = `money_from_captured_text(${event}, ${rustStringLiteral(moneyLiterals.map((value) => value.text).join('\0'))}, ${rustStringLiteral(moneyLiterals.map((value) => value.units).join('\0'))}, ${moneyLiterals.length})`
     } else if (family === 31) {
@@ -7493,17 +7501,10 @@ export function emitCheckRustEvaluator(
         throw new UnsupportedCheckRustExpression(
           'Oid input requires text and its catalog I/O identity',
         )
-      const dash = !['pg_catalog.regoper', 'pg_catalog.regoperator'].includes(node.type)
-      const grammar =
-        node.type === 'pg_catalog.regtype'
-          ? 2
-          : ['pg_catalog.regprocedure', 'pg_catalog.regoperator'].includes(node.type)
-            ? 1
-            : 0
       return {
         name: bind(
           isOidAliasType(node.type)
-            ? `oid_alias_from_text(${ownedOperand(operand)}, ${dash}, ${grammar})`
+            ? oidAliasFromText(ownedOperand(operand), node.type)
             : `oid_from_text(${ownedOperand(operand)})`,
         ),
         type: node.type,
@@ -8552,17 +8553,10 @@ export function emitCheckRustEvaluator(
         }
         if (value.value === null) return { name: bind('oid_null()'), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
-        const dash = !['pg_catalog.regoper', 'pg_catalog.regoperator'].includes(value.type)
-        const grammar =
-          value.type === 'pg_catalog.regtype'
-            ? 2
-            : ['pg_catalog.regprocedure', 'pg_catalog.regoperator'].includes(value.type)
-              ? 1
-              : 0
         return {
           name: bind(
             isOidAliasType(value.type)
-              ? `oid_alias_from_text(${text}, ${dash}, ${grammar})`
+              ? oidAliasFromText(text, value.type)
               : `oid_from_text(${text})`,
           ),
           type: value.type,

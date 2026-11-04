@@ -783,9 +783,11 @@ export function rangeProfileSupport(
           ? 3
           : profile.elementType === 'pg_catalog.regtype'
             ? 5
-            : profile.elementType.startsWith('pg_catalog.reg')
-              ? 1
-              : 0
+            : ['pg_catalog.regnamespace', 'pg_catalog.regrole'].includes(profile.elementType)
+              ? 6
+              : profile.elementType.startsWith('pg_catalog.reg')
+                ? 1
+                : 0
   return {
     comparison:
       kind === 48 && comparison === 48 && context.serverEncoding === 'UTF8'
