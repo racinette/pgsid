@@ -13,6 +13,7 @@ import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescri
 import { renderGoSchemaCheckArtifacts } from '../../src/codegen/go/sql/catalog-checks.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
 import { prepareCheckRust } from '../../src/codegen/shared/check-rust-source.js'
+import { hasUncertain } from '../../scripts/check-measurements/probes.js'
 import { parseConfigString } from '../../src/config/loader.js'
 
 const run = promisify(execFile)
@@ -347,13 +348,8 @@ describe('CHECK list and range validators', () => {
         kind: 'eval-scalar',
         expression: { kind: 'check', type: 'pg_catalog.bool', expression: bind(expanded!) },
       })
-      if (sql!.startsWith('tiny')) expect(prepareCheckRust(bind(sql!)).kind).toBe('supported')
-      else
-        expect(bind(sql!)).toMatchObject({
-          expression: {
-            expression: { operands: [{ kind: 'uncertain' }, { kind: 'uncertain' }] },
-          },
-        })
+      expect(hasUncertain(bind(sql!))).toBe(false)
+      expect(prepareCheckRust(bind(sql!)).kind).toBe('supported')
     }
   })
 
@@ -385,9 +381,15 @@ describe('CHECK list and range validators', () => {
       })
       expect(prepareCheckRust(expression).kind).toBe('supported')
     }
+    // Equality under a collation other than C answers NULL and leaves the rest to the provider.
+    const collated = lowerTableCheck(host, {
+      name: 'collated',
+      type: 'check',
+      definition: "CHECK(plain IN ('a','b'))",
+    })!.expression
+    expect(collated.kind).toBe('eval-scalar')
+    expect(hasUncertain(collated)).toBe(false)
     for (const [sql, expected] of [
-      // Equality under a collation other than C waits on the collation provider.
-      ["plain IN ('a','b')", { kind: 'uncertain', reason: 'context' }],
       ['amount = ANY(plain)', { kind: 'uncertain' }],
       ['amount + ANY(items)', { kind: 'uncertain' }],
       ['amount OPERATOR(other.=) ANY(items)', { kind: 'uncertain' }],

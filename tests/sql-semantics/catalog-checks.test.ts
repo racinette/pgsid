@@ -42,6 +42,7 @@ import { parseConfigString } from '../../src/config/loader.js'
 import type { QueryAnalysisItem } from '../../src/query-analysis.js'
 import type { WriteValueLineage } from '../../src/query/value-lineage.js'
 import { sharedTempDirectory } from '../../tools/test-run-temp.js'
+import { hasUncertain } from '../../scripts/check-measurements/probes.js'
 
 const run = promisify(execFile)
 
@@ -460,14 +461,14 @@ func TestMixedChecks(t *testing.T) {
       kind: 'eval-scalar',
       expression: { kind: 'call', call: { collation: 'deterministic' } },
     })
-    expect(
-      lowerTableCheck(table, {
-        name: 'foreign_c_collation',
-        type: 'check',
-        definition: `CHECK ((email COLLATE public."C") ~ '^a+$')`,
-      })?.expression,
-      // A user collation named C is a catalog definition, not the builtin C behavior.
-    ).toEqual({ kind: 'uncertain', reason: 'context' })
+    // A user collation named C is a catalog definition, not the builtin C behavior.
+    const foreignC = lowerTableCheck(table, {
+      name: 'foreign_c_collation',
+      type: 'check',
+      definition: `CHECK ((email COLLATE public."C") ~ '^a+$')`,
+    })!.expression
+    expect(foreignC.kind).toBe('eval-scalar')
+    expect(hasUncertain(foreignC)).toBe(false)
     expect(plans.get('with_unknown')?.expression).toMatchObject({
       kind: 'eval-boolean-logic',
       operation: 'and',
