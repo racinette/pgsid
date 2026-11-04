@@ -451,17 +451,18 @@ evaluatePublicFamily2Checks(supplied)
     goCases.push(
       `{for _,flag:=range []checkruntime.BoolValue{{Kind:checkruntime.BoolValueNull},{Kind:checkruntime.BoolValueError,Error:checkruntime.SqlError{State:1}}} {value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"pg_catalog.int4",ElementKind:2,Dimensions:[]checkruntime.ArrayDimension{{Lower:1,Length:1}},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementError,Error:checkruntime.SqlError{State:3452582}}},NullBitmap:flag}};result:=func() []CheckEvaluation {r, e := EvaluatePublicFamily2Checks(PublicFamily2CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(1))}); if e != nil {panic(e)}; return r}()[0].Result;if !result.Certain || result.Value.Error!="22012" {t.Fatal("incoming error before bitmap validation",flag,result)}}}`,
     )
-    expect(
+    // A bitmap that denies the NULL cell it holds describes no stored array.
+    expect(() =>
       generated.evaluatePublicFamily2Checks({
         value: {
           ...partial,
           value: { ...partial.value, nullBitmap: { kind: 'Value', value: false } },
         },
         expected_count: 2,
-      })[0].result.certain,
-    ).toBe(false)
+      }),
+    ).toThrow('CHECK input holds a malformed value')
     goCases.push(
-      `{for _,flag:=range []checkruntime.BoolValue{{Kind:checkruntime.BoolValueUnknown},{Kind:checkruntime.BoolValueValue,Value:false},{Kind:checkruntime.BoolValueValue,Value:true},{Kind:checkruntime.BoolValueNull},{Kind:checkruntime.BoolValueError,Error:checkruntime.SqlError{State:1}}} {for _,nullCell:=range []bool{false,true} {cell:=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementInt4,Int4:1};if nullCell {cell=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementNull}};value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"pg_catalog.int4",ElementKind:2,Dimensions:[]checkruntime.ArrayDimension{{Lower:1,Length:1}},Elements:[]checkruntime.ArrayElement{cell},NullBitmap:flag}};result:=func() []CheckEvaluation {r, e := EvaluatePublicFamily2Checks(PublicFamily2CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(1))}); if e != nil {panic(e)}; return r}()[0].Result;valid:=flag.Kind==checkruntime.BoolValueUnknown || (flag.Kind==checkruntime.BoolValueValue && (flag.Value || !nullCell));if result.Certain!=valid || (valid && (!result.Value.Valid || !result.Value.Value)) {t.Fatal("bitmap metadata",flag,nullCell,result)}}}}`,
+      `{for _,flag:=range []checkruntime.BoolValue{{Kind:checkruntime.BoolValueUnknown},{Kind:checkruntime.BoolValueValue,Value:false},{Kind:checkruntime.BoolValueValue,Value:true},{Kind:checkruntime.BoolValueNull},{Kind:checkruntime.BoolValueError,Error:checkruntime.SqlError{State:1}}} {for _,nullCell:=range []bool{false,true} {cell:=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementInt4,Int4:1};if nullCell {cell=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementNull}};value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"pg_catalog.int4",ElementKind:2,Dimensions:[]checkruntime.ArrayDimension{{Lower:1,Length:1}},Elements:[]checkruntime.ArrayElement{cell},NullBitmap:flag}};r,e:=EvaluatePublicFamily2Checks(PublicFamily2CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(1))});if flag.Kind==checkruntime.BoolValueValue && !flag.Value && nullCell {if e==nil {t.Fatal("bitmap denies its NULL cell",r)};continue};if e!=nil {panic(e)};result:=r[0].Result;valid:=flag.Kind==checkruntime.BoolValueUnknown || (flag.Kind==checkruntime.BoolValueValue && (flag.Value || !nullCell));if result.Certain!=valid || (valid && (!result.Value.Valid || !result.Value.Value)) {t.Fatal("bitmap metadata",flag,nullCell,result)}}}}`,
     )
     expect(
       (
@@ -554,23 +555,30 @@ evaluatePublicFamily2Checks(supplied)
       expect(() => generated.evaluatePublicFamily2Checks({ value, expected_count: 1 })).toThrow(
         'CHECK input holds a malformed value',
       )
-    expect(
-      generated.evaluatePublicFamily2Checks({
-        value: {
-          kind: 'Value',
+    // Structure no array can have: an upper bound past the integer limit, or a shape that does
+    // not match its cells.
+    for (const shape of [
+      {
+        dimensions: [{ lower: 2147483647, length: 2 }],
+        elements: [
+          { kind: 'Int4', value: 1 },
+          { kind: 'Int4', value: 2 },
+        ],
+      },
+      { dimensions: [{ lower: 1, length: 2 }], elements: [{ kind: 'Int4', value: 1 }] },
+    ])
+      expect(() =>
+        generated.evaluatePublicFamily2Checks({
           value: {
-            elementType: 'pg_catalog.int4',
-            elementKind: 2,
-            dimensions: [{ lower: 2147483647, length: 2 }],
-            elements: [
-              { kind: 'Int4', value: 1 },
-              { kind: 'Int4', value: 2 },
-            ],
+            kind: 'Value',
+            value: { elementType: 'pg_catalog.int4', elementKind: 2, ...shape },
           },
-        },
-        expected_count: 1,
-      })[0].result,
-    ).toEqual({ certain: false, unimplemented: true })
+          expected_count: 1,
+        }),
+      ).toThrow('CHECK input holds a malformed value')
+    goCases.push(
+      `{for _,dimension:=range []checkruntime.ArrayDimension{{Lower:2147483647,Length:2},{Lower:1,Length:3}} {value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"pg_catalog.int4",ElementKind:2,Dimensions:[]checkruntime.ArrayDimension{dimension},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementInt4,Int4:1},{Kind:checkruntime.ArrayElementInt4,Int4:2}}}};_,e:=EvaluatePublicFamily2Checks(PublicFamily2CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(1))});if e==nil {t.Fatal("malformed array shape",dimension)}}}`,
+    )
     await writeFile(
       join(root, 'go.mod'),
       'module arraysql\n\ngo 1.25\n\nrequire (\n github.com/jackc/pgx/v5 v5.10.0\n github.com/shopspring/decimal v1.4.0\n)\n',

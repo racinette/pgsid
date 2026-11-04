@@ -280,6 +280,55 @@ func aclitemReadIdentifier(input string, start int, limit int, utf8 bool) aclite
 	}
 	return aclitemIdentifier{value: string(output), next: position, state: 1}
 }
+func aclitemModeBit(character rune) int64 {
+	character = langruntime.CheckedChar(character)
+	if character == 'a' {
+		return int64(1)
+	}
+	if character == 'r' {
+		return int64(2)
+	}
+	if character == 'w' {
+		return int64(4)
+	}
+	if character == 'd' {
+		return int64(8)
+	}
+	if character == 'D' {
+		return int64(16)
+	}
+	if character == 'x' {
+		return int64(32)
+	}
+	if character == 't' {
+		return int64(64)
+	}
+	if character == 'X' {
+		return int64(128)
+	}
+	if character == 'U' {
+		return int64(256)
+	}
+	if character == 'C' {
+		return int64(512)
+	}
+	if character == 'T' {
+		return int64(1024)
+	}
+	if character == 'c' {
+		return int64(2048)
+	}
+	if character == 's' {
+		return int64(4096)
+	}
+	if character == 'A' {
+		return int64(8192)
+	}
+	if character == 'm' {
+		return int64(16384)
+	}
+	return int64(0)
+}
 func aclitemModeCharacter(character rune) bool {
 	character = langruntime.CheckedChar(character)
 	return character == 'a' || character == 'r' || character == 'w' || character == 'd' || character == 'D' || character == 'x' || character == 't' || character == 'X' || character == 'U' || character == 'C' || character == 'T' || character == 'c' || character == 's' || character == 'A' || character == 'm' || character == '*'
@@ -337,6 +386,9 @@ func AclitemFromTextContext(input checkruntime.TextValue, limit int, utf8 bool) 
 		}
 		position = langruntime.CheckedAdd(position, 1)
 		scanning := true
+		read := int64(0)
+		privileges := int64(0)
+		grantOptions := int64(0)
 		for position < len(characters) && scanning {
 			character := characters[position]
 			code := int(langruntime.CheckedChar(character))
@@ -344,6 +396,12 @@ func AclitemFromTextContext(input checkruntime.TextValue, limit int, utf8 bool) 
 				if aclitemModeCharacter(character) == false {
 					return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueError, Error: checkruntime.MakeSqlError(aclitemInvalidText)}
 				}
+				if character == '*' {
+					grantOptions = integerBitsCombine(grantOptions, read, 1)
+				} else {
+					read = aclitemModeBit(character)
+				}
+				privileges = integerBitsCombine(privileges, read, 1)
 				position = langruntime.CheckedAdd(position, 1)
 			} else {
 				if code >= 128 && utf8 == false {
@@ -374,6 +432,7 @@ func AclitemFromTextContext(input checkruntime.TextValue, limit int, utf8 bool) 
 		if position < len(characters) {
 			return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueError, Error: checkruntime.MakeSqlError(aclitemInvalidText)}
 		}
+		return checkruntime.MakeAclitemValue(int64(0), int64(10), privileges, grantOptions)
 	}
 	return checkruntime.AclitemUnresolved(unresolvedFlavor)
 }
@@ -667,7 +726,7 @@ func aclitemRoleMatch(left checkruntime.AclitemValue, right checkruntime.Aclitem
 			return checkruntime.MakeBoolValue(l.Grantee == r.Grantee && l.Grantor == r.Grantor)
 		}
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	return checkruntime.BoolUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 }
 func aclitemCovers(left checkruntime.AclitemValue, right checkruntime.AclitemValue) checkruntime.BoolValue {
 	unresolvedFlavor := 0
@@ -781,7 +840,7 @@ func aclitemHashSum(input checkruntime.AclitemValue) checkruntime.Int8Value {
 		value := input.Value
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: langruntime.CheckedI64Remainder((langruntime.CheckedI64Add(langruntime.CheckedI64Add(value.Privileges, value.Grantee), value.Grantor)), int64(4294967296))}
 	}
-	return checkruntime.Int8Unresolved(unresolvedFlavor)
+	return checkruntime.Int8Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 }
 func HashAclitem4zd0(input checkruntime.AclitemValue) checkruntime.Int4Value {
 	unresolvedFlavor := 0
@@ -1237,7 +1296,7 @@ func ArrayBinaryInitial(input *checkruntime.ArrayOutputPayload, support int) che
 	}
 	return checkruntime.ByteaUnresolved(checkruntime.ArrayOutputFlavor(input.State, unresolvedFlavor))
 }
-func ContainerBinaryMissing(input checkruntime.ArrayElement, absent bool) checkruntime.ByteaValue {
+func ContainerBinaryMissing(input checkruntime.ArrayElement, absent bool, catalog bool) checkruntime.ByteaValue {
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.ArrayElementUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -1270,6 +1329,9 @@ func ContainerBinaryMissing(input checkruntime.ArrayElement, absent bool) checkr
 	}
 	if absent {
 		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: checkruntime.MakeSqlError(containerBinaryMissingSendError)}
+	}
+	if catalog {
+		return checkruntime.ByteaUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 	}
 	return checkruntime.ByteaUnresolved(unresolvedFlavor)
 }
@@ -1772,7 +1834,15 @@ func floatArrayStateValid(input *checkruntime.ArrayPayload, width int) checkrunt
 	if input.NullBitmap == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	bitmap := input.NullBitmap
+	bitmapFlavor := unresolvedFlavor
+	if bitmap.Kind == checkruntime.BoolValueUnknown {
+		bitmapFlavor = langruntime.CheckedI32(1)
+	}
+	if bitmap.Kind == checkruntime.BoolValueUnimplemented {
+		bitmapFlavor = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoolUnresolved(bitmapFlavor)
 }
 func floatStateField(input *checkruntime.ArrayPayload, index int) checkruntime.Float8Value {
 	index = langruntime.CheckedIndex(index)
@@ -2296,7 +2366,16 @@ func floatArrayAccumulate(input checkruntime.ArrayValue, y checkruntime.Float8Va
 			return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
 		}
 		if validity != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
-			return checkruntime.ArrayUnresolved(unresolvedFlavor)
+			validityFlavor := unresolvedFlavor
+			if validity.Kind == checkruntime.BoolValueUnknown {
+				if validityFlavor < 1 {
+					validityFlavor = langruntime.CheckedI32(1)
+				}
+			}
+			if validity.Kind == checkruntime.BoolValueUnimplemented {
+				validityFlavor = langruntime.CheckedI32(2)
+			}
+			return checkruntime.ArrayUnresolved(validityFlavor)
 		}
 		oldN := floatStateField(&value, 0)
 		positive := floatTransitionTest(oldN, 0)
@@ -2653,7 +2732,24 @@ func floatArrayCombine(left checkruntime.ArrayValue, right checkruntime.ArrayVal
 				return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
 			}
 			if firstValid != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) || secondValid != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
-				return checkruntime.ArrayUnresolved(unresolvedFlavor)
+				validityFlavor := unresolvedFlavor
+				if firstValid.Kind == checkruntime.BoolValueUnknown {
+					if validityFlavor < 1 {
+						validityFlavor = langruntime.CheckedI32(1)
+					}
+				}
+				if secondValid.Kind == checkruntime.BoolValueUnknown {
+					if validityFlavor < 1 {
+						validityFlavor = langruntime.CheckedI32(1)
+					}
+				}
+				if firstValid.Kind == checkruntime.BoolValueUnimplemented {
+					validityFlavor = langruntime.CheckedI32(2)
+				}
+				if secondValid.Kind == checkruntime.BoolValueUnimplemented {
+					validityFlavor = langruntime.CheckedI32(2)
+				}
+				return checkruntime.ArrayUnresolved(validityFlavor)
 			}
 			n1 := floatStateField(&first, 0)
 			n2 := floatStateField(&second, 0)
@@ -3284,7 +3380,14 @@ func integerArrayStateValid(input *checkruntime.ArrayPayload) checkruntime.BoolV
 	if input.NullBitmap == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	bitmapFlavor := unresolvedFlavor
+	if input.NullBitmap == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) && bitmapFlavor < 1 {
+		bitmapFlavor = langruntime.CheckedI32(1)
+	}
+	if input.NullBitmap == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnimplemented}) {
+		bitmapFlavor = langruntime.CheckedI32(2)
+	}
+	return checkruntime.BoolUnresolved(bitmapFlavor)
 }
 func integerStateAdjust(input checkruntime.Int8Value, delta int64) checkruntime.Int8Value {
 	if input.Kind == checkruntime.Int8ValueValue {
@@ -3405,7 +3508,14 @@ func integerStateSum(input checkruntime.ArrayValue) checkruntime.Int8Value {
 			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
 		}
 		if validity != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
-			return checkruntime.Int8Unresolved(unresolvedFlavor)
+			validityFlavor := unresolvedFlavor
+			if validity == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) && validityFlavor < 1 {
+				validityFlavor = langruntime.CheckedI32(1)
+			}
+			if validity == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnimplemented}) {
+				validityFlavor = langruntime.CheckedI32(2)
+			}
+			return checkruntime.Int8Unresolved(validityFlavor)
 		}
 		count := checkruntime.ArrayElementToInt8(checkruntime.CopyArrayElement(value.Elements[0]))
 		if count == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: int64(0)}) {
@@ -3416,6 +3526,14 @@ func integerStateSum(input checkruntime.ArrayValue) checkruntime.Int8Value {
 				return checkruntime.ArrayElementToInt8(checkruntime.CopyArrayElement(value.Elements[1]))
 			}
 		}
+		countFlavor := unresolvedFlavor
+		if count == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) && countFlavor < 1 {
+			countFlavor = langruntime.CheckedI32(1)
+		}
+		if count == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnimplemented}) {
+			countFlavor = langruntime.CheckedI32(2)
+		}
+		return checkruntime.Int8Unresolved(countFlavor)
 	}
 	return checkruntime.Int8Unresolved(unresolvedFlavor)
 }
@@ -3696,7 +3814,7 @@ func arrayFloatNumberOutput(number float64, negative bool) checkruntime.TextValu
 			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
 		}
 	}
-	return checkruntime.TextUnresolved(unresolvedFlavor)
+	return checkruntime.TextUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 }
 func ArrayFloat4Output(input checkruntime.Float4Value) checkruntime.TextValue {
 	unresolvedFlavor := 0
@@ -3757,6 +3875,24 @@ func ArrayFloat8Output(input checkruntime.Float8Value) checkruntime.TextValue {
 	return checkruntime.TextUnresolved(unresolvedFlavor)
 }
 func ArrayContextualOutput(input checkruntime.ArrayElement) checkruntime.TextValue {
+	input = checkruntime.CopyArrayElement(input)
+	unresolvedFlavor := 0
+	if input.Kind == checkruntime.ArrayElementUnknown {
+		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.ArrayElementUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if input.Kind == checkruntime.ArrayElementError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.ArrayElementNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	return checkruntime.TextUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
+}
+func ArrayUnsupportedOutput(input checkruntime.ArrayElement) checkruntime.TextValue {
 	input = checkruntime.CopyArrayElement(input)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.ArrayElementUnknown {
@@ -4096,6 +4232,16 @@ func PrepareArraySort(input checkruntime.ArrayValue, descending checkruntime.Boo
 	if descending == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) || nullsFirst == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) {
 		return arraySortStatus(0, checkruntime.MakeSqlError(0))
 	}
+	deferredState := langruntime.CheckedSignedNegate(3)
+	if input.Kind == checkruntime.ArrayValueUnimplemented {
+		deferredState = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+	}
+	if descending.Kind == checkruntime.BoolValueUnimplemented {
+		deferredState = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+	}
+	if nullsFirst.Kind == checkruntime.BoolValueUnimplemented {
+		deferredState = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+	}
 	if input.Kind == checkruntime.ArrayValueValue {
 		value := checkruntime.CopyArrayPayload(input.Value)
 		if descending.Kind == checkruntime.BoolValueValue {
@@ -4119,7 +4265,7 @@ func PrepareArraySort(input checkruntime.ArrayValue, descending checkruntime.Boo
 			}
 		}
 	}
-	return arraySortStatus(langruntime.CheckedSignedNegate(1), checkruntime.MakeSqlError(0))
+	return arraySortStatus(deferredState, checkruntime.MakeSqlError(0))
 }
 func ArraySortContinues(input *checkruntime.ArraySortPayload) bool {
 	return input.State == 1
@@ -4230,8 +4376,11 @@ func ArraySortStep(input checkruntime.ArraySortPayload, compared checkruntime.In
 				state = langruntime.CheckedI32(langruntime.CheckedSignedNegate(2))
 				error = failed
 			}
-			if (compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnimplemented})) || compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+			if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
 				state = langruntime.CheckedI32(3)
+			}
+			if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnimplemented}) || compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+				state = langruntime.CheckedI32(5)
 			}
 			if compared.Kind == checkruntime.Int4ValueValue {
 				value := langruntime.CheckedI32(compared.Value)
@@ -4610,15 +4759,23 @@ func FinishArraySort(input checkruntime.ArraySortPayload) checkruntime.ArrayValu
 	if input.State == langruntime.CheckedSignedNegate(1) {
 		return checkruntime.ArrayUnresolved(unresolvedFlavor)
 	}
+	if input.State == langruntime.CheckedSignedNegate(3) {
+		return checkruntime.ArrayUnresolved(1)
+	}
 	if input.State == 2 {
 		return checkruntime.MakeArrayValue(checkruntime.ArrayPayload{NullBitmap: input.NullBitmap, ElementType: input.ElementType, ElementKind: input.ElementKind, Dimensions: input.Dimensions, Elements: input.Elements})
 	}
 	elements := []checkruntime.ArrayElement{}
-	if input.State == 3 {
+	if input.State == 3 || input.State == 5 {
 		position := 0
 		for position < len(input.Elements) {
-			langruntime.CheckedAdd(len(elements), 1)
-			elements = append(elements, checkruntime.CopyArrayElement(checkruntime.ArrayElement{Kind: checkruntime.ArrayElementUnknown}))
+			if input.State == 3 {
+				langruntime.CheckedAdd(len(elements), 1)
+				elements = append(elements, checkruntime.CopyArrayElement(checkruntime.ArrayElement{Kind: checkruntime.ArrayElementUnknown}))
+			} else {
+				langruntime.CheckedAdd(len(elements), 1)
+				elements = append(elements, checkruntime.CopyArrayElement(checkruntime.ArrayElement{Kind: checkruntime.ArrayElementUnimplemented}))
+			}
 			position = langruntime.CheckedAdd(position, 1)
 		}
 	} else if input.State == 4 {
@@ -4714,7 +4871,7 @@ func arrayStringField(input string, marker checkruntime.TextValue, deterministic
 			return checkruntime.ArrayElementFromText(checkruntime.MakeTextValue(input))
 		}
 	}
-	return checkruntime.ArrayElementUnresolved(unresolvedFlavor)
+	return checkruntime.ArrayElementUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 }
 func arrayStringFinish(input checkruntime.ArrayArguments, count int) checkruntime.ArrayValue {
 	input = checkruntime.CopyArrayArguments(input)
@@ -4808,7 +4965,7 @@ func arrayStringSplit(input checkruntime.TextValue, delimiter checkruntime.TextV
 				return arrayStringFinish(builder, 1)
 			}
 			if deterministic == false {
-				return checkruntime.ArrayUnresolved(unresolvedFlavor)
+				return checkruntime.ArrayUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 			}
 			field := langruntime.NewTextBuffer("")
 			for position < len(characters) {
@@ -14900,11 +15057,11 @@ func CatalogVectorFromText(input checkruntime.TextValue, oid bool) checkruntime.
 				radix = int64(8)
 				if langruntime.CheckedAdd(position, 1) < len(chars) && (chars[langruntime.CheckedAdd(position, 1)] == 'x' || chars[langruntime.CheckedAdd(position, 1)] == 'X') {
 					if langruntime.CheckedAdd(position, 2) == len(chars) {
-						return checkruntime.ArrayUnresolved(unresolvedFlavor)
+						return checkruntime.ArrayUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 					}
 					next := chars[langruntime.CheckedAdd(position, 2)]
 					if oidInputSpace(next) || next == '+' || next == '-' {
-						return checkruntime.ArrayUnresolved(unresolvedFlavor)
+						return checkruntime.ArrayUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 					}
 				}
 				if langruntime.CheckedAdd(position, 2) < len(chars) {
@@ -14915,7 +15072,7 @@ func CatalogVectorFromText(input checkruntime.TextValue, oid bool) checkruntime.
 						position = langruntime.CheckedAdd(position, 2)
 					}
 					if (next == 'b' || next == 'B') && (digit == int64(0) || digit == int64(1)) {
-						return checkruntime.ArrayUnresolved(unresolvedFlavor)
+						return checkruntime.ArrayUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 					}
 				}
 			}
@@ -15161,17 +15318,12 @@ func OidvectortypesW22j(input checkruntime.ArrayValue) checkruntime.TextValue {
 				error := name.Error
 				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 			}
+			nameFlavor := 2
+			if name.Kind == checkruntime.TextValueUnknown {
+				nameFlavor = langruntime.CheckedI32(1)
+			}
 			if name != checkruntime.MakeTextValue("-") {
-				localFlavor19346 := unresolvedFlavor
-				if status.Kind == checkruntime.BoolValueUnknown {
-					if localFlavor19346 < 1 {
-						localFlavor19346 = langruntime.CheckedI32(1)
-					}
-				}
-				if status.Kind == checkruntime.BoolValueUnimplemented {
-					localFlavor19346 = langruntime.CheckedI32(2)
-				}
-				return checkruntime.TextUnresolved(localFlavor19346)
+				return checkruntime.TextUnresolved(nameFlavor)
 			}
 			if index > 0 {
 				output = append(output, ", "...)
@@ -15201,6 +15353,9 @@ func catalogVectorHashBytes(input checkruntime.ArrayValue) vectorHashBytes {
 	}
 	if input.Kind == checkruntime.ArrayValueNull {
 		return vectorHashBytes{bytes: bytes, state: checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeNull}}
+	}
+	if input.Kind == checkruntime.ArrayValueUnimplemented {
+		return vectorHashBytes{bytes: bytes, state: checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnimplemented}}
 	}
 	if input.Kind == checkruntime.ArrayValueValue {
 		value := checkruntime.CopyArrayPayload(input.Value)
@@ -17421,6 +17576,14 @@ func clockFieldsNumeric(units checkruntime.TextValue, input clockFieldInput) che
 		error := intervalValue.Error
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
 	}
+	if intervalValue.Kind == checkruntime.IntervalValueUnknown {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
+	if intervalValue.Kind == checkruntime.IntervalValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
 	conditionFlavor2134 := unresolvedFlavor
 	if units.Kind == checkruntime.TextValueUnknown {
 		if conditionFlavor2134 < 1 {
@@ -17685,7 +17848,7 @@ func RecordComparisonPair(left checkruntime.ArrayElement, right checkruntime.Arr
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(recordComparisonUndefined)}
 	}
 	if available != 1 {
-		return checkruntime.Int4Unresolved(unresolvedFlavor)
+		return checkruntime.Int4Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 	}
 	return checkruntime.ArrayComparisonPair(left, right, equality)
 }
@@ -21552,7 +21715,7 @@ func Hashfloat8P4el(input checkruntime.Float8Value, byteOrder int) checkruntime.
 		bits := input.Value
 		value := checkruntime.Float8Number(bits)
 		if value != value {
-			return checkruntime.Int4Unresolved(unresolvedFlavor)
+			return checkruntime.Int4Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		if value == float64(0.0) {
 			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
@@ -21619,7 +21782,7 @@ func Hashfloat8extended7sph(input checkruntime.Float8Value, seed checkruntime.In
 			salt := seed.Value
 			value := checkruntime.Float8Number(bits)
 			if value != value {
-				return checkruntime.Int8Unresolved(unresolvedFlavor)
+				return checkruntime.Int8Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 			}
 			if value == float64(0.0) {
 				return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: salt}
@@ -21999,7 +22162,7 @@ func decodeFloatInput(value string) floatInputLayout {
 	value = langruntime.CheckedString(value)
 	chars := []rune(value)
 	if len(chars) > 1000000 {
-		return floatInputTerminal(4)
+		return floatInputTerminal(6)
 	}
 	begin := 0
 	end := len(chars)
@@ -22225,6 +22388,9 @@ func Float4FromText(input checkruntime.TextValue) checkruntime.Float4Value {
 		if layout.kind == 3 {
 			return checkruntime.Float4Value{Kind: checkruntime.Float4ValueUnspecifiedNan}
 		}
+		if layout.kind == 4 {
+			return checkruntime.Float4Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
+		}
 		if layout.kind == 0 {
 			return floatInputSingle(layout)
 		}
@@ -22265,6 +22431,9 @@ func Float8FromText(input checkruntime.TextValue) checkruntime.Float8Value {
 		}
 		if layout.kind == 3 {
 			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+		}
+		if layout.kind == 4 {
+			return checkruntime.Float8Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		if layout.kind == 0 {
 			if layout.zero {
@@ -23035,7 +23204,7 @@ func floatOutputBits(bits int64, single bool, negative bool, extra int, known bo
 	if first == text && last == text {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: text}
 	}
-	return checkruntime.TextUnresolved(unresolvedFlavor)
+	return checkruntime.TextUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 }
 func Float8OutputContext(input checkruntime.Float8Value, extra int, known bool) checkruntime.TextValue {
 	extra = langruntime.CheckedI32(extra)
@@ -26977,6 +27146,7 @@ func internalCharHashWord(input checkruntime.InternalCharValue) checkruntime.Int
 		if octet < 128 {
 			return checkruntime.MakeInt4Value(octet)
 		}
+		return checkruntime.Int4Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 	}
 	return checkruntime.Int4Unresolved(unresolvedFlavor)
 }
@@ -28906,7 +29076,7 @@ func jsonbArrayPathExists(input checkruntime.JsonbValue, keys checkruntime.Array
 				position = langruntime.CheckedAdd(position, 1)
 			}
 			if uncertain {
-				return checkruntime.BoolUnresolved(unresolvedFlavor)
+				return checkruntime.BoolUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 			}
 			return checkruntime.MakeBoolValue(all)
 		}
@@ -28992,6 +29162,13 @@ func jsonBuildLayout(input checkruntime.JsonbArguments, object bool, utf8 bool, 
 					error := key.Error
 					return checkruntime.JsonValue{Kind: checkruntime.JsonValueError, Error: error}
 				}
+				keyFlavor := unresolvedFlavor
+				if (key == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || key == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) && keyFlavor < 1 {
+					keyFlavor = langruntime.CheckedI32(1)
+				}
+				if key == (checkruntime.TextValue{Kind: checkruntime.TextValueUnimplemented}) {
+					keyFlavor = langruntime.CheckedI32(2)
+				}
 				ready := false
 				if key.Kind == checkruntime.TextValueValue {
 					value := langruntime.CheckedString(key.Value)
@@ -29005,7 +29182,7 @@ func jsonBuildLayout(input checkruntime.JsonbArguments, object bool, utf8 bool, 
 					ready = true
 				}
 				if ready == false {
-					return checkruntime.JsonUnresolved(unresolvedFlavor)
+					return checkruntime.JsonUnresolved(keyFlavor)
 				}
 				index = langruntime.CheckedAdd(index, 1)
 			}
@@ -29096,6 +29273,12 @@ func JsonBuildObjectNqz6() checkruntime.JsonValue {
 }
 func PrepareJsonRecordPending(input checkruntime.CompositeValue, pretty checkruntime.BoolValue) checkruntime.JsonRecordInputPayload {
 	state := langruntime.CheckedSignedNegate(1)
+	if input.Kind == checkruntime.CompositeValueUnimplemented {
+		state = langruntime.CheckedI32(langruntime.CheckedSignedNegate(3))
+	}
+	if pretty.Kind == checkruntime.BoolValueUnimplemented {
+		state = langruntime.CheckedI32(langruntime.CheckedSignedNegate(3))
+	}
 	error := checkruntime.MakeSqlError(0)
 	fields := []checkruntime.ArrayElement{}
 	values := []checkruntime.JsonbInput{}
@@ -29197,6 +29380,9 @@ func jsonRecordArguments(input checkruntime.JsonRecordInputPayload) checkruntime
 	}
 	if input.State == 0 {
 		return checkruntime.JsonbArguments{Kind: checkruntime.JsonbArgumentsNull}
+	}
+	if input.State == langruntime.CheckedSignedNegate(1) {
+		return checkruntime.JsonbArgumentsUnresolved(1)
 	}
 	if len(input.Values) > 2147483647 || input.Position > 2147483647 {
 		return checkruntime.JsonbArgumentsUnresolved(unresolvedFlavor)
@@ -29375,7 +29561,10 @@ func JsonInputFromNumeric(input checkruntime.NumericValue) checkruntime.JsonbInp
 	if input.Kind == checkruntime.NumericValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented}) {
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented}) {
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnimplemented}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) {
 		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputScalarUnknown, ScalarUnknown: "1001000"}
 	}
 	output := ArrayNumericOutput(input)
@@ -29464,6 +29653,11 @@ func JsonArrayInputValue(input checkruntime.JsonbArrayInputPayload, pretty check
 	unresolvedFlavor := 0
 	if pretty.Kind == checkruntime.BoolValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.State == langruntime.CheckedSignedNegate(3) {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
 	}
 	if pretty.Kind == checkruntime.BoolValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
@@ -29814,6 +30008,13 @@ func jsonObjectArrayKnown(keys checkruntime.ArrayPayload, values checkruntime.Ar
 		if key == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
 			return checkruntime.JsonValue{Kind: checkruntime.JsonValueError, Error: checkruntime.MakeSqlError(jsonObjectArrayNull)}
 		}
+		keyFlavor := unresolvedFlavor
+		if (key == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || key == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) && keyFlavor < 1 {
+			keyFlavor = langruntime.CheckedI32(1)
+		}
+		if key == (checkruntime.TextValue{Kind: checkruntime.TextValueUnimplemented}) {
+			keyFlavor = langruntime.CheckedI32(2)
+		}
 		ready := false
 		if key.Kind == checkruntime.TextValueValue {
 			text := langruntime.CheckedString(key.Value)
@@ -29826,7 +30027,7 @@ func jsonObjectArrayKnown(keys checkruntime.ArrayPayload, values checkruntime.Ar
 			output = append(output, " : "...)
 		}
 		if ready == false {
-			return checkruntime.JsonUnresolved(unresolvedFlavor)
+			return checkruntime.JsonUnresolved(keyFlavor)
 		}
 		value := checkruntime.ArrayElementToText(checkruntime.CopyArrayElement(values.Elements[index]))
 		if paired {
@@ -29836,6 +30037,13 @@ func jsonObjectArrayKnown(keys checkruntime.ArrayPayload, values checkruntime.Ar
 		if value.Kind == checkruntime.TextValueError {
 			error := value.Error
 			return checkruntime.JsonValue{Kind: checkruntime.JsonValueError, Error: error}
+		}
+		valueFlavor := unresolvedFlavor
+		if (value == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || value == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) && valueFlavor < 1 {
+			valueFlavor = langruntime.CheckedI32(1)
+		}
+		if value == (checkruntime.TextValue{Kind: checkruntime.TextValueUnimplemented}) {
+			valueFlavor = langruntime.CheckedI32(2)
 		}
 		ready = false
 		if value == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -29849,7 +30057,7 @@ func jsonObjectArrayKnown(keys checkruntime.ArrayPayload, values checkruntime.Ar
 			ready = true
 		}
 		if ready == false {
-			return checkruntime.JsonUnresolved(unresolvedFlavor)
+			return checkruntime.JsonUnresolved(valueFlavor)
 		}
 		index = langruntime.CheckedAdd(index, 1)
 	}
@@ -30310,7 +30518,7 @@ func JsonPopulateText(input checkruntime.JsonbInput, quoted bool, utf8 bool) che
 		}
 		return jsonbExtractText(scalar, utf8)
 	}
-	return checkruntime.TextUnresolved(unresolvedFlavor)
+	return checkruntime.TextUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 }
 func JsonPopulateJsonb(input checkruntime.JsonbInput, utf8 bool) checkruntime.JsonbValue {
 	if input.Kind == checkruntime.JsonbInputJsonb {
@@ -31079,7 +31287,7 @@ func jsonbBuildKey(input checkruntime.JsonbInput) checkruntime.TextValue {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 	}
 	if input.Kind == checkruntime.JsonbInputScalarUnknown {
-		return checkruntime.TextUnresolved(unresolvedFlavor)
+		return checkruntime.TextUnresolved(1)
 	}
 	conditionFlavor134 := unresolvedFlavor
 	if input.Kind == checkruntime.JsonbInputUnknown {
@@ -31337,6 +31545,12 @@ func ToJsonb9y7o(input checkruntime.JsonbInput) checkruntime.JsonbValue {
 	if input.Kind == checkruntime.JsonbInputUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
 	}
+	if input.Kind == checkruntime.JsonbInputScalarUnknown {
+		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.JsonbInputJsonNonNull {
+		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
 	if input.Kind == checkruntime.JsonbInputUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
@@ -31575,7 +31789,7 @@ func JsonbInputFromTimestamptz(input checkruntime.TimestamptzValue) checkruntime
 			return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputText, Text: "infinity"}
 		}
 	}
-	return checkruntime.JsonbInputUnresolved(unresolvedFlavor)
+	return checkruntime.JsonbInputUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 }
 func JsonbInputFromJsonContext(input checkruntime.JsonValue, utf8 bool) checkruntime.JsonbInput {
 	unresolvedFlavor := 0
@@ -31719,7 +31933,7 @@ func jsonbFloatInvariant(bits int64, single bool) checkruntime.JsonbInput {
 			text := langruntime.CheckedString(normalized.Value)
 			ready = true
 			if extra > langruntime.CheckedSignedNegate(15) && string(previous) != text {
-				return checkruntime.JsonbInputUnresolved(unresolvedFlavor)
+				return checkruntime.JsonbInputUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 			}
 			previous = langruntime.NewTextBuffer(text)
 		}
@@ -31770,6 +31984,13 @@ func jsonbGeometryValues(values []jsonbGeometryCoordinate, opening string, endin
 	index := 0
 	for index < len(values) {
 		rendered := jsonbGeometryNumber(values[index].bits, extra, known)
+		renderedFlavor := unresolvedFlavor
+		if (rendered == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || rendered == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) && renderedFlavor < 1 {
+			renderedFlavor = langruntime.CheckedI32(1)
+		}
+		if rendered == (checkruntime.TextValue{Kind: checkruntime.TextValueUnimplemented}) {
+			renderedFlavor = langruntime.CheckedI32(2)
+		}
 		ready := false
 		if rendered.Kind == checkruntime.TextValueValue {
 			text := langruntime.CheckedString(rendered.Value)
@@ -31780,7 +32001,7 @@ func jsonbGeometryValues(values []jsonbGeometryCoordinate, opening string, endin
 			output = append(output, text...)
 		}
 		if ready == false {
-			return checkruntime.TextUnresolved(unresolvedFlavor)
+			return checkruntime.TextUnresolved(renderedFlavor)
 		}
 		index = langruntime.CheckedAdd(index, 1)
 	}
@@ -31807,6 +32028,13 @@ func jsonbGeometryPoints(points []checkruntime.PointPayload, opening string, end
 	for index < len(points) {
 		point := points[index]
 		rendered := jsonbGeometryPair(point.X, point.Y, extra, known)
+		renderedFlavor := unresolvedFlavor
+		if (rendered == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || rendered == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) && renderedFlavor < 1 {
+			renderedFlavor = langruntime.CheckedI32(1)
+		}
+		if rendered == (checkruntime.TextValue{Kind: checkruntime.TextValueUnimplemented}) {
+			renderedFlavor = langruntime.CheckedI32(2)
+		}
 		ready := false
 		if rendered.Kind == checkruntime.TextValueValue {
 			text := langruntime.CheckedString(rendered.Value)
@@ -31817,7 +32045,7 @@ func jsonbGeometryPoints(points []checkruntime.PointPayload, opening string, end
 			output = append(output, text...)
 		}
 		if ready == false {
-			return checkruntime.TextUnresolved(unresolvedFlavor)
+			return checkruntime.TextUnresolved(renderedFlavor)
 		}
 		index = langruntime.CheckedAdd(index, 1)
 	}
@@ -31958,6 +32186,16 @@ func GeometryCircleOutputContext(input checkruntime.CircleValue, extra int, know
 		value := input.Value
 		center := jsonbGeometryPair(value.X, value.Y, extra, known)
 		radius := jsonbGeometryNumber(value.Radius, extra, known)
+		renderedFlavor := unresolvedFlavor
+		if (center == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || center == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) && renderedFlavor < 1 {
+			renderedFlavor = langruntime.CheckedI32(1)
+		}
+		if (radius == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || radius == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) && renderedFlavor < 1 {
+			renderedFlavor = langruntime.CheckedI32(1)
+		}
+		if center == (checkruntime.TextValue{Kind: checkruntime.TextValueUnimplemented}) || radius == (checkruntime.TextValue{Kind: checkruntime.TextValueUnimplemented}) {
+			renderedFlavor = langruntime.CheckedI32(2)
+		}
 		if center.Kind == checkruntime.TextValueValue {
 			point := langruntime.CheckedString(center.Value)
 			if radius.Kind == checkruntime.TextValueValue {
@@ -31970,6 +32208,7 @@ func GeometryCircleOutputContext(input checkruntime.CircleValue, extra int, know
 				return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
 			}
 		}
+		return checkruntime.TextUnresolved(renderedFlavor)
 	}
 	return checkruntime.TextUnresolved(unresolvedFlavor)
 }
@@ -32800,7 +33039,7 @@ func jsonbExtractText(input checkruntime.JsonbValue, utf8 bool) checkruntime.Tex
 		if facts.Kind > 0 {
 			return checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}
 		}
-		return checkruntime.TextUnresolved(unresolvedFlavor)
+		return checkruntime.TextUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 	}
 	if input.Kind == checkruntime.JsonbValueValue {
 		value := checkruntime.CopyJsonbPayload(input.Value)
@@ -33083,7 +33322,7 @@ func JsonbArrayLength1gng(input checkruntime.JsonbValue) checkruntime.Int4Value 
 		if checkruntime.JsonbHasShape(&facts) && checkruntime.JsonbRootAllows(&facts, 5) == false {
 			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(jsonbExtractParameter)}
 		}
-		return checkruntime.Int4Unresolved(unresolvedFlavor)
+		return checkruntime.Int4Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 	}
 	if input.Kind == checkruntime.JsonbValueValue {
 		value := checkruntime.CopyJsonbPayload(input.Value)
@@ -33573,6 +33812,7 @@ func jsonbHashContext(input checkruntime.JsonbValue, seed checkruntime.Int8Value
 			if byteOrder == 0 && little == big {
 				return little
 			}
+			return checkruntime.Int8Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 	}
 	return checkruntime.Int8Unresolved(unresolvedFlavor)
@@ -33987,7 +34227,7 @@ func jsonbOrderShapeRoot(a *checkruntime.JsonbPayload, b *checkruntime.JsonbPayl
 func jsonbOrderPartial(a checkruntime.JsonbKnowledge, b checkruntime.JsonbKnowledge) checkruntime.Int4Value {
 	a = checkruntime.CopyJsonbKnowledge(a)
 	b = checkruntime.CopyJsonbKnowledge(b)
-	unresolvedFlavor := 0
+	unresolvedFlavor := 1
 	if a.Kind < 0 || b.Kind < 0 {
 		return checkruntime.Int4Unresolved(unresolvedFlavor)
 	}
@@ -34037,7 +34277,7 @@ func jsonbOrderPartial(a checkruntime.JsonbKnowledge, b checkruntime.JsonbKnowle
 			return checkruntime.MakeInt4Value(0)
 		}
 	}
-	return checkruntime.Int4Unresolved(unresolvedFlavor)
+	return checkruntime.Int4Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 }
 func JsonbCmpN2cx(left checkruntime.JsonbValue, right checkruntime.JsonbValue) checkruntime.Int4Value {
 	left = checkruntime.CopyJsonbValue(left)
@@ -34188,12 +34428,21 @@ func jsonbBulkKeyMatches(input *checkruntime.JsonbPayload, node checkruntime.Jso
 		end = langruntime.CheckedIndex(node.KeyEnd)
 	}
 	uncertain := false
+	keyFlavor := unresolvedFlavor
 	index := 0
 	for index < len(keys.Elements) {
 		key := checkruntime.ArrayElementToText(checkruntime.CopyArrayElement(keys.Elements[index]))
 		if key.Kind == checkruntime.TextValueError {
 			error := key.Error
 			return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+		}
+		if key == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || key == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
+			if keyFlavor < 1 {
+				keyFlavor = langruntime.CheckedI32(1)
+			}
+		}
+		if key == (checkruntime.TextValue{Kind: checkruntime.TextValueUnimplemented}) {
+			keyFlavor = langruntime.CheckedI32(2)
 		}
 		if (key == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || key == (checkruntime.TextValue{Kind: checkruntime.TextValueUnimplemented})) || key == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
 			uncertain = true
@@ -34208,7 +34457,7 @@ func jsonbBulkKeyMatches(input *checkruntime.JsonbPayload, node checkruntime.Jso
 		index = langruntime.CheckedAdd(index, 1)
 	}
 	if uncertain {
-		return checkruntime.BoolUnresolved(unresolvedFlavor)
+		return checkruntime.BoolUnresolved(keyFlavor)
 	}
 	return checkruntime.MakeBoolValue(false)
 }
@@ -34681,6 +34930,13 @@ func jsonbPathEditKnown(input checkruntime.JsonbPayload, path checkruntime.Array
 				return checkruntime.JsonbPartialShape(facts.Maximum, facts.Kind, length)
 			}
 		}
+		keyFlavor := unresolvedFlavor
+		if (converted == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || converted == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) && keyFlavor < 1 {
+			keyFlavor = langruntime.CheckedI32(1)
+		}
+		if converted == (checkruntime.TextValue{Kind: checkruntime.TextValueUnimplemented}) {
+			keyFlavor = langruntime.CheckedI32(2)
+		}
 		ready := false
 		if converted.Kind == checkruntime.TextValueValue {
 			key := langruntime.CheckedString(converted.Value)
@@ -34772,7 +35028,7 @@ func jsonbPathEditKnown(input checkruntime.JsonbPayload, path checkruntime.Array
 			parent = langruntime.CheckedIndex(selected)
 		}
 		if ready == false {
-			return checkruntime.JsonbUnresolved(unresolvedFlavor)
+			return checkruntime.JsonbUnresolved(keyFlavor)
 		}
 		position = langruntime.CheckedAdd(position, 1)
 	}
@@ -35368,7 +35624,7 @@ func jsonbRelationWalkFrom(left *checkruntime.JsonbPayload, leftRoot int, right 
 func jsonbRelationPartial(a checkruntime.JsonbKnowledge, b checkruntime.JsonbKnowledge, contains bool) checkruntime.BoolValue {
 	a = checkruntime.CopyJsonbKnowledge(a)
 	b = checkruntime.CopyJsonbKnowledge(b)
-	unresolvedFlavor := 0
+	unresolvedFlavor := 1
 	if a.Kind < 0 || b.Kind < 0 {
 		return checkruntime.BoolUnresolved(unresolvedFlavor)
 	}
@@ -35400,7 +35656,7 @@ func jsonbRelationPartial(a checkruntime.JsonbKnowledge, b checkruntime.JsonbKno
 			}
 		}
 	}
-	return checkruntime.BoolUnresolved(unresolvedFlavor)
+	return checkruntime.BoolUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 }
 func jsonbShapeKindsMeet(a *checkruntime.JsonbPayload, ai int, b *checkruntime.JsonbPayload, bi int) bool {
 	ai = langruntime.CheckedIndex(ai)
@@ -35624,7 +35880,7 @@ func jsonbRelationValues(left checkruntime.JsonbValue, right checkruntime.JsonbV
 			if related >= 0 {
 				return checkruntime.MakeBoolValue((related == 1) != invert)
 			}
-			return checkruntime.BoolUnresolved(unresolvedFlavor)
+			return checkruntime.BoolUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		a := jsonbRootFacts(left, false)
 		b := jsonbRootFacts(right, false)
@@ -37804,7 +38060,7 @@ func jsonpathTemplateReadInteger(source *jsonpathTemporalSource, begin int, widt
 }
 func jsonpathTemplateError(error int, hard bool) jsonpathTemporalValue {
 	error = langruntime.CheckedIndex(error)
-	return jsonpathTemporalState(0, int64(0), 0, error, false, hard)
+	return jsonpathTemporalState(0, int64(0), 0, error, false, hard, 0)
 }
 func jsonpathTemplateParse(input checkruntime.TextValue, template checkruntime.TextValue) jsonpathTemporalValue {
 	prefixes := []int{}
@@ -37812,6 +38068,32 @@ func jsonpathTemplateParse(input checkruntime.TextValue, template checkruntime.T
 }
 func jsonpathTemplateParsePrefixes(input checkruntime.TextValue, template checkruntime.TextValue, prefixes []int, localeC bool, collationC bool) jsonpathTemporalValue {
 	prefixes = langruntime.CheckedIndices(prefixes)
+	inputFlavor := 0
+	if input.Kind == checkruntime.TextValueUnknown {
+		inputFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		inputFlavor = langruntime.CheckedI32(1)
+	}
+	if template.Kind == checkruntime.TextValueUnknown {
+		if inputFlavor < 1 {
+			inputFlavor = langruntime.CheckedI32(1)
+		}
+	}
+	if template.Kind == checkruntime.TextValueNonNull {
+		if inputFlavor < 1 {
+			inputFlavor = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == checkruntime.TextValueUnimplemented {
+		inputFlavor = langruntime.CheckedI32(2)
+	}
+	if template.Kind == checkruntime.TextValueUnimplemented {
+		inputFlavor = langruntime.CheckedI32(2)
+	}
+	if inputFlavor == 0 {
+		inputFlavor = langruntime.CheckedI32(2)
+	}
 	if input.Kind == checkruntime.TextValueError {
 		error := input.Error
 		return jsonpathTemplateError(error.State, false)
@@ -37821,10 +38103,10 @@ func jsonpathTemplateParsePrefixes(input checkruntime.TextValue, template checkr
 		return jsonpathTemplateError(error.State, false)
 	}
 	if input.Kind == checkruntime.TextValueNull {
-		return jsonpathTemporalState(langruntime.CheckedSignedNegate(1), int64(0), 0, 0, false, false)
+		return jsonpathTemporalState(langruntime.CheckedSignedNegate(1), int64(0), 0, 0, false, false, 0)
 	}
 	if template.Kind == checkruntime.TextValueNull {
-		return jsonpathTemporalState(langruntime.CheckedSignedNegate(1), int64(0), 0, 0, false, false)
+		return jsonpathTemporalState(langruntime.CheckedSignedNegate(1), int64(0), 0, 0, false, false, 0)
 	}
 	if input.Kind == checkruntime.TextValueValue {
 		text := langruntime.CheckedString(input.Value)
@@ -37870,7 +38152,7 @@ func jsonpathTemplateParsePrefixes(input checkruntime.TextValue, template checkr
 						dateMode = langruntime.CheckedI32(mode)
 					}
 					if token.translated && token.kind >= 44 && token.kind <= 47 && (localeC == false || collationC == false) {
-						return jsonpathTemporalState(0, int64(0), 0, 0, true, false)
+						return jsonpathTemporalState(0, int64(0), 0, 0, true, false, 1)
 					}
 					variable := token.fill || token.ordinal || langruntime.CheckedAdd(index, 1) == len(program.tokens)
 					if langruntime.CheckedAdd(index, 1) < len(program.tokens) && program.tokens[langruntime.CheckedAdd(index, 1)].digit == false {
@@ -37878,7 +38160,11 @@ func jsonpathTemplateParsePrefixes(input checkruntime.TextValue, template checkr
 					}
 					if token.kind == 22 && jsonpathTemporalLetter(source.characters[position]) {
 						if len(prefixes) == 0 || prefixes[position] > len(source.characters) {
-							return jsonpathTemporalState(0, int64(0), 0, 0, true, false)
+							prefixFlavor := 1
+							if len(prefixes) > 0 && prefixes[position] > langruntime.CheckedAdd(len(source.characters), 1) {
+								prefixFlavor = langruntime.CheckedI32(2)
+							}
+							return jsonpathTemporalState(0, int64(0), 0, 0, true, false, prefixFlavor)
 						}
 						if prefixes[position] == 0 {
 							return jsonpathTemplateError(jsonpathTemplateFormat, false)
@@ -37927,7 +38213,7 @@ func jsonpathTemplateParsePrefixes(input checkruntime.TextValue, template checkr
 						if token.kind == 33 {
 							read = copyjsonpathTemplateRead(jsonpathTemplateReadInteger(&source, position, 1, true))
 							if read.error == jsonpathTemplateRange {
-								return jsonpathTemporalState(0, int64(0), 0, 0, true, false)
+								return jsonpathTemporalState(0, int64(0), 0, 0, true, false, 1)
 							}
 							if read.error == 0 {
 								if read.end == len(source.characters) || source.characters[read.end] != ',' {
@@ -38119,7 +38405,7 @@ func jsonpathTemplateParsePrefixes(input checkruntime.TextValue, template checkr
 				}
 				if date.Kind == checkruntime.DateValueValue {
 					value := langruntime.CheckedI32(date.Value)
-					return jsonpathTemporalState(1, int64(langruntime.CheckedI32(value)), 0, 0, false, false)
+					return jsonpathTemporalState(1, int64(langruntime.CheckedI32(value)), 0, 0, false, false, 0)
 				}
 			}
 			if program.dated == false {
@@ -38163,15 +38449,15 @@ func jsonpathTemplateParsePrefixes(input checkruntime.TextValue, template checkr
 			return jsonpathTemplateError(jsonpathTemplateRange, false)
 		}
 	}
-	return jsonpathTemporalState(0, int64(0), 0, 0, true, false)
+	return jsonpathTemporalState(0, int64(0), 0, 0, true, false, inputFlavor)
 }
 func jsonpathTemplateZoneResult(kind int, value int64, zone int, abbreviationToken int, numericZone bool) jsonpathTemporalValue {
 	kind = langruntime.CheckedI32(kind)
 	zone = langruntime.CheckedI32(zone)
 	abbreviationToken = langruntime.CheckedIndex(abbreviationToken)
-	result := jsonpathTemporalState(kind, value, zone, 0, false, false)
+	result := jsonpathTemporalState(kind, value, zone, 0, false, false, 0)
 	if abbreviationToken > 0 && numericZone == false {
-		return jsonpathTemporalValue{kind: kind, value: value, zone: 0, error: 0, unknown: true, hard: false, abbreviationToken: abbreviationToken}
+		return jsonpathTemporalValue{kind: kind, value: value, zone: 0, error: 0, unknown: true, hard: false, flavor: 1, abbreviationToken: abbreviationToken}
 	}
 	return result
 }
@@ -38187,11 +38473,12 @@ type jsonpathTemporalValue struct {
 	error             int
 	unknown           bool
 	hard              bool
+	flavor            int
 	abbreviationToken int
 }
 
 func copyjsonpathTemporalValue(value jsonpathTemporalValue) jsonpathTemporalValue {
-	return jsonpathTemporalValue{kind: langruntime.CheckedI32(value.kind), value: value.value, zone: langruntime.CheckedI32(value.zone), error: langruntime.CheckedIndex(value.error), unknown: value.unknown, hard: value.hard, abbreviationToken: langruntime.CheckedIndex(value.abbreviationToken)}
+	return jsonpathTemporalValue{kind: langruntime.CheckedI32(value.kind), value: value.value, zone: langruntime.CheckedI32(value.zone), error: langruntime.CheckedIndex(value.error), unknown: value.unknown, hard: value.hard, flavor: langruntime.CheckedI32(value.flavor), abbreviationToken: langruntime.CheckedIndex(value.abbreviationToken)}
 }
 
 type jsonpathTemporalSource struct {
@@ -38212,14 +38499,24 @@ type jsonpathTemporalRead struct {
 func copyjsonpathTemporalRead(value jsonpathTemporalRead) jsonpathTemporalRead {
 	return jsonpathTemporalRead{value: langruntime.CheckedI32(value.value), end: langruntime.CheckedIndex(value.end), width: langruntime.CheckedIndex(value.width), valid: value.valid}
 }
-func jsonpathTemporalState(kind int, value int64, zone int, error int, unknown bool, hard bool) jsonpathTemporalValue {
+func jsonpathTemporalState(kind int, value int64, zone int, error int, unknown bool, hard bool, flavor int) jsonpathTemporalValue {
 	kind = langruntime.CheckedI32(kind)
 	zone = langruntime.CheckedI32(zone)
 	error = langruntime.CheckedIndex(error)
-	return jsonpathTemporalValue{kind: kind, value: value, zone: zone, error: error, unknown: unknown, hard: hard, abbreviationToken: 0}
+	flavor = langruntime.CheckedI32(flavor)
+	return jsonpathTemporalValue{kind: kind, value: value, zone: zone, error: error, unknown: unknown, hard: hard, flavor: flavor, abbreviationToken: 0}
+}
+func jsonpathTemporalFlavored(input jsonpathTemporalValue, flavor int) jsonpathTemporalValue {
+	input = copyjsonpathTemporalValue(input)
+	flavor = langruntime.CheckedI32(flavor)
+	combined := input.flavor
+	if flavor > combined {
+		combined = langruntime.CheckedI32(flavor)
+	}
+	return jsonpathTemporalValue{kind: input.kind, value: input.value, zone: input.zone, error: input.error, unknown: input.unknown, hard: input.hard, flavor: combined, abbreviationToken: input.abbreviationToken}
 }
 func jsonpathTemporalInvalid() jsonpathTemporalValue {
-	return jsonpathTemporalState(0, int64(0), 0, jsonpathTemporalArgument, false, false)
+	return jsonpathTemporalState(0, int64(0), 0, jsonpathTemporalArgument, false, false, 0)
 }
 func jsonpathTemporalNumber(source *jsonpathTemporalSource, begin int) jsonpathTemporalRead {
 	begin = langruntime.CheckedIndex(begin)
@@ -38259,12 +38556,19 @@ func jsonpathTemporalLetter(character rune) bool {
 	return (code >= 65 && code <= 90) || (code >= 97 && code <= 122)
 }
 func jsonpathTemporalDecode(input checkruntime.TextValue) jsonpathTemporalValue {
+	inputFlavor := 2
+	if input.Kind == checkruntime.TextValueUnknown {
+		inputFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		inputFlavor = langruntime.CheckedI32(1)
+	}
 	if input.Kind == checkruntime.TextValueNull {
-		return jsonpathTemporalState(langruntime.CheckedSignedNegate(1), int64(0), 0, 0, false, false)
+		return jsonpathTemporalState(langruntime.CheckedSignedNegate(1), int64(0), 0, 0, false, false, 0)
 	}
 	if input.Kind == checkruntime.TextValueError {
 		error := input.Error
-		return jsonpathTemporalState(0, int64(0), 0, error.State, false, false)
+		return jsonpathTemporalState(0, int64(0), 0, error.State, false, false, 0)
 	}
 	if input.Kind == checkruntime.TextValueValue {
 		text := langruntime.CheckedString(input.Value)
@@ -38304,7 +38608,7 @@ func jsonpathTemporalDecode(input checkruntime.TextValue) jsonpathTemporalValue 
 				following = langruntime.CheckedAdd(following, 1)
 			}
 			if following == length {
-				return jsonpathTemporalState(1, int64(langruntime.CheckedI32(day)), 0, 0, false, false)
+				return jsonpathTemporalState(1, int64(langruntime.CheckedI32(day)), 0, 0, false, false, 0)
 			}
 			if source.characters[position] != ' ' && source.characters[position] != 'T' {
 				return jsonpathTemporalInvalid()
@@ -38368,7 +38672,7 @@ func jsonpathTemporalDecode(input checkruntime.TextValue) jsonpathTemporalValue 
 				if hasDate {
 					partialKind = langruntime.CheckedI32(5)
 				}
-				return jsonpathTemporalState(partialKind, int64(0), 0, 0, true, false)
+				return jsonpathTemporalState(partialKind, int64(0), 0, 0, true, false, 1)
 			}
 			if character != '+' && character != '-' && character != ' ' {
 				return jsonpathTemporalInvalid()
@@ -38409,7 +38713,7 @@ func jsonpathTemporalDecode(input checkruntime.TextValue) jsonpathTemporalValue 
 				if zoned {
 					kind = langruntime.CheckedI32(5)
 				}
-				return jsonpathTemporalState(kind, value, zone, 0, false, false)
+				return jsonpathTemporalState(kind, value, zone, 0, false, false, 0)
 			}
 			return jsonpathTemporalInvalid()
 		}
@@ -38417,9 +38721,9 @@ func jsonpathTemporalDecode(input checkruntime.TextValue) jsonpathTemporalValue 
 		if zoned {
 			kind = langruntime.CheckedI32(3)
 		}
-		return jsonpathTemporalState(kind, time, zone, 0, false, false)
+		return jsonpathTemporalState(kind, time, zone, 0, false, false, 0)
 	}
-	return jsonpathTemporalState(0, int64(0), 0, 0, true, false)
+	return jsonpathTemporalState(0, int64(0), 0, 0, true, false, inputFlavor)
 }
 func jsonpathTemporalConvert(input checkruntime.TextValue, method int, precision int) jsonpathTemporalValue {
 	method = langruntime.CheckedI32(method)
@@ -38428,9 +38732,9 @@ func jsonpathTemporalConvert(input checkruntime.TextValue, method int, precision
 }
 func jsonpathTemporalTimezone(useTimezone bool) jsonpathTemporalValue {
 	if useTimezone {
-		return jsonpathTemporalState(0, int64(0), 0, 0, true, false)
+		return jsonpathTemporalState(0, int64(0), 0, 0, true, false, 1)
 	}
-	return jsonpathTemporalState(0, int64(0), 0, jsonpathTemporalFeature, false, true)
+	return jsonpathTemporalState(0, int64(0), 0, jsonpathTemporalFeature, false, true, 0)
 }
 func jsonpathTemporalConvertMode(input checkruntime.TextValue, method int, precision int, useTimezone bool) jsonpathTemporalValue {
 	method = langruntime.CheckedI32(method)
@@ -38491,7 +38795,7 @@ func jsonpathTemporalConvertParsed(parsed jsonpathTemporalValue, method int, pre
 			return jsonpathTemporalTimezone(useTimezone)
 		}
 		if kind == 5 {
-			return jsonpathTemporalState(0, int64(0), 0, 0, true, false)
+			return jsonpathTemporalState(0, int64(0), 0, 0, true, false, 1)
 		}
 		kind = langruntime.CheckedI32(3)
 	}
@@ -38506,7 +38810,7 @@ func jsonpathTemporalConvertParsed(parsed jsonpathTemporalValue, method int, pre
 			timestamp := TimestampSwxj(checkruntime.DateValue{Kind: checkruntime.DateValueValue, Value: int(int32(value))})
 			if timestamp.Kind == checkruntime.TimestampValueError {
 				error := timestamp.Error
-				return jsonpathTemporalState(0, int64(0), 0, error.State, false, true)
+				return jsonpathTemporalState(0, int64(0), 0, error.State, false, true, 0)
 			}
 			if timestamp.Kind == checkruntime.TimestampValueValue {
 				number := timestamp.Value
@@ -38530,7 +38834,7 @@ func jsonpathTemporalConvertParsed(parsed jsonpathTemporalValue, method int, pre
 			digits = langruntime.CheckedI32(6)
 		}
 		if digits < 0 {
-			return jsonpathTemporalState(0, int64(0), 0, 3452619, false, true)
+			return jsonpathTemporalState(0, int64(0), 0, 3452619, false, true, 0)
 		}
 		if kind == 2 || kind == 3 {
 			scaled := clockScaleValue(checkruntime.TimeValue{Kind: checkruntime.TimeValueValue, Value: value}, checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: digits})
@@ -38546,7 +38850,7 @@ func jsonpathTemporalConvertParsed(parsed jsonpathTemporalValue, method int, pre
 			}
 		}
 	}
-	return jsonpathTemporalState(kind, value, zone, 0, false, false)
+	return jsonpathTemporalState(kind, value, zone, 0, false, false, 0)
 }
 func jsonpathTemporalRender(input jsonpathTemporalValue) checkruntime.TextValue {
 	input = copyjsonpathTemporalValue(input)
@@ -38558,7 +38862,11 @@ func jsonpathTemporalRender(input jsonpathTemporalValue) checkruntime.TextValue 
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(input.error)}
 	}
 	if input.unknown {
-		return checkruntime.TextUnresolved(unresolvedFlavor)
+		inputFlavor := unresolvedFlavor
+		if input.flavor > inputFlavor {
+			inputFlavor = langruntime.CheckedI32(input.flavor)
+		}
+		return checkruntime.TextUnresolved(inputFlavor)
 	}
 	output := langruntime.NewTextBuffer("")
 	bc := false
@@ -38648,7 +38956,7 @@ func jsonpathTemporalCompareMode(left jsonpathTemporalValue, right jsonpathTempo
 	rightClock := right.kind == 2 || right.kind == 3
 	if (leftCalendar && rightCalendar) || (leftClock && rightClock) {
 		if useTimezone {
-			return checkruntime.Int4Unresolved(unresolvedFlavor)
+			return checkruntime.Int4Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(jsonpathTemporalFeature)}
 	}
@@ -40001,6 +40309,9 @@ func lineProjectPoint(point checkruntime.PointValue, line checkruntime.LineValue
 	if (point == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) || point == (checkruntime.PointValue{Kind: checkruntime.PointValueUnimplemented})) || (line == (checkruntime.LineValue{Kind: checkruntime.LineValueUnknown}) || line == (checkruntime.LineValue{Kind: checkruntime.LineValueUnimplemented})) {
 		testedFlavor := 1
 		if point == (checkruntime.PointValue{Kind: checkruntime.PointValueUnimplemented}) {
+			testedFlavor = langruntime.CheckedI32(2)
+		}
+		if line == (checkruntime.LineValue{Kind: checkruntime.LineValueUnimplemented}) {
 			testedFlavor = langruntime.CheckedI32(2)
 		}
 		return lineProjection{point: checkruntime.PointUnresolved(testedFlavor), distance: checkruntime.Float8Unresolved(testedFlavor)}
@@ -43194,7 +43505,7 @@ func MoneyFromText(input checkruntime.TextValue) checkruntime.MoneyValue {
 			return checkruntime.MakeMoneyValue(int64(0))
 		}
 	}
-	return checkruntime.MoneyUnresolved(unresolvedFlavor)
+	return checkruntime.MoneyUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 }
 func moneyScaleAvailable(digits int) bool {
 	digits = langruntime.CheckedI32(digits)
@@ -43232,7 +43543,7 @@ func MoneyU7ss(input checkruntime.Int8Value, digits int) checkruntime.MoneyValue
 			return checkruntime.MakeMoneyValue(int64(0))
 		}
 		if moneyScaleAvailable(digits) == false {
-			return checkruntime.MoneyUnresolved(unresolvedFlavor)
+			return checkruntime.MoneyUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		factor := checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: moneyScaleFactor(digits)}
 		return moneyFromUnits(Int8mul6t1m(input, factor))
@@ -43273,7 +43584,7 @@ func MoneyZ8lp(input checkruntime.NumericValue, digits int) checkruntime.MoneyVa
 			return checkruntime.MakeMoneyValue(int64(0))
 		}
 		if moneyScaleAvailable(digits) == false {
-			return checkruntime.MoneyUnresolved(unresolvedFlavor)
+			return checkruntime.MoneyUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		factor := Numeric11bc(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: moneyScaleFactor(digits)})
 		scaled := NumericMulBj4l(amount, factor)
@@ -43300,7 +43611,7 @@ func NumericKhij(input checkruntime.MoneyValue, digits int) checkruntime.Numeric
 	if input.Kind == checkruntime.MoneyValueValue {
 		value := input.Value
 		if moneyScaleAvailable(digits) == false {
-			return checkruntime.NumericUnresolved(unresolvedFlavor)
+			return checkruntime.NumericUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		amount := Numeric11bc(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: value})
 		if digits == 0 {
@@ -43716,15 +44027,22 @@ func CashWordsAtzl(input checkruntime.MoneyValue) checkruntime.TextValue {
 	return moneyWords(input)
 }
 func MultirangeBinaryPayload(input checkruntime.MultirangeValue) checkruntime.MultirangePayload {
+	elementKind := langruntime.CheckedSignedNegate(2)
+	if input.Kind == checkruntime.MultirangeValueUnknown {
+		elementKind = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+	}
 	if input.Kind == checkruntime.MultirangeValueValue {
 		payload := checkruntime.CopyMultirangePayload(input.Value)
 		return payload
 	}
 	ranges := []checkruntime.RangeValue{}
-	return checkruntime.MultirangePayload{TypeName: "", RangeType: "", ElementType: "", ElementKind: 0, Support: checkruntime.RangeUnknownSupport(), Ranges: ranges}
+	return checkruntime.MultirangePayload{TypeName: "", RangeType: "", ElementType: "", ElementKind: elementKind, Support: checkruntime.RangeUnknownSupport(), Ranges: ranges}
 }
 func MultirangeBinaryCount(input *checkruntime.MultirangePayload) checkruntime.Int4Value {
 	unresolvedFlavor := 0
+	if input.TypeName == "" && input.ElementKind == langruntime.CheckedSignedNegate(1) {
+		return checkruntime.Int4Unresolved(1)
+	}
 	if input.TypeName == "" || len(input.Ranges) > 2147483647 {
 		return checkruntime.Int4Unresolved(unresolvedFlavor)
 	}
@@ -46135,7 +46453,7 @@ func RangeMergeF619(input checkruntime.MultirangeValue) checkruntime.RangeValue 
 			if last.Kind == checkruntime.RangeValueValue {
 				b := checkruntime.CopyRangePayload(last.Value)
 				if payload.Support.Canonical == 0 {
-					return checkruntime.RangeUnresolved(unresolvedFlavor)
+					return checkruntime.RangeUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 				}
 				if payload.Support.Comparison == 0 {
 					unbounded := false
@@ -46148,7 +46466,7 @@ func RangeMergeF619(input checkruntime.MultirangeValue) checkruntime.RangeValue 
 						unbounded = true
 					}
 					if unbounded == false {
-						return checkruntime.RangeUnresolved(unresolvedFlavor)
+						return checkruntime.RangeUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 					}
 				}
 				return checkruntime.RangeFromTypedBounds(payload.RangeType, payload.ElementType, payload.ElementKind, false, a.LowerInclusive, b.UpperInclusive, checkruntime.CopyArrayElement(a.Bounds[0]), checkruntime.CopyArrayElement(b.Bounds[1]), payload.Support, a.EnumLabels, a.EnumCount, checkruntime.CopyRangeBoundContext(a.BoundProfile))
@@ -46196,7 +46514,7 @@ func NameFromTextWithLimit(input checkruntime.TextValue, limit checkruntime.Int4
 		if limit.Kind == checkruntime.Int4ValueValue {
 			maximum := langruntime.CheckedI32(limit.Value)
 			if maximum < 0 {
-				return checkruntime.TextUnresolved(unresolvedFlavor)
+				return checkruntime.TextUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 			}
 			output := langruntime.NewTextBuffer("")
 			bytes := 0
@@ -49276,7 +49594,7 @@ func numberFormatPrepare(template string, numericC bool, monetaryC bool) numberF
 func numberFormatTemplateState(format *numberFormat) checkruntime.TextValue {
 	unresolvedFlavor := 0
 	if format.error == 1 {
-		return checkruntime.TextUnresolved(unresolvedFlavor)
+		return checkruntime.TextUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 	}
 	if format.error != 0 {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(format.error)}
@@ -49360,12 +49678,12 @@ func numberFormatInt8(value int64, template string, numericC bool, monetaryC boo
 			scaled = langruntime.CheckedI64Multiply(value, factor)
 		} else {
 			if format.multi >= 10 {
-				return checkruntime.TextUnresolved(unresolvedFlavor)
+				return checkruntime.TextUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 			}
 			factor := numberFormatPower(format.multi)
 			product := langruntime.CheckedI64Multiply(value, factor)
 			if product > int64(2147483647) || product < int64(-2147483648) {
-				return checkruntime.TextUnresolved(unresolvedFlavor)
+				return checkruntime.TextUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 			}
 			scaled = product
 		}
@@ -50001,7 +50319,7 @@ func numberFormatFloat(bits int64, single bool, template string, numericC bool, 
 	scaled := value
 	if format.multiplied {
 		if format.multi > 22 {
-			return checkruntime.TextUnresolved(unresolvedFlavor)
+			return checkruntime.TextUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		factor := float64(1.0)
 		count := 0
@@ -54577,8 +54895,84 @@ func OidAliasFromText(input checkruntime.TextValue, dash bool, grammar int) chec
 			}
 			return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: checkruntime.MakeSqlError(oidAliasInvalidName)}
 		}
+		if oidAliasGrammarRead(text, grammar) == false {
+			return checkruntime.OidUnresolved(unresolvedFlavor)
+		}
 	}
-	return checkruntime.OidUnresolved(unresolvedFlavor)
+	return checkruntime.OidUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
+}
+func oidAliasGrammarRead(text string, grammar int) bool {
+	text = langruntime.CheckedString(text)
+	grammar = langruntime.CheckedI32(grammar)
+	chars := []rune(text)
+	quoted := false
+	parts := 1
+	partLength := 0
+	emptyPart := false
+	depth := 0
+	brackets := 0
+	balanced := true
+	first := ' '
+	index := 0
+	for index < len(chars) {
+		ch := chars[index]
+		if first == ' ' && oidInputSpace(ch) == false {
+			first = langruntime.CheckedChar(ch)
+		}
+		consumed := false
+		if ch == '"' {
+			quoted = quoted == false
+			partLength = langruntime.CheckedI32(langruntime.CheckedSignedAdd(partLength, 1))
+			consumed = true
+		}
+		if consumed == false && quoted {
+			partLength = langruntime.CheckedI32(langruntime.CheckedSignedAdd(partLength, 1))
+			consumed = true
+		}
+		if consumed == false && ch == '.' && depth == 0 {
+			if partLength == 0 {
+				emptyPart = true
+			}
+			parts = langruntime.CheckedI32(langruntime.CheckedSignedAdd(parts, 1))
+			partLength = langruntime.CheckedI32(0)
+			consumed = true
+		}
+		if consumed == false {
+			if ch == '(' {
+				depth = langruntime.CheckedI32(langruntime.CheckedSignedAdd(depth, 1))
+			}
+			if ch == ')' {
+				depth = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(depth, 1))
+			}
+			if ch == '[' {
+				brackets = langruntime.CheckedI32(langruntime.CheckedSignedAdd(brackets, 1))
+			}
+			if ch == ']' {
+				brackets = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(brackets, 1))
+			}
+			if depth < 0 || brackets < 0 {
+				balanced = false
+			}
+			if oidInputSpace(ch) == false {
+				partLength = langruntime.CheckedI32(langruntime.CheckedSignedAdd(partLength, 1))
+			}
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	if parts > 1 && partLength == 0 {
+		emptyPart = true
+	}
+	if quoted || emptyPart || depth != 0 || brackets != 0 || balanced == false {
+		return false
+	}
+	if grammar != 1 && parts > 3 {
+		return false
+	}
+	code := int(langruntime.CheckedChar(first))
+	if grammar == 2 && ((code >= 48 && code <= 57) || first == '+' || first == '-') {
+		return false
+	}
+	return true
 }
 func OidAliasToText(input checkruntime.OidValue, dash bool) checkruntime.TextValue {
 	unresolvedFlavor := 0
@@ -54604,7 +54998,7 @@ func OidAliasToText(input checkruntime.OidValue, dash bool) checkruntime.TextVal
 			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: "0"}
 		}
 	}
-	return checkruntime.TextUnresolved(unresolvedFlavor)
+	return checkruntime.TextUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 }
 func oidAliasLookup(input checkruntime.TextValue, dash bool, grammar int) checkruntime.OidValue {
 	grammar = langruntime.CheckedI32(grammar)
@@ -54715,8 +55109,11 @@ func RegclassWqix(input checkruntime.TextValue) checkruntime.OidValue {
 		if whitespace {
 			return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: checkruntime.MakeSqlError(oidAliasInvalidName)}
 		}
+		if oidAliasGrammarRead(text, 0) == false {
+			return checkruntime.OidUnresolved(unresolvedFlavor)
+		}
 	}
-	return checkruntime.OidUnresolved(unresolvedFlavor)
+	return checkruntime.OidUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 }
 func oidUnits(input checkruntime.OidValue) checkruntime.Int8Value {
 	unresolvedFlavor := 0
@@ -55056,7 +55453,7 @@ func OidFromText(input checkruntime.TextValue) checkruntime.OidValue {
 				radix = int64(16)
 				start = langruntime.CheckedAdd(start, 2)
 			} else if chars[langruntime.CheckedAdd(start, 1)] == 'b' || chars[langruntime.CheckedAdd(start, 1)] == 'B' {
-				return checkruntime.OidUnresolved(unresolvedFlavor)
+				return checkruntime.OidUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 			} else {
 				radix = int64(8)
 			}
@@ -55083,7 +55480,7 @@ func OidFromText(input checkruntime.TextValue) checkruntime.OidValue {
 		}
 		if digits == false {
 			if radix == int64(16) && start == end {
-				return checkruntime.OidUnresolved(unresolvedFlavor)
+				return checkruntime.OidUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 			}
 			return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: checkruntime.SqlError{State: oidInputInvalid}}
 		}
@@ -55092,7 +55489,7 @@ func OidFromText(input checkruntime.TextValue) checkruntime.OidValue {
 		}
 		if high != int64(0) {
 			if start != end || (negative && high == int64(4294967295) && units != int64(0)) || (negative == false && high == int64(4294967295) && units >= int64(2147483648)) {
-				return checkruntime.OidUnresolved(unresolvedFlavor)
+				return checkruntime.OidUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 			}
 			return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: checkruntime.SqlError{State: sqlstateNumericValueOutOfRange}}
 		}
@@ -55100,7 +55497,7 @@ func OidFromText(input checkruntime.TextValue) checkruntime.OidValue {
 			return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: checkruntime.SqlError{State: oidInputInvalid}}
 		}
 		if negative && units > int64(2147483648) {
-			return checkruntime.OidUnresolved(unresolvedFlavor)
+			return checkruntime.OidUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		if negative && units != int64(0) {
 			units = langruntime.CheckedI64Subtract(int64(4294967296), units)
@@ -58508,6 +58905,15 @@ func polygonParse(value string) checkruntime.PolygonValue {
 		error := parsed.Error
 		return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueError, Error: error}
 	}
+	parsedFlavor := unresolvedFlavor
+	if parsed.Kind == checkruntime.PathValueUnknown {
+		if parsedFlavor < 1 {
+			parsedFlavor = langruntime.CheckedI32(1)
+		}
+	}
+	if parsed.Kind == checkruntime.PathValueUnimplemented {
+		parsedFlavor = langruntime.CheckedI32(2)
+	}
 	if parsed.Kind == checkruntime.PathValueValue {
 		payload := checkruntime.CopyPathPayload(parsed.Value)
 		if payload.Closed == false {
@@ -58515,7 +58921,7 @@ func polygonParse(value string) checkruntime.PolygonValue {
 		}
 		return checkruntime.MakePolygonPoints(checkruntime.PolygonPayload{Points: payload.Points, Bounds: checkruntime.BoxValue{Kind: checkruntime.BoxValueUnknown}})
 	}
-	return checkruntime.PolygonUnresolved(unresolvedFlavor)
+	return checkruntime.PolygonUnresolved(parsedFlavor)
 }
 func PolygonFromText(input checkruntime.TextValue) checkruntime.PolygonValue {
 	unresolvedFlavor := 0
@@ -59426,7 +59832,7 @@ func rangeBoundsAdjacent(left *checkruntime.RangePayload, right *checkruntime.Ra
 			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: left.UpperInclusive != right.LowerInclusive}
 		}
 		if order < 0 && left.Support.Canonical == 0 {
-			return checkruntime.BoolUnresolved(unresolvedFlavor)
+			return checkruntime.BoolUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		if order < 0 && (left.Support.Canonical == 2 || left.Support.Canonical == 3 || left.Support.Canonical == 7) {
 			flags := langruntime.NewTextBuffer("")
@@ -60240,6 +60646,9 @@ func rangeBuiltinCompare(lower checkruntime.ArrayElement, upper checkruntime.Arr
 	if kind == 47 {
 		return TsvectorOrder(checkruntime.ArrayElementToTsvector(lower), checkruntime.ArrayElementToTsvector(upper))
 	}
+	if checkruntime.RangeComparisonUnavailable(kind) {
+		return checkruntime.Int4Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
+	}
 	return checkruntime.Int4Unresolved(unresolvedFlavor)
 }
 func rangeProfileSerialize(typeName string, elementType string, kind int, lower checkruntime.ArrayElement, upper checkruntime.ArrayElement, lowerInclusive bool, upperInclusive bool, support checkruntime.RangeSupport, enumLabels string, enumCount int, boundProfile checkruntime.RangeBoundContext) checkruntime.RangeValue {
@@ -60313,7 +60722,7 @@ func rangeBuiltinCanonical(input checkruntime.RangeValue) checkruntime.RangeValu
 			return checkruntime.RangeValue{Kind: checkruntime.RangeValueValue, Value: value}
 		}
 		if value.Support.Canonical == 0 {
-			return checkruntime.RangeUnresolved(unresolvedFlavor)
+			return checkruntime.RangeUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		if value.Support.Canonical == 1 {
 			return checkruntime.RangeValue{Kind: checkruntime.RangeValueValue, Value: value}
@@ -60907,7 +61316,7 @@ func rangeInputBound(input checkruntime.TextValue, kind int, cidr bool, name boo
 	if kind == 6 {
 		if input.Kind == checkruntime.TextValueValue {
 			if enumCount < 0 {
-				return checkruntime.ArrayElementUnresolved(unresolvedFlavor)
+				return checkruntime.ArrayElementUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 			}
 		}
 		return checkruntime.ArrayElementFromEnum(ScalarEnumFromText(input, enumLabels, enumCount))
@@ -61823,6 +62232,9 @@ func rangeOutputBound(input checkruntime.ArrayElement, kind int, cidr bool, alia
 				return checkruntime.MakeTextValue("infinity")
 			}
 		}
+	}
+	if kind == 4 || kind == 5 || kind == 7 || kind == 15 || kind == 23 || (kind >= 24 && kind <= 31) || kind == 45 || kind == 46 {
+		return checkruntime.TextUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 	}
 	return checkruntime.TextUnresolved(unresolvedFlavor)
 }
@@ -65293,7 +65705,7 @@ func Age0wjc(input checkruntime.TimestampValue) checkruntime.IntervalValue {
 			return intervalInfinity(langruntime.CheckedSignedNegate(1))
 		}
 	}
-	return checkruntime.IntervalUnresolved(unresolvedFlavor)
+	return checkruntime.IntervalUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 }
 func Age62n0(input checkruntime.TimestamptzValue) checkruntime.IntervalValue {
 	unresolvedFlavor := 0
@@ -65319,7 +65731,7 @@ func Age62n0(input checkruntime.TimestamptzValue) checkruntime.IntervalValue {
 			return intervalInfinity(langruntime.CheckedSignedNegate(1))
 		}
 	}
-	return checkruntime.IntervalUnresolved(unresolvedFlavor)
+	return checkruntime.IntervalUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 }
 
 var temporalExtractKeys = []string{"+infinity", "-infinity", "allballs", "dow", "doy", "epoch", "infinity", "isodow", "isoyear", "j", "jd", "julian", "mm", "now", "today", "tomorrow", "yesterday"}
@@ -74385,6 +74797,7 @@ func TidFromText(input checkruntime.TextValue) checkruntime.TidValue {
 				return checkruntime.MakeTidParts(high, low)
 			}
 		}
+		return checkruntime.TidUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 	}
 	return checkruntime.TidUnresolved(unresolvedFlavor)
 }
@@ -76754,7 +77167,7 @@ func timestampFormatField(fields *timestampFormatFields, kind int, spelling stri
 		return checkruntime.MakeTextValue("")
 	}
 	if fields.known == false && (kind < 10 || kind > 17) {
-		return checkruntime.TextUnresolved(unresolvedFlavor)
+		return checkruntime.TextUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 	}
 	calendar := fields.calendar
 	span := checkruntime.IntervalPayload{Months: calendar.month, Days: calendar.day, Time: fields.clock}
@@ -76825,7 +77238,7 @@ func timestampFormatField(fields *timestampFormatFields, kind int, spelling stri
 	}
 	if kind >= 44 && kind <= 47 {
 		if translated && (fields.localeC == false || fields.collationC == false) {
-			return checkruntime.TextUnresolved(unresolvedFlavor)
+			return checkruntime.TextUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		name := langruntime.NewTextBuffer("")
 		if kind == 44 || kind == 45 {
@@ -76930,6 +77343,7 @@ func timestampFormatRender(fields *timestampFormatFields, format string) checkru
 	source := jsonpathTemporalSource{characters: []rune(format)}
 	output := langruntime.NewTextBuffer("")
 	unknown := false
+	unknownFlavor := unresolvedFlavor
 	position := 0
 	for position < len(source.characters) {
 		fill := jsonpathTemplateMatches(&source, position, "FM") || jsonpathTemplateMatches(&source, position, "fm")
@@ -76956,12 +77370,20 @@ func timestampFormatRender(fields *timestampFormatFields, format string) checkru
 				position = langruntime.CheckedAdd(position, 2)
 			}
 			if fields.known && (kind == 46 || kind == 47) && langruntime.CheckedI64Remainder((langruntime.CheckedI64Add(fields.julian, int64(1))), int64(7)) < int64(0) {
-				return checkruntime.TextUnresolved(unresolvedFlavor)
+				return checkruntime.TextUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 			}
 			field := timestampFormatField(fields, kind, name, fill, translated)
 			if field.Kind == checkruntime.TextValueError {
 				error := field.Error
 				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+			}
+			if field.Kind == checkruntime.TextValueUnknown {
+				if unknownFlavor < 1 {
+					unknownFlavor = langruntime.CheckedI32(1)
+				}
+			}
+			if field.Kind == checkruntime.TextValueUnimplemented {
+				unknownFlavor = langruntime.CheckedI32(2)
 			}
 			fieldKnown := false
 			if field.Kind == checkruntime.TextValueValue {
@@ -77004,7 +77426,7 @@ func timestampFormatRender(fields *timestampFormatFields, format string) checkru
 		}
 	}
 	if unknown {
-		return checkruntime.TextUnresolved(unresolvedFlavor)
+		return checkruntime.TextUnresolved(unknownFlavor)
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
 }
@@ -79495,7 +79917,11 @@ func tsqueryReadToken(input *tsqueryText, start int, utf8 bool) tsqueryToken {
 				break
 			}
 			escaped := input.chars[index]
-			if escaped == '\x00' || (utf8 == false && (int(langruntime.CheckedChar(escaped))) > 127) {
+			if escaped == '\x00' {
+				state = langruntime.CheckedI32(4)
+				break
+			}
+			if utf8 == false && (int(langruntime.CheckedChar(escaped))) > 127 {
 				state = langruntime.CheckedI32(2)
 				break
 			}
@@ -79513,7 +79939,11 @@ func tsqueryReadToken(input *tsqueryText, start int, utf8 bool) tsqueryToken {
 		} else if quoted == false && (checkruntime.NumericSpace(value) || tsqueryDelimiter(value) || value == ':') {
 			break
 		} else {
-			if value == '\x00' || (utf8 == false && (int(langruntime.CheckedChar(value))) > 127) {
+			if value == '\x00' {
+				state = langruntime.CheckedI32(4)
+				break
+			}
+			if utf8 == false && (int(langruntime.CheckedChar(value))) > 127 {
 				state = langruntime.CheckedI32(2)
 				break
 			}
@@ -79643,6 +80073,9 @@ func TsqueryFromTextContext(input checkruntime.TextValue, utf8 bool) checkruntim
 					return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueError, Error: checkruntime.MakeSqlError(tsquerySyntaxError)}
 				}
 				if token.state == 2 {
+					return checkruntime.TsqueryUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
+				}
+				if token.state == 4 {
 					return checkruntime.TsqueryUnresolved(unresolvedFlavor)
 				}
 				if token.state == 3 || pool >= 1048575 {
@@ -80957,12 +81390,12 @@ func TsRewrite2hpb(input checkruntime.TsqueryValue, target checkruntime.TsqueryV
 				initial := tsqueryRewriteTree{nodes: nodes, root: 0, known: true}
 				tree := tsqueryRewriteImport(initial, a, true, utf8)
 				if tree.known == false {
-					return checkruntime.TsqueryUnresolved(unresolvedFlavor)
+					return checkruntime.TsqueryUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 				}
 				root := tree.root
 				tree = copytsqueryRewriteTree(tsqueryRewriteImport(tree, b, true, utf8))
 				if tree.known == false {
-					return checkruntime.TsqueryUnresolved(unresolvedFlavor)
+					return checkruntime.TsqueryUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 				}
 				pattern := tree.root
 				subst := 0
@@ -80976,7 +81409,7 @@ func TsRewrite2hpb(input checkruntime.TsqueryValue, target checkruntime.TsqueryV
 				}
 				tree = copytsqueryRewriteTree(tsqueryRewriteVisit(tree, root, pattern, subst, utf8))
 				if tree.known == false {
-					return checkruntime.TsqueryUnresolved(unresolvedFlavor)
+					return checkruntime.TsqueryUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 				}
 				if tree.root == 0 {
 					return checkruntime.MakeTsqueryValue(checkruntime.MakeTsqueryPayload(8))
@@ -81810,7 +82243,7 @@ func tsvectorParseText(input checkruntime.TextValue, utf8 bool, stored bool) che
 					for index < len(chars) && (int(langruntime.CheckedChar(chars[index]))) >= 48 && (int(langruntime.CheckedChar(chars[index]))) <= 57 {
 						digit := langruntime.CheckedSignedSubtract((int(langruntime.CheckedChar(chars[index]))), 48)
 						if position > 214748364 || (position == 214748364 && digit > 7) {
-							return checkruntime.TsvectorUnresolved(unresolvedFlavor)
+							return checkruntime.TsvectorUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 						}
 						position = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(position, 10), digit))
 						index = langruntime.CheckedAdd(index, 1)
@@ -81908,7 +82341,7 @@ func TsvectorFromStoredTextContext(input checkruntime.TextValue, utf8 bool) chec
 	value := tsvectorParseText(input, utf8, true)
 	if value.Kind == checkruntime.TsvectorValueValue {
 		payload := checkruntime.CopyTsvectorPayload(value.Value)
-		return checkruntime.MakeTsvectorValue(checkruntime.TsvectorPayload{Lexemes: payload.Lexemes, NativeBytes: langruntime.CheckedSignedNegate(1)})
+		return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueValue, Value: checkruntime.TsvectorPayload{Lexemes: payload.Lexemes, NativeBytes: langruntime.CheckedSignedNegate(2)}}
 	}
 	if value.Kind == checkruntime.TsvectorValueError {
 		return checkruntime.TsvectorUnresolved(unresolvedFlavor)
@@ -83157,8 +83590,11 @@ func tsvectorCompare(left checkruntime.TsvectorValue, right checkruntime.Tsvecto
 		a := checkruntime.CopyTsvectorPayload(left.Value)
 		if right.Kind == checkruntime.TsvectorValueValue {
 			b := checkruntime.CopyTsvectorPayload(right.Value)
-			if a.NativeBytes < 0 || b.NativeBytes < 0 {
+			if a.NativeBytes == langruntime.CheckedSignedNegate(1) || b.NativeBytes == langruntime.CheckedSignedNegate(1) {
 				return checkruntime.Int4Unresolved(unresolvedFlavor)
+			}
+			if a.NativeBytes < 0 || b.NativeBytes < 0 {
+				return checkruntime.Int4Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 			}
 			if a.NativeBytes < b.NativeBytes {
 				return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
@@ -84067,7 +84503,7 @@ func Xid8FromText(input checkruntime.TextValue) checkruntime.Xid8Value {
 				radix = int64(16)
 				start = langruntime.CheckedAdd(start, 2)
 			} else if chars[langruntime.CheckedAdd(start, 1)] == 'b' || chars[langruntime.CheckedAdd(start, 1)] == 'B' {
-				return checkruntime.Xid8Unresolved(unresolvedFlavor)
+				return checkruntime.Xid8Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 			} else {
 				radix = int64(8)
 			}
@@ -84094,7 +84530,7 @@ func Xid8FromText(input checkruntime.TextValue) checkruntime.Xid8Value {
 		}
 		if digits == false {
 			if radix == int64(16) && start == end {
-				return checkruntime.Xid8Unresolved(unresolvedFlavor)
+				return checkruntime.Xid8Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 			}
 			return checkruntime.Xid8Value{Kind: checkruntime.Xid8ValueError, Error: checkruntime.SqlError{State: oidInputInvalid}}
 		}
@@ -84307,6 +84743,9 @@ func XmlConcatAppend(input checkruntime.XmlConcatState, value checkruntime.XmlVa
 		}
 		body = append(body, declaration.body...)
 		return checkruntime.XmlConcatState{Status: input.Status, HasValue: true, Version: string(version), VersionConsistent: consistent, Standalone: standalone, Body: string(body)}
+	}
+	if value.Kind == checkruntime.XmlValueUnimplemented {
+		return xmlConcatStatus(input, checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnimplemented})
 	}
 	return xmlConcatStatus(input, checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown})
 }
@@ -86103,6 +86542,7 @@ func XmlValueBinary(input checkruntime.ByteaValue, mode int) checkruntime.TextVa
 			}
 			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
 		}
+		return checkruntime.TextUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 	}
 	return checkruntime.TextUnresolved(unresolvedFlavor)
 }
@@ -86787,7 +87227,7 @@ func XmlIndentUtf8(input checkruntime.XmlValue, document bool, utf8 bool) checkr
 		}
 		tree := xmlTreeParse(value, document, false)
 		if tree.serializationKnown == false {
-			return checkruntime.TextUnresolved(unresolvedFlavor)
+			return checkruntime.TextUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		output := langruntime.NewTextBuffer("")
 		if tree.flags.document && tree.flags.declaration {
@@ -88832,7 +89272,7 @@ func XmlFromTextContext(input checkruntime.TextValue, mode int, utf8 bool) check
 			if xmlWellFormed(value, true) && xmlWellFormed(value, false) {
 				return checkruntime.MakeXmlValue(value)
 			}
-			return checkruntime.XmlUnresolved(unresolvedFlavor)
+			return checkruntime.XmlUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 		}
 		if mode != 1 && mode != 2 {
 			return checkruntime.XmlUnresolved(unresolvedFlavor)
@@ -89378,6 +89818,7 @@ func XmlIsWellFormedWikq(input checkruntime.TextValue, mode int) checkruntime.Bo
 		if document == content {
 			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: document}
 		}
+		return checkruntime.BoolUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 	}
 	return checkruntime.BoolUnresolved(unresolvedFlavor)
 }
@@ -94983,6 +95424,9 @@ func xpathSqlUnknown(state int) XPathSqlResult {
 	state = langruntime.CheckedI32(state)
 	return XPathSqlResult{state: state, present: checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}, output: checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}}
 }
+func xpathSqlUnimplemented() XPathSqlResult {
+	return XPathSqlResult{state: xpathSqlInput, present: checkruntime.BoolValue{Kind: checkruntime.BoolValueUnimplemented}, output: checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnimplemented}}
+}
 func xpathSqlError(error checkruntime.SqlError) XPathSqlResult {
 	return XPathSqlResult{state: xpathResultSqlError, present: checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}, output: checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}}
 }
@@ -95049,6 +95493,15 @@ func XpathSqlExecuteProfile(expression checkruntime.TextValue, input checkruntim
 	if isNull {
 		return XPathSqlResult{state: xpathSqlNull, present: checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}, output: checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}}
 	}
+	if expression.Kind == checkruntime.TextValueUnimplemented {
+		return xpathSqlUnimplemented()
+	}
+	if input.Kind == checkruntime.XmlValueUnimplemented {
+		return xpathSqlUnimplemented()
+	}
+	if mappings.Kind == checkruntime.ArrayValueUnimplemented {
+		return xpathSqlUnimplemented()
+	}
 	pathNullness := checkruntime.TextIsNull(expression)
 	inputNullness := checkruntime.XmlIsNull(input)
 	if pathNullness != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) || inputNullness != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
@@ -95091,13 +95544,13 @@ func XpathSqlExecuteProfile(expression checkruntime.TextValue, input checkruntim
 	if mappings.Kind == checkruntime.ArrayValueValue {
 		mapping := checkruntime.CopyArrayPayload(mappings.Value)
 		if mapping.ElementType != "pg_catalog.text" || mapping.ElementKind != 8 {
-			return xpathSqlUnknown(xpathSqlInput)
+			return xpathSqlUnimplemented()
 		}
 		if len(mapping.Dimensions) != 0 && (len(mapping.Dimensions) != 2 || mapping.Dimensions[1].Length != 2) {
 			return xpathSqlError(checkruntime.MakeSqlError(sqlstateXmlNamespaceArray))
 		}
 		if langruntime.CheckedSignedRemainder((int(int32(len(mapping.Elements)))), 2) != 0 || (len(mapping.Dimensions) == 0 && len(mapping.Elements) != 0) {
-			return xpathSqlUnknown(xpathSqlInput)
+			return xpathSqlUnimplemented()
 		}
 		if knownPath == false {
 			return xpathSqlUnknown(xpathSqlInput)

@@ -411,6 +411,37 @@ fn array_coerced_owned_element(element: ArrayElement) -> ArrayElement {
     element
 }
 
+// Takes plain values because adapters call it before every cell is complete. Public adapters
+// reject what fails this, so only internal payloads reach the same structure checks when an array
+// value is made.
+pub fn array_dimensions_valid(dimensions: Vec<ArrayDimension>, cells: usize) -> bool {
+    if dimensions.len() > 6 {
+        return false;
+    };
+    let mut count: i64 = 0i64;
+    if dimensions.len() > 0 {
+        count = 1i64;
+    };
+    let mut position: usize = 0;
+    while position < dimensions.len() {
+        let dimension = dimensions[position];
+        if dimension.length < 0 {
+            return false;
+        };
+        let length = dimension.length as i64;
+        let end = (dimension.lower as i64) + length;
+        if end > 2147483648i64 || (length > 0i64 && count > 2147483647i64 / length) {
+            return false;
+        };
+        if length == 0i64 && dimension.lower == -2147483647 - 1 {
+            return false;
+        };
+        count = count * length;
+        position += 1;
+    }
+    count == (cells as i32) as i64
+}
+
 pub fn make_array_value(input: ArrayPayload) -> ArrayValue {
     let unresolved_flavor: i32 = 0;
     let mut elements = input.elements;

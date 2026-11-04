@@ -52,7 +52,6 @@ Regenerate the row evidence with `PGSID_PARITY_ORIGINS=<tsv> PGSID_PARITY_DATA_D
 - [ ] XML indent over rendered text (`xml_indent_utf8`), internal char text at or above 128 (`internal_char.rs`), and partial JSONB shapes refused in `jsonb_storage.rs` (`jsonb_partial_shape`, `jsonb_partial_tree`).
 - [ ] Pure callables with no implementation: `to_ascii(text,name)` is the one on ordinary values; the rest of that list (`nameconcatoid`, `btequalimage`, `btvarstrequalimage`, `pg_walfile_name`, `pg_indexam_progress_phasename`, `pg_partition_root`, `postgresql_fdw_validator`) are internal or catalog-bound and may belong under Unknown or out of scope.
 - [ ] Collation conflicts in `regexp_substr(...) = recorded`, which the binder does not model.
-- [ ] A public array whose lower bound plus length passes the integer limit reaches the evaluator and reports Unimplemented, where malformed public input should reject in TypeScript and Go.
 
 Unimplemented that is not work: a forged or impossible value (`make_array_value`, `make_coerced_range_value`, `make_coerced_multirange_value`, `make_composite_value`, a malformed regex character profile) has no PostgreSQL answer to reach. Public inputs reject these already; the variant stays for internal payloads.
 

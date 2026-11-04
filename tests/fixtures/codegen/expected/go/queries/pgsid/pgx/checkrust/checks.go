@@ -34,7 +34,7 @@ func EvaluateCheckPublicDomainDefaultEventIdFromPublicEventIdEventIdCheckH7azw(i
 	scalarResult17 := checkruntime.CheckFromBool(strictCall14)
 	validatedExpression18 := scalarResult17
 	if checkruntime.CaseGuardStops(expressionValidity1) {
-		validatedExpression18 = expressionValidity1
+		validatedExpression18 = checkruntime.ArrayValidityResult(expressionValidity1, validatedExpression18)
 	}
 	return validatedExpression18
 }
@@ -67,7 +67,7 @@ func EvaluateCheckPublicDomainEventIdEventIdCheckHcydw(inputValue checkruntime.I
 	scalarResult17 := checkruntime.CheckFromBool(strictCall14)
 	validatedExpression18 := scalarResult17
 	if checkruntime.CaseGuardStops(expressionValidity1) {
-		validatedExpression18 = expressionValidity1
+		validatedExpression18 = checkruntime.ArrayValidityResult(expressionValidity1, validatedExpression18)
 	}
 	return validatedExpression18
 }

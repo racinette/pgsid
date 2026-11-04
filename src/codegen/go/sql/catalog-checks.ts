@@ -1068,6 +1068,8 @@ func checkRustCompositeArray(input CheckOptional[checkruntime.ArrayValue],plan c
   elements:=make([]checkruntime.ArrayElement,len(p.Elements))
   for i,cell:=range p.Elements{checked,ok:=checkRustCompositeCell(cell,plan,0);if !ok{return checkRustInvalid[checkruntime.ArrayValue]()};elements[i]=checked}
   p.Elements=elements;value.Value=p
+  if !checkruntime.ArrayDimensionsValid(p.Dimensions,len(p.Elements)){return checkRustInvalid[checkruntime.ArrayValue]()}
+  for _,cell:=range p.Elements{if cell.Kind==checkruntime.ArrayElementNull&&p.NullBitmap.Kind==checkruntime.BoolValueValue&&!p.NullBitmap.Value{return checkRustInvalid[checkruntime.ArrayValue]()}}
   return checkruntime.ArrayFromCoercedCompositePlan(value,elementType,plan)
 }
 func checkRustComposite(input CheckOptional[checkruntime.CompositeValue],plan checkruntime.CompositeTypePlan)checkruntime.CompositeValue{
@@ -1093,7 +1095,10 @@ func checkRustCompositeCell(input checkruntime.ArrayElement,plan checkruntime.Co
   if p.ElementType!=node.ElementType||p.ElementKind!=child.Kind||len(p.Dimensions)>6||len(p.Elements)>2147483647{return input,false}
   for _,d:=range p.Dimensions{if d.Lower < -2147483648||d.Lower>2147483647||d.Length < -2147483648||d.Length>2147483647{return input,false}}
   if p.NullBitmap.Kind!=checkruntime.BoolValueUnknown&&p.NullBitmap.Kind!=checkruntime.BoolValueNull&&p.NullBitmap.Kind!=checkruntime.BoolValueError&&p.NullBitmap.Kind!=checkruntime.BoolValueValue{return input,false}
-  elements:=make([]checkruntime.ArrayElement,len(p.Elements));for i,cell:=range p.Elements{value,ok:=checkRustCompositeCell(cell,plan,node.Child);if !ok{return input,false};elements[i]=value};p.Elements=elements;input.Array=p;return input,true
+  elements:=make([]checkruntime.ArrayElement,len(p.Elements));for i,cell:=range p.Elements{value,ok:=checkRustCompositeCell(cell,plan,node.Child);if !ok{return input,false};elements[i]=value};p.Elements=elements
+  if !checkruntime.ArrayDimensionsValid(p.Dimensions,len(p.Elements)){return input,false}
+  for _,cell:=range p.Elements{if cell.Kind==checkruntime.ArrayElementNull&&p.NullBitmap.Kind==checkruntime.BoolValueValue&&!p.NullBitmap.Value{return input,false}}
+  input.Array=p;return input,true
 }
 
 func checkRustProfiledBound(input checkruntime.ArrayElement,profile checkruntime.RangeBoundContext,index int)(checkruntime.ArrayElement,bool) {
@@ -1117,7 +1122,10 @@ func checkRustProfiledBound(input checkruntime.ArrayElement,profile checkruntime
     for _,d:=range p.Dimensions {if d.Lower < -2147483648 || d.Lower>2147483647 || d.Length < -2147483648 || d.Length>2147483647 {return input,false}}
     elements:=make([]checkruntime.ArrayElement,len(p.Elements))
     for i,cell:=range p.Elements {value,ok:=checkRustProfiledBound(cell,profile,node.Child);if !ok {return input,false};elements[i]=value}
-    p.Elements=elements;input.Array=p;return input,true
+    p.Elements=elements
+    if !checkruntime.ArrayDimensionsValid(p.Dimensions,len(p.Elements)) {return input,false}
+    for _,cell:=range p.Elements{if cell.Kind==checkruntime.ArrayElementNull&&p.NullBitmap.Kind==checkruntime.BoolValueValue&&!p.NullBitmap.Value{return input,false}}
+    input.Array=p;return input,true
   }
   if node.Kind==42 {
     if input.Kind!=checkruntime.ArrayElementRange {return input,false}
@@ -1154,7 +1162,8 @@ func checkRustArrayTree(input checkruntime.ArrayValue,depth int,boundProfile che
   if len(input.Value.Dimensions)>6 || len(input.Value.Elements)>2147483647 { return false }
   for _,dimension:=range input.Value.Dimensions { if dimension.Lower < -2147483648 || dimension.Lower > 2147483647 || dimension.Length < -2147483648 || dimension.Length > 2147483647 { return false } }
   for _,cell:=range input.Value.Elements { if !checkRustArrayElement(cell,input.Value.ElementKind,depth,boundProfile,tree...) { return false } }
-  return true
+  for _,cell:=range input.Value.Elements{if cell.Kind==checkruntime.ArrayElementNull&&input.Value.NullBitmap.Kind==checkruntime.BoolValueValue&&!input.Value.NullBitmap.Value{return false}}
+  return checkruntime.ArrayDimensionsValid(input.Value.Dimensions,len(input.Value.Elements))
 }
 func checkRustArrayElement(input checkruntime.ArrayElement,family int,depth int,boundProfile checkruntime.RangeBoundContext,tree ...string) bool {
   if input.Kind==checkruntime.ArrayElementAclitem {p:=input.Aclitem;if p.Grantee<0 || p.Grantee>4294967295 || p.Grantor<0 || p.Grantor>4294967295 || p.Privileges<0 || p.Privileges>4294967295 || p.GrantOptions<0 || p.GrantOptions>4294967295 {return false}}
