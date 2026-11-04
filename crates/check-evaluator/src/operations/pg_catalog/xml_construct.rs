@@ -112,6 +112,7 @@ pub fn xml_concat_append(input: XmlConcatState, value: XmlValue) -> XmlConcatSta
         return XmlConcatState { status: input.status, has_value: true, version: version,
             version_consistent: consistent, standalone: standalone, body: body };
     };
+    if let XmlValue::Unimplemented = value { return xml_concat_status(input,CheckOutcome::Unimplemented); };
     xml_concat_status(input,CheckOutcome::Unknown)
 }
 

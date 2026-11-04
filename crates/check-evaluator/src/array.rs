@@ -58,6 +58,9 @@ pub(crate) fn array_value_validity(input: BoolValue, unknown_valid: bool) -> Che
 }
 
 pub(crate) fn array_validity_finish(left: CheckOutcome, right: CheckOutcome) -> CheckOutcome {
+    if left == CheckOutcome::Unknown && right == CheckOutcome::Unimplemented {
+        return right;
+    };
     if left == CheckOutcome::Unknown || left == CheckOutcome::Unimplemented {
         return left;
     };
@@ -65,6 +68,18 @@ pub(crate) fn array_validity_finish(left: CheckOutcome, right: CheckOutcome) -> 
         return left;
     };
     right
+}
+
+// Stopped validity replaces the result, except that a result the evaluator cannot produce
+// outranks a validity that only waits on a database fact.
+pub(crate) fn array_validity_result(validity: CheckOutcome, result: CheckOutcome) -> CheckOutcome {
+    if validity == CheckOutcome::Unknown && result == CheckOutcome::Unimplemented {
+        return result;
+    };
+    if case_guard_stops(validity) {
+        return validity;
+    };
+    result
 }
 
 pub(crate) fn array_validity_unknown(input: CheckOutcome) -> bool {

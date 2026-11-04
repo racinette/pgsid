@@ -10326,7 +10326,7 @@ export function emitCheckRustEvaluator(
       ...emitted.lines,
       `let mut ${validated}: CheckOutcome = ${emitted.name};`,
       `if case_guard_stops(${validity}) {`,
-      `    ${validated} = ${validity};`,
+      `    ${validated} = array_validity_result(${validity}, ${validated});`,
       '};',
       ...(diagnostics.enabled
         ? [

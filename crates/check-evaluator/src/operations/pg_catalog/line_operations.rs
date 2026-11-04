@@ -285,6 +285,9 @@ fn line_project_point(point: PointValue, line: LineValue) -> LineProjection {
         if point == PointValue::Unimplemented {
             tested_flavor = 2;
         };
+        if line == LineValue::Unimplemented {
+            tested_flavor = 2;
+        };
         return LineProjection {
             point: point_unresolved(tested_flavor),
             distance: float8_unresolved(tested_flavor),

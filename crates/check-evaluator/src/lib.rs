@@ -54,6 +54,20 @@ pub mod checkruntime {
             assert!(constant_finish(first, CheckOutcome::Unknown) == first);
             assert!(constant_finish(first, second) == first);
         }
+
+        #[test]
+        fn an_evaluator_gap_outranks_a_database_fact_when_causes_mix() {
+            let unknown = CheckOutcome::Unknown;
+            let gap = CheckOutcome::Unimplemented;
+            let failed = CheckOutcome::Error(make_sql_error(3452547));
+            assert!(array_validity_finish(unknown, gap) == gap);
+            assert!(array_validity_finish(gap, unknown) == gap);
+            assert!(array_validity_finish(unknown, failed) == unknown);
+            assert!(array_validity_result(unknown, gap) == gap);
+            assert!(array_validity_result(gap, unknown) == gap);
+            assert!(array_validity_result(unknown, CheckOutcome::True) == unknown);
+            assert!(array_validity_result(CheckOutcome::True, gap) == gap);
+        }
     }
 }
 
