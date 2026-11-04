@@ -252,7 +252,8 @@ export function supportsTextCallableCollation(signature: string, collation?: str
     metadata.result === 'pg_catalog.text' &&
     metadata.args[0] === 'pg_catalog.text' &&
     (metadata.args.length === 1 ||
-      (metadata.args.length === 2 && metadata.args[1] === 'pg_catalog.int4'))
+      (metadata.args.length === 2 &&
+        ['pg_catalog.int4', 'pg_catalog.name'].includes(metadata.args[1] ?? '')))
   const byteCodec =
     metadata.kind === 'function' &&
     metadata.schema === 'pg_catalog' &&

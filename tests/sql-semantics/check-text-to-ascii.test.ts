@@ -31,8 +31,9 @@ const functions = builtinCallables().filter(
 const input = (value: string | number | boolean | null): Input =>
   value === null ? { kind: 'Null' } : { kind: 'Value', value }
 const collations = ['"default"', '"C"', 'public.ascii_order', 'public.ascii_insensitive']
+const named = (fn: FunctionMetadata): boolean => fn.args[1] === 'pg_catalog.name'
 const queryFor = (fn: FunctionMetadata): string =>
-  `pg_catalog.${fn.name}(${fn.args.length === 1 ? 'label' : 'label,encoding'})`
+  `pg_catalog.${fn.name}(${fn.args.length === 1 ? 'label' : named(fn) ? 'label,encname' : 'label,encoding'})`
 const expressionsFor = (fn: FunctionMetadata): Record<string, string> => ({
   [fn.rustName]: `CASE WHEN skip THEN true ELSE (${queryFor(fn)}) COLLATE "C" = recorded END`,
   [`octets_${fn.rustName}`]: `CASE WHEN skip THEN true ELSE pg_catalog.octet_length(${queryFor(fn)}) = recorded_octets END`,
@@ -61,6 +62,25 @@ const values = [
   '\u007f\u0080\u07ff\u0800\ud7ff\ue000\uffff\ud800\udc00\udbff\udfff',
   coverage,
 ]
+// Encoding names keep only their alphanumeric characters, so spelling and case vary freely.
+const convertibleNames = ['LATIN1', 'latin-1', 'ISO_8859-1', 'iso8859_15', 'Latin9', 'LATIN2']
+const encodingNames = [
+  ...convertibleNames,
+  'Win-1250',
+  'windows_1250',
+  'UTF8',
+  'sql_ascii',
+  'SJIS',
+  'koi8',
+  'nope',
+  'latin1x',
+  '',
+  ' ',
+  '-',
+  'é',
+]
+// Whether the server's C library counts a non-ASCII byte as alphanumeric decides these.
+const platformNames = ['latin1é', 'ÉUTF8']
 const errors = [
   { kind: 'Error', value: { state: parseInt('22003', 36) } },
   { kind: 'Error', value: { state: parseInt('22012', 36) } },
@@ -68,7 +88,7 @@ const errors = [
 
 describe('Rust CHECK legacy byte-to-ASCII conversion', () => {
   it('accepts byte conversion independently of input collation', () => {
-    expect(functions).toHaveLength(2)
+    expect(functions).toHaveLength(3)
     expect(sourceNames.size).toBe(functions.length)
     for (const fn of functions)
       for (const collation of [undefined, 'C', 'deterministic', 'other'])
@@ -90,7 +110,7 @@ describe('Rust CHECK legacy byte-to-ASCII conversion', () => {
       )
       for (const [index, collation] of collations.entries())
         await pg.exec(`CREATE TABLE ascii_checks_${index} (
-          label text COLLATE ${collation}, encoding int4, recorded text COLLATE "C",
+          label text COLLATE ${collation}, encoding int4, encname name, recorded text COLLATE "C",
           recorded_octets int4, skip boolean,
           ${Object.entries(expressions)
             .map(([name, sql]) => `CONSTRAINT ${name} CHECK (${sql})`)
@@ -126,12 +146,14 @@ describe('Rust CHECK legacy byte-to-ASCII conversion', () => {
           const base = (): Row => ({
             label: input('é😊'),
             encoding: input(8),
+            encname: input('LATIN1'),
             recorded: input(''),
             recorded_octets: input(0),
             skip: input(false),
           })
-          const codes =
-            fn.args.length === 1
+          const codes = named(fn)
+            ? encodingNames
+            : fn.args.length === 1
               ? [8]
               : [
                   -2147483648,
@@ -148,11 +170,15 @@ describe('Rust CHECK legacy byte-to-ASCII conversion', () => {
                 label !== null &&
                 label !== coverage &&
                 label !== '' &&
-                ![8, 9, 16, 29, -1, null].includes(encoding)
+                ![8, 9, 16, 29, -1, null, ...convertibleNames].includes(encoding)
               )
                 continue
-              const row = { ...base(), label: input(label), encoding: input(encoding) }
-              const call = `pg_catalog.${fn.name}($1::text COLLATE ${collation}${fn.args.length === 2 ? ', $2::int4' : ''})`
+              const row = {
+                ...base(),
+                label: input(label),
+                ...(named(fn) ? { encname: input(encoding) } : { encoding: input(encoding) }),
+              }
+              const call = `pg_catalog.${fn.name}($1::text COLLATE ${collation}${fn.args.length === 2 ? (named(fn) ? ', $2::name' : ', $2::int4') : ''})`
               let result: { value: string | null; octets: number | null }
               try {
                 result = (
@@ -191,13 +217,18 @@ describe('Rust CHECK legacy byte-to-ASCII conversion', () => {
             ...errors,
           ] satisfies Input[]
           const encodingStates = [
-            input(8),
-            input(-1),
-            input(0),
+            ...(named(fn)
+              ? [input('LATIN1'), input('nope'), input('UTF8')]
+              : [input(8), input(-1), input(0)]),
             input(null),
             { kind: 'Unknown' },
             ...errors,
           ] satisfies Input[]
+          if (named(fn))
+            for (const encname of platformNames) {
+              add({ ...base(), encname: input(encname) }, { kind: 'Unknown' })
+              add({ ...base(), encname: input(encname), skip: input(true) }, { kind: 'True' })
+            }
           for (const label of textStates)
             for (const encoding of fn.args.length === 2 ? encodingStates : [input(8)]) {
               const operands = fn.args.length === 2 ? [label, encoding] : [label]
@@ -210,11 +241,17 @@ describe('Rust CHECK legacy byte-to-ASCII conversion', () => {
                     operands.some((operand) => operand.kind === 'Null')
                     ? { kind: 'Null' }
                     : { kind: 'Unknown' }
-              add({ ...base(), label, encoding }, expected)
-              add({ ...base(), label, encoding, skip: input(true) }, { kind: 'True' })
+              const operand: Row = { [named(fn) ? 'encname' : 'encoding']: encoding }
+              add({ ...base(), label, ...operand }, expected)
+              add({ ...base(), label, ...operand, skip: input(true) }, { kind: 'True' })
             }
           add(
-            { ...base(), label: errors[0]!, encoding: errors[1]!, skip: input(true) },
+            {
+              ...base(),
+              label: errors[0]!,
+              ...(named(fn) ? { encname: errors[1]! } : { encoding: errors[1]! }),
+              skip: input(true),
+            },
             { kind: 'True' },
           )
           add({ ...base(), skip: { kind: 'Unknown' } }, { kind: 'Unknown' })
