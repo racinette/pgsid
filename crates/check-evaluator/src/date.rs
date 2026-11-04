@@ -829,7 +829,20 @@ pub fn date_from_text_order(value: TextValue, date_order: i32) -> DateValue {
     }
     if let TextValue::Value(text) = value {
         let chars: Vec<char> = text.chars().collect();
+        let buffer = temporal_field_buffer(text.as_str(), 129);
+        if buffer == 1 {
+            return DateValue::Error(SqlError {
+                state: INVALID_DATE_TEXT,
+            });
+        }
         if chars.len() > 128 {
+            if buffer == 0 {
+                let compact = temporal_collapsed_space(text.as_str());
+                let compact_chars: Vec<char> = compact.chars().collect();
+                if compact_chars.len() <= 128 {
+                    return date_from_text_order(TextValue::Value(compact), date_order);
+                };
+            };
             return date_unresolved(unresolved_flavor);
         }
         let mut start = 0;

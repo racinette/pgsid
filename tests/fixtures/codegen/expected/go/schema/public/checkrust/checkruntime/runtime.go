@@ -21333,7 +21333,18 @@ func DateFromTextOrder(value TextValue, dateOrder int) DateValue {
 	if value.Kind == TextValueValue {
 		text := langruntime.CheckedString(value.Value)
 		chars := []rune(text)
+		buffer := temporalFieldBuffer(text, 129)
+		if buffer == 1 {
+			return DateValue{Kind: DateValueError, Error: SqlError{State: invalidDateText}}
+		}
 		if len(chars) > 128 {
+			if buffer == 0 {
+				compact := temporalCollapsedSpace(text)
+				compactChars := []rune(compact)
+				if len(compactChars) <= 128 {
+					return DateFromTextOrder(TextValue{Kind: TextValueValue, Value: compact}, dateOrder)
+				}
+			}
 			return DateUnresolved(unresolvedFlavor)
 		}
 		start := 0
@@ -21753,6 +21764,160 @@ func temporalTextAnyOrder(input string, withTimezone bool, dateOnly bool) Int8Va
 	}
 	return Int8Unresolved(flavor)
 }
+
+var temporalCoreTokens = []string{"ad", "allballs", "am", "apr", "april", "at", "aug", "august", "bc", "d", "dec", "december", "dow", "doy", "dst", "epoch", "feb", "february", "fri", "friday", "h", "infinity", "isodow", "isoyear", "j", "jan", "january", "jd", "jul", "julian", "july", "jun", "june", "m", "mar", "march", "may", "mm", "mon", "monday", "now", "nov", "november", "oct", "october", "on", "pm", "s", "sat", "saturday", "sep", "sept", "september", "sun", "sunday", "t", "thu", "thur", "thurs", "thursday", "today", "tomorrow", "tue", "tues", "tuesday", "wed", "wednesday", "weds", "y", "yesterday"}
+
+func temporalAsciiDigit(value rune) bool {
+	value = langruntime.CheckedChar(value)
+	code := int(langruntime.CheckedChar(value))
+	return code >= 48 && code <= 57
+}
+func temporalAsciiAlnum(value rune) bool {
+	value = langruntime.CheckedChar(value)
+	return temporalAsciiDigit(value) || englishDateLetter(value)
+}
+func temporalFieldBuffer(text string, limit int) int {
+	text = langruntime.CheckedString(text)
+	limit = langruntime.CheckedIndex(limit)
+	chars := []rune(text)
+	length := len(chars)
+	index := 0
+	for index < length {
+		code := int(langruntime.CheckedChar(chars[index]))
+		if code >= 128 {
+			return langruntime.CheckedSignedNegate(1)
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	position := 0
+	fields := 0
+	index = langruntime.CheckedIndex(0)
+	for index < length {
+		character := chars[index]
+		code := int(langruntime.CheckedChar(character))
+		punctuation := (code >= 33 && code <= 47) || (code >= 58 && code <= 64) || (code >= 91 && code <= 96) || (code >= 123 && code <= 126)
+		if dateTextSpace(character) {
+			index = langruntime.CheckedAdd(index, 1)
+		} else if punctuation && character != '+' && character != '-' && character != '.' {
+			index = langruntime.CheckedAdd(index, 1)
+		} else {
+			if fields >= 25 {
+				return 1
+			}
+			end := langruntime.CheckedAdd(index, 1)
+			skipped := 0
+			if temporalAsciiDigit(character) {
+				for end < length && temporalAsciiDigit(chars[end]) {
+					end = langruntime.CheckedAdd(end, 1)
+				}
+				if end < length && chars[end] == ':' {
+					end = langruntime.CheckedAdd(end, 1)
+					for end < length && (temporalAsciiDigit(chars[end]) || chars[end] == ':' || chars[end] == '.') {
+						end = langruntime.CheckedAdd(end, 1)
+					}
+				} else if end < length && (chars[end] == '-' || chars[end] == '/' || chars[end] == '.') {
+					delimiter := chars[end]
+					end = langruntime.CheckedAdd(end, 1)
+					if end < length && temporalAsciiDigit(chars[end]) {
+						for end < length && temporalAsciiDigit(chars[end]) {
+							end = langruntime.CheckedAdd(end, 1)
+						}
+						if end < length && chars[end] == delimiter {
+							end = langruntime.CheckedAdd(end, 1)
+							for end < length && (temporalAsciiDigit(chars[end]) || chars[end] == delimiter) {
+								end = langruntime.CheckedAdd(end, 1)
+							}
+						}
+					} else {
+						for end < length && (temporalAsciiAlnum(chars[end]) || chars[end] == delimiter) {
+							end = langruntime.CheckedAdd(end, 1)
+						}
+					}
+				}
+			} else if character == '.' {
+				for end < length && temporalAsciiDigit(chars[end]) {
+					end = langruntime.CheckedAdd(end, 1)
+				}
+			} else if englishDateLetter(character) {
+				for end < length && englishDateLetter(chars[end]) {
+					end = langruntime.CheckedAdd(end, 1)
+				}
+				joined := false
+				if end < length && (chars[end] == '-' || chars[end] == '/' || chars[end] == '.') {
+					joined = true
+				} else if end < length && (chars[end] == '+' || temporalAsciiDigit(chars[end])) {
+					word := langruntime.NewTextBuffer("")
+					letter := index
+					for letter < end {
+						word = append(word, string(langruntime.CheckedChar(langruntime.AsciiLowercase(chars[letter])))...)
+						letter = langruntime.CheckedAdd(letter, 1)
+					}
+					joined = true
+					token := 0
+					for token < len(temporalCoreTokens) {
+						if temporalCoreTokens[token] == string(word) {
+							joined = false
+						}
+						token = langruntime.CheckedAdd(token, 1)
+					}
+				}
+				if joined {
+					end = langruntime.CheckedAdd(end, 1)
+					for end < length && (temporalAsciiAlnum(chars[end]) || chars[end] == '+' || chars[end] == '-' || chars[end] == '/' || chars[end] == '_' || chars[end] == '.' || chars[end] == ':') {
+						end = langruntime.CheckedAdd(end, 1)
+					}
+				}
+			} else if character == '+' || character == '-' {
+				for end < length && dateTextSpace(chars[end]) {
+					end = langruntime.CheckedAdd(end, 1)
+					skipped = langruntime.CheckedAdd(skipped, 1)
+				}
+				if end < length && temporalAsciiDigit(chars[end]) {
+					end = langruntime.CheckedAdd(end, 1)
+					for end < length && (temporalAsciiDigit(chars[end]) || chars[end] == ':' || chars[end] == '.' || chars[end] == '-') {
+						end = langruntime.CheckedAdd(end, 1)
+					}
+				} else if end < length && englishDateLetter(chars[end]) {
+					for end < length && englishDateLetter(chars[end]) {
+						end = langruntime.CheckedAdd(end, 1)
+					}
+				} else {
+					return 1
+				}
+			} else {
+				return 1
+			}
+			appended := langruntime.CheckedSubtract(langruntime.CheckedSubtract(end, index), skipped)
+			if langruntime.CheckedAdd(position, appended) >= limit {
+				return 1
+			}
+			position = langruntime.CheckedAdd(position, langruntime.CheckedAdd(appended, 1))
+			fields = langruntime.CheckedAdd(fields, 1)
+			index = langruntime.CheckedIndex(end)
+		}
+	}
+	return 0
+}
+func temporalCollapsedSpace(text string) string {
+	text = langruntime.CheckedString(text)
+	chars := []rune(text)
+	output := langruntime.NewTextBuffer("")
+	previous := false
+	index := 0
+	for index < len(chars) {
+		if dateTextSpace(chars[index]) {
+			if previous == false {
+				output = append(output, string(langruntime.CheckedChar(' '))...)
+			}
+			previous = true
+		} else {
+			output = append(output, string(langruntime.CheckedChar(chars[index]))...)
+			previous = false
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return string(output)
+}
 func temporalFirstDateField(chars []rune) []rune {
 	chars = langruntime.CheckedChars(chars)
 	start := 0
@@ -21821,7 +21986,19 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool, dateOr
 	spelled := value
 	if value.Kind == TextValueValue {
 		text := langruntime.CheckedString(value.Value)
-		typed := []rune(text)
+		limit := 153
+		if dateOnly {
+			limit = langruntime.CheckedIndex(129)
+		}
+		buffer := temporalFieldBuffer(text, limit)
+		if buffer == 1 {
+			return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampText}}
+		}
+		compact := langruntime.NewTextBuffer(langruntime.CheckedString(text))
+		if buffer == 0 {
+			compact = langruntime.NewTextBuffer(temporalCollapsedSpace(text))
+		}
+		typed := []rune(string(compact))
 		typedLength := len(typed)
 		fields := temporalFirstDateField(typed)
 		if len(fields) == 0 && typedLength != 0 {
