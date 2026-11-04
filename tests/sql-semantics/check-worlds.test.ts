@@ -102,7 +102,7 @@ const quote = (name: string) => '"' + name.replaceAll('"', '""') + '"'
 type Result = {
   constraint: string
   message?: string
-  result: { certain: boolean; value?: boolean | null; error?: string }
+  result: { certain: boolean; value?: boolean | null; error?: string; unimplemented?: boolean }
 }
 type OracleOutcome = boolean | null | { error: string }
 type Case = {
@@ -331,7 +331,9 @@ const normalized = (results: Result[]): Result[] =>
       ? result.error
         ? { certain: true, error: result.error }
         : { certain: true, value: result.value }
-      : { certain: false },
+      : result.unimplemented
+        ? { certain: false, unimplemented: true }
+        : { certain: false },
   }))
 
 describe('world CHECK INSERT parity', () => {
@@ -360,6 +362,7 @@ describe('world CHECK INSERT parity', () => {
       null: number
       error: number
       unknown: number
+      unimplemented: number
       postgres: { true: number; false: number; null: number; error: number }
     }
   >()
@@ -1859,6 +1862,7 @@ describe('world CHECK INSERT parity', () => {
         null: 0,
         error: 0,
         unknown: 0,
+        unimplemented: 0,
         postgres: { true: 0, false: 0, null: 0, error: 0 },
       }
       counts[
@@ -1870,7 +1874,9 @@ describe('world CHECK INSERT parity', () => {
               : result.value
                 ? 'true'
                 : 'false'
-          : 'unknown'
+          : result.unimplemented
+            ? 'unimplemented'
+            : 'unknown'
       ]++
       coverage.set(identity, counts)
       const expression = checkOracles.expression(identity, 'candidate')
@@ -3410,8 +3416,12 @@ describe('world CHECK INSERT parity', () => {
       corpusConstraints: corpus.length,
       exercisedConstraints: constraints.length,
       definiteConstraints: definiteConstraints.length,
-      alwaysDefiniteInTestedRows: definiteConstraints.filter((item) => item.unknown === 0).length,
-      partiallyDefiniteInTestedRows: definiteConstraints.filter((item) => item.unknown > 0).length,
+      alwaysDefiniteInTestedRows: definiteConstraints.filter(
+        (item) => item.unknown + item.unimplemented === 0,
+      ).length,
+      partiallyDefiniteInTestedRows: definiteConstraints.filter(
+        (item) => item.unknown + item.unimplemented > 0,
+      ).length,
       alwaysUnknownInTestedRows: constraints.length - definiteConstraints.length,
       unexercisedConstraints: unexercised.length,
       constraintsWithTrueAndFalse: constraints.filter((item) => item.true > 0 && item.false > 0)
@@ -3420,7 +3430,8 @@ describe('world CHECK INSERT parity', () => {
       false: constraints.reduce((sum, item) => sum + item.false, 0),
       null: constraints.reduce((sum, item) => sum + item.null, 0),
       error: constraints.reduce((sum, item) => sum + item.error, 0),
-      unknown: unknownComparisons,
+      unknown: constraints.reduce((sum, item) => sum + item.unknown, 0),
+      unimplemented: constraints.reduce((sum, item) => sum + item.unimplemented, 0),
       postgres: {
         true: constraints.reduce((sum, item) => sum + item.postgres.true, 0),
         false: constraints.reduce((sum, item) => sum + item.postgres.false, 0),
@@ -3443,6 +3454,7 @@ describe('world CHECK INSERT parity', () => {
         null: checks.reduce((sum, item) => sum + item.null, 0),
         error: checks.reduce((sum, item) => sum + item.error, 0),
         unknown: checks.reduce((sum, item) => sum + item.unknown, 0),
+        unimplemented: checks.reduce((sum, item) => sum + item.unimplemented, 0),
       }
     })
     if (scoped)
