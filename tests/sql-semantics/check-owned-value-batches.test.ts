@@ -137,7 +137,7 @@ describe('CHECK owned value batches', () => {
     const generated = transpileCheckRust(source)
     expect(generated.typescript).toContain('readonly items: Argument[]')
     expect(generated.typescript).toContain('function copyFlag(')
-    expect(generated.go).toContain('func copyFlag(')
+    expect(generated.go).toContain('func CopyFlag(')
     const context = createContext({ exports: {} })
     runInContext(
       ts.transpileModule(generated.typescript, {

@@ -3071,7 +3071,11 @@ pub fn prepare_array_search(
             flavor: 2,
         };
     };
-    array_comparison_state(-1, make_sql_error(0), 0)
+    let mut deferred_flavor: i32 = 1;
+    if let ArrayValue::Unimplemented = input { deferred_flavor = 2; };
+    if let ArrayElement::Unimplemented = needle { deferred_flavor = 2; };
+    if provided && start == Int4Value::Unimplemented { deferred_flavor = 2; };
+    array_comparison_unresolved(deferred_flavor, 0)
 }
 
 pub fn array_search_initial(input: &ArrayComparisonPayload) -> Int4Value {
@@ -3223,7 +3227,11 @@ pub fn prepare_array_rewrite(
             flavor: 2,
         };
     };
-    array_comparison_state(-1, make_sql_error(0), 0)
+    let mut deferred_flavor: i32 = 1;
+    if let ArrayValue::Unimplemented = input { deferred_flavor = 2; };
+    if let ArrayElement::Unimplemented = needle { deferred_flavor = 2; };
+    if let ArrayElement::Unimplemented = replacement { deferred_flavor = 2; };
+    array_comparison_unresolved(deferred_flavor, 0)
 }
 
 pub fn array_rewrite_needle(input: &ArrayComparisonPayload) -> ArrayElement {

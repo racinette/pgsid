@@ -356,7 +356,7 @@ describe('portable SQL floating-point values', () => {
             : expectedColumn(fn.result)
       if (expected)
         row[expected] = value(
-          fn.result === 'pg_catalog.bytea' || fn.result.endsWith('"numeric"') ? '' : 0,
+          fn.result === 'pg_catalog.bytea' ? '' : fn.result.endsWith('"numeric"') ? '0' : 0,
         )
       add(fn.rustName, { ...row, [args[0]!]: { kind: 'Unknown' } }, { kind: 'Unknown' })
       add(fn.rustName, { ...row, [args[0]!]: error('22012') }, error('22012'))

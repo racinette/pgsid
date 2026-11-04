@@ -116,7 +116,7 @@ it('binds public arrays, metadata and owned composition through Rust, Go and Typ
     expect(group.evaluatorSource).toContain('.clone()')
     expect(catalogScalarType('numeric(12,2)[][]')).toBe('array:pg_catalog."numeric"')
     expect(catalogScalarType('pg_catalog._jsonb')).toBe('array:pg_catalog.jsonb')
-    expect(catalogScalarType('pg_catalog._tsvector')).toBe(null)
+    expect(catalogScalarType('pg_catalog._tsvector')).toBe('array:pg_catalog.tsvector')
     expect(valueRepresentation('pg_catalog._int4').represented).toBe(true)
     writeCheckRustSources(join(root, 'checks.rs'), group.source!)
     const familyChecks = group.checks.slice(7, 47)
@@ -420,13 +420,13 @@ evaluatePublicFamily2Checks(supplied)
         { certain: true, value: true },
       )
     }
-    for (const nullBitmap of [
-      null,
-      false,
-      { kind: 'Null' },
-      { kind: 'Error', value: { state: 1 } },
-      { kind: 'Value', value: 'false' },
-    ]) {
+    for (const nullBitmap of [null, false, { kind: 'Value', value: 'false' }]) {
+      const value = { ...upperBoundary, value: { ...upperBoundary.value, nullBitmap } }
+      expect(() => generated.evaluatePublicFamily2Checks({ value, expected_count: 2 })).toThrow(
+        'CHECK input holds a malformed value',
+      )
+    }
+    for (const nullBitmap of [{ kind: 'Null' }, { kind: 'Error', value: { state: 1 } }]) {
       const value = { ...upperBoundary, value: { ...upperBoundary.value, nullBitmap } }
       expect(
         generated.evaluatePublicFamily2Checks({ value, expected_count: 2 })[0].result.certain,
@@ -517,7 +517,7 @@ evaluatePublicFamily2Checks(supplied)
       generated.evaluatePublicFamily40Checks({ value: storedPathArray, expected_count: 1 })[0]
         .result,
     ).toEqual({ certain: true, value: true })
-    expect(
+    expect(() =>
       generated.evaluatePublicFamily40Checks({
         value: {
           ...storedPathArray,
@@ -527,8 +527,8 @@ evaluatePublicFamily2Checks(supplied)
           },
         },
         expected_count: 1,
-      })[0].result.certain,
-    ).toBe(false)
+      }),
+    ).toThrow('CHECK input holds a malformed value')
     goCases.push(
       `{value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"pg_catalog.jsonpath",ElementKind:40,Dimensions:[]checkruntime.ArrayDimension{{Lower:1,Length:1}},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementJsonpathStoredText,JsonpathStoredText:"$.a"}}}};result:=func() []CheckEvaluation {r, e := EvaluatePublicFamily40Checks(PublicFamily40CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(1))}); if e != nil {panic(e)}; return r}()[0].Result;if !result.Certain || !result.Value.Valid || !result.Value.Value {t.Fatal("stored JSONPath array",result)}}`,
     )
@@ -549,23 +549,28 @@ evaluatePublicFamily2Checks(supplied)
         kind: 'Value',
         value: { elementType: 'pg_catalog.text', elementKind: 8, dimensions: [], elements: [] },
       },
-      {
-        kind: 'Value',
-        value: {
-          elementType: 'pg_catalog.int4',
-          elementKind: 2,
-          dimensions: [{ lower: 2147483647, length: 2 }],
-          elements: [
-            { kind: 'Int4', value: 1 },
-            { kind: 'Int4', value: 2 },
-          ],
-        },
-      },
     ]
-    for (const value of invalid) {
-      const result = generated.evaluatePublicFamily2Checks({ value, expected_count: 1 })
-      expect(result[0].result.certain).toBe(false)
-    }
+    for (const value of invalid)
+      expect(() => generated.evaluatePublicFamily2Checks({ value, expected_count: 1 })).toThrow(
+        'CHECK input holds a malformed value',
+      )
+    expect(
+      generated.evaluatePublicFamily2Checks({
+        value: {
+          kind: 'Value',
+          value: {
+            elementType: 'pg_catalog.int4',
+            elementKind: 2,
+            dimensions: [{ lower: 2147483647, length: 2 }],
+            elements: [
+              { kind: 'Int4', value: 1 },
+              { kind: 'Int4', value: 2 },
+            ],
+          },
+        },
+        expected_count: 1,
+      })[0].result,
+    ).toEqual({ certain: false, unimplemented: true })
     await writeFile(
       join(root, 'go.mod'),
       'module arraysql\n\ngo 1.25\n\nrequire (\n github.com/jackc/pgx/v5 v5.10.0\n github.com/shopspring/decimal v1.4.0\n)\n',
