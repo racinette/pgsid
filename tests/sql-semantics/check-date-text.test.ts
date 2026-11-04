@@ -180,7 +180,6 @@ describe('Rust text-to-date CHECK casts', () => {
       'not a date',
       '2000-01-01 junk',
       'λ',
-      '2'.repeat(129) + '-01-01',
       'epochbc',
       'epochad',
       'infinitybc',
@@ -189,7 +188,6 @@ describe('Rust text-to-date CHECK casts', () => {
       'J+1',
       'J2451545.',
       'J2451545 junk',
-      'J' + '0'.repeat(129),
     ])
       fixtures.push({
         name: 'null_test',
@@ -281,11 +279,9 @@ describe('Rust text-to-date CHECK casts', () => {
       '2000 01 Tue',
       '42949692960101',
       'λ',
-      '2'.repeat(129) + '-01-01',
       'J-1',
       'J+1',
       'J2451545.',
-      'J' + '0'.repeat(129),
     ])
     for (const fixture of fixtures) {
       const raw = fixture.row.raw

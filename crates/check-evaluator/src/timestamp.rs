@@ -285,6 +285,172 @@ fn temporal_text_any_order(input: String, with_timezone: bool, date_only: bool) 
     int8_unresolved(flavor)
 }
 
+// Every word of the server's core date token table; a word in it ends a field before digits.
+const TEMPORAL_CORE_TOKENS: &[&str] = &[
+    "ad", "allballs", "am", "apr", "april", "at", "aug", "august", "bc", "d", "dec", "december",
+    "dow", "doy", "dst", "epoch", "feb", "february", "fri", "friday", "h", "infinity", "isodow",
+    "isoyear", "j", "jan", "january", "jd", "jul", "julian", "july", "jun", "june", "m", "mar",
+    "march", "may", "mm", "mon", "monday", "now", "nov", "november", "oct", "october", "on", "pm",
+    "s", "sat", "saturday", "sep", "sept", "september", "sun", "sunday", "t", "thu", "thur",
+    "thurs", "thursday", "today", "tomorrow", "tue", "tues", "tuesday", "wed", "wednesday", "weds",
+    "y", "yesterday",
+];
+
+fn temporal_ascii_digit(value: char) -> bool {
+    let code = value as i32;
+    code >= 48 && code <= 57
+}
+
+fn temporal_ascii_alnum(value: char) -> bool {
+    temporal_ascii_digit(value) || english_date_letter(value)
+}
+
+// The server's lexer copies each field into a buffer of `limit` bytes, each followed by a
+// terminator, and rejects text whose fields do not fit or that has more than 25 fields. Returns 1
+// when the server rejects the text, 0 when it fits, and -1 for text with non-ASCII characters,
+// which the server classifies through its C library.
+fn temporal_field_buffer(text: &str, limit: usize) -> i32 {
+    let chars: Vec<char> = text.chars().collect();
+    let length = chars.len();
+    let mut index: usize = 0;
+    while index < length {
+        let code = chars[index] as i32;
+        if code >= 128 {
+            return -1;
+        };
+        index += 1;
+    }
+    let mut position: usize = 0;
+    let mut fields: usize = 0;
+    index = 0;
+    while index < length {
+        let character = chars[index];
+        let code = character as i32;
+        let punctuation = (code >= 33 && code <= 47) || (code >= 58 && code <= 64) || (code >= 91 && code <= 96) || (code >= 123 && code <= 126);
+        if date_text_space(character) {
+            index += 1;
+        } else if punctuation && character != '+' && character != '-' && character != '.' {
+            index += 1;
+        } else {
+            if fields >= 25 {
+                return 1;
+            };
+            let mut end = index + 1;
+            let mut skipped: usize = 0;
+            if temporal_ascii_digit(character) {
+                while end < length && temporal_ascii_digit(chars[end]) {
+                    end += 1;
+                }
+                if end < length && chars[end] == ':' {
+                    end += 1;
+                    while end < length && (temporal_ascii_digit(chars[end]) || chars[end] == ':' || chars[end] == '.') {
+                        end += 1;
+                    }
+                } else if end < length && (chars[end] == '-' || chars[end] == '/' || chars[end] == '.') {
+                    let delimiter = chars[end];
+                    end += 1;
+                    if end < length && temporal_ascii_digit(chars[end]) {
+                        while end < length && temporal_ascii_digit(chars[end]) {
+                            end += 1;
+                        }
+                        if end < length && chars[end] == delimiter {
+                            end += 1;
+                            while end < length && (temporal_ascii_digit(chars[end]) || chars[end] == delimiter) {
+                                end += 1;
+                            }
+                        };
+                    } else {
+                        while end < length && (temporal_ascii_alnum(chars[end]) || chars[end] == delimiter) {
+                            end += 1;
+                        }
+                    };
+                };
+            } else if character == '.' {
+                while end < length && temporal_ascii_digit(chars[end]) {
+                    end += 1;
+                }
+            } else if english_date_letter(character) {
+                while end < length && english_date_letter(chars[end]) {
+                    end += 1;
+                }
+                let mut joined = false;
+                if end < length && (chars[end] == '-' || chars[end] == '/' || chars[end] == '.') {
+                    joined = true;
+                } else if end < length && (chars[end] == '+' || temporal_ascii_digit(chars[end])) {
+                    let mut word = String::new();
+                    let mut letter = index;
+                    while letter < end {
+                        word.push(chars[letter].to_ascii_lowercase());
+                        letter += 1;
+                    }
+                    joined = true;
+                    let mut token: usize = 0;
+                    while token < TEMPORAL_CORE_TOKENS.len() {
+                        if TEMPORAL_CORE_TOKENS[token] == word.as_str() {
+                            joined = false;
+                        };
+                        token += 1;
+                    }
+                };
+                if joined {
+                    end += 1;
+                    while end < length && (temporal_ascii_alnum(chars[end]) || chars[end] == '+' || chars[end] == '-' || chars[end] == '/' || chars[end] == '_' || chars[end] == '.' || chars[end] == ':') {
+                        end += 1;
+                    }
+                };
+            } else if character == '+' || character == '-' {
+                while end < length && date_text_space(chars[end]) {
+                    end += 1;
+                    skipped += 1;
+                }
+                if end < length && temporal_ascii_digit(chars[end]) {
+                    end += 1;
+                    while end < length && (temporal_ascii_digit(chars[end]) || chars[end] == ':' || chars[end] == '.' || chars[end] == '-') {
+                        end += 1;
+                    }
+                } else if end < length && english_date_letter(chars[end]) {
+                    while end < length && english_date_letter(chars[end]) {
+                        end += 1;
+                    }
+                } else {
+                    return 1;
+                };
+            } else {
+                return 1;
+            };
+            let appended = end - index - skipped;
+            if position + appended >= limit {
+                return 1;
+            };
+            position += appended + 1;
+            fields += 1;
+            index = end;
+        };
+    }
+    0
+}
+
+// Runs of whitespace separate fields exactly as one space does.
+fn temporal_collapsed_space(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut output = String::new();
+    let mut previous = false;
+    let mut index: usize = 0;
+    while index < chars.len() {
+        if date_text_space(chars[index]) {
+            if previous == false {
+                output.push(' ');
+            };
+            previous = true;
+        } else {
+            output.push(chars[index]);
+            previous = false;
+        };
+        index += 1;
+    }
+    output
+}
+
 // The server reads leading digits joined by a repeated '-' or '/' as one date field, and its date
 // splitter skips runs of separators and one trailing separator but rejects a field ending in two.
 // Collapsing those leaves the grammar below one spelling to read; no characters come back when
@@ -360,7 +526,19 @@ fn parse_temporal_text(
 ) -> Int8Value {
     let mut spelled = value.clone();
     if let TextValue::Value(text) = value {
-        let typed: Vec<char> = text.chars().collect();
+        let mut limit: usize = 153;
+        if date_only {
+            limit = 129;
+        };
+        let buffer = temporal_field_buffer(text.as_str(), limit);
+        if buffer == 1 {
+            return Int8Value::Error(SqlError { state: INVALID_TIMESTAMP_TEXT });
+        }
+        let mut compact = text.clone();
+        if buffer == 0 {
+            compact = temporal_collapsed_space(text.as_str());
+        };
+        let typed: Vec<char> = compact.chars().collect();
         let typed_length = typed.len();
         let fields = temporal_first_date_field(typed);
         if fields.len() == 0 && typed_length != 0 {

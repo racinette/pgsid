@@ -21312,7 +21312,18 @@ export function dateFromTextOrder(value: TextValue, dateOrder: number): DateValu
     if (value.kind === "Value") {
         const text: string = langruntime.checkedString(value.value);
         const chars: string[] = Array.from(text);
+        const buffer: number = temporalFieldBuffer(text, 129);
+        if (buffer === 1) {
+            return { kind: "Error", value: { state: invalidDateText } };
+        }
         if (chars.length > 128) {
+            if (buffer === 0) {
+                const compact: string = temporalCollapsedSpace(text);
+                const compactChars: string[] = Array.from(compact);
+                if (compactChars.length <= 128) {
+                    return dateFromTextOrder({ kind: "Value", value: compact }, dateOrder);
+                }
+            }
             return dateUnresolved(unresolvedFlavor);
         }
         let start: number = 0;
@@ -21740,6 +21751,170 @@ function temporalTextAnyOrder(input: string, withTimezone: boolean, dateOnly: bo
     }
     return int8Unresolved(flavor);
 }
+const temporalCoreTokens: ReadonlyArray<string> = ["ad", "allballs", "am", "apr", "april", "at", "aug", "august", "bc", "d", "dec", "december", "dow", "doy", "dst", "epoch", "feb", "february", "fri", "friday", "h", "infinity", "isodow", "isoyear", "j", "jan", "january", "jd", "jul", "julian", "july", "jun", "june", "m", "mar", "march", "may", "mm", "mon", "monday", "now", "nov", "november", "oct", "october", "on", "pm", "s", "sat", "saturday", "sep", "sept", "september", "sun", "sunday", "t", "thu", "thur", "thurs", "thursday", "today", "tomorrow", "tue", "tues", "tuesday", "wed", "wednesday", "weds", "y", "yesterday"];
+function temporalAsciiDigit(value: string): boolean {
+    value = langruntime.checkedChar(value);
+    const code: number = langruntime.checkedChar(value).codePointAt(0)!;
+    return code >= 48 && code <= 57;
+}
+function temporalAsciiAlnum(value: string): boolean {
+    value = langruntime.checkedChar(value);
+    return temporalAsciiDigit(value) || englishDateLetter(value);
+}
+function temporalFieldBuffer(text: string, limit: number): number {
+    text = langruntime.checkedString(text);
+    limit = langruntime.checkedIndex(limit);
+    const chars: string[] = Array.from(text);
+    const length: number = chars.length;
+    let index: number = 0;
+    while (index < length) {
+        const code: number = langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index))).codePointAt(0)!;
+        if (code >= 128) {
+            return langruntime.checkedSignedNegate(1);
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let position: number = 0;
+    let fields: number = 0;
+    index = langruntime.checkedIndex(0);
+    while (index < length) {
+        const character: string = langruntime.indexChar(chars, langruntime.checkedIndex(index));
+        const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+        const punctuation: boolean = (code >= 33 && code <= 47) || (code >= 58 && code <= 64) || (code >= 91 && code <= 96) || (code >= 123 && code <= 126);
+        if (dateTextSpace(character)) {
+            index = langruntime.checkedAdd(index, 1);
+        }
+        else if (punctuation && !(character === "+") && !(character === "-") && !(character === ".")) {
+            index = langruntime.checkedAdd(index, 1);
+        }
+        else {
+            if (fields >= 25) {
+                return 1;
+            }
+            let end: number = langruntime.checkedAdd(index, 1);
+            let skipped: number = 0;
+            if (temporalAsciiDigit(character)) {
+                while (end < length && temporalAsciiDigit(langruntime.indexChar(chars, langruntime.checkedIndex(end)))) {
+                    end = langruntime.checkedAdd(end, 1);
+                }
+                if (end < length && langruntime.indexChar(chars, langruntime.checkedIndex(end)) === ":") {
+                    end = langruntime.checkedAdd(end, 1);
+                    while (end < length && (temporalAsciiDigit(langruntime.indexChar(chars, langruntime.checkedIndex(end))) || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === ":" || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === ".")) {
+                        end = langruntime.checkedAdd(end, 1);
+                    }
+                }
+                else if (end < length && (langruntime.indexChar(chars, langruntime.checkedIndex(end)) === "-" || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === "/" || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === ".")) {
+                    const delimiter: string = langruntime.indexChar(chars, langruntime.checkedIndex(end));
+                    end = langruntime.checkedAdd(end, 1);
+                    if (end < length && temporalAsciiDigit(langruntime.indexChar(chars, langruntime.checkedIndex(end)))) {
+                        while (end < length && temporalAsciiDigit(langruntime.indexChar(chars, langruntime.checkedIndex(end)))) {
+                            end = langruntime.checkedAdd(end, 1);
+                        }
+                        if (end < length && langruntime.indexChar(chars, langruntime.checkedIndex(end)) === delimiter) {
+                            end = langruntime.checkedAdd(end, 1);
+                            while (end < length && (temporalAsciiDigit(langruntime.indexChar(chars, langruntime.checkedIndex(end))) || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === delimiter)) {
+                                end = langruntime.checkedAdd(end, 1);
+                            }
+                        }
+                    }
+                    else {
+                        while (end < length && (temporalAsciiAlnum(langruntime.indexChar(chars, langruntime.checkedIndex(end))) || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === delimiter)) {
+                            end = langruntime.checkedAdd(end, 1);
+                        }
+                    }
+                }
+            }
+            else if (character === ".") {
+                while (end < length && temporalAsciiDigit(langruntime.indexChar(chars, langruntime.checkedIndex(end)))) {
+                    end = langruntime.checkedAdd(end, 1);
+                }
+            }
+            else if (englishDateLetter(character)) {
+                while (end < length && englishDateLetter(langruntime.indexChar(chars, langruntime.checkedIndex(end)))) {
+                    end = langruntime.checkedAdd(end, 1);
+                }
+                let joined: boolean = false;
+                if (end < length && (langruntime.indexChar(chars, langruntime.checkedIndex(end)) === "-" || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === "/" || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === ".")) {
+                    joined = langruntime.checkedBool(true);
+                }
+                else if (end < length && (langruntime.indexChar(chars, langruntime.checkedIndex(end)) === "+" || temporalAsciiDigit(langruntime.indexChar(chars, langruntime.checkedIndex(end))))) {
+                    let word: string = "";
+                    let letter: number = index;
+                    while (letter < end) {
+                        word = word + langruntime.checkedChar(langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(letter))));
+                        letter = langruntime.checkedAdd(letter, 1);
+                    }
+                    joined = langruntime.checkedBool(true);
+                    let token: number = 0;
+                    while (token < temporalCoreTokens.length) {
+                        if (langruntime.indexStatic(temporalCoreTokens, langruntime.checkedIndex(token)) === word) {
+                            joined = langruntime.checkedBool(false);
+                        }
+                        token = langruntime.checkedAdd(token, 1);
+                    }
+                }
+                if (joined) {
+                    end = langruntime.checkedAdd(end, 1);
+                    while (end < length && (temporalAsciiAlnum(langruntime.indexChar(chars, langruntime.checkedIndex(end))) || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === "+" || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === "-" || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === "/" || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === "_" || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === "." || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === ":")) {
+                        end = langruntime.checkedAdd(end, 1);
+                    }
+                }
+            }
+            else if (character === "+" || character === "-") {
+                while (end < length && dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(end)))) {
+                    end = langruntime.checkedAdd(end, 1);
+                    skipped = langruntime.checkedAdd(skipped, 1);
+                }
+                if (end < length && temporalAsciiDigit(langruntime.indexChar(chars, langruntime.checkedIndex(end)))) {
+                    end = langruntime.checkedAdd(end, 1);
+                    while (end < length && (temporalAsciiDigit(langruntime.indexChar(chars, langruntime.checkedIndex(end))) || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === ":" || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === "." || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === "-")) {
+                        end = langruntime.checkedAdd(end, 1);
+                    }
+                }
+                else if (end < length && englishDateLetter(langruntime.indexChar(chars, langruntime.checkedIndex(end)))) {
+                    while (end < length && englishDateLetter(langruntime.indexChar(chars, langruntime.checkedIndex(end)))) {
+                        end = langruntime.checkedAdd(end, 1);
+                    }
+                }
+                else {
+                    return 1;
+                }
+            }
+            else {
+                return 1;
+            }
+            const appended: number = langruntime.checkedSubtract(langruntime.checkedSubtract(end, index), skipped);
+            if (langruntime.checkedAdd(position, appended) >= limit) {
+                return 1;
+            }
+            position = langruntime.checkedAdd(position, langruntime.checkedAdd(appended, 1));
+            fields = langruntime.checkedAdd(fields, 1);
+            index = langruntime.checkedIndex(end);
+        }
+    }
+    return 0;
+}
+function temporalCollapsedSpace(text: string): string {
+    text = langruntime.checkedString(text);
+    const chars: string[] = Array.from(text);
+    let output: string = "";
+    let previous: boolean = false;
+    let index: number = 0;
+    while (index < chars.length) {
+        if (dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(index)))) {
+            if (previous === false) {
+                output = output + langruntime.checkedChar(" ");
+            }
+            previous = langruntime.checkedBool(true);
+        }
+        else {
+            output = output + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+            previous = langruntime.checkedBool(false);
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return output;
+}
 function temporalFirstDateField(chars: string[]): string[] {
     chars = langruntime.checkedChars(chars);
     let start: number = 0;
@@ -21810,7 +21985,19 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
     let spelled: TextValue = value;
     if (value.kind === "Value") {
         const text: string = langruntime.checkedString(value.value);
-        const typed: string[] = Array.from(text);
+        let limit: number = 153;
+        if (dateOnly) {
+            limit = langruntime.checkedIndex(129);
+        }
+        const buffer: number = temporalFieldBuffer(text, limit);
+        if (buffer === 1) {
+            return { kind: "Error", value: { state: invalidTimestampText } };
+        }
+        let compact: string = langruntime.checkedString(text);
+        if (buffer === 0) {
+            compact = langruntime.checkedString(temporalCollapsedSpace(text));
+        }
+        const typed: string[] = Array.from(compact);
         const typedLength: number = typed.length;
         const fields: string[] = temporalFirstDateField(typed);
         if (fields.length === 0 && !(typedLength === 0)) {

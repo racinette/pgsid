@@ -874,8 +874,25 @@ const separatorRunText = [
 ]
 const separatorRunLocalText = ['2000-01--01 12:00', '2000-01-01- 12:00']
 const separatorRunErrorText = ['2000-01-01--', '2000--', '2000-01-']
+// The lexer copies fields into a fixed buffer and allows 25 fields; whitespace is never copied.
+const fieldBufferText = [
+  '2000-01-01' + ' '.repeat(200),
+  ' '.repeat(200) + '2000-01-01',
+  '2000-01-01' + '\t'.repeat(150) + '12:00',
+]
+const fieldBufferErrorText = [
+  Array.from({ length: 26 }, () => '1').join(' '),
+  '1'.repeat(153),
+  '2000-01-01 12:00:00 ' + '+05'.repeat(50),
+  '2000-01-01\u007f',
+]
 
 export const dateHandledText = [
+  ...fieldBufferText,
+  ...fieldBufferErrorText,
+  '1'.repeat(129),
+  '2'.repeat(129) + '-01-01',
+  'J' + '0'.repeat(129),
   ...separatorRunText,
   ...separatorRunLocalText,
   ...separatorRunErrorText,
@@ -978,6 +995,8 @@ export const dateDeferredText = [
 ]
 
 export const timestampHandledText = [
+  ...fieldBufferText,
+  ...fieldBufferErrorText,
   ...separatorRunText,
   ...separatorRunLocalText,
   ...separatorRunErrorText,
@@ -1122,6 +1141,7 @@ export const timestampDeferredText = [
 ]
 
 export const timestamptzHandledText = [
+  ...fieldBufferErrorText,
   ...separatorRunErrorText,
   ...compactTimestampText,
   ...ordinalErrorText,
