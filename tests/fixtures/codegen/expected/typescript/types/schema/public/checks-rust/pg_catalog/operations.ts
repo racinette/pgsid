@@ -279,6 +279,55 @@ function aclitemReadIdentifier(input: string, start: number, limit: number, utf8
     }
     return { value: output, next: position, state: 1 };
 }
+function aclitemModeBit(character: string): bigint {
+    character = langruntime.checkedChar(character);
+    if (character === "a") {
+        return 1n;
+    }
+    if (character === "r") {
+        return 2n;
+    }
+    if (character === "w") {
+        return 4n;
+    }
+    if (character === "d") {
+        return 8n;
+    }
+    if (character === "D") {
+        return 16n;
+    }
+    if (character === "x") {
+        return 32n;
+    }
+    if (character === "t") {
+        return 64n;
+    }
+    if (character === "X") {
+        return 128n;
+    }
+    if (character === "U") {
+        return 256n;
+    }
+    if (character === "C") {
+        return 512n;
+    }
+    if (character === "T") {
+        return 1024n;
+    }
+    if (character === "c") {
+        return 2048n;
+    }
+    if (character === "s") {
+        return 4096n;
+    }
+    if (character === "A") {
+        return 8192n;
+    }
+    if (character === "m") {
+        return 16384n;
+    }
+    return 0n;
+}
 function aclitemModeCharacter(character: string): boolean {
     character = langruntime.checkedChar(character);
     return character === "a" || character === "r" || character === "w" || character === "d" || character === "D" || character === "x" || character === "t" || character === "X" || character === "U" || character === "C" || character === "T" || character === "c" || character === "s" || character === "A" || character === "m" || character === "*";
@@ -337,6 +386,9 @@ export function aclitemFromTextContext(input: checkruntime.TextValue, limit: num
         }
         position = langruntime.checkedAdd(position, 1);
         let scanning: boolean = true;
+        let read: bigint = 0n;
+        let privileges: bigint = 0n;
+        let grantOptions: bigint = 0n;
         while (position < characters.length && scanning) {
             const character: string = langruntime.indexChar(characters, langruntime.checkedIndex(position));
             const code: number = langruntime.checkedChar(character).codePointAt(0)!;
@@ -344,6 +396,13 @@ export function aclitemFromTextContext(input: checkruntime.TextValue, limit: num
                 if (aclitemModeCharacter(character) === false) {
                     return { kind: "Error", value: checkruntime.makeSqlError(aclitemInvalidText) };
                 }
+                if (character === "*") {
+                    grantOptions = langruntime.checkedI64(integerBitsCombine(grantOptions, read, 1));
+                }
+                else {
+                    read = langruntime.checkedI64(aclitemModeBit(character));
+                }
+                privileges = langruntime.checkedI64(integerBitsCombine(privileges, read, 1));
                 position = langruntime.checkedAdd(position, 1);
             }
             else {
@@ -375,6 +434,7 @@ export function aclitemFromTextContext(input: checkruntime.TextValue, limit: num
         if (position < characters.length) {
             return { kind: "Error", value: checkruntime.makeSqlError(aclitemInvalidText) };
         }
+        return checkruntime.makeAclitemValue(0n, 10n, privileges, grantOptions);
     }
     return checkruntime.aclitemUnresolved(unresolvedFlavor);
 }
@@ -668,7 +728,7 @@ function aclitemRoleMatch(left: checkruntime.AclitemValue, right: checkruntime.A
             return checkruntime.makeBoolValue(l.grantee === r.grantee && l.grantor === r.grantor);
         }
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    return checkruntime.boolUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
 }
 function aclitemCovers(left: checkruntime.AclitemValue, right: checkruntime.AclitemValue): checkruntime.BoolValue {
     let unresolvedFlavor: number = 0;
@@ -782,7 +842,7 @@ function aclitemHashSum(input: checkruntime.AclitemValue): checkruntime.Int8Valu
         const value: checkruntime.AclitemPayload = input.value;
         return { kind: "Value", value: langruntime.checkedI64Remainder((langruntime.checkedI64Add(langruntime.checkedI64Add(value.privileges, value.grantee), value.grantor)), 4294967296n) };
     }
-    return checkruntime.int8Unresolved(unresolvedFlavor);
+    return checkruntime.int8Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
 }
 export function hashAclitem4zd0(input: checkruntime.AclitemValue): checkruntime.Int4Value {
     let unresolvedFlavor: number = 0;
@@ -1227,7 +1287,7 @@ export function arrayBinaryInitial(input: checkruntime.ArrayOutputPayload, suppo
     }
     return checkruntime.byteaUnresolved(checkruntime.arrayOutputFlavor(input.state, unresolvedFlavor));
 }
-export function containerBinaryMissing(input: checkruntime.ArrayElement, absent: boolean): checkruntime.ByteaValue {
+export function containerBinaryMissing(input: checkruntime.ArrayElement, absent: boolean, catalog: boolean): checkruntime.ByteaValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -1260,6 +1320,9 @@ export function containerBinaryMissing(input: checkruntime.ArrayElement, absent:
     }
     if (absent) {
         return { kind: "Error", value: checkruntime.makeSqlError(containerBinaryMissingSendError) };
+    }
+    if (catalog) {
+        return checkruntime.byteaUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
     }
     return checkruntime.byteaUnresolved(unresolvedFlavor);
 }
@@ -1758,7 +1821,15 @@ function floatArrayStateValid(input: checkruntime.ArrayPayload, width: number): 
     if (checkruntime.equalBoolValue(input.nullBitmap, { kind: "Value", value: false })) {
         return { kind: "Value", value: true };
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    const bitmap: checkruntime.BoolValue = input.nullBitmap;
+    let bitmapFlavor: number = unresolvedFlavor;
+    if (bitmap.kind === "Unknown") {
+        bitmapFlavor = langruntime.checkedI32(1);
+    }
+    if (bitmap.kind === "Unimplemented") {
+        bitmapFlavor = langruntime.checkedI32(2);
+    }
+    return checkruntime.boolUnresolved(bitmapFlavor);
 }
 function floatStateField(input: checkruntime.ArrayPayload, index: number): checkruntime.Float8Value {
     index = langruntime.checkedIndex(index);
@@ -2280,7 +2351,16 @@ function floatArrayAccumulate(input: checkruntime.ArrayValue, y: checkruntime.Fl
             return { kind: "Error", value: error };
         }
         if (!(checkruntime.equalBoolValue(validity, { kind: "Value", value: true }))) {
-            return checkruntime.arrayUnresolved(unresolvedFlavor);
+            let validityFlavor: number = unresolvedFlavor;
+            if (validity.kind === "Unknown") {
+                if (validityFlavor < 1) {
+                    validityFlavor = langruntime.checkedI32(1);
+                }
+            }
+            if (validity.kind === "Unimplemented") {
+                validityFlavor = langruntime.checkedI32(2);
+            }
+            return checkruntime.arrayUnresolved(validityFlavor);
         }
         const oldN: checkruntime.Float8Value = floatStateField(value, 0);
         const positive: checkruntime.CheckOutcome = floatTransitionTest(oldN, 0);
@@ -2641,7 +2721,24 @@ function floatArrayCombine(left: checkruntime.ArrayValue, right: checkruntime.Ar
                 return { kind: "Error", value: error };
             }
             if (!(checkruntime.equalBoolValue(firstValid, { kind: "Value", value: true })) || !(checkruntime.equalBoolValue(secondValid, { kind: "Value", value: true }))) {
-                return checkruntime.arrayUnresolved(unresolvedFlavor);
+                let validityFlavor: number = unresolvedFlavor;
+                if (firstValid.kind === "Unknown") {
+                    if (validityFlavor < 1) {
+                        validityFlavor = langruntime.checkedI32(1);
+                    }
+                }
+                if (secondValid.kind === "Unknown") {
+                    if (validityFlavor < 1) {
+                        validityFlavor = langruntime.checkedI32(1);
+                    }
+                }
+                if (firstValid.kind === "Unimplemented") {
+                    validityFlavor = langruntime.checkedI32(2);
+                }
+                if (secondValid.kind === "Unimplemented") {
+                    validityFlavor = langruntime.checkedI32(2);
+                }
+                return checkruntime.arrayUnresolved(validityFlavor);
             }
             const n1: checkruntime.Float8Value = floatStateField(first, 0);
             const n2: checkruntime.Float8Value = floatStateField(second, 0);
@@ -3277,7 +3374,14 @@ function integerArrayStateValid(input: checkruntime.ArrayPayload): checkruntime.
     if (checkruntime.equalBoolValue(input.nullBitmap, { kind: "Value", value: false })) {
         return { kind: "Value", value: true };
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    let bitmapFlavor: number = unresolvedFlavor;
+    if (checkruntime.equalBoolValue(input.nullBitmap, { kind: "Unknown" }) && bitmapFlavor < 1) {
+        bitmapFlavor = langruntime.checkedI32(1);
+    }
+    if (checkruntime.equalBoolValue(input.nullBitmap, { kind: "Unimplemented" })) {
+        bitmapFlavor = langruntime.checkedI32(2);
+    }
+    return checkruntime.boolUnresolved(bitmapFlavor);
 }
 function integerStateAdjust(input: checkruntime.Int8Value, delta: bigint): checkruntime.Int8Value {
     delta = langruntime.checkedI64(delta);
@@ -3399,7 +3503,14 @@ function integerStateSum(input: checkruntime.ArrayValue): checkruntime.Int8Value
             return { kind: "Error", value: error };
         }
         if (!(checkruntime.equalBoolValue(validity, { kind: "Value", value: true }))) {
-            return checkruntime.int8Unresolved(unresolvedFlavor);
+            let validityFlavor: number = unresolvedFlavor;
+            if (checkruntime.equalBoolValue(validity, { kind: "Unknown" }) && validityFlavor < 1) {
+                validityFlavor = langruntime.checkedI32(1);
+            }
+            if (checkruntime.equalBoolValue(validity, { kind: "Unimplemented" })) {
+                validityFlavor = langruntime.checkedI32(2);
+            }
+            return checkruntime.int8Unresolved(validityFlavor);
         }
         const count: checkruntime.Int8Value = checkruntime.arrayElementToInt8(checkruntime.copyArrayElement(langruntime.indexStruct(value.elements, langruntime.checkedIndex(0), checkruntime.copyArrayElement)));
         if (checkruntime.equalInt8Value(count, { kind: "Value", value: 0n })) {
@@ -3410,6 +3521,14 @@ function integerStateSum(input: checkruntime.ArrayValue): checkruntime.Int8Value
                 return checkruntime.arrayElementToInt8(checkruntime.copyArrayElement(langruntime.indexStruct(value.elements, langruntime.checkedIndex(1), checkruntime.copyArrayElement)));
             }
         }
+        let countFlavor: number = unresolvedFlavor;
+        if (checkruntime.equalInt8Value(count, { kind: "Unknown" }) && countFlavor < 1) {
+            countFlavor = langruntime.checkedI32(1);
+        }
+        if (checkruntime.equalInt8Value(count, { kind: "Unimplemented" })) {
+            countFlavor = langruntime.checkedI32(2);
+        }
+        return checkruntime.int8Unresolved(countFlavor);
     }
     return checkruntime.int8Unresolved(unresolvedFlavor);
 }
@@ -3692,7 +3811,7 @@ function arrayFloatNumberOutput(number: number, negative: boolean): checkruntime
             return { kind: "Value", value: output };
         }
     }
-    return checkruntime.textUnresolved(unresolvedFlavor);
+    return checkruntime.textUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
 }
 export function arrayFloat4Output(input: checkruntime.Float4Value): checkruntime.TextValue {
     let unresolvedFlavor: number = 0;
@@ -3753,6 +3872,24 @@ export function arrayFloat8Output(input: checkruntime.Float8Value): checkruntime
     return checkruntime.textUnresolved(unresolvedFlavor);
 }
 export function arrayContextualOutput(input: checkruntime.ArrayElement): checkruntime.TextValue {
+    input = checkruntime.copyArrayElement(input);
+    let unresolvedFlavor: number = 0;
+    if (input.kind === "Unknown") {
+        unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    return checkruntime.textUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
+}
+export function arrayUnsupportedOutput(input: checkruntime.ArrayElement): checkruntime.TextValue {
     input = checkruntime.copyArrayElement(input);
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
@@ -4087,6 +4224,16 @@ export function prepareArraySort(input: checkruntime.ArrayValue, descending: che
     if (checkruntime.equalBoolValue(descending, { kind: "Null" }) || checkruntime.equalBoolValue(nullsFirst, { kind: "Null" })) {
         return arraySortStatus(0, checkruntime.makeSqlError(0));
     }
+    let deferredState: number = langruntime.checkedSignedNegate(3);
+    if (input.kind === "Unimplemented") {
+        deferredState = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+    }
+    if (descending.kind === "Unimplemented") {
+        deferredState = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+    }
+    if (nullsFirst.kind === "Unimplemented") {
+        deferredState = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+    }
     if (input.kind === "Value") {
         const value: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(input.value);
         if (descending.kind === "Value") {
@@ -4112,7 +4259,7 @@ export function prepareArraySort(input: checkruntime.ArrayValue, descending: che
             }
         }
     }
-    return arraySortStatus(langruntime.checkedSignedNegate(1), checkruntime.makeSqlError(0));
+    return arraySortStatus(deferredState, checkruntime.makeSqlError(0));
 }
 export function arraySortContinues(input: checkruntime.ArraySortPayload): boolean {
     return input.state === 1;
@@ -4223,8 +4370,11 @@ export function arraySortStep(input: checkruntime.ArraySortPayload, compared: ch
                 state = langruntime.checkedI32(langruntime.checkedSignedNegate(2));
                 error = failed;
             }
-            if ((checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Unimplemented" })) || checkruntime.equalInt4Value(compared, { kind: "Null" })) {
+            if (checkruntime.equalInt4Value(compared, { kind: "Unknown" })) {
                 state = langruntime.checkedI32(3);
+            }
+            if (checkruntime.equalInt4Value(compared, { kind: "Unimplemented" }) || checkruntime.equalInt4Value(compared, { kind: "Null" })) {
+                state = langruntime.checkedI32(5);
             }
             if (compared.kind === "Value") {
                 const value: number = langruntime.checkedI32(compared.value);
@@ -4605,14 +4755,22 @@ export function finishArraySort(input: checkruntime.ArraySortPayload): checkrunt
     if (input.state === langruntime.checkedSignedNegate(1)) {
         return checkruntime.arrayUnresolved(unresolvedFlavor);
     }
+    if (input.state === langruntime.checkedSignedNegate(3)) {
+        return checkruntime.arrayUnresolved(1);
+    }
     if (input.state === 2) {
         return checkruntime.makeArrayValue({ nullBitmap: input.nullBitmap, elementType: input.elementType, elementKind: input.elementKind, dimensions: input.dimensions, elements: input.elements });
     }
     let elements: checkruntime.ArrayElement[] = [];
-    if (input.state === 3) {
+    if (input.state === 3 || input.state === 5) {
         let position: number = 0;
         while (position < input.elements.length) {
-            langruntime.pushStruct(elements, { kind: "Unknown" }, checkruntime.copyArrayElement);
+            if (input.state === 3) {
+                langruntime.pushStruct(elements, { kind: "Unknown" }, checkruntime.copyArrayElement);
+            }
+            else {
+                langruntime.pushStruct(elements, { kind: "Unimplemented" }, checkruntime.copyArrayElement);
+            }
             position = langruntime.checkedAdd(position, 1);
         }
     }
@@ -4709,7 +4867,7 @@ function arrayStringField(input: string, marker: checkruntime.TextValue, determi
             return checkruntime.arrayElementFromText(checkruntime.makeTextValue(input));
         }
     }
-    return checkruntime.arrayElementUnresolved(unresolvedFlavor);
+    return checkruntime.arrayElementUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
 }
 function arrayStringFinish(input: checkruntime.ArrayArguments, count: number): checkruntime.ArrayValue {
     input = checkruntime.copyArrayArguments(input);
@@ -4805,7 +4963,7 @@ function arrayStringSplit(input: checkruntime.TextValue, delimiter: checkruntime
                 return arrayStringFinish(builder, 1);
             }
             if (deterministic === false) {
-                return checkruntime.arrayUnresolved(unresolvedFlavor);
+                return checkruntime.arrayUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
             }
             let field: string = "";
             while (position < characters.length) {
@@ -14906,11 +15064,11 @@ export function catalogVectorFromText(input: checkruntime.TextValue, oid: boolea
                 radix = langruntime.checkedI64(8n);
                 if (langruntime.checkedAdd(position, 1) < chars.length && (langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "x" || langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "X")) {
                     if (langruntime.checkedAdd(position, 2) === chars.length) {
-                        return checkruntime.arrayUnresolved(unresolvedFlavor);
+                        return checkruntime.arrayUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
                     }
                     const next: string = langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 2)));
                     if (oidInputSpace(next) || next === "+" || next === "-") {
-                        return checkruntime.arrayUnresolved(unresolvedFlavor);
+                        return checkruntime.arrayUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
                     }
                 }
                 if (langruntime.checkedAdd(position, 2) < chars.length) {
@@ -14921,7 +15079,7 @@ export function catalogVectorFromText(input: checkruntime.TextValue, oid: boolea
                         position = langruntime.checkedAdd(position, 2);
                     }
                     if ((next === "b" || next === "B") && (digit === 0n || digit === 1n)) {
-                        return checkruntime.arrayUnresolved(unresolvedFlavor);
+                        return checkruntime.arrayUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
                     }
                 }
             }
@@ -15165,17 +15323,12 @@ export function oidvectortypesW22j(input: checkruntime.ArrayValue): checkruntime
                 const error: checkruntime.SqlError = name.value;
                 return { kind: "Error", value: error };
             }
+            let nameFlavor: number = 2;
+            if (name.kind === "Unknown") {
+                nameFlavor = langruntime.checkedI32(1);
+            }
             if (!(checkruntime.equalTextValue(name, checkruntime.makeTextValue("-")))) {
-                let localFlavor19346: number = unresolvedFlavor;
-                if (status.kind === "Unknown") {
-                    if (localFlavor19346 < 1) {
-                        localFlavor19346 = langruntime.checkedI32(1);
-                    }
-                }
-                if (status.kind === "Unimplemented") {
-                    localFlavor19346 = langruntime.checkedI32(2);
-                }
-                return checkruntime.textUnresolved(localFlavor19346);
+                return checkruntime.textUnresolved(nameFlavor);
             }
             if (index > 0) {
                 output = output + ", ";
@@ -15203,6 +15356,9 @@ function catalogVectorHashBytes(input: checkruntime.ArrayValue): VectorHashBytes
     }
     if (input.kind === "Null") {
         return { bytes: bytes, state: { kind: "Null" } };
+    }
+    if (input.kind === "Unimplemented") {
+        return { bytes: bytes, state: { kind: "Unimplemented" } };
     }
     if (input.kind === "Value") {
         const value: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(input.value);
@@ -17437,6 +17593,14 @@ function clockFieldsNumeric(units: checkruntime.TextValue, input: ClockFieldInpu
         const error: checkruntime.SqlError = intervalValue.value;
         return { kind: "Error", value: error };
     }
+    if (intervalValue.kind === "Unknown") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
+    if (intervalValue.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
     let conditionFlavor2134: number = unresolvedFlavor;
     if (units.kind === "Unknown") {
         if (conditionFlavor2134 < 1) {
@@ -17700,7 +17864,7 @@ export function recordComparisonPair(left: checkruntime.ArrayElement, right: che
         return { kind: "Error", value: checkruntime.makeSqlError(recordComparisonUndefined) };
     }
     if (!(available === 1)) {
-        return checkruntime.int4Unresolved(unresolvedFlavor);
+        return checkruntime.int4Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
     }
     return checkruntime.arrayComparisonPair(left, right, equality);
 }
@@ -21624,7 +21788,7 @@ export function hashfloat8P4el(input: checkruntime.Float8Value, byteOrder: numbe
         const bits: bigint = langruntime.checkedI64(input.value);
         const value: number = checkruntime.float8Number(bits);
         if (!(value === value)) {
-            return checkruntime.int4Unresolved(unresolvedFlavor);
+            return checkruntime.int4Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         if (value === 0.0) {
             return { kind: "Value", value: 0 };
@@ -21691,7 +21855,7 @@ export function hashfloat8extended7sph(input: checkruntime.Float8Value, seed: ch
             const salt: bigint = langruntime.checkedI64(seed.value);
             const value: number = checkruntime.float8Number(bits);
             if (!(value === value)) {
-                return checkruntime.int8Unresolved(unresolvedFlavor);
+                return checkruntime.int8Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
             }
             if (value === 0.0) {
                 return { kind: "Value", value: salt };
@@ -22098,7 +22262,7 @@ function decodeFloatInput(value: string): FloatInputLayout {
     value = langruntime.checkedString(value);
     const chars: string[] = Array.from(value);
     if (chars.length > 1000000) {
-        return floatInputTerminal(4);
+        return floatInputTerminal(6);
     }
     let begin: number = 0;
     let end: number = chars.length;
@@ -22330,6 +22494,9 @@ export function float4FromText(input: checkruntime.TextValue): checkruntime.Floa
         if (layout.kind === 3) {
             return { kind: "UnspecifiedNan" };
         }
+        if (layout.kind === 4) {
+            return checkruntime.float4Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
+        }
         if (layout.kind === 0) {
             return floatInputSingle(layout);
         }
@@ -22370,6 +22537,9 @@ export function float8FromText(input: checkruntime.TextValue): checkruntime.Floa
         }
         if (layout.kind === 3) {
             return { kind: "UnspecifiedNan" };
+        }
+        if (layout.kind === 4) {
+            return checkruntime.float8Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         if (layout.kind === 0) {
             if (layout.zero) {
@@ -23171,7 +23341,7 @@ function floatOutputBits(bits: bigint, single: boolean, negative: boolean, extra
     if (first === text && last === text) {
         return { kind: "Value", value: text };
     }
-    return checkruntime.textUnresolved(unresolvedFlavor);
+    return checkruntime.textUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
 }
 export function float8OutputContext(input: checkruntime.Float8Value, extra: number, known: boolean): checkruntime.TextValue {
     extra = langruntime.checkedI32(extra);
@@ -27145,6 +27315,7 @@ function internalCharHashWord(input: checkruntime.InternalCharValue): checkrunti
         if (octet < 128) {
             return checkruntime.makeInt4Value(octet);
         }
+        return checkruntime.int4Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
     }
     return checkruntime.int4Unresolved(unresolvedFlavor);
 }
@@ -29118,7 +29289,7 @@ function jsonbArrayPathExists(input: checkruntime.JsonbValue, keys: checkruntime
                 position = langruntime.checkedAdd(position, 1);
             }
             if (uncertain) {
-                return checkruntime.boolUnresolved(unresolvedFlavor);
+                return checkruntime.boolUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
             }
             return checkruntime.makeBoolValue(all);
         }
@@ -29209,6 +29380,13 @@ function jsonBuildLayout(input: checkruntime.JsonbArguments, object: boolean, ut
                     const error: checkruntime.SqlError = key.value;
                     return { kind: "Error", value: error };
                 }
+                let keyFlavor: number = unresolvedFlavor;
+                if ((checkruntime.equalTextValue(key, { kind: "Unknown" }) || checkruntime.equalTextValue(key, { kind: "NonNull" })) && keyFlavor < 1) {
+                    keyFlavor = langruntime.checkedI32(1);
+                }
+                if (checkruntime.equalTextValue(key, { kind: "Unimplemented" })) {
+                    keyFlavor = langruntime.checkedI32(2);
+                }
                 let ready: boolean = false;
                 if (key.kind === "Value") {
                     const value: string = langruntime.checkedString(key.value);
@@ -29223,7 +29401,7 @@ function jsonBuildLayout(input: checkruntime.JsonbArguments, object: boolean, ut
                     ready = langruntime.checkedBool(true);
                 }
                 if (ready === false) {
-                    return checkruntime.jsonUnresolved(unresolvedFlavor);
+                    return checkruntime.jsonUnresolved(keyFlavor);
                 }
                 index = langruntime.checkedAdd(index, 1);
             }
@@ -29319,6 +29497,12 @@ export function jsonBuildObjectNqz6(): checkruntime.JsonValue {
 }
 export function prepareJsonRecordPending(input: checkruntime.CompositeValue, pretty: checkruntime.BoolValue): checkruntime.JsonRecordInputPayload {
     let state: number = langruntime.checkedSignedNegate(1);
+    if (input.kind === "Unimplemented") {
+        state = langruntime.checkedI32(langruntime.checkedSignedNegate(3));
+    }
+    if (pretty.kind === "Unimplemented") {
+        state = langruntime.checkedI32(langruntime.checkedSignedNegate(3));
+    }
     let error: checkruntime.SqlError = checkruntime.makeSqlError(0);
     const fields: checkruntime.ArrayElement[] = [];
     const values: checkruntime.JsonbInput[] = [];
@@ -29415,6 +29599,9 @@ function jsonRecordArguments(input: checkruntime.JsonRecordInputPayload): checkr
     }
     if (input.state === 0) {
         return { kind: "Null" };
+    }
+    if (input.state === langruntime.checkedSignedNegate(1)) {
+        return checkruntime.jsonbArgumentsUnresolved(1);
     }
     if (input.values.length > 2147483647 || input.position > 2147483647) {
         return checkruntime.jsonbArgumentsUnresolved(unresolvedFlavor);
@@ -29599,7 +29786,10 @@ export function jsonInputFromNumeric(input: checkruntime.NumericValue): checkrun
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
-    if (checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" })) {
+    if (checkruntime.equalNumericValue(input, { kind: "Unimplemented" })) {
+        return { kind: "Unimplemented" };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" })) {
         return { kind: "ScalarUnknown", value: "1001000" };
     }
     const output: checkruntime.TextValue = arrayNumericOutput(input);
@@ -29686,6 +29876,11 @@ export function jsonArrayInputValue(input: checkruntime.JsonbArrayInputPayload, 
     let unresolvedFlavor: number = 0;
     if (pretty.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.state === langruntime.checkedSignedNegate(3)) {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
     }
     if (pretty.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
@@ -30045,6 +30240,13 @@ function jsonObjectArrayKnown(keys: checkruntime.ArrayPayload, values: checkrunt
         if (checkruntime.equalTextValue(key, { kind: "Null" })) {
             return { kind: "Error", value: checkruntime.makeSqlError(jsonObjectArrayNull) };
         }
+        let keyFlavor: number = unresolvedFlavor;
+        if ((checkruntime.equalTextValue(key, { kind: "Unknown" }) || checkruntime.equalTextValue(key, { kind: "NonNull" })) && keyFlavor < 1) {
+            keyFlavor = langruntime.checkedI32(1);
+        }
+        if (checkruntime.equalTextValue(key, { kind: "Unimplemented" })) {
+            keyFlavor = langruntime.checkedI32(2);
+        }
         let ready: boolean = false;
         if (key.kind === "Value") {
             const text: string = langruntime.checkedString(key.value);
@@ -30057,7 +30259,7 @@ function jsonObjectArrayKnown(keys: checkruntime.ArrayPayload, values: checkrunt
             output = output + " : ";
         }
         if (ready === false) {
-            return checkruntime.jsonUnresolved(unresolvedFlavor);
+            return checkruntime.jsonUnresolved(keyFlavor);
         }
         let value: checkruntime.TextValue = checkruntime.arrayElementToText(checkruntime.copyArrayElement(langruntime.indexStruct(values.elements, langruntime.checkedIndex(index), checkruntime.copyArrayElement)));
         if (paired) {
@@ -30067,6 +30269,13 @@ function jsonObjectArrayKnown(keys: checkruntime.ArrayPayload, values: checkrunt
         if (value.kind === "Error") {
             const error: checkruntime.SqlError = value.value;
             return { kind: "Error", value: error };
+        }
+        let valueFlavor: number = unresolvedFlavor;
+        if ((checkruntime.equalTextValue(value, { kind: "Unknown" }) || checkruntime.equalTextValue(value, { kind: "NonNull" })) && valueFlavor < 1) {
+            valueFlavor = langruntime.checkedI32(1);
+        }
+        if (checkruntime.equalTextValue(value, { kind: "Unimplemented" })) {
+            valueFlavor = langruntime.checkedI32(2);
         }
         ready = langruntime.checkedBool(false);
         if (checkruntime.equalTextValue(value, { kind: "Null" })) {
@@ -30080,7 +30289,7 @@ function jsonObjectArrayKnown(keys: checkruntime.ArrayPayload, values: checkrunt
             ready = langruntime.checkedBool(true);
         }
         if (ready === false) {
-            return checkruntime.jsonUnresolved(unresolvedFlavor);
+            return checkruntime.jsonUnresolved(valueFlavor);
         }
         index = langruntime.checkedAdd(index, 1);
     }
@@ -30518,7 +30727,7 @@ export function jsonPopulateText(input: checkruntime.JsonbInput, quoted: boolean
         }
         return jsonbExtractText(scalar, utf8);
     }
-    return checkruntime.textUnresolved(unresolvedFlavor);
+    return checkruntime.textUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
 }
 export function jsonPopulateJsonb(input: checkruntime.JsonbInput, utf8: boolean): checkruntime.JsonbValue {
     if (input.kind === "Jsonb") {
@@ -31276,7 +31485,7 @@ function jsonbBuildKey(input: checkruntime.JsonbInput): checkruntime.TextValue {
         return { kind: "Error", value: error };
     }
     if (input.kind === "ScalarUnknown") {
-        return checkruntime.textUnresolved(unresolvedFlavor);
+        return checkruntime.textUnresolved(1);
     }
     let conditionFlavor134: number = unresolvedFlavor;
     if (input.kind === "Unknown") {
@@ -31531,6 +31740,12 @@ export function toJsonb9y7o(input: checkruntime.JsonbInput): checkruntime.JsonbV
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
     }
+    if (input.kind === "ScalarUnknown") {
+        unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "JsonNonNull") {
+        unresolvedFlavor = langruntime.checkedI32(1);
+    }
     if (input.kind === "Unimplemented") {
         unresolvedFlavor = langruntime.checkedI32(2);
     }
@@ -31769,7 +31984,7 @@ export function jsonbInputFromTimestamptz(input: checkruntime.TimestamptzValue):
             return { kind: "Text", value: "infinity" };
         }
     }
-    return checkruntime.jsonbInputUnresolved(unresolvedFlavor);
+    return checkruntime.jsonbInputUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
 }
 export function jsonbInputFromJsonContext(input: checkruntime.JsonValue, utf8: boolean): checkruntime.JsonbInput {
     utf8 = langruntime.checkedBool(utf8);
@@ -31916,7 +32131,7 @@ function jsonbFloatInvariant(bits: bigint, single: boolean): checkruntime.JsonbI
             const text: string = langruntime.checkedString(normalized.value);
             ready = langruntime.checkedBool(true);
             if (extra > langruntime.checkedSignedNegate(15) && !(previous === text)) {
-                return checkruntime.jsonbInputUnresolved(unresolvedFlavor);
+                return checkruntime.jsonbInputUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
             }
             previous = langruntime.checkedString(text);
         }
@@ -31974,6 +32189,13 @@ function jsonbGeometryValues(values: JsonbGeometryCoordinate[], opening: string,
     let index: number = 0;
     while (index < values.length) {
         const rendered: checkruntime.TextValue = jsonbGeometryNumber(langruntime.indexStruct(values, langruntime.checkedIndex(index), copyJsonbGeometryCoordinate).bits, extra, known);
+        let renderedFlavor: number = unresolvedFlavor;
+        if ((checkruntime.equalTextValue(rendered, { kind: "Unknown" }) || checkruntime.equalTextValue(rendered, { kind: "NonNull" })) && renderedFlavor < 1) {
+            renderedFlavor = langruntime.checkedI32(1);
+        }
+        if (checkruntime.equalTextValue(rendered, { kind: "Unimplemented" })) {
+            renderedFlavor = langruntime.checkedI32(2);
+        }
         let ready: boolean = false;
         if (rendered.kind === "Value") {
             const text: string = langruntime.checkedString(rendered.value);
@@ -31984,7 +32206,7 @@ function jsonbGeometryValues(values: JsonbGeometryCoordinate[], opening: string,
             output = output + text;
         }
         if (ready === false) {
-            return checkruntime.textUnresolved(unresolvedFlavor);
+            return checkruntime.textUnresolved(renderedFlavor);
         }
         index = langruntime.checkedAdd(index, 1);
     }
@@ -32013,6 +32235,13 @@ function jsonbGeometryPoints(points: checkruntime.PointPayload[], opening: strin
     while (index < points.length) {
         const point: checkruntime.PointPayload = langruntime.indexStruct(points, langruntime.checkedIndex(index), checkruntime.copyPointPayload);
         const rendered: checkruntime.TextValue = jsonbGeometryPair(point.x, point.y, extra, known);
+        let renderedFlavor: number = unresolvedFlavor;
+        if ((checkruntime.equalTextValue(rendered, { kind: "Unknown" }) || checkruntime.equalTextValue(rendered, { kind: "NonNull" })) && renderedFlavor < 1) {
+            renderedFlavor = langruntime.checkedI32(1);
+        }
+        if (checkruntime.equalTextValue(rendered, { kind: "Unimplemented" })) {
+            renderedFlavor = langruntime.checkedI32(2);
+        }
         let ready: boolean = false;
         if (rendered.kind === "Value") {
             const text: string = langruntime.checkedString(rendered.value);
@@ -32023,7 +32252,7 @@ function jsonbGeometryPoints(points: checkruntime.PointPayload[], opening: strin
             output = output + text;
         }
         if (ready === false) {
-            return checkruntime.textUnresolved(unresolvedFlavor);
+            return checkruntime.textUnresolved(renderedFlavor);
         }
         index = langruntime.checkedAdd(index, 1);
     }
@@ -32162,6 +32391,16 @@ export function geometryCircleOutputContext(input: checkruntime.CircleValue, ext
         const value: checkruntime.CirclePayload = input.value;
         const center: checkruntime.TextValue = jsonbGeometryPair(value.x, value.y, extra, known);
         const radius: checkruntime.TextValue = jsonbGeometryNumber(value.radius, extra, known);
+        let renderedFlavor: number = unresolvedFlavor;
+        if ((checkruntime.equalTextValue(center, { kind: "Unknown" }) || checkruntime.equalTextValue(center, { kind: "NonNull" })) && renderedFlavor < 1) {
+            renderedFlavor = langruntime.checkedI32(1);
+        }
+        if ((checkruntime.equalTextValue(radius, { kind: "Unknown" }) || checkruntime.equalTextValue(radius, { kind: "NonNull" })) && renderedFlavor < 1) {
+            renderedFlavor = langruntime.checkedI32(1);
+        }
+        if (checkruntime.equalTextValue(center, { kind: "Unimplemented" }) || checkruntime.equalTextValue(radius, { kind: "Unimplemented" })) {
+            renderedFlavor = langruntime.checkedI32(2);
+        }
         if (center.kind === "Value") {
             const point: string = langruntime.checkedString(center.value);
             if (radius.kind === "Value") {
@@ -32174,6 +32413,7 @@ export function geometryCircleOutputContext(input: checkruntime.CircleValue, ext
                 return { kind: "Value", value: output };
             }
         }
+        return checkruntime.textUnresolved(renderedFlavor);
     }
     return checkruntime.textUnresolved(unresolvedFlavor);
 }
@@ -33018,7 +33258,7 @@ function jsonbExtractText(input: checkruntime.JsonbValue, utf8: boolean): checkr
         if (facts.kind > 0) {
             return { kind: "NonNull" };
         }
-        return checkruntime.textUnresolved(unresolvedFlavor);
+        return checkruntime.textUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
     }
     if (input.kind === "Value") {
         const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(input.value);
@@ -33303,7 +33543,7 @@ export function jsonbArrayLength1gng(input: checkruntime.JsonbValue): checkrunti
         if (checkruntime.jsonbHasShape(facts) && checkruntime.jsonbRootAllows(facts, 5) === false) {
             return { kind: "Error", value: checkruntime.makeSqlError(jsonbExtractParameter) };
         }
-        return checkruntime.int4Unresolved(unresolvedFlavor);
+        return checkruntime.int4Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
     }
     if (input.kind === "Value") {
         const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(input.value);
@@ -33802,6 +34042,7 @@ function jsonbHashContext(input: checkruntime.JsonbValue, seed: checkruntime.Int
             if (byteOrder === 0 && checkruntime.equalInt8Value(little, big)) {
                 return little;
             }
+            return checkruntime.int8Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
     }
     return checkruntime.int8Unresolved(unresolvedFlavor);
@@ -34220,7 +34461,7 @@ function jsonbOrderShapeRoot(a: checkruntime.JsonbPayload, b: checkruntime.Jsonb
 function jsonbOrderPartial(a: checkruntime.JsonbKnowledge, b: checkruntime.JsonbKnowledge): checkruntime.Int4Value {
     a = checkruntime.copyJsonbKnowledge(a);
     b = checkruntime.copyJsonbKnowledge(b);
-    const unresolvedFlavor: number = 0;
+    const unresolvedFlavor: number = 1;
     if (a.kind < 0 || b.kind < 0) {
         return checkruntime.int4Unresolved(unresolvedFlavor);
     }
@@ -34270,7 +34511,7 @@ function jsonbOrderPartial(a: checkruntime.JsonbKnowledge, b: checkruntime.Jsonb
             return checkruntime.makeInt4Value(0);
         }
     }
-    return checkruntime.int4Unresolved(unresolvedFlavor);
+    return checkruntime.int4Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
 }
 export function jsonbCmpN2cx(left: checkruntime.JsonbValue, right: checkruntime.JsonbValue): checkruntime.Int4Value {
     left = checkruntime.copyJsonbValue(left);
@@ -34420,12 +34661,21 @@ function jsonbBulkKeyMatches(input: checkruntime.JsonbPayload, node: checkruntim
         end = langruntime.checkedIndex(node.keyEnd);
     }
     let uncertain: boolean = false;
+    let keyFlavor: number = unresolvedFlavor;
     let index: number = 0;
     while (index < keys.elements.length) {
         const key: checkruntime.TextValue = checkruntime.arrayElementToText(checkruntime.copyArrayElement(langruntime.indexStruct(keys.elements, langruntime.checkedIndex(index), checkruntime.copyArrayElement)));
         if (key.kind === "Error") {
             const error: checkruntime.SqlError = key.value;
             return { kind: "Error", value: error };
+        }
+        if (checkruntime.equalTextValue(key, { kind: "Unknown" }) || checkruntime.equalTextValue(key, { kind: "NonNull" })) {
+            if (keyFlavor < 1) {
+                keyFlavor = langruntime.checkedI32(1);
+            }
+        }
+        if (checkruntime.equalTextValue(key, { kind: "Unimplemented" })) {
+            keyFlavor = langruntime.checkedI32(2);
         }
         if ((checkruntime.equalTextValue(key, { kind: "Unknown" }) || checkruntime.equalTextValue(key, { kind: "Unimplemented" })) || checkruntime.equalTextValue(key, { kind: "NonNull" })) {
             uncertain = langruntime.checkedBool(true);
@@ -34440,7 +34690,7 @@ function jsonbBulkKeyMatches(input: checkruntime.JsonbPayload, node: checkruntim
         index = langruntime.checkedAdd(index, 1);
     }
     if (uncertain) {
-        return checkruntime.boolUnresolved(unresolvedFlavor);
+        return checkruntime.boolUnresolved(keyFlavor);
     }
     return checkruntime.makeBoolValue(false);
 }
@@ -34919,6 +35169,13 @@ function jsonbPathEditKnown(input: checkruntime.JsonbPayload, path: checkruntime
                 return checkruntime.jsonbPartialShape(facts.maximum, facts.kind, length);
             }
         }
+        let keyFlavor: number = unresolvedFlavor;
+        if ((checkruntime.equalTextValue(converted, { kind: "Unknown" }) || checkruntime.equalTextValue(converted, { kind: "NonNull" })) && keyFlavor < 1) {
+            keyFlavor = langruntime.checkedI32(1);
+        }
+        if (checkruntime.equalTextValue(converted, { kind: "Unimplemented" })) {
+            keyFlavor = langruntime.checkedI32(2);
+        }
         let ready: boolean = false;
         if (converted.kind === "Value") {
             const key: string = langruntime.checkedString(converted.value);
@@ -35013,7 +35270,7 @@ function jsonbPathEditKnown(input: checkruntime.JsonbPayload, path: checkruntime
             parent = langruntime.checkedIndex(selected);
         }
         if (ready === false) {
-            return checkruntime.jsonbUnresolved(unresolvedFlavor);
+            return checkruntime.jsonbUnresolved(keyFlavor);
         }
         position = langruntime.checkedAdd(position, 1);
     }
@@ -35627,7 +35884,7 @@ function jsonbRelationPartial(a: checkruntime.JsonbKnowledge, b: checkruntime.Js
     a = checkruntime.copyJsonbKnowledge(a);
     b = checkruntime.copyJsonbKnowledge(b);
     contains = langruntime.checkedBool(contains);
-    const unresolvedFlavor: number = 0;
+    const unresolvedFlavor: number = 1;
     if (a.kind < 0 || b.kind < 0) {
         return checkruntime.boolUnresolved(unresolvedFlavor);
     }
@@ -35660,7 +35917,7 @@ function jsonbRelationPartial(a: checkruntime.JsonbKnowledge, b: checkruntime.Js
             }
         }
     }
-    return checkruntime.boolUnresolved(unresolvedFlavor);
+    return checkruntime.boolUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
 }
 function jsonbShapeKindsMeet(a: checkruntime.JsonbPayload, ai: number, b: checkruntime.JsonbPayload, bi: number): boolean {
     ai = langruntime.checkedIndex(ai);
@@ -35890,7 +36147,7 @@ function jsonbRelationValues(left: checkruntime.JsonbValue, right: checkruntime.
             if (related >= 0) {
                 return checkruntime.makeBoolValue(!((related === 1) === invert));
             }
-            return checkruntime.boolUnresolved(unresolvedFlavor);
+            return checkruntime.boolUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         const a: checkruntime.JsonbKnowledge = jsonbRootFacts(left, false);
         const b: checkruntime.JsonbKnowledge = jsonbRootFacts(right, false);
@@ -38057,7 +38314,7 @@ function jsonpathTemplateReadInteger(source: JsonpathTemporalSource, begin: numb
 function jsonpathTemplateError(error: number, hard: boolean): JsonpathTemporalValue {
     error = langruntime.checkedIndex(error);
     hard = langruntime.checkedBool(hard);
-    return jsonpathTemporalState(0, 0n, 0, error, false, hard);
+    return jsonpathTemporalState(0, 0n, 0, error, false, hard, 0);
 }
 function jsonpathTemplateParse(input: checkruntime.TextValue, template: checkruntime.TextValue): JsonpathTemporalValue {
     const prefixes: number[] = [];
@@ -38067,6 +38324,32 @@ function jsonpathTemplateParsePrefixes(input: checkruntime.TextValue, template: 
     prefixes = langruntime.checkedIndices(prefixes);
     localeC = langruntime.checkedBool(localeC);
     collationC = langruntime.checkedBool(collationC);
+    let inputFlavor: number = 0;
+    if (input.kind === "Unknown") {
+        inputFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        inputFlavor = langruntime.checkedI32(1);
+    }
+    if (template.kind === "Unknown") {
+        if (inputFlavor < 1) {
+            inputFlavor = langruntime.checkedI32(1);
+        }
+    }
+    if (template.kind === "NonNull") {
+        if (inputFlavor < 1) {
+            inputFlavor = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unimplemented") {
+        inputFlavor = langruntime.checkedI32(2);
+    }
+    if (template.kind === "Unimplemented") {
+        inputFlavor = langruntime.checkedI32(2);
+    }
+    if (inputFlavor === 0) {
+        inputFlavor = langruntime.checkedI32(2);
+    }
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return jsonpathTemplateError(error.state, false);
@@ -38076,10 +38359,10 @@ function jsonpathTemplateParsePrefixes(input: checkruntime.TextValue, template: 
         return jsonpathTemplateError(error.state, false);
     }
     if (input.kind === "Null") {
-        return jsonpathTemporalState(langruntime.checkedSignedNegate(1), 0n, 0, 0, false, false);
+        return jsonpathTemporalState(langruntime.checkedSignedNegate(1), 0n, 0, 0, false, false, 0);
     }
     if (template.kind === "Null") {
-        return jsonpathTemporalState(langruntime.checkedSignedNegate(1), 0n, 0, 0, false, false);
+        return jsonpathTemporalState(langruntime.checkedSignedNegate(1), 0n, 0, 0, false, false, 0);
     }
     if (input.kind === "Value") {
         const text: string = langruntime.checkedString(input.value);
@@ -38125,7 +38408,7 @@ function jsonpathTemplateParsePrefixes(input: checkruntime.TextValue, template: 
                         dateMode = langruntime.checkedI32(mode);
                     }
                     if (token.translated && token.kind >= 44 && token.kind <= 47 && (localeC === false || collationC === false)) {
-                        return jsonpathTemporalState(0, 0n, 0, 0, true, false);
+                        return jsonpathTemporalState(0, 0n, 0, 0, true, false, 1);
                     }
                     let variable: boolean = token.fill || token.ordinal || langruntime.checkedAdd(index, 1) === program.tokens.length;
                     if (langruntime.checkedAdd(index, 1) < program.tokens.length && langruntime.indexStruct(program.tokens, langruntime.checkedIndex(langruntime.checkedAdd(index, 1)), copyJsonpathTemplateToken).digit === false) {
@@ -38133,7 +38416,11 @@ function jsonpathTemplateParsePrefixes(input: checkruntime.TextValue, template: 
                     }
                     if (token.kind === 22 && jsonpathTemporalLetter(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)))) {
                         if (prefixes.length === 0 || langruntime.indexNumber(prefixes, langruntime.checkedIndex(position)) > source.characters.length) {
-                            return jsonpathTemporalState(0, 0n, 0, 0, true, false);
+                            let prefixFlavor: number = 1;
+                            if (prefixes.length > 0 && langruntime.indexNumber(prefixes, langruntime.checkedIndex(position)) > langruntime.checkedAdd(source.characters.length, 1)) {
+                                prefixFlavor = langruntime.checkedI32(2);
+                            }
+                            return jsonpathTemporalState(0, 0n, 0, 0, true, false, prefixFlavor);
                         }
                         if (langruntime.indexNumber(prefixes, langruntime.checkedIndex(position)) === 0) {
                             return jsonpathTemplateError(jsonpathTemplateFormat, false);
@@ -38185,7 +38472,7 @@ function jsonpathTemplateParsePrefixes(input: checkruntime.TextValue, template: 
                         if (token.kind === 33) {
                             read = copyJsonpathTemplateRead(jsonpathTemplateReadInteger(source, position, 1, true));
                             if (read.error === jsonpathTemplateRange) {
-                                return jsonpathTemporalState(0, 0n, 0, 0, true, false);
+                                return jsonpathTemporalState(0, 0n, 0, 0, true, false, 1);
                             }
                             if (read.error === 0) {
                                 if (read.end === source.characters.length || !(langruntime.indexChar(source.characters, langruntime.checkedIndex(read.end)) === ",")) {
@@ -38380,7 +38667,7 @@ function jsonpathTemplateParsePrefixes(input: checkruntime.TextValue, template: 
                 }
                 if (date.kind === "Value") {
                     const value: number = langruntime.checkedI32(date.value);
-                    return jsonpathTemporalState(1, BigInt(langruntime.checkedI32(value)), 0, 0, false, false);
+                    return jsonpathTemporalState(1, BigInt(langruntime.checkedI32(value)), 0, 0, false, false, 0);
                 }
             }
             if (program.dated === false) {
@@ -38424,7 +38711,7 @@ function jsonpathTemplateParsePrefixes(input: checkruntime.TextValue, template: 
             return jsonpathTemplateError(jsonpathTemplateRange, false);
         }
     }
-    return jsonpathTemporalState(0, 0n, 0, 0, true, false);
+    return jsonpathTemporalState(0, 0n, 0, 0, true, false, inputFlavor);
 }
 function jsonpathTemplateZoneResult(kind: number, value: bigint, zone: number, abbreviationToken: number, numericZone: boolean): JsonpathTemporalValue {
     kind = langruntime.checkedI32(kind);
@@ -38432,9 +38719,9 @@ function jsonpathTemplateZoneResult(kind: number, value: bigint, zone: number, a
     zone = langruntime.checkedI32(zone);
     abbreviationToken = langruntime.checkedIndex(abbreviationToken);
     numericZone = langruntime.checkedBool(numericZone);
-    const result: JsonpathTemporalValue = copyJsonpathTemporalValue(jsonpathTemporalState(kind, value, zone, 0, false, false));
+    const result: JsonpathTemporalValue = copyJsonpathTemporalValue(jsonpathTemporalState(kind, value, zone, 0, false, false, 0));
     if (abbreviationToken > 0 && numericZone === false) {
-        return { kind: kind, value: value, zone: 0, error: 0, unknown: true, hard: false, abbreviationToken: abbreviationToken };
+        return { kind: kind, value: value, zone: 0, error: 0, unknown: true, hard: false, flavor: 1, abbreviationToken: abbreviationToken };
     }
     return result;
 }
@@ -38448,10 +38735,11 @@ interface JsonpathTemporalValue {
     error: number;
     unknown: boolean;
     hard: boolean;
+    flavor: number;
     abbreviationToken: number;
 }
 function copyJsonpathTemporalValue(value: JsonpathTemporalValue): JsonpathTemporalValue {
-    return { kind: langruntime.checkedI32(value.kind), value: langruntime.checkedI64(value.value), zone: langruntime.checkedI32(value.zone), error: langruntime.checkedIndex(value.error), unknown: langruntime.checkedBool(value.unknown), hard: langruntime.checkedBool(value.hard), abbreviationToken: langruntime.checkedIndex(value.abbreviationToken) };
+    return { kind: langruntime.checkedI32(value.kind), value: langruntime.checkedI64(value.value), zone: langruntime.checkedI32(value.zone), error: langruntime.checkedIndex(value.error), unknown: langruntime.checkedBool(value.unknown), hard: langruntime.checkedBool(value.hard), flavor: langruntime.checkedI32(value.flavor), abbreviationToken: langruntime.checkedIndex(value.abbreviationToken) };
 }
 interface JsonpathTemporalSource {
     characters: string[];
@@ -38468,17 +38756,27 @@ interface JsonpathTemporalRead {
 function copyJsonpathTemporalRead(value: JsonpathTemporalRead): JsonpathTemporalRead {
     return { value: langruntime.checkedI32(value.value), end: langruntime.checkedIndex(value.end), width: langruntime.checkedIndex(value.width), valid: langruntime.checkedBool(value.valid) };
 }
-function jsonpathTemporalState(kind: number, value: bigint, zone: number, error: number, unknown: boolean, hard: boolean): JsonpathTemporalValue {
+function jsonpathTemporalState(kind: number, value: bigint, zone: number, error: number, unknown: boolean, hard: boolean, flavor: number): JsonpathTemporalValue {
     kind = langruntime.checkedI32(kind);
     value = langruntime.checkedI64(value);
     zone = langruntime.checkedI32(zone);
     error = langruntime.checkedIndex(error);
     unknown = langruntime.checkedBool(unknown);
     hard = langruntime.checkedBool(hard);
-    return { kind: kind, value: value, zone: zone, error: error, unknown: unknown, hard: hard, abbreviationToken: 0 };
+    flavor = langruntime.checkedI32(flavor);
+    return { kind: kind, value: value, zone: zone, error: error, unknown: unknown, hard: hard, flavor: flavor, abbreviationToken: 0 };
+}
+function jsonpathTemporalFlavored(input: JsonpathTemporalValue, flavor: number): JsonpathTemporalValue {
+    input = copyJsonpathTemporalValue(input);
+    flavor = langruntime.checkedI32(flavor);
+    let combined: number = input.flavor;
+    if (flavor > combined) {
+        combined = langruntime.checkedI32(flavor);
+    }
+    return { kind: input.kind, value: input.value, zone: input.zone, error: input.error, unknown: input.unknown, hard: input.hard, flavor: combined, abbreviationToken: input.abbreviationToken };
 }
 function jsonpathTemporalInvalid(): JsonpathTemporalValue {
-    return jsonpathTemporalState(0, 0n, 0, jsonpathTemporalArgument, false, false);
+    return jsonpathTemporalState(0, 0n, 0, jsonpathTemporalArgument, false, false, 0);
 }
 function jsonpathTemporalNumber(source: JsonpathTemporalSource, begin: number): JsonpathTemporalRead {
     begin = langruntime.checkedIndex(begin);
@@ -38518,12 +38816,19 @@ function jsonpathTemporalLetter(character: string): boolean {
     return (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
 }
 function jsonpathTemporalDecode(input: checkruntime.TextValue): JsonpathTemporalValue {
+    let inputFlavor: number = 2;
+    if (input.kind === "Unknown") {
+        inputFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        inputFlavor = langruntime.checkedI32(1);
+    }
     if (input.kind === "Null") {
-        return jsonpathTemporalState(langruntime.checkedSignedNegate(1), 0n, 0, 0, false, false);
+        return jsonpathTemporalState(langruntime.checkedSignedNegate(1), 0n, 0, 0, false, false, 0);
     }
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
-        return jsonpathTemporalState(0, 0n, 0, error.state, false, false);
+        return jsonpathTemporalState(0, 0n, 0, error.state, false, false, 0);
     }
     if (input.kind === "Value") {
         const text: string = langruntime.checkedString(input.value);
@@ -38563,7 +38868,7 @@ function jsonpathTemporalDecode(input: checkruntime.TextValue): JsonpathTemporal
                 following = langruntime.checkedAdd(following, 1);
             }
             if (following === length) {
-                return jsonpathTemporalState(1, BigInt(langruntime.checkedI32(day)), 0, 0, false, false);
+                return jsonpathTemporalState(1, BigInt(langruntime.checkedI32(day)), 0, 0, false, false, 0);
             }
             if (!(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === " ") && !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "T")) {
                 return jsonpathTemporalInvalid();
@@ -38627,7 +38932,7 @@ function jsonpathTemporalDecode(input: checkruntime.TextValue): JsonpathTemporal
                 if (hasDate) {
                     partialKind = langruntime.checkedI32(5);
                 }
-                return jsonpathTemporalState(partialKind, 0n, 0, 0, true, false);
+                return jsonpathTemporalState(partialKind, 0n, 0, 0, true, false, 1);
             }
             if (!(character === "+") && !(character === "-") && !(character === " ")) {
                 return jsonpathTemporalInvalid();
@@ -38668,7 +38973,7 @@ function jsonpathTemporalDecode(input: checkruntime.TextValue): JsonpathTemporal
                 if (zoned) {
                     kind = langruntime.checkedI32(5);
                 }
-                return jsonpathTemporalState(kind, value, zone, 0, false, false);
+                return jsonpathTemporalState(kind, value, zone, 0, false, false, 0);
             }
             return jsonpathTemporalInvalid();
         }
@@ -38676,9 +38981,9 @@ function jsonpathTemporalDecode(input: checkruntime.TextValue): JsonpathTemporal
         if (zoned) {
             kind = langruntime.checkedI32(3);
         }
-        return jsonpathTemporalState(kind, time, zone, 0, false, false);
+        return jsonpathTemporalState(kind, time, zone, 0, false, false, 0);
     }
-    return jsonpathTemporalState(0, 0n, 0, 0, true, false);
+    return jsonpathTemporalState(0, 0n, 0, 0, true, false, inputFlavor);
 }
 function jsonpathTemporalConvert(input: checkruntime.TextValue, method: number, precision: number): JsonpathTemporalValue {
     method = langruntime.checkedI32(method);
@@ -38688,9 +38993,9 @@ function jsonpathTemporalConvert(input: checkruntime.TextValue, method: number, 
 function jsonpathTemporalTimezone(useTimezone: boolean): JsonpathTemporalValue {
     useTimezone = langruntime.checkedBool(useTimezone);
     if (useTimezone) {
-        return jsonpathTemporalState(0, 0n, 0, 0, true, false);
+        return jsonpathTemporalState(0, 0n, 0, 0, true, false, 1);
     }
-    return jsonpathTemporalState(0, 0n, 0, jsonpathTemporalFeature, false, true);
+    return jsonpathTemporalState(0, 0n, 0, jsonpathTemporalFeature, false, true, 0);
 }
 function jsonpathTemporalConvertMode(input: checkruntime.TextValue, method: number, precision: number, useTimezone: boolean): JsonpathTemporalValue {
     method = langruntime.checkedI32(method);
@@ -38753,7 +39058,7 @@ function jsonpathTemporalConvertParsed(parsed: JsonpathTemporalValue, method: nu
             return jsonpathTemporalTimezone(useTimezone);
         }
         if (kind === 5) {
-            return jsonpathTemporalState(0, 0n, 0, 0, true, false);
+            return jsonpathTemporalState(0, 0n, 0, 0, true, false, 1);
         }
         kind = langruntime.checkedI32(3);
     }
@@ -38768,7 +39073,7 @@ function jsonpathTemporalConvertParsed(parsed: JsonpathTemporalValue, method: nu
             const timestamp: checkruntime.TimestampValue = timestampSwxj({ kind: "Value", value: Number(BigInt.asIntN(32, langruntime.checkedI64(value))) });
             if (timestamp.kind === "Error") {
                 const error: checkruntime.SqlError = timestamp.value;
-                return jsonpathTemporalState(0, 0n, 0, error.state, false, true);
+                return jsonpathTemporalState(0, 0n, 0, error.state, false, true, 0);
             }
             if (timestamp.kind === "Value") {
                 const number: bigint = langruntime.checkedI64(timestamp.value);
@@ -38792,7 +39097,7 @@ function jsonpathTemporalConvertParsed(parsed: JsonpathTemporalValue, method: nu
             digits = langruntime.checkedI32(6);
         }
         if (digits < 0) {
-            return jsonpathTemporalState(0, 0n, 0, 3452619, false, true);
+            return jsonpathTemporalState(0, 0n, 0, 3452619, false, true, 0);
         }
         if (kind === 2 || kind === 3) {
             const scaled: checkruntime.TimeValue = clockScaleValue({ kind: "Value", value: value }, { kind: "Value", value: digits });
@@ -38809,7 +39114,7 @@ function jsonpathTemporalConvertParsed(parsed: JsonpathTemporalValue, method: nu
             }
         }
     }
-    return jsonpathTemporalState(kind, value, zone, 0, false, false);
+    return jsonpathTemporalState(kind, value, zone, 0, false, false, 0);
 }
 function jsonpathTemporalRender(input: JsonpathTemporalValue): checkruntime.TextValue {
     input = copyJsonpathTemporalValue(input);
@@ -38821,7 +39126,11 @@ function jsonpathTemporalRender(input: JsonpathTemporalValue): checkruntime.Text
         return { kind: "Error", value: checkruntime.makeSqlError(input.error) };
     }
     if (input.unknown) {
-        return checkruntime.textUnresolved(unresolvedFlavor);
+        let inputFlavor: number = unresolvedFlavor;
+        if (input.flavor > inputFlavor) {
+            inputFlavor = langruntime.checkedI32(input.flavor);
+        }
+        return checkruntime.textUnresolved(inputFlavor);
     }
     let output: string = "";
     let bc: boolean = false;
@@ -38913,7 +39222,7 @@ function jsonpathTemporalCompareMode(left: JsonpathTemporalValue, right: Jsonpat
     const rightClock: boolean = right.kind === 2 || right.kind === 3;
     if ((leftCalendar && rightCalendar) || (leftClock && rightClock)) {
         if (useTimezone) {
-            return checkruntime.int4Unresolved(unresolvedFlavor);
+            return checkruntime.int4Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         return { kind: "Error", value: checkruntime.makeSqlError(jsonpathTemporalFeature) };
     }
@@ -40265,6 +40574,9 @@ function lineProjectPoint(point: checkruntime.PointValue, line: checkruntime.Lin
     if ((checkruntime.equalPointValue(point, { kind: "Unknown" }) || checkruntime.equalPointValue(point, { kind: "Unimplemented" })) || (checkruntime.equalLineValue(line, { kind: "Unknown" }) || checkruntime.equalLineValue(line, { kind: "Unimplemented" }))) {
         let testedFlavor: number = 1;
         if (checkruntime.equalPointValue(point, { kind: "Unimplemented" })) {
+            testedFlavor = langruntime.checkedI32(2);
+        }
+        if (checkruntime.equalLineValue(line, { kind: "Unimplemented" })) {
             testedFlavor = langruntime.checkedI32(2);
         }
         return { point: checkruntime.pointUnresolved(testedFlavor), distance: checkruntime.float8Unresolved(testedFlavor) };
@@ -43463,7 +43775,7 @@ export function moneyFromText(input: checkruntime.TextValue): checkruntime.Money
             return checkruntime.makeMoneyValue(0n);
         }
     }
-    return checkruntime.moneyUnresolved(unresolvedFlavor);
+    return checkruntime.moneyUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
 }
 function moneyScaleAvailable(digits: number): boolean {
     digits = langruntime.checkedI32(digits);
@@ -43501,7 +43813,7 @@ export function moneyU7ss(input: checkruntime.Int8Value, digits: number): checkr
             return checkruntime.makeMoneyValue(0n);
         }
         if (moneyScaleAvailable(digits) === false) {
-            return checkruntime.moneyUnresolved(unresolvedFlavor);
+            return checkruntime.moneyUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         const factor: checkruntime.Int8Value = { kind: "Value", value: moneyScaleFactor(digits) };
         return moneyFromUnits(int8mul6t1m(input, factor));
@@ -43542,7 +43854,7 @@ export function moneyZ8lp(input: checkruntime.NumericValue, digits: number): che
             return checkruntime.makeMoneyValue(0n);
         }
         if (moneyScaleAvailable(digits) === false) {
-            return checkruntime.moneyUnresolved(unresolvedFlavor);
+            return checkruntime.moneyUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         const factor: checkruntime.NumericValue = numeric11bc({ kind: "Value", value: moneyScaleFactor(digits) });
         const scaled: checkruntime.NumericValue = numericMulBj4l(amount, factor);
@@ -43569,7 +43881,7 @@ export function numericKhij(input: checkruntime.MoneyValue, digits: number): che
     if (input.kind === "Value") {
         const value: bigint = langruntime.checkedI64(input.value);
         if (moneyScaleAvailable(digits) === false) {
-            return checkruntime.numericUnresolved(unresolvedFlavor);
+            return checkruntime.numericUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         const amount: checkruntime.NumericValue = numeric11bc({ kind: "Value", value: value });
         if (digits === 0) {
@@ -43998,15 +44310,22 @@ export function cashWordsAtzl(input: checkruntime.MoneyValue): checkruntime.Text
     return moneyWords(input);
 }
 export function multirangeBinaryPayload(input: checkruntime.MultirangeValue): checkruntime.MultirangePayload {
+    let elementKind: number = langruntime.checkedSignedNegate(2);
+    if (input.kind === "Unknown") {
+        elementKind = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+    }
     if (input.kind === "Value") {
         const payload: checkruntime.MultirangePayload = checkruntime.copyMultirangePayload(input.value);
         return payload;
     }
     const ranges: checkruntime.RangeValue[] = [];
-    return { typeName: "", rangeType: "", elementType: "", elementKind: 0, support: checkruntime.rangeUnknownSupport(), ranges: ranges };
+    return { typeName: "", rangeType: "", elementType: "", elementKind: elementKind, support: checkruntime.rangeUnknownSupport(), ranges: ranges };
 }
 export function multirangeBinaryCount(input: checkruntime.MultirangePayload): checkruntime.Int4Value {
     const unresolvedFlavor: number = 0;
+    if (input.typeName === "" && input.elementKind === langruntime.checkedSignedNegate(1)) {
+        return checkruntime.int4Unresolved(1);
+    }
     if (input.typeName === "" || input.ranges.length > 2147483647) {
         return checkruntime.int4Unresolved(unresolvedFlavor);
     }
@@ -46436,7 +46755,7 @@ export function rangeMergeF619(input: checkruntime.MultirangeValue): checkruntim
             if (last.kind === "Value") {
                 const b: checkruntime.RangePayload = checkruntime.copyRangePayload(last.value);
                 if (payload.support.canonical === 0) {
-                    return checkruntime.rangeUnresolved(unresolvedFlavor);
+                    return checkruntime.rangeUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
                 }
                 if (payload.support.comparison === 0) {
                     let unbounded: boolean = false;
@@ -46449,7 +46768,7 @@ export function rangeMergeF619(input: checkruntime.MultirangeValue): checkruntim
                         unbounded = langruntime.checkedBool(true);
                     }
                     if (unbounded === false) {
-                        return checkruntime.rangeUnresolved(unresolvedFlavor);
+                        return checkruntime.rangeUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
                     }
                 }
                 return checkruntime.rangeFromTypedBounds(payload.rangeType, payload.elementType, payload.elementKind, false, a.lowerInclusive, b.upperInclusive, checkruntime.copyArrayElement(langruntime.indexStruct(a.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement)), checkruntime.copyArrayElement(langruntime.indexStruct(b.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement)), payload.support, a.enumLabels, a.enumCount, checkruntime.copyRangeBoundContext(a.boundProfile));
@@ -46497,7 +46816,7 @@ export function nameFromTextWithLimit(input: checkruntime.TextValue, limit: chec
         if (limit.kind === "Value") {
             const maximum: number = langruntime.checkedI32(limit.value);
             if (maximum < 0) {
-                return checkruntime.textUnresolved(unresolvedFlavor);
+                return checkruntime.textUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
             }
             let output: string = "";
             let bytes: number = 0;
@@ -49632,7 +49951,7 @@ function numberFormatPrepare(template: string, numericC: boolean, monetaryC: boo
 function numberFormatTemplateState(format: NumberFormat): checkruntime.TextValue {
     const unresolvedFlavor: number = 0;
     if (format.error === 1) {
-        return checkruntime.textUnresolved(unresolvedFlavor);
+        return checkruntime.textUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
     }
     if (!(format.error === 0)) {
         return { kind: "Error", value: checkruntime.makeSqlError(format.error) };
@@ -49719,12 +50038,12 @@ function numberFormatInt8(value: bigint, template: string, numericC: boolean, mo
         }
         else {
             if (format.multi >= 10) {
-                return checkruntime.textUnresolved(unresolvedFlavor);
+                return checkruntime.textUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
             }
             const factor: bigint = numberFormatPower(format.multi);
             const product: bigint = langruntime.checkedI64Multiply(value, factor);
             if (product > 2147483647n || product < -2147483648n) {
-                return checkruntime.textUnresolved(unresolvedFlavor);
+                return checkruntime.textUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
             }
             scaled = langruntime.checkedI64(product);
         }
@@ -50353,7 +50672,7 @@ function numberFormatFloat(bits: bigint, single: boolean, template: string, nume
     let scaled: number = value;
     if (format.multiplied) {
         if (format.multi > 22) {
-            return checkruntime.textUnresolved(unresolvedFlavor);
+            return checkruntime.textUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         let factor: number = 1.0;
         let count: number = 0;
@@ -54919,8 +55238,84 @@ export function oidAliasFromText(input: checkruntime.TextValue, dash: boolean, g
             }
             return { kind: "Error", value: checkruntime.makeSqlError(oidAliasInvalidName) };
         }
+        if (oidAliasGrammarRead(text, grammar) === false) {
+            return checkruntime.oidUnresolved(unresolvedFlavor);
+        }
     }
-    return checkruntime.oidUnresolved(unresolvedFlavor);
+    return checkruntime.oidUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
+}
+function oidAliasGrammarRead(text: string, grammar: number): boolean {
+    text = langruntime.checkedString(text);
+    grammar = langruntime.checkedI32(grammar);
+    const chars: string[] = Array.from(text);
+    let quoted: boolean = false;
+    let parts: number = 1;
+    let partLength: number = 0;
+    let emptyPart: boolean = false;
+    let depth: number = 0;
+    let brackets: number = 0;
+    let balanced: boolean = true;
+    let first: string = " ";
+    let index: number = 0;
+    while (index < chars.length) {
+        const ch: string = langruntime.indexChar(chars, langruntime.checkedIndex(index));
+        if (first === " " && oidInputSpace(ch) === false) {
+            first = langruntime.checkedChar(ch);
+        }
+        let consumed: boolean = false;
+        if (ch === "\"") {
+            quoted = langruntime.checkedBool(quoted === false);
+            partLength = langruntime.checkedI32(langruntime.checkedSignedAdd(partLength, 1));
+            consumed = langruntime.checkedBool(true);
+        }
+        if (consumed === false && quoted) {
+            partLength = langruntime.checkedI32(langruntime.checkedSignedAdd(partLength, 1));
+            consumed = langruntime.checkedBool(true);
+        }
+        if (consumed === false && ch === "." && depth === 0) {
+            if (partLength === 0) {
+                emptyPart = langruntime.checkedBool(true);
+            }
+            parts = langruntime.checkedI32(langruntime.checkedSignedAdd(parts, 1));
+            partLength = langruntime.checkedI32(0);
+            consumed = langruntime.checkedBool(true);
+        }
+        if (consumed === false) {
+            if (ch === "(") {
+                depth = langruntime.checkedI32(langruntime.checkedSignedAdd(depth, 1));
+            }
+            if (ch === ")") {
+                depth = langruntime.checkedI32(langruntime.checkedSignedSubtract(depth, 1));
+            }
+            if (ch === "[") {
+                brackets = langruntime.checkedI32(langruntime.checkedSignedAdd(brackets, 1));
+            }
+            if (ch === "]") {
+                brackets = langruntime.checkedI32(langruntime.checkedSignedSubtract(brackets, 1));
+            }
+            if (depth < 0 || brackets < 0) {
+                balanced = langruntime.checkedBool(false);
+            }
+            if (oidInputSpace(ch) === false) {
+                partLength = langruntime.checkedI32(langruntime.checkedSignedAdd(partLength, 1));
+            }
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    if (parts > 1 && partLength === 0) {
+        emptyPart = langruntime.checkedBool(true);
+    }
+    if (quoted || emptyPart || !(depth === 0) || !(brackets === 0) || balanced === false) {
+        return false;
+    }
+    if (!(grammar === 1) && parts > 3) {
+        return false;
+    }
+    const code: number = langruntime.checkedChar(first).codePointAt(0)!;
+    if (grammar === 2 && ((code >= 48 && code <= 57) || first === "+" || first === "-")) {
+        return false;
+    }
+    return true;
 }
 export function oidAliasToText(input: checkruntime.OidValue, dash: boolean): checkruntime.TextValue {
     dash = langruntime.checkedBool(dash);
@@ -54947,7 +55342,7 @@ export function oidAliasToText(input: checkruntime.OidValue, dash: boolean): che
             return { kind: "Value", value: "0" };
         }
     }
-    return checkruntime.textUnresolved(unresolvedFlavor);
+    return checkruntime.textUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
 }
 function oidAliasLookup(input: checkruntime.TextValue, dash: boolean, grammar: number): checkruntime.OidValue {
     dash = langruntime.checkedBool(dash);
@@ -55059,8 +55454,11 @@ export function regclassWqix(input: checkruntime.TextValue): checkruntime.OidVal
         if (whitespace) {
             return { kind: "Error", value: checkruntime.makeSqlError(oidAliasInvalidName) };
         }
+        if (oidAliasGrammarRead(text, 0) === false) {
+            return checkruntime.oidUnresolved(unresolvedFlavor);
+        }
     }
-    return checkruntime.oidUnresolved(unresolvedFlavor);
+    return checkruntime.oidUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
 }
 function oidUnits(input: checkruntime.OidValue): checkruntime.Int8Value {
     let unresolvedFlavor: number = 0;
@@ -55400,7 +55798,7 @@ export function oidFromText(input: checkruntime.TextValue): checkruntime.OidValu
                 start = langruntime.checkedAdd(start, 2);
             }
             else if (langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 1))) === "b" || langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 1))) === "B") {
-                return checkruntime.oidUnresolved(unresolvedFlavor);
+                return checkruntime.oidUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
             }
             else {
                 radix = langruntime.checkedI64(8n);
@@ -55428,7 +55826,7 @@ export function oidFromText(input: checkruntime.TextValue): checkruntime.OidValu
         }
         if (digits === false) {
             if (radix === 16n && start === end) {
-                return checkruntime.oidUnresolved(unresolvedFlavor);
+                return checkruntime.oidUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
             }
             return { kind: "Error", value: { state: oidInputInvalid } };
         }
@@ -55437,7 +55835,7 @@ export function oidFromText(input: checkruntime.TextValue): checkruntime.OidValu
         }
         if (!(high === 0n)) {
             if (!(start === end) || (negative && high === 4294967295n && !(units === 0n)) || (negative === false && high === 4294967295n && units >= 2147483648n)) {
-                return checkruntime.oidUnresolved(unresolvedFlavor);
+                return checkruntime.oidUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
             }
             return { kind: "Error", value: { state: sqlstateNumericValueOutOfRange } };
         }
@@ -55445,7 +55843,7 @@ export function oidFromText(input: checkruntime.TextValue): checkruntime.OidValu
             return { kind: "Error", value: { state: oidInputInvalid } };
         }
         if (negative && units > 2147483648n) {
-            return checkruntime.oidUnresolved(unresolvedFlavor);
+            return checkruntime.oidUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         if (negative && !(units === 0n)) {
             units = langruntime.checkedI64(langruntime.checkedI64Subtract(4294967296n, units));
@@ -58864,6 +59262,15 @@ function polygonParse(value: string): checkruntime.PolygonValue {
         const error: checkruntime.SqlError = parsed.value;
         return { kind: "Error", value: error };
     }
+    let parsedFlavor: number = unresolvedFlavor;
+    if (parsed.kind === "Unknown") {
+        if (parsedFlavor < 1) {
+            parsedFlavor = langruntime.checkedI32(1);
+        }
+    }
+    if (parsed.kind === "Unimplemented") {
+        parsedFlavor = langruntime.checkedI32(2);
+    }
     if (parsed.kind === "Value") {
         const payload: checkruntime.PathPayload = checkruntime.copyPathPayload(parsed.value);
         if (payload.closed === false) {
@@ -58871,7 +59278,7 @@ function polygonParse(value: string): checkruntime.PolygonValue {
         }
         return checkruntime.makePolygonPoints({ points: payload.points, bounds: { kind: "Unknown" } });
     }
-    return checkruntime.polygonUnresolved(unresolvedFlavor);
+    return checkruntime.polygonUnresolved(parsedFlavor);
 }
 export function polygonFromText(input: checkruntime.TextValue): checkruntime.PolygonValue {
     let unresolvedFlavor: number = 0;
@@ -59789,7 +60196,7 @@ function rangeBoundsAdjacent(left: checkruntime.RangePayload, right: checkruntim
             return { kind: "Value", value: !(left.upperInclusive === right.lowerInclusive) };
         }
         if (order < 0 && left.support.canonical === 0) {
-            return checkruntime.boolUnresolved(unresolvedFlavor);
+            return checkruntime.boolUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         if (order < 0 && (left.support.canonical === 2 || left.support.canonical === 3 || left.support.canonical === 7)) {
             let flags: string = "";
@@ -60604,6 +61011,9 @@ function rangeBuiltinCompare(lower: checkruntime.ArrayElement, upper: checkrunti
     if (kind === 47) {
         return tsvectorOrder(checkruntime.arrayElementToTsvector(lower), checkruntime.arrayElementToTsvector(upper));
     }
+    if (checkruntime.rangeComparisonUnavailable(kind)) {
+        return checkruntime.int4Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
+    }
     return checkruntime.int4Unresolved(unresolvedFlavor);
 }
 function rangeProfileSerialize(typeName: string, elementType: string, kind: number, lower: checkruntime.ArrayElement, upper: checkruntime.ArrayElement, lowerInclusive: boolean, upperInclusive: boolean, support: checkruntime.RangeSupport, enumLabels: string, enumCount: number, boundProfile: checkruntime.RangeBoundContext): checkruntime.RangeValue {
@@ -60679,7 +61089,7 @@ function rangeBuiltinCanonical(input: checkruntime.RangeValue): checkruntime.Ran
             return { kind: "Value", value: value };
         }
         if (value.support.canonical === 0) {
-            return checkruntime.rangeUnresolved(unresolvedFlavor);
+            return checkruntime.rangeUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         if (value.support.canonical === 1) {
             return { kind: "Value", value: value };
@@ -61272,7 +61682,7 @@ function rangeInputBound(input: checkruntime.TextValue, kind: number, cidr: bool
     if (kind === 6) {
         if (input.kind === "Value") {
             if (enumCount < 0) {
-                return checkruntime.arrayElementUnresolved(unresolvedFlavor);
+                return checkruntime.arrayElementUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
             }
         }
         return checkruntime.arrayElementFromEnum(scalarEnumFromText(input, enumLabels, enumCount));
@@ -62201,6 +62611,9 @@ function rangeOutputBound(input: checkruntime.ArrayElement, kind: number, cidr: 
                 return checkruntime.makeTextValue("infinity");
             }
         }
+    }
+    if (kind === 4 || kind === 5 || kind === 7 || kind === 15 || kind === 23 || (kind >= 24 && kind <= 31) || kind === 45 || kind === 46) {
+        return checkruntime.textUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
     }
     return checkruntime.textUnresolved(unresolvedFlavor);
 }
@@ -65675,7 +66088,7 @@ export function age0wjc(input: checkruntime.TimestampValue): checkruntime.Interv
             return intervalInfinity(langruntime.checkedSignedNegate(1));
         }
     }
-    return checkruntime.intervalUnresolved(unresolvedFlavor);
+    return checkruntime.intervalUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
 }
 export function age62n0(input: checkruntime.TimestamptzValue): checkruntime.IntervalValue {
     let unresolvedFlavor: number = 0;
@@ -65701,7 +66114,7 @@ export function age62n0(input: checkruntime.TimestamptzValue): checkruntime.Inte
             return intervalInfinity(langruntime.checkedSignedNegate(1));
         }
     }
-    return checkruntime.intervalUnresolved(unresolvedFlavor);
+    return checkruntime.intervalUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
 }
 const temporalExtractKeys: ReadonlyArray<string> = ["+infinity", "-infinity", "allballs", "dow", "doy", "epoch", "infinity", "isodow", "isoyear", "j", "jd", "julian", "mm", "now", "today", "tomorrow", "yesterday"];
 const temporalExtractCodes: ReadonlyArray<number> = [-1, -1, -1, 16, 18, 19, -1, 17, 15, 14, 14, 14, 4, -1, -1, -1, -1];
@@ -74851,6 +75264,7 @@ export function tidFromText(input: checkruntime.TextValue): checkruntime.TidValu
                 return checkruntime.makeTidParts(high, low);
             }
         }
+        return checkruntime.tidUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
     }
     return checkruntime.tidUnresolved(unresolvedFlavor);
 }
@@ -77234,7 +77648,7 @@ function timestampFormatField(fields: TimestampFormatFields, kind: number, spell
         return checkruntime.makeTextValue("");
     }
     if (fields.known === false && (kind < 10 || kind > 17)) {
-        return checkruntime.textUnresolved(unresolvedFlavor);
+        return checkruntime.textUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
     }
     const calendar: TemporalCalendarFields = copyTemporalCalendarFields(fields.calendar);
     const span: checkruntime.IntervalPayload = { months: calendar.month, days: calendar.day, time: fields.clock };
@@ -77305,7 +77719,7 @@ function timestampFormatField(fields: TimestampFormatFields, kind: number, spell
     }
     if (kind >= 44 && kind <= 47) {
         if (translated && (fields.localeC === false || fields.collationC === false)) {
-            return checkruntime.textUnresolved(unresolvedFlavor);
+            return checkruntime.textUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         let name: string = "";
         if (kind === 44 || kind === 45) {
@@ -77413,6 +77827,7 @@ function timestampFormatRender(fields: TimestampFormatFields, format: string): c
     const source: JsonpathTemporalSource = { characters: Array.from(format) };
     let output: string = "";
     let unknown: boolean = false;
+    let unknownFlavor: number = unresolvedFlavor;
     let position: number = 0;
     while (position < source.characters.length) {
         const fill: boolean = jsonpathTemplateMatches(source, position, "FM") || jsonpathTemplateMatches(source, position, "fm");
@@ -77439,12 +77854,20 @@ function timestampFormatRender(fields: TimestampFormatFields, format: string): c
                 position = langruntime.checkedAdd(position, 2);
             }
             if (fields.known && (kind === 46 || kind === 47) && langruntime.checkedI64Remainder((langruntime.checkedI64Add(fields.julian, 1n)), 7n) < 0n) {
-                return checkruntime.textUnresolved(unresolvedFlavor);
+                return checkruntime.textUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
             }
             const field: checkruntime.TextValue = timestampFormatField(fields, kind, name, fill, translated);
             if (field.kind === "Error") {
                 const error: checkruntime.SqlError = field.value;
                 return { kind: "Error", value: error };
+            }
+            if (field.kind === "Unknown") {
+                if (unknownFlavor < 1) {
+                    unknownFlavor = langruntime.checkedI32(1);
+                }
+            }
+            if (field.kind === "Unimplemented") {
+                unknownFlavor = langruntime.checkedI32(2);
             }
             let fieldKnown: boolean = false;
             if (field.kind === "Value") {
@@ -77490,7 +77913,7 @@ function timestampFormatRender(fields: TimestampFormatFields, format: string): c
         }
     }
     if (unknown) {
-        return checkruntime.textUnresolved(unresolvedFlavor);
+        return checkruntime.textUnresolved(unknownFlavor);
     }
     return { kind: "Value", value: output };
 }
@@ -79962,7 +80385,11 @@ function tsqueryReadToken(input: TsqueryText, start: number, utf8: boolean): Tsq
                 break;
             }
             const escaped: string = langruntime.indexChar(input.chars, langruntime.checkedIndex(index));
-            if (escaped === "\0" || (utf8 === false && (langruntime.checkedChar(escaped).codePointAt(0)!) > 127)) {
+            if (escaped === "\0") {
+                state = langruntime.checkedI32(4);
+                break;
+            }
+            if (utf8 === false && (langruntime.checkedChar(escaped).codePointAt(0)!) > 127) {
                 state = langruntime.checkedI32(2);
                 break;
             }
@@ -79984,7 +80411,11 @@ function tsqueryReadToken(input: TsqueryText, start: number, utf8: boolean): Tsq
             break;
         }
         else {
-            if (value === "\0" || (utf8 === false && (langruntime.checkedChar(value).codePointAt(0)!) > 127)) {
+            if (value === "\0") {
+                state = langruntime.checkedI32(4);
+                break;
+            }
+            if (utf8 === false && (langruntime.checkedChar(value).codePointAt(0)!) > 127) {
                 state = langruntime.checkedI32(2);
                 break;
             }
@@ -80121,6 +80552,9 @@ export function tsqueryFromTextContext(input: checkruntime.TextValue, utf8: bool
                     return { kind: "Error", value: checkruntime.makeSqlError(tsquerySyntaxError) };
                 }
                 if (token.state === 2) {
+                    return checkruntime.tsqueryUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
+                }
+                if (token.state === 4) {
                     return checkruntime.tsqueryUnresolved(unresolvedFlavor);
                 }
                 if (token.state === 3 || pool >= 1048575) {
@@ -81467,12 +81901,12 @@ export function tsRewrite2hpb(input: checkruntime.TsqueryValue, target: checkrun
                 const initial: TsqueryRewriteTree = { nodes: nodes, root: 0, known: true };
                 let tree: TsqueryRewriteTree = tsqueryRewriteImport(initial, a, true, utf8);
                 if (tree.known === false) {
-                    return checkruntime.tsqueryUnresolved(unresolvedFlavor);
+                    return checkruntime.tsqueryUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
                 }
                 const root: number = tree.root;
                 tree = copyTsqueryRewriteTree(tsqueryRewriteImport(tree, b, true, utf8));
                 if (tree.known === false) {
-                    return checkruntime.tsqueryUnresolved(unresolvedFlavor);
+                    return checkruntime.tsqueryUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
                 }
                 const pattern: number = tree.root;
                 let subst: number = 0;
@@ -81486,7 +81920,7 @@ export function tsRewrite2hpb(input: checkruntime.TsqueryValue, target: checkrun
                 }
                 tree = copyTsqueryRewriteTree(tsqueryRewriteVisit(tree, root, pattern, subst, utf8));
                 if (tree.known === false) {
-                    return checkruntime.tsqueryUnresolved(unresolvedFlavor);
+                    return checkruntime.tsqueryUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
                 }
                 if (tree.root === 0) {
                     return checkruntime.makeTsqueryValue(checkruntime.makeTsqueryPayload(8));
@@ -82312,7 +82746,7 @@ function tsvectorParseText(input: checkruntime.TextValue, utf8: boolean, stored:
                     while (index < chars.length && (langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index))).codePointAt(0)!) >= 48 && (langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index))).codePointAt(0)!) <= 57) {
                         const digit: number = langruntime.checkedSignedSubtract((langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index))).codePointAt(0)!), 48);
                         if (position > 214748364 || (position === 214748364 && digit > 7)) {
-                            return checkruntime.tsvectorUnresolved(unresolvedFlavor);
+                            return checkruntime.tsvectorUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
                         }
                         position = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(position, 10), digit));
                         index = langruntime.checkedAdd(index, 1);
@@ -82414,7 +82848,7 @@ export function tsvectorFromStoredTextContext(input: checkruntime.TextValue, utf
     const value: checkruntime.TsvectorValue = tsvectorParseText(input, utf8, true);
     if (value.kind === "Value") {
         const payload: checkruntime.TsvectorPayload = checkruntime.copyTsvectorPayload(value.value);
-        return checkruntime.makeTsvectorValue({ lexemes: payload.lexemes, nativeBytes: langruntime.checkedSignedNegate(1) });
+        return { kind: "Value", value: { lexemes: payload.lexemes, nativeBytes: langruntime.checkedSignedNegate(2) } };
     }
     if (value.kind === "Error") {
         return checkruntime.tsvectorUnresolved(unresolvedFlavor);
@@ -83651,8 +84085,11 @@ function tsvectorCompare(left: checkruntime.TsvectorValue, right: checkruntime.T
         const a: checkruntime.TsvectorPayload = checkruntime.copyTsvectorPayload(left.value);
         if (right.kind === "Value") {
             const b: checkruntime.TsvectorPayload = checkruntime.copyTsvectorPayload(right.value);
-            if (a.nativeBytes < 0 || b.nativeBytes < 0) {
+            if (a.nativeBytes === langruntime.checkedSignedNegate(1) || b.nativeBytes === langruntime.checkedSignedNegate(1)) {
                 return checkruntime.int4Unresolved(unresolvedFlavor);
+            }
+            if (a.nativeBytes < 0 || b.nativeBytes < 0) {
+                return checkruntime.int4Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
             }
             if (a.nativeBytes < b.nativeBytes) {
                 return checkruntime.makeInt4Value(langruntime.checkedSignedNegate(1));
@@ -84559,7 +84996,7 @@ export function xid8FromText(input: checkruntime.TextValue): checkruntime.Xid8Va
                 start = langruntime.checkedAdd(start, 2);
             }
             else if (langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 1))) === "b" || langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 1))) === "B") {
-                return checkruntime.xid8Unresolved(unresolvedFlavor);
+                return checkruntime.xid8Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
             }
             else {
                 radix = langruntime.checkedI64(8n);
@@ -84587,7 +85024,7 @@ export function xid8FromText(input: checkruntime.TextValue): checkruntime.Xid8Va
         }
         if (digits === false) {
             if (radix === 16n && start === end) {
-                return checkruntime.xid8Unresolved(unresolvedFlavor);
+                return checkruntime.xid8Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
             }
             return { kind: "Error", value: { state: oidInputInvalid } };
         }
@@ -84804,6 +85241,9 @@ export function xmlConcatAppend(input: checkruntime.XmlConcatState, value: check
         }
         body = body + declaration.body;
         return { status: input.status, hasValue: true, version: version, versionConsistent: consistent, standalone: standalone, body: body };
+    }
+    if (value.kind === "Unimplemented") {
+        return xmlConcatStatus(input, { kind: "Unimplemented" });
     }
     return xmlConcatStatus(input, { kind: "Unknown" });
 }
@@ -86650,6 +87090,7 @@ export function xmlValueBinary(input: checkruntime.ByteaValue, mode: number): ch
             }
             return { kind: "Value", value: output };
         }
+        return checkruntime.textUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
     }
     return checkruntime.textUnresolved(unresolvedFlavor);
 }
@@ -87350,7 +87791,7 @@ export function xmlIndentUtf8(input: checkruntime.XmlValue, document: boolean, u
         }
         const tree: XmlTree = xmlTreeParse(value, document, false);
         if (tree.serializationKnown === false) {
-            return checkruntime.textUnresolved(unresolvedFlavor);
+            return checkruntime.textUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         let output: string = "";
         if (tree.flags.document && tree.flags.declaration) {
@@ -89448,7 +89889,7 @@ export function xmlFromTextContext(input: checkruntime.TextValue, mode: number, 
             if (xmlWellFormed(value, true) && xmlWellFormed(value, false)) {
                 return checkruntime.makeXmlValue(value);
             }
-            return checkruntime.xmlUnresolved(unresolvedFlavor);
+            return checkruntime.xmlUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
         }
         if (!(mode === 1) && !(mode === 2)) {
             return checkruntime.xmlUnresolved(unresolvedFlavor);
@@ -89996,6 +90437,7 @@ export function xmlIsWellFormedWikq(input: checkruntime.TextValue, mode: number)
         if (document === content) {
             return { kind: "Value", value: document };
         }
+        return checkruntime.boolUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
     }
     return checkruntime.boolUnresolved(unresolvedFlavor);
 }
@@ -95720,6 +96162,9 @@ function xpathSqlUnknown(state: number): XPathSqlResult {
     state = langruntime.checkedI32(state);
     return { state: state, present: { kind: "Unknown" }, output: { kind: "Unknown" } };
 }
+function xpathSqlUnimplemented(): XPathSqlResult {
+    return { state: xpathSqlInput, present: { kind: "Unimplemented" }, output: { kind: "Unimplemented" } };
+}
 function xpathSqlError(error: checkruntime.SqlError): XPathSqlResult {
     return { state: xpathResultSqlError, present: { kind: "Error", value: error }, output: { kind: "Error", value: error } };
 }
@@ -95784,6 +96229,15 @@ export function xpathSqlExecuteProfile(expression: checkruntime.TextValue, input
     if (isNull) {
         return { state: xpathSqlNull, present: { kind: "Null" }, output: { kind: "Null" } };
     }
+    if (expression.kind === "Unimplemented") {
+        return xpathSqlUnimplemented();
+    }
+    if (input.kind === "Unimplemented") {
+        return xpathSqlUnimplemented();
+    }
+    if (mappings.kind === "Unimplemented") {
+        return xpathSqlUnimplemented();
+    }
     const pathNullness: checkruntime.BoolValue = checkruntime.textIsNull(expression);
     const inputNullness: checkruntime.BoolValue = checkruntime.xmlIsNull(input);
     if (!(checkruntime.equalBoolValue(pathNullness, { kind: "Value", value: false })) || !(checkruntime.equalBoolValue(inputNullness, { kind: "Value", value: false }))) {
@@ -95826,13 +96280,13 @@ export function xpathSqlExecuteProfile(expression: checkruntime.TextValue, input
     if (mappings.kind === "Value") {
         const mapping: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(mappings.value);
         if (!(mapping.elementType === "pg_catalog.text") || !(mapping.elementKind === 8)) {
-            return xpathSqlUnknown(xpathSqlInput);
+            return xpathSqlUnimplemented();
         }
         if (!(mapping.dimensions.length === 0) && (!(mapping.dimensions.length === 2) || !(langruntime.indexStruct(mapping.dimensions, langruntime.checkedIndex(1), checkruntime.copyArrayDimension).length === 2))) {
             return xpathSqlError(checkruntime.makeSqlError(sqlstateXmlNamespaceArray));
         }
         if (!(langruntime.checkedSignedRemainder((langruntime.checkedI32(langruntime.checkedIndex(mapping.elements.length))), 2) === 0) || (mapping.dimensions.length === 0 && !(mapping.elements.length === 0))) {
-            return xpathSqlUnknown(xpathSqlInput);
+            return xpathSqlUnimplemented();
         }
         if (knownPath === false) {
             return xpathSqlUnknown(xpathSqlInput);

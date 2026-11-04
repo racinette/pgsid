@@ -1034,7 +1034,9 @@ function checkRustArrayValue(input: unknown, elementType: string, elementKind: n
     else if (flag.kind==='Null' || flag.kind==='Error') nullBitmap={kind:'Null'}
     else if (flag.kind!=='Unknown') return checkRustInvalid()
   }
-  const result: _checkRust.ArrayValue={kind:'Value',value:{elementType,elementKind,dimensions,elements,nullBitmap}}
+  const payload: _checkRust.ArrayPayload={elementType,elementKind,dimensions,elements,nullBitmap}
+  if (!_checkRust.arrayDimensionsValid(dimensions,elements.length) || (nullBitmap.kind==='Value'&&!nullBitmap.value&&elements.some((cell)=>cell.kind==='Null'))) return checkRustInvalid()
+  const result: _checkRust.ArrayValue={kind:'Value',value:payload}
   if(compositePlan)return _checkRust.arrayFromCoercedCompositePlan(result,elementType,compositePlan)
   if(nested) return result
   if(boundProfile.nodes.length) {
@@ -1088,7 +1090,8 @@ function checkRustCompositeCell(input:unknown,plan:_checkRust.CompositeTypePlan,
     else if(flag.kind==='Null'||flag.kind==='Error')nullBitmap={kind:'Null'}
     else if(flag.kind!=='Unknown')return null
   }
-  return {kind:'Array',value:{elementType:node.elementType,elementKind:child.kind,dimensions,elements,nullBitmap}}
+  const array:_checkRust.ArrayPayload={elementType:node.elementType,elementKind:child.kind,dimensions,elements,nullBitmap}
+  return _checkRust.arrayDimensionsValid(dimensions,elements.length)&&!(nullBitmap.kind==='Value'&&!nullBitmap.value&&elements.some((cell)=>cell.kind==='Null'))?{kind:'Array',value:array}:null
 }
 
 function checkRustProfiledBound(input:unknown,profile:_checkRust.RangeBoundContext,index:number):_checkRust.ArrayElement|null {
@@ -1122,7 +1125,8 @@ function checkRustProfiledBound(input:unknown,profile:_checkRust.RangeBoundConte
       else if(flag.kind==='Null' || flag.kind==='Error')nullBitmap={kind:'Null'}
       else if(flag.kind!=='Unknown')return null
     }
-    return{kind:'Array',value:{elementType:node.elementType,elementKind:child.kind,dimensions,elements,nullBitmap}}
+    const array:_checkRust.ArrayPayload={elementType:node.elementType,elementKind:child.kind,dimensions,elements,nullBitmap}
+    return _checkRust.arrayDimensionsValid(dimensions,elements.length)&&!(nullBitmap.kind==='Value'&&!nullBitmap.value&&elements.some((cell)=>cell.kind==='Null'))?{kind:'Array',value:array}:null
   }
   if(node.kind===42) {
     if(input.kind!=='Range' || !('typeName' in p) || p.typeName!==node.typeName || !('elementType' in p) || p.elementType!==node.elementType || !('elementKind' in p) || p.elementKind!==child.kind || !('empty' in p) || typeof p.empty!=='boolean' || !('lowerInclusive' in p) || typeof p.lowerInclusive!=='boolean' || !('upperInclusive' in p) || typeof p.upperInclusive!=='boolean' || !('bounds' in p) || !Array.isArray(p.bounds) || p.bounds.length>2)return null

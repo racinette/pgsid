@@ -1785,6 +1785,9 @@ func JsonbInputFromBool(input BoolValue) JsonbInput {
 		value := input.Value
 		return JsonbInput{Kind: JsonbInputBoolean, Boolean: value}
 	}
+	if input.Kind == BoolValueUnimplemented {
+		return JsonbInput{Kind: JsonbInputUnimplemented}
+	}
 	return JsonbInput{Kind: JsonbInputScalarUnknown, ScalarUnknown: "1110000"}
 }
 func JsonbInputFromNumeric(input NumericValue) JsonbInput {
@@ -1798,6 +1801,9 @@ func JsonbInputFromNumeric(input NumericValue) JsonbInput {
 	if input.Kind == NumericValueValue {
 		value := langruntime.CheckedString(input.Value)
 		return JsonbInput{Kind: JsonbInputNumber, Number: value}
+	}
+	if input.Kind == NumericValueUnimplemented {
+		return JsonbInput{Kind: JsonbInputUnimplemented}
 	}
 	return JsonbInput{Kind: JsonbInputScalarUnknown, ScalarUnknown: "1001000"}
 }
@@ -8106,9 +8112,12 @@ func JsonReadArrayPath(input JsonValue, path ArrayValue, asText bool, utf8 bool)
 			document := parseJsonArrayPathDocument(value.Source, utf8)
 			if document.state == langruntime.CheckedSignedNegate(2) {
 				if uncertain {
-					return TextUnresolved(unresolvedFlavor)
+					return TextUnresolved(ResolutionContext(unresolvedFlavor))
 				}
 				return TextValue{Kind: TextValueError, Error: document.error}
+			}
+			if (document.state != 1 || document.root == 0) && utf8 == false {
+				return TextUnresolved(ResolutionContext(unresolvedFlavor))
 			}
 			if document.state != 1 || document.root == 0 {
 				return TextUnresolved(unresolvedFlavor)
@@ -8120,9 +8129,18 @@ func JsonReadArrayPath(input JsonValue, path ArrayValue, asText bool, utf8 bool)
 			index = langruntime.CheckedIndex(0)
 			for index < len(keys.Elements) {
 				key := ArrayElementToText(CopyArrayElement(keys.Elements[index]))
+				keyFlavor := unresolvedFlavor
+				if key == (TextValue{Kind: TextValueUnknown}) || key == (TextValue{Kind: TextValueNonNull}) {
+					if keyFlavor < 1 {
+						keyFlavor = langruntime.CheckedI32(1)
+					}
+				}
+				if key == (TextValue{Kind: TextValueUnimplemented}) {
+					keyFlavor = langruntime.CheckedI32(2)
+				}
 				candidates = copyjsonArrayPathCandidates(jsonArrayPathNext(&document, candidates, key))
 				if candidates.state != 1 {
-					return TextUnresolved(unresolvedFlavor)
+					return TextUnresolved(keyFlavor)
 				}
 				if len(candidates.nodes) == 0 {
 					return TextValue{Kind: TextValueNull}
@@ -8233,6 +8251,9 @@ func JsonStripNullsContext(input JsonValue, arrays BoolValue, utf8 bool) JsonVal
 			document := parseJsonArrayPathDocument(value.Source, utf8)
 			if document.state == langruntime.CheckedSignedNegate(2) {
 				return JsonValue{Kind: JsonValueError, Error: document.error}
+			}
+			if document.state != 1 && utf8 == false {
+				return JsonUnresolved(ResolutionContext(unresolvedFlavor))
 			}
 			if document.state != 1 {
 				return JsonUnresolved(unresolvedFlavor)
@@ -8970,7 +8991,7 @@ func jsonbRender(input JsonbValue, requireOrder bool, pretty bool) TextValue {
 							member = langruntime.CheckedIndex(entry.Next)
 						}
 						if unicode && nonempty > 1 {
-							return TextUnresolved(unresolvedFlavor)
+							return TextUnresolved(ResolutionContext(unresolvedFlavor))
 						}
 					}
 					if node.Kind == 5 {
@@ -9388,6 +9409,9 @@ func AppendJsonbArrayInput(input JsonbArrayInputPayload, value JsonbInput) Jsonb
 }
 func JsonbArrayInputArguments(input JsonbArrayInputPayload) JsonbArguments {
 	unresolvedFlavor := 0
+	if input.State == langruntime.CheckedSignedNegate(3) {
+		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
 	if input.State == langruntime.CheckedSignedNegate(2) {
 		return JsonbArguments{Kind: JsonbArgumentsError, Error: input.Error}
 	}
@@ -9444,7 +9468,7 @@ func jsonbStorageDecision(size jsonbStorageSize) BoolValue {
 		return BoolValue{Kind: BoolValueError, Error: MakeSqlError(jsonbStorageError)}
 	}
 	if size.high > jsonbStorageLimit {
-		return BoolUnresolved(unresolvedFlavor)
+		return BoolUnresolved(ResolutionContext(unresolvedFlavor))
 	}
 	return BoolValue{Kind: BoolValueValue, Value: true}
 }
@@ -13024,6 +13048,15 @@ func CompositeFieldAt(input CompositeValue, index Int4Value) ArrayElement {
 	if checked.Kind == CompositeValueNull {
 		return ArrayElement{Kind: ArrayElementNull}
 	}
+	checkedFlavor := unresolvedFlavor
+	if checked.Kind == CompositeValueUnknown {
+		if checkedFlavor < 1 {
+			checkedFlavor = langruntime.CheckedI32(1)
+		}
+	}
+	if checked.Kind == CompositeValueUnimplemented {
+		checkedFlavor = langruntime.CheckedI32(2)
+	}
 	if checked.Kind == CompositeValueValue {
 		value := CopyCompositePayload(checked.Value)
 		if index.Kind == Int4ValueValue {
@@ -13034,7 +13067,7 @@ func CompositeFieldAt(input CompositeValue, index Int4Value) ArrayElement {
 			}
 		}
 	}
-	return ArrayElementUnresolved(unresolvedFlavor)
+	return ArrayElementUnresolved(checkedFlavor)
 }
 func CompositeDatumIsNull(input CompositeValue) BoolValue {
 	input = CopyCompositeValue(input)
@@ -13091,6 +13124,7 @@ func compositeRowNullTest(input CompositeValue, negated bool) BoolValue {
 	if checked.Kind == CompositeValueValue {
 		value := CopyCompositePayload(checked.Value)
 		unknown := false
+		fieldFlavor := unresolvedFlavor
 		index := 0
 		for index < len(value.Fields) {
 			field := CopyArrayElement(value.Fields[index])
@@ -13098,10 +13132,14 @@ func compositeRowNullTest(input CompositeValue, negated bool) BoolValue {
 			if field.Kind == ArrayElementUnknown {
 				unknown = true
 				known = false
+				if fieldFlavor < 1 {
+					fieldFlavor = langruntime.CheckedI32(1)
+				}
 			}
 			if field.Kind == ArrayElementUnimplemented {
 				unknown = true
 				known = false
+				fieldFlavor = langruntime.CheckedI32(2)
 			}
 			if known {
 				isNull := false
@@ -13115,7 +13153,7 @@ func compositeRowNullTest(input CompositeValue, negated bool) BoolValue {
 			index = langruntime.CheckedAdd(index, 1)
 		}
 		if unknown {
-			return BoolUnresolved(unresolvedFlavor)
+			return BoolUnresolved(fieldFlavor)
 		}
 		return MakeBoolValue(true)
 	}
@@ -15005,6 +15043,10 @@ func multirangeComponent(input *MultirangePayload, position int, support RangeSu
 		error := supported.Error
 		return RangeValue{Kind: RangeValueError, Error: error}
 	}
+	memberFlavor := unresolvedFlavor
+	if supported.Kind == RangeValueUnknown {
+		memberFlavor = langruntime.CheckedI32(1)
+	}
 	if supported.Kind == RangeValueValue {
 		payload := CopyRangePayload(supported.Value)
 		if payload.Empty {
@@ -15012,7 +15054,7 @@ func multirangeComponent(input *MultirangePayload, position int, support RangeSu
 		}
 		return RangeValue{Kind: RangeValueValue, Value: payload}
 	}
-	return RangeUnresolved(unresolvedFlavor)
+	return RangeUnresolved(memberFlavor)
 }
 func MakeCoercedMultirangeValue(input MultirangePayload) MultirangeValue {
 	input = CopyMultirangePayload(input)
@@ -15784,6 +15826,9 @@ func ArrayValueValidity(input BoolValue, unknownValid bool) CheckOutcome {
 	return CheckOutcome{Kind: CheckOutcomeTrue}
 }
 func ArrayValidityFinish(left CheckOutcome, right CheckOutcome) CheckOutcome {
+	if left == (CheckOutcome{Kind: CheckOutcomeUnknown}) && right == (CheckOutcome{Kind: CheckOutcomeUnimplemented}) {
+		return right
+	}
 	if left == (CheckOutcome{Kind: CheckOutcomeUnknown}) || left == (CheckOutcome{Kind: CheckOutcomeUnimplemented}) {
 		return left
 	}
@@ -15791,6 +15836,15 @@ func ArrayValidityFinish(left CheckOutcome, right CheckOutcome) CheckOutcome {
 		return left
 	}
 	return right
+}
+func ArrayValidityResult(validity CheckOutcome, result CheckOutcome) CheckOutcome {
+	if validity == (CheckOutcome{Kind: CheckOutcomeUnknown}) && result == (CheckOutcome{Kind: CheckOutcomeUnimplemented}) {
+		return result
+	}
+	if CaseGuardStops(validity) {
+		return validity
+	}
+	return result
 }
 func ArrayValidityUnknown(input CheckOutcome) bool {
 	return input == (CheckOutcome{Kind: CheckOutcomeUnknown}) || input == (CheckOutcome{Kind: CheckOutcomeUnimplemented})
@@ -15917,6 +15971,7 @@ func ArrayCastValidity(input ArrayElement, source string, target string, alwaysV
 		if timestamp >= langruntime.CheckedI64Add(int64(-211813488000000000), int64(2147483648000000)) && (lowerOnly || timestamp < langruntime.CheckedI64Subtract(int64(9223371331200000000), int64(2147483648000000))) {
 			return CheckOutcome{Kind: CheckOutcomeTrue}
 		}
+		return CheckUnresolved(ResolutionContext(unresolvedFlavor))
 	}
 	return CheckUnresolved(unresolvedFlavor)
 }
@@ -16142,6 +16197,35 @@ func arrayCoercedOwnedElement(element ArrayElement) ArrayElement {
 		return ArrayElementFromMultirange(MakeCoercedMultirangeValue(payload))
 	}
 	return element
+}
+func ArrayDimensionsValid(dimensions []ArrayDimension, cells int) bool {
+	dimensions = langruntime.CheckedStructs(dimensions, CopyArrayDimension)
+	cells = langruntime.CheckedIndex(cells)
+	if len(dimensions) > 6 {
+		return false
+	}
+	count := int64(0)
+	if len(dimensions) > 0 {
+		count = int64(1)
+	}
+	position := 0
+	for position < len(dimensions) {
+		dimension := dimensions[position]
+		if dimension.Length < 0 {
+			return false
+		}
+		length := int64(langruntime.CheckedI32(dimension.Length))
+		end := langruntime.CheckedI64Add((int64(langruntime.CheckedI32(dimension.Lower))), length)
+		if end > int64(2147483648) || (length > int64(0) && count > langruntime.CheckedI64Divide(int64(2147483647), length)) {
+			return false
+		}
+		if length == int64(0) && dimension.Lower == langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1) {
+			return false
+		}
+		count = langruntime.CheckedI64Multiply(count, length)
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return count == int64(langruntime.CheckedI32((int(int32(cells)))))
 }
 func MakeArrayValue(input ArrayPayload) ArrayValue {
 	input = CopyArrayPayload(input)
@@ -17726,6 +17810,9 @@ func AppendArraySubscript(input ArraySubscripts, index Int4Value, isLower bool, 
 		payload := CopyArraySubscriptPayload(input.Value)
 		state := langruntime.CheckedSignedNegate(1)
 		value := 0
+		if index.Kind == Int4ValueUnimplemented {
+			state = langruntime.CheckedI32(langruntime.CheckedSignedNegate(2))
+		}
 		if index.Kind == Int4ValueNull {
 			state = langruntime.CheckedI32(0)
 		}
@@ -17784,10 +17871,13 @@ func arraySubscriptState(input *ArraySubscriptPayload) int {
 			bound = CopyArraySubscriptBound(input.Lower[langruntime.CheckedSubtract(position, len(input.Upper))])
 		}
 		if bound.Provided {
-			if bound.State == langruntime.CheckedSignedNegate(1) {
+			if bound.State == langruntime.CheckedSignedNegate(2) {
+				state = langruntime.CheckedI32(langruntime.CheckedSignedNegate(2))
+			}
+			if bound.State == langruntime.CheckedSignedNegate(1) && state != langruntime.CheckedSignedNegate(2) {
 				state = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
 			}
-			if bound.State == 0 && state != langruntime.CheckedSignedNegate(1) {
+			if bound.State == 0 && state > 0 {
 				state = langruntime.CheckedI32(0)
 			}
 		}
@@ -17835,8 +17925,12 @@ func ArrayFetchSubscript(input ArrayValue, indices ArraySubscripts) ArrayElement
 	if indices.Kind == ArraySubscriptsValue {
 		bounds := CopyArraySubscriptPayload(indices.Value)
 		state := arraySubscriptState(&bounds)
-		if state == langruntime.CheckedSignedNegate(1) {
-			return ArrayElementUnresolved(unresolvedFlavor)
+		if state < 0 {
+			boundFlavor := 1
+			if state == langruntime.CheckedSignedNegate(2) {
+				boundFlavor = langruntime.CheckedI32(2)
+			}
+			return ArrayElementUnresolved(boundFlavor)
 		}
 		if state == 0 {
 			return ArrayElement{Kind: ArrayElementNull}
@@ -17917,8 +18011,12 @@ func ArraySliceSubscript(input ArrayValue, indices ArraySubscripts) ArrayValue {
 	if indices.Kind == ArraySubscriptsValue {
 		bounds := CopyArraySubscriptPayload(indices.Value)
 		state := arraySubscriptState(&bounds)
-		if state == langruntime.CheckedSignedNegate(1) {
-			return ArrayUnresolved(unresolvedFlavor)
+		if state < 0 {
+			boundFlavor := 1
+			if state == langruntime.CheckedSignedNegate(2) {
+				boundFlavor = langruntime.CheckedI32(2)
+			}
+			return ArrayUnresolved(boundFlavor)
 		}
 		if state == 0 {
 			return ArrayValue{Kind: ArrayValueNull}
@@ -18589,6 +18687,7 @@ func PrepareArrayBucket(needle ArrayElement, input ArrayValue, available bool) A
 		}
 		knownNull := false
 		unknownNull := false
+		nullFlavor := 0
 		position := 0
 		for position < len(array.Elements) {
 			cell := CopyArrayElement(array.Elements[position])
@@ -18601,9 +18700,13 @@ func PrepareArrayBucket(needle ArrayElement, input ArrayValue, available bool) A
 			}
 			if cell.Kind == ArrayElementUnknown {
 				unknownNull = true
+				if nullFlavor < 1 {
+					nullFlavor = langruntime.CheckedI32(1)
+				}
 			}
 			if cell.Kind == ArrayElementUnimplemented {
 				unknownNull = true
+				nullFlavor = langruntime.CheckedI32(2)
 			}
 			position = langruntime.CheckedAdd(position, 1)
 		}
@@ -18611,7 +18714,7 @@ func PrepareArrayBucket(needle ArrayElement, input ArrayValue, available bool) A
 			return arrayComparisonState(langruntime.CheckedSignedNegate(2), MakeSqlError(arrayBucketNullElement), 0)
 		}
 		if unknownNull {
-			return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
+			return ArrayComparisonUnresolved(nullFlavor, 0)
 		}
 		if available == false {
 			return arrayComparisonState(langruntime.CheckedSignedNegate(2), MakeSqlError(arrayComparisonUndefined), 0)
@@ -18850,7 +18953,17 @@ func PrepareArraySearch(input ArrayValue, needle ArrayElement, start Int4Value, 
 		needles = append(needles, CopyArrayElement(needle))
 		return ArrayComparisonPayload{Limit: len(array.Elements), Left: array.Elements, Right: needles, State: 1, Error: MakeSqlError(0), Tail: lower, Value: int(int32(offset)), Flavor: 2}
 	}
-	return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
+	deferredFlavor := 1
+	if input.Kind == ArrayValueUnimplemented {
+		deferredFlavor = langruntime.CheckedI32(2)
+	}
+	if needle.Kind == ArrayElementUnimplemented {
+		deferredFlavor = langruntime.CheckedI32(2)
+	}
+	if provided && start == (Int4Value{Kind: Int4ValueUnimplemented}) {
+		deferredFlavor = langruntime.CheckedI32(2)
+	}
+	return ArrayComparisonUnresolved(deferredFlavor, 0)
 }
 func ArraySearchInitial(input *ArrayComparisonPayload) Int4Value {
 	input = langruntime.CheckedBorrowed(input, CopyArrayComparisonPayload)
@@ -19023,7 +19136,17 @@ func PrepareArrayRewrite(input ArrayValue, needle ArrayElement, replacement Arra
 		queries = append(queries, CopyArrayElement(replacement))
 		return ArrayComparisonPayload{Limit: len(array.Elements), Left: array.Elements, Right: queries, State: 1, Error: MakeSqlError(0), Tail: 0, Value: 0, Flavor: 2}
 	}
-	return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
+	deferredFlavor := 1
+	if input.Kind == ArrayValueUnimplemented {
+		deferredFlavor = langruntime.CheckedI32(2)
+	}
+	if needle.Kind == ArrayElementUnimplemented {
+		deferredFlavor = langruntime.CheckedI32(2)
+	}
+	if replacement.Kind == ArrayElementUnimplemented {
+		deferredFlavor = langruntime.CheckedI32(2)
+	}
+	return ArrayComparisonUnresolved(deferredFlavor, 0)
 }
 func ArrayRewriteNeedle(input *ArrayComparisonPayload) ArrayElement {
 	input = langruntime.CheckedBorrowed(input, CopyArrayComparisonPayload)
@@ -19659,8 +19782,8 @@ func arrayStorageChildPath(path string, index int) string {
 	child = append(child, text...)
 	return string(child)
 }
-func arrayStorageMissingBitmap(input *ArrayPayload) BoolValue {
-	unresolvedFlavor := 0
+func arrayStorageMissingBitmap(input *ArrayPayload, unresolvedFlavor int) BoolValue {
+	unresolvedFlavor = langruntime.CheckedI32(unresolvedFlavor)
 	elements := ArrayElementsBitmap(input)
 	if elements == (BoolValue{Kind: BoolValueValue, Value: true}) {
 		return elements
@@ -19678,14 +19801,23 @@ func arrayStorageMissingBitmap(input *ArrayPayload) BoolValue {
 }
 func ForgetArrayStorage(input ArrayElement) ArrayElement {
 	input = CopyArrayElement(input)
+	return forgetArrayStorageAs(input, 1)
+}
+func DiscardArrayStorage(input ArrayElement) ArrayElement {
+	input = CopyArrayElement(input)
+	return forgetArrayStorageAs(input, 2)
+}
+func forgetArrayStorageAs(input ArrayElement, flavor int) ArrayElement {
+	input = CopyArrayElement(input)
+	flavor = langruntime.CheckedI32(flavor)
 	if input.Kind == ArrayElementArray {
 		value := CopyArrayPayload(input.Array)
-		bitmap := arrayStorageMissingBitmap(&value)
+		bitmap := arrayStorageMissingBitmap(&value, flavor)
 		elements := []ArrayElement{}
 		i := 0
 		for i < len(value.Elements) {
 			langruntime.CheckedAdd(len(elements), 1)
-			elements = append(elements, CopyArrayElement(ForgetArrayStorage(CopyArrayElement(value.Elements[i]))))
+			elements = append(elements, CopyArrayElement(forgetArrayStorageAs(CopyArrayElement(value.Elements[i]), flavor)))
 			i = langruntime.CheckedAdd(i, 1)
 		}
 		return ArrayElement{Kind: ArrayElementArray, Array: ArrayPayload{ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: value.Dimensions, Elements: elements, NullBitmap: bitmap}}
@@ -19696,7 +19828,7 @@ func ForgetArrayStorage(input ArrayElement) ArrayElement {
 		i := 0
 		for i < len(value.Fields) {
 			langruntime.CheckedAdd(len(fields), 1)
-			fields = append(fields, CopyArrayElement(ForgetArrayStorage(CopyArrayElement(value.Fields[i]))))
+			fields = append(fields, CopyArrayElement(forgetArrayStorageAs(CopyArrayElement(value.Fields[i]), flavor)))
 			i = langruntime.CheckedAdd(i, 1)
 		}
 		return ArrayElement{Kind: ArrayElementComposite, Composite: CompositePayload{TypeName: value.TypeName, Fields: fields}}
@@ -19707,7 +19839,7 @@ func ForgetArrayStorage(input ArrayElement) ArrayElement {
 		i := 0
 		for i < len(value.Bounds) {
 			langruntime.CheckedAdd(len(bounds), 1)
-			bounds = append(bounds, CopyArrayElement(ForgetArrayStorage(CopyArrayElement(value.Bounds[i]))))
+			bounds = append(bounds, CopyArrayElement(forgetArrayStorageAs(CopyArrayElement(value.Bounds[i]), flavor)))
 			i = langruntime.CheckedAdd(i, 1)
 		}
 		return ArrayElement{Kind: ArrayElementRange, Range: RangePayloadWithBounds(value, bounds)}
@@ -19718,7 +19850,7 @@ func ForgetArrayStorage(input ArrayElement) ArrayElement {
 		i := 0
 		for i < len(value.Ranges) {
 			member := ArrayElementFromRange(CopyRangeValue(value.Ranges[i]))
-			restored := ForgetArrayStorage(member)
+			restored := forgetArrayStorageAs(member, flavor)
 			langruntime.CheckedAdd(len(ranges), 1)
 			ranges = append(ranges, CopyRangeValue(ArrayElementToRange(restored)))
 			i = langruntime.CheckedAdd(i, 1)
@@ -19743,7 +19875,7 @@ func applyArrayStorageAt(input ArrayElement, plan *ArrayStoragePlan, path string
 	if input.Kind == ArrayElementArray {
 		value := CopyArrayPayload(input.Array)
 		matched := 0
-		bitmap := arrayStorageMissingBitmap(&value)
+		bitmap := arrayStorageMissingBitmap(&value, 2)
 		valid := true
 		i := 0
 		for i < len(plan.entries) {
@@ -19838,7 +19970,7 @@ func ApplyArrayStorage(input ArrayElement, plan *ArrayStoragePlan) ArrayElement 
 	if plan.valid && result.valid && result.matched == len(plan.entries) {
 		return result.value
 	}
-	return ForgetArrayStorage(result.value)
+	return DiscardArrayStorage(result.value)
 }
 func PrepareArrayQuantifier(scalar BoolValue, input ArrayValue, strict bool) ArrayComparisonPayload {
 	input = CopyArrayValue(input)
@@ -21214,11 +21346,17 @@ func DateFromTextOrder(value TextValue, dateOrder int) DateValue {
 		}
 		if langruntime.CheckedSubtract(end, start) >= 2 && langruntime.AsciiLowercase(chars[langruntime.CheckedSubtract(end, 1)]) == 'c' && langruntime.AsciiLowercase(chars[langruntime.CheckedSubtract(end, 2)]) == 'b' {
 			if langruntime.CheckedSubtract(end, start) > 2 && dateTextSpace(chars[langruntime.CheckedSubtract(end, 3)]) == false && dateTextDigit(chars[langruntime.CheckedSubtract(end, 3)]) < 0 {
+				if englishDateLetter(chars[langruntime.CheckedSubtract(end, 3)]) {
+					return DateUnresolved(ResolutionContext(unresolvedFlavor))
+				}
 				return DateUnresolved(unresolvedFlavor)
 			}
 			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 2))
 		} else if langruntime.CheckedSubtract(end, start) >= 2 && langruntime.AsciiLowercase(chars[langruntime.CheckedSubtract(end, 1)]) == 'd' && langruntime.AsciiLowercase(chars[langruntime.CheckedSubtract(end, 2)]) == 'a' {
 			if langruntime.CheckedSubtract(end, start) > 2 && dateTextSpace(chars[langruntime.CheckedSubtract(end, 3)]) == false && dateTextDigit(chars[langruntime.CheckedSubtract(end, 3)]) < 0 {
+				if englishDateLetter(chars[langruntime.CheckedSubtract(end, 3)]) {
+					return DateUnresolved(ResolutionContext(unresolvedFlavor))
+				}
 				return DateUnresolved(unresolvedFlavor)
 			}
 			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 2))
@@ -21898,6 +22036,9 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool, dateOr
 					}
 				}
 			} else if yearField.digits < 3 || index == end {
+				if yearField.digits == 0 && start < end && englishDateLetter(text.chars[start]) {
+					return Int8Unresolved(ResolutionContext(unresolvedFlavor))
+				}
 				return Int8Unresolved(unresolvedFlavor)
 			} else {
 				separator := text.chars[index]
@@ -22067,6 +22208,9 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool, dateOr
 			}
 			return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampText}}
 		} else if zoneOnly == false {
+			if temporalZoneWord(&text, index, end) {
+				return Int8Unresolved(ResolutionContext(unresolvedFlavor))
+			}
 			return Int8Unresolved(unresolvedFlavor)
 		}
 		if julianTime >= int64(0) {
@@ -23819,7 +23963,7 @@ func IntervalInputAgreement(left IntervalValue, right IntervalValue) IntervalVal
 	if left == right {
 		return left
 	}
-	return IntervalUnresolved(unresolvedFlavor)
+	return IntervalUnresolved(ResolutionContext(unresolvedFlavor))
 }
 func IntervalFromTextFields(input TextValue, fields Int4Value) IntervalValue {
 	return IntervalFromTextFieldsContext(input, fields, 0)

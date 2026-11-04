@@ -1780,6 +1780,9 @@ export function jsonbInputFromBool(input: BoolValue): JsonbInput {
         const value: boolean = langruntime.checkedBool(input.value);
         return { kind: "Boolean", value: value };
     }
+    if (input.kind === "Unimplemented") {
+        return { kind: "Unimplemented" };
+    }
     return { kind: "ScalarUnknown", value: "1110000" };
 }
 export function jsonbInputFromNumeric(input: NumericValue): JsonbInput {
@@ -1793,6 +1796,9 @@ export function jsonbInputFromNumeric(input: NumericValue): JsonbInput {
     if (input.kind === "Value") {
         const value: string = langruntime.checkedString(input.value);
         return { kind: "Number", value: value };
+    }
+    if (input.kind === "Unimplemented") {
+        return { kind: "Unimplemented" };
     }
     return { kind: "ScalarUnknown", value: "1001000" };
 }
@@ -8289,9 +8295,12 @@ export function jsonReadArrayPath(input: JsonValue, path: ArrayValue, asText: bo
             const document: JsonArrayPathDocument = parseJsonArrayPathDocument(value.source, utf8);
             if (document.state === langruntime.checkedSignedNegate(2)) {
                 if (uncertain) {
-                    return textUnresolved(unresolvedFlavor);
+                    return textUnresolved(resolutionContext(unresolvedFlavor));
                 }
                 return { kind: "Error", value: document.error };
+            }
+            if ((!(document.state === 1) || document.root === 0) && utf8 === false) {
+                return textUnresolved(resolutionContext(unresolvedFlavor));
             }
             if (!(document.state === 1) || document.root === 0) {
                 return textUnresolved(unresolvedFlavor);
@@ -8302,9 +8311,18 @@ export function jsonReadArrayPath(input: JsonValue, path: ArrayValue, asText: bo
             index = langruntime.checkedIndex(0);
             while (index < keys.elements.length) {
                 const key: TextValue = arrayElementToText(copyArrayElement(langruntime.indexStruct(keys.elements, langruntime.checkedIndex(index), copyArrayElement)));
+                let keyFlavor: number = unresolvedFlavor;
+                if (equalTextValue(key, { kind: "Unknown" }) || equalTextValue(key, { kind: "NonNull" })) {
+                    if (keyFlavor < 1) {
+                        keyFlavor = langruntime.checkedI32(1);
+                    }
+                }
+                if (equalTextValue(key, { kind: "Unimplemented" })) {
+                    keyFlavor = langruntime.checkedI32(2);
+                }
                 candidates = copyJsonArrayPathCandidates(jsonArrayPathNext(document, candidates, key));
                 if (!(candidates.state === 1)) {
-                    return textUnresolved(unresolvedFlavor);
+                    return textUnresolved(keyFlavor);
                 }
                 if (candidates.nodes.length === 0) {
                     return { kind: "Null" };
@@ -8422,6 +8440,9 @@ export function jsonStripNullsContext(input: JsonValue, arrays: BoolValue, utf8:
             const document: JsonArrayPathDocument = parseJsonArrayPathDocument(value.source, utf8);
             if (document.state === langruntime.checkedSignedNegate(2)) {
                 return { kind: "Error", value: document.error };
+            }
+            if (!(document.state === 1) && utf8 === false) {
+                return jsonUnresolved(resolutionContext(unresolvedFlavor));
             }
             if (!(document.state === 1)) {
                 return jsonUnresolved(unresolvedFlavor);
@@ -9175,7 +9196,7 @@ function jsonbRender(input: JsonbValue, requireOrder: boolean, pretty: boolean):
                             member = langruntime.checkedIndex(entry.next);
                         }
                         if (unicode && nonempty > 1) {
-                            return textUnresolved(unresolvedFlavor);
+                            return textUnresolved(resolutionContext(unresolvedFlavor));
                         }
                     }
                     if (node.kind === 5) {
@@ -9574,7 +9595,10 @@ export function appendJsonbArrayInput(input: JsonbArrayInputPayload, value: Json
     return { state: input.state, error: input.error, dimensions: input.dimensions, elements: input.elements, values: values, position: langruntime.checkedAdd(input.position, 1) };
 }
 export function jsonbArrayInputArguments(input: JsonbArrayInputPayload): JsonbArguments {
-    const unresolvedFlavor: number = 0;
+    let unresolvedFlavor: number = 0;
+    if (input.state === langruntime.checkedSignedNegate(3)) {
+        unresolvedFlavor = langruntime.checkedI32(1);
+    }
     if (input.state === langruntime.checkedSignedNegate(2)) {
         return { kind: "Error", value: input.error };
     }
@@ -9629,7 +9653,7 @@ function jsonbStorageDecision(size: JsonbStorageSize): BoolValue {
         return { kind: "Error", value: makeSqlError(jsonbStorageError) };
     }
     if (size.high > jsonbStorageLimit) {
-        return boolUnresolved(unresolvedFlavor);
+        return boolUnresolved(resolutionContext(unresolvedFlavor));
     }
     return { kind: "Value", value: true };
 }
@@ -13174,6 +13198,15 @@ export function compositeFieldAt(input: CompositeValue, index: Int4Value): Array
     if (checked.kind === "Null") {
         return { kind: "Null" };
     }
+    let checkedFlavor: number = unresolvedFlavor;
+    if (checked.kind === "Unknown") {
+        if (checkedFlavor < 1) {
+            checkedFlavor = langruntime.checkedI32(1);
+        }
+    }
+    if (checked.kind === "Unimplemented") {
+        checkedFlavor = langruntime.checkedI32(2);
+    }
     if (checked.kind === "Value") {
         const value: CompositePayload = copyCompositePayload(checked.value);
         if (index.kind === "Value") {
@@ -13184,7 +13217,7 @@ export function compositeFieldAt(input: CompositeValue, index: Int4Value): Array
             }
         }
     }
-    return arrayElementUnresolved(unresolvedFlavor);
+    return arrayElementUnresolved(checkedFlavor);
 }
 export function compositeDatumIsNull(input: CompositeValue): BoolValue {
     input = copyCompositeValue(input);
@@ -13242,6 +13275,7 @@ function compositeRowNullTest(input: CompositeValue, negated: boolean): BoolValu
     if (checked.kind === "Value") {
         const value: CompositePayload = copyCompositePayload(checked.value);
         let unknown: boolean = false;
+        let fieldFlavor: number = unresolvedFlavor;
         let index: number = 0;
         while (index < value.fields.length) {
             const field: ArrayElement = copyArrayElement(langruntime.indexStruct(value.fields, langruntime.checkedIndex(index), copyArrayElement));
@@ -13249,10 +13283,14 @@ function compositeRowNullTest(input: CompositeValue, negated: boolean): BoolValu
             if (field.kind === "Unknown") {
                 unknown = langruntime.checkedBool(true);
                 known = langruntime.checkedBool(false);
+                if (fieldFlavor < 1) {
+                    fieldFlavor = langruntime.checkedI32(1);
+                }
             }
             if (field.kind === "Unimplemented") {
                 unknown = langruntime.checkedBool(true);
                 known = langruntime.checkedBool(false);
+                fieldFlavor = langruntime.checkedI32(2);
             }
             if (known) {
                 let isNull: boolean = false;
@@ -13266,7 +13304,7 @@ function compositeRowNullTest(input: CompositeValue, negated: boolean): BoolValu
             index = langruntime.checkedAdd(index, 1);
         }
         if (unknown) {
-            return boolUnresolved(unresolvedFlavor);
+            return boolUnresolved(fieldFlavor);
         }
         return makeBoolValue(true);
     }
@@ -15079,6 +15117,10 @@ function multirangeComponent(input: MultirangePayload, position: number, support
         const error: SqlError = supported.value;
         return { kind: "Error", value: error };
     }
+    let memberFlavor: number = unresolvedFlavor;
+    if (supported.kind === "Unknown") {
+        memberFlavor = langruntime.checkedI32(1);
+    }
     if (supported.kind === "Value") {
         const payload: RangePayload = copyRangePayload(supported.value);
         if (payload.empty) {
@@ -15086,7 +15128,7 @@ function multirangeComponent(input: MultirangePayload, position: number, support
         }
         return { kind: "Value", value: payload };
     }
-    return rangeUnresolved(unresolvedFlavor);
+    return rangeUnresolved(memberFlavor);
 }
 export function makeCoercedMultirangeValue(input: MultirangePayload): MultirangeValue {
     input = copyMultirangePayload(input);
@@ -15826,6 +15868,9 @@ export function arrayValueValidity(input: BoolValue, unknownValid: boolean): Che
     return { kind: "True" };
 }
 export function arrayValidityFinish(left: CheckOutcome, right: CheckOutcome): CheckOutcome {
+    if (equalCheckOutcome(left, { kind: "Unknown" }) && equalCheckOutcome(right, { kind: "Unimplemented" })) {
+        return right;
+    }
     if (equalCheckOutcome(left, { kind: "Unknown" }) || equalCheckOutcome(left, { kind: "Unimplemented" })) {
         return left;
     }
@@ -15833,6 +15878,15 @@ export function arrayValidityFinish(left: CheckOutcome, right: CheckOutcome): Ch
         return left;
     }
     return right;
+}
+export function arrayValidityResult(validity: CheckOutcome, result: CheckOutcome): CheckOutcome {
+    if (equalCheckOutcome(validity, { kind: "Unknown" }) && equalCheckOutcome(result, { kind: "Unimplemented" })) {
+        return result;
+    }
+    if (caseGuardStops(validity)) {
+        return validity;
+    }
+    return result;
 }
 export function arrayValidityUnknown(input: CheckOutcome): boolean {
     return equalCheckOutcome(input, { kind: "Unknown" }) || equalCheckOutcome(input, { kind: "Unimplemented" });
@@ -15959,6 +16013,7 @@ export function arrayCastValidity(input: ArrayElement, source: string, target: s
         if (timestamp >= langruntime.checkedI64Add(-211813488000000000n, 2147483648000000n) && (lowerOnly || timestamp < langruntime.checkedI64Subtract(9223371331200000000n, 2147483648000000n))) {
             return { kind: "True" };
         }
+        return checkUnresolved(resolutionContext(unresolvedFlavor));
     }
     return checkUnresolved(unresolvedFlavor);
 }
@@ -16183,6 +16238,35 @@ function arrayCoercedOwnedElement(element: ArrayElement): ArrayElement {
         return arrayElementFromMultirange(makeCoercedMultirangeValue(payload));
     }
     return element;
+}
+export function arrayDimensionsValid(dimensions: ArrayDimension[], cells: number): boolean {
+    dimensions = langruntime.checkedStructs(dimensions, copyArrayDimension);
+    cells = langruntime.checkedIndex(cells);
+    if (dimensions.length > 6) {
+        return false;
+    }
+    let count: bigint = 0n;
+    if (dimensions.length > 0) {
+        count = langruntime.checkedI64(1n);
+    }
+    let position: number = 0;
+    while (position < dimensions.length) {
+        const dimension: ArrayDimension = langruntime.indexStruct(dimensions, langruntime.checkedIndex(position), copyArrayDimension);
+        if (dimension.length < 0) {
+            return false;
+        }
+        const length: bigint = BigInt(langruntime.checkedI32(dimension.length));
+        const end: bigint = langruntime.checkedI64Add((BigInt(langruntime.checkedI32(dimension.lower))), length);
+        if (end > 2147483648n || (length > 0n && count > langruntime.checkedI64Divide(2147483647n, length))) {
+            return false;
+        }
+        if (length === 0n && dimension.lower === langruntime.checkedSignedSubtract(langruntime.checkedSignedNegate(2147483647), 1)) {
+            return false;
+        }
+        count = langruntime.checkedI64(langruntime.checkedI64Multiply(count, length));
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return count === BigInt(langruntime.checkedI32((langruntime.checkedI32(langruntime.checkedIndex(cells)))));
 }
 export function makeArrayValue(input: ArrayPayload): ArrayValue {
     input = copyArrayPayload(input);
@@ -17707,6 +17791,9 @@ export function appendArraySubscript(input: ArraySubscripts, index: Int4Value, i
         const payload: ArraySubscriptPayload = copyArraySubscriptPayload(input.value);
         let state: number = langruntime.checkedSignedNegate(1);
         let value: number = 0;
+        if (index.kind === "Unimplemented") {
+            state = langruntime.checkedI32(langruntime.checkedSignedNegate(2));
+        }
         if (index.kind === "Null") {
             state = langruntime.checkedI32(0);
         }
@@ -17765,10 +17852,13 @@ function arraySubscriptState(input: ArraySubscriptPayload): number {
             bound = copyArraySubscriptBound(langruntime.indexStruct(input.lower, langruntime.checkedIndex(langruntime.checkedSubtract(position, input.upper.length)), copyArraySubscriptBound));
         }
         if (bound.provided) {
-            if (bound.state === langruntime.checkedSignedNegate(1)) {
+            if (bound.state === langruntime.checkedSignedNegate(2)) {
+                state = langruntime.checkedI32(langruntime.checkedSignedNegate(2));
+            }
+            if (bound.state === langruntime.checkedSignedNegate(1) && !(state === langruntime.checkedSignedNegate(2))) {
                 state = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
             }
-            if (bound.state === 0 && !(state === langruntime.checkedSignedNegate(1))) {
+            if (bound.state === 0 && state > 0) {
                 state = langruntime.checkedI32(0);
             }
         }
@@ -17816,8 +17906,12 @@ export function arrayFetchSubscript(input: ArrayValue, indices: ArraySubscripts)
     if (indices.kind === "Value") {
         const bounds: ArraySubscriptPayload = copyArraySubscriptPayload(indices.value);
         const state: number = arraySubscriptState(bounds);
-        if (state === langruntime.checkedSignedNegate(1)) {
-            return arrayElementUnresolved(unresolvedFlavor);
+        if (state < 0) {
+            let boundFlavor: number = 1;
+            if (state === langruntime.checkedSignedNegate(2)) {
+                boundFlavor = langruntime.checkedI32(2);
+            }
+            return arrayElementUnresolved(boundFlavor);
         }
         if (state === 0) {
             return { kind: "Null" };
@@ -17896,8 +17990,12 @@ export function arraySliceSubscript(input: ArrayValue, indices: ArraySubscripts)
     if (indices.kind === "Value") {
         const bounds: ArraySubscriptPayload = copyArraySubscriptPayload(indices.value);
         const state: number = arraySubscriptState(bounds);
-        if (state === langruntime.checkedSignedNegate(1)) {
-            return arrayUnresolved(unresolvedFlavor);
+        if (state < 0) {
+            let boundFlavor: number = 1;
+            if (state === langruntime.checkedSignedNegate(2)) {
+                boundFlavor = langruntime.checkedI32(2);
+            }
+            return arrayUnresolved(boundFlavor);
         }
         if (state === 0) {
             return { kind: "Null" };
@@ -18560,6 +18658,7 @@ export function prepareArrayBucket(needle: ArrayElement, input: ArrayValue, avai
         }
         let knownNull: boolean = false;
         let unknownNull: boolean = false;
+        let nullFlavor: number = 0;
         let position: number = 0;
         while (position < array.elements.length) {
             const cell: ArrayElement = copyArrayElement(langruntime.indexStruct(array.elements, langruntime.checkedIndex(position), copyArrayElement));
@@ -18572,9 +18671,13 @@ export function prepareArrayBucket(needle: ArrayElement, input: ArrayValue, avai
             }
             if (cell.kind === "Unknown") {
                 unknownNull = langruntime.checkedBool(true);
+                if (nullFlavor < 1) {
+                    nullFlavor = langruntime.checkedI32(1);
+                }
             }
             if (cell.kind === "Unimplemented") {
                 unknownNull = langruntime.checkedBool(true);
+                nullFlavor = langruntime.checkedI32(2);
             }
             position = langruntime.checkedAdd(position, 1);
         }
@@ -18582,7 +18685,7 @@ export function prepareArrayBucket(needle: ArrayElement, input: ArrayValue, avai
             return arrayComparisonState(langruntime.checkedSignedNegate(2), makeSqlError(arrayBucketNullElement), 0);
         }
         if (unknownNull) {
-            return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
+            return arrayComparisonUnresolved(nullFlavor, 0);
         }
         if (available === false) {
             return arrayComparisonState(langruntime.checkedSignedNegate(2), makeSqlError(arrayComparisonUndefined), 0);
@@ -18821,7 +18924,17 @@ export function prepareArraySearch(input: ArrayValue, needle: ArrayElement, star
         langruntime.pushStruct(needles, needle, copyArrayElement);
         return { limit: array.elements.length, left: array.elements, right: needles, state: 1, error: makeSqlError(0), tail: lower, value: Number(BigInt.asIntN(32, langruntime.checkedI64(offset))), flavor: 2 };
     }
-    return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
+    let deferredFlavor: number = 1;
+    if (input.kind === "Unimplemented") {
+        deferredFlavor = langruntime.checkedI32(2);
+    }
+    if (needle.kind === "Unimplemented") {
+        deferredFlavor = langruntime.checkedI32(2);
+    }
+    if (provided && equalInt4Value(start, { kind: "Unimplemented" })) {
+        deferredFlavor = langruntime.checkedI32(2);
+    }
+    return arrayComparisonUnresolved(deferredFlavor, 0);
 }
 export function arraySearchInitial(input: ArrayComparisonPayload): Int4Value {
     input = copyArrayComparisonPayload(input);
@@ -18995,7 +19108,17 @@ export function prepareArrayRewrite(input: ArrayValue, needle: ArrayElement, rep
         langruntime.pushStruct(queries, replacement, copyArrayElement);
         return { limit: array.elements.length, left: array.elements, right: queries, state: 1, error: makeSqlError(0), tail: 0, value: 0, flavor: 2 };
     }
-    return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
+    let deferredFlavor: number = 1;
+    if (input.kind === "Unimplemented") {
+        deferredFlavor = langruntime.checkedI32(2);
+    }
+    if (needle.kind === "Unimplemented") {
+        deferredFlavor = langruntime.checkedI32(2);
+    }
+    if (replacement.kind === "Unimplemented") {
+        deferredFlavor = langruntime.checkedI32(2);
+    }
+    return arrayComparisonUnresolved(deferredFlavor, 0);
 }
 export function arrayRewriteNeedle(input: ArrayComparisonPayload): ArrayElement {
     input = copyArrayComparisonPayload(input);
@@ -19610,8 +19733,8 @@ function arrayStorageChildPath(path: string, index: number): string {
     child = child + text;
     return child;
 }
-function arrayStorageMissingBitmap(input: ArrayPayload): BoolValue {
-    const unresolvedFlavor: number = 0;
+function arrayStorageMissingBitmap(input: ArrayPayload, unresolvedFlavor: number): BoolValue {
+    unresolvedFlavor = langruntime.checkedI32(unresolvedFlavor);
     const elements: BoolValue = arrayElementsBitmap(input);
     if (equalBoolValue(elements, { kind: "Value", value: true })) {
         return elements;
@@ -19629,13 +19752,22 @@ function arrayStorageMissingBitmap(input: ArrayPayload): BoolValue {
 }
 export function forgetArrayStorage(input: ArrayElement): ArrayElement {
     input = copyArrayElement(input);
+    return forgetArrayStorageAs(input, 1);
+}
+export function discardArrayStorage(input: ArrayElement): ArrayElement {
+    input = copyArrayElement(input);
+    return forgetArrayStorageAs(input, 2);
+}
+function forgetArrayStorageAs(input: ArrayElement, flavor: number): ArrayElement {
+    input = copyArrayElement(input);
+    flavor = langruntime.checkedI32(flavor);
     if (input.kind === "Array") {
         const value: ArrayPayload = copyArrayPayload(input.value);
-        const bitmap: BoolValue = arrayStorageMissingBitmap(value);
+        const bitmap: BoolValue = arrayStorageMissingBitmap(value, flavor);
         let elements: ArrayElement[] = [];
         let i: number = 0;
         while (i < value.elements.length) {
-            langruntime.pushStruct(elements, forgetArrayStorage(copyArrayElement(langruntime.indexStruct(value.elements, langruntime.checkedIndex(i), copyArrayElement))), copyArrayElement);
+            langruntime.pushStruct(elements, forgetArrayStorageAs(copyArrayElement(langruntime.indexStruct(value.elements, langruntime.checkedIndex(i), copyArrayElement)), flavor), copyArrayElement);
             i = langruntime.checkedAdd(i, 1);
         }
         return { kind: "Array", value: { elementType: value.elementType, elementKind: value.elementKind, dimensions: value.dimensions, elements: elements, nullBitmap: bitmap } };
@@ -19645,7 +19777,7 @@ export function forgetArrayStorage(input: ArrayElement): ArrayElement {
         let fields: ArrayElement[] = [];
         let i: number = 0;
         while (i < value.fields.length) {
-            langruntime.pushStruct(fields, forgetArrayStorage(copyArrayElement(langruntime.indexStruct(value.fields, langruntime.checkedIndex(i), copyArrayElement))), copyArrayElement);
+            langruntime.pushStruct(fields, forgetArrayStorageAs(copyArrayElement(langruntime.indexStruct(value.fields, langruntime.checkedIndex(i), copyArrayElement)), flavor), copyArrayElement);
             i = langruntime.checkedAdd(i, 1);
         }
         return { kind: "Composite", value: { typeName: value.typeName, fields: fields } };
@@ -19655,7 +19787,7 @@ export function forgetArrayStorage(input: ArrayElement): ArrayElement {
         let bounds: ArrayElement[] = [];
         let i: number = 0;
         while (i < value.bounds.length) {
-            langruntime.pushStruct(bounds, forgetArrayStorage(copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(i), copyArrayElement))), copyArrayElement);
+            langruntime.pushStruct(bounds, forgetArrayStorageAs(copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(i), copyArrayElement)), flavor), copyArrayElement);
             i = langruntime.checkedAdd(i, 1);
         }
         return { kind: "Range", value: rangePayloadWithBounds(value, bounds) };
@@ -19666,7 +19798,7 @@ export function forgetArrayStorage(input: ArrayElement): ArrayElement {
         let i: number = 0;
         while (i < value.ranges.length) {
             const member: ArrayElement = arrayElementFromRange(copyRangeValue(langruntime.indexStruct(value.ranges, langruntime.checkedIndex(i), copyRangeValue)));
-            const restored: ArrayElement = forgetArrayStorage(member);
+            const restored: ArrayElement = forgetArrayStorageAs(member, flavor);
             langruntime.pushStruct(ranges, arrayElementToRange(restored), copyRangeValue);
             i = langruntime.checkedAdd(i, 1);
         }
@@ -19688,7 +19820,7 @@ function applyArrayStorageAt(input: ArrayElement, plan: ArrayStoragePlan, path: 
     if (input.kind === "Array") {
         const value: ArrayPayload = copyArrayPayload(input.value);
         let matched: number = 0;
-        let bitmap: BoolValue = arrayStorageMissingBitmap(value);
+        let bitmap: BoolValue = arrayStorageMissingBitmap(value, 2);
         let valid: boolean = true;
         let i: number = 0;
         while (i < plan.entries.length) {
@@ -19779,7 +19911,7 @@ export function applyArrayStorage(input: ArrayElement, plan: ArrayStoragePlan): 
     if (plan.valid && result.valid && result.matched === plan.entries.length) {
         return result.value;
     }
-    return forgetArrayStorage(result.value);
+    return discardArrayStorage(result.value);
 }
 export function prepareArrayQuantifier(scalar: BoolValue, input: ArrayValue, strict: boolean): ArrayComparisonPayload {
     input = copyArrayValue(input);
@@ -21193,12 +21325,18 @@ export function dateFromTextOrder(value: TextValue, dateOrder: number): DateValu
         }
         if (langruntime.checkedSubtract(end, start) >= 2 && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1)))) === "c" && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 2)))) === "b") {
             if (langruntime.checkedSubtract(end, start) > 2 && dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 3)))) === false && dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 3)))) < 0) {
+                if (englishDateLetter(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 3))))) {
+                    return dateUnresolved(resolutionContext(unresolvedFlavor));
+                }
                 return dateUnresolved(unresolvedFlavor);
             }
             end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 2));
         }
         else if (langruntime.checkedSubtract(end, start) >= 2 && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1)))) === "d" && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 2)))) === "a") {
             if (langruntime.checkedSubtract(end, start) > 2 && dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 3)))) === false && dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 3)))) < 0) {
+                if (englishDateLetter(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 3))))) {
+                    return dateUnresolved(resolutionContext(unresolvedFlavor));
+                }
                 return dateUnresolved(unresolvedFlavor);
             }
             end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 2));
@@ -21894,6 +22032,9 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
                 }
             }
             else if (yearField.digits < 3 || index === end) {
+                if (yearField.digits === 0 && start < end && englishDateLetter(langruntime.indexChar(text.chars, langruntime.checkedIndex(start)))) {
+                    return int8Unresolved(resolutionContext(unresolvedFlavor));
+                }
                 return int8Unresolved(unresolvedFlavor);
             }
             else {
@@ -22070,6 +22211,9 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
             return { kind: "Error", value: { state: invalidTimestampText } };
         }
         else if (zoneOnly === false) {
+            if (temporalZoneWord(text, index, end)) {
+                return int8Unresolved(resolutionContext(unresolvedFlavor));
+            }
             return int8Unresolved(unresolvedFlavor);
         }
         if (julianTime >= 0n) {
@@ -23840,7 +23984,7 @@ export function intervalInputAgreement(left: IntervalValue, right: IntervalValue
     if (equalIntervalValue(left, right)) {
         return left;
     }
-    return intervalUnresolved(unresolvedFlavor);
+    return intervalUnresolved(resolutionContext(unresolvedFlavor));
 }
 export function intervalFromTextFields(input: TextValue, fields: Int4Value): IntervalValue {
     return intervalFromTextFieldsContext(input, fields, 0);
