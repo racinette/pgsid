@@ -7,7 +7,6 @@ pub fn xid8_from_text(input: TextValue) -> Xid8Value {
     if input == TextValue::Null { return Xid8Value::Null; };
     if let TextValue::Value(text) = input {
         let chars: Vec<char> = text.chars().collect();
-        if chars.len() > 4096 { return xid8_unresolved(unresolved_flavor); };
         let mut start: usize = 0;
         let mut end = chars.len();
         while start < end && oid_input_space(chars[start]) { start += 1; };

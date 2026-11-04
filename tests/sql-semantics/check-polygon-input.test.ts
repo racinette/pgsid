@@ -89,7 +89,7 @@ it('matches polygon input grammar and error order, typed literals, domains, NaN 
       expected_count: known(2),
       skip: known(true),
     }
-    for (const form of polygonInputForms) {
+    for (const form of [...polygonInputForms, '((0,0))' + ' '.repeat(4097)]) {
       let wire: string | null = null,
         expected: Outcome,
         count: number | null = null
@@ -127,14 +127,9 @@ it('matches polygon input grammar and error order, typed literals, domains, NaN 
           expected.kind === 'Error' ? expected : { kind: wire === null ? 'Null' : 'True' },
         )
     }
-    for (const form of [...deferredPolygonPlatformForms, '((0,0))' + ' '.repeat(4097)])
+    for (const form of deferredPolygonPlatformForms)
       for (const name of ['parsed', 'constructor', 'domain_cast', 'count', 'bounds_length'])
-        add(
-          name,
-          { ...base, input: known(form) },
-          // Text past the evaluator's length cap is no database fact.
-          { kind: deferredPolygonPlatformForms.includes(form) ? 'Unknown' : 'Unimplemented' },
-        )
+        add(name, { ...base, input: known(form) }, { kind: 'Unknown' })
     for (const state of [{ kind: 'Unknown' }, { kind: 'Null' }, failure('22012')] as Input[])
       for (const name of ['parsed', 'constructor', 'domain_cast', 'count', 'bounds_length'])
         add(name, { ...base, input: state }, state as Outcome)

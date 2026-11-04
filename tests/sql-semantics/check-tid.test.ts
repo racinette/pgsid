@@ -236,7 +236,7 @@ describe('portable heap tuple identifiers', () => {
     ])
     expect(group.checks[0]!.kind).toBe('supported')
     const fixtures: { name: string; row: Row; expected: Outcome }[] = []
-    for (const text of tidInputForms) {
+    for (const text of [...tidInputForms, '9'.repeat(4097)]) {
       try {
         const answer = (
           await pg.query<{ wire: string }>("SELECT encode(tidsend($1::tid),'hex') wire", [text])
@@ -254,12 +254,11 @@ describe('portable heap tuple identifiers', () => {
         })
       }
     }
-    for (const text of [...deferredTidPlatformForms, '9'.repeat(4097)])
+    for (const text of deferredTidPlatformForms)
       fixtures.push({
         name: c.name,
         row: { source: known(text), expected: known('00') },
-        // Text past the evaluator's length cap is no database fact.
-        expected: { kind: deferredTidPlatformForms.includes(text) ? 'Unknown' : 'Unimplemented' },
+        expected: { kind: 'Unknown' },
       })
     for (const [source, expected] of [
       [known(null), { kind: 'Null' }],

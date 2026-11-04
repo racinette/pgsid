@@ -9804,9 +9804,6 @@ func BoxFromText(input checkruntime.TextValue) checkruntime.BoxValue {
 	if input.Kind == checkruntime.TextValueValue {
 		value := langruntime.CheckedString(input.Value)
 		chars := []rune(value)
-		if len(chars) > 4096 {
-			return checkruntime.BoxUnresolved(unresolvedFlavor)
-		}
 		source := geometryInputText{chars: chars}
 		index := geometryInputSpace(&source, 0)
 		if index < len(source.chars) && source.chars[index] == '[' {
@@ -16562,9 +16559,6 @@ func circleParse(value string) checkruntime.CircleValue {
 	value = langruntime.CheckedString(value)
 	unresolvedFlavor := 0
 	chars := []rune(value)
-	if len(chars) > 4096 {
-		return checkruntime.CircleUnresolved(unresolvedFlavor)
-	}
 	source := geometryInputText{chars: chars}
 	index := geometryInputSpace(&source, 0)
 	depth := 0
@@ -39797,11 +39791,7 @@ func lineParseCoefficients(source *geometryInputText, begin int) checkruntime.Li
 }
 func lineParse(value string) checkruntime.LineValue {
 	value = langruntime.CheckedString(value)
-	unresolvedFlavor := 0
 	chars := []rune(value)
-	if len(chars) > 4096 {
-		return checkruntime.LineUnresolved(unresolvedFlavor)
-	}
 	source := geometryInputText{chars: chars}
 	index := geometryInputSpace(&source, 0)
 	if index < len(source.chars) && source.chars[index] == '{' {
@@ -41071,9 +41061,6 @@ func LsegFromText(input checkruntime.TextValue) checkruntime.LsegValue {
 	if input.Kind == checkruntime.TextValueValue {
 		value := langruntime.CheckedString(input.Value)
 		chars := []rune(value)
-		if len(chars) > 4096 {
-			return checkruntime.LsegUnresolved(unresolvedFlavor)
-		}
 		source := geometryInputText{chars: chars}
 		index := geometryInputSpace(&source, 0)
 		pair := geometryReadPair(&source, index)
@@ -54859,9 +54846,6 @@ func oidAliasRead(input checkruntime.TextValue, dash bool, grammar int, soft boo
 	if input.Kind == checkruntime.TextValueValue {
 		text := langruntime.CheckedString(input.Value)
 		chars := []rune(text)
-		if len(chars) > 4096 {
-			return checkruntime.OidUnresolved(unresolvedFlavor)
-		}
 		if dash && len(chars) == 1 && chars[0] == '-' {
 			return checkruntime.MakeOidValue(int64(0))
 		}
@@ -55217,9 +55201,6 @@ func RegclassWqix(input checkruntime.TextValue) checkruntime.OidValue {
 	if input.Kind == checkruntime.TextValueValue {
 		text := langruntime.CheckedString(input.Value)
 		chars := []rune(text)
-		if len(chars) > 4096 {
-			return checkruntime.OidUnresolved(unresolvedFlavor)
-		}
 		parts := oidAliasNameParts(text, 0, len(chars))
 		if parts < 1 {
 			return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: checkruntime.MakeSqlError(oidAliasInvalidName)}
@@ -55546,9 +55527,6 @@ func OidFromText(input checkruntime.TextValue) checkruntime.OidValue {
 	if input.Kind == checkruntime.TextValueValue {
 		text := langruntime.CheckedString(input.Value)
 		chars := []rune(text)
-		if len(chars) > 4096 {
-			return checkruntime.OidUnresolved(unresolvedFlavor)
-		}
 		start := 0
 		end := len(chars)
 		for start < end && oidInputSpace(chars[start]) {
@@ -56254,9 +56232,6 @@ func pathParse(value string) checkruntime.PathValue {
 	value = langruntime.CheckedString(value)
 	unresolvedFlavor := 0
 	chars := []rune(value)
-	if len(chars) > 4096 {
-		return checkruntime.PathUnresolved(unresolvedFlavor)
-	}
 	source := geometryInputText{chars: chars}
 	commas := 0
 	lastParen := 0
@@ -57840,9 +57815,6 @@ func pointParse(value string) checkruntime.PointValue {
 	value = langruntime.CheckedString(value)
 	unresolvedFlavor := 0
 	chars := []rune(value)
-	if len(chars) > 4096 {
-		return checkruntime.PointUnresolved(unresolvedFlavor)
-	}
 	source := geometryInputText{chars: chars}
 	index := geometryInputSpace(&source, 0)
 	parenthesized := false
@@ -58999,9 +58971,6 @@ func polygonParse(value string) checkruntime.PolygonValue {
 	value = langruntime.CheckedString(value)
 	unresolvedFlavor := 0
 	chars := []rune(value)
-	if len(chars) > 4096 {
-		return checkruntime.PolygonUnresolved(unresolvedFlavor)
-	}
 	source := geometryInputText{chars: chars}
 	start := geometryInputSpace(&source, 0)
 	if start < len(source.chars) {
@@ -74968,9 +74937,6 @@ func TidFromText(input checkruntime.TextValue) checkruntime.TidValue {
 		text := langruntime.CheckedString(input.Value)
 		chars := []rune(text)
 		data := tidInputText{chars: chars}
-		if len(data.chars) > 4096 {
-			return checkruntime.TidUnresolved(unresolvedFlavor)
-		}
 		index := 0
 		count := 0
 		first := 0
@@ -84695,9 +84661,6 @@ func Xid8FromText(input checkruntime.TextValue) checkruntime.Xid8Value {
 	if input.Kind == checkruntime.TextValueValue {
 		text := langruntime.CheckedString(input.Value)
 		chars := []rune(text)
-		if len(chars) > 4096 {
-			return checkruntime.Xid8Unresolved(unresolvedFlavor)
-		}
 		start := 0
 		end := len(chars)
 		for start < end && oidInputSpace(chars[start]) {

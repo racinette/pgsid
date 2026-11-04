@@ -1,9 +1,6 @@
 fn polygon_parse(value: &str) -> PolygonValue {
     let unresolved_flavor: i32 = 0;
     let chars: Vec<char> = value.chars().collect();
-    if chars.len() > 4096 {
-        return polygon_unresolved(unresolved_flavor);
-    };
     let source = GeometryInputText { chars };
     let start = geometry_input_space(&source, 0);
     if start < source.chars.len() {

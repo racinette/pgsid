@@ -1148,7 +1148,6 @@ describe('CHECK measurement boundaries', () => {
     ).toMatchObject({
       contextRequired: [],
       unimplementedGrammar: [],
-      inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
       computedNanBinaryOutput: 'Unknown',
       nanBinaryPrecision: {
         requirement: 'platform',
@@ -1177,7 +1176,6 @@ describe('CHECK measurement boundaries', () => {
     expect(boxForms).toMatchObject({
       contextRequired: [],
       unimplementedGrammar: [],
-      inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
       computedNanBinaryOutput: 'Unknown',
       platformDependent: expect.arrayContaining(['((0x1p0,0),(1,1))']),
     })
@@ -1193,7 +1191,6 @@ describe('CHECK measurement boundaries', () => {
     expect(lsegForms).toMatchObject({
       contextRequired: [],
       unimplementedGrammar: [],
-      inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
       computedNanBinaryOutput: 'Unknown',
       platformDependent: expect.arrayContaining(['[(0x1p0,0),(1,1)]']),
     })
@@ -1206,7 +1203,6 @@ describe('CHECK measurement boundaries', () => {
     expect(lineForms).toMatchObject({
       contextRequired: [],
       unimplementedGrammar: [],
-      inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
       computedNanBinaryOutput: 'Unknown',
       platformDependent: expect.arrayContaining(['{0x1p0,-1,0}', '{nan(payload),1,0}']),
     })
@@ -1216,7 +1212,6 @@ describe('CHECK measurement boundaries', () => {
     expect(pointForms).toMatchObject({
       contextRequired: [],
       unimplementedGrammar: [],
-      inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
       platformDependent: expect.arrayContaining(['(0x1p0,0)', '(NaN(1),0)']),
     })
     expect(pointForms.handled).toEqual(expect.arrayContaining(['1,2', '(-0,-0)', '(NaN,NaN)']))

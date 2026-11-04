@@ -107,9 +107,6 @@ fn geometry_read_number(source: &GeometryInputText, begin: usize) -> GeometryInp
 fn point_parse(value: &str) -> PointValue {
     let unresolved_flavor: i32 = 0;
     let chars: Vec<char> = value.chars().collect();
-    if chars.len() > 4096 {
-        return point_unresolved(unresolved_flavor);
-    };
     let source = GeometryInputText { chars: chars };
     let mut index = geometry_input_space(&source, 0);
     let mut parenthesized = false;

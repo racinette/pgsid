@@ -91,7 +91,7 @@ describe('point text input and literals', () => {
       for (const suffix of ['raw', 'stored'])
         fixtures.push({ name: name + '_' + suffix, row, expected })
     }
-    for (const text of pointInputForms) {
+    for (const text of [...pointInputForms, '(' + '0'.repeat(4097) + ',0)']) {
       let hex: string | null = null,
         expected: Outcome
       try {
@@ -148,11 +148,8 @@ describe('point text input and literals', () => {
         row: { ...baseline, skip: value(skip) },
         expected: error('22P02'),
       })
-    for (const text of [...deferredPointPlatformForms, '(' + '0'.repeat(4097) + ',0)']) {
-      // Text past the evaluator's length cap is no database fact.
-      const kind = (deferredPointPlatformForms as readonly string[]).includes(text)
-        ? 'Unknown'
-        : 'Unimplemented'
+    for (const text of deferredPointPlatformForms) {
+      const kind = 'Unknown'
       add('input', { ...baseline, source: value(text) }, { kind })
       add('lazy', { ...baseline, source: value(text), skip: value(false) }, { kind })
       add('lazy', { ...baseline, source: value(text), skip: value(true) }, { kind: 'True' })
