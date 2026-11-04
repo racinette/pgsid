@@ -150,16 +150,16 @@ pub fn range_support_jsonb_utf8(input: RangeSupport) -> bool {
 }
 
 pub fn range_oid_alias_mode(input: RangeSupport, element_type: &str) -> i32 {
-    if input.comparison >= 331 && input.comparison <= 335 { return input.comparison - 330; };
-    if input.comparison >= 301 && input.comparison <= 305 { return input.comparison - 300; };
+    if input.comparison >= 331 && input.comparison <= 336 { return input.comparison - 330; };
+    if input.comparison >= 301 && input.comparison <= 306 { return input.comparison - 300; };
     if element_type == "pg_catalog.regoper" { return 2; };
     if element_type == "pg_catalog.regoperator" { return 4; };
     if element_type == "pg_catalog.regprocedure" { return 3; };
     if element_type == "pg_catalog.regtype" { return 5; };
     if element_type == "pg_catalog.regclass" || element_type == "pg_catalog.regcollation"
         || element_type == "pg_catalog.regconfig" || element_type == "pg_catalog.regdictionary"
-        || element_type == "pg_catalog.regnamespace" || element_type == "pg_catalog.regproc"
-        || element_type == "pg_catalog.regrole" { return 1; };
+        || element_type == "pg_catalog.regproc" { return 1; };
+    if element_type == "pg_catalog.regnamespace" || element_type == "pg_catalog.regrole" { return 6; };
     0
 }
 

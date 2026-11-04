@@ -13813,10 +13813,10 @@ func RangeSupportJsonbUtf8(input RangeSupport) bool {
 }
 func RangeOidAliasMode(input RangeSupport, elementType string) int {
 	elementType = langruntime.CheckedString(elementType)
-	if input.Comparison >= 331 && input.Comparison <= 335 {
+	if input.Comparison >= 331 && input.Comparison <= 336 {
 		return langruntime.CheckedSignedSubtract(input.Comparison, 330)
 	}
-	if input.Comparison >= 301 && input.Comparison <= 305 {
+	if input.Comparison >= 301 && input.Comparison <= 306 {
 		return langruntime.CheckedSignedSubtract(input.Comparison, 300)
 	}
 	if elementType == "pg_catalog.regoper" {
@@ -13831,8 +13831,11 @@ func RangeOidAliasMode(input RangeSupport, elementType string) int {
 	if elementType == "pg_catalog.regtype" {
 		return 5
 	}
-	if elementType == "pg_catalog.regclass" || elementType == "pg_catalog.regcollation" || elementType == "pg_catalog.regconfig" || elementType == "pg_catalog.regdictionary" || elementType == "pg_catalog.regnamespace" || elementType == "pg_catalog.regproc" || elementType == "pg_catalog.regrole" {
+	if elementType == "pg_catalog.regclass" || elementType == "pg_catalog.regcollation" || elementType == "pg_catalog.regconfig" || elementType == "pg_catalog.regdictionary" || elementType == "pg_catalog.regproc" {
 		return 1
+	}
+	if elementType == "pg_catalog.regnamespace" || elementType == "pg_catalog.regrole" {
+		return 6
 	}
 	return 0
 }

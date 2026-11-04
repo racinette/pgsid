@@ -54833,6 +54833,10 @@ const oidAliasInvalidType = 6819553
 
 func OidAliasFromText(input checkruntime.TextValue, dash bool, grammar int) checkruntime.OidValue {
 	grammar = langruntime.CheckedI32(grammar)
+	return oidAliasRead(input, dash, grammar, false)
+}
+func oidAliasRead(input checkruntime.TextValue, dash bool, grammar int, soft bool) checkruntime.OidValue {
+	grammar = langruntime.CheckedI32(grammar)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.TextValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -54862,49 +54866,193 @@ func OidAliasFromText(input checkruntime.TextValue, dash bool, grammar int) chec
 			return checkruntime.MakeOidValue(int64(0))
 		}
 		numeric := len(chars) != 0
-		whitespace := true
-		quoted := false
-		signature := false
 		index := 0
 		for index < len(chars) {
-			ch := chars[index]
-			code := int(langruntime.CheckedChar(ch))
+			code := int(langruntime.CheckedChar(chars[index]))
 			if code < 48 || code > 57 {
 				numeric = false
-			}
-			if oidInputSpace(ch) == false {
-				whitespace = false
-			}
-			if ch == '"' {
-				quoted = quoted == false
-			}
-			if ch == '(' && quoted == false {
-				signature = true
 			}
 			index = langruntime.CheckedAdd(index, 1)
 		}
 		if numeric {
-			return OidFromText(checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: text})
-		}
-		if grammar == 1 && signature == false {
-			return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: checkruntime.MakeSqlError(oidAliasInvalidSignature)}
-		}
-		if whitespace {
-			if grammar == 2 {
-				return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: checkruntime.MakeSqlError(oidAliasInvalidType)}
+			value := OidFromText(checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: text})
+			if soft {
+				if value.Kind == checkruntime.OidValueError {
+					return checkruntime.OidValue{Kind: checkruntime.OidValueNull}
+				}
 			}
+			return value
+		}
+		outcome := 0
+		if grammar == 1 {
+			outcome = langruntime.CheckedI32(oidAliasSignatureRead(text))
+		} else if grammar == 2 {
+			outcome = langruntime.CheckedI32(oidAliasTypeRead(text))
+		} else {
+			parts := oidAliasNameParts(text, 0, len(chars))
+			if parts < 1 || (grammar == 3 && parts != 1) {
+				outcome = langruntime.CheckedI32(1)
+			}
+			if grammar != 3 && parts > 3 {
+				outcome = langruntime.CheckedI32(3)
+			}
+		}
+		if soft && (outcome == 1 || outcome == 2 || outcome == 4) {
+			return checkruntime.OidValue{Kind: checkruntime.OidValueNull}
+		}
+		if outcome == 1 {
 			return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: checkruntime.MakeSqlError(oidAliasInvalidName)}
 		}
-		if oidAliasGrammarRead(text, grammar) == false {
-			return checkruntime.OidUnresolved(unresolvedFlavor)
+		if outcome == 2 {
+			return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: checkruntime.MakeSqlError(oidAliasInvalidSignature)}
+		}
+		if outcome == 3 || outcome == 4 {
+			return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: checkruntime.MakeSqlError(oidAliasInvalidType)}
 		}
 	}
 	return checkruntime.OidUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 }
-func oidAliasGrammarRead(text string, grammar int) bool {
+func oidAliasNameParts(text string, start int, end int) int {
 	text = langruntime.CheckedString(text)
-	grammar = langruntime.CheckedI32(grammar)
+	start = langruntime.CheckedIndex(start)
+	end = langruntime.CheckedIndex(end)
 	chars := []rune(text)
+	index := start
+	for index < end && oidInputSpace(chars[index]) {
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	if index == end {
+		return 0
+	}
+	parts := 0
+	for index < end {
+		if chars[index] == '"' {
+			index = langruntime.CheckedAdd(index, 1)
+			closed := false
+			for index < end && closed == false {
+				if chars[index] == '"' {
+					if langruntime.CheckedAdd(index, 1) < end && chars[langruntime.CheckedAdd(index, 1)] == '"' {
+						index = langruntime.CheckedAdd(index, 2)
+					} else {
+						closed = true
+						index = langruntime.CheckedAdd(index, 1)
+					}
+				} else {
+					index = langruntime.CheckedAdd(index, 1)
+				}
+			}
+			if closed == false {
+				return langruntime.CheckedSignedNegate(1)
+			}
+		} else {
+			first := index
+			for index < end && chars[index] != '.' && oidInputSpace(chars[index]) == false {
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			if index == first {
+				return langruntime.CheckedSignedNegate(1)
+			}
+		}
+		parts = langruntime.CheckedI32(langruntime.CheckedSignedAdd(parts, 1))
+		for index < end && oidInputSpace(chars[index]) {
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		if index < end {
+			if chars[index] != '.' {
+				return langruntime.CheckedSignedNegate(1)
+			}
+			index = langruntime.CheckedAdd(index, 1)
+			for index < end && oidInputSpace(chars[index]) {
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			if index == end {
+				return langruntime.CheckedSignedNegate(1)
+			}
+		}
+	}
+	return parts
+}
+func oidAliasSignatureRead(text string) int {
+	text = langruntime.CheckedString(text)
+	chars := []rune(text)
+	end := len(chars)
+	quoted := false
+	open := end
+	index := 0
+	for index < end && open == end {
+		if chars[index] == '"' {
+			quoted = quoted == false
+		} else if chars[index] == '(' && quoted == false {
+			open = langruntime.CheckedIndex(index)
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	if open == end {
+		return 2
+	}
+	if oidAliasNameParts(text, 0, open) < 1 {
+		return 1
+	}
+	close := end
+	for close > langruntime.CheckedAdd(open, 1) && oidInputSpace(chars[langruntime.CheckedSubtract(close, 1)]) {
+		close = langruntime.CheckedIndex(langruntime.CheckedSubtract(close, 1))
+	}
+	if close == langruntime.CheckedAdd(open, 1) || chars[langruntime.CheckedSubtract(close, 1)] != ')' {
+		return 2
+	}
+	last := langruntime.CheckedSubtract(close, 1)
+	index = langruntime.CheckedIndex(langruntime.CheckedAdd(open, 1))
+	for index < last && oidInputSpace(chars[index]) {
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	quoted = false
+	depth := 0
+	for index < last {
+		ch := chars[index]
+		if ch == '"' {
+			quoted = quoted == false
+		} else if ch == ',' && quoted == false && depth == 0 {
+			break
+		} else if quoted == false {
+			if ch == '(' || ch == '[' {
+				depth = langruntime.CheckedI32(langruntime.CheckedSignedAdd(depth, 1))
+			}
+			if ch == ')' || ch == ']' {
+				depth = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(depth, 1))
+			}
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	if quoted || depth != 0 {
+		return 2
+	}
+	return 0
+}
+func oidAliasTypeRead(text string) int {
+	text = langruntime.CheckedString(text)
+	chars := []rune(text)
+	first := ' '
+	index := 0
+	for index < len(chars) {
+		ch := chars[index]
+		if ch == '\'' || ch == '$' {
+			return 0
+		}
+		if langruntime.CheckedAdd(index, 1) < len(chars) && ((ch == '-' && chars[langruntime.CheckedAdd(index, 1)] == '-') || (ch == '/' && chars[langruntime.CheckedAdd(index, 1)] == '*')) {
+			return 0
+		}
+		if first == ' ' && oidInputSpace(ch) == false {
+			first = langruntime.CheckedChar(ch)
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	if first == ' ' {
+		return 4
+	}
+	code := int(langruntime.CheckedChar(first))
+	if (code >= 48 && code <= 57) || first == '+' || first == '-' {
+		return 3
+	}
 	quoted := false
 	parts := 1
 	partLength := 0
@@ -54912,32 +55060,21 @@ func oidAliasGrammarRead(text string, grammar int) bool {
 	depth := 0
 	brackets := 0
 	balanced := true
-	first := ' '
-	index := 0
+	index = langruntime.CheckedIndex(0)
 	for index < len(chars) {
 		ch := chars[index]
-		if first == ' ' && oidInputSpace(ch) == false {
-			first = langruntime.CheckedChar(ch)
-		}
-		consumed := false
 		if ch == '"' {
 			quoted = quoted == false
 			partLength = langruntime.CheckedI32(langruntime.CheckedSignedAdd(partLength, 1))
-			consumed = true
-		}
-		if consumed == false && quoted {
+		} else if quoted {
 			partLength = langruntime.CheckedI32(langruntime.CheckedSignedAdd(partLength, 1))
-			consumed = true
-		}
-		if consumed == false && ch == '.' && depth == 0 {
+		} else if ch == '.' && depth == 0 {
 			if partLength == 0 {
 				emptyPart = true
 			}
 			parts = langruntime.CheckedI32(langruntime.CheckedSignedAdd(parts, 1))
 			partLength = langruntime.CheckedI32(0)
-			consumed = true
-		}
-		if consumed == false {
+		} else {
 			if ch == '(' {
 				depth = langruntime.CheckedI32(langruntime.CheckedSignedAdd(depth, 1))
 			}
@@ -54962,17 +55099,10 @@ func oidAliasGrammarRead(text string, grammar int) bool {
 	if parts > 1 && partLength == 0 {
 		emptyPart = true
 	}
-	if quoted || emptyPart || depth != 0 || brackets != 0 || balanced == false {
-		return false
+	if quoted || emptyPart || parts > 3 || depth != 0 || brackets != 0 || balanced == false {
+		return 3
 	}
-	if grammar != 1 && parts > 3 {
-		return false
-	}
-	code := int(langruntime.CheckedChar(first))
-	if grammar == 2 && ((code >= 48 && code <= 57) || first == '+' || first == '-') {
-		return false
-	}
-	return true
+	return 0
 }
 func OidAliasToText(input checkruntime.OidValue, dash bool) checkruntime.TextValue {
 	unresolvedFlavor := 0
@@ -55002,15 +55132,7 @@ func OidAliasToText(input checkruntime.OidValue, dash bool) checkruntime.TextVal
 }
 func oidAliasLookup(input checkruntime.TextValue, dash bool, grammar int) checkruntime.OidValue {
 	grammar = langruntime.CheckedI32(grammar)
-	if input.Kind == checkruntime.TextValueError {
-		error := input.Error
-		return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: error}
-	}
-	value := OidAliasFromText(input, dash, grammar)
-	if value.Kind == checkruntime.OidValueError {
-		return checkruntime.OidValue{Kind: checkruntime.OidValueNull}
-	}
-	return value
+	return oidAliasRead(input, dash, grammar, true)
 }
 func RegclasssendC6c0(input checkruntime.OidValue) checkruntime.ByteaValue {
 	return OidsendKq2v(input)
@@ -55034,7 +55156,7 @@ func RegnamespacesendJpj3(input checkruntime.OidValue) checkruntime.ByteaValue {
 	return OidsendKq2v(input)
 }
 func ToRegnamespace525a(input checkruntime.TextValue) checkruntime.OidValue {
-	return oidAliasLookup(input, true, 0)
+	return oidAliasLookup(input, true, 3)
 }
 func Regopersend4lv2(input checkruntime.OidValue) checkruntime.ByteaValue {
 	return OidsendKq2v(input)
@@ -55064,7 +55186,7 @@ func RegrolesendA3kd(input checkruntime.OidValue) checkruntime.ByteaValue {
 	return OidsendKq2v(input)
 }
 func ToRegrole2dsk(input checkruntime.TextValue) checkruntime.OidValue {
-	return oidAliasLookup(input, true, 0)
+	return oidAliasLookup(input, true, 3)
 }
 func Regtypesend42nl(input checkruntime.OidValue) checkruntime.ByteaValue {
 	return OidsendKq2v(input)
@@ -55098,19 +55220,12 @@ func RegclassWqix(input checkruntime.TextValue) checkruntime.OidValue {
 		if len(chars) > 4096 {
 			return checkruntime.OidUnresolved(unresolvedFlavor)
 		}
-		whitespace := true
-		index := 0
-		for index < len(chars) {
-			if oidInputSpace(chars[index]) == false {
-				whitespace = false
-			}
-			index = langruntime.CheckedAdd(index, 1)
-		}
-		if whitespace {
+		parts := oidAliasNameParts(text, 0, len(chars))
+		if parts < 1 {
 			return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: checkruntime.MakeSqlError(oidAliasInvalidName)}
 		}
-		if oidAliasGrammarRead(text, 0) == false {
-			return checkruntime.OidUnresolved(unresolvedFlavor)
+		if parts > 3 {
+			return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: checkruntime.MakeSqlError(oidAliasInvalidType)}
 		}
 	}
 	return checkruntime.OidUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
@@ -60620,7 +60735,7 @@ func rangeBuiltinCompare(lower checkruntime.ArrayElement, upper checkruntime.Arr
 		right := checkruntime.ArrayElementToInternalChar(upper)
 		return BtcharcmpGfia(left, right)
 	}
-	if kind == 33 || (kind >= 331 && kind <= 335) {
+	if kind == 33 || (kind >= 331 && kind <= 336) {
 		left := checkruntime.ArrayElementToOid(lower)
 		right := checkruntime.ArrayElementToOid(upper)
 		return Btoidcmp48b8(left, right)
@@ -61399,6 +61514,9 @@ func rangeInputBound(input checkruntime.TextValue, kind int, cidr bool, name boo
 			}
 			if aliasMode == 5 {
 				grammar = langruntime.CheckedI32(2)
+			}
+			if aliasMode == 6 {
+				grammar = langruntime.CheckedI32(3)
 			}
 			return checkruntime.ArrayElementFromOid(OidAliasFromText(input, dash, grammar))
 		}
