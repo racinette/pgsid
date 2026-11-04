@@ -54,7 +54,6 @@ import {
   checkTypescriptRuntime,
   typescriptCompilerFlags,
 } from './runtime-translation.js'
-import { expect } from 'vitest'
 import { rustStringLiteral } from '../../src/codegen/shared/rust-literals.js'
 import { enumLabelOid, type EnumDefinition } from '../../src/sql-semantics/expressions.js'
 import { go, printGoFile, type GoExpression, type GoStatement } from '../../src/codegen/go/ast.js'
@@ -115,7 +114,9 @@ export async function runCheckParity(
   assert.ok(group.source && group.evaluatorSource)
   await writeFile(join(directory, 'evaluators.rs'), group.evaluatorSource)
   writeCheckRustSources(join(directory, 'checks.rs'), group.source)
-  recordCheckRustReach(group.source, expect.getState().testPath)
+  // Standalone tool checks run without the test runner and have no suite to credit.
+  if (process.env['VITEST'])
+    recordCheckRustReach(group.source, (await import('vitest')).expect.getState().testPath)
   const runtimeLibrary = await checkRustRuntimeLibrary(group.source)
   await writeFile(join(directory, 'checks.rs'), linkedCheckRustRoot(group.source) + '\n')
   const split = await checkRustTranslation(group.source, `${goParityModule}/pg_catalog`)

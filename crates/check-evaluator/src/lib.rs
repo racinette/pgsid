@@ -68,6 +68,24 @@ pub mod checkruntime {
             assert!(array_validity_result(unknown, CheckOutcome::True) == unknown);
             assert!(array_validity_result(CheckOutcome::True, gap) == gap);
         }
+
+        #[test]
+        fn an_unknown_array_stays_unknown_through_search_and_rewrite() {
+            let cell = ArrayElement::Null;
+            let start = Int4Value::Value(0);
+            let search = prepare_array_search(ArrayValue::Unknown, cell.clone(), start, false, true);
+            assert!(array_search_initial(&search) == Int4Value::Unknown);
+            let gap = prepare_array_search(ArrayValue::Unimplemented, cell.clone(), start, false, true);
+            assert!(array_search_initial(&gap) == Int4Value::Unimplemented);
+            let mixed =
+                prepare_array_search(ArrayValue::Unknown, ArrayElement::Unimplemented, start, false, true);
+            assert!(array_search_initial(&mixed) == Int4Value::Unimplemented);
+            let rewrite = prepare_array_rewrite(ArrayValue::Unknown, cell.clone(), cell.clone(), true, true);
+            assert!(array_comparison_flavor(&rewrite, 0) == 1);
+            let rewrite_gap =
+                prepare_array_rewrite(ArrayValue::Unimplemented, cell.clone(), cell, true, true);
+            assert!(array_comparison_flavor(&rewrite_gap, 0) == 2);
+        }
     }
 }
 

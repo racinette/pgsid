@@ -67,8 +67,8 @@ describe('CHECK enum catalog payload', () => {
         expect(runtime.sqlPgCatalogEnumSmallerWhhx(value, legacy)).toEqual(legacy)
       }
       for (const oid of [-1n, 0n, 4294967296n])
-        expect(runtime.makeCatalogEnumValue(1, oid)).toEqual({ kind: 'Unknown' })
-      expect(runtime.makeCatalogEnumValue(-1, 1n)).toEqual({ kind: 'Unknown' })
+        expect(runtime.makeCatalogEnumValue(1, oid)).toEqual({ kind: 'Unimplemented' })
+      expect(runtime.makeCatalogEnumValue(-1, 1n)).toEqual({ kind: 'Unimplemented' })
       expect(runtime.makeEnumValue(1)).toEqual({
         kind: 'Value',
         value: { ordinal: 1, labelOid: 0n },
@@ -101,8 +101,8 @@ describe('CHECK enum catalog payload', () => {
         assert!(sql__pg_catalog__enum_larger__em2s(value, legacy) == legacy);
         assert!(sql__pg_catalog__enum_smaller__whhx(value, legacy) == legacy);
     }
-    for oid in [-1i64, 0, 4294967296] { assert!(make_catalog_enum_value(1, oid) == EnumValue::Unknown); }
-    assert!(make_catalog_enum_value(-1, 1) == EnumValue::Unknown);
+    for oid in [-1i64, 0, 4294967296] { assert!(make_catalog_enum_value(1, oid) == EnumValue::Unimplemented); }
+    assert!(make_catalog_enum_value(-1, 1) == EnumValue::Unimplemented);
     if let EnumValue::Value(payload) = make_enum_value(1) { assert_eq!(payload.label_oid, 0); }
     assert!(sql__pg_catalog__hashenum__z4zk(make_enum_value(1)) == Int4Value::Unknown);
     assert!(sql__pg_catalog__hashenumextended__18hh(make_enum_value(1), make_int8_value(0)) == Int8Value::Unknown);
@@ -125,20 +125,18 @@ func TestEnumPayload(t *testing.T) {
         if SqlPgCatalogEnumLargerEm2s(legacy, value) != value || SqlPgCatalogEnumSmallerWhhx(legacy, value) != value { t.Fatal("catalog tie", oid) }
         if SqlPgCatalogEnumLargerEm2s(value, legacy) != legacy || SqlPgCatalogEnumSmallerWhhx(value, legacy) != legacy { t.Fatal("legacy tie", oid) }
     }
-    for _, oid := range []int64{-1, 0, 4294967296} { if MakeCatalogEnumValue(1, oid).Kind != EnumValueUnknown { t.Fatal(oid) } }
-    if MakeCatalogEnumValue(-1, 1).Kind != EnumValueUnknown { t.Fatal("ordinal") }
+    for _, oid := range []int64{-1, 0, 4294967296} { if MakeCatalogEnumValue(1, oid).Kind != EnumValueUnimplemented { t.Fatal(oid) } }
+    if MakeCatalogEnumValue(-1, 1).Kind != EnumValueUnimplemented { t.Fatal("ordinal") }
     if MakeEnumValue(1).Value.LabelOid != 0 { t.Fatal("legacy") }
     if SqlPgCatalogHashenumZ4zk(MakeEnumValue(1)).Kind != Int4ValueUnknown { t.Fatal("legacy hash") }
     if SqlPgCatalogHashenumextended18hh(MakeEnumValue(1), MakeInt8Value(0)).Kind != Int8ValueUnknown { t.Fatal("legacy seeded hash") }
 }`,
       )
-      await run('rustc', [
-        '--edition=2021',
-        '--test',
-        join(directory, 'native.rs'),
-        '-o',
-        join(directory, 'native'),
-      ])
+      await run(
+        'rustc',
+        ['--edition=2021', '--test', join(directory, 'native.rs'), '-o', join(directory, 'native')],
+        { maxBuffer: 64 * 1024 * 1024 },
+      )
       await run(join(directory, 'native'))
       await run('go', ['test', './...'], {
         cwd: directory,
