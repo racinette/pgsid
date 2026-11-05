@@ -422,8 +422,10 @@ pub fn jsonb_partial_value(maximum: i64) -> JsonbValue {
     jsonb_partial_shape(maximum, -1, -1)
 }
 
+// Partial facts stand for values built from unknown inputs, so past the storage limit only those
+// inputs decide whether the server builds the value or raises its size error.
 pub fn jsonb_partial_shape(maximum: i64, kind: i32, length: i32) -> JsonbValue {
-    let unresolved_flavor: i32 = 0;
+    let unresolved_flavor: i32 = 1;
     if maximum < 0i64 || maximum > JSONB_STORAGE_LIMIT {
         return jsonb_unresolved(unresolved_flavor);
     };
@@ -447,7 +449,7 @@ pub fn jsonb_empty_shape() -> JsonbPayload {
 
 // Shapes are kept only below the storage limit, like every other partial fact.
 pub fn jsonb_partial_tree(maximum: i64, shape: JsonbPayload) -> JsonbValue {
-    let unresolved_flavor: i32 = 0;
+    let unresolved_flavor: i32 = 1;
     if maximum < 0i64 || maximum > JSONB_STORAGE_LIMIT {
         return jsonb_unresolved(unresolved_flavor);
     };

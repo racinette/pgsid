@@ -479,25 +479,26 @@ pub fn ${helpers[10]}(maximum:Int8Value)->CheckOutcome {
     fixtures.push({ name, row: { maximum: { kind: 'Value', value: bound } }, expected })
   add('nested', 100n, { kind: 'False' })
   add('nested', 268435435n, { kind: 'False' })
-  // Past the storage cap the evaluator keeps no partial value, and no database fact would help.
-  add('nested', 268435436n, { kind: 'Unimplemented' })
-  add('nested', 9223372036854775807n, { kind: 'Unimplemented' })
+  // Past the storage cap only the unknown inputs' sizes decide between a value and the server's
+  // size error.
+  add('nested', 268435436n, { kind: 'Unknown' })
+  add('nested', 9223372036854775807n, { kind: 'Unknown' })
   add('later_error', 268435455n, error('22003'))
   add('dimensions', 100n, { kind: 'False' })
-  add('dimensions', 134217707n, { kind: 'Unimplemented' })
+  add('dimensions', 134217707n, { kind: 'Unknown' })
   add('concat', 100n, { kind: 'False' })
   add('concat', 268435403n, { kind: 'False' })
-  add('concat', 268435404n, { kind: 'Unimplemented' })
-  add('concat', 9223372036854775807n, { kind: 'Unimplemented' })
+  add('concat', 268435404n, { kind: 'Unknown' })
+  add('concat', 9223372036854775807n, { kind: 'Unknown' })
   add('concat_empty', 268435455n, { kind: 'False' })
   add('path_replace', 268435403n, { kind: 'False' })
-  add('path_replace', 268435404n, { kind: 'Unimplemented' })
+  add('path_replace', 268435404n, { kind: 'Unknown' })
   add('path_object', 268435391n, { kind: 'False' })
-  add('path_object', 268435392n, { kind: 'Unimplemented' })
+  add('path_object', 268435392n, { kind: 'Unknown' })
   add('path_noop', 268435455n, { kind: 'False' })
   add('path_discarded_target', 268435455n, { kind: 'False' })
   add('path_replacement_limit', 268435435n, { kind: 'False' })
-  add('path_replacement_limit', 268435436n, { kind: 'Unimplemented' })
+  add('path_replacement_limit', 268435436n, { kind: 'Unknown' })
 
   try {
     const sizes = (
