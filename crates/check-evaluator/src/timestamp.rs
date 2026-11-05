@@ -772,14 +772,20 @@ fn temporal_leading_lettered_date(text: &str) -> bool {
 }
 
 // The date decoder accepts a delimited date only when the fields before it hold nothing but zones,
-// so one after a clock, era, weekday or meridian is rejected once those fields read.
-fn temporal_delimited_after_fields(text: &str, date_order: i32) -> bool {
+// so one after a clock, era, weekday, meridian, number or special word is rejected once those
+// fields read (1); a clock before it that fails on its own fails first (2).
+fn temporal_delimited_after_fields(text: &str, date_order: i32) -> i32 {
     let chars: Vec<char> = text.chars().collect();
     let mut index: usize = 0;
     let mut nondate = false;
+    let mut numbers = 0;
+    let mut special = false;
     let mut prefix_end: usize = 0;
     let mut found = false;
     let mut stop = false;
+    let mut three_parts = false;
+    let mut dashed = false;
+    let mut middle: i32 = 0;
     while index < chars.len() && found == false && stop == false {
         if date_text_space(chars[index]) {
             index += 1;
@@ -814,8 +820,39 @@ fn temporal_delimited_after_fields(text: &str, date_order: i32) -> bool {
             if delimited {
                 found = true;
                 prefix_end = start;
+                three_parts = dashes == 2 || dots == 2;
+                let mut part = 0;
+                let mut position = start;
+                while position < index {
+                    let character = chars[position];
+                    if character == '-' {
+                        dashed = true;
+                    };
+                    if character == '-' || character == '/' || character == '.' {
+                        part = part + 1;
+                    } else if part == 1 && date_text_digit(character) >= 0 && middle < 1000 {
+                        middle = middle * 10 + date_text_digit(character);
+                    };
+                    position += 1;
+                }
             } else if digit_led && colon {
                 nondate = true;
+            } else if digit_led && dashes == 0 && dots == 0 {
+                nondate = true;
+                numbers = numbers + 1;
+                // Six or more digits supply a whole date, after which the field reads as a time
+                // with a trailing offset instead.
+                if index - start > 4 {
+                    stop = true;
+                };
+            } else if (first == 't' || first == 'T')
+                && index > start + 1
+                && date_text_digit(chars[start + 1]) >= 0
+            {
+                nondate = true;
+            } else if temporal_special_word(lowered.as_str()) || lowered == "allballs" {
+                nondate = true;
+                special = true;
             } else if lowered == "bc" || lowered == "ad" || lowered == "am" || lowered == "pm" {
                 nondate = true;
             } else if english_date_weekday(lowered.as_str()) {
@@ -827,8 +864,21 @@ fn temporal_delimited_after_fields(text: &str, date_order: i32) -> bool {
             };
         };
     }
-    if found == false || nondate == false {
-        return false;
+    if found == false || nondate == false || numbers > 1 {
+        return 0;
+    }
+    // A number before the date takes part in reading it, which only a three-part date rejects
+    // outright.
+    if numbers > 0 && three_parts == false {
+        return 0;
+    }
+    // Special words supply the month and day, so the field is read as a run-together time with a
+    // trailing offset: one without a dash, or whose offset hour is in range, is malformed.
+    if special {
+        if dashed == false || (three_parts && middle <= 15) {
+            return 1;
+        };
+        return 0;
     }
     let mut completed = String::new();
     completed.push_str("2000-01-01 ");
@@ -839,9 +889,17 @@ fn temporal_delimited_after_fields(text: &str, date_order: i32) -> bool {
     }
     let reading = parse_temporal_text(TextValue::Value(completed), false, false, date_order);
     if let Int8Value::Value(_) = reading {
-        return true;
+        return 1;
     };
-    false
+    if reading
+        == Int8Value::Error(SqlError {
+            state: TEMPORAL_FIELD_OVERFLOW,
+        })
+        && numbers == 0
+    {
+        return 2;
+    };
+    0
 }
 
 // A clock's fields never change how date numbers read, so a leading clock before a compact,
@@ -934,6 +992,118 @@ fn temporal_leading_clock_moved(text: &str) -> String {
         clock_copy += 1;
     }
     moved
+}
+
+// A zone offset's field changes no date or clock reading, so a valid leading offset reads the
+// same at the end of the text.
+fn temporal_leading_offset_moved(text: &str, date_order: i32) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut start: usize = 0;
+    while start < chars.len() && date_text_space(chars[start]) {
+        start += 1;
+    }
+    let none = String::new();
+    if start >= chars.len() || (chars[start] != '+' && chars[start] != '-') {
+        return none;
+    }
+    let mut end = start + 1;
+    while end < chars.len() && (date_text_digit(chars[end]) >= 0 || chars[end] == ':') {
+        end += 1;
+    }
+    if end == start + 1 || end >= chars.len() || date_text_space(chars[end]) == false {
+        return none;
+    }
+    let mut offset = String::new();
+    let mut copy = start;
+    while copy < end {
+        offset.push(chars[copy]);
+        copy += 1;
+    }
+    let mut alone = String::new();
+    alone.push_str("2000-01-01 00:00 ");
+    alone.push_str(offset.as_str());
+    let reading = parse_temporal_text(TextValue::Value(alone), true, false, date_order);
+    if let Int8Value::Value(_) = reading {
+        let mut moved = String::new();
+        let mut rest = end;
+        while rest < chars.len() {
+            moved.push(chars[rest]);
+            rest += 1;
+        }
+        moved.push(' ');
+        moved.push_str(offset.as_str());
+        return moved;
+    };
+    none
+}
+
+// A second time field repeats the clock, which the server rejects once the fields before it read.
+// Time fields are clocks, ISO T clocks, and four- or six-digit numbers right after a full date.
+fn temporal_second_clock(text: &str, date_order: i32) -> bool {
+    let chars: Vec<char> = text.chars().collect();
+    let mut index: usize = 0;
+    let mut clocks = 0;
+    let mut previous_date = false;
+    let mut second_start: usize = 0;
+    while index < chars.len() && clocks < 2 {
+        if date_text_space(chars[index]) {
+            index += 1;
+        } else {
+            let start = index;
+            let mut colon = false;
+            let mut digits = 0;
+            let mut separators = 0;
+            let mut other = false;
+            while index < chars.len() && date_text_space(chars[index]) == false {
+                let character = chars[index];
+                if character == ':' {
+                    colon = true;
+                } else if character == '-' || character == '/' {
+                    separators = separators + 1;
+                } else if date_text_digit(character) >= 0 {
+                    digits = digits + 1;
+                } else {
+                    other = true;
+                };
+                index += 1;
+            }
+            let first = chars[start];
+            let digit_led = date_text_digit(first) >= 0;
+            let iso = (first == 't' || first == 'T')
+                && start + 1 < index
+                && date_text_digit(chars[start + 1]) >= 0;
+            let compact = digit_led
+                && colon == false
+                && separators == 0
+                && other == false
+                && (digits == 4 || digits == 6)
+                && previous_date;
+            if (digit_led && colon) || iso || compact {
+                clocks = clocks + 1;
+                if clocks == 2 {
+                    second_start = start;
+                };
+            };
+            previous_date = digit_led
+                && colon == false
+                && ((separators == 2 && other == false)
+                    || (separators == 0 && digits == 8 && other == false));
+        };
+    }
+    if clocks < 2 {
+        return false;
+    }
+    let mut prefix = String::new();
+    let mut copy: usize = 0;
+    while copy < second_start {
+        prefix.push(chars[copy]);
+        copy += 1;
+    }
+    let reading = parse_temporal_text(TextValue::Value(prefix), false, false, date_order);
+    if let Int8Value::Value(_) = reading {
+        return true;
+    };
+    false
 }
 
 fn temporal_relative_word(input: &str) -> bool {
@@ -1569,13 +1739,21 @@ fn parse_temporal_text(
         if buffer == 0 {
             compact = temporal_collapsed_space(text.as_str());
         };
-        if temporal_leading_lettered_date(compact.as_str())
-            || temporal_delimited_after_fields(compact.as_str(), date_order)
-        {
+        let delimited_after = temporal_delimited_after_fields(compact.as_str(), date_order);
+        if temporal_leading_lettered_date(compact.as_str()) || delimited_after == 1 {
             return Int8Value::Error(SqlError {
                 state: INVALID_TIMESTAMP_TEXT,
             });
         }
+        if delimited_after == 2 {
+            return Int8Value::Error(SqlError {
+                state: TEMPORAL_FIELD_OVERFLOW,
+            });
+        }
+        let offset_moved = temporal_leading_offset_moved(compact.as_str(), date_order);
+        if offset_moved != "" {
+            compact = offset_moved;
+        };
         compact = temporal_glued_letters(compact.as_str());
         let moved = temporal_leading_clock_moved(compact.as_str());
         if moved != "" {
@@ -1601,6 +1779,11 @@ fn parse_temporal_text(
             };
         };
         compact = temporal_clock_spelling(compact.as_str());
+        if temporal_second_clock(compact.as_str(), date_order) {
+            return Int8Value::Error(SqlError {
+                state: INVALID_TIMESTAMP_TEXT,
+            });
+        }
         let lone = temporal_lone_date_field(compact.as_str());
         if lone == 1 {
             return Int8Value::Error(SqlError {

@@ -22209,15 +22209,20 @@ function temporalLeadingLetteredDate(text: string): boolean {
     }
     return true;
 }
-function temporalDelimitedAfterFields(text: string, dateOrder: number): boolean {
+function temporalDelimitedAfterFields(text: string, dateOrder: number): number {
     text = langruntime.checkedString(text);
     dateOrder = langruntime.checkedI32(dateOrder);
     const chars: string[] = Array.from(text);
     let index: number = 0;
     let nondate: boolean = false;
+    let numbers: number = 0;
+    let special: boolean = false;
     let prefixEnd: number = 0;
     let found: boolean = false;
     let stop: boolean = false;
+    let threeParts: boolean = false;
+    let dashed: boolean = false;
+    let middle: number = 0;
     while (index < chars.length && found === false && stop === false) {
         if (dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(index)))) {
             index = langruntime.checkedAdd(index, 1);
@@ -22254,9 +22259,39 @@ function temporalDelimitedAfterFields(text: string, dateOrder: number): boolean 
             if (delimited) {
                 found = langruntime.checkedBool(true);
                 prefixEnd = langruntime.checkedIndex(start);
+                threeParts = langruntime.checkedBool(dashes === 2 || dots === 2);
+                let part: number = 0;
+                let position: number = start;
+                while (position < index) {
+                    const character: string = langruntime.indexChar(chars, langruntime.checkedIndex(position));
+                    if (character === "-") {
+                        dashed = langruntime.checkedBool(true);
+                    }
+                    if (character === "-" || character === "/" || character === ".") {
+                        part = langruntime.checkedIndex(langruntime.checkedAdd(part, 1));
+                    }
+                    else if (part === 1 && dateTextDigit(character) >= 0 && middle < 1000) {
+                        middle = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(middle, 10), dateTextDigit(character)));
+                    }
+                    position = langruntime.checkedAdd(position, 1);
+                }
             }
             else if (digitLed && colon) {
                 nondate = langruntime.checkedBool(true);
+            }
+            else if (digitLed && dashes === 0 && dots === 0) {
+                nondate = langruntime.checkedBool(true);
+                numbers = langruntime.checkedIndex(langruntime.checkedAdd(numbers, 1));
+                if (langruntime.checkedSubtract(index, start) > 4) {
+                    stop = langruntime.checkedBool(true);
+                }
+            }
+            else if ((first === "t" || first === "T") && index > langruntime.checkedAdd(start, 1) && dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 1)))) >= 0) {
+                nondate = langruntime.checkedBool(true);
+            }
+            else if (temporalSpecialWord(lowered) || lowered === "allballs") {
+                nondate = langruntime.checkedBool(true);
+                special = langruntime.checkedBool(true);
             }
             else if (lowered === "bc" || lowered === "ad" || lowered === "am" || lowered === "pm") {
                 nondate = langruntime.checkedBool(true);
@@ -22271,8 +22306,17 @@ function temporalDelimitedAfterFields(text: string, dateOrder: number): boolean 
             }
         }
     }
-    if (found === false || nondate === false) {
-        return false;
+    if (found === false || nondate === false || numbers > 1) {
+        return 0;
+    }
+    if (numbers > 0 && threeParts === false) {
+        return 0;
+    }
+    if (special) {
+        if (dashed === false || (threeParts && middle <= 15)) {
+            return 1;
+        }
+        return 0;
     }
     let completed: string = "";
     completed = completed + "2000-01-01 ";
@@ -22283,9 +22327,12 @@ function temporalDelimitedAfterFields(text: string, dateOrder: number): boolean 
     }
     const reading: Int8Value = parseTemporalText({ kind: "Value", value: completed }, false, false, dateOrder);
     if (reading.kind === "Value") {
-        return true;
+        return 1;
     }
-    return false;
+    if (equalInt8Value(reading, { kind: "Error", value: { state: temporalFieldOverflow } }) && numbers === 0) {
+        return 2;
+    }
+    return 0;
 }
 function temporalLeadingClockMoved(text: string): string {
     text = langruntime.checkedString(text);
@@ -22385,6 +22432,110 @@ function temporalLeadingClockMoved(text: string): string {
         clockCopy = langruntime.checkedAdd(clockCopy, 1);
     }
     return moved;
+}
+function temporalLeadingOffsetMoved(text: string, dateOrder: number): string {
+    text = langruntime.checkedString(text);
+    dateOrder = langruntime.checkedI32(dateOrder);
+    const chars: string[] = Array.from(text);
+    let start: number = 0;
+    while (start < chars.length && dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(start)))) {
+        start = langruntime.checkedAdd(start, 1);
+    }
+    const none: string = "";
+    if (start >= chars.length || (!(langruntime.indexChar(chars, langruntime.checkedIndex(start)) === "+") && !(langruntime.indexChar(chars, langruntime.checkedIndex(start)) === "-"))) {
+        return none;
+    }
+    let end: number = langruntime.checkedAdd(start, 1);
+    while (end < chars.length && (dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(end))) >= 0 || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === ":")) {
+        end = langruntime.checkedAdd(end, 1);
+    }
+    if (end === langruntime.checkedAdd(start, 1) || end >= chars.length || dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(end))) === false) {
+        return none;
+    }
+    let offset: string = "";
+    let copy: number = start;
+    while (copy < end) {
+        offset = offset + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(copy)));
+        copy = langruntime.checkedAdd(copy, 1);
+    }
+    let alone: string = "";
+    alone = alone + "2000-01-01 00:00 ";
+    alone = alone + offset;
+    const reading: Int8Value = parseTemporalText({ kind: "Value", value: alone }, true, false, dateOrder);
+    if (reading.kind === "Value") {
+        let moved: string = "";
+        let rest: number = end;
+        while (rest < chars.length) {
+            moved = moved + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(rest)));
+            rest = langruntime.checkedAdd(rest, 1);
+        }
+        moved = moved + langruntime.checkedChar(" ");
+        moved = moved + offset;
+        return moved;
+    }
+    return none;
+}
+function temporalSecondClock(text: string, dateOrder: number): boolean {
+    text = langruntime.checkedString(text);
+    dateOrder = langruntime.checkedI32(dateOrder);
+    const chars: string[] = Array.from(text);
+    let index: number = 0;
+    let clocks: number = 0;
+    let previousDate: boolean = false;
+    let secondStart: number = 0;
+    while (index < chars.length && clocks < 2) {
+        if (dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(index)))) {
+            index = langruntime.checkedAdd(index, 1);
+        }
+        else {
+            const start: number = index;
+            let colon: boolean = false;
+            let digits: number = 0;
+            let separators: number = 0;
+            let other: boolean = false;
+            while (index < chars.length && dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(index))) === false) {
+                const character: string = langruntime.indexChar(chars, langruntime.checkedIndex(index));
+                if (character === ":") {
+                    colon = langruntime.checkedBool(true);
+                }
+                else if (character === "-" || character === "/") {
+                    separators = langruntime.checkedIndex(langruntime.checkedAdd(separators, 1));
+                }
+                else if (dateTextDigit(character) >= 0) {
+                    digits = langruntime.checkedIndex(langruntime.checkedAdd(digits, 1));
+                }
+                else {
+                    other = langruntime.checkedBool(true);
+                }
+                index = langruntime.checkedAdd(index, 1);
+            }
+            const first: string = langruntime.indexChar(chars, langruntime.checkedIndex(start));
+            const digitLed: boolean = dateTextDigit(first) >= 0;
+            const iso: boolean = (first === "t" || first === "T") && langruntime.checkedAdd(start, 1) < index && dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 1)))) >= 0;
+            const compact: boolean = digitLed && colon === false && separators === 0 && other === false && (digits === 4 || digits === 6) && previousDate;
+            if ((digitLed && colon) || iso || compact) {
+                clocks = langruntime.checkedIndex(langruntime.checkedAdd(clocks, 1));
+                if (clocks === 2) {
+                    secondStart = langruntime.checkedIndex(start);
+                }
+            }
+            previousDate = langruntime.checkedBool(digitLed && colon === false && ((separators === 2 && other === false) || (separators === 0 && digits === 8 && other === false)));
+        }
+    }
+    if (clocks < 2) {
+        return false;
+    }
+    let prefix: string = "";
+    let copy: number = 0;
+    while (copy < secondStart) {
+        prefix = prefix + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(copy)));
+        copy = langruntime.checkedAdd(copy, 1);
+    }
+    const reading: Int8Value = parseTemporalText({ kind: "Value", value: prefix }, false, false, dateOrder);
+    if (reading.kind === "Value") {
+        return true;
+    }
+    return false;
 }
 function temporalRelativeWord(input: string): boolean {
     input = langruntime.checkedString(input);
@@ -22849,8 +23000,16 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
         if (buffer === 0) {
             compact = langruntime.checkedString(temporalCollapsedSpace(text));
         }
-        if (temporalLeadingLetteredDate(compact) || temporalDelimitedAfterFields(compact, dateOrder)) {
+        const delimitedAfter: number = temporalDelimitedAfterFields(compact, dateOrder);
+        if (temporalLeadingLetteredDate(compact) || delimitedAfter === 1) {
             return { kind: "Error", value: { state: invalidTimestampText } };
+        }
+        if (delimitedAfter === 2) {
+            return { kind: "Error", value: { state: temporalFieldOverflow } };
+        }
+        const offsetMoved: string = temporalLeadingOffsetMoved(compact, dateOrder);
+        if (!(offsetMoved === "")) {
+            compact = langruntime.checkedString(offsetMoved);
         }
         compact = langruntime.checkedString(temporalGluedLetters(compact));
         const moved: string = temporalLeadingClockMoved(compact);
@@ -22874,6 +23033,9 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
             }
         }
         compact = langruntime.checkedString(temporalClockSpelling(compact));
+        if (temporalSecondClock(compact, dateOrder)) {
+            return { kind: "Error", value: { state: invalidTimestampText } };
+        }
         const lone: number = temporalLoneDateField(compact);
         if (lone === 1) {
             return { kind: "Error", value: { state: invalidTimestampText } };
