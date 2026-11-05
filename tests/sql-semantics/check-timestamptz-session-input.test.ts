@@ -84,12 +84,18 @@ const definite = [
   '2000-01-01 00:00 BC Europe/Dublin',
   '2000-01-01 12:00 :Asia/Kathmandu',
   '2000-01-01 25:00 America/New_York',
-]
-// Local times beside the range limits, runtime words, unknown words, all-letter zone names and
-// zones that are not trailing or follow an offset still defer.
-const deferred = [
+  // Beside the range limits the zone offset decides whether the instant is in range.
   '4714-11-24 BC',
+  '4714-11-24 05:00 BC',
   '294276-12-31 23:59',
+  '294276-12-31 09:00',
+  '294276-12-31 23:00 America/New_York',
+  '4714-11-24 00:30 BC Asia/Tokyo',
+]
+// Local times outside the timestamp range whose instant may be inside it, runtime words, unknown
+// words, all-letter zone names and zones that are not trailing or follow an offset still defer.
+const deferred = [
+  '294277-01-01 00:30',
   'today',
   '2000-01-01 00:00 America/Nowhere',
   '2000-01-01 12:00 XYZ',

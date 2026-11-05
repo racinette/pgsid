@@ -225,8 +225,9 @@ pub fn sql__pg_catalog__timetz__sqdw(input: TimestamptzValue, zone: &str) -> Tim
 }
 
 // Timestamptz input without a zone takes the session time zone through the same local-time
-// resolution as a timestamp cast. Input and casts check the range limits at different points,
-// so local times within a day of either limit defer.
+// resolution as a timestamp cast; both subtract the offset and then check the instant's range.
+// Input also accepts a local time just outside the timestamp range whose instant is inside it,
+// which the local reading here cannot reach, so those defer.
 // The session zone may be empty and the date order 0 when either is not configured;
 // abbreviations, the identifier limit and the encoding qualify trailing zone abbreviations.
 pub fn timestamptz_from_text_context(
@@ -246,13 +247,8 @@ pub fn timestamptz_from_text_context(
         return parsed;
     };
     let local = timestamp_from_text_order(input.clone(), date_order);
-    if let TimestampValue::Value(value) = local {
-        if value > -211813488000000000i64 + 86400000000i64
-            && value < 9223371331200000000i64 - 86400000000i64
-        {
-            return sql__pg_catalog__timestamptz__m17a(local, zone);
-        };
-        return timestamptz_unresolved(unresolved_flavor);
+    if let TimestampValue::Value(_) = local {
+        return sql__pg_catalog__timestamptz__m17a(local, zone);
     };
     let mut reading_flavor: i32 = unresolved_flavor;
     if let TimestampValue::Unknown = local { if reading_flavor < 1 { reading_flavor = 1; }; };
@@ -353,11 +349,6 @@ fn timestamptz_from_text_trailing_zone(
         if let TimestampValue::Unknown = local { if local_flavor < 1 { local_flavor = 1; }; };
         if let TimestampValue::Unimplemented = local { local_flavor = 2; };
         if let TimestampValue::Value(value) = local {
-            if value <= -211813488000000000i64 + 86400000000i64
-                || value >= 9223371331200000000i64 - 86400000000i64
-            {
-                return timestamptz_unresolved(unresolved_flavor);
-            };
             if slash {
                 return sql__pg_catalog__timestamptz__m17a(local, name.as_str());
             };
