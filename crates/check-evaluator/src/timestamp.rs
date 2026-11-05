@@ -1,5 +1,6 @@
 const INVALID_TIMESTAMP_TEXT: u32 = 3452551;
 const INVALID_TIMESTAMP_ZONE: u32 = 3452553;
+const TEMPORAL_FIELD_OVERFLOW: u32 = 3452552;
 
 struct TimestampText {
     chars: Vec<char>,
@@ -214,6 +215,127 @@ fn parse_timestamp_text(value: TextValue, with_timezone: bool) -> Int8Value {
 
 // The date order is the session DateStyle field order: 0 when unknown, 1 MDY, 2 DMY, 3 YMD.
 // The relative date words resolve against the transaction start time, a session fact.
+fn temporal_special_word(word: &str) -> bool {
+    word == "now"
+        || word == "today"
+        || word == "tomorrow"
+        || word == "yesterday"
+        || word == "epoch"
+        || word == "infinity"
+        || word == "-infinity"
+}
+
+// Every special word sets the date fields, and now, epoch and infinity the clock and zone too.
+// Once the fields before the first one hold a date, or it follows another special word, the
+// server rejects it as a repeated field before reading further.
+fn temporal_special_word_conflict(input: &str, date_order: i32) -> bool {
+    let chars: Vec<char> = input.chars().collect();
+    let mut index: usize = 0;
+    let mut fields: i32 = 0;
+    let mut previous_sign = false;
+    let mut found = false;
+    let mut special_start: usize = 0;
+    let mut special_end: usize = 0;
+    let mut special_first = false;
+    let mut special_sign = false;
+    while index < chars.len() && found == false {
+        if date_text_space(chars[index]) {
+            index += 1;
+        } else {
+            let start = index;
+            let mut word = String::new();
+            while index < chars.len() && date_text_space(chars[index]) == false {
+                word.push(chars[index].to_ascii_lowercase());
+                index += 1;
+            }
+            if temporal_special_word(word.as_str()) {
+                found = true;
+                special_start = start;
+                special_end = index;
+                special_first = fields == 0;
+                special_sign = previous_sign;
+            };
+            previous_sign = word == "+" || word == "-";
+            fields = fields + 1;
+        };
+    }
+    if found == false || special_sign {
+        return false;
+    }
+    if special_first {
+        let mut next = special_end;
+        while next < chars.len() && date_text_space(chars[next]) {
+            next += 1;
+        }
+        let mut word = String::new();
+        while next < chars.len() && date_text_space(chars[next]) == false {
+            word.push(chars[next].to_ascii_lowercase());
+            next += 1;
+        }
+        return temporal_special_word(word.as_str());
+    }
+    let mut prefix = String::new();
+    let mut position: usize = 0;
+    while position < special_start {
+        prefix.push(chars[position]);
+        position += 1;
+    }
+    let before = parse_temporal_text(TextValue::Value(prefix), false, false, date_order);
+    if let Int8Value::Value(_) = before {
+        return true;
+    };
+    false
+}
+
+// A first field of digits and one separator with no digit after it is a date of one number,
+// which the date decoder rejects once the number reads; a number past the integer range overflows.
+fn temporal_lone_date_field(text: &str) -> i32 {
+    let chars: Vec<char> = text.chars().collect();
+    let mut start: usize = 0;
+    while start < chars.len() && date_text_space(chars[start]) {
+        start += 1;
+    }
+    let mut end = start;
+    while end < chars.len() && date_text_digit(chars[end]) >= 0 {
+        end += 1;
+    }
+    if end == start || end >= chars.len() {
+        return 0;
+    }
+    let delimiter = chars[end];
+    if delimiter != '-' && delimiter != '/' && delimiter != '.' {
+        return 0;
+    }
+    if end + 1 < chars.len() && date_text_space(chars[end + 1]) == false {
+        return 0;
+    }
+    let mut significant = start;
+    while significant + 1 < end && chars[significant] == '0' {
+        significant += 1;
+    }
+    let digits = end - significant;
+    let mut fits = digits < 10;
+    if digits == 10 {
+        let limit: Vec<char> = "2147483647".chars().collect();
+        let mut place: usize = 0;
+        let mut decided = false;
+        fits = true;
+        while place < 10 && decided == false {
+            let digit = date_text_digit(chars[significant + place]);
+            let bound = date_text_digit(limit[place]);
+            if digit != bound {
+                fits = digit < bound;
+                decided = true;
+            };
+            place += 1;
+        }
+    }
+    if fits {
+        return 1;
+    }
+    2
+}
+
 fn temporal_relative_word(input: &str) -> bool {
     let chars: Vec<char> = input.chars().collect();
     let mut start: usize = 0;
@@ -771,6 +893,30 @@ fn temporal_first_date_field(chars: Vec<char>) -> Vec<char> {
         };
         field_end += 1;
     }
+    // Letters right after the date's digits start a new field, as if a space stood before them.
+    if field_end < chars.len()
+        && english_date_letter(chars[field_end])
+        && run == 0
+        && parts >= 2
+        && collapsed == false
+    {
+        let mut word_end = field_end;
+        while word_end < chars.len() && english_date_letter(chars[word_end]) {
+            word_end += 1;
+        }
+        if word_end == chars.len() || date_text_space(chars[word_end]) {
+            let mut spaced: Vec<char> = Vec::new();
+            let mut index: usize = 0;
+            while index < chars.len() {
+                if index == field_end {
+                    spaced.push(' ');
+                };
+                spaced.push(chars[index]);
+                index += 1;
+            }
+            return spaced;
+        };
+    }
     if field_end < chars.len() && english_date_letter(chars[field_end]) {
         return chars;
     }
@@ -823,6 +969,17 @@ fn parse_temporal_text(
         if buffer == 0 {
             compact = temporal_collapsed_space(text.as_str());
         };
+        let lone = temporal_lone_date_field(compact.as_str());
+        if lone == 1 {
+            return Int8Value::Error(SqlError {
+                state: INVALID_TIMESTAMP_TEXT,
+            });
+        }
+        if lone == 2 {
+            return Int8Value::Error(SqlError {
+                state: TEMPORAL_FIELD_OVERFLOW,
+            });
+        }
         let typed: Vec<char> = compact.chars().collect();
         let typed_length = typed.len();
         let fields = temporal_first_date_field(typed);
@@ -884,6 +1041,11 @@ fn parse_temporal_fields(
         let chars: Vec<char> = input.chars().collect();
         if chars.len() > 128 {
             return int8_unresolved(unresolved_flavor);
+        }
+        if temporal_special_word_conflict(input.as_str(), date_order) {
+            return Int8Value::Error(SqlError {
+                state: INVALID_TIMESTAMP_TEXT,
+            });
         }
         if temporal_relative_word(input.as_str()) {
             return int8_unresolved(resolution_context(unresolved_flavor));

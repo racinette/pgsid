@@ -780,7 +780,6 @@ const numericTailLocalText = [
 ]
 
 export const numericTailUnknownText = [
-  '2000/ 060',
   '2000 . 060',
   '2000 - 060',
   '2000 01 12:',
@@ -828,12 +827,7 @@ const clockTailLocalText = [
   '2000-01-01 BC T12:00',
 ]
 
-export const clockTailUnknownText = [
-  '2000-01-01T',
-  '2000-01-01 1230 01',
-  '2000-01-01 24:00 01',
-  '2000 01 Tue',
-]
+export const clockTailUnknownText = ['2000-01-01 1230 01', '2000-01-01 24:00 01', '2000 01 Tue']
 
 export const eraUnknownText = [
   '2000-01-01 BC BC',
@@ -872,6 +866,50 @@ const separatorRunText = [
 ]
 const separatorRunLocalText = ['2000-01--01 12:00', '2000-01-01- 12:00']
 const separatorRunErrorText = ['2000-01-01--', '2000--', '2000-01-']
+// A first field of one number and a separator is a date the decoder rejects, after the number's
+// own overflow; letters right after a date start a new field; a special word after fields that
+// already hold a date, or after another special word, repeats the date fields.
+const fieldShapeErrorText = [
+  '2000-',
+  '2000/',
+  '2000.',
+  '  2000-',
+  '2000- 12:00',
+  '2000- 01 01',
+  '2000/ 12:00',
+  '2000/ 060',
+  '2000. 12:00',
+  '2000- x',
+  '1-',
+  '1.',
+  '20000101-',
+  '2147483647-',
+  '02147483647-',
+  '2147483648-',
+  '2147483648/',
+  '2147483648.',
+  '2000-01-01T',
+  '2000-01-01t',
+  '2000-01-01 today',
+  '2000-01-01 12:00 today',
+  '20000101 today',
+  'Jan 1 2000 today',
+  '2000-060 today',
+  'J2451545 today',
+  '2000-01-01 now',
+  '2000-01-01 epoch',
+  '2000-01-01 infinity',
+  '2000-01-01 -infinity',
+  '2000-01-01 tomorrow',
+  '2000-01-01 yesterday',
+  '2000-01-01 12:00 BC today',
+  'today today',
+  'epoch today',
+  'today epoch',
+  'now now',
+  'infinity -infinity',
+]
+const gluedWordText = ['2000-01-01am', '2000-01-01bc']
 // After a full date a letter-led field joined with digits names a zone through the zone database
 // or a POSIX specification, which date and timestamp input check and ignore unless an earlier
 // offset or zone already set one.
@@ -921,6 +959,8 @@ export const dateHandledText = [
   ...separatorRunText,
   ...separatorRunLocalText,
   ...separatorRunErrorText,
+  ...fieldShapeErrorText,
+  ...gluedWordText,
   ...compactDateText,
   ...ordinalDateText,
   ...ordinalErrorText,
@@ -1018,6 +1058,8 @@ export const timestampHandledText = [
   ...separatorRunText,
   ...separatorRunLocalText,
   ...separatorRunErrorText,
+  ...fieldShapeErrorText,
+  ...gluedWordText,
   ...compactDateText,
   ...compactTimestampText,
   ...ordinalDateText,
@@ -1160,6 +1202,7 @@ export const timestampDeferredText = [
 export const timestamptzHandledText = [
   ...fieldBufferErrorText,
   ...separatorRunErrorText,
+  ...fieldShapeErrorText,
   ...compactTimestampText,
   ...ordinalErrorText,
   ...ordinalTimestampText,
