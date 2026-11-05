@@ -190,6 +190,14 @@ export const deferredIntervalContextForms = [
   '-1 02:03',
 ] as const
 export const unimplementedIntervalGrammarForms = [] as const
+// The ISO reader works on the text itself, which no field buffer limits.
+intervalInputForms.push(
+  'P' + '0'.repeat(300) + '1Y',
+  'P1YT' + '0'.repeat(300) + '5S',
+  'P' + '1'.repeat(300) + 'Y',
+  'P1.' + '0'.repeat(300) + '1D',
+  '  P' + '0'.repeat(260) + '2M',
+)
 intervalInputForms.push(
   // Fields go through strtod, which reads C99 hexadecimal floats and, after a sign, infinities.
   'P0x1p2Y',
