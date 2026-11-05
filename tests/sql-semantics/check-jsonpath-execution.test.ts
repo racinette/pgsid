@@ -146,7 +146,7 @@ fn jsonpath_execution_input(document:TextValue)->JsonbValue {
       source,
       requiresRegex: true,
     }
-    const cases: [string, string, string?, (boolean | 'unread')?][] = [
+    const cases: [string, string, string?, boolean?][] = [
       ['{}', '$.keyvalue()'],
       ['{"a":1}', '$.keyvalue()'],
       ['{"a":1}', 'strict $.keyvalue()'],
@@ -293,8 +293,7 @@ fn jsonpath_execution_input(document:TextValue)->JsonbValue {
       ['{"a":["x",-1,2],"b":1}', '$.a?(@.type()=="number").abs()'],
       ['{"x":-1}', '((-$.x).abs()) == 1', '{}', false],
       ['{"x":-1}', '(-$.x.abs() == 1)', '{}', false],
-      // Its printed text does not parse back, which the evaluator's grammar does not report yet.
-      ['{}', '(exists($)).type()', '{}', 'unread'],
+      ['{}', '(exists($)).type()', '{}', false],
       ['{}', '(1=="x").type()', '{}'],
       ['{}', '(1+2).type()', '{}'],
       ['{}', '(-2).abs().type()'],
@@ -695,14 +694,9 @@ fn jsonpath_execution_input(document:TextValue)->JsonbValue {
                 expected: output === null ? { kind: 'Null' } : value(output),
               },
               // Stored path shapes the evaluator cannot walk yet are no database fact.
-              // Printed text that another path also prints to leaves the path to the catalog's
-              // stored form.
-              expected:
-                variant.stored && storedSafe === 'unread'
-                  ? { kind: 'Unimplemented' }
-                  : variant.stored && storedSafe === false
-                    ? { kind: 'Unknown' }
-                    : expected,
+              // Printed text that another path also prints to, or that the server cannot read back,
+              // leaves the path to the catalog's stored form.
+              expected: variant.stored && !storedSafe ? { kind: 'Unknown' } : expected,
             })
         }
       }
