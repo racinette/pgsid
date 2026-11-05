@@ -96,9 +96,16 @@ const definite = [
   '294276-12-31 09:00',
   '294276-12-31 23:00 America/New_York',
   '4714-11-24 00:30 BC Asia/Tokyo',
+  // A letter-led field joined with digits names a zone database or POSIX zone, which an earlier
+  // offset rejects.
+  '2000-01-01 e2',
+  '2000-01-01 00:00+05 America/New_York',
+  'J2451545e2',
+  '2000-07-01 12:00 e2x',
+  '2000-01-01 EST5EDT',
 ]
 // Local times outside the timestamp range whose instant may be inside it, runtime words, unknown
-// words and zones that are not trailing or follow an offset still defer.
+// words and zones that are not trailing still defer.
 const deferred = [
   '294277-01-01 00:30',
   'today',
@@ -106,7 +113,6 @@ const deferred = [
   '2000-01-01 12:00 XYZ',
   '2000-01-01 12:00+05 UTC',
   '2000-01-01 America/New_York 12:00',
-  '2000-01-01 00:00+05 America/New_York',
 ]
 // The current date, the server's zone database and the session's abbreviation table decide
 // these; the rest of the deferred forms are parser gaps.
@@ -306,8 +312,8 @@ it('reads short leading date fields in the configured date order for date and ti
         contextFor({ order }),
       ),
     )
-    expect(groups[0]!.evaluatorSource).toContain('date_from_text_order(')
-    expect(groups[0]!.evaluatorSource).toContain('timestamp_from_text_order(')
+    expect(groups[0]!.evaluatorSource).toContain('date_from_text_zone(')
+    expect(groups[0]!.evaluatorSource).toContain('timestamp_from_text_zone(')
     const evaluatorSource = groups.map((group) => group.evaluatorSource!).join('\n')
     const group = {
       checks: groups.flatMap((group) => group.checks),

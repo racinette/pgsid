@@ -141,7 +141,16 @@ fn timestamp_calendar_microseconds(
         }
         return Int8Value::Value(microseconds);
     }
-    let mut local_flavor_143_4: i32 = unresolved_flavor; if let Int4Value::Unknown = days { if local_flavor_143_4 < 1 { local_flavor_143_4 = 1; }; }; if let Int4Value::Unimplemented = days { local_flavor_143_4 = 2; }; int8_unresolved(local_flavor_143_4)
+    let mut local_flavor_143_4: i32 = unresolved_flavor;
+    if let Int4Value::Unknown = days {
+        if local_flavor_143_4 < 1 {
+            local_flavor_143_4 = 1;
+        };
+    };
+    if let Int4Value::Unimplemented = days {
+        local_flavor_143_4 = 2;
+    };
+    int8_unresolved(local_flavor_143_4)
 }
 
 // ParseDateTime skips ASCII punctuation where a field would start; these characters never
@@ -263,15 +272,42 @@ fn temporal_zone_word(text: &TimestampText, from: usize, end: usize) -> bool {
 
 // Words the datetime grammar reads as fields rather than as zones.
 const TEMPORAL_FIELD_WORDS: &[&str] = &[
-    "ad", "allballs", "ago", "am", "at", "bc", "d", "epoch", "h", "infinity", "j", "jd", "julian",
-    "m", "mm", "now", "on", "pm", "s", "t", "today", "tomorrow", "y", "yesterday", "z", "zulu",
+    "ad",
+    "allballs",
+    "ago",
+    "am",
+    "at",
+    "bc",
+    "d",
+    "epoch",
+    "h",
+    "infinity",
+    "j",
+    "jd",
+    "julian",
+    "m",
+    "mm",
+    "now",
+    "on",
+    "pm",
+    "s",
+    "t",
+    "today",
+    "tomorrow",
+    "y",
+    "yesterday",
+    "z",
+    "zulu",
 ];
 
 // DateStyle offers three field orders, so a result all of them agree on does not depend on it.
 fn temporal_text_any_order(input: String, with_timezone: bool, date_only: bool) -> Int8Value {
-    let month_first = parse_temporal_text(TextValue::Value(input.clone()), with_timezone, date_only, 1);
-    let day_first = parse_temporal_text(TextValue::Value(input.clone()), with_timezone, date_only, 2);
-    let year_first = parse_temporal_text(TextValue::Value(input.clone()), with_timezone, date_only, 3);
+    let month_first =
+        parse_temporal_text(TextValue::Value(input.clone()), with_timezone, date_only, 1);
+    let day_first =
+        parse_temporal_text(TextValue::Value(input.clone()), with_timezone, date_only, 2);
+    let year_first =
+        parse_temporal_text(TextValue::Value(input.clone()), with_timezone, date_only, 3);
     if month_first == day_first && day_first == year_first {
         return month_first;
     }
@@ -287,14 +323,88 @@ fn temporal_text_any_order(input: String, with_timezone: bool, date_only: bool) 
 
 // Every word of the server's core date token table; a word in it ends a field before digits.
 const TEMPORAL_CORE_TOKENS: &[&str] = &[
-    "ad", "allballs", "am", "apr", "april", "at", "aug", "august", "bc", "d", "dec", "december",
-    "dow", "doy", "dst", "epoch", "feb", "february", "fri", "friday", "h", "infinity", "isodow",
-    "isoyear", "j", "jan", "january", "jd", "jul", "julian", "july", "jun", "june", "m", "mar",
-    "march", "may", "mm", "mon", "monday", "now", "nov", "november", "oct", "october", "on", "pm",
-    "s", "sat", "saturday", "sep", "sept", "september", "sun", "sunday", "t", "thu", "thur",
-    "thurs", "thursday", "today", "tomorrow", "tue", "tues", "tuesday", "wed", "wednesday", "weds",
-    "y", "yesterday",
+    "ad",
+    "allballs",
+    "am",
+    "apr",
+    "april",
+    "at",
+    "aug",
+    "august",
+    "bc",
+    "d",
+    "dec",
+    "december",
+    "dow",
+    "doy",
+    "dst",
+    "epoch",
+    "feb",
+    "february",
+    "fri",
+    "friday",
+    "h",
+    "infinity",
+    "isodow",
+    "isoyear",
+    "j",
+    "jan",
+    "january",
+    "jd",
+    "jul",
+    "julian",
+    "july",
+    "jun",
+    "june",
+    "m",
+    "mar",
+    "march",
+    "may",
+    "mm",
+    "mon",
+    "monday",
+    "now",
+    "nov",
+    "november",
+    "oct",
+    "october",
+    "on",
+    "pm",
+    "s",
+    "sat",
+    "saturday",
+    "sep",
+    "sept",
+    "september",
+    "sun",
+    "sunday",
+    "t",
+    "thu",
+    "thur",
+    "thurs",
+    "thursday",
+    "today",
+    "tomorrow",
+    "tue",
+    "tues",
+    "tuesday",
+    "wed",
+    "wednesday",
+    "weds",
+    "y",
+    "yesterday",
 ];
+
+pub fn temporal_core_token(word: &str) -> bool {
+    let mut token: usize = 0;
+    while token < TEMPORAL_CORE_TOKENS.len() {
+        if TEMPORAL_CORE_TOKENS[token] == word {
+            return true;
+        };
+        token += 1;
+    }
+    false
+}
 
 fn temporal_ascii_digit(value: char) -> bool {
     let code = value as i32;
@@ -326,7 +436,10 @@ fn temporal_field_buffer(text: &str, limit: usize) -> i32 {
     while index < length {
         let character = chars[index];
         let code = character as i32;
-        let punctuation = (code >= 33 && code <= 47) || (code >= 58 && code <= 64) || (code >= 91 && code <= 96) || (code >= 123 && code <= 126);
+        let punctuation = (code >= 33 && code <= 47)
+            || (code >= 58 && code <= 64)
+            || (code >= 91 && code <= 96)
+            || (code >= 123 && code <= 126);
         if date_text_space(character) {
             index += 1;
         } else if punctuation && character != '+' && character != '-' && character != '.' {
@@ -343,10 +456,16 @@ fn temporal_field_buffer(text: &str, limit: usize) -> i32 {
                 }
                 if end < length && chars[end] == ':' {
                     end += 1;
-                    while end < length && (temporal_ascii_digit(chars[end]) || chars[end] == ':' || chars[end] == '.') {
+                    while end < length
+                        && (temporal_ascii_digit(chars[end])
+                            || chars[end] == ':'
+                            || chars[end] == '.')
+                    {
                         end += 1;
                     }
-                } else if end < length && (chars[end] == '-' || chars[end] == '/' || chars[end] == '.') {
+                } else if end < length
+                    && (chars[end] == '-' || chars[end] == '/' || chars[end] == '.')
+                {
                     let delimiter = chars[end];
                     end += 1;
                     if end < length && temporal_ascii_digit(chars[end]) {
@@ -355,12 +474,16 @@ fn temporal_field_buffer(text: &str, limit: usize) -> i32 {
                         }
                         if end < length && chars[end] == delimiter {
                             end += 1;
-                            while end < length && (temporal_ascii_digit(chars[end]) || chars[end] == delimiter) {
+                            while end < length
+                                && (temporal_ascii_digit(chars[end]) || chars[end] == delimiter)
+                            {
                                 end += 1;
                             }
                         };
                     } else {
-                        while end < length && (temporal_ascii_alnum(chars[end]) || chars[end] == delimiter) {
+                        while end < length
+                            && (temporal_ascii_alnum(chars[end]) || chars[end] == delimiter)
+                        {
                             end += 1;
                         }
                     };
@@ -394,7 +517,15 @@ fn temporal_field_buffer(text: &str, limit: usize) -> i32 {
                 };
                 if joined {
                     end += 1;
-                    while end < length && (temporal_ascii_alnum(chars[end]) || chars[end] == '+' || chars[end] == '-' || chars[end] == '/' || chars[end] == '_' || chars[end] == '.' || chars[end] == ':') {
+                    while end < length
+                        && (temporal_ascii_alnum(chars[end])
+                            || chars[end] == '+'
+                            || chars[end] == '-'
+                            || chars[end] == '/'
+                            || chars[end] == '_'
+                            || chars[end] == '.'
+                            || chars[end] == ':')
+                    {
                         end += 1;
                     }
                 };
@@ -405,7 +536,12 @@ fn temporal_field_buffer(text: &str, limit: usize) -> i32 {
                 }
                 if end < length && temporal_ascii_digit(chars[end]) {
                     end += 1;
-                    while end < length && (temporal_ascii_digit(chars[end]) || chars[end] == ':' || chars[end] == '.' || chars[end] == '-') {
+                    while end < length
+                        && (temporal_ascii_digit(chars[end])
+                            || chars[end] == ':'
+                            || chars[end] == '.'
+                            || chars[end] == '-')
+                    {
                         end += 1;
                     }
                 } else if end < length && english_date_letter(chars[end]) {
@@ -428,6 +564,149 @@ fn temporal_field_buffer(text: &str, limit: usize) -> i32 {
         };
     }
     0
+}
+
+// Where the lexer's last field starts when it is a letter-led field joined with digits or zone
+// punctuation and ends the text, which after a full date the server reads as a zone; -1 otherwise.
+pub fn temporal_trailing_zone_start(text: &str) -> i64 {
+    let chars: Vec<char> = text.chars().collect();
+    let length = chars.len();
+    let mut index: usize = 0;
+    while index < length {
+        if (chars[index] as i32) >= 128 {
+            return -1i64;
+        };
+        index += 1;
+    }
+    let mut last: i64 = -1i64;
+    let mut last_end: usize = 0;
+    index = 0;
+    while index < length {
+        let character = chars[index];
+        let code = character as i32;
+        let punctuation = (code >= 33 && code <= 47)
+            || (code >= 58 && code <= 64)
+            || (code >= 91 && code <= 96)
+            || (code >= 123 && code <= 126);
+        if date_text_space(character)
+            || (punctuation && character != '+' && character != '-' && character != '.')
+        {
+            index += 1;
+        } else {
+            let mut end = index + 1;
+            let mut zone = false;
+            if temporal_ascii_digit(character) {
+                while end < length && temporal_ascii_digit(chars[end]) {
+                    end += 1;
+                }
+                if end < length && chars[end] == ':' {
+                    end += 1;
+                    while end < length
+                        && (temporal_ascii_digit(chars[end])
+                            || chars[end] == ':'
+                            || chars[end] == '.')
+                    {
+                        end += 1;
+                    }
+                } else if end < length
+                    && (chars[end] == '-' || chars[end] == '/' || chars[end] == '.')
+                {
+                    let delimiter = chars[end];
+                    end += 1;
+                    if end < length && temporal_ascii_digit(chars[end]) {
+                        while end < length && temporal_ascii_digit(chars[end]) {
+                            end += 1;
+                        }
+                        if end < length && chars[end] == delimiter {
+                            end += 1;
+                            while end < length
+                                && (temporal_ascii_digit(chars[end]) || chars[end] == delimiter)
+                            {
+                                end += 1;
+                            }
+                        };
+                    } else {
+                        while end < length
+                            && (temporal_ascii_alnum(chars[end]) || chars[end] == delimiter)
+                        {
+                            end += 1;
+                        }
+                    };
+                };
+            } else if character == '.' {
+                while end < length && temporal_ascii_digit(chars[end]) {
+                    end += 1;
+                }
+            } else if english_date_letter(character) {
+                while end < length && english_date_letter(chars[end]) {
+                    end += 1;
+                }
+                let mut joined = false;
+                if end < length && (chars[end] == '-' || chars[end] == '/' || chars[end] == '.') {
+                    joined = true;
+                } else if end < length && (chars[end] == '+' || temporal_ascii_digit(chars[end])) {
+                    let mut word = String::new();
+                    let mut letter = index;
+                    while letter < end {
+                        word.push(chars[letter].to_ascii_lowercase());
+                        letter += 1;
+                    }
+                    joined = true;
+                    let mut token: usize = 0;
+                    while token < TEMPORAL_CORE_TOKENS.len() {
+                        if TEMPORAL_CORE_TOKENS[token] == word.as_str() {
+                            joined = false;
+                        };
+                        token += 1;
+                    }
+                };
+                if joined {
+                    zone = true;
+                    end += 1;
+                    while end < length
+                        && (temporal_ascii_alnum(chars[end])
+                            || chars[end] == '+'
+                            || chars[end] == '-'
+                            || chars[end] == '/'
+                            || chars[end] == '_'
+                            || chars[end] == '.'
+                            || chars[end] == ':')
+                    {
+                        end += 1;
+                    }
+                };
+            } else if character == '+' || character == '-' {
+                while end < length && date_text_space(chars[end]) {
+                    end += 1;
+                }
+                while end < length
+                    && (temporal_ascii_alnum(chars[end])
+                        || chars[end] == ':'
+                        || chars[end] == '.'
+                        || chars[end] == '-')
+                {
+                    end += 1;
+                }
+            } else {
+                return -1i64;
+            };
+            if zone {
+                last = (index as i32) as i64;
+            } else {
+                last = -1i64;
+            };
+            last_end = end;
+            index = end;
+        };
+    }
+    let mut rest = last_end;
+    while rest < length && date_text_space(chars[rest]) {
+        rest += 1;
+    }
+    if rest != length {
+        return -1i64;
+    }
+    last
 }
 
 // Runs of whitespace separate fields exactly as one space does.
@@ -476,7 +755,9 @@ fn temporal_first_date_field(chars: Vec<char>) -> Vec<char> {
     let mut parts: i32 = 1;
     let mut run: i32 = 0;
     let mut collapsed = false;
-    while field_end < chars.len() && (chars[field_end] == delimiter || date_text_digit(chars[field_end]) >= 0) {
+    while field_end < chars.len()
+        && (chars[field_end] == delimiter || date_text_digit(chars[field_end]) >= 0)
+    {
         if chars[field_end] == delimiter {
             run = run + 1;
             if run > 1 {
@@ -510,7 +791,9 @@ fn temporal_first_date_field(chars: Vec<char>) -> Vec<char> {
     while index < chars.len() {
         let character = chars[index];
         let inside = index >= first_end && index < field_end;
-        if inside == false || (index < copy_end && (character != delimiter || chars[index - 1] != delimiter)) {
+        if inside == false
+            || (index < copy_end && (character != delimiter || chars[index - 1] != delimiter))
+        {
             output.push(character);
         };
         index += 1;
@@ -532,7 +815,9 @@ fn parse_temporal_text(
         };
         let buffer = temporal_field_buffer(text.as_str(), limit);
         if buffer == 1 {
-            return Int8Value::Error(SqlError { state: INVALID_TIMESTAMP_TEXT });
+            return Int8Value::Error(SqlError {
+                state: INVALID_TIMESTAMP_TEXT,
+            });
         }
         let mut compact = text.clone();
         if buffer == 0 {
@@ -542,7 +827,9 @@ fn parse_temporal_text(
         let typed_length = typed.len();
         let fields = temporal_first_date_field(typed);
         if fields.len() == 0 && typed_length != 0 {
-            return Int8Value::Error(SqlError { state: INVALID_TIMESTAMP_TEXT });
+            return Int8Value::Error(SqlError {
+                state: INVALID_TIMESTAMP_TEXT,
+            });
         }
         let mut output = String::new();
         let mut index: usize = 0;
@@ -562,13 +849,32 @@ fn parse_temporal_fields(
     date_order: i32,
 ) -> Int8Value {
     let mut unresolved_flavor: i32 = 0;
-    if let TextValue::Unknown = value { unresolved_flavor = 1; };
-    if let TextValue::NonNull = value { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
-    if let TextValue::Unimplemented = value { unresolved_flavor = 2; };
+    if let TextValue::Unknown = value {
+        unresolved_flavor = 1;
+    };
+    if let TextValue::NonNull = value {
+        if unresolved_flavor < 1 {
+            unresolved_flavor = 1;
+        };
+    };
+    if let TextValue::Unimplemented = value {
+        unresolved_flavor = 2;
+    };
     if let TextValue::Error(error) = value {
         return Int8Value::Error(error);
     }
-    let mut condition_flavor_218_4: i32 = unresolved_flavor; if let TextValue::Unknown = value { if condition_flavor_218_4 < 1 { condition_flavor_218_4 = 1; }; }; if let TextValue::Unimplemented = value { condition_flavor_218_4 = 2; }; if (value == TextValue::Unknown || value == TextValue::Unimplemented) || value == TextValue::NonNull {
+    let mut condition_flavor_218_4: i32 = unresolved_flavor;
+    if let TextValue::Unknown = value {
+        if condition_flavor_218_4 < 1 {
+            condition_flavor_218_4 = 1;
+        };
+    };
+    if let TextValue::Unimplemented = value {
+        condition_flavor_218_4 = 2;
+    };
+    if (value == TextValue::Unknown || value == TextValue::Unimplemented)
+        || value == TextValue::NonNull
+    {
         return int8_unresolved(condition_flavor_218_4);
     }
     if value == TextValue::Null {
@@ -833,7 +1139,8 @@ fn parse_temporal_fields(
             day = compact_day.value;
         } else {
             // A short first field's role follows the session DateStyle order, which was not declared.
-            if (year_field.digits == 1 || year_field.digits == 2) && date_order == 0 && index < end {
+            if (year_field.digits == 1 || year_field.digits == 2) && date_order == 0 && index < end
+            {
                 return temporal_text_any_order(input.clone(), with_timezone, date_only);
             }
             if (year_field.digits == 1 || year_field.digits == 2) && date_order > 0 && index < end {
@@ -1302,7 +1609,16 @@ fn parse_temporal_fields(
         {
             let after_clock =
                 temporal_number_after_clock(hour, minute, second, compact_clock, year_overflow);
-            let mut condition_flavor_931_12: i32 = unresolved_flavor; if let Int8Value::Unknown = after_clock { if condition_flavor_931_12 < 1 { condition_flavor_931_12 = 1; }; }; if let Int8Value::Unimplemented = after_clock { condition_flavor_931_12 = 2; }; if after_clock == Int8Value::Unknown || after_clock == Int8Value::Unimplemented {
+            let mut condition_flavor_931_12: i32 = unresolved_flavor;
+            if let Int8Value::Unknown = after_clock {
+                if condition_flavor_931_12 < 1 {
+                    condition_flavor_931_12 = 1;
+                };
+            };
+            if let Int8Value::Unimplemented = after_clock {
+                condition_flavor_931_12 = 2;
+            };
+            if after_clock == Int8Value::Unknown || after_clock == Int8Value::Unimplemented {
                 return int8_unresolved(condition_flavor_931_12);
             }
             if let Int8Value::Error(error) = after_clock {
@@ -1365,8 +1681,12 @@ fn parse_temporal_fields(
 
 fn timestamp_from_microseconds(value: Int8Value) -> TimestampValue {
     let mut unresolved_flavor: i32 = 0;
-    if let Int8Value::Unknown = value { unresolved_flavor = 1; };
-    if let Int8Value::Unimplemented = value { unresolved_flavor = 2; };
+    if let Int8Value::Unknown = value {
+        unresolved_flavor = 1;
+    };
+    if let Int8Value::Unimplemented = value {
+        unresolved_flavor = 2;
+    };
     if let Int8Value::Error(error) = value {
         return TimestampValue::Error(error);
     }

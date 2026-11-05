@@ -91,7 +91,7 @@ describe('Rust text-to-timestamp CHECK casts', () => {
   it('emits casts and literals through the same shared Rust parser', () => {
     const cast = prepare('raw::timestamp = anchor')
     expect(cast.checks[0]!.kind).toBe('supported')
-    expect(cast.evaluatorSource).toContain('timestamp_from_text(input_raw.clone())')
+    expect(cast.evaluatorSource).toContain('timestamp_from_text_zone(input_raw.clone(),')
     expect(prepare("anchor = TIMESTAMP '2000-01-01 00:00:00+00'").evaluatorSource).toContain(
       'timestamp_from_text(',
     )
@@ -339,7 +339,8 @@ describe('Rust text-to-timestamp CHECK casts', () => {
       ['1999 365 23:59:59Z', false, '23514', { certain: true, value: false }],
       ['2000-01 12:00', false, '22007', { certain: true, error: '22007' }],
       ['0000-366 000000+16', false, '22009', { certain: true, error: '22009' }],
-      ['2000-01-01 00:00:00 America/New_York', false, null, { certain: false }],
+      ['2000-01-01 00:00:00 America/New_York', false, null, { certain: true, value: true }],
+      ['2000-01-01 00:00:00 utc', false, null, { certain: false }],
     ] as const) {
       await pg.exec('BEGIN')
       try {

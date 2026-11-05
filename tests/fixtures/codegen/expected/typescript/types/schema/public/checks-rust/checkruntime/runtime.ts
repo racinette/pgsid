@@ -21752,6 +21752,17 @@ function temporalTextAnyOrder(input: string, withTimezone: boolean, dateOnly: bo
     return int8Unresolved(flavor);
 }
 const temporalCoreTokens: ReadonlyArray<string> = ["ad", "allballs", "am", "apr", "april", "at", "aug", "august", "bc", "d", "dec", "december", "dow", "doy", "dst", "epoch", "feb", "february", "fri", "friday", "h", "infinity", "isodow", "isoyear", "j", "jan", "january", "jd", "jul", "julian", "july", "jun", "june", "m", "mar", "march", "may", "mm", "mon", "monday", "now", "nov", "november", "oct", "october", "on", "pm", "s", "sat", "saturday", "sep", "sept", "september", "sun", "sunday", "t", "thu", "thur", "thurs", "thursday", "today", "tomorrow", "tue", "tues", "tuesday", "wed", "wednesday", "weds", "y", "yesterday"];
+export function temporalCoreToken(word: string): boolean {
+    word = langruntime.checkedString(word);
+    let token: number = 0;
+    while (token < temporalCoreTokens.length) {
+        if (langruntime.indexStatic(temporalCoreTokens, langruntime.checkedIndex(token)) === word) {
+            return true;
+        }
+        token = langruntime.checkedAdd(token, 1);
+    }
+    return false;
+}
 function temporalAsciiDigit(value: string): boolean {
     value = langruntime.checkedChar(value);
     const code: number = langruntime.checkedChar(value).codePointAt(0)!;
@@ -21893,6 +21904,128 @@ function temporalFieldBuffer(text: string, limit: number): number {
         }
     }
     return 0;
+}
+export function temporalTrailingZoneStart(text: string): bigint {
+    text = langruntime.checkedString(text);
+    const chars: string[] = Array.from(text);
+    const length: number = chars.length;
+    let index: number = 0;
+    while (index < length) {
+        if ((langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index))).codePointAt(0)!) >= 128) {
+            return -1n;
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let last: bigint = -1n;
+    let lastEnd: number = 0;
+    index = langruntime.checkedIndex(0);
+    while (index < length) {
+        const character: string = langruntime.indexChar(chars, langruntime.checkedIndex(index));
+        const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+        const punctuation: boolean = (code >= 33 && code <= 47) || (code >= 58 && code <= 64) || (code >= 91 && code <= 96) || (code >= 123 && code <= 126);
+        if (dateTextSpace(character) || (punctuation && !(character === "+") && !(character === "-") && !(character === "."))) {
+            index = langruntime.checkedAdd(index, 1);
+        }
+        else {
+            let end: number = langruntime.checkedAdd(index, 1);
+            let zone: boolean = false;
+            if (temporalAsciiDigit(character)) {
+                while (end < length && temporalAsciiDigit(langruntime.indexChar(chars, langruntime.checkedIndex(end)))) {
+                    end = langruntime.checkedAdd(end, 1);
+                }
+                if (end < length && langruntime.indexChar(chars, langruntime.checkedIndex(end)) === ":") {
+                    end = langruntime.checkedAdd(end, 1);
+                    while (end < length && (temporalAsciiDigit(langruntime.indexChar(chars, langruntime.checkedIndex(end))) || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === ":" || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === ".")) {
+                        end = langruntime.checkedAdd(end, 1);
+                    }
+                }
+                else if (end < length && (langruntime.indexChar(chars, langruntime.checkedIndex(end)) === "-" || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === "/" || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === ".")) {
+                    const delimiter: string = langruntime.indexChar(chars, langruntime.checkedIndex(end));
+                    end = langruntime.checkedAdd(end, 1);
+                    if (end < length && temporalAsciiDigit(langruntime.indexChar(chars, langruntime.checkedIndex(end)))) {
+                        while (end < length && temporalAsciiDigit(langruntime.indexChar(chars, langruntime.checkedIndex(end)))) {
+                            end = langruntime.checkedAdd(end, 1);
+                        }
+                        if (end < length && langruntime.indexChar(chars, langruntime.checkedIndex(end)) === delimiter) {
+                            end = langruntime.checkedAdd(end, 1);
+                            while (end < length && (temporalAsciiDigit(langruntime.indexChar(chars, langruntime.checkedIndex(end))) || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === delimiter)) {
+                                end = langruntime.checkedAdd(end, 1);
+                            }
+                        }
+                    }
+                    else {
+                        while (end < length && (temporalAsciiAlnum(langruntime.indexChar(chars, langruntime.checkedIndex(end))) || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === delimiter)) {
+                            end = langruntime.checkedAdd(end, 1);
+                        }
+                    }
+                }
+            }
+            else if (character === ".") {
+                while (end < length && temporalAsciiDigit(langruntime.indexChar(chars, langruntime.checkedIndex(end)))) {
+                    end = langruntime.checkedAdd(end, 1);
+                }
+            }
+            else if (englishDateLetter(character)) {
+                while (end < length && englishDateLetter(langruntime.indexChar(chars, langruntime.checkedIndex(end)))) {
+                    end = langruntime.checkedAdd(end, 1);
+                }
+                let joined: boolean = false;
+                if (end < length && (langruntime.indexChar(chars, langruntime.checkedIndex(end)) === "-" || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === "/" || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === ".")) {
+                    joined = langruntime.checkedBool(true);
+                }
+                else if (end < length && (langruntime.indexChar(chars, langruntime.checkedIndex(end)) === "+" || temporalAsciiDigit(langruntime.indexChar(chars, langruntime.checkedIndex(end))))) {
+                    let word: string = "";
+                    let letter: number = index;
+                    while (letter < end) {
+                        word = word + langruntime.checkedChar(langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(letter))));
+                        letter = langruntime.checkedAdd(letter, 1);
+                    }
+                    joined = langruntime.checkedBool(true);
+                    let token: number = 0;
+                    while (token < temporalCoreTokens.length) {
+                        if (langruntime.indexStatic(temporalCoreTokens, langruntime.checkedIndex(token)) === word) {
+                            joined = langruntime.checkedBool(false);
+                        }
+                        token = langruntime.checkedAdd(token, 1);
+                    }
+                }
+                if (joined) {
+                    zone = langruntime.checkedBool(true);
+                    end = langruntime.checkedAdd(end, 1);
+                    while (end < length && (temporalAsciiAlnum(langruntime.indexChar(chars, langruntime.checkedIndex(end))) || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === "+" || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === "-" || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === "/" || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === "_" || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === "." || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === ":")) {
+                        end = langruntime.checkedAdd(end, 1);
+                    }
+                }
+            }
+            else if (character === "+" || character === "-") {
+                while (end < length && dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(end)))) {
+                    end = langruntime.checkedAdd(end, 1);
+                }
+                while (end < length && (temporalAsciiAlnum(langruntime.indexChar(chars, langruntime.checkedIndex(end))) || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === ":" || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === "." || langruntime.indexChar(chars, langruntime.checkedIndex(end)) === "-")) {
+                    end = langruntime.checkedAdd(end, 1);
+                }
+            }
+            else {
+                return -1n;
+            }
+            if (zone) {
+                last = langruntime.checkedI64(BigInt(langruntime.checkedI32((langruntime.checkedI32(langruntime.checkedIndex(index))))));
+            }
+            else {
+                last = langruntime.checkedI64(-1n);
+            }
+            lastEnd = langruntime.checkedIndex(end);
+            index = langruntime.checkedIndex(end);
+        }
+    }
+    let rest: number = lastEnd;
+    while (rest < length && dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(rest)))) {
+        rest = langruntime.checkedAdd(rest, 1);
+    }
+    if (!(rest === length)) {
+        return -1n;
+    }
+    return last;
 }
 function temporalCollapsedSpace(text: string): string {
     text = langruntime.checkedString(text);

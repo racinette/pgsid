@@ -40,8 +40,12 @@ fn session_timezone_fixed_offset(name: &str) -> Int4Value {
 
 pub fn sql__pg_catalog__timetz__qcb2(input: TimeValue, zone: &str) -> TimetzValue {
     let mut unresolved_flavor: i32 = 0;
-    if let TimeValue::Unknown = input { unresolved_flavor = 1; };
-    if let TimeValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TimeValue::Unknown = input {
+        unresolved_flavor = 1;
+    };
+    if let TimeValue::Unimplemented = input {
+        unresolved_flavor = 2;
+    };
     if let TimeValue::Error(error) = input {
         return TimetzValue::Error(error);
     };
@@ -60,8 +64,12 @@ pub fn sql__pg_catalog__timetz__qcb2(input: TimeValue, zone: &str) -> TimetzValu
 
 pub fn sql__pg_catalog__timestamptz__m17a(input: TimestampValue, zone: &str) -> TimestamptzValue {
     let mut unresolved_flavor: i32 = 0;
-    if let TimestampValue::Unknown = input { unresolved_flavor = 1; };
-    if let TimestampValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TimestampValue::Unknown = input {
+        unresolved_flavor = 1;
+    };
+    if let TimestampValue::Unimplemented = input {
+        unresolved_flavor = 2;
+    };
     if let TimestampValue::Error(error) = input {
         return TimestamptzValue::Error(error);
     };
@@ -86,8 +94,12 @@ pub fn sql__pg_catalog__timestamptz__m17a(input: TimestampValue, zone: &str) -> 
 
 pub fn sql__pg_catalog__timestamptz__6zge(input: DateValue, zone: &str) -> TimestamptzValue {
     let mut unresolved_flavor: i32 = 0;
-    if let DateValue::Unknown = input { unresolved_flavor = 1; };
-    if let DateValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let DateValue::Unknown = input {
+        unresolved_flavor = 1;
+    };
+    if let DateValue::Unimplemented = input {
+        unresolved_flavor = 2;
+    };
     if let DateValue::Error(error) = input {
         return TimestamptzValue::Error(error);
     };
@@ -116,8 +128,12 @@ pub fn sql__pg_catalog__timestamptz__6zge(input: DateValue, zone: &str) -> Times
 
 pub fn sql__pg_catalog__timestamp__i0gp(input: TimestamptzValue, zone: &str) -> TimestampValue {
     let mut unresolved_flavor: i32 = 0;
-    if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
-    if let TimestamptzValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TimestamptzValue::Unknown = input {
+        unresolved_flavor = 1;
+    };
+    if let TimestamptzValue::Unimplemented = input {
+        unresolved_flavor = 2;
+    };
     if let TimestamptzValue::Error(error) = input {
         return TimestampValue::Error(error);
     };
@@ -139,8 +155,12 @@ pub fn sql__pg_catalog__timestamp__i0gp(input: TimestamptzValue, zone: &str) -> 
 
 pub fn sql__pg_catalog__date__h28y(input: TimestamptzValue, zone: &str) -> DateValue {
     let mut unresolved_flavor: i32 = 0;
-    if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
-    if let TimestamptzValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TimestamptzValue::Unknown = input {
+        unresolved_flavor = 1;
+    };
+    if let TimestamptzValue::Unimplemented = input {
+        unresolved_flavor = 2;
+    };
     if let TimestamptzValue::Error(error) = input {
         return DateValue::Error(error);
     };
@@ -170,8 +190,12 @@ pub fn sql__pg_catalog__date__h28y(input: TimestamptzValue, zone: &str) -> DateV
 
 pub fn sql__pg_catalog__time__az0x(input: TimestamptzValue, zone: &str) -> TimeValue {
     let mut unresolved_flavor: i32 = 0;
-    if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
-    if let TimestamptzValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TimestamptzValue::Unknown = input {
+        unresolved_flavor = 1;
+    };
+    if let TimestamptzValue::Unimplemented = input {
+        unresolved_flavor = 2;
+    };
     if let TimestamptzValue::Error(error) = input {
         return TimeValue::Error(error);
     };
@@ -198,8 +222,12 @@ pub fn sql__pg_catalog__time__az0x(input: TimestamptzValue, zone: &str) -> TimeV
 
 pub fn sql__pg_catalog__timetz__sqdw(input: TimestamptzValue, zone: &str) -> TimetzValue {
     let mut unresolved_flavor: i32 = 0;
-    if let TimestamptzValue::Unknown = input { unresolved_flavor = 1; };
-    if let TimestamptzValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TimestamptzValue::Unknown = input {
+        unresolved_flavor = 1;
+    };
+    if let TimestamptzValue::Unimplemented = input {
+        unresolved_flavor = 2;
+    };
     if let TimestamptzValue::Error(error) = input {
         return TimetzValue::Error(error);
     };
@@ -239,9 +267,17 @@ pub fn timestamptz_from_text_context(
     utf8: bool,
 ) -> TimestamptzValue {
     let mut unresolved_flavor: i32 = 0;
-    if let TextValue::Unknown = input { unresolved_flavor = 1; };
-    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
-    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TextValue::Unknown = input {
+        unresolved_flavor = 1;
+    };
+    if let TextValue::NonNull = input {
+        if unresolved_flavor < 1 {
+            unresolved_flavor = 1;
+        };
+    };
+    if let TextValue::Unimplemented = input {
+        unresolved_flavor = 2;
+    };
     let parsed = timestamptz_from_text_order(input.clone(), date_order);
     if parsed != TimestamptzValue::Unknown && parsed != TimestamptzValue::Unimplemented {
         return parsed;
@@ -250,9 +286,29 @@ pub fn timestamptz_from_text_context(
     if let TimestampValue::Value(_) = local {
         return sql__pg_catalog__timestamptz__m17a(local, zone);
     };
+    // A trailing joined field names the zone the local time is read in.
+    let copy = input.clone();
+    if let TextValue::Value(text) = copy {
+        let parts = temporal_zone_field(text.as_str(), date_order);
+        if parts.twice {
+            return TimestamptzValue::Error(make_sql_error(TEMPORAL_ZONE_FIELD_SYNTAX));
+        };
+        if parts.found {
+            let zoned = timestamp_from_text_order(TextValue::Value(parts.rest.clone()), date_order);
+            if let TimestampValue::Value(_) = zoned {
+                return sql__pg_catalog__timestamptz__m17a(zoned, parts.name.as_str());
+            };
+        };
+    };
     let mut reading_flavor: i32 = unresolved_flavor;
-    if let TimestampValue::Unknown = local { if reading_flavor < 1 { reading_flavor = 1; }; };
-    if let TimestampValue::Unimplemented = local { reading_flavor = 2; };
+    if let TimestampValue::Unknown = local {
+        if reading_flavor < 1 {
+            reading_flavor = 1;
+        };
+    };
+    if let TimestampValue::Unimplemented = local {
+        reading_flavor = 2;
+    };
     timestamptz_from_text_trailing_zone(
         input,
         date_order,
@@ -288,9 +344,17 @@ fn timestamptz_from_text_trailing_zone(
     reading_flavor: i32,
 ) -> TimestamptzValue {
     let mut unresolved_flavor: i32 = 0;
-    if let TextValue::Unknown = input { unresolved_flavor = 1; };
-    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
-    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TextValue::Unknown = input {
+        unresolved_flavor = 1;
+    };
+    if let TextValue::NonNull = input {
+        if unresolved_flavor < 1 {
+            unresolved_flavor = 1;
+        };
+    };
+    if let TextValue::Unimplemented = input {
+        unresolved_flavor = 2;
+    };
     if let TextValue::Value(text) = input {
         let chars: Vec<char> = text.chars().collect();
         let mut zone_end = chars.len();
@@ -314,7 +378,9 @@ fn timestamptz_from_text_trailing_zone(
         // Without a trailing zone word, the whole text's own reading decides.
         if zone_start == 0 || (slash == false && letters == false) {
             let mut text_flavor: i32 = unresolved_flavor;
-            if reading_flavor > text_flavor { text_flavor = reading_flavor; };
+            if reading_flavor > text_flavor {
+                text_flavor = reading_flavor;
+            };
             return timestamptz_unresolved(text_flavor);
         };
         let mut name = String::new();
@@ -346,8 +412,14 @@ fn timestamptz_from_text_trailing_zone(
         };
         let local = timestamp_from_text_order(remainder, date_order);
         let mut local_flavor: i32 = unresolved_flavor;
-        if let TimestampValue::Unknown = local { if local_flavor < 1 { local_flavor = 1; }; };
-        if let TimestampValue::Unimplemented = local { local_flavor = 2; };
+        if let TimestampValue::Unknown = local {
+            if local_flavor < 1 {
+                local_flavor = 1;
+            };
+        };
+        if let TimestampValue::Unimplemented = local {
+            local_flavor = 2;
+        };
         if let TimestampValue::Value(value) = local {
             if slash {
                 return sql__pg_catalog__timestamptz__m17a(local, name.as_str());
@@ -391,8 +463,12 @@ fn timestamptz_from_text_trailing_zone(
                 east_flavor = resolution_context(east_flavor);
             };
             if lookup.kind == 2 {
-                if let Int4Value::Unknown = east { east_flavor = resolution_context(east_flavor); };
-                if let Int4Value::Unimplemented = east { east_flavor = 2; };
+                if let Int4Value::Unknown = east {
+                    east_flavor = resolution_context(east_flavor);
+                };
+                if let Int4Value::Unimplemented = east {
+                    east_flavor = 2;
+                };
             };
             return timestamptz_unresolved(east_flavor);
         };
@@ -406,9 +482,17 @@ fn timestamptz_from_text_trailing_zone(
 // transaction date.
 pub fn timetz_from_text_context(input: TextValue, zone: &str) -> TimetzValue {
     let mut unresolved_flavor: i32 = 0;
-    if let TextValue::Unknown = input { unresolved_flavor = 1; };
-    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
-    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TextValue::Unknown = input {
+        unresolved_flavor = 1;
+    };
+    if let TextValue::NonNull = input {
+        if unresolved_flavor < 1 {
+            unresolved_flavor = 1;
+        };
+    };
+    if let TextValue::Unimplemented = input {
+        unresolved_flavor = 2;
+    };
     let parsed = timetz_from_text(input.clone());
     if parsed != TimetzValue::Unknown && parsed != TimetzValue::Unimplemented {
         return parsed;
@@ -417,5 +501,142 @@ pub fn timetz_from_text_context(input: TextValue, zone: &str) -> TimetzValue {
     if let TimeValue::Value(_) = clock {
         return sql__pg_catalog__timetz__qcb2(clock, zone);
     };
-    let mut local_flavor_380_4: i32 = unresolved_flavor; if let TimeValue::Unknown = clock { if local_flavor_380_4 < 1 { local_flavor_380_4 = 1; }; }; if let TimeValue::Unimplemented = clock { local_flavor_380_4 = 2; }; timetz_unresolved(local_flavor_380_4)
+    let mut local_flavor_380_4: i32 = unresolved_flavor;
+    if let TimeValue::Unknown = clock {
+        if local_flavor_380_4 < 1 {
+            local_flavor_380_4 = 1;
+        };
+    };
+    if let TimeValue::Unimplemented = clock {
+        local_flavor_380_4 = 2;
+    };
+    timetz_unresolved(local_flavor_380_4)
+}
+
+// The zone a trailing joined field names, if the zone tables resolve it: a zone database name or
+// a POSIX specification. Its text and the text before it come back; an unresolved field gives
+// no split, so the plain reading decides.
+const TEMPORAL_ZONE_FIELD_SYNTAX: u32 = 3452551;
+
+// `found` is a resolved zone after text with no zone of its own; `twice` is a zone after text
+// that already gives an explicit offset, which the server rejects.
+struct TemporalZoneSplit {
+    found: bool,
+    twice: bool,
+    rest: String,
+    name: String,
+}
+
+fn temporal_zone_word_letter(value: char) -> bool {
+    let code = value as i32;
+    (code >= 65 && code <= 90) || (code >= 97 && code <= 122)
+}
+
+fn temporal_zone_field(text: &str, date_order: i32) -> TemporalZoneSplit {
+    let start = temporal_trailing_zone_start(text);
+    if start < 0i64 {
+        return TemporalZoneSplit {
+            found: false,
+            twice: false,
+            rest: String::new(),
+            name: String::new(),
+        };
+    };
+    let chars: Vec<char> = text.chars().collect();
+    let narrow = start as i32;
+    let begin = usize::try_from(narrow).unwrap_or(0);
+    let mut rest = String::new();
+    let mut name = String::new();
+    let mut index: usize = 0;
+    while index < chars.len() {
+        if index < begin {
+            rest.push(chars[index]);
+        } else if timestamptz_text_space(chars[index]) == false {
+            name.push(chars[index]);
+        };
+        index += 1;
+    }
+    let profile = session_timezone_profile(name.as_str(), 0i64, false);
+    let own = timestamptz_from_text_order(TextValue::Value(rest.clone()), date_order);
+    let mut zoned = false;
+    if let TimestamptzValue::Value(_) = own {
+        zoned = true;
+    };
+    let mut unread = false;
+    if let TimestamptzValue::Error(_) = own {
+        unread = true;
+    };
+    // A word outside the core table right before the zone field is either a zone, which the field
+    // then repeats, or a word the server rejects; both are 22007 once the fields before it read.
+    let mut end = begin;
+    while end > 0 && timestamptz_text_space(chars[end - 1]) {
+        end = end - 1;
+    }
+    let mut word_start = end;
+    while word_start > 0 && temporal_zone_word_letter(chars[word_start - 1]) {
+        word_start = word_start - 1;
+    }
+    if word_start < end && word_start > 0 && timestamptz_text_space(chars[word_start - 1]) {
+        let mut word = String::new();
+        let mut before = String::new();
+        let mut position: usize = 0;
+        while position < end {
+            if position < word_start {
+                before.push(chars[position]);
+            } else {
+                word.push(chars[position].to_ascii_lowercase());
+            };
+            position += 1;
+        }
+        if temporal_core_token(word.as_str()) == false {
+            let local = timestamp_from_text_order(TextValue::Value(before), date_order);
+            if let TimestampValue::Value(_) = local {
+                zoned = true;
+                unread = false;
+            };
+        };
+    };
+    TemporalZoneSplit {
+        found: profile.valid && zoned == false && unread == false,
+        twice: profile.valid && zoned,
+        rest: rest,
+        name: name,
+    }
+}
+
+// After a full date the server reads a trailing joined field as a zone, which date input checks
+// and then ignores.
+pub fn date_from_text_zone(input: TextValue, date_order: i32) -> DateValue {
+    let copy = input.clone();
+    if let TextValue::Value(text) = copy {
+        let parts = temporal_zone_field(text.as_str(), date_order);
+        if parts.twice {
+            return DateValue::Error(make_sql_error(TEMPORAL_ZONE_FIELD_SYNTAX));
+        };
+        if parts.found {
+            let without = date_from_text_order(TextValue::Value(parts.rest.clone()), date_order);
+            if let DateValue::Value(_) = without {
+                return without;
+            };
+        };
+    };
+    date_from_text_order(input, date_order)
+}
+
+pub fn timestamp_from_text_zone(input: TextValue, date_order: i32) -> TimestampValue {
+    let copy = input.clone();
+    if let TextValue::Value(text) = copy {
+        let parts = temporal_zone_field(text.as_str(), date_order);
+        if parts.twice {
+            return TimestampValue::Error(make_sql_error(TEMPORAL_ZONE_FIELD_SYNTAX));
+        };
+        if parts.found {
+            let without =
+                timestamp_from_text_order(TextValue::Value(parts.rest.clone()), date_order);
+            if let TimestampValue::Value(_) = without {
+                return without;
+            };
+        };
+    };
+    timestamp_from_text_order(input, date_order)
 }
