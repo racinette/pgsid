@@ -834,7 +834,6 @@ export const eraUnknownText = [
   '2000-01-01+16 BC BC',
   '2000-01-01 25:00 BC BC',
   '2000-01-01 BC 12:00+16 AD',
-  'Sat BC 2000-01-01',
   '2000-01-01-BC',
   '2000-01-01.BC',
   '2000-01-01 BC.',
@@ -916,8 +915,59 @@ const fieldShapeErrorText = [
   '2000-00-01 today',
   '2000-01-32 epoch',
   '0000-01-01 today',
+  '2000/02/30 today',
+  '20000230 today',
+  '2000/13/01 today',
+  '20001301 today',
+  '2000.02.30 today',
+  'Feb 30 2000 today',
+  'julianx2451545',
+  // A first field of letters joined to digits or a separator is a date whose letters must be
+  // months; a delimited date after an era or other non-date field is rejected the same way.
+  'e2 2000-01-01',
+  'America/New_York 2000-01-01',
+  'BC 2000-01-01',
+  'AD 2000/01/02',
+  'BC Jan-02-2000',
+  'BC',
+  'BC +05',
+  'AD 12:00',
+  'Sat BC 2000-01-01',
+  '12:00 2000-01-01',
+  '12:00:30 2000/01/02',
+  'Tue 2000-01-01',
+  'pm 2000.01.02',
+  '2000-01-01 25:00 today',
+  '2000-01-01 12:60 epoch',
+  '2000/01/02 25:00 now',
+  '30 Feb 2000 today',
+  'February 31 2000 12:00 now',
+  '2000 13 01 today',
 ]
-const gluedWordText = ['2000-01-01am', '2000-01-01bc']
+// Letters after a number, clock or numeric date start a field of their own; "at" and "on" are
+// thrown away and "allballs" is midnight in UTC.
+const gluedWordText = [
+  '2000-01-01am',
+  '2000-01-01bc',
+  '20000102Tue',
+  '2000.01.02Tue',
+  'J2451545Tue',
+  'BC 20000102',
+  'AD Jan 2 2000',
+  'BC 2 Jan 2000 12:00',
+  '2000-01-01 at',
+  '2000-01-01on',
+  'on 2000-01-01 12:00',
+  '2000-01-01 allballs',
+  '2000-01-01 12:00 allballs',
+  '2000-02-30 12:00 e2',
+  '2000-01-01 25:00 e2',
+  '12:00 20000102',
+  '12:00:30 Jan 2 2000',
+  '12:00 2 Jan 2000',
+  '12:00 J2451545',
+  'J-1',
+]
 // A repeated era repeats a field, which is rejected where it stands once the fields before it read.
 const repeatedEraText = [
   '2000-01-01 BC BC',
@@ -1038,6 +1088,12 @@ const zoneFieldText = [
   '2000-01-01 BC-05',
   '2000-13-01 00:00 UTC e2',
   '2000-02-30 00:00+05 e2',
+  '2000/02/30 00:00 UTC e2',
+  '20000230 00:00+05 e2',
+  'now e2',
+  'epoch e2',
+  'infinity e2',
+  'Feb 30 2000 00:00 UTC e2',
 ]
 // The lexer copies fields into a fixed buffer and allows 25 fields; whitespace is never copied.
 const fieldBufferText = [
@@ -1156,8 +1212,16 @@ export const dateHandledText = [
   'julian',
 ]
 
-// A clock alone and a trailing day word take the date from the transaction.
-const clockDayText = ['12:00 today', '12:00 tomorrow', '12:00:30.5 yesterday', '12: today']
+// A day word beside a clock alone or a zone field takes the date from the transaction.
+const clockDayText = [
+  '12:00 today',
+  '12:00 tomorrow',
+  '12:00:30.5 yesterday',
+  '12: today',
+  'today e2',
+  'tomorrow EST5EDT',
+  'today 12:00 e2',
+]
 export const dateDeferredText = [
   'today',
   'tomorrow',

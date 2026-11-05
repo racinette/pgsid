@@ -610,9 +610,18 @@ fn temporal_zone_field(text: &str, date_order: i32) -> TemporalZoneSplit {
     if let TimestamptzValue::Value(_) = own {
         zoned = true;
     };
-    let mut unread = false;
-    if let TimestamptzValue::Error(_) = own {
-        unread = true;
+    // Now sets the zone as well, so a zone field after it repeats one.
+    let mut word = String::new();
+    let rest_chars: Vec<char> = rest.chars().collect();
+    let mut letter: usize = 0;
+    while letter < rest_chars.len() {
+        if timestamptz_text_space(rest_chars[letter]) == false {
+            word.push(rest_chars[letter].to_ascii_lowercase());
+        };
+        letter += 1;
+    }
+    if word == "now" {
+        zoned = true;
     };
     // A month or day the calendar rejects is reported only after the zone field.
     if own == TimestamptzValue::Error(make_sql_error(TEMPORAL_CAST_RANGE)) {
@@ -621,7 +630,6 @@ fn temporal_zone_field(text: &str, date_order: i32) -> TemporalZoneSplit {
             let checked = timestamptz_from_text_order(TextValue::Value(valid), date_order);
             if let TimestamptzValue::Value(_) = checked {
                 zoned = true;
-                unread = false;
             };
         };
     };
@@ -652,19 +660,17 @@ fn temporal_zone_field(text: &str, date_order: i32) -> TemporalZoneSplit {
             let local = timestamp_from_text_order(TextValue::Value(before), date_order);
             if let TimestampValue::Value(_) = local {
                 zoned = true;
-                unread = false;
             };
             if local == TimestampValue::Error(make_sql_error(TEMPORAL_CAST_RANGE)) && valid != "" {
                 let checked = timestamp_from_text_order(TextValue::Value(valid), date_order);
                 if let TimestampValue::Value(_) = checked {
                     zoned = true;
-                    unread = false;
                 };
             };
         };
     };
     TemporalZoneSplit {
-        found: profile.valid && zoned == false && unread == false,
+        found: profile.valid && zoned == false,
         twice: profile.valid && zoned,
         rest: rest,
         name: name,
@@ -673,6 +679,43 @@ fn temporal_zone_field(text: &str, date_order: i32) -> TemporalZoneSplit {
 
 // After a full date the server reads a trailing joined field as a zone, which date input checks
 // and then ignores.
+// A day word with at most a clock before a valid zone takes the date from the transaction.
+fn temporal_zone_rest_day(rest: &str) -> bool {
+    let chars: Vec<char> = rest.chars().collect();
+    let mut days = 0;
+    let mut clocks = 0;
+    let mut other = false;
+    let mut index: usize = 0;
+    while index < chars.len() {
+        if timestamptz_text_space(chars[index]) {
+            index += 1;
+        } else {
+            let mut word = String::new();
+            let mut clock = true;
+            let mut colon = false;
+            while index < chars.len() && timestamptz_text_space(chars[index]) == false {
+                let character = chars[index];
+                let code = character as i32;
+                if character == ':' {
+                    colon = true;
+                } else if character != '.' && (code < 48 || code > 57) {
+                    clock = false;
+                };
+                word.push(character.to_ascii_lowercase());
+                index += 1;
+            }
+            if word == "today" || word == "tomorrow" || word == "yesterday" {
+                days = days + 1;
+            } else if clock && colon {
+                clocks = clocks + 1;
+            } else {
+                other = true;
+            };
+        };
+    }
+    days == 1 && clocks <= 1 && other == false
+}
+
 pub fn date_from_text_zone(input: TextValue, date_order: i32) -> DateValue {
     let copy = input.clone();
     if let TextValue::Value(text) = copy {
@@ -681,8 +724,15 @@ pub fn date_from_text_zone(input: TextValue, date_order: i32) -> DateValue {
             return DateValue::Error(make_sql_error(TEMPORAL_ZONE_FIELD_SYNTAX));
         };
         if parts.found {
+            // A valid trailing zone raises nothing, so the earlier fields decide, errors included.
             let without = date_from_text_order(TextValue::Value(parts.rest.clone()), date_order);
             if let DateValue::Value(_) = without {
+                return without;
+            };
+            if let DateValue::Error(_) = without {
+                return without;
+            };
+            if without == DateValue::Unknown && temporal_zone_rest_day(parts.rest.as_str()) {
                 return without;
             };
         };
@@ -701,6 +751,12 @@ pub fn timestamp_from_text_zone(input: TextValue, date_order: i32) -> TimestampV
             let without =
                 timestamp_from_text_order(TextValue::Value(parts.rest.clone()), date_order);
             if let TimestampValue::Value(_) = without {
+                return without;
+            };
+            if let TimestampValue::Error(_) = without {
+                return without;
+            };
+            if without == TimestampValue::Unknown && temporal_zone_rest_day(parts.rest.as_str()) {
                 return without;
             };
         };
