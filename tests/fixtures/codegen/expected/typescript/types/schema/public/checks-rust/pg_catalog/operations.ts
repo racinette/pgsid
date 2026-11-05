@@ -55450,6 +55450,9 @@ function oidAliasRead(input: checkruntime.TextValue, dash: boolean, grammar: num
         if (outcome === 5) {
             return { kind: "Error", value: checkruntime.makeSqlError(oidAliasOperatorArguments) };
         }
+        if (outcome === 6) {
+            return checkruntime.oidUnresolved(2);
+        }
     }
     return checkruntime.oidUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
 }
@@ -55588,23 +55591,92 @@ function oidAliasSignatureRead(text: string, operator: boolean): number {
 }
 function oidAliasTypeRead(text: string): number {
     text = langruntime.checkedString(text);
-    const chars: string[] = Array.from(text);
+    const source: string[] = Array.from(text);
+    let stripped: string = "";
+    let commented: boolean = false;
+    let cursor: number = 0;
+    while (cursor < source.length) {
+        const ch: string = langruntime.indexChar(source, langruntime.checkedIndex(cursor));
+        if (ch === "\"") {
+            stripped = stripped + langruntime.checkedChar(ch);
+            cursor = langruntime.checkedAdd(cursor, 1);
+            let open: boolean = true;
+            while (cursor < source.length && open) {
+                if (langruntime.indexChar(source, langruntime.checkedIndex(cursor)) === "\"" && langruntime.checkedAdd(cursor, 1) < source.length && langruntime.indexChar(source, langruntime.checkedIndex(langruntime.checkedAdd(cursor, 1))) === "\"") {
+                    stripped = stripped + langruntime.checkedChar("\"");
+                    stripped = stripped + langruntime.checkedChar("\"");
+                    cursor = langruntime.checkedAdd(cursor, 2);
+                }
+                else {
+                    if (langruntime.indexChar(source, langruntime.checkedIndex(cursor)) === "\"") {
+                        open = langruntime.checkedBool(false);
+                    }
+                    stripped = stripped + langruntime.checkedChar(langruntime.indexChar(source, langruntime.checkedIndex(cursor)));
+                    cursor = langruntime.checkedAdd(cursor, 1);
+                }
+            }
+        }
+        else if (ch === "-" && langruntime.checkedAdd(cursor, 1) < source.length && langruntime.indexChar(source, langruntime.checkedIndex(langruntime.checkedAdd(cursor, 1))) === "-") {
+            commented = langruntime.checkedBool(true);
+            while (cursor < source.length && !(langruntime.indexChar(source, langruntime.checkedIndex(cursor)) === "\n") && !(langruntime.indexChar(source, langruntime.checkedIndex(cursor)) === "\r")) {
+                cursor = langruntime.checkedAdd(cursor, 1);
+            }
+            stripped = stripped + langruntime.checkedChar(" ");
+        }
+        else if (ch === "/" && langruntime.checkedAdd(cursor, 1) < source.length && langruntime.indexChar(source, langruntime.checkedIndex(langruntime.checkedAdd(cursor, 1))) === "*") {
+            commented = langruntime.checkedBool(true);
+            let nesting: number = 1;
+            cursor = langruntime.checkedAdd(cursor, 2);
+            while (cursor < source.length && nesting > 0) {
+                if (langruntime.indexChar(source, langruntime.checkedIndex(cursor)) === "/" && langruntime.checkedAdd(cursor, 1) < source.length && langruntime.indexChar(source, langruntime.checkedIndex(langruntime.checkedAdd(cursor, 1))) === "*") {
+                    nesting = langruntime.checkedI32(langruntime.checkedSignedAdd(nesting, 1));
+                    cursor = langruntime.checkedAdd(cursor, 2);
+                }
+                else if (langruntime.indexChar(source, langruntime.checkedIndex(cursor)) === "*" && langruntime.checkedAdd(cursor, 1) < source.length && langruntime.indexChar(source, langruntime.checkedIndex(langruntime.checkedAdd(cursor, 1))) === "/") {
+                    nesting = langruntime.checkedI32(langruntime.checkedSignedSubtract(nesting, 1));
+                    cursor = langruntime.checkedAdd(cursor, 2);
+                }
+                else {
+                    cursor = langruntime.checkedAdd(cursor, 1);
+                }
+            }
+            if (nesting > 0) {
+                return 3;
+            }
+            stripped = stripped + langruntime.checkedChar(" ");
+        }
+        else {
+            if (ch === "'") {
+                return 6;
+            }
+            if (ch === "$") {
+                let inside: boolean = false;
+                if (cursor > 0) {
+                    const previous: number = langruntime.checkedChar(langruntime.indexChar(source, langruntime.checkedIndex(langruntime.checkedSubtract(cursor, 1)))).codePointAt(0)!;
+                    inside = langruntime.checkedBool((previous >= 48 && previous <= 57) || (previous >= 65 && previous <= 90) || (previous >= 97 && previous <= 122) || previous === 95 || previous === 36);
+                }
+                if (inside === false) {
+                    return 6;
+                }
+            }
+            stripped = stripped + langruntime.checkedChar(ch);
+            cursor = langruntime.checkedAdd(cursor, 1);
+        }
+    }
+    const chars: string[] = Array.from(stripped);
     let first: string = " ";
     let index: number = 0;
     while (index < chars.length) {
         const ch: string = langruntime.indexChar(chars, langruntime.checkedIndex(index));
-        if (ch === "'" || ch === "$") {
-            return 0;
-        }
-        if (langruntime.checkedAdd(index, 1) < chars.length && ((ch === "-" && langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 1))) === "-") || (ch === "/" && langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 1))) === "*"))) {
-            return 0;
-        }
         if (first === " " && oidInputSpace(ch) === false) {
             first = langruntime.checkedChar(ch);
         }
         index = langruntime.checkedAdd(index, 1);
     }
     if (first === " ") {
+        if (commented) {
+            return 3;
+        }
         return 4;
     }
     const code: number = langruntime.checkedChar(first).codePointAt(0)!;
@@ -55677,7 +55749,186 @@ function oidAliasTypeRead(text: string): number {
     if (quoted || emptyPart || parts > 3 || !(depth === 0) || !(brackets === 0) || balanced === false) {
         return 3;
     }
-    return 0;
+    return oidAliasTypeWords(stripped);
+}
+function oidAliasTypeWords(text: string): number {
+    text = langruntime.checkedString(text);
+    const chars: string[] = Array.from(text);
+    let firstWord: string = "";
+    let secondWord: string = "";
+    let secondStart: string = " ";
+    let token: number = 0;
+    let depth: number = 0;
+    let quoted: boolean = false;
+    let firstQuoted: boolean = false;
+    let firstDotted: boolean = false;
+    let firstOpen: boolean = false;
+    let firstLast: string = " ";
+    let firstEnd: number = 0;
+    let secondBroken: boolean = false;
+    let index: number = 0;
+    let previousSpace: boolean = true;
+    while (index < chars.length && token < 3) {
+        const ch: string = langruntime.indexChar(chars, langruntime.checkedIndex(index));
+        if (quoted) {
+            if (ch === "\"") {
+                quoted = langruntime.checkedBool(false);
+            }
+        }
+        else if (ch === "\"") {
+            quoted = langruntime.checkedBool(true);
+        }
+        const space: boolean = oidInputSpace(ch) && quoted === false && depth === 0;
+        if (space === false && previousSpace && depth === 0) {
+            token = langruntime.checkedI32(langruntime.checkedSignedAdd(token, 1));
+            if (token === 2) {
+                secondStart = langruntime.checkedChar(ch);
+            }
+        }
+        if (ch === "(" || ch === "[") {
+            depth = langruntime.checkedI32(langruntime.checkedSignedAdd(depth, 1));
+        }
+        if (ch === ")" || ch === "]") {
+            depth = langruntime.checkedI32(langruntime.checkedSignedSubtract(depth, 1));
+        }
+        if (token === 1) {
+            if (ch === "\"") {
+                firstQuoted = langruntime.checkedBool(true);
+            }
+            if (ch === ".") {
+                firstDotted = langruntime.checkedBool(true);
+            }
+            if (ch === "(" || ch === "[") {
+                firstOpen = langruntime.checkedBool(true);
+            }
+            if (firstOpen === false && space === false) {
+                firstWord = firstWord + langruntime.checkedChar(langruntime.asciiLowercase(ch));
+            }
+            if (space === false) {
+                firstLast = langruntime.checkedChar(ch);
+                firstEnd = langruntime.checkedIndex(langruntime.checkedAdd(index, 1));
+            }
+        }
+        if (token === 2) {
+            const code: number = langruntime.checkedChar(ch).codePointAt(0)!;
+            const letter: boolean = (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || code === 95;
+            if (letter === false && space === false) {
+                secondBroken = langruntime.checkedBool(true);
+            }
+            if (letter && secondBroken === false) {
+                secondWord = secondWord + langruntime.checkedChar(langruntime.asciiLowercase(ch));
+            }
+        }
+        previousSpace = langruntime.checkedBool(space);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    const setof: boolean = firstQuoted === false && firstDotted === false && firstOpen === false && firstWord === "setof";
+    if (setof) {
+        if (token < 2) {
+            return 3;
+        }
+        let rest: string = "";
+        let plain: boolean = true;
+        let position: number = firstEnd;
+        while (position < chars.length) {
+            const code: number = langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(position))).codePointAt(0)!;
+            const allowed: boolean = (code >= 48 && code <= 57) || (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || code === 95 || code === 36 || code === 34 || code === 46 || code === 40 || code === 41 || code === 91 || code === 93 || code === 44 || oidInputSpace(langruntime.indexChar(chars, langruntime.checkedIndex(position)));
+            if (allowed === false) {
+                plain = langruntime.checkedBool(false);
+            }
+            rest = rest + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(position)));
+            position = langruntime.checkedAdd(position, 1);
+        }
+        if (plain === false) {
+            return 6;
+        }
+        const inner: number = oidAliasTypeRead(rest);
+        if (inner === 0) {
+            return 4;
+        }
+        if (inner === 6) {
+            return 6;
+        }
+        return 3;
+    }
+    if (token < 2 || firstLast === ".") {
+        return 0;
+    }
+    const start: number = langruntime.checkedChar(secondStart).codePointAt(0)!;
+    const identifier: boolean = (start >= 65 && start <= 90) || (start >= 97 && start <= 122) || start === 95 || secondStart === "\"";
+    if (identifier === false) {
+        if (secondStart === "(" || secondStart === "[" || secondStart === ".") {
+            return 0;
+        }
+        return 3;
+    }
+    if (secondWord === "array") {
+        return 0;
+    }
+    const keyword: boolean = firstQuoted === false && firstDotted === false && (firstWord === "double" || firstWord === "character" || firstWord === "char" || firstWord === "national" || firstWord === "nchar" || firstWord === "bit" || firstWord === "time" || firstWord === "timestamp" || firstWord === "interval");
+    if (keyword === false) {
+        return 3;
+    }
+    if (secondWord === "precision" || secondWord === "varying" || secondWord === "character" || secondWord === "char" || secondWord === "with" || secondWord === "without" || secondWord === "year" || secondWord === "month" || secondWord === "day" || secondWord === "hour" || secondWord === "minute" || secondWord === "second") {
+        if (oidAliasTypeSpelling(text)) {
+            return 0;
+        }
+        return 6;
+    }
+    return 3;
+}
+const oidAliasTypeSpellings: ReadonlyArray<string> = ["double precision", "character varying", "char varying", "national character", "national char", "national character varying", "national char varying", "nchar varying", "bit varying", "time with time zone", "time without time zone", "timestamp with time zone", "timestamp without time zone", "interval year", "interval month", "interval day", "interval hour", "interval minute", "interval second", "interval year to month", "interval day to hour", "interval day to minute", "interval day to second", "interval hour to minute", "interval hour to second", "interval minute to second"];
+function oidAliasTypeSpelling(text: string): boolean {
+    text = langruntime.checkedString(text);
+    const chars: string[] = Array.from(text);
+    let words: string = "";
+    let word: string = "";
+    let depth: number = 0;
+    let index: number = 0;
+    while (index <= chars.length) {
+        let letter: boolean = false;
+        if (index < chars.length) {
+            const code: number = langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index))).codePointAt(0)!;
+            letter = langruntime.checkedBool(depth === 0 && ((code >= 65 && code <= 90) || (code >= 97 && code <= 122)));
+            if (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "(" || langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "[") {
+                depth = langruntime.checkedI32(langruntime.checkedSignedAdd(depth, 1));
+            }
+            if (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === ")" || langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "]") {
+                depth = langruntime.checkedI32(langruntime.checkedSignedSubtract(depth, 1));
+            }
+        }
+        if (letter) {
+            word = word + langruntime.checkedChar(langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(index))));
+        }
+        else if (!(word === "")) {
+            if (!(words === "")) {
+                words = words + langruntime.checkedChar(" ");
+            }
+            words = words + word;
+            word = langruntime.checkedString("");
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let spelled: string = langruntime.checkedString(words);
+    const all: string[] = Array.from(words);
+    const count: number = all.length;
+    if (count > 6 && langruntime.indexChar(all, langruntime.checkedIndex(langruntime.checkedSubtract(count, 6))) === " " && langruntime.indexChar(all, langruntime.checkedIndex(langruntime.checkedSubtract(count, 5))) === "a" && langruntime.indexChar(all, langruntime.checkedIndex(langruntime.checkedSubtract(count, 4))) === "r" && langruntime.indexChar(all, langruntime.checkedIndex(langruntime.checkedSubtract(count, 3))) === "r" && langruntime.indexChar(all, langruntime.checkedIndex(langruntime.checkedSubtract(count, 2))) === "a" && langruntime.indexChar(all, langruntime.checkedIndex(langruntime.checkedSubtract(count, 1))) === "y") {
+        let trimmed: string = "";
+        let position: number = 0;
+        while (langruntime.checkedAdd(position, 6) < count) {
+            trimmed = trimmed + langruntime.checkedChar(langruntime.indexChar(all, langruntime.checkedIndex(position)));
+            position = langruntime.checkedAdd(position, 1);
+        }
+        spelled = langruntime.checkedString(trimmed);
+    }
+    let entry: number = 0;
+    while (entry < oidAliasTypeSpellings.length) {
+        if (langruntime.indexStatic(oidAliasTypeSpellings, langruntime.checkedIndex(entry)) === spelled) {
+            return true;
+        }
+        entry = langruntime.checkedAdd(entry, 1);
+    }
+    return false;
 }
 export function oidAliasToText(input: checkruntime.OidValue, dash: boolean): checkruntime.TextValue {
     dash = langruntime.checkedBool(dash);

@@ -55103,6 +55103,9 @@ func oidAliasRead(input checkruntime.TextValue, dash bool, grammar int, soft boo
 		if outcome == 5 {
 			return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: checkruntime.MakeSqlError(oidAliasOperatorArguments)}
 		}
+		if outcome == 6 {
+			return checkruntime.OidUnresolved(2)
+		}
 	}
 	return checkruntime.OidUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 }
@@ -55234,23 +55237,86 @@ func oidAliasSignatureRead(text string, operator bool) int {
 }
 func oidAliasTypeRead(text string) int {
 	text = langruntime.CheckedString(text)
-	chars := []rune(text)
+	source := []rune(text)
+	stripped := langruntime.NewTextBuffer("")
+	commented := false
+	cursor := 0
+	for cursor < len(source) {
+		ch := source[cursor]
+		if ch == '"' {
+			stripped = append(stripped, string(langruntime.CheckedChar(ch))...)
+			cursor = langruntime.CheckedAdd(cursor, 1)
+			open := true
+			for cursor < len(source) && open {
+				if source[cursor] == '"' && langruntime.CheckedAdd(cursor, 1) < len(source) && source[langruntime.CheckedAdd(cursor, 1)] == '"' {
+					stripped = append(stripped, string(langruntime.CheckedChar('"'))...)
+					stripped = append(stripped, string(langruntime.CheckedChar('"'))...)
+					cursor = langruntime.CheckedAdd(cursor, 2)
+				} else {
+					if source[cursor] == '"' {
+						open = false
+					}
+					stripped = append(stripped, string(langruntime.CheckedChar(source[cursor]))...)
+					cursor = langruntime.CheckedAdd(cursor, 1)
+				}
+			}
+		} else if ch == '-' && langruntime.CheckedAdd(cursor, 1) < len(source) && source[langruntime.CheckedAdd(cursor, 1)] == '-' {
+			commented = true
+			for cursor < len(source) && source[cursor] != '\n' && source[cursor] != '\r' {
+				cursor = langruntime.CheckedAdd(cursor, 1)
+			}
+			stripped = append(stripped, string(langruntime.CheckedChar(' '))...)
+		} else if ch == '/' && langruntime.CheckedAdd(cursor, 1) < len(source) && source[langruntime.CheckedAdd(cursor, 1)] == '*' {
+			commented = true
+			nesting := 1
+			cursor = langruntime.CheckedAdd(cursor, 2)
+			for cursor < len(source) && nesting > 0 {
+				if source[cursor] == '/' && langruntime.CheckedAdd(cursor, 1) < len(source) && source[langruntime.CheckedAdd(cursor, 1)] == '*' {
+					nesting = langruntime.CheckedI32(langruntime.CheckedSignedAdd(nesting, 1))
+					cursor = langruntime.CheckedAdd(cursor, 2)
+				} else if source[cursor] == '*' && langruntime.CheckedAdd(cursor, 1) < len(source) && source[langruntime.CheckedAdd(cursor, 1)] == '/' {
+					nesting = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(nesting, 1))
+					cursor = langruntime.CheckedAdd(cursor, 2)
+				} else {
+					cursor = langruntime.CheckedAdd(cursor, 1)
+				}
+			}
+			if nesting > 0 {
+				return 3
+			}
+			stripped = append(stripped, string(langruntime.CheckedChar(' '))...)
+		} else {
+			if ch == '\'' {
+				return 6
+			}
+			if ch == '$' {
+				inside := false
+				if cursor > 0 {
+					previous := int(langruntime.CheckedChar(source[langruntime.CheckedSubtract(cursor, 1)]))
+					inside = (previous >= 48 && previous <= 57) || (previous >= 65 && previous <= 90) || (previous >= 97 && previous <= 122) || previous == 95 || previous == 36
+				}
+				if inside == false {
+					return 6
+				}
+			}
+			stripped = append(stripped, string(langruntime.CheckedChar(ch))...)
+			cursor = langruntime.CheckedAdd(cursor, 1)
+		}
+	}
+	chars := []rune(string(stripped))
 	first := ' '
 	index := 0
 	for index < len(chars) {
 		ch := chars[index]
-		if ch == '\'' || ch == '$' {
-			return 0
-		}
-		if langruntime.CheckedAdd(index, 1) < len(chars) && ((ch == '-' && chars[langruntime.CheckedAdd(index, 1)] == '-') || (ch == '/' && chars[langruntime.CheckedAdd(index, 1)] == '*')) {
-			return 0
-		}
 		if first == ' ' && oidInputSpace(ch) == false {
 			first = langruntime.CheckedChar(ch)
 		}
 		index = langruntime.CheckedAdd(index, 1)
 	}
 	if first == ' ' {
+		if commented {
+			return 3
+		}
 		return 4
 	}
 	code := int(langruntime.CheckedChar(first))
@@ -55319,7 +55385,186 @@ func oidAliasTypeRead(text string) int {
 	if quoted || emptyPart || parts > 3 || depth != 0 || brackets != 0 || balanced == false {
 		return 3
 	}
-	return 0
+	return oidAliasTypeWords(string(stripped))
+}
+func oidAliasTypeWords(text string) int {
+	text = langruntime.CheckedString(text)
+	chars := []rune(text)
+	firstWord := langruntime.NewTextBuffer("")
+	secondWord := langruntime.NewTextBuffer("")
+	secondStart := ' '
+	token := 0
+	depth := 0
+	quoted := false
+	firstQuoted := false
+	firstDotted := false
+	firstOpen := false
+	firstLast := ' '
+	firstEnd := 0
+	secondBroken := false
+	index := 0
+	previousSpace := true
+	for index < len(chars) && token < 3 {
+		ch := chars[index]
+		if quoted {
+			if ch == '"' {
+				quoted = false
+			}
+		} else if ch == '"' {
+			quoted = true
+		}
+		space := oidInputSpace(ch) && quoted == false && depth == 0
+		if space == false && previousSpace && depth == 0 {
+			token = langruntime.CheckedI32(langruntime.CheckedSignedAdd(token, 1))
+			if token == 2 {
+				secondStart = langruntime.CheckedChar(ch)
+			}
+		}
+		if ch == '(' || ch == '[' {
+			depth = langruntime.CheckedI32(langruntime.CheckedSignedAdd(depth, 1))
+		}
+		if ch == ')' || ch == ']' {
+			depth = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(depth, 1))
+		}
+		if token == 1 {
+			if ch == '"' {
+				firstQuoted = true
+			}
+			if ch == '.' {
+				firstDotted = true
+			}
+			if ch == '(' || ch == '[' {
+				firstOpen = true
+			}
+			if firstOpen == false && space == false {
+				firstWord = append(firstWord, string(langruntime.CheckedChar(langruntime.AsciiLowercase(ch)))...)
+			}
+			if space == false {
+				firstLast = langruntime.CheckedChar(ch)
+				firstEnd = langruntime.CheckedIndex(langruntime.CheckedAdd(index, 1))
+			}
+		}
+		if token == 2 {
+			code := int(langruntime.CheckedChar(ch))
+			letter := (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || code == 95
+			if letter == false && space == false {
+				secondBroken = true
+			}
+			if letter && secondBroken == false {
+				secondWord = append(secondWord, string(langruntime.CheckedChar(langruntime.AsciiLowercase(ch)))...)
+			}
+		}
+		previousSpace = space
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	setof := firstQuoted == false && firstDotted == false && firstOpen == false && string(firstWord) == "setof"
+	if setof {
+		if token < 2 {
+			return 3
+		}
+		rest := langruntime.NewTextBuffer("")
+		plain := true
+		position := firstEnd
+		for position < len(chars) {
+			code := int(langruntime.CheckedChar(chars[position]))
+			allowed := (code >= 48 && code <= 57) || (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || code == 95 || code == 36 || code == 34 || code == 46 || code == 40 || code == 41 || code == 91 || code == 93 || code == 44 || oidInputSpace(chars[position])
+			if allowed == false {
+				plain = false
+			}
+			rest = append(rest, string(langruntime.CheckedChar(chars[position]))...)
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		if plain == false {
+			return 6
+		}
+		inner := oidAliasTypeRead(string(rest))
+		if inner == 0 {
+			return 4
+		}
+		if inner == 6 {
+			return 6
+		}
+		return 3
+	}
+	if token < 2 || firstLast == '.' {
+		return 0
+	}
+	start := int(langruntime.CheckedChar(secondStart))
+	identifier := (start >= 65 && start <= 90) || (start >= 97 && start <= 122) || start == 95 || secondStart == '"'
+	if identifier == false {
+		if secondStart == '(' || secondStart == '[' || secondStart == '.' {
+			return 0
+		}
+		return 3
+	}
+	if string(secondWord) == "array" {
+		return 0
+	}
+	keyword := firstQuoted == false && firstDotted == false && (string(firstWord) == "double" || string(firstWord) == "character" || string(firstWord) == "char" || string(firstWord) == "national" || string(firstWord) == "nchar" || string(firstWord) == "bit" || string(firstWord) == "time" || string(firstWord) == "timestamp" || string(firstWord) == "interval")
+	if keyword == false {
+		return 3
+	}
+	if string(secondWord) == "precision" || string(secondWord) == "varying" || string(secondWord) == "character" || string(secondWord) == "char" || string(secondWord) == "with" || string(secondWord) == "without" || string(secondWord) == "year" || string(secondWord) == "month" || string(secondWord) == "day" || string(secondWord) == "hour" || string(secondWord) == "minute" || string(secondWord) == "second" {
+		if oidAliasTypeSpelling(text) {
+			return 0
+		}
+		return 6
+	}
+	return 3
+}
+
+var oidAliasTypeSpellings = []string{"double precision", "character varying", "char varying", "national character", "national char", "national character varying", "national char varying", "nchar varying", "bit varying", "time with time zone", "time without time zone", "timestamp with time zone", "timestamp without time zone", "interval year", "interval month", "interval day", "interval hour", "interval minute", "interval second", "interval year to month", "interval day to hour", "interval day to minute", "interval day to second", "interval hour to minute", "interval hour to second", "interval minute to second"}
+
+func oidAliasTypeSpelling(text string) bool {
+	text = langruntime.CheckedString(text)
+	chars := []rune(text)
+	words := langruntime.NewTextBuffer("")
+	word := langruntime.NewTextBuffer("")
+	depth := 0
+	index := 0
+	for index <= len(chars) {
+		letter := false
+		if index < len(chars) {
+			code := int(langruntime.CheckedChar(chars[index]))
+			letter = depth == 0 && ((code >= 65 && code <= 90) || (code >= 97 && code <= 122))
+			if chars[index] == '(' || chars[index] == '[' {
+				depth = langruntime.CheckedI32(langruntime.CheckedSignedAdd(depth, 1))
+			}
+			if chars[index] == ')' || chars[index] == ']' {
+				depth = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(depth, 1))
+			}
+		}
+		if letter {
+			word = append(word, string(langruntime.CheckedChar(langruntime.AsciiLowercase(chars[index])))...)
+		} else if string(word) != "" {
+			if string(words) != "" {
+				words = append(words, string(langruntime.CheckedChar(' '))...)
+			}
+			words = append(words, string(word)...)
+			word = langruntime.NewTextBuffer("")
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	spelled := langruntime.NewTextBuffer(langruntime.CheckedString(string(words)))
+	all := []rune(string(words))
+	count := len(all)
+	if count > 6 && all[langruntime.CheckedSubtract(count, 6)] == ' ' && all[langruntime.CheckedSubtract(count, 5)] == 'a' && all[langruntime.CheckedSubtract(count, 4)] == 'r' && all[langruntime.CheckedSubtract(count, 3)] == 'r' && all[langruntime.CheckedSubtract(count, 2)] == 'a' && all[langruntime.CheckedSubtract(count, 1)] == 'y' {
+		trimmed := langruntime.NewTextBuffer("")
+		position := 0
+		for langruntime.CheckedAdd(position, 6) < count {
+			trimmed = append(trimmed, string(langruntime.CheckedChar(all[position]))...)
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		spelled = langruntime.NewTextBuffer(string(trimmed))
+	}
+	entry := 0
+	for entry < len(oidAliasTypeSpellings) {
+		if oidAliasTypeSpellings[entry] == string(spelled) {
+			return true
+		}
+		entry = langruntime.CheckedAdd(entry, 1)
+	}
+	return false
 }
 func OidAliasToText(input checkruntime.OidValue, dash bool) checkruntime.TextValue {
 	unresolvedFlavor := 0
