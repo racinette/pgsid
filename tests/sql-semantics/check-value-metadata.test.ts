@@ -372,8 +372,7 @@ it('decides untyped and indeterminate collation arguments as PostgreSQL resolves
     directory = await mkdtemp(join(tmpdir(), 'pgsid-collation-unresolved-'))
   try {
     // An unknown-typed literal and an implicit collation conflict both carry no collation, so
-    // PostgreSQL returns NULL whatever the argument value is. A conflict is decided; an untyped
-    // literal still leaves the call unbound.
+    // PostgreSQL returns NULL whatever the argument value is.
     const forms = [
       { name: 'untyped_literal', operand: `'x'`, columns: [] as string[] },
       { name: 'untyped_null', operand: 'NULL', columns: [] as string[] },
@@ -448,7 +447,7 @@ it('decides untyped and indeterminate collation arguments as PostgreSQL resolves
             true,
           )
           // A conflict is decided unless an unknown cell could still make its argument fail.
-          const decided = bypass || (f.columns.length > 0 && cell.kind !== 'Unknown')
+          const decided = bypass || f.columns.length === 0 || cell.kind !== 'Unknown'
           const expected: Outcome = !decided
             ? { kind: 'Unknown' }
             : native.kind === 'Error' && native.value.state === parseInt('23514', 36)
