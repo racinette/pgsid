@@ -33,6 +33,8 @@ export const oidAliasInputForms = oidAliasTypes.map((type) => {
             'foo("integer)',
             'foo(integer[)',
             'foo(integer) x',
+            'a.b.c.d()',
+            ...(name === 'regoperator' ? ['foo()', 'foo( )'] : []),
           ]
         : [
             '"unterminated',
@@ -42,17 +44,30 @@ export const oidAliasInputForms = oidAliasTypes.map((type) => {
             'a.b.c.d',
             'a.b.c.d.e',
             ...(name === 'regtype'
-              ? [...numericNames, 'integer[', 'integer)', 'integer(1']
+              ? [
+                  ...numericNames,
+                  'integer[',
+                  'integer)',
+                  'integer(1',
+                  '""',
+                  'public.""',
+                  '"""a',
+                  'x."""',
+                ]
               : ['a b', '"a"b']),
             ...(single ? ['a.b', 'a.b.c'] : []),
           ]),
     ],
     platformDependent: ['18446744071562067968', '18446744073709551614', '18446744073709551615'],
     contextRequired: signature
-      ? ['pgsid_runtime_object(integer,integer)', 'a.b.c.d(integer)']
+      ? [
+          'pgsid_runtime_object(integer,integer)',
+          'a.b.c.d(integer)',
+          ...(name === 'regprocedure' ? ['foo()'] : []),
+        ]
       : [
           'pgsid_runtime_object',
-          ...(name === 'regtype' ? [] : [...numericNames, 'foo(', 'foo[', 'a"b"']),
+          ...(name === 'regtype' ? ['""""', '"a"""'] : [...numericNames, 'foo(', 'foo[', 'a"b"']),
           // A third part names a database, which must be the current one.
           ...(single ? [] : ['a.b.c']),
         ],
