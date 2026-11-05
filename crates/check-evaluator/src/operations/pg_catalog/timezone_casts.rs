@@ -254,8 +254,9 @@ pub fn sql__pg_catalog__timetz__sqdw(input: TimestamptzValue, zone: &str) -> Tim
 
 // Timestamptz input without a zone takes the session time zone through the same local-time
 // resolution as a timestamp cast; both subtract the offset and then check the instant's range.
-// Input also accepts a local time just outside the timestamp range whose instant is inside it,
-// which the local reading here cannot reach, so those defer.
+// Input also accepts a local time just past the timestamp range whose instant is inside it: the
+// server applies the zone before its range check, so that local time is read again with the
+// largest offset written after it, which brings it back into range without changing its fields.
 // The session zone may be empty and the date order 0 when either is not configured;
 // abbreviations, the identifier limit and the encoding qualify trailing zone abbreviations.
 pub fn timestamptz_from_text_context(
@@ -285,6 +286,15 @@ pub fn timestamptz_from_text_context(
     let local = timestamp_from_text_order(input.clone(), date_order);
     if let TimestampValue::Value(_) = local {
         return sql__pg_catalog__timestamptz__m17a(local, zone);
+    };
+    if local == TimestampValue::Error(make_sql_error(TEMPORAL_CAST_RANGE)) {
+        let past = timestamptz_past_range(input.clone(), zone, date_order);
+        if let TimestamptzValue::Value(_) = past {
+            return past;
+        };
+        if let TimestamptzValue::Error(_) = past {
+            return past;
+        };
     };
     // A trailing joined field names the zone the local time is read in.
     let copy = input.clone();
@@ -318,6 +328,44 @@ pub fn timestamptz_from_text_context(
         utf8,
         reading_flavor,
     )
+}
+
+fn timestamptz_past_range(input: TextValue, zone: &str, date_order: i32) -> TimestamptzValue {
+    if let TextValue::Value(text) = input {
+        let mut eastern = text.clone();
+        eastern.push_str(" +15:59:59");
+        let earliest = timestamptz_from_text_order(TextValue::Value(eastern), date_order);
+        let mut western = text.clone();
+        western.push_str(" -15:59:59");
+        let latest = timestamptz_from_text_order(TextValue::Value(western), date_order);
+        // No zone brings the instant into range, or the local time itself is out of range.
+        if earliest == TimestamptzValue::Error(make_sql_error(TEMPORAL_CAST_RANGE))
+            && latest == TimestamptzValue::Error(make_sql_error(TEMPORAL_CAST_RANGE))
+        {
+            return TimestamptzValue::Error(make_sql_error(TEMPORAL_CAST_RANGE));
+        };
+        if let TimestamptzValue::Value(instant) = earliest {
+            let local = instant + 57599000000i64;
+            if local >= 9223371331200000000i64 {
+                return timestamptz_from_local_wide(local, zone);
+            };
+        };
+        if let TimestamptzValue::Value(instant) = latest {
+            let local = instant - 57599000000i64;
+            if local < -211813488000000000i64 {
+                return timestamptz_from_local_wide(local, zone);
+            };
+        };
+    };
+    TimestamptzValue::Unknown
+}
+
+fn timestamptz_from_local_wide(local: i64, zone: &str) -> TimestamptzValue {
+    let profile = session_timezone_profile(zone, local, true);
+    if profile.valid {
+        return make_timestamptz_value(local - (profile.seconds as i64) * 1000000i64);
+    };
+    TimestamptzValue::Unknown
 }
 
 fn timestamptz_text_space(value: char) -> bool {

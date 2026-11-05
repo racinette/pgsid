@@ -89,7 +89,13 @@ const definite = [
   '2000-01-01 00:00 BC Europe/Dublin',
   '2000-01-01 12:00 :Asia/Kathmandu',
   '2000-01-01 25:00 America/New_York',
-  // Beside the range limits the zone offset decides whether the instant is in range.
+  // Beside the range limits the zone offset decides whether the instant is in range, also for a
+  // local time just outside the range.
+  '294277-01-01 00:30',
+  '294277-01-01 15:59',
+  '294277-01-01 16:00',
+  '4714-11-23 23:30 BC',
+  '4714-11-23 BC',
   '4714-11-24 BC',
   '4714-11-24 05:00 BC',
   '294276-12-31 23:59',
@@ -104,10 +110,8 @@ const definite = [
   '2000-07-01 12:00 e2x',
   '2000-01-01 EST5EDT',
 ]
-// Local times outside the timestamp range whose instant may be inside it, runtime words, unknown
-// words and zones that are not trailing still defer.
+// Runtime words, unknown words and zones that are not trailing still defer.
 const deferred = [
-  '294277-01-01 00:30',
   'today',
   '2000-01-01 00:00 America/Nowhere',
   '2000-01-01 12:00 XYZ',

@@ -830,21 +830,16 @@ const clockTailLocalText = [
 export const clockTailUnknownText = ['2000-01-01 1230 01', '2000-01-01 24:00 01', '2000 01 Tue']
 
 export const eraUnknownText = [
-  '2000-01-01 BC BC',
-  '2000-01-01 BC AD',
-  '2000-01-01 BC 12:00 BC',
   '2000-01-01 B.C. 12:00',
   '2000-13-01 BC BC',
   '2000-01-01+16 BC BC',
   '2000-01-01 25:00 BC BC',
-  '2000-01-01 BC BC 25:00',
   '2000-01-01 BC 12:00+16 AD',
   'Sat BC 2000-01-01',
   '2000-01-01-BC',
   '2000-01-01.BC',
   '2000-01-01 BC.',
   '2000-01-01 12:00 BC:00',
-  'J2451545 BC BC',
   '2000-01-01 12:00 BCZ',
 ]
 
@@ -910,6 +905,41 @@ const fieldShapeErrorText = [
   'infinity -infinity',
 ]
 const gluedWordText = ['2000-01-01am', '2000-01-01bc']
+// A repeated era repeats a field, which is rejected where it stands once the fields before it read.
+const repeatedEraText = [
+  '2000-01-01 BC BC',
+  '2000-01-01 BC AD',
+  '2000-01-01 ad ad',
+  '2000-01-01 BC 12:00 BC',
+  '2000-01-01 12:00 BC BC',
+  '2000-01-01 BC BC 25:00',
+  'J2451545 BC BC',
+  '2000-01-01 ' + 'ad '.repeat(25),
+]
+// Fields fit the timestamp buffer past 128 characters, and an offset reads each part as one
+// integer, so leading zeros never matter and an out-of-range part is a displacement error.
+const longFieldText = [
+  '0'.repeat(110) + '2000-01-01',
+  '2000-01-01 00:00:00.' + '1'.repeat(130),
+  '2000-01-01 00:00:00.' + '0'.repeat(130) + '5',
+  '2000-01-01 ' + '0'.repeat(110) + '12:00',
+  '2000-01-01 12:00:' + '0'.repeat(110) + '30',
+  'J' + '0'.repeat(110) + '2451545',
+  '2000-01-01 23:59:59.' + '9'.repeat(125),
+  '2'.repeat(129) + '-01-01',
+]
+const offsetDigitText = [
+  '2000-01-01 00:00:00+00005',
+  '2000-01-01 00:00:00+0000000005',
+  '2000-01-01 00:00:00+005:00',
+  '2000-01-01 00:00:00+050000',
+  '2000-01-01 00:00:00-1111111',
+  '2000-01-01 00:00:00+155959',
+  '2000-01-01 00:00:00+2147483648',
+  '2000-01-01 00:00:00+05:2147483648',
+  '2000-01-01 00:00:00-0015:59:59',
+  '2000-01-01 00:00:00+' + '0'.repeat(110) + '5',
+]
 // After a full date a letter-led field joined with digits names a zone through the zone database
 // or a POSIX specification, which date and timestamp input check and ignore unless an earlier
 // offset or zone already set one.
@@ -954,13 +984,15 @@ export const dateHandledText = [
   ...fieldBufferText,
   ...fieldBufferErrorText,
   '1'.repeat(129),
-  '2'.repeat(129) + '-01-01',
   'J' + '0'.repeat(129),
   ...separatorRunText,
   ...separatorRunLocalText,
   ...separatorRunErrorText,
   ...fieldShapeErrorText,
   ...gluedWordText,
+  ...repeatedEraText,
+  ...longFieldText,
+  ...offsetDigitText,
   ...compactDateText,
   ...ordinalDateText,
   ...ordinalErrorText,
@@ -1060,6 +1092,9 @@ export const timestampHandledText = [
   ...separatorRunErrorText,
   ...fieldShapeErrorText,
   ...gluedWordText,
+  ...repeatedEraText,
+  ...longFieldText,
+  ...offsetDigitText,
   ...compactDateText,
   ...compactTimestampText,
   ...ordinalDateText,
@@ -1203,6 +1238,8 @@ export const timestamptzHandledText = [
   ...fieldBufferErrorText,
   ...separatorRunErrorText,
   ...fieldShapeErrorText,
+  ...offsetDigitText,
+  '2'.repeat(129) + '-01-01',
   ...compactTimestampText,
   ...ordinalErrorText,
   ...ordinalTimestampText,

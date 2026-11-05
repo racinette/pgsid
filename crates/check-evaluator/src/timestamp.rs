@@ -1038,8 +1038,9 @@ fn parse_temporal_fields(
         return Int8Value::Null;
     }
     if let TextValue::Value(input) = value {
+        // The field buffer already bounds the text; this only guards a direct caller.
         let chars: Vec<char> = input.chars().collect();
-        if chars.len() > 128 {
+        if chars.len() > 152 {
             return int8_unresolved(unresolved_flavor);
         }
         if temporal_special_word_conflict(input.as_str(), date_order) {
@@ -1054,7 +1055,8 @@ fn parse_temporal_fields(
         // is blanked before the date and clock grammar runs, as is punctuation its lexer skips
         // where a field would start. A leading era is rejected before
         // other fields are validated; a repeated era is reported in field order, after clock and
-        // zone errors but before date validation, so it defers.
+        // zone errors but before date validation, so it is decided only when the fields before
+        // it read without error.
         let mut bc = false;
         let mut eras = 0;
         let mut scanned: Vec<char> = Vec::new();
@@ -1108,8 +1110,26 @@ fn parse_temporal_fields(
                         }
                         era_after += 1;
                     }
+                    // A repeated era is a repeated field, rejected where it stands once the
+                    // fields before it read.
+                    if eras > 0 {
+                        let mut prefix = String::new();
+                        let mut position: usize = 0;
+                        while position < era_index {
+                            prefix.push(chars[position]);
+                            position += 1;
+                        }
+                        let before =
+                            parse_temporal_text(TextValue::Value(prefix), false, false, date_order);
+                        if let Int8Value::Value(_) = before {
+                            return Int8Value::Error(SqlError {
+                                state: INVALID_TIMESTAMP_TEXT,
+                            });
+                        };
+                        return int8_unresolved(unresolved_flavor);
+                    }
                     // A trailing era after special words such as epoch is ignored, as before.
-                    if (era_digit_before == false && era_trailing == false) || eras > 0 {
+                    if era_digit_before == false && era_trailing == false {
                         return int8_unresolved(unresolved_flavor);
                     }
                     let era_previous = chars[era_index - 1];
@@ -1680,22 +1700,23 @@ fn parse_temporal_fields(
             let sign = text.chars[index];
             let zone_hour = read_timestamp_number(&text, index + 1, end);
             index = zone_hour.next;
-            if zone_hour.digits < 1 || zone_hour.digits > 4 {
+            if zone_hour.digits < 1 {
                 return int8_unresolved(unresolved_flavor);
             }
+            // The server reads each part as one integer, so leading zeros never matter and a part
+            // past the integer range is a displacement overflow like any out-of-range part.
             let mut hours = zone_hour.value;
             let mut minutes: i32 = 0;
             let mut seconds: i32 = 0;
+            let mut zone_overflow = zone_hour.overflow;
             if index < end && text.chars[index] == ':' {
-                if zone_hour.digits > 2 {
-                    return int8_unresolved(unresolved_flavor);
-                }
                 let zone_minute = read_timestamp_number(&text, index + 1, end);
                 index = zone_minute.next;
                 if zone_minute.digits < 1 {
                     return int8_unresolved(unresolved_flavor);
                 }
                 minutes = zone_minute.value;
+                zone_overflow = zone_overflow || zone_minute.overflow;
                 if index < end && text.chars[index] == ':' {
                     let zone_second = read_timestamp_number(&text, index + 1, end);
                     index = zone_second.next;
@@ -1703,12 +1724,13 @@ fn parse_temporal_fields(
                         return int8_unresolved(unresolved_flavor);
                     }
                     seconds = zone_second.value;
+                    zone_overflow = zone_overflow || zone_second.overflow;
                 }
-            } else if zone_hour.digits > 2 {
+            } else if zone_hour.digits > 2 && zone_overflow == false {
                 hours = zone_hour.value / 100;
                 minutes = zone_hour.value % 100;
             }
-            if hours > 15 || minutes > 59 || seconds > 59 {
+            if zone_overflow || hours > 15 || minutes > 59 || seconds > 59 {
                 offset = 57600;
             } else {
                 offset = (hours * 60 + minutes) * 60 + seconds;
