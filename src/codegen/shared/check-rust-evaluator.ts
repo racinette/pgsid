@@ -8224,12 +8224,13 @@ export function emitCheckRustEvaluator(
           ),
           type: node.type,
         }
-      if (
-        dateOrder > 0 &&
-        (node.kind === 'text-to-date' ||
-          node.kind === 'text-to-timestamp' ||
-          node.kind === 'text-to-timestamptz')
-      )
+      // A trailing zone field after a full date is checked through the zone tables and ignored.
+      if (node.kind === 'text-to-date' || node.kind === 'text-to-timestamp')
+        return {
+          name: bind(`${helper}_zone(${ownedOperand(operand)},${dateOrder})`),
+          type: node.type,
+        }
+      if (dateOrder > 0 && node.kind === 'text-to-timestamptz')
         return {
           name: bind(`${helper}_order(${ownedOperand(operand)},${dateOrder})`),
           type: node.type,

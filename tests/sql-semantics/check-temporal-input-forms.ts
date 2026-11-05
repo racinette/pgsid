@@ -830,7 +830,6 @@ const clockTailLocalText = [
 
 export const clockTailUnknownText = [
   '2000-01-01T',
-  '2000-01-01 TT12:00',
   '2000-01-01 1230 01',
   '2000-01-01 24:00 01',
   '2000 01 Tue',
@@ -847,7 +846,6 @@ export const eraUnknownText = [
   '2000-01-01 BC BC 25:00',
   '2000-01-01 BC 12:00+16 AD',
   'Sat BC 2000-01-01',
-  '2000-01-01 BC-05',
   '2000-01-01-BC',
   '2000-01-01.BC',
   '2000-01-01 BC.',
@@ -874,6 +872,32 @@ const separatorRunText = [
 ]
 const separatorRunLocalText = ['2000-01--01 12:00', '2000-01-01- 12:00']
 const separatorRunErrorText = ['2000-01-01--', '2000--', '2000-01-']
+// After a full date a letter-led field joined with digits names a zone through the zone database
+// or a POSIX specification, which date and timestamp input check and ignore unless an earlier
+// offset or zone already set one.
+const zoneFieldText = [
+  'J1e2',
+  'J2451545e2',
+  'J2451545 e2',
+  'J2451545e2x',
+  '2000-01-01 e2',
+  '2000-01-01 e99',
+  '2000-01-01 EST5EDT',
+  '2000-01-01 utc0',
+  '2000-01-01 e2:30',
+  '2000-01-01 e-2',
+  '2000-07-01 12:00 e2x',
+  '2000-01-01 TT12:00',
+  '2000-01-01 00:00:00 America/New_York',
+  '2000-01-01 00:00+05 America/New_York',
+  '2000-01-01 00:00 UTC e2',
+  '2000-01-01 00:00 EST e2',
+  '2000-01-01 00:00 bc e2',
+  '2000-01-01 00:00 navajo e2',
+  '2000-01-01 00:00 qqq xx99zz',
+  '2000-01-01 xx99zz',
+  '2000-01-01 BC-05',
+]
 // The lexer copies fields into a fixed buffer and allows 25 fields; whitespace is never copied.
 const fieldBufferText = [
   '2000-01-01' + ' '.repeat(200),
@@ -888,6 +912,7 @@ const fieldBufferErrorText = [
 ]
 
 export const dateHandledText = [
+  ...zoneFieldText,
   ...fieldBufferText,
   ...fieldBufferErrorText,
   '1'.repeat(129),
@@ -984,17 +1009,10 @@ export const dateHandledText = [
   'julian',
 ]
 
-export const dateDeferredText = [
-  'today',
-  'tomorrow',
-  'yesterday',
-  'now',
-  '01-02-03',
-  '01/02/2000',
-  'J1e2',
-]
+export const dateDeferredText = ['today', 'tomorrow', 'yesterday', 'now', '01-02-03', '01/02/2000']
 
 export const timestampHandledText = [
+  ...zoneFieldText,
   ...fieldBufferText,
   ...fieldBufferErrorText,
   ...separatorRunText,
@@ -1135,7 +1153,6 @@ export const timestampDeferredText = [
   'tomorrow',
   'yesterday',
   'now',
-  '2000-01-01 00:00:00 America/New_York',
   '2000-01-01 00:00:00 UTC',
   '01/02/2000 00:00:00+00',
 ]

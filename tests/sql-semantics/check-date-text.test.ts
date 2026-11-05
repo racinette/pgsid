@@ -87,7 +87,7 @@ describe('Rust text-to-date CHECK casts', () => {
   it('emits casts and literals through the same shared Rust parser', () => {
     const cast = prepare('raw::date = anchor')
     expect(cast.checks[0]!.kind).toBe('supported')
-    expect(cast.evaluatorSource).toContain('date_from_text(input_raw.clone())')
+    expect(cast.evaluatorSource).toContain('date_from_text_zone(input_raw.clone(),')
     expect(prepare("anchor = DATE '2000-01-01'").evaluatorSource).toContain('date_from_text(')
     expect(prepare('raw::date IS NULL').checks[0]!.kind).toBe('supported')
     expect(prepare('flag::date IS NULL').evaluatorSource).not.toContain('date_from_text(')
@@ -257,7 +257,6 @@ describe('Rust text-to-date CHECK casts', () => {
       '2000-01-01 BC BC 25:00',
       '2000-01-01 BC 12:00+16 AD',
       'Sat BC 2000-01-01',
-      '2000-01-01 BC-05',
       '2000-01-01-BC',
       '2000-01-01.BC',
       '2000-01-01 BC.',
@@ -273,7 +272,6 @@ describe('Rust text-to-date CHECK casts', () => {
       '2000-01-01 +16 01',
       '99999999999-01-01 01',
       '2000-01-01T',
-      '2000-01-01 TT12:00',
       '2000-01-01 1230 01',
       '2000-01-01 24:00 01',
       '2000 01 Tue',
