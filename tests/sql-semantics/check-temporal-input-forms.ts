@@ -916,6 +916,28 @@ const repeatedEraText = [
   'J2451545 BC BC',
   '2000-01-01 ' + 'ad '.repeat(25),
 ]
+// A field that starts with a digit continues only with digits, its own separator and a clock's
+// colon and dot, so other punctuation right after it falls where the lexer skips it.
+const fieldEndPunctuationText = [
+  '2000-01-01_',
+  '2000-01-01:',
+  '2000-01-01/',
+  '2000-01-01 12:00/',
+  '2000-01-01 12:00_',
+  '2000-01-01 12:00:00/',
+  '2000-01-01 12:00:00.5_',
+  '2000/01/01_',
+  '2000/01/01:',
+  '20000101_',
+  '20000101/',
+  '2000-01-01_12:00',
+  '2000-01-01/12:00',
+  '2000-01-01:12:00',
+  '2000-01_01',
+  '2000-01:01',
+  '2000-01-01 12:00/+05',
+  '2000-01-01 12_00',
+]
 // Fields fit the timestamp buffer past 128 characters, and an offset reads each part as one
 // integer, so leading zeros never matter and an out-of-range part is a displacement error.
 const longFieldText = [
@@ -991,6 +1013,7 @@ export const dateHandledText = [
   ...fieldShapeErrorText,
   ...gluedWordText,
   ...repeatedEraText,
+  ...fieldEndPunctuationText,
   ...longFieldText,
   ...offsetDigitText,
   ...compactDateText,
@@ -1093,6 +1116,7 @@ export const timestampHandledText = [
   ...fieldShapeErrorText,
   ...gluedWordText,
   ...repeatedEraText,
+  ...fieldEndPunctuationText,
   ...longFieldText,
   ...offsetDigitText,
   ...compactDateText,

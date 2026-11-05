@@ -1070,8 +1070,77 @@ fn parse_temporal_fields(
                 let era_character = chars[era_index];
                 let era_field_start =
                     scanned.len() == 0 || date_text_space(scanned[scanned.len() - 1]);
+                // A field that starts with a digit is a date, a time or a number. It continues
+                // with digits, its own separator, or the colon and dot of a clock, so other
+                // punctuation right after it falls where the next field would start, which the
+                // lexer skips.
+                let mut field_ended = false;
+                let scanned_length = scanned.len();
+                if (era_character == '/' || era_character == ':' || era_character == '_')
+                    && scanned_length > 0
+                    && date_text_digit(scanned[scanned_length - 1]) >= 0
+                {
+                    let mut token_start = scanned_length;
+                    while token_start > 0 && date_text_space(scanned[token_start - 1]) == false {
+                        token_start = token_start - 1;
+                    }
+                    let mut colon = false;
+                    let mut dash = false;
+                    let mut dot = false;
+                    let mut slash = false;
+                    let mut separators = 0;
+                    let mut plain = date_text_digit(scanned[token_start]) >= 0;
+                    let mut token_index = token_start;
+                    while token_index < scanned_length {
+                        let token_character = scanned[token_index];
+                        if token_character == ':' {
+                            colon = true;
+                        } else if token_character == '-' {
+                            dash = true;
+                            separators = separators + 1;
+                        } else if token_character == '.' {
+                            dot = true;
+                            separators = separators + 1;
+                        } else if token_character == '/' {
+                            slash = true;
+                            separators = separators + 1;
+                        } else if date_text_digit(token_character) < 0 {
+                            plain = false;
+                        };
+                        token_index += 1;
+                    }
+                    // A sign or a second kind of separator can start another field inside the
+                    // run, so only a clock (which may carry its fraction) or a three-part date
+                    // with one separator qualifies.
+                    let mut shaped = colon && dash == false && slash == false;
+                    let date_separators = separators;
+                    if colon == false {
+                        let mut kinds = 0;
+                        if dash {
+                            kinds = kinds + 1;
+                        };
+                        if slash {
+                            kinds = kinds + 1;
+                        };
+                        if dot {
+                            kinds = kinds + 1;
+                        };
+                        shaped = kinds == 0 || (kinds == 1 && date_separators == 2);
+                    };
+                    if plain && shaped {
+                        let digits_only =
+                            colon == false && dash == false && dot == false && slash == false;
+                        if era_character == '_' {
+                            field_ended = true;
+                        } else if era_character == ':' {
+                            field_ended = digits_only == false && colon == false;
+                        } else {
+                            field_ended = colon || dash || dot;
+                        };
+                    };
+                };
                 if temporal_skipped_punctuation(era_character)
-                    || (era_field_start
+                    || ((era_field_start || field_ended)
                         && (era_character == '/' || era_character == ':' || era_character == '_'))
                 {
                     scanned.push(' ');

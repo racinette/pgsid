@@ -22334,7 +22334,65 @@ func parseTemporalFields(value TextValue, withTimezone bool, dateOnly bool, date
 			if eraEnd == eraIndex {
 				eraCharacter := chars[eraIndex]
 				eraFieldStart := len(scanned) == 0 || dateTextSpace(scanned[langruntime.CheckedSubtract(len(scanned), 1)])
-				if temporalSkippedPunctuation(eraCharacter) || (eraFieldStart && (eraCharacter == '/' || eraCharacter == ':' || eraCharacter == '_')) {
+				fieldEnded := false
+				scannedLength := len(scanned)
+				if (eraCharacter == '/' || eraCharacter == ':' || eraCharacter == '_') && scannedLength > 0 && dateTextDigit(scanned[langruntime.CheckedSubtract(scannedLength, 1)]) >= 0 {
+					tokenStart := scannedLength
+					for tokenStart > 0 && dateTextSpace(scanned[langruntime.CheckedSubtract(tokenStart, 1)]) == false {
+						tokenStart = langruntime.CheckedIndex(langruntime.CheckedSubtract(tokenStart, 1))
+					}
+					colon := false
+					dash := false
+					dot := false
+					slash := false
+					separators := 0
+					plain := dateTextDigit(scanned[tokenStart]) >= 0
+					tokenIndex := tokenStart
+					for tokenIndex < scannedLength {
+						tokenCharacter := scanned[tokenIndex]
+						if tokenCharacter == ':' {
+							colon = true
+						} else if tokenCharacter == '-' {
+							dash = true
+							separators = langruntime.CheckedIndex(langruntime.CheckedAdd(separators, 1))
+						} else if tokenCharacter == '.' {
+							dot = true
+							separators = langruntime.CheckedIndex(langruntime.CheckedAdd(separators, 1))
+						} else if tokenCharacter == '/' {
+							slash = true
+							separators = langruntime.CheckedIndex(langruntime.CheckedAdd(separators, 1))
+						} else if dateTextDigit(tokenCharacter) < 0 {
+							plain = false
+						}
+						tokenIndex = langruntime.CheckedAdd(tokenIndex, 1)
+					}
+					shaped := colon && dash == false && slash == false
+					dateSeparators := separators
+					if colon == false {
+						kinds := 0
+						if dash {
+							kinds = langruntime.CheckedIndex(langruntime.CheckedAdd(kinds, 1))
+						}
+						if slash {
+							kinds = langruntime.CheckedIndex(langruntime.CheckedAdd(kinds, 1))
+						}
+						if dot {
+							kinds = langruntime.CheckedIndex(langruntime.CheckedAdd(kinds, 1))
+						}
+						shaped = kinds == 0 || (kinds == 1 && dateSeparators == 2)
+					}
+					if plain && shaped {
+						digitsOnly := colon == false && dash == false && dot == false && slash == false
+						if eraCharacter == '_' {
+							fieldEnded = true
+						} else if eraCharacter == ':' {
+							fieldEnded = digitsOnly == false && colon == false
+						} else {
+							fieldEnded = colon || dash || dot
+						}
+					}
+				}
+				if temporalSkippedPunctuation(eraCharacter) || ((eraFieldStart || fieldEnded) && (eraCharacter == '/' || eraCharacter == ':' || eraCharacter == '_')) {
 					langruntime.CheckedAdd(len(scanned), 1)
 					scanned = append(scanned, langruntime.CheckedChar(' '))
 				} else {
