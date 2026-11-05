@@ -24713,3 +24713,43 @@ export function constantFinish(left: CheckOutcome, right: CheckOutcome): CheckOu
     }
     return { kind: "True" };
 }
+const collationConflict = 6844250;
+export function collationConflictArgument(state: CheckOutcome, nullness: BoolValue): CheckOutcome {
+    let unresolvedFlavor: number = 0;
+    if (state.kind === "Unknown") {
+        unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (nullness.kind === "Unknown") {
+        unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (state.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (nullness.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (state.kind === "Error") {
+        const error: SqlError = state.value;
+        return { kind: "Error", value: error };
+    }
+    if (nullness.kind === "Error") {
+        const error: SqlError = nullness.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalBoolValue(nullness, { kind: "Value", value: true }) || equalCheckOutcome(state, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (equalBoolValue(nullness, { kind: "Value", value: false }) && equalCheckOutcome(state, { kind: "False" })) {
+        return { kind: "False" };
+    }
+    return checkUnresolved(unresolvedFlavor);
+}
+export function collationConflictStart(): CheckOutcome {
+    return { kind: "False" };
+}
+export function collationConflictFinish(state: CheckOutcome): CheckOutcome {
+    if (equalCheckOutcome(state, { kind: "False" })) {
+        return { kind: "Error", value: makeSqlError(collationConflict) };
+    }
+    return state;
+}

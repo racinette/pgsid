@@ -133,6 +133,7 @@ import type { EvalExpression } from '../../sql-semantics/eval-expressions.js'
 import {
   isRegexArrayCallable,
   isIdentifierParseCallable,
+  raisesOnCollationConflict,
   supportsTextCallableCollation,
   isTextOrderingCallable,
   isCtypeCallable,
@@ -4045,6 +4046,26 @@ export function emitCheckRustEvaluator(
         )
       for (const operand of operands) rustType(operand.type)
       if (folded) return folded
+      if (
+        call.kind !== 'cast' &&
+        call.collationConflict &&
+        raisesOnCollationConflict(call.signature)
+      ) {
+        let state = bind('collation_conflict_start()')
+        for (const operand of operands) {
+          const nullness = bind(
+            `${rustValuePrefix(rustType(operand.type))}_is_null(${ownedOperand(operand)})`,
+          )
+          state = bind(`collation_conflict_argument(${state}, ${nullness})`)
+        }
+        const finished = bind(`collation_conflict_finish(${state})`)
+        const prefix = rustValuePrefix(rustType(call.type))
+        const name = fresh('collation_conflict')
+        destination.push(
+          `let ${name} = ${prefix === 'bool' ? 'bool_from_check' : `${prefix}_from_case_guard`}(${finished});`,
+        )
+        return { name, type: call.type }
+      }
       if (
         (defaultTextOrdering || defaultTextCtype || declaredTextCollation) &&
         !arrayRegex &&

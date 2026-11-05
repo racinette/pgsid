@@ -133,7 +133,8 @@ describe('CHECK text collation', () => {
   })
 
   // Provider-defined collation behavior needs the database only on rows a NULL argument does not
-  // decide, so those expressions bind; conflicts and bytewise deterministic operations do not.
+  // decide, so those expressions bind, as do implicit conflicts, which raise 42P22 once a call
+  // needs the missing collation; explicit conflicts and bytewise deterministic operations do not.
   const providerDependent = new Set([
     'nondeterministic',
     'nondeterministic_peers',
@@ -142,6 +143,9 @@ describe('CHECK text collation', () => {
     'explicit_unknown',
     'foreign_c',
     'custom_ordering',
+    'conflict',
+    'c_conflict',
+    'scalar_conflict',
   ])
   it.each(Object.entries(unsupported))('defers %s', (name, sql) => {
     const expression = bind(sql)

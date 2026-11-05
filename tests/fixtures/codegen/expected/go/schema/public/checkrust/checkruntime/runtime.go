@@ -24677,3 +24677,45 @@ func ConstantFinish(left CheckOutcome, right CheckOutcome) CheckOutcome {
 	}
 	return CheckOutcome{Kind: CheckOutcomeTrue}
 }
+
+const collationConflict = 6844250
+
+func CollationConflictArgument(state CheckOutcome, nullness BoolValue) CheckOutcome {
+	unresolvedFlavor := 0
+	if state.Kind == CheckOutcomeUnknown {
+		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if nullness.Kind == BoolValueUnknown {
+		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if state.Kind == CheckOutcomeUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if nullness.Kind == BoolValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if state.Kind == CheckOutcomeError {
+		error := state.Error
+		return CheckOutcome{Kind: CheckOutcomeError, Error: error}
+	}
+	if nullness.Kind == BoolValueError {
+		error := nullness.Error
+		return CheckOutcome{Kind: CheckOutcomeError, Error: error}
+	}
+	if nullness == (BoolValue{Kind: BoolValueValue, Value: true}) || state == (CheckOutcome{Kind: CheckOutcomeNull}) {
+		return CheckOutcome{Kind: CheckOutcomeNull}
+	}
+	if nullness == (BoolValue{Kind: BoolValueValue, Value: false}) && state == (CheckOutcome{Kind: CheckOutcomeFalse}) {
+		return CheckOutcome{Kind: CheckOutcomeFalse}
+	}
+	return CheckUnresolved(unresolvedFlavor)
+}
+func CollationConflictStart() CheckOutcome {
+	return CheckOutcome{Kind: CheckOutcomeFalse}
+}
+func CollationConflictFinish(state CheckOutcome) CheckOutcome {
+	if state == (CheckOutcome{Kind: CheckOutcomeFalse}) {
+		return CheckOutcome{Kind: CheckOutcomeError, Error: MakeSqlError(collationConflict)}
+	}
+	return state
+}
