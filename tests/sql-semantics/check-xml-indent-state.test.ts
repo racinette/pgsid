@@ -95,26 +95,29 @@ pub fn xml_indent_probe(input: TextValue, expected: TextValue, mode: i32) -> Boo
       const document = name.endsWith('document'),
         rendered = name.startsWith('rendered'),
         ascii = name.startsWith('ascii')
+      // Rendered text has lost a declaration that gave only the default version or an encoding,
+      // which an indented document would write back, so only such a document is undecided.
+      const undecided = (text: string) => rendered && document && !text.startsWith('<?xml ')
       const cases: { input: Input; expected: Input; outcome: Outcome }[] = [
         {
           input: known('<r/>'),
           expected: known('<r/>'),
-          outcome: { kind: rendered ? 'Unimplemented' : 'True' },
+          outcome: { kind: undecided('<r/>') ? 'Unimplemented' : 'True' },
         },
         {
           input: known('<a/><b/>'),
           expected: known('unused'),
-          outcome: document ? error : { kind: rendered ? 'Unimplemented' : 'False' },
+          outcome: document ? error : { kind: 'False' },
         },
         {
           input: known('<r>'),
           expected: known('unused'),
-          outcome: rendered && !document ? { kind: 'Unimplemented' } : error,
+          outcome: error,
         },
         {
           input: known(notation),
           expected: known(permutations[0]!),
-          outcome: { kind: rendered ? 'Unimplemented' : 'Unknown' },
+          outcome: { kind: undecided(notation) ? 'Unimplemented' : 'Unknown' },
         },
         {
           input: known(notation),
@@ -131,19 +134,19 @@ pub fn xml_indent_probe(input: TextValue, expected: TextValue, mode: i32) -> Boo
         {
           input: known('<r>é</r>'),
           expected: known('<r>&#xE9;</r>'),
-          outcome: { kind: rendered ? 'Unimplemented' : ascii ? 'Unknown' : 'True' },
+          outcome: { kind: undecided('<r>é</r>') ? 'Unimplemented' : ascii ? 'Unknown' : 'True' },
         },
         {
           input: known('<r>&#xE9;</r>'),
           expected: known('<r>&#xE9;</r>'),
-          outcome: { kind: rendered ? 'Unimplemented' : 'True' },
+          outcome: { kind: undecided('<r>&#xE9;</r>') ? 'Unimplemented' : 'True' },
         },
         {
           input: known('<?xml version="1.0"?><r>&#xE9;</r>'),
           expected: known(
             document ? '<?xml version="1.0" encoding="UTF-8"?>\n<r>é</r>' : '<r>&#xE9;</r>',
           ),
-          outcome: { kind: rendered ? 'Unimplemented' : ascii && document ? 'Unknown' : 'True' },
+          outcome: { kind: ascii && document ? 'Unknown' : 'True' },
         },
       ]
       for (const item of cases)

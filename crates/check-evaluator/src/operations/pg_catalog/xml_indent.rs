@@ -101,6 +101,17 @@ fn xml_tree_write_node(tree: &XmlTree, node: usize) -> String {
     output
 }
 
+fn xml_rendered_declaration(text: &str) -> bool {
+    let chars: Vec<char> = text.chars().collect();
+    chars.len() > 5
+        && chars[0] == '<'
+        && chars[1] == '?'
+        && chars[2] == 'x'
+        && chars[3] == 'm'
+        && chars[4] == 'l'
+        && (chars[5] == ' ' || chars[5] == '\t' || chars[5] == '\r' || chars[5] == '\n')
+}
+
 pub fn xml_indent_utf8(input: XmlValue, document: bool, utf8: bool) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
     if let XmlValue::Unknown = input { unresolved_flavor = 1; };
@@ -119,6 +130,12 @@ pub fn xml_indent_utf8(input: XmlValue, document: bool, utf8: bool) -> TextValue
     if let XmlValue::RenderedText(value) = input {
         if document && xml_text_encoding_available(value.as_str(),utf8) && xml_well_formed(value.as_str(),true) == false {
             return TextValue::Error(make_sql_error(SQLSTATE_NOT_XML_DOCUMENT));
+        };
+        // The output function drops a declaration that gives only the default version or an
+        // encoding. Indented content never writes one, and an indented document writes one exactly
+        // when the stored value had one, so only a document rendered without one is undecided.
+        if document == false || xml_rendered_declaration(value.as_str()) {
+            return xml_indent_utf8(XmlValue::Value(value), document, utf8);
         };
         return text_unresolved(unresolved_flavor);
     };

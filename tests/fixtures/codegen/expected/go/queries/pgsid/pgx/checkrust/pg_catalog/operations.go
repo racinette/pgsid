@@ -87378,6 +87378,11 @@ func xmlTreeWriteNode(tree *xmlTree, node int) string {
 	}
 	return string(output)
 }
+func xmlRenderedDeclaration(text string) bool {
+	text = langruntime.CheckedString(text)
+	chars := []rune(text)
+	return len(chars) > 5 && chars[0] == '<' && chars[1] == '?' && chars[2] == 'x' && chars[3] == 'm' && chars[4] == 'l' && (chars[5] == ' ' || chars[5] == '\t' || chars[5] == '\r' || chars[5] == '\n')
+}
 func XmlIndentUtf8(input checkruntime.XmlValue, document bool, utf8 bool) checkruntime.TextValue {
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.XmlValueUnknown {
@@ -87418,6 +87423,9 @@ func XmlIndentUtf8(input checkruntime.XmlValue, document bool, utf8 bool) checkr
 		value := langruntime.CheckedString(input.RenderedText)
 		if document && xmlTextEncodingAvailable(value, utf8) && xmlWellFormed(value, true) == false {
 			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(sqlstateNotXmlDocument)}
+		}
+		if document == false || xmlRenderedDeclaration(value) {
+			return XmlIndentUtf8(checkruntime.XmlValue{Kind: checkruntime.XmlValueValue, Value: value}, document, utf8)
 		}
 		return checkruntime.TextUnresolved(unresolvedFlavor)
 	}
