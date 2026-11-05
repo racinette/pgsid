@@ -146,7 +146,7 @@ fn jsonpath_execution_input(document:TextValue)->JsonbValue {
       source,
       requiresRegex: true,
     }
-    const cases: [string, string, string?, boolean?][] = [
+    const cases: [string, string, string?, (boolean | 'unread')?][] = [
       ['{}', '$.keyvalue()'],
       ['{"a":1}', '$.keyvalue()'],
       ['{"a":1}', 'strict $.keyvalue()'],
@@ -293,7 +293,8 @@ fn jsonpath_execution_input(document:TextValue)->JsonbValue {
       ['{"a":["x",-1,2],"b":1}', '$.a?(@.type()=="number").abs()'],
       ['{"x":-1}', '((-$.x).abs()) == 1', '{}', false],
       ['{"x":-1}', '(-$.x.abs() == 1)', '{}', false],
-      ['{}', '(exists($)).type()', '{}', false],
+      // Its printed text does not parse back, which the evaluator's grammar does not report yet.
+      ['{}', '(exists($)).type()', '{}', 'unread'],
       ['{}', '(1=="x").type()', '{}'],
       ['{}', '(1+2).type()', '{}'],
       ['{}', '(-2).abs().type()'],
@@ -694,7 +695,14 @@ fn jsonpath_execution_input(document:TextValue)->JsonbValue {
                 expected: output === null ? { kind: 'Null' } : value(output),
               },
               // Stored path shapes the evaluator cannot walk yet are no database fact.
-              expected: variant.stored && !storedSafe ? { kind: 'Unimplemented' } : expected,
+              // Printed text that another path also prints to leaves the path to the catalog's
+              // stored form.
+              expected:
+                variant.stored && storedSafe === 'unread'
+                  ? { kind: 'Unimplemented' }
+                  : variant.stored && storedSafe === false
+                    ? { kind: 'Unknown' }
+                    : expected,
             })
         }
       }
@@ -772,8 +780,9 @@ fn jsonpath_execution_input(document:TextValue)->JsonbValue {
           path: value('(-$.x.datetime("TMMonth") == 1)'),
         },
         // A source path reaches the locale's template; the stored text prints the sign without
-        // brackets, which also reads as the sign of a grouped chain, so the stored path is not read.
-        expected: { kind: variant.stored ? 'Unimplemented' : 'Unknown' },
+        // brackets, which also reads as the sign of a grouped chain, so the catalog's stored form
+        // decides it.
+        expected: { kind: 'Unknown' },
       })
     }
     for (const variant of variants) {

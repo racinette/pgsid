@@ -430,10 +430,16 @@ fn jsonpath_execution_stored(input: JsonpathValue) -> JsonpathValue {
                 };
                 index += 1;
             }
+            // The catalog's stored form tells such texts apart, and only the deployment holds it.
             if jsonpath_stored_ambiguous(&path, path.root, true) {
-                return jsonpath_unresolved(unresolved_flavor);
+                return jsonpath_unresolved(resolution_context(unresolved_flavor));
             };
             return JsonpathValue::Value(path);
+        };
+        // Printed text that does not read back lost its grouping, so again only the catalog's
+        // stored form decides the path.
+        if let JsonpathValue::Error(_) = parsed {
+            return jsonpath_unresolved(resolution_context(unresolved_flavor));
         };
         return jsonpath_unresolved(unresolved_flavor);
     };
