@@ -158,7 +158,10 @@ for (const item of builtinCallables()) {
     !(
       ctypeNames.has(implementation.name) ||
       (implementation.name === 'substring' &&
-        implementation.args.join(',') === 'pg_catalog.text,pg_catalog.text')
+        [
+          'pg_catalog.text,pg_catalog.text',
+          'pg_catalog.text,pg_catalog.text,pg_catalog.text',
+        ].includes(implementation.args.join(',')))
     )
   )
     continue
@@ -568,6 +571,10 @@ export function supportsTextCallableCollation(signature: string, collation?: str
       implementation.args.length === 2 &&
       implementation.args.every((type) => type === 'pg_catalog.text') &&
       implementation.result === 'pg_catalog.int4') ||
+      (implementation.name === 'starts_with' &&
+        implementation.args.length === 2 &&
+        implementation.args.every((type) => type === 'pg_catalog.text') &&
+        implementation.result === 'pg_catalog.bool') ||
       (implementation.name === 'replace' &&
         implementation.args.length === 3 &&
         implementation.args.every((type) => type === 'pg_catalog.text') &&

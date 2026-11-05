@@ -73,7 +73,7 @@ describe('catalog CHECK lowering', () => {
       CONSTRAINT enabled_less CHECK (enabled < true),
       CONSTRAINT enabled_guard CHECK (enabled IS NOT NULL),
       CONSTRAINT ordinary_equality CHECK (plain = 'a'),
-      CONSTRAINT ordinary_collation CHECK (starts_with(plain, 'a'))
+      CONSTRAINT catalog_privilege CHECK (has_table_privilege(plain, 'SELECT'))
     )`)
     await pg.exec(`CREATE DOMAIN public.handle AS text COLLATE "C"
       CONSTRAINT handle_format CHECK (VALUE ~ '^a+$')`)
@@ -456,7 +456,11 @@ func TestMixedChecks(t *testing.T) {
       kind: 'eval-scalar',
       expression: { kind: 'null-test', operand: { kind: 'input', name: 'enabled' } },
     })
-    expect(plans.get('ordinary_collation')?.expression).toEqual({ kind: 'uncertain' })
+    expect(plans.get('catalog_privilege')?.expression).toEqual({
+      kind: 'uncertain',
+      preparation: 'runtime',
+      reason: 'context',
+    })
     expect(plans.get('ordinary_equality')?.expression).toMatchObject({
       kind: 'eval-scalar',
       expression: { kind: 'call', call: { collation: 'deterministic' } },
@@ -688,7 +692,7 @@ func TestMixedChecks(t *testing.T) {
     const table = catalog.tables.find((item) => item.name === 'regulated')!
     const unsupported = {
       ...table,
-      constraints: table.constraints.filter((item) => item.name === 'ordinary_collation'),
+      constraints: table.constraints.filter((item) => item.name === 'catalog_privilege'),
     }
     const typescript = renderTypescriptSchemaChecks([unsupported])
     expect(typescript).not.toContain('function checkRawInput(')
