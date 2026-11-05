@@ -226,8 +226,10 @@ fn temporal_special_word(word: &str) -> bool {
 }
 
 // The server checks a date's month and day only after every field reads, so a later field's error
-// comes first. For a leading ISO date this gives the text with that date replaced by a valid one,
-// or an empty string when the text does not start with one.
+// comes first. For a leading date with a four-digit year first (separated by a dash, slash or dot,
+// or eight digits run together), this gives the text with that date replaced by a valid one.
+// Otherwise one- and two-digit numbers, whose role depends on their length and position but not
+// their value, are replaced by ones of the same length; the result is empty when nothing changed.
 pub fn temporal_valid_date_spelling(text: &str) -> String {
     let chars: Vec<char> = text.chars().collect();
     let mut start: usize = 0;
@@ -235,26 +237,78 @@ pub fn temporal_valid_date_spelling(text: &str) -> String {
         start += 1;
     }
     let mut output = String::new();
-    if start + 10 > chars.len() {
+    let mut end = start;
+    while end < chars.len() && date_text_space(chars[end]) == false {
+        end += 1;
+    }
+    let length = end - start;
+    let mut shaped = false;
+    if length == 8 {
+        shaped = true;
+        let mut position: usize = 0;
+        while position < 8 {
+            if date_text_digit(chars[start + position]) < 0 {
+                shaped = false;
+            };
+            position += 1;
+        }
+    };
+    if length == 10 {
+        let separator = chars[start + 4];
+        shaped = (separator == '-' || separator == '/' || separator == '.')
+            && chars[start + 7] == separator;
+        let mut position: usize = 0;
+        while position < 10 {
+            if position != 4 && position != 7 && date_text_digit(chars[start + position]) < 0 {
+                shaped = false;
+            };
+            position += 1;
+        }
+    };
+    if shaped == false {
+        let mut changed = false;
+        let mut index: usize = 0;
+        while index < chars.len() {
+            if date_text_space(chars[index]) {
+                output.push(chars[index]);
+                index += 1;
+            } else {
+                let token = index;
+                let mut digits = true;
+                while index < chars.len() && date_text_space(chars[index]) == false {
+                    if date_text_digit(chars[index]) < 0 {
+                        digits = false;
+                    };
+                    index += 1;
+                }
+                let size = index - token;
+                if digits && size == 1 {
+                    output.push('1');
+                    changed = changed || chars[token] != '1';
+                } else if digits && size == 2 {
+                    output.push('0');
+                    output.push('1');
+                    changed = changed || chars[token] != '0' || chars[token + 1] != '1';
+                } else {
+                    let mut copy = token;
+                    while copy < index {
+                        output.push(chars[copy]);
+                        copy += 1;
+                    }
+                };
+            };
+        }
+        if changed == false {
+            return String::new();
+        };
         return output;
     }
-    let mut position: usize = 0;
-    while position < 10 {
-        let character = chars[start + position];
-        let separator = position == 4 || position == 7;
-        if separator && character != '-' {
-            return output;
-        };
-        if separator == false && date_text_digit(character) < 0 {
-            return output;
-        };
-        position += 1;
-    }
-    if start + 10 < chars.len() && date_text_space(chars[start + 10]) == false {
-        return output;
-    }
-    output.push_str("2000-01-01");
-    let mut rest = start + 10;
+    if length == 8 {
+        output.push_str("20000101");
+    } else {
+        output.push_str("2000-01-01");
+    };
+    let mut rest = end;
     while rest < chars.len() {
         output.push(chars[rest]);
         rest += 1;
@@ -342,6 +396,46 @@ fn temporal_special_word_conflict(input: &str, date_order: i32) -> i32 {
                 return 1;
             };
         };
+    };
+    // A clock that fails on its own fails where it stands, before the word.
+    if before
+        == Int8Value::Error(SqlError {
+            state: TEMPORAL_FIELD_OVERFLOW,
+        })
+    {
+        let mut scan: usize = 0;
+        while scan < special_start {
+            if date_text_space(chars[scan]) {
+                scan += 1;
+            } else {
+                let token_start = scan;
+                let mut colon = false;
+                while scan < special_start && date_text_space(chars[scan]) == false {
+                    if chars[scan] == ':' {
+                        colon = true;
+                    };
+                    scan += 1;
+                }
+                if colon && date_text_digit(chars[token_start]) >= 0 {
+                    let mut alone = String::new();
+                    alone.push_str("2000-01-01 ");
+                    let mut copy = token_start;
+                    while copy < scan {
+                        alone.push(chars[copy]);
+                        copy += 1;
+                    }
+                    let clock =
+                        parse_temporal_text(TextValue::Value(alone), false, false, date_order);
+                    if clock
+                        == Int8Value::Error(SqlError {
+                            state: TEMPORAL_FIELD_OVERFLOW,
+                        })
+                    {
+                        return 3;
+                    };
+                };
+            };
+        }
     };
     if special_fields != 1 {
         return 0;
@@ -467,7 +561,22 @@ fn temporal_clock_spelling(text: &str) -> String {
             let end = index;
             let mut rewritten = String::new();
             let mut done = false;
-            if clock && colons >= 1 && colons <= 2 {
+            // The grammar throws away "at" and "on", and reads "allballs" as midnight in UTC.
+            let mut lowered = String::new();
+            let mut letter = start;
+            while letter < end {
+                lowered.push(chars[letter].to_ascii_lowercase());
+                letter += 1;
+            }
+            if lowered == "at" || lowered == "on" {
+                rewritten.push(' ');
+                done = true;
+            };
+            if lowered == "allballs" {
+                rewritten.push_str("00:00:00+00");
+                done = true;
+            };
+            if done == false && clock && colons >= 1 && colons <= 2 {
                 let mut hour = String::new();
                 let mut minute = String::new();
                 let mut second = String::new();
@@ -581,6 +690,250 @@ fn temporal_bad_clock_start(text: &str) -> i64 {
         };
     }
     -1i64
+}
+
+// A number, clock or numeric date ends where letters follow its digits, so the letters start a
+// field of their own; an ISO T before digits stays with the clock that follows it.
+fn temporal_glued_letters(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut output = String::new();
+    let mut token_digit = false;
+    let mut token_letters = false;
+    let mut previous = ' ';
+    let mut index: usize = 0;
+    while index < chars.len() {
+        let character = chars[index];
+        let mut julian = false;
+        if date_text_space(character) {
+            token_digit = false;
+            token_letters = false;
+            output.push(character);
+        } else {
+            if date_text_space(previous) {
+                token_digit = date_text_digit(character) >= 0;
+                token_letters = false;
+                // A Julian day's J is a field of its own, so its digits are a number.
+                julian = (character == 'j' || character == 'J')
+                    && index + 1 < chars.len()
+                    && date_text_digit(chars[index + 1]) >= 0;
+                if julian {
+                    token_digit = true;
+                };
+            };
+            let letter = english_date_letter(character) && julian == false;
+            if letter && token_digit && token_letters == false && date_text_digit(previous) >= 0 {
+                let iso = (character == 't' || character == 'T')
+                    && index + 1 < chars.len()
+                    && (date_text_digit(chars[index + 1]) >= 0 || chars[index + 1] == ':');
+                if iso == false {
+                    output.push(' ');
+                };
+            };
+            if letter {
+                token_letters = true;
+            };
+            output.push(character);
+        };
+        previous = character;
+        if julian {
+            previous = '0';
+        };
+        index += 1;
+    }
+    output
+}
+
+// A first field that starts with letters and continues with digits or a date separator is a date
+// to the server, whose decoder accepts only month names among its letters; another word there is
+// rejected before any later field.
+fn temporal_leading_lettered_date(text: &str) -> bool {
+    let chars: Vec<char> = text.chars().collect();
+    let mut start: usize = 0;
+    while start < chars.len() && date_text_space(chars[start]) {
+        start += 1;
+    }
+    let mut end = start;
+    let mut word = String::new();
+    while end < chars.len() && english_date_letter(chars[end]) {
+        word.push(chars[end].to_ascii_lowercase());
+        end += 1;
+    }
+    if end == start || end >= chars.len() {
+        return false;
+    }
+    let next = chars[end];
+    if date_text_digit(next) < 0 && next != '-' && next != '/' && next != '.' {
+        return false;
+    }
+    if temporal_core_token(word.as_str()) || english_date_month(word.as_str()) != 0 {
+        return false;
+    }
+    true
+}
+
+// The date decoder accepts a delimited date only when the fields before it hold nothing but zones,
+// so one after a clock, era, weekday or meridian is rejected once those fields read.
+fn temporal_delimited_after_fields(text: &str, date_order: i32) -> bool {
+    let chars: Vec<char> = text.chars().collect();
+    let mut index: usize = 0;
+    let mut nondate = false;
+    let mut prefix_end: usize = 0;
+    let mut found = false;
+    let mut stop = false;
+    while index < chars.len() && found == false && stop == false {
+        if date_text_space(chars[index]) {
+            index += 1;
+        } else {
+            let start = index;
+            let mut colon = false;
+            let mut dashes = 0;
+            let mut dots = 0;
+            let mut lowered = String::new();
+            while index < chars.len() && date_text_space(chars[index]) == false {
+                let character = chars[index];
+                if character == ':' {
+                    colon = true;
+                } else if character == '-' || character == '/' {
+                    dashes = dashes + 1;
+                } else if character == '.' {
+                    dots = dots + 1;
+                };
+                lowered.push(character.to_ascii_lowercase());
+                index += 1;
+            }
+            let first = chars[start];
+            let digit_led = date_text_digit(first) >= 0;
+            let mut letters = String::new();
+            let mut letter = start;
+            while letter < index && english_date_letter(chars[letter]) {
+                letters.push(chars[letter].to_ascii_lowercase());
+                letter += 1;
+            }
+            let delimited = (digit_led && colon == false && (dashes > 0 || dots > 1))
+                || (english_date_month(letters.as_str()) != 0 && dashes > 0);
+            if delimited {
+                found = true;
+                prefix_end = start;
+            } else if digit_led && colon {
+                nondate = true;
+            } else if lowered == "bc" || lowered == "ad" || lowered == "am" || lowered == "pm" {
+                nondate = true;
+            } else if english_date_weekday(lowered.as_str()) {
+                nondate = true;
+            } else if first == '+' || first == '-' {
+                // A zone offset is allowed before the date.
+            } else {
+                stop = true;
+            };
+        };
+    }
+    if found == false || nondate == false {
+        return false;
+    }
+    let mut completed = String::new();
+    completed.push_str("2000-01-01 ");
+    let mut copy: usize = 0;
+    while copy < prefix_end {
+        completed.push(chars[copy]);
+        copy += 1;
+    }
+    let reading = parse_temporal_text(TextValue::Value(completed), false, false, date_order);
+    if let Int8Value::Value(_) = reading {
+        return true;
+    };
+    false
+}
+
+// A clock's fields never change how date numbers read, so a leading clock before a compact,
+// Julian or text-month date reads as the date followed by the clock.
+fn temporal_leading_clock_moved(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut tokens_start: Vec<usize> = Vec::new();
+    let mut tokens_end: Vec<usize> = Vec::new();
+    let mut index: usize = 0;
+    while index < chars.len() {
+        if date_text_space(chars[index]) {
+            index += 1;
+        } else {
+            tokens_start.push(index);
+            while index < chars.len() && date_text_space(chars[index]) == false {
+                index += 1;
+            }
+            tokens_end.push(index);
+        };
+    }
+    let unchanged = String::new();
+    let count = tokens_start.len();
+    if count < 2 || count > 4 {
+        return unchanged;
+    }
+    let mut clock = date_text_digit(chars[tokens_start[0]]) >= 0;
+    let mut colon = false;
+    let mut position = tokens_start[0];
+    while position < tokens_end[0] {
+        let character = chars[position];
+        if character == ':' {
+            colon = true;
+        } else if character != '.' && date_text_digit(character) < 0 {
+            clock = false;
+        };
+        position += 1;
+    }
+    if clock == false || colon == false {
+        return unchanged;
+    }
+    let mut shapes = String::new();
+    let mut token: usize = 1;
+    while token < count {
+        let mut digits = 0;
+        let mut letters = String::new();
+        let mut other = false;
+        let mut cursor = tokens_start[token];
+        while cursor < tokens_end[token] {
+            let character = chars[cursor];
+            if date_text_digit(character) >= 0 {
+                digits = digits + 1;
+            } else if english_date_letter(character) {
+                letters.push(character.to_ascii_lowercase());
+            } else {
+                other = true;
+            };
+            cursor += 1;
+        }
+        if other {
+            return unchanged;
+        }
+        if letters == "" && digits == 8 {
+            shapes.push('c');
+        } else if letters == "j" && digits > 0 && english_date_letter(chars[tokens_start[token]]) {
+            shapes.push('j');
+        } else if letters == "" && digits == 4 {
+            shapes.push('y');
+        } else if letters == "" && digits <= 2 {
+            shapes.push('d');
+        } else if digits == 0 && english_date_month(letters.as_str()) != 0 {
+            shapes.push('m');
+        } else {
+            return unchanged;
+        };
+        token += 1;
+    }
+    if shapes != "c" && shapes != "j" && shapes != "mdy" && shapes != "dmy" {
+        return unchanged;
+    }
+    let mut moved = String::new();
+    let mut copy = tokens_start[1];
+    while copy < chars.len() {
+        moved.push(chars[copy]);
+        copy += 1;
+    }
+    moved.push(' ');
+    let mut clock_copy = tokens_start[0];
+    while clock_copy < tokens_end[0] {
+        moved.push(chars[clock_copy]);
+        clock_copy += 1;
+    }
+    moved
 }
 
 fn temporal_relative_word(input: &str) -> bool {
@@ -1216,6 +1569,18 @@ fn parse_temporal_text(
         if buffer == 0 {
             compact = temporal_collapsed_space(text.as_str());
         };
+        if temporal_leading_lettered_date(compact.as_str())
+            || temporal_delimited_after_fields(compact.as_str(), date_order)
+        {
+            return Int8Value::Error(SqlError {
+                state: INVALID_TIMESTAMP_TEXT,
+            });
+        }
+        compact = temporal_glued_letters(compact.as_str());
+        let moved = temporal_leading_clock_moved(compact.as_str());
+        if moved != "" {
+            compact = moved;
+        };
         // Fields before a malformed clock decode first; once they read, the clock is rejected.
         let bad_clock = temporal_bad_clock_start(compact.as_str());
         if bad_clock > 0i64 {
@@ -1318,6 +1683,11 @@ fn parse_temporal_fields(
         }
         if special == 2 {
             return int8_unresolved(resolution_context(unresolved_flavor));
+        }
+        if special == 3 {
+            return Int8Value::Error(SqlError {
+                state: TEMPORAL_FIELD_OVERFLOW,
+            });
         }
         if temporal_relative_word(input.as_str()) {
             return int8_unresolved(resolution_context(unresolved_flavor));
@@ -1449,10 +1819,104 @@ fn parse_temporal_fields(
                         }
                         era_before += 1;
                     }
+                    // The date decoder accepts only date fields collected before a delimited date,
+                    // so one after the era is rejected; numbers and month names after it read.
                     if era_leading {
-                        return Int8Value::Error(SqlError {
-                            state: INVALID_TIMESTAMP_TEXT,
-                        });
+                        let mut delimited = false;
+                        let mut dated = false;
+                        let mut plain_date = true;
+                        let mut scan = era_end;
+                        while scan < chars.len() {
+                            if date_text_space(chars[scan]) {
+                                scan += 1;
+                            } else {
+                                let token_start = scan;
+                                let mut separators = 0;
+                                let mut dots = 0;
+                                while scan < chars.len() && date_text_space(chars[scan]) == false {
+                                    if chars[scan] == '-' || chars[scan] == '/' {
+                                        separators = separators + 1;
+                                    };
+                                    if chars[scan] == '.' {
+                                        dots = dots + 1;
+                                    };
+                                    scan += 1;
+                                }
+                                let digit_led = date_text_digit(chars[token_start]) >= 0;
+                                let mut month_led = false;
+                                if english_date_letter(chars[token_start]) {
+                                    let mut word = String::new();
+                                    let mut letter = token_start;
+                                    while letter < scan && english_date_letter(chars[letter]) {
+                                        word.push(chars[letter].to_ascii_lowercase());
+                                        letter += 1;
+                                    }
+                                    month_led =
+                                        english_date_month(word.as_str()) > 0 && separators > 0;
+                                };
+                                if (digit_led && (separators > 0 || dots > 1)) || month_led {
+                                    delimited = true;
+                                };
+                                // Numbers, month names, special words and Julian days can supply
+                                // the date; clocks, zones and other words cannot.
+                                let mut colon = false;
+                                let mut lowered = String::new();
+                                let mut look = token_start;
+                                while look < scan {
+                                    if chars[look] == ':' {
+                                        colon = true;
+                                    };
+                                    lowered.push(chars[look].to_ascii_lowercase());
+                                    look += 1;
+                                }
+                                let julian_led = (chars[token_start] == 'j'
+                                    || chars[token_start] == 'J')
+                                    && token_start + 1 < scan
+                                    && date_text_digit(chars[token_start + 1]) >= 0;
+                                if (digit_led && colon == false)
+                                    || english_date_month(lowered.as_str()) != 0
+                                    || temporal_special_word(lowered.as_str())
+                                    || julian_led
+                                {
+                                    dated = true;
+                                };
+                                // The era is ignored for a Julian day and the special words.
+                                if temporal_special_word(lowered.as_str()) || julian_led {
+                                    plain_date = false;
+                                };
+                            };
+                        }
+                        if delimited {
+                            return Int8Value::Error(SqlError {
+                                state: INVALID_TIMESTAMP_TEXT,
+                            });
+                        }
+                        // Without a field that supplies the date it is missing once the other
+                        // fields read.
+                        if dated == false {
+                            let mut completed = String::new();
+                            completed.push_str("2000-01-01 ");
+                            let mut copy = era_end;
+                            while copy < chars.len() {
+                                completed.push(chars[copy]);
+                                copy += 1;
+                            }
+                            let reading = parse_temporal_text(
+                                TextValue::Value(completed),
+                                false,
+                                false,
+                                date_order,
+                            );
+                            if let Int8Value::Value(_) = reading {
+                                return Int8Value::Error(SqlError {
+                                    state: INVALID_TIMESTAMP_TEXT,
+                                });
+                            };
+                            return int8_unresolved(unresolved_flavor);
+                        };
+                        if plain_date == false {
+                            return int8_unresolved(unresolved_flavor);
+                        }
                     }
                     let mut era_trailing = true;
                     let mut era_after = era_end;
@@ -1481,10 +1945,13 @@ fn parse_temporal_fields(
                         return int8_unresolved(unresolved_flavor);
                     }
                     // A trailing era after special words such as epoch is ignored, as before.
-                    if era_digit_before == false && era_trailing == false {
+                    if era_digit_before == false && era_trailing == false && era_leading == false {
                         return int8_unresolved(unresolved_flavor);
                     }
-                    let era_previous = chars[era_index - 1];
+                    let mut era_previous = ' ';
+                    if era_index > 0 {
+                        era_previous = chars[era_index - 1];
+                    };
                     if date_text_space(era_previous) == false && date_text_digit(era_previous) < 0 {
                         return int8_unresolved(unresolved_flavor);
                     }
@@ -1725,9 +2192,59 @@ fn parse_temporal_fields(
                 };
             } else if year_field.digits < 3 || index == end {
                 // A leading word the grammar does not claim is looked up in the session zone
-                // abbreviations.
+                // abbreviations; the grammar's own words are not.
                 if year_field.digits == 0 && start < end && english_date_letter(text.chars[start]) {
-                    return int8_unresolved(resolution_context(unresolved_flavor));
+                    let mut word_end = start;
+                    while word_end < end && english_date_letter(text.chars[word_end]) {
+                        word_end += 1;
+                    }
+                    if temporal_zone_word(&text, start, word_end) {
+                        return int8_unresolved(resolution_context(unresolved_flavor));
+                    }
+                    // A day word before clocks and zones takes the date from the transaction.
+                    let day = english_date_word(&text, start, word_end);
+                    if day == "today" || day == "tomorrow" || day == "yesterday" {
+                        let mut timed = true;
+                        let mut look = word_end;
+                        while look < end {
+                            let character = text.chars[look];
+                            if date_text_space(character) == false
+                                && character != ':'
+                                && character != '.'
+                                && character != '+'
+                                && character != '-'
+                                && date_text_digit(character) < 0
+                                && english_date_letter(character) == false
+                            {
+                                timed = false;
+                            };
+                            look += 1;
+                        }
+                        let mut token = word_end;
+                        while token < end {
+                            while token < end && date_text_space(text.chars[token]) {
+                                token += 1;
+                            }
+                            let token_start = token;
+                            let mut colon = false;
+                            while token < end && date_text_space(text.chars[token]) == false {
+                                if text.chars[token] == ':' {
+                                    colon = true;
+                                };
+                                token += 1;
+                            }
+                            if token_start < end
+                                && date_text_digit(text.chars[token_start]) >= 0
+                                && colon == false
+                            {
+                                timed = false;
+                            };
+                        }
+                        if timed {
+                            return int8_unresolved(resolution_context(unresolved_flavor));
+                        };
+                    };
+                    return int8_unresolved(unresolved_flavor);
                 }
                 return int8_unresolved(unresolved_flavor);
             } else {
