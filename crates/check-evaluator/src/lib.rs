@@ -292,6 +292,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/ts_rank_cd.rs");
     include!("operations/pg_catalog/internal_char.rs");
     include!("operations/pg_catalog/name_core.rs");
+    include!("operations/pg_catalog/catalog_bound.rs");
     include!("operations/pg_catalog/oid_core.rs");
     include!("operations/pg_catalog/oid_input.rs");
     include!("operations/pg_catalog/oid_aliases.rs");

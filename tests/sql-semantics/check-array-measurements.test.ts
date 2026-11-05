@@ -28,7 +28,12 @@ it('separates array implementation gaps, aggregate support, volatile operations,
     }
     const support = report.callables.find((c) => c.metadata.name === 'float8_accum')!
     expect(support.requirements).toContain('aggregate-support-callable')
-    for (const name of ['ts_lexize', 'postgresql_fdw_validator']) {
+    // The validator answers NULL and error arguments and leaves its catalog OID to the deployment.
+    expect(
+      report.callables.find((c) => c.metadata.name === 'postgresql_fdw_validator')!
+        .implementationPresent,
+    ).toBe(true)
+    for (const name of ['ts_lexize']) {
       const row = report.callables.find((c) => c.metadata.name === name)!
       expect(row.unimplementedImmutableCandidate).toBe(true)
       expect(row.representedImmutableGap).toBe(false)
