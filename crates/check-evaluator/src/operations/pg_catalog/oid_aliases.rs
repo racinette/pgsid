@@ -1,6 +1,7 @@
 const OID_ALIAS_INVALID_NAME: u32 = 6819554;
 const OID_ALIAS_INVALID_SIGNATURE: u32 = 3484946;
 const OID_ALIAS_INVALID_TYPE: u32 = 6819553;
+const OID_ALIAS_OPERATOR_ARGUMENTS: u32 = 8584779;
 
 // Grammars: 0 a qualified name, 1 a name with an argument list, 2 a type name, 3 a single name.
 pub fn oid_alias_from_text(input: TextValue, dash: bool, grammar: i32) -> OidValue {
@@ -33,7 +34,8 @@ fn oid_alias_read(input: TextValue, dash: bool, grammar: i32, soft: bool) -> Oid
         };
         let mut outcome: i32 = 0;
         if grammar == 1 {
-            outcome = oid_alias_signature_read(text.as_str());
+            // Operators are the signatures without the dash spelling of zero.
+            outcome = oid_alias_signature_read(text.as_str(), dash == false);
         } else if grammar == 2 {
             outcome = oid_alias_type_read(text.as_str());
         } else {
@@ -41,10 +43,11 @@ fn oid_alias_read(input: TextValue, dash: bool, grammar: i32, soft: bool) -> Oid
             if parts < 1 || (grammar == 3 && parts != 1) { outcome = 1; };
             if grammar != 3 && parts > 3 { outcome = 3; };
         };
-        if soft && (outcome == 1 || outcome == 2 || outcome == 4) { return OidValue::Null; };
+        if soft && (outcome == 1 || outcome == 2 || outcome == 4 || outcome == 5) { return OidValue::Null; };
         if outcome == 1 { return OidValue::Error(make_sql_error(OID_ALIAS_INVALID_NAME)); };
         if outcome == 2 { return OidValue::Error(make_sql_error(OID_ALIAS_INVALID_SIGNATURE)); };
         if outcome == 3 || outcome == 4 { return OidValue::Error(make_sql_error(OID_ALIAS_INVALID_TYPE)); };
+        if outcome == 5 { return OidValue::Error(make_sql_error(OID_ALIAS_OPERATOR_ARGUMENTS)); };
     };
     // A name resolves through the deployment's catalog, and a three-part name through the
     // current database's name.
@@ -91,8 +94,9 @@ fn oid_alias_name_parts(text: &str, start: usize, end: usize) -> i32 {
 
 // Outcomes, in the server's order: no unquoted parenthesis, an unreadable name, no closing
 // parenthesis, then a first argument with an open quote or unbalanced brackets. Later arguments
-// are reached only after the first type resolves through the catalog.
-fn oid_alias_signature_read(text: &str) -> i32 {
+// are reached only after the first type resolves through the catalog. Without arguments an
+// operator has the wrong count (54023) and a function name is split before any lookup.
+fn oid_alias_signature_read(text: &str, operator: bool) -> i32 {
     let chars: Vec<char> = text.chars().collect();
     let end = chars.len();
     let mut quoted = false;
@@ -107,13 +111,19 @@ fn oid_alias_signature_read(text: &str) -> i32 {
         index += 1;
     }
     if open == end { return 2; };
-    if oid_alias_name_parts(text, 0, open) < 1 { return 1; };
+    let parts = oid_alias_name_parts(text, 0, open);
+    if parts < 1 { return 1; };
     let mut close = end;
     while close > open + 1 && oid_input_space(chars[close - 1]) { close = close - 1; };
     if close == open + 1 || chars[close - 1] != ')' { return 2; };
     let last = close - 1;
     index = open + 1;
     while index < last && oid_input_space(chars[index]) { index += 1; };
+    if index == last {
+        if operator { return 5; };
+        if parts > 3 { return 3; };
+        return 0;
+    };
     quoted = false;
     let mut depth: i32 = 0;
     while index < last {
@@ -133,8 +143,8 @@ fn oid_alias_signature_read(text: &str) -> i32 {
 }
 
 // Type names go through the SQL parser. Comments and literals can hold any character, so text
-// with them is left to the server; otherwise an open quote, unbalanced brackets, an empty or
-// fourth dotted part, or a leading digit or sign cannot parse. Blank text is the one syntax
+// with them is left to the server; otherwise an open quote, an empty quoted name, unbalanced
+// brackets, an empty or fourth dotted part, or a leading digit or sign cannot parse. Blank text is the one syntax
 // error the lookups catch.
 fn oid_alias_type_read(text: &str) -> i32 {
     let chars: Vec<char> = text.chars().collect();
@@ -161,9 +171,23 @@ fn oid_alias_type_read(text: &str) -> i32 {
     while index < chars.len() {
         let ch = chars[index];
         if ch == '"' {
-            quoted = quoted == false;
-            part_length = part_length + 1;
-        } else if quoted {
+            // A quoted name runs to a quote that is not doubled; an empty one is a lexer error.
+            if index + 2 >= chars.len() || chars[index + 2] != '"' {
+                if index + 1 < chars.len() && chars[index + 1] == '"' {
+                    return 3;
+                };
+            };
+            index += 1;
+            quoted = true;
+            while index < chars.len() && quoted {
+                if chars[index] == '"' && index + 1 < chars.len() && chars[index + 1] == '"' {
+                    index += 2;
+                } else if chars[index] == '"' {
+                    quoted = false;
+                } else {
+                    index += 1;
+                };
+            }
             part_length = part_length + 1;
         } else if ch == '.' && depth == 0 {
             if part_length == 0 { empty_part = true; };
