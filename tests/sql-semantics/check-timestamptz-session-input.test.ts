@@ -49,6 +49,11 @@ const abbreviated = [
   '1990-07-01 12:00 MSK',
   '2000-07-01 12:00 IST',
   'Jan 1 2000 12:00 PST',
+  // A word that is no abbreviation and no built-in token names a zone of the database.
+  '2000-01-01 12:00 Japan',
+  '2000-07-01 12:00 Cuba',
+  '2000-01-01 12:00 NZ',
+  '2000-01-01 12:00 navajo',
 ]
 // Short leading date fields whose roles follow the configured DateStyle order.
 const ordered = [
@@ -93,13 +98,12 @@ const definite = [
   '4714-11-24 00:30 BC Asia/Tokyo',
 ]
 // Local times outside the timestamp range whose instant may be inside it, runtime words, unknown
-// words, all-letter zone names and zones that are not trailing or follow an offset still defer.
+// words and zones that are not trailing or follow an offset still defer.
 const deferred = [
   '294277-01-01 00:30',
   'today',
   '2000-01-01 00:00 America/Nowhere',
   '2000-01-01 12:00 XYZ',
-  '2000-01-01 12:00 Japan',
   '2000-01-01 12:00+05 UTC',
   '2000-01-01 America/New_York 12:00',
   '2000-01-01 00:00+05 America/New_York',

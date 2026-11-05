@@ -276,8 +276,8 @@ fn timestamptz_text_space(value: char) -> bool {
 // A trailing zone applies to the local time that the rest of the text gives. A name containing a
 // slash is never an abbreviation and needs no session context. An all-letter word resolves as an
 // abbreviation of the session zone or the Default table, fixed or through its zone at that local
-// time; all-letter zone names, which PostgreSQL tries only after its special words, defer, as do
-// zones elsewhere in the text, unknown names and zones after an explicit offset.
+// time; with that table declared, any other all-letter word naming a zone applies that zone. Zones
+// elsewhere in the text, unknown names and zones after an explicit offset defer.
 fn timestamptz_from_text_trailing_zone(
     input: TextValue,
     date_order: i32,
@@ -352,22 +352,8 @@ fn timestamptz_from_text_trailing_zone(
             if slash {
                 return sql__pg_catalog__timestamptz__m17a(local, name.as_str());
             };
-            // Without declared abbreviations, the session's abbreviation table decides the word,
-            // unless the word only names a zone, which the evaluator does not read after a local
-            // time.
+            // Without declared abbreviations, the session's abbreviation table decides the word.
             if abbreviations == false {
-                let lower = timezone_lookup_ascii(name.as_str(), false);
-                let mut abbreviation = false;
-                let mut entry: usize = 0;
-                while entry < ZONE_DEFAULT_ABBREVIATION_NAMES.len() {
-                    if lower == ZONE_DEFAULT_ABBREVIATION_NAMES[entry] {
-                        abbreviation = true;
-                    };
-                    entry += 1;
-                }
-                if abbreviation == false && find_zone_name(name.as_str(), false) < ZONE_NAMES.len() {
-                    return timestamptz_unresolved(unresolved_flavor);
-                };
                 return timestamptz_unresolved(resolution_context(unresolved_flavor));
             };
             let lookup = timezone_lookup_classify(
@@ -377,6 +363,11 @@ fn timestamptz_from_text_trailing_zone(
                 utf8,
                 true,
             );
+            // A word that is neither an abbreviation nor a built-in token names a zone of the
+            // server's database, which applies at that local time like a name with a slash.
+            if lookup.kind == 0 && find_zone_name(name.as_str(), false) < ZONE_NAMES.len() {
+                return sql__pg_catalog__timestamptz__m17a(local, name.as_str());
+            };
             let mut east = Int4Value::Unknown;
             if lookup.kind == 1 {
                 east = make_int4_value(lookup.seconds);
