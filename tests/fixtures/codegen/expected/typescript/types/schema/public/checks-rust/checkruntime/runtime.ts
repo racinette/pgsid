@@ -22343,7 +22343,71 @@ function parseTemporalFields(value: TextValue, withTimezone: boolean, dateOnly: 
             if (eraEnd === eraIndex) {
                 const eraCharacter: string = langruntime.indexChar(chars, langruntime.checkedIndex(eraIndex));
                 const eraFieldStart: boolean = scanned.length === 0 || dateTextSpace(langruntime.indexChar(scanned, langruntime.checkedIndex(langruntime.checkedSubtract(scanned.length, 1))));
-                if (temporalSkippedPunctuation(eraCharacter) || (eraFieldStart && (eraCharacter === "/" || eraCharacter === ":" || eraCharacter === "_"))) {
+                let fieldEnded: boolean = false;
+                const scannedLength: number = scanned.length;
+                if ((eraCharacter === "/" || eraCharacter === ":" || eraCharacter === "_") && scannedLength > 0 && dateTextDigit(langruntime.indexChar(scanned, langruntime.checkedIndex(langruntime.checkedSubtract(scannedLength, 1)))) >= 0) {
+                    let tokenStart: number = scannedLength;
+                    while (tokenStart > 0 && dateTextSpace(langruntime.indexChar(scanned, langruntime.checkedIndex(langruntime.checkedSubtract(tokenStart, 1)))) === false) {
+                        tokenStart = langruntime.checkedIndex(langruntime.checkedSubtract(tokenStart, 1));
+                    }
+                    let colon: boolean = false;
+                    let dash: boolean = false;
+                    let dot: boolean = false;
+                    let slash: boolean = false;
+                    let separators: number = 0;
+                    let plain: boolean = dateTextDigit(langruntime.indexChar(scanned, langruntime.checkedIndex(tokenStart))) >= 0;
+                    let tokenIndex: number = tokenStart;
+                    while (tokenIndex < scannedLength) {
+                        const tokenCharacter: string = langruntime.indexChar(scanned, langruntime.checkedIndex(tokenIndex));
+                        if (tokenCharacter === ":") {
+                            colon = langruntime.checkedBool(true);
+                        }
+                        else if (tokenCharacter === "-") {
+                            dash = langruntime.checkedBool(true);
+                            separators = langruntime.checkedIndex(langruntime.checkedAdd(separators, 1));
+                        }
+                        else if (tokenCharacter === ".") {
+                            dot = langruntime.checkedBool(true);
+                            separators = langruntime.checkedIndex(langruntime.checkedAdd(separators, 1));
+                        }
+                        else if (tokenCharacter === "/") {
+                            slash = langruntime.checkedBool(true);
+                            separators = langruntime.checkedIndex(langruntime.checkedAdd(separators, 1));
+                        }
+                        else if (dateTextDigit(tokenCharacter) < 0) {
+                            plain = langruntime.checkedBool(false);
+                        }
+                        tokenIndex = langruntime.checkedAdd(tokenIndex, 1);
+                    }
+                    let shaped: boolean = colon && dash === false && slash === false;
+                    const dateSeparators: number = separators;
+                    if (colon === false) {
+                        let kinds: number = 0;
+                        if (dash) {
+                            kinds = langruntime.checkedIndex(langruntime.checkedAdd(kinds, 1));
+                        }
+                        if (slash) {
+                            kinds = langruntime.checkedIndex(langruntime.checkedAdd(kinds, 1));
+                        }
+                        if (dot) {
+                            kinds = langruntime.checkedIndex(langruntime.checkedAdd(kinds, 1));
+                        }
+                        shaped = langruntime.checkedBool(kinds === 0 || (kinds === 1 && dateSeparators === 2));
+                    }
+                    if (plain && shaped) {
+                        const digitsOnly: boolean = colon === false && dash === false && dot === false && slash === false;
+                        if (eraCharacter === "_") {
+                            fieldEnded = langruntime.checkedBool(true);
+                        }
+                        else if (eraCharacter === ":") {
+                            fieldEnded = langruntime.checkedBool(digitsOnly === false && colon === false);
+                        }
+                        else {
+                            fieldEnded = langruntime.checkedBool(colon || dash || dot);
+                        }
+                    }
+                }
+                if (temporalSkippedPunctuation(eraCharacter) || ((eraFieldStart || fieldEnded) && (eraCharacter === "/" || eraCharacter === ":" || eraCharacter === "_"))) {
                     langruntime.pushChar(scanned, " ");
                 }
                 else {
