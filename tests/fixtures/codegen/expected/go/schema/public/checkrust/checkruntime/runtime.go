@@ -23860,6 +23860,115 @@ func intervalIsoNumberFail(next int, width int, error int) intervalIsoNumber {
 	error = langruntime.CheckedIndex(error)
 	return intervalIsoNumber{whole: int64(0), fractionBits: int64(0), next: next, width: width, error: error}
 }
+func intervalIsoHexDigit(value rune) int {
+	value = langruntime.CheckedChar(value)
+	code := int(langruntime.CheckedChar(value))
+	if code >= 48 && code <= 57 {
+		return langruntime.CheckedSignedSubtract(code, 48)
+	}
+	if code >= 65 && code <= 70 {
+		return langruntime.CheckedSignedSubtract(code, 55)
+	}
+	if code >= 97 && code <= 102 {
+		return langruntime.CheckedSignedSubtract(code, 87)
+	}
+	return langruntime.CheckedSignedNegate(1)
+}
+func intervalIsoHex(input *intervalInputText, start int, negative bool, width int) intervalIsoNumber {
+	start = langruntime.CheckedIndex(start)
+	width = langruntime.CheckedIndex(width)
+	index := start
+	mantissa := int64(0)
+	value := float64(0.0)
+	digits := 0
+	scale := int64(0)
+	wide := false
+	for index < len(input.chars) && intervalIsoHexDigit(input.chars[index]) >= 0 {
+		if mantissa >= langruntime.CheckedI64Divide(int64(9007199254740992), int64(16)) {
+			wide = true
+		} else {
+			digit := intervalIsoHexDigit(input.chars[index])
+			mantissa = langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(mantissa, int64(16)), (int64(langruntime.CheckedI32(digit))))
+			value = langruntime.F64Add(langruntime.F64Multiply(value, float64(16.0)), (float64(digit)))
+		}
+		index = langruntime.CheckedAdd(index, 1)
+		digits = langruntime.CheckedAdd(digits, 1)
+	}
+	if index < len(input.chars) && input.chars[index] == '.' {
+		point := langruntime.CheckedAdd(index, 1)
+		if (point < len(input.chars) && intervalIsoHexDigit(input.chars[point]) >= 0) || digits > 0 {
+			index = langruntime.CheckedIndex(point)
+			for index < len(input.chars) && intervalIsoHexDigit(input.chars[index]) >= 0 {
+				if mantissa >= langruntime.CheckedI64Divide(int64(9007199254740992), int64(16)) {
+					wide = true
+				} else {
+					digit := intervalIsoHexDigit(input.chars[index])
+					mantissa = langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(mantissa, int64(16)), (int64(langruntime.CheckedI32(digit))))
+					value = langruntime.F64Add(langruntime.F64Multiply(value, float64(16.0)), (float64(digit)))
+					scale = langruntime.CheckedI64Subtract(scale, int64(4))
+				}
+				index = langruntime.CheckedAdd(index, 1)
+				digits = langruntime.CheckedAdd(digits, 1)
+			}
+		}
+	}
+	if digits == 0 {
+		return intervalIsoNumberFail(start, 0, 0)
+	}
+	if wide {
+		return intervalIsoNumberFail(index, width, 1)
+	}
+	if index < len(input.chars) && (input.chars[index] == 'p' || input.chars[index] == 'P') {
+		cursor := langruntime.CheckedAdd(index, 1)
+		exponentNegative := false
+		if cursor < len(input.chars) && (input.chars[cursor] == '+' || input.chars[cursor] == '-') {
+			exponentNegative = input.chars[cursor] == '-'
+			cursor = langruntime.CheckedAdd(cursor, 1)
+		}
+		if cursor < len(input.chars) && dateTextDigit(input.chars[cursor]) >= 0 {
+			exponent := int64(0)
+			for cursor < len(input.chars) && dateTextDigit(input.chars[cursor]) >= 0 {
+				if exponent < int64(100000) {
+					exponent = langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(exponent, int64(10)), (int64(langruntime.CheckedI32(dateTextDigit(input.chars[cursor])))))
+				}
+				cursor = langruntime.CheckedAdd(cursor, 1)
+			}
+			if exponentNegative {
+				scale = langruntime.CheckedI64Subtract(scale, exponent)
+			} else {
+				scale = langruntime.CheckedI64Add(scale, exponent)
+			}
+			index = langruntime.CheckedIndex(cursor)
+		}
+	}
+	if mantissa != int64(0) {
+		if scale > int64(1100) || scale < int64(-1200) {
+			return intervalIsoNumberFail(index, width, intervalInputSyntax)
+		}
+		for scale > int64(0) {
+			value = langruntime.F64Multiply(value, float64(2.0))
+			scale = langruntime.CheckedI64Subtract(scale, int64(1))
+		}
+		for scale < int64(0) {
+			value = langruntime.F64Divide(value, float64(2.0))
+			scale = langruntime.CheckedI64Add(scale, int64(1))
+		}
+		if langruntime.F64Abs(value) < float64(2.2250738585072014e-308) || langruntime.F64Abs(value) == langruntime.F64Divide(float64(1.0), float64(0.0)) {
+			return intervalIsoNumberFail(index, width, intervalInputSyntax)
+		}
+	}
+	if negative {
+		value = langruntime.F64Subtract(float64(0.0), value)
+	}
+	if value < float64(-1.0e15) || value > float64(1.0e15) {
+		return intervalIsoNumberFail(index, width, intervalInputRange)
+	}
+	high := langruntime.F64ToI32((langruntime.F64Divide(value, float64(1000000000.0))))
+	rest := langruntime.F64Subtract(value, langruntime.F64Multiply((float64(high)), float64(1000000000.0)))
+	low := langruntime.F64ToI32(rest)
+	fraction := langruntime.F64Subtract(rest, (float64(low)))
+	return intervalIsoNumber{whole: langruntime.CheckedI64Add(langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(high))), int64(1000000000)), (int64(langruntime.CheckedI32(low)))), fractionBits: langruntime.F64ToI64Bits(fraction), next: index, width: width, error: 0}
+}
 func intervalIsoRead(input *intervalInputText, start int) intervalIsoNumber {
 	start = langruntime.CheckedIndex(start)
 	index := start
@@ -23867,12 +23976,26 @@ func intervalIsoRead(input *intervalInputText, start int) intervalIsoNumber {
 	if index < len(input.chars) && input.chars[index] == '-' {
 		number = append(number, string(langruntime.CheckedChar('-'))...)
 		index = langruntime.CheckedAdd(index, 1)
+		if langruntime.CheckedAdd(index, 2) < len(input.chars) {
+			a := langruntime.AsciiLowercase(input.chars[index])
+			b := langruntime.AsciiLowercase(input.chars[langruntime.CheckedAdd(index, 1)])
+			c := langruntime.AsciiLowercase(input.chars[langruntime.CheckedAdd(index, 2)])
+			if (a == 'i' && b == 'n' && c == 'f') || (a == 'n' && b == 'a' && c == 'n') {
+				return intervalIsoNumberFail(index, 0, intervalInputRange)
+			}
+		}
 	}
 	width := 0
 	for index < len(input.chars) && dateTextDigit(input.chars[index]) >= 0 {
 		number = append(number, string(langruntime.CheckedChar(input.chars[index]))...)
 		index = langruntime.CheckedAdd(index, 1)
 		width = langruntime.CheckedAdd(width, 1)
+	}
+	if width == 1 && input.chars[langruntime.CheckedSubtract(index, 1)] == '0' && index < len(input.chars) && (input.chars[index] == 'x' || input.chars[index] == 'X') {
+		hex := intervalIsoHex(input, langruntime.CheckedAdd(index, 1), input.chars[start] == '-', width)
+		if hex.width > 0 {
+			return hex
+		}
 	}
 	digits := width
 	if index < len(input.chars) && input.chars[index] == '.' {
@@ -24066,6 +24189,9 @@ func intervalInputIso(text string) IntervalValue {
 			index = langruntime.CheckedAdd(index, 1)
 		} else {
 			number := intervalIsoRead(&input, index)
+			if number.error == 1 {
+				return IntervalUnresolved(unresolvedFlavor)
+			}
 			if number.error != 0 {
 				return IntervalValue{Kind: IntervalValueError, Error: MakeSqlError(number.error)}
 			}
@@ -24119,9 +24245,6 @@ func intervalInputIso(text string) IntervalValue {
 					datepart = step.timepart == false
 					havefield = false
 				} else {
-					if designator == 'x' || designator == 'X' {
-						return IntervalUnresolved(unresolvedFlavor)
-					}
 					return IntervalValue{Kind: IntervalValueError, Error: MakeSqlError(intervalInputSyntax)}
 				}
 			}

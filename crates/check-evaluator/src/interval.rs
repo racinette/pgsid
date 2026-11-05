@@ -726,12 +726,106 @@ fn interval_iso_number_fail(next: usize, width: usize, error: u32) -> IntervalIs
         error,
     }
 }
+fn interval_iso_hex_digit(value: char) -> i32 {
+    let code = value as i32;
+    if code >= 48 && code <= 57 { return code - 48; };
+    if code >= 65 && code <= 70 { return code - 55; };
+    if code >= 97 && code <= 102 { return code - 87; };
+    -1
+}
+
+// The server reads each field with the C library's strtod, which takes C99 hexadecimal floats:
+// hex digits with an optional point and a binary exponent that is read only when digits follow.
+// Returns width 0 when no hex digit follows, so the caller reads just the zero before the `x`.
+// A mantissa past 53 bits would need the library's rounding, so it defers.
+fn interval_iso_hex(input: &IntervalInputText, start: usize, negative: bool, width: usize) -> IntervalIsoNumber {
+    let mut index = start;
+    let mut mantissa: i64 = 0i64;
+    let mut value: f64 = 0.0f64;
+    let mut digits: usize = 0;
+    let mut scale: i64 = 0i64;
+    let mut wide = false;
+    while index < input.chars.len() && interval_iso_hex_digit(input.chars[index]) >= 0 {
+        if mantissa >= 9007199254740992i64 / 16i64 { wide = true; } else { let digit = interval_iso_hex_digit(input.chars[index]); mantissa = mantissa * 16i64 + (digit as i64); value = value * 16.0f64 + (digit as f64); };
+        index += 1;
+        digits += 1;
+    }
+    if index < input.chars.len() && input.chars[index] == '.' {
+        let point = index + 1;
+        if (point < input.chars.len() && interval_iso_hex_digit(input.chars[point]) >= 0) || digits > 0 {
+            index = point;
+            while index < input.chars.len() && interval_iso_hex_digit(input.chars[index]) >= 0 {
+                if mantissa >= 9007199254740992i64 / 16i64 { wide = true; } else { let digit = interval_iso_hex_digit(input.chars[index]); mantissa = mantissa * 16i64 + (digit as i64); value = value * 16.0f64 + (digit as f64); scale = scale - 4i64; };
+                index += 1;
+                digits += 1;
+            }
+        };
+    };
+    if digits == 0 {
+        return interval_iso_number_fail(start, 0, 0);
+    };
+    if wide {
+        return interval_iso_number_fail(index, width, 1);
+    };
+    if index < input.chars.len() && (input.chars[index] == 'p' || input.chars[index] == 'P') {
+        let mut cursor = index + 1;
+        let mut exponent_negative = false;
+        if cursor < input.chars.len() && (input.chars[cursor] == '+' || input.chars[cursor] == '-') {
+            exponent_negative = input.chars[cursor] == '-';
+            cursor += 1;
+        };
+        if cursor < input.chars.len() && date_text_digit(input.chars[cursor]) >= 0 {
+            let mut exponent: i64 = 0i64;
+            while cursor < input.chars.len() && date_text_digit(input.chars[cursor]) >= 0 {
+                if exponent < 100000i64 { exponent = exponent * 10i64 + (date_text_digit(input.chars[cursor]) as i64); };
+                cursor += 1;
+            }
+            if exponent_negative { scale = scale - exponent; } else { scale = scale + exponent; };
+            index = cursor;
+        };
+    };
+    if mantissa != 0i64 {
+        // Past these the value is infinite or below the normal range, which strtod reports.
+        if scale > 1100i64 || scale < -1200i64 {
+            return interval_iso_number_fail(index, width, INTERVAL_INPUT_SYNTAX);
+        };
+        while scale > 0i64 { value = value * 2.0f64; scale = scale - 1i64; }
+        while scale < 0i64 { value = value / 2.0f64; scale = scale + 1i64; }
+        if value.abs() < 2.2250738585072014e-308f64 || value.abs() == 1.0f64 / 0.0f64 {
+            return interval_iso_number_fail(index, width, INTERVAL_INPUT_SYNTAX);
+        };
+    };
+    if negative { value = 0.0f64 - value; };
+    if value < -1.0e15f64 || value > 1.0e15f64 {
+        return interval_iso_number_fail(index, width, INTERVAL_INPUT_RANGE);
+    };
+    let high = (value / 1000000000.0f64) as i32;
+    let rest = value - (high as f64) * 1000000000.0f64;
+    let low = rest as i32;
+    let fraction = rest - (low as f64);
+    IntervalIsoNumber {
+        whole: (high as i64) * 1000000000i64 + (low as i64),
+        fraction_bits: fraction.to_bits() as i64,
+        next: index,
+        width,
+        error: 0,
+    }
+}
 fn interval_iso_read(input: &IntervalInputText, start: usize) -> IntervalIsoNumber {
     let mut index = start;
     let mut number = String::new();
     if index < input.chars.len() && input.chars[index] == '-' {
         number.push('-');
         index += 1;
+        // After a sign strtod also reads an infinity or a NaN, which the range check rejects.
+        if index + 2 < input.chars.len() {
+            let a = input.chars[index].to_ascii_lowercase();
+            let b = input.chars[index + 1].to_ascii_lowercase();
+            let c = input.chars[index + 2].to_ascii_lowercase();
+            if (a == 'i' && b == 'n' && c == 'f') || (a == 'n' && b == 'a' && c == 'n') {
+                return interval_iso_number_fail(index, 0, INTERVAL_INPUT_RANGE);
+            };
+        };
     };
     let mut width: usize = 0;
     while index < input.chars.len() && date_text_digit(input.chars[index]) >= 0 {
@@ -739,6 +833,16 @@ fn interval_iso_read(input: &IntervalInputText, start: usize) -> IntervalIsoNumb
         index += 1;
         width += 1;
     }
+    if width == 1
+        && input.chars[index - 1] == '0'
+        && index < input.chars.len()
+        && (input.chars[index] == 'x' || input.chars[index] == 'X')
+    {
+        let hex = interval_iso_hex(input, index + 1, input.chars[start] == '-', width);
+        if hex.width > 0 {
+            return hex;
+        };
+    };
     let mut digits = width;
     if index < input.chars.len() && input.chars[index] == '.' {
         number.push('.');
@@ -967,6 +1071,9 @@ fn interval_input_iso(text: &str) -> IntervalValue {
             index += 1;
         } else {
             let number = interval_iso_read(&input, index);
+            if number.error == 1 {
+                return interval_unresolved(unresolved_flavor);
+            };
             if number.error != 0 {
                 return IntervalValue::Error(make_sql_error(number.error));
             };
@@ -1029,9 +1136,6 @@ fn interval_input_iso(text: &str) -> IntervalValue {
                     datepart = step.timepart == false;
                     havefield = false;
                 } else {
-                    if designator == 'x' || designator == 'X' {
-                        return interval_unresolved(unresolved_flavor);
-                    };
                     return IntervalValue::Error(make_sql_error(INTERVAL_INPUT_SYNTAX));
                 };
             };

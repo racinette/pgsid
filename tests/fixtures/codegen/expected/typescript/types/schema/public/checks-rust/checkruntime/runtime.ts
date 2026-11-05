@@ -23885,6 +23885,119 @@ function intervalIsoNumberFail(next: number, width: number, error: number): Inte
     error = langruntime.checkedIndex(error);
     return { whole: 0n, fractionBits: 0n, next: next, width: width, error: error };
 }
+function intervalIsoHexDigit(value: string): number {
+    value = langruntime.checkedChar(value);
+    const code: number = langruntime.checkedChar(value).codePointAt(0)!;
+    if (code >= 48 && code <= 57) {
+        return langruntime.checkedSignedSubtract(code, 48);
+    }
+    if (code >= 65 && code <= 70) {
+        return langruntime.checkedSignedSubtract(code, 55);
+    }
+    if (code >= 97 && code <= 102) {
+        return langruntime.checkedSignedSubtract(code, 87);
+    }
+    return langruntime.checkedSignedNegate(1);
+}
+function intervalIsoHex(input: IntervalInputText, start: number, negative: boolean, width: number): IntervalIsoNumber {
+    start = langruntime.checkedIndex(start);
+    negative = langruntime.checkedBool(negative);
+    width = langruntime.checkedIndex(width);
+    let index: number = start;
+    let mantissa: bigint = 0n;
+    let value: number = 0.0;
+    let digits: number = 0;
+    let scale: bigint = 0n;
+    let wide: boolean = false;
+    while (index < input.chars.length && intervalIsoHexDigit(langruntime.indexChar(input.chars, langruntime.checkedIndex(index))) >= 0) {
+        if (mantissa >= langruntime.checkedI64Divide(9007199254740992n, 16n)) {
+            wide = langruntime.checkedBool(true);
+        }
+        else {
+            const digit: number = intervalIsoHexDigit(langruntime.indexChar(input.chars, langruntime.checkedIndex(index)));
+            mantissa = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Multiply(mantissa, 16n), (BigInt(langruntime.checkedI32(digit)))));
+            value = langruntime.checkedF64(langruntime.f64Add(langruntime.f64Multiply(value, 16.0), (Number(langruntime.checkedI32(digit)))));
+        }
+        index = langruntime.checkedAdd(index, 1);
+        digits = langruntime.checkedAdd(digits, 1);
+    }
+    if (index < input.chars.length && langruntime.indexChar(input.chars, langruntime.checkedIndex(index)) === ".") {
+        const point: number = langruntime.checkedAdd(index, 1);
+        if ((point < input.chars.length && intervalIsoHexDigit(langruntime.indexChar(input.chars, langruntime.checkedIndex(point))) >= 0) || digits > 0) {
+            index = langruntime.checkedIndex(point);
+            while (index < input.chars.length && intervalIsoHexDigit(langruntime.indexChar(input.chars, langruntime.checkedIndex(index))) >= 0) {
+                if (mantissa >= langruntime.checkedI64Divide(9007199254740992n, 16n)) {
+                    wide = langruntime.checkedBool(true);
+                }
+                else {
+                    const digit: number = intervalIsoHexDigit(langruntime.indexChar(input.chars, langruntime.checkedIndex(index)));
+                    mantissa = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Multiply(mantissa, 16n), (BigInt(langruntime.checkedI32(digit)))));
+                    value = langruntime.checkedF64(langruntime.f64Add(langruntime.f64Multiply(value, 16.0), (Number(langruntime.checkedI32(digit)))));
+                    scale = langruntime.checkedI64(langruntime.checkedI64Subtract(scale, 4n));
+                }
+                index = langruntime.checkedAdd(index, 1);
+                digits = langruntime.checkedAdd(digits, 1);
+            }
+        }
+    }
+    if (digits === 0) {
+        return intervalIsoNumberFail(start, 0, 0);
+    }
+    if (wide) {
+        return intervalIsoNumberFail(index, width, 1);
+    }
+    if (index < input.chars.length && (langruntime.indexChar(input.chars, langruntime.checkedIndex(index)) === "p" || langruntime.indexChar(input.chars, langruntime.checkedIndex(index)) === "P")) {
+        let cursor: number = langruntime.checkedAdd(index, 1);
+        let exponentNegative: boolean = false;
+        if (cursor < input.chars.length && (langruntime.indexChar(input.chars, langruntime.checkedIndex(cursor)) === "+" || langruntime.indexChar(input.chars, langruntime.checkedIndex(cursor)) === "-")) {
+            exponentNegative = langruntime.checkedBool(langruntime.indexChar(input.chars, langruntime.checkedIndex(cursor)) === "-");
+            cursor = langruntime.checkedAdd(cursor, 1);
+        }
+        if (cursor < input.chars.length && dateTextDigit(langruntime.indexChar(input.chars, langruntime.checkedIndex(cursor))) >= 0) {
+            let exponent: bigint = 0n;
+            while (cursor < input.chars.length && dateTextDigit(langruntime.indexChar(input.chars, langruntime.checkedIndex(cursor))) >= 0) {
+                if (exponent < 100000n) {
+                    exponent = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Multiply(exponent, 10n), (BigInt(langruntime.checkedI32(dateTextDigit(langruntime.indexChar(input.chars, langruntime.checkedIndex(cursor))))))));
+                }
+                cursor = langruntime.checkedAdd(cursor, 1);
+            }
+            if (exponentNegative) {
+                scale = langruntime.checkedI64(langruntime.checkedI64Subtract(scale, exponent));
+            }
+            else {
+                scale = langruntime.checkedI64(langruntime.checkedI64Add(scale, exponent));
+            }
+            index = langruntime.checkedIndex(cursor);
+        }
+    }
+    if (!(mantissa === 0n)) {
+        if (scale > 1100n || scale < -1200n) {
+            return intervalIsoNumberFail(index, width, intervalInputSyntax);
+        }
+        while (scale > 0n) {
+            value = langruntime.checkedF64(langruntime.f64Multiply(value, 2.0));
+            scale = langruntime.checkedI64(langruntime.checkedI64Subtract(scale, 1n));
+        }
+        while (scale < 0n) {
+            value = langruntime.checkedF64(langruntime.f64Divide(value, 2.0));
+            scale = langruntime.checkedI64(langruntime.checkedI64Add(scale, 1n));
+        }
+        if (langruntime.f64Abs(value) < 2.2250738585072014e-308 || langruntime.f64Abs(value) === langruntime.f64Divide(1.0, 0.0)) {
+            return intervalIsoNumberFail(index, width, intervalInputSyntax);
+        }
+    }
+    if (negative) {
+        value = langruntime.checkedF64(langruntime.f64Subtract(0.0, value));
+    }
+    if (value < -1.0e15 || value > 1.0e15) {
+        return intervalIsoNumberFail(index, width, intervalInputRange);
+    }
+    const high: number = langruntime.f64ToI32((langruntime.f64Divide(value, 1000000000.0)));
+    const rest: number = langruntime.f64Subtract(value, langruntime.f64Multiply((Number(langruntime.checkedI32(high))), 1000000000.0));
+    const low: number = langruntime.f64ToI32(rest);
+    const fraction: number = langruntime.f64Subtract(rest, (Number(langruntime.checkedI32(low))));
+    return { whole: langruntime.checkedI64Add(langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(high))), 1000000000n), (BigInt(langruntime.checkedI32(low)))), fractionBits: langruntime.f64ToI64Bits(fraction), next: index, width: width, error: 0 };
+}
 function intervalIsoRead(input: IntervalInputText, start: number): IntervalIsoNumber {
     start = langruntime.checkedIndex(start);
     let index: number = start;
@@ -23892,12 +24005,26 @@ function intervalIsoRead(input: IntervalInputText, start: number): IntervalIsoNu
     if (index < input.chars.length && langruntime.indexChar(input.chars, langruntime.checkedIndex(index)) === "-") {
         number = number + langruntime.checkedChar("-");
         index = langruntime.checkedAdd(index, 1);
+        if (langruntime.checkedAdd(index, 2) < input.chars.length) {
+            const a: string = langruntime.asciiLowercase(langruntime.indexChar(input.chars, langruntime.checkedIndex(index)));
+            const b: string = langruntime.asciiLowercase(langruntime.indexChar(input.chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 1))));
+            const c: string = langruntime.asciiLowercase(langruntime.indexChar(input.chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 2))));
+            if ((a === "i" && b === "n" && c === "f") || (a === "n" && b === "a" && c === "n")) {
+                return intervalIsoNumberFail(index, 0, intervalInputRange);
+            }
+        }
     }
     let width: number = 0;
     while (index < input.chars.length && dateTextDigit(langruntime.indexChar(input.chars, langruntime.checkedIndex(index))) >= 0) {
         number = number + langruntime.checkedChar(langruntime.indexChar(input.chars, langruntime.checkedIndex(index)));
         index = langruntime.checkedAdd(index, 1);
         width = langruntime.checkedAdd(width, 1);
+    }
+    if (width === 1 && langruntime.indexChar(input.chars, langruntime.checkedIndex(langruntime.checkedSubtract(index, 1))) === "0" && index < input.chars.length && (langruntime.indexChar(input.chars, langruntime.checkedIndex(index)) === "x" || langruntime.indexChar(input.chars, langruntime.checkedIndex(index)) === "X")) {
+        const hex: IntervalIsoNumber = copyIntervalIsoNumber(intervalIsoHex(input, langruntime.checkedAdd(index, 1), langruntime.indexChar(input.chars, langruntime.checkedIndex(start)) === "-", width));
+        if (hex.width > 0) {
+            return hex;
+        }
     }
     let digits: number = width;
     if (index < input.chars.length && langruntime.indexChar(input.chars, langruntime.checkedIndex(index)) === ".") {
@@ -24096,6 +24223,9 @@ function intervalInputIso(text: string): IntervalValue {
         }
         else {
             const number: IntervalIsoNumber = copyIntervalIsoNumber(intervalIsoRead(input, index));
+            if (number.error === 1) {
+                return intervalUnresolved(unresolvedFlavor);
+            }
             if (!(number.error === 0)) {
                 return { kind: "Error", value: makeSqlError(number.error) };
             }
@@ -24152,9 +24282,6 @@ function intervalInputIso(text: string): IntervalValue {
                     havefield = langruntime.checkedBool(false);
                 }
                 else {
-                    if (designator === "x" || designator === "X") {
-                        return intervalUnresolved(unresolvedFlavor);
-                    }
                     return { kind: "Error", value: makeSqlError(intervalInputSyntax) };
                 }
             }

@@ -1311,7 +1311,7 @@ describe('CHECK measurement boundaries', () => {
     )!
     expect(intervalForms).toMatchObject({
       contextRequired: ['-1 day 2 hours', '-1 year 2 mons', '-1 02:03'],
-      unimplementedGrammar: ['P0x1p2Y', 'PT0x1p2S'],
+      unimplementedGrammar: [],
     })
     for (const form of ['P0001-02-03T04:05:06', 'P00020304T010203', 'PT010203.75'])
       expect(intervalForms.handled).toContain(form)
