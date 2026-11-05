@@ -955,6 +955,21 @@ const fieldShapeErrorText = [
   '+05 Jan 2 2000',
   '+05 20000102',
   '+05 J2451545',
+  // Epoch and infinity ignore an era; a special word supplies the date, so a month name or a
+  // short or eight-digit number after it repeats it; a dot after a date's digits is a field.
+  'BC epoch',
+  'AD epoch',
+  'infinity BC',
+  'today Jan 2 2000',
+  'now Jan 2 2000',
+  'today 20000102',
+  'today 5',
+  'yesterday Feb',
+  '2000-01-01.',
+  '20000102.',
+  'J2451545.',
+  '2000-02-30.',
+  '2000-01-01 .',
   '30 Feb 2000 today',
   'February 31 2000 12:00 now',
   '2000 13 01 today',
@@ -1236,6 +1251,8 @@ const clockDayText = [
   'today e2',
   'tomorrow EST5EDT',
   'today 12:00 e2',
+  'BC today',
+  'today BC',
 ]
 export const dateDeferredText = [
   'today',

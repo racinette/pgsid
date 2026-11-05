@@ -372,6 +372,23 @@ fn temporal_special_word_conflict(input: &str, date_order: i32) -> i32 {
         if temporal_special_word(word.as_str()) {
             return 1;
         };
+        // The special word supplied the date, so a month name or a number that would be a date
+        // part repeats it; four or six digits read as a time instead.
+        let mut digits = 0;
+        let mut only_digits = word != "";
+        let word_chars: Vec<char> = word.chars().collect();
+        let mut letter: usize = 0;
+        while letter < word_chars.len() {
+            if date_text_digit(word_chars[letter]) >= 0 {
+                digits = digits + 1;
+            } else {
+                only_digits = false;
+            };
+            letter += 1;
+        }
+        if english_date_month(word.as_str()) != 0 || (only_digits && (digits <= 2 || digits == 8)) {
+            return 1;
+        };
         return 0;
     }
     let mut prefix = String::new();
@@ -1106,6 +1123,95 @@ fn temporal_second_clock(text: &str, date_order: i32) -> bool {
     false
 }
 
+// An era beside a lone special word: epoch and infinity ignore it (1), while a day word or now
+// carries it into a date the transaction supplies (2).
+fn temporal_era_special(input: &str) -> i32 {
+    let chars: Vec<char> = input.chars().collect();
+    let mut eras = 0;
+    let mut specials = 0;
+    let mut others = 0;
+    let mut fixed = false;
+    let mut index: usize = 0;
+    while index < chars.len() {
+        if date_text_space(chars[index]) {
+            index += 1;
+        } else {
+            let mut word = String::new();
+            while index < chars.len() && date_text_space(chars[index]) == false {
+                word.push(chars[index].to_ascii_lowercase());
+                index += 1;
+            }
+            if word == "bc" || word == "ad" {
+                eras = eras + 1;
+            } else if temporal_special_word(word.as_str()) {
+                specials = specials + 1;
+                fixed = word == "epoch" || word == "infinity" || word == "-infinity";
+            } else {
+                others = others + 1;
+            };
+        };
+    }
+    if eras != 1 || specials != 1 || others != 0 {
+        return 0;
+    }
+    if fixed {
+        return 1;
+    }
+    2
+}
+
+// A dot after a date's digits is a field of its own, which no date or number reading accepts;
+// only a clock, or a date whose own separator is the dot, takes a trailing dot.
+fn temporal_trailing_dot(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut end = chars.len();
+    while end > 0 && date_text_space(chars[end - 1]) {
+        end = end - 1;
+    }
+    let none = String::new();
+    if end == 0 || chars[end - 1] != '.' {
+        return none;
+    }
+    let mut start = end - 1;
+    while start > 0 && date_text_space(chars[start - 1]) == false {
+        start = start - 1;
+    }
+    let mut colon = false;
+    let mut separators = 0;
+    let mut digits = 0;
+    let mut letters = 0;
+    let mut position = start;
+    while position + 1 < end {
+        let character = chars[position];
+        if character == ':' {
+            colon = true;
+        } else if character == '-' || character == '/' {
+            separators = separators + 1;
+        } else if character == '.' {
+            letters = letters + 1;
+        } else if date_text_digit(character) >= 0 {
+            digits = digits + 1;
+        } else {
+            letters = letters + 1;
+        };
+        position += 1;
+    }
+    let julian = letters == 1 && (chars[start] == 'j' || chars[start] == 'J');
+    let alone = end - start == 1;
+    let dated = colon == false
+        && ((letters == 0 && (separators == 2 || (separators == 0 && digits == 8))) || julian);
+    if alone == false && dated == false {
+        return none;
+    }
+    let mut rest = String::new();
+    let mut copy: usize = 0;
+    while copy + 1 < end {
+        rest.push(chars[copy]);
+        copy += 1;
+    }
+    rest
+}
+
 fn temporal_relative_word(input: &str) -> bool {
     let chars: Vec<char> = input.chars().collect();
     let mut start: usize = 0;
@@ -1739,6 +1845,32 @@ fn parse_temporal_text(
         if buffer == 0 {
             compact = temporal_collapsed_space(text.as_str());
         };
+        let dotless = temporal_trailing_dot(compact.as_str());
+        if dotless != "" {
+            let valid = temporal_valid_date_spelling(dotless.as_str());
+            let reading = parse_temporal_text(TextValue::Value(dotless), false, false, date_order);
+            let mut reads = false;
+            if let Int8Value::Value(_) = reading {
+                reads = true;
+            };
+            if reading
+                == Int8Value::Error(SqlError {
+                    state: TEMPORAL_FIELD_OVERFLOW,
+                })
+                && valid != ""
+            {
+                let checked =
+                    parse_temporal_text(TextValue::Value(valid), false, false, date_order);
+                if let Int8Value::Value(_) = checked {
+                    reads = true;
+                };
+            };
+            if reads {
+                return Int8Value::Error(SqlError {
+                    state: INVALID_TIMESTAMP_TEXT,
+                });
+            };
+        };
         let delimited_after = temporal_delimited_after_fields(compact.as_str(), date_order);
         if temporal_leading_lettered_date(compact.as_str()) || delimited_after == 1 {
             return Int8Value::Error(SqlError {
@@ -1857,6 +1989,34 @@ fn parse_temporal_fields(
         let chars: Vec<char> = input.chars().collect();
         if chars.len() > 152 {
             return int8_unresolved(unresolved_flavor);
+        }
+        let era_special = temporal_era_special(input.as_str());
+        if era_special == 2 {
+            return int8_unresolved(resolution_context(unresolved_flavor));
+        }
+        if era_special == 1 {
+            let mut lone = String::new();
+            let all: Vec<char> = input.chars().collect();
+            let mut position: usize = 0;
+            while position < all.len() {
+                let mut word = String::new();
+                let mut lowered = String::new();
+                while position < all.len() && date_text_space(all[position]) == false {
+                    word.push(all[position]);
+                    lowered.push(all[position].to_ascii_lowercase());
+                    position += 1;
+                }
+                if lowered != "bc" && lowered != "ad" {
+                    lone.push_str(word.as_str());
+                };
+                position += 1;
+            }
+            return parse_temporal_text(
+                TextValue::Value(lone),
+                with_timezone,
+                date_only,
+                date_order,
+            );
         }
         let special = temporal_special_word_conflict(input.as_str(), date_order);
         if special == 1 {
@@ -2419,6 +2579,10 @@ fn parse_temporal_fields(
                             if token_start < end
                                 && date_text_digit(text.chars[token_start]) >= 0
                                 && colon == false
+                            {
+                                timed = false;
+                            };
+                            if token_start < end && text.chars[token_start] == '.' && colon == false
                             {
                                 timed = false;
                             };

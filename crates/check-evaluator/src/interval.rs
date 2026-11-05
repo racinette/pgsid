@@ -1179,10 +1179,8 @@ pub fn interval_from_text_fields_context(
         while start < chars.len() && date_text_space(chars[start]) {
             start += 1;
         }
+        // The ISO reader works on the text itself, which no field buffer limits.
         if start < chars.len() && chars[start] == 'P' {
-            if chars.len() > 255 {
-                return interval_unresolved(unresolved_flavor);
-            };
             return interval_input_iso(text.as_str());
         };
         if style < 1 || style > 4 {

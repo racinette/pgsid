@@ -21841,6 +21841,21 @@ func temporalSpecialWordConflict(input string, dateOrder int) int {
 		if temporalSpecialWord(string(word)) {
 			return 1
 		}
+		digits := 0
+		onlyDigits := string(word) != ""
+		wordChars := []rune(string(word))
+		letter := 0
+		for letter < len(wordChars) {
+			if dateTextDigit(wordChars[letter]) >= 0 {
+				digits = langruntime.CheckedIndex(langruntime.CheckedAdd(digits, 1))
+			} else {
+				onlyDigits = false
+			}
+			letter = langruntime.CheckedAdd(letter, 1)
+		}
+		if englishDateMonth(string(word)) != 0 || (onlyDigits && (digits <= 2 || digits == 8)) {
+			return 1
+		}
 		return 0
 	}
 	prefix := langruntime.NewTextBuffer("")
@@ -22507,6 +22522,90 @@ func temporalSecondClock(text string, dateOrder int) bool {
 	}
 	return false
 }
+func temporalEraSpecial(input string) int {
+	input = langruntime.CheckedString(input)
+	chars := []rune(input)
+	eras := 0
+	specials := 0
+	others := 0
+	fixed := false
+	index := 0
+	for index < len(chars) {
+		if dateTextSpace(chars[index]) {
+			index = langruntime.CheckedAdd(index, 1)
+		} else {
+			word := langruntime.NewTextBuffer("")
+			for index < len(chars) && dateTextSpace(chars[index]) == false {
+				word = append(word, string(langruntime.CheckedChar(langruntime.AsciiLowercase(chars[index])))...)
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			if string(word) == "bc" || string(word) == "ad" {
+				eras = langruntime.CheckedIndex(langruntime.CheckedAdd(eras, 1))
+			} else if temporalSpecialWord(string(word)) {
+				specials = langruntime.CheckedIndex(langruntime.CheckedAdd(specials, 1))
+				fixed = string(word) == "epoch" || string(word) == "infinity" || string(word) == "-infinity"
+			} else {
+				others = langruntime.CheckedIndex(langruntime.CheckedAdd(others, 1))
+			}
+		}
+	}
+	if eras != 1 || specials != 1 || others != 0 {
+		return 0
+	}
+	if fixed {
+		return 1
+	}
+	return 2
+}
+func temporalTrailingDot(text string) string {
+	text = langruntime.CheckedString(text)
+	chars := []rune(text)
+	end := len(chars)
+	for end > 0 && dateTextSpace(chars[langruntime.CheckedSubtract(end, 1)]) {
+		end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
+	}
+	none := ""
+	if end == 0 || chars[langruntime.CheckedSubtract(end, 1)] != '.' {
+		return none
+	}
+	start := langruntime.CheckedSubtract(end, 1)
+	for start > 0 && dateTextSpace(chars[langruntime.CheckedSubtract(start, 1)]) == false {
+		start = langruntime.CheckedIndex(langruntime.CheckedSubtract(start, 1))
+	}
+	colon := false
+	separators := 0
+	digits := 0
+	letters := 0
+	position := start
+	for langruntime.CheckedAdd(position, 1) < end {
+		character := chars[position]
+		if character == ':' {
+			colon = true
+		} else if character == '-' || character == '/' {
+			separators = langruntime.CheckedIndex(langruntime.CheckedAdd(separators, 1))
+		} else if character == '.' {
+			letters = langruntime.CheckedIndex(langruntime.CheckedAdd(letters, 1))
+		} else if dateTextDigit(character) >= 0 {
+			digits = langruntime.CheckedIndex(langruntime.CheckedAdd(digits, 1))
+		} else {
+			letters = langruntime.CheckedIndex(langruntime.CheckedAdd(letters, 1))
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	julian := letters == 1 && (chars[start] == 'j' || chars[start] == 'J')
+	alone := langruntime.CheckedSubtract(end, start) == 1
+	dated := colon == false && ((letters == 0 && (separators == 2 || (separators == 0 && digits == 8))) || julian)
+	if alone == false && dated == false {
+		return none
+	}
+	rest := langruntime.NewTextBuffer("")
+	copy := 0
+	for langruntime.CheckedAdd(copy, 1) < end {
+		rest = append(rest, string(langruntime.CheckedChar(chars[copy]))...)
+		copy = langruntime.CheckedAdd(copy, 1)
+	}
+	return string(rest)
+}
 func temporalRelativeWord(input string) bool {
 	input = langruntime.CheckedString(input)
 	chars := []rune(input)
@@ -22951,6 +23050,24 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool, dateOr
 		if buffer == 0 {
 			compact = langruntime.NewTextBuffer(temporalCollapsedSpace(text))
 		}
+		dotless := temporalTrailingDot(string(compact))
+		if dotless != "" {
+			valid := TemporalValidDateSpelling(dotless)
+			reading := parseTemporalText(TextValue{Kind: TextValueValue, Value: dotless}, false, false, dateOrder)
+			reads := false
+			if reading.Kind == Int8ValueValue {
+				reads = true
+			}
+			if reading == (Int8Value{Kind: Int8ValueError, Error: SqlError{State: temporalFieldOverflow}}) && valid != "" {
+				checked := parseTemporalText(TextValue{Kind: TextValueValue, Value: valid}, false, false, dateOrder)
+				if checked.Kind == Int8ValueValue {
+					reads = true
+				}
+			}
+			if reads {
+				return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampText}}
+			}
+		}
 		delimitedAfter := temporalDelimitedAfterFields(string(compact), dateOrder)
 		if temporalLeadingLetteredDate(string(compact)) || delimitedAfter == 1 {
 			return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampText}}
@@ -23048,6 +23165,29 @@ func parseTemporalFields(value TextValue, withTimezone bool, dateOnly bool, date
 		chars := []rune(input)
 		if len(chars) > 152 {
 			return Int8Unresolved(unresolvedFlavor)
+		}
+		eraSpecial := temporalEraSpecial(input)
+		if eraSpecial == 2 {
+			return Int8Unresolved(ResolutionContext(unresolvedFlavor))
+		}
+		if eraSpecial == 1 {
+			lone := langruntime.NewTextBuffer("")
+			all := []rune(input)
+			position := 0
+			for position < len(all) {
+				word := langruntime.NewTextBuffer("")
+				lowered := langruntime.NewTextBuffer("")
+				for position < len(all) && dateTextSpace(all[position]) == false {
+					word = append(word, string(langruntime.CheckedChar(all[position]))...)
+					lowered = append(lowered, string(langruntime.CheckedChar(langruntime.AsciiLowercase(all[position])))...)
+					position = langruntime.CheckedAdd(position, 1)
+				}
+				if string(lowered) != "bc" && string(lowered) != "ad" {
+					lone = append(lone, string(word)...)
+				}
+				position = langruntime.CheckedAdd(position, 1)
+			}
+			return parseTemporalText(TextValue{Kind: TextValueValue, Value: string(lone)}, withTimezone, dateOnly, dateOrder)
 		}
 		special := temporalSpecialWordConflict(input, dateOrder)
 		if special == 1 {
@@ -23493,6 +23633,9 @@ func parseTemporalFields(value TextValue, withTimezone bool, dateOnly bool, date
 								token = langruntime.CheckedAdd(token, 1)
 							}
 							if tokenStart < end && dateTextDigit(text.chars[tokenStart]) >= 0 && colon == false {
+								timed = false
+							}
+							if tokenStart < end && text.chars[tokenStart] == '.' && colon == false {
 								timed = false
 							}
 						}
@@ -25518,9 +25661,6 @@ func IntervalFromTextFieldsContext(input TextValue, fields Int4Value, style int)
 			start = langruntime.CheckedAdd(start, 1)
 		}
 		if start < len(chars) && chars[start] == 'P' {
-			if len(chars) > 255 {
-				return IntervalUnresolved(unresolvedFlavor)
-			}
 			return intervalInputIso(text)
 		}
 		if style < 1 || style > 4 {

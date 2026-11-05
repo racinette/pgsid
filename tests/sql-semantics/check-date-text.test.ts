@@ -184,7 +184,6 @@ describe('Rust text-to-date CHECK casts', () => {
       'epochad',
       'infinitybc',
       'J+1',
-      'J2451545.',
       'J2451545 junk',
     ])
       fixtures.push({
@@ -267,7 +266,6 @@ describe('Rust text-to-date CHECK casts', () => {
       '42949692960101',
       'λ',
       'J+1',
-      'J2451545.',
     ])
     for (const fixture of fixtures) {
       const raw = fixture.row.raw
