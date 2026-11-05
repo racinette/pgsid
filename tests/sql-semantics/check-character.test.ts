@@ -1,7 +1,7 @@
 import { emitCheckRustEvaluator } from '../../src/codegen/shared/check-rust-evaluator.js'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { builtinCallables, builtinMetadata } from '../../src/postgres/builtins/inventory.js'
@@ -74,7 +74,6 @@ for (const op of comparisons) {
 const unsupported = {
   varchar_nondeterministic: "ci_v::text = 'a'",
   char_nondeterministic: "ci_c = 'a'",
-  char_conflicting_collation: 'det_c = other_det_c',
   char_default_order: "plain_c < 'z'",
   varchar_default_order: "plain_v < 'z'",
   varchar_case_collation: "(CASE WHEN flag THEN ci_v ELSE plain_v END) = 'a'",
@@ -273,6 +272,62 @@ describe('Rust CHECK character comparisons', () => {
     if (prepared.kind === 'supported') expect(prepared.evaluator.callables).toEqual([])
     else expect(prepared.kind).toBe('unsupported')
   })
+  // Two declared collations conflict whatever either does, so the comparison fails on every row a
+  // NULL does not decide. The server cannot select such a row, so each answer comes from an INSERT.
+  it('answers a comparison between conflicting declared collations', async () => {
+    const constraint = { name: 'char_conflicting_collation', type: 'check' as const }
+    const definition = 'CHECK (det_c = other_det_c)'
+    await pg.exec(`CREATE TABLE conflicting_checks (LIKE character_checks);
+      ALTER TABLE conflicting_checks ADD CONSTRAINT char_conflicting_collation ${definition}`)
+    const fixtures: { name: string; row: Row; expected: Outcome }[] = []
+    for (const [left, right] of [
+      [null, 'a'],
+      ['a', null],
+      ['a', 'a'],
+      ['a', 'b'],
+    ] as const) {
+      let expected: Outcome = { kind: 'True' }
+      try {
+        await pg.query('INSERT INTO conflicting_checks (det_c, other_det_c) VALUES ($1, $2)', [
+          left,
+          right,
+        ])
+        if (left === null || right === null) expected = { kind: 'Null' }
+      } catch (error) {
+        expected = {
+          kind: 'Error',
+          value: { state: parseInt((error as { code: string }).code, 36) },
+        }
+      }
+      fixtures.push({
+        name: constraint.name,
+        row: { det_c: value(left), other_det_c: value(right) },
+        expected,
+      })
+    }
+    expect(fixtures.filter((f) => f.expected.kind === 'Error')).toHaveLength(2)
+    const group = prepareCheckRustGroup([
+      {
+        expression: lowerTableCheck(table, { ...constraint, definition }, [], catalog.domains)!
+          .expression,
+        identity: {
+          schema: 'public',
+          kind: 'table' as const,
+          owner: table.name,
+          constraint: constraint.name,
+        },
+      },
+    ])
+    expect(group.checks[0]!.kind).toBe('supported')
+    await mkdir(join(directory, 'conflicting'))
+    await runCheckParity(
+      join(directory, 'conflicting'),
+      'characterconflict',
+      group,
+      [constraint.name],
+      fixtures,
+    )
+  }, 120_000)
   it('checks collation and rejects value-changing casts in the emitter', () => {
     const expression = lowerTableCheck(table, {
       name: 'probe',

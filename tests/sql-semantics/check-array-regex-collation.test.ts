@@ -100,9 +100,13 @@ it('requires C for every regex array overload and preserves lazy context deferra
                     expected: { kind: 'Value', value: value + Number(wrong) },
                     bypass: { kind: 'Value', value: bypass },
                   },
-                  expected: {
-                    kind: bypass ? 'True' : definitive ? (wrong ? 'False' : 'True') : 'Unknown',
-                  },
+                  // A nondeterministic collation rejects any regex, which the declared
+                  // collation alone decides.
+                  expected: bypass
+                    ? { kind: 'True' }
+                    : i === 3
+                      ? { kind: 'Error', value: { state: parseInt('0A000', 36) } }
+                      : { kind: definitive ? (wrong ? 'False' : 'True') : 'Unknown' },
                 })
               }
           // PGlite's C.UTF-8 ctype classifies this letter, while C does not.
