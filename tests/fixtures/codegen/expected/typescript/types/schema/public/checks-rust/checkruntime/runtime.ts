@@ -21538,6 +21538,7 @@ function calendarDaysFromYmd(year: number, month: number, day: number): Int4Valu
 }
 const invalidTimestampText = 3452551;
 const invalidTimestampZone = 3452553;
+const temporalFieldOverflow = 3452552;
 interface TimestampText {
     chars: string[];
 }
@@ -21684,6 +21685,118 @@ function temporalNumberAfterClock(hour: number, minute: number, second: number, 
 function parseTimestampText(value: TextValue, withTimezone: boolean): Int8Value {
     withTimezone = langruntime.checkedBool(withTimezone);
     return parseTemporalText(value, withTimezone, false, 0);
+}
+function temporalSpecialWord(word: string): boolean {
+    word = langruntime.checkedString(word);
+    return word === "now" || word === "today" || word === "tomorrow" || word === "yesterday" || word === "epoch" || word === "infinity" || word === "-infinity";
+}
+function temporalSpecialWordConflict(input: string, dateOrder: number): boolean {
+    input = langruntime.checkedString(input);
+    dateOrder = langruntime.checkedI32(dateOrder);
+    const chars: string[] = Array.from(input);
+    let index: number = 0;
+    let fields: number = 0;
+    let previousSign: boolean = false;
+    let found: boolean = false;
+    let specialStart: number = 0;
+    let specialEnd: number = 0;
+    let specialFirst: boolean = false;
+    let specialSign: boolean = false;
+    while (index < chars.length && found === false) {
+        if (dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(index)))) {
+            index = langruntime.checkedAdd(index, 1);
+        }
+        else {
+            const start: number = index;
+            let word: string = "";
+            while (index < chars.length && dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(index))) === false) {
+                word = word + langruntime.checkedChar(langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(index))));
+                index = langruntime.checkedAdd(index, 1);
+            }
+            if (temporalSpecialWord(word)) {
+                found = langruntime.checkedBool(true);
+                specialStart = langruntime.checkedIndex(start);
+                specialEnd = langruntime.checkedIndex(index);
+                specialFirst = langruntime.checkedBool(fields === 0);
+                specialSign = langruntime.checkedBool(previousSign);
+            }
+            previousSign = langruntime.checkedBool(word === "+" || word === "-");
+            fields = langruntime.checkedI32(langruntime.checkedSignedAdd(fields, 1));
+        }
+    }
+    if (found === false || specialSign) {
+        return false;
+    }
+    if (specialFirst) {
+        let next: number = specialEnd;
+        while (next < chars.length && dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(next)))) {
+            next = langruntime.checkedAdd(next, 1);
+        }
+        let word: string = "";
+        while (next < chars.length && dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(next))) === false) {
+            word = word + langruntime.checkedChar(langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(next))));
+            next = langruntime.checkedAdd(next, 1);
+        }
+        return temporalSpecialWord(word);
+    }
+    let prefix: string = "";
+    let position: number = 0;
+    while (position < specialStart) {
+        prefix = prefix + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(position)));
+        position = langruntime.checkedAdd(position, 1);
+    }
+    const before: Int8Value = parseTemporalText({ kind: "Value", value: prefix }, false, false, dateOrder);
+    if (before.kind === "Value") {
+        return true;
+    }
+    return false;
+}
+function temporalLoneDateField(text: string): number {
+    text = langruntime.checkedString(text);
+    const chars: string[] = Array.from(text);
+    let start: number = 0;
+    while (start < chars.length && dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(start)))) {
+        start = langruntime.checkedAdd(start, 1);
+    }
+    let end: number = start;
+    while (end < chars.length && dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(end))) >= 0) {
+        end = langruntime.checkedAdd(end, 1);
+    }
+    if (end === start || end >= chars.length) {
+        return 0;
+    }
+    const delimiter: string = langruntime.indexChar(chars, langruntime.checkedIndex(end));
+    if (!(delimiter === "-") && !(delimiter === "/") && !(delimiter === ".")) {
+        return 0;
+    }
+    if (langruntime.checkedAdd(end, 1) < chars.length && dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(end, 1)))) === false) {
+        return 0;
+    }
+    let significant: number = start;
+    while (langruntime.checkedAdd(significant, 1) < end && langruntime.indexChar(chars, langruntime.checkedIndex(significant)) === "0") {
+        significant = langruntime.checkedAdd(significant, 1);
+    }
+    const digits: number = langruntime.checkedSubtract(end, significant);
+    let fits: boolean = digits < 10;
+    if (digits === 10) {
+        const limit: string[] = Array.from("2147483647");
+        let place: number = 0;
+        let decided: boolean = false;
+        fits = langruntime.checkedBool(true);
+        while (place < 10 && decided === false) {
+            const digit: number = dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(significant, place))));
+            const bound: number = dateTextDigit(langruntime.indexChar(limit, langruntime.checkedIndex(place)));
+            if (!(digit === bound)) {
+                fits = langruntime.checkedBool(digit < bound);
+                decided = langruntime.checkedBool(true);
+            }
+            place = langruntime.checkedAdd(place, 1);
+        }
+    }
+    if (fits) {
+        return 1;
+    }
+    return 2;
 }
 function temporalRelativeWord(input: string): boolean {
     input = langruntime.checkedString(input);
@@ -22084,6 +22197,24 @@ function temporalFirstDateField(chars: string[]): string[] {
         }
         fieldEnd = langruntime.checkedAdd(fieldEnd, 1);
     }
+    if (fieldEnd < chars.length && englishDateLetter(langruntime.indexChar(chars, langruntime.checkedIndex(fieldEnd))) && run === 0 && parts >= 2 && collapsed === false) {
+        let wordEnd: number = fieldEnd;
+        while (wordEnd < chars.length && englishDateLetter(langruntime.indexChar(chars, langruntime.checkedIndex(wordEnd)))) {
+            wordEnd = langruntime.checkedAdd(wordEnd, 1);
+        }
+        if (wordEnd === chars.length || dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(wordEnd)))) {
+            let spaced: string[] = [];
+            let index: number = 0;
+            while (index < chars.length) {
+                if (index === fieldEnd) {
+                    langruntime.pushChar(spaced, " ");
+                }
+                langruntime.pushChar(spaced, langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+                index = langruntime.checkedAdd(index, 1);
+            }
+            return spaced;
+        }
+    }
     if (fieldEnd < chars.length && englishDateLetter(langruntime.indexChar(chars, langruntime.checkedIndex(fieldEnd)))) {
         return chars;
     }
@@ -22129,6 +22260,13 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
         let compact: string = langruntime.checkedString(text);
         if (buffer === 0) {
             compact = langruntime.checkedString(temporalCollapsedSpace(text));
+        }
+        const lone: number = temporalLoneDateField(compact);
+        if (lone === 1) {
+            return { kind: "Error", value: { state: invalidTimestampText } };
+        }
+        if (lone === 2) {
+            return { kind: "Error", value: { state: temporalFieldOverflow } };
         }
         const typed: string[] = Array.from(compact);
         const typedLength: number = typed.length;
@@ -22186,6 +22324,9 @@ function parseTemporalFields(value: TextValue, withTimezone: boolean, dateOnly: 
         const chars: string[] = Array.from(input);
         if (chars.length > 128) {
             return int8Unresolved(unresolvedFlavor);
+        }
+        if (temporalSpecialWordConflict(input, dateOrder)) {
+            return { kind: "Error", value: { state: invalidTimestampText } };
         }
         if (temporalRelativeWord(input)) {
             return int8Unresolved(resolutionContext(unresolvedFlavor));

@@ -21556,6 +21556,7 @@ func calendarDaysFromYmd(year int, month int, day int) Int4Value {
 
 const invalidTimestampText = 3452551
 const invalidTimestampZone = 3452553
+const temporalFieldOverflow = 3452552
 
 type timestampText struct {
 	chars []rune
@@ -21697,6 +21698,117 @@ func temporalNumberAfterClock(hour int, minute int, second int, compactClock boo
 }
 func parseTimestampText(value TextValue, withTimezone bool) Int8Value {
 	return parseTemporalText(value, withTimezone, false, 0)
+}
+func temporalSpecialWord(word string) bool {
+	word = langruntime.CheckedString(word)
+	return word == "now" || word == "today" || word == "tomorrow" || word == "yesterday" || word == "epoch" || word == "infinity" || word == "-infinity"
+}
+func temporalSpecialWordConflict(input string, dateOrder int) bool {
+	input = langruntime.CheckedString(input)
+	dateOrder = langruntime.CheckedI32(dateOrder)
+	chars := []rune(input)
+	index := 0
+	fields := 0
+	previousSign := false
+	found := false
+	specialStart := 0
+	specialEnd := 0
+	specialFirst := false
+	specialSign := false
+	for index < len(chars) && found == false {
+		if dateTextSpace(chars[index]) {
+			index = langruntime.CheckedAdd(index, 1)
+		} else {
+			start := index
+			word := langruntime.NewTextBuffer("")
+			for index < len(chars) && dateTextSpace(chars[index]) == false {
+				word = append(word, string(langruntime.CheckedChar(langruntime.AsciiLowercase(chars[index])))...)
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			if temporalSpecialWord(string(word)) {
+				found = true
+				specialStart = langruntime.CheckedIndex(start)
+				specialEnd = langruntime.CheckedIndex(index)
+				specialFirst = fields == 0
+				specialSign = previousSign
+			}
+			previousSign = string(word) == "+" || string(word) == "-"
+			fields = langruntime.CheckedI32(langruntime.CheckedSignedAdd(fields, 1))
+		}
+	}
+	if found == false || specialSign {
+		return false
+	}
+	if specialFirst {
+		next := specialEnd
+		for next < len(chars) && dateTextSpace(chars[next]) {
+			next = langruntime.CheckedAdd(next, 1)
+		}
+		word := langruntime.NewTextBuffer("")
+		for next < len(chars) && dateTextSpace(chars[next]) == false {
+			word = append(word, string(langruntime.CheckedChar(langruntime.AsciiLowercase(chars[next])))...)
+			next = langruntime.CheckedAdd(next, 1)
+		}
+		return temporalSpecialWord(string(word))
+	}
+	prefix := langruntime.NewTextBuffer("")
+	position := 0
+	for position < specialStart {
+		prefix = append(prefix, string(langruntime.CheckedChar(chars[position]))...)
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	before := parseTemporalText(TextValue{Kind: TextValueValue, Value: string(prefix)}, false, false, dateOrder)
+	if before.Kind == Int8ValueValue {
+		return true
+	}
+	return false
+}
+func temporalLoneDateField(text string) int {
+	text = langruntime.CheckedString(text)
+	chars := []rune(text)
+	start := 0
+	for start < len(chars) && dateTextSpace(chars[start]) {
+		start = langruntime.CheckedAdd(start, 1)
+	}
+	end := start
+	for end < len(chars) && dateTextDigit(chars[end]) >= 0 {
+		end = langruntime.CheckedAdd(end, 1)
+	}
+	if end == start || end >= len(chars) {
+		return 0
+	}
+	delimiter := chars[end]
+	if delimiter != '-' && delimiter != '/' && delimiter != '.' {
+		return 0
+	}
+	if langruntime.CheckedAdd(end, 1) < len(chars) && dateTextSpace(chars[langruntime.CheckedAdd(end, 1)]) == false {
+		return 0
+	}
+	significant := start
+	for langruntime.CheckedAdd(significant, 1) < end && chars[significant] == '0' {
+		significant = langruntime.CheckedAdd(significant, 1)
+	}
+	digits := langruntime.CheckedSubtract(end, significant)
+	fits := digits < 10
+	if digits == 10 {
+		limit := []rune("2147483647")
+		place := 0
+		decided := false
+		fits = true
+		for place < 10 && decided == false {
+			digit := dateTextDigit(chars[langruntime.CheckedAdd(significant, place)])
+			bound := dateTextDigit(limit[place])
+			if digit != bound {
+				fits = digit < bound
+				decided = true
+			}
+			place = langruntime.CheckedAdd(place, 1)
+		}
+	}
+	if fits {
+		return 1
+	}
+	return 2
 }
 func temporalRelativeWord(input string) bool {
 	input = langruntime.CheckedString(input)
@@ -22077,6 +22189,26 @@ func temporalFirstDateField(chars []rune) []rune {
 		}
 		fieldEnd = langruntime.CheckedAdd(fieldEnd, 1)
 	}
+	if fieldEnd < len(chars) && englishDateLetter(chars[fieldEnd]) && run == 0 && parts >= 2 && collapsed == false {
+		wordEnd := fieldEnd
+		for wordEnd < len(chars) && englishDateLetter(chars[wordEnd]) {
+			wordEnd = langruntime.CheckedAdd(wordEnd, 1)
+		}
+		if wordEnd == len(chars) || dateTextSpace(chars[wordEnd]) {
+			spaced := []rune{}
+			index := 0
+			for index < len(chars) {
+				if index == fieldEnd {
+					langruntime.CheckedAdd(len(spaced), 1)
+					spaced = append(spaced, langruntime.CheckedChar(' '))
+				}
+				langruntime.CheckedAdd(len(spaced), 1)
+				spaced = append(spaced, langruntime.CheckedChar(chars[index]))
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			return spaced
+		}
+	}
 	if fieldEnd < len(chars) && englishDateLetter(chars[fieldEnd]) {
 		return chars
 	}
@@ -22121,6 +22253,13 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool, dateOr
 		compact := langruntime.NewTextBuffer(langruntime.CheckedString(text))
 		if buffer == 0 {
 			compact = langruntime.NewTextBuffer(temporalCollapsedSpace(text))
+		}
+		lone := temporalLoneDateField(string(compact))
+		if lone == 1 {
+			return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampText}}
+		}
+		if lone == 2 {
+			return Int8Value{Kind: Int8ValueError, Error: SqlError{State: temporalFieldOverflow}}
 		}
 		typed := []rune(string(compact))
 		typedLength := len(typed)
@@ -22176,6 +22315,9 @@ func parseTemporalFields(value TextValue, withTimezone bool, dateOnly bool, date
 		chars := []rune(input)
 		if len(chars) > 128 {
 			return Int8Unresolved(unresolvedFlavor)
+		}
+		if temporalSpecialWordConflict(input, dateOrder) {
+			return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampText}}
 		}
 		if temporalRelativeWord(input) {
 			return Int8Unresolved(ResolutionContext(unresolvedFlavor))
