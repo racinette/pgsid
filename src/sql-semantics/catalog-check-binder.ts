@@ -109,6 +109,7 @@ import {
   combineCollations,
   defaultCollation,
   isRegexArrayCallable,
+  raisesOnCollationConflict,
   supportsBoundTextCallableCollation,
   isCtypeCallable,
   isTextOrderingCallable,
@@ -1490,7 +1491,8 @@ const candidate = (
       ) &&
       !supportsBoundTextCallableCollation(signature, collation) &&
       !isRegexArrayCallable(signature) &&
-      !providerCollationAssumed(signature, collation, true)
+      !providerCollationAssumed(signature, collation, true) &&
+      !(collation?.identity === 'conflict' && raisesOnCollationConflict(signature))
     )
       return []
     const multirangeTypes = fullArgs.flatMap((arg, index) =>
@@ -2201,8 +2203,19 @@ const comparisonCandidate = (
 const callDefaultCollation = (
   signature: string,
   collation?: BoundCollation,
-): { collationDefault?: true; collationResolved?: true; collationAbsent?: true } => {
+): {
+  collationDefault?: true
+  collationResolved?: true
+  collationAbsent?: true
+  collationConflict?: true
+} => {
   const metadata = builtinMetadata(signature)
+  // Implicit collations that disagree leave the call without one, which the server reports only
+  // once a call needs it.
+  const conflict =
+    collation?.identity === 'conflict' && !collation.explicit
+      ? { collationConflict: true as const }
+      : {}
   if (isCollationMetadataCallable(metadata))
     return {
       ...(collation?.default ? { collationDefault: true as const } : {}),
@@ -2221,8 +2234,8 @@ const callDefaultCollation = (
       isRegexArrayCallable(signature) ||
       isTemporalTimestampFormatting(metadata) ||
       isTemporalTemplateParsing(metadata))
-    ? { collationDefault: true }
-    : {}
+    ? { collationDefault: true, ...conflict }
+    : conflict
 }
 
 const arrayCollations = (
@@ -7832,6 +7845,9 @@ export function bindCatalogCheck(
       const collation = type.startsWith('array:')
         ? arrayCollations([subject, ...members].map((member) => member.collation))
         : combineCollations([subject, ...members].map((member) => member.collation))
+      // The server compares each column member, and the constants together, under their own
+      // collations and stops at the first match, so one combined conflict does not describe it.
+      if (collation?.identity === 'conflict') return unbound()
       const resolved = members.map((member) =>
         candidate('operator', name!, [
           { ...subject, type, value, literal: undefined, collation },

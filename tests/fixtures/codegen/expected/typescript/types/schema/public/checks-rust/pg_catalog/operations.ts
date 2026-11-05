@@ -55160,6 +55160,7 @@ function numericWorkRound(work: NumericWork, requested: number, mode: number): c
 const oidAliasInvalidName = 6819554;
 const oidAliasInvalidSignature = 3484946;
 const oidAliasInvalidType = 6819553;
+const oidAliasOperatorArguments = 8584779;
 export function oidAliasFromText(input: checkruntime.TextValue, dash: boolean, grammar: number): checkruntime.OidValue {
     dash = langruntime.checkedBool(dash);
     grammar = langruntime.checkedI32(grammar);
@@ -55214,7 +55215,7 @@ function oidAliasRead(input: checkruntime.TextValue, dash: boolean, grammar: num
         }
         let outcome: number = 0;
         if (grammar === 1) {
-            outcome = langruntime.checkedI32(oidAliasSignatureRead(text));
+            outcome = langruntime.checkedI32(oidAliasSignatureRead(text, dash === false));
         }
         else if (grammar === 2) {
             outcome = langruntime.checkedI32(oidAliasTypeRead(text));
@@ -55228,7 +55229,7 @@ function oidAliasRead(input: checkruntime.TextValue, dash: boolean, grammar: num
                 outcome = langruntime.checkedI32(3);
             }
         }
-        if (soft && (outcome === 1 || outcome === 2 || outcome === 4)) {
+        if (soft && (outcome === 1 || outcome === 2 || outcome === 4 || outcome === 5)) {
             return { kind: "Null" };
         }
         if (outcome === 1) {
@@ -55239,6 +55240,9 @@ function oidAliasRead(input: checkruntime.TextValue, dash: boolean, grammar: num
         }
         if (outcome === 3 || outcome === 4) {
             return { kind: "Error", value: checkruntime.makeSqlError(oidAliasInvalidType) };
+        }
+        if (outcome === 5) {
+            return { kind: "Error", value: checkruntime.makeSqlError(oidAliasOperatorArguments) };
         }
     }
     return checkruntime.oidUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
@@ -55306,8 +55310,9 @@ function oidAliasNameParts(text: string, start: number, end: number): number {
     }
     return parts;
 }
-function oidAliasSignatureRead(text: string): number {
+function oidAliasSignatureRead(text: string, operator: boolean): number {
     text = langruntime.checkedString(text);
+    operator = langruntime.checkedBool(operator);
     const chars: string[] = Array.from(text);
     const end: number = chars.length;
     let quoted: boolean = false;
@@ -55325,7 +55330,8 @@ function oidAliasSignatureRead(text: string): number {
     if (open === end) {
         return 2;
     }
-    if (oidAliasNameParts(text, 0, open) < 1) {
+    const parts: number = oidAliasNameParts(text, 0, open);
+    if (parts < 1) {
         return 1;
     }
     let close: number = end;
@@ -55339,6 +55345,15 @@ function oidAliasSignatureRead(text: string): number {
     index = langruntime.checkedIndex(langruntime.checkedAdd(open, 1));
     while (index < last && oidInputSpace(langruntime.indexChar(chars, langruntime.checkedIndex(index)))) {
         index = langruntime.checkedAdd(index, 1);
+    }
+    if (index === last) {
+        if (operator) {
+            return 5;
+        }
+        if (parts > 3) {
+            return 3;
+        }
+        return 0;
     }
     quoted = langruntime.checkedBool(false);
     let depth: number = 0;
@@ -55401,10 +55416,24 @@ function oidAliasTypeRead(text: string): number {
     while (index < chars.length) {
         const ch: string = langruntime.indexChar(chars, langruntime.checkedIndex(index));
         if (ch === "\"") {
-            quoted = langruntime.checkedBool(quoted === false);
-            partLength = langruntime.checkedI32(langruntime.checkedSignedAdd(partLength, 1));
-        }
-        else if (quoted) {
+            if (langruntime.checkedAdd(index, 2) >= chars.length || !(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 2))) === "\"")) {
+                if (langruntime.checkedAdd(index, 1) < chars.length && langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 1))) === "\"") {
+                    return 3;
+                }
+            }
+            index = langruntime.checkedAdd(index, 1);
+            quoted = langruntime.checkedBool(true);
+            while (index < chars.length && quoted) {
+                if (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "\"" && langruntime.checkedAdd(index, 1) < chars.length && langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 1))) === "\"") {
+                    index = langruntime.checkedAdd(index, 2);
+                }
+                else if (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "\"") {
+                    quoted = langruntime.checkedBool(false);
+                }
+                else {
+                    index = langruntime.checkedAdd(index, 1);
+                }
+            }
             partLength = langruntime.checkedI32(langruntime.checkedSignedAdd(partLength, 1));
         }
         else if (ch === "." && depth === 0) {

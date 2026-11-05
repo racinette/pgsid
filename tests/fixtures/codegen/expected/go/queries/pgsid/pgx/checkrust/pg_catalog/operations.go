@@ -54817,6 +54817,7 @@ func numericWorkRound(work numericWork, requested int, mode int) checkruntime.Nu
 const oidAliasInvalidName = 6819554
 const oidAliasInvalidSignature = 3484946
 const oidAliasInvalidType = 6819553
+const oidAliasOperatorArguments = 8584779
 
 func OidAliasFromText(input checkruntime.TextValue, dash bool, grammar int) checkruntime.OidValue {
 	grammar = langruntime.CheckedI32(grammar)
@@ -54869,7 +54870,7 @@ func oidAliasRead(input checkruntime.TextValue, dash bool, grammar int, soft boo
 		}
 		outcome := 0
 		if grammar == 1 {
-			outcome = langruntime.CheckedI32(oidAliasSignatureRead(text))
+			outcome = langruntime.CheckedI32(oidAliasSignatureRead(text, dash == false))
 		} else if grammar == 2 {
 			outcome = langruntime.CheckedI32(oidAliasTypeRead(text))
 		} else {
@@ -54881,7 +54882,7 @@ func oidAliasRead(input checkruntime.TextValue, dash bool, grammar int, soft boo
 				outcome = langruntime.CheckedI32(3)
 			}
 		}
-		if soft && (outcome == 1 || outcome == 2 || outcome == 4) {
+		if soft && (outcome == 1 || outcome == 2 || outcome == 4 || outcome == 5) {
 			return checkruntime.OidValue{Kind: checkruntime.OidValueNull}
 		}
 		if outcome == 1 {
@@ -54892,6 +54893,9 @@ func oidAliasRead(input checkruntime.TextValue, dash bool, grammar int, soft boo
 		}
 		if outcome == 3 || outcome == 4 {
 			return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: checkruntime.MakeSqlError(oidAliasInvalidType)}
+		}
+		if outcome == 5 {
+			return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: checkruntime.MakeSqlError(oidAliasOperatorArguments)}
 		}
 	}
 	return checkruntime.OidUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
@@ -54956,7 +54960,7 @@ func oidAliasNameParts(text string, start int, end int) int {
 	}
 	return parts
 }
-func oidAliasSignatureRead(text string) int {
+func oidAliasSignatureRead(text string, operator bool) int {
 	text = langruntime.CheckedString(text)
 	chars := []rune(text)
 	end := len(chars)
@@ -54974,7 +54978,8 @@ func oidAliasSignatureRead(text string) int {
 	if open == end {
 		return 2
 	}
-	if oidAliasNameParts(text, 0, open) < 1 {
+	parts := oidAliasNameParts(text, 0, open)
+	if parts < 1 {
 		return 1
 	}
 	close := end
@@ -54988,6 +54993,15 @@ func oidAliasSignatureRead(text string) int {
 	index = langruntime.CheckedIndex(langruntime.CheckedAdd(open, 1))
 	for index < last && oidInputSpace(chars[index]) {
 		index = langruntime.CheckedAdd(index, 1)
+	}
+	if index == last {
+		if operator {
+			return 5
+		}
+		if parts > 3 {
+			return 3
+		}
+		return 0
 	}
 	quoted = false
 	depth := 0
@@ -55048,9 +55062,22 @@ func oidAliasTypeRead(text string) int {
 	for index < len(chars) {
 		ch := chars[index]
 		if ch == '"' {
-			quoted = quoted == false
-			partLength = langruntime.CheckedI32(langruntime.CheckedSignedAdd(partLength, 1))
-		} else if quoted {
+			if langruntime.CheckedAdd(index, 2) >= len(chars) || chars[langruntime.CheckedAdd(index, 2)] != '"' {
+				if langruntime.CheckedAdd(index, 1) < len(chars) && chars[langruntime.CheckedAdd(index, 1)] == '"' {
+					return 3
+				}
+			}
+			index = langruntime.CheckedAdd(index, 1)
+			quoted = true
+			for index < len(chars) && quoted {
+				if chars[index] == '"' && langruntime.CheckedAdd(index, 1) < len(chars) && chars[langruntime.CheckedAdd(index, 1)] == '"' {
+					index = langruntime.CheckedAdd(index, 2)
+				} else if chars[index] == '"' {
+					quoted = false
+				} else {
+					index = langruntime.CheckedAdd(index, 1)
+				}
+			}
 			partLength = langruntime.CheckedI32(langruntime.CheckedSignedAdd(partLength, 1))
 		} else if ch == '.' && depth == 0 {
 			if partLength == 0 {

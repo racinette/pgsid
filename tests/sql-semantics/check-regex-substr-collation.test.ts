@@ -110,13 +110,15 @@ describe('catalog regex substring collation boundary', () => {
             fixtures.push({
               name,
               row: { ...row },
-              // Past the default collation, the comparison's collation conflict is a gap in binding.
-              expected: { kind: index === 1 ? 'True' : index === 0 ? 'Unknown' : 'Unimplemented' },
+              // Under a non-C column collation the provider decides the match, and the comparison
+              // with C text then raises 42P22. The server rejects a regular expression under a
+              // nondeterministic collation outright, which the evaluator leaves to the collation.
+              expected: { kind: index === 1 ? 'True' : 'Unknown' },
             })
             fixtures.push({
               name,
               row: { ...row, recorded: input(recorded + '!') },
-              expected: { kind: index === 1 ? 'False' : index === 0 ? 'Unknown' : 'Unimplemented' },
+              expected: { kind: index === 1 ? 'False' : 'Unknown' },
             })
             fixtures.push({
               name,
@@ -125,7 +127,7 @@ describe('catalog regex substring collation boundary', () => {
                 label: input(null),
               },
               // A NULL argument makes the strict call NULL whatever the default collation is.
-              expected: { kind: index <= 1 ? 'Null' : 'Unimplemented' },
+              expected: { kind: 'Null' },
             })
           }
         }
