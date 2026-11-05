@@ -181,10 +181,10 @@ it('validates owned tsvector arrays and record fields through native INSERTs and
     const base = cases[0]!,
       missing = array([cell({ ...a, nativeBytes: -1 }), cell(z)])
     const missingExpected = { ...base.expected }
-    // A tsvector's in-memory size follows from its lexemes and positions, so ordering a value
-    // whose size was not supplied is a missing computation rather than database state.
+    // Binary input lays lexemes out in arrival order, so a value's stored size can differ from
+    // its canonical layout; ordering one whose size the caller did not supply waits on the caller.
     for (const name of ['same', 'less', 'sorted', 'located', 'projected', 'lazy'])
-      missingExpected[name] = { kind: 'Unimplemented' }
+      missingExpected[name] = { kind: 'Unknown' }
     const partial = { row: { ...base.row, items: known(missing) }, expected: missingExpected }
     cases.push(partial)
     for (const [name, expected] of Object.entries(partial.expected))

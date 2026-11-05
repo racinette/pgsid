@@ -163,7 +163,12 @@ fn tsvector_parse_text(input: TextValue, utf8: bool, stored: bool) -> TsvectorVa
 }
 
 fn tsvector_finish_input(lexemes: Vec<TsvectorLexeme>, stored: bool) -> TsvectorValue {
-    if stored { return make_tsvector_value(TsvectorPayload {lexemes:lexemes,native_bytes:-1}); };
+    // A stored constant was built from text, so it has the layout every text-built value has.
+    if stored {
+        let payload = TsvectorPayload {lexemes:lexemes,native_bytes:-1};
+        let bytes = tsvector_canonical_bytes(&payload);
+        return make_tsvector_value(TsvectorPayload {lexemes:payload.lexemes,native_bytes:bytes});
+    };
     tsvector_normalize(lexemes)
 }
 

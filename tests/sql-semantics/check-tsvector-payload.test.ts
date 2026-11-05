@@ -276,9 +276,9 @@ it('validates SQL-coerced tsvector payloads, domains and optional stored size th
       'domain_value',
       'lazy',
     ])
-      // A tsvector's in-memory size follows from its lexemes and positions, so ordering a value
-      // whose size was not supplied is a missing computation rather than database state.
-      expected[name] = { kind: 'Unimplemented' }
+      // Binary input lays lexemes out in arrival order, so a value's stored size can differ from
+      // its canonical layout; ordering one whose size the caller did not supply waits on the caller.
+      expected[name] = { kind: 'Unknown' }
     for (const name of Object.keys(definitions))
       for (const origin of ['raw', 'stored'])
         fixtures.push({ name: name + '_' + origin, row, expected: expected[name]! })
