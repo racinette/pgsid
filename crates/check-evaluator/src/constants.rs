@@ -53,3 +53,12 @@ pub fn collation_conflict_finish(state: CheckOutcome) -> CheckOutcome {
     }
     state
 }
+
+const NONDETERMINISTIC_COLLATION: u32 = 466560;
+
+pub fn nondeterministic_collation_finish(state: CheckOutcome) -> CheckOutcome {
+    if state == CheckOutcome::False {
+        return CheckOutcome::Error(make_sql_error(NONDETERMINISTIC_COLLATION));
+    }
+    state
+}

@@ -83,6 +83,7 @@ describe('text LIKE and escape collations', () => {
       const catalog = await snapshotCatalog(pg)
       const checks: Parameters<typeof prepareCheckRustGroup>[0][number][] = []
       const fixtures: { name: string; row: Row; expected: Outcome }[] = []
+      const nondeterministic: Outcome = { kind: 'Error', value: { state: parseInt('0A000', 36) } }
       for (const [index, collation] of collations.entries()) {
         const table = catalog.tables.find(
           (table) => table.name === `text_search_collation_${index}`,
@@ -99,6 +100,8 @@ describe('text LIKE and escape collations', () => {
               catalog.domains,
             )!
             const deferred = !intrinsic(fn) && (folded(fn) ? index !== 1 : index === 3)
+            // Case folding under a nondeterministic collation raises 0A000 once the arguments are known.
+            const rejected = folded(fn) && index === 3
             if (!deferred) expect(plan.expression.kind === 'uncertain', name).toBe(false)
             checks.push({
               expression: plan.expression,
@@ -126,7 +129,7 @@ describe('text LIKE and escape collations', () => {
             fixtures.push({
               name,
               row: { ...row },
-              expected: { kind: deferred ? 'Unknown' : 'True' },
+              expected: rejected ? nondeterministic : { kind: deferred ? 'Unknown' : 'True' },
             })
             fixtures.push({
               name,
@@ -136,7 +139,7 @@ describe('text LIKE and escape collations', () => {
                   fn.result === 'pg_catalog.text' ? recorded + '!' : recorded !== 'true',
                 ),
               },
-              expected: { kind: deferred ? 'Unknown' : 'False' },
+              expected: rejected ? nondeterministic : { kind: deferred ? 'Unknown' : 'False' },
             })
             fixtures.push({
               name,

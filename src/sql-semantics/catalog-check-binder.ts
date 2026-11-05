@@ -110,6 +110,7 @@ import {
   defaultCollation,
   isRegexArrayCallable,
   raisesOnCollationConflict,
+  raisesOnNondeterministicCollation,
   supportsBoundTextCallableCollation,
   isCtypeCallable,
   isTextOrderingCallable,
@@ -735,6 +736,7 @@ function storedCollation(value: unknown): BoundCollation | null | undefined {
       : {
           kind: identity['deterministic'] ? 'deterministic' : 'other',
           identity: JSON.stringify([identity['schema'], identity['name']]),
+          ...(identity['deterministic'] ? {} : { nondeterministic: true as const }),
         }
 }
 
@@ -1492,7 +1494,12 @@ const candidate = (
       !supportsBoundTextCallableCollation(signature, collation) &&
       !isRegexArrayCallable(signature) &&
       !providerCollationAssumed(signature, collation, true) &&
-      !(collation?.identity === 'conflict' && raisesOnCollationConflict(signature))
+      !(collation?.identity === 'conflict' && raisesOnCollationConflict(signature)) &&
+      !(
+        collation?.nondeterministic &&
+        collation.identity !== 'conflict' &&
+        raisesOnNondeterministicCollation(signature)
+      )
     )
       return []
     const multirangeTypes = fullArgs.flatMap((arg, index) =>
@@ -2208,14 +2215,18 @@ const callDefaultCollation = (
   collationResolved?: true
   collationAbsent?: true
   collationConflict?: true
+  collationNondeterministic?: true
 } => {
   const metadata = builtinMetadata(signature)
   // Implicit collations that disagree leave the call without one, which the server reports only
-  // once a call needs it.
+  // once a call needs it; a nondeterministic collation is rejected the same way by calls that
+  // cannot honor it.
   const conflict =
     collation?.identity === 'conflict' && !collation.explicit
       ? { collationConflict: true as const }
-      : {}
+      : collation?.nondeterministic
+        ? { collationNondeterministic: true as const }
+        : {}
   if (isCollationMetadataCallable(metadata))
     return {
       ...(collation?.default ? { collationDefault: true as const } : {}),
@@ -3008,6 +3019,9 @@ export function bindCatalogCheck(
                 : field.collationDeterministic
                   ? 'deterministic'
                   : 'other',
+              ...(field.collationIsC !== true && field.collationDeterministic === false
+                ? { nondeterministic: true as const }
+                : {}),
               identity: field.collationIsC
                 ? 'C'
                 : field.collationIsDefault
@@ -7543,6 +7557,9 @@ export function bindCatalogCheck(
                       : column.collationDeterministic === true
                         ? ('deterministic' as const)
                         : ('other' as const),
+                  ...(column.collationIsC !== true && column.collationDeterministic === false
+                    ? { nondeterministic: true as const }
+                    : {}),
                   identity:
                     column.collationIsC === true
                       ? 'C'
