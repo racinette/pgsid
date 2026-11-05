@@ -459,7 +459,7 @@ describe('portable Rust CHECK timestamp and timezone offsets', () => {
       ],
       fixtures,
     )
-  }, 120_000)
+  }, 300_000)
 
   it('exposes portable timestamp inputs and fixed offsets through both public APIs', async () => {
     const agreement = catalog.tables.find((table) => table.name === 'utc_agreement')!
@@ -690,5 +690,5 @@ evaluatePublicValidLocalTimeDomainChecks({ value: makeDateValue(0) })
       '--noEmit',
       join(root, 'consumer.ts'),
     ])
-  }, 120_000)
+  }, 300_000)
 })

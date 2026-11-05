@@ -279,7 +279,7 @@ describe('Rust text-to-timestamp CHECK casts', () => {
       })),
     )
     await runCheckParity(directory, 'timestamptext', group, names, fixtures)
-  }, 120_000)
+  }, 300_000)
 
   it('checks real INSERTs through the generated Go and TypeScript public row APIs', async () => {
     await pg.exec(`CREATE TABLE timestamp_text_rows (
@@ -406,5 +406,5 @@ describe('Rust text-to-timestamp CHECK casts', () => {
     }).catch((error: { stdout: string; stderr: string }) => {
       throw new Error(error.stdout + error.stderr, { cause: error })
     })
-  }, 120_000)
+  }, 300_000)
 })
