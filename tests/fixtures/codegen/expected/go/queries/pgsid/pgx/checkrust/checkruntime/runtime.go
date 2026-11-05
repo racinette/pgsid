@@ -9812,7 +9812,7 @@ func JsonbPartialValue(maximum int64) JsonbValue {
 func JsonbPartialShape(maximum int64, kind int, length int) JsonbValue {
 	kind = langruntime.CheckedI32(kind)
 	length = langruntime.CheckedI32(length)
-	unresolvedFlavor := 0
+	unresolvedFlavor := 1
 	if maximum < int64(0) || maximum > jsonbStorageLimit {
 		return JsonbUnresolved(unresolvedFlavor)
 	}
@@ -9825,7 +9825,7 @@ func JsonbEmptyShape() JsonbPayload {
 }
 func JsonbPartialTree(maximum int64, shape JsonbPayload) JsonbValue {
 	shape = CopyJsonbPayload(shape)
-	unresolvedFlavor := 0
+	unresolvedFlavor := 1
 	if maximum < int64(0) || maximum > jsonbStorageLimit {
 		return JsonbUnresolved(unresolvedFlavor)
 	}
@@ -24716,6 +24716,15 @@ func CollationConflictStart() CheckOutcome {
 func CollationConflictFinish(state CheckOutcome) CheckOutcome {
 	if state == (CheckOutcome{Kind: CheckOutcomeFalse}) {
 		return CheckOutcome{Kind: CheckOutcomeError, Error: MakeSqlError(collationConflict)}
+	}
+	return state
+}
+
+const nondeterministicCollation = 466560
+
+func NondeterministicCollationFinish(state CheckOutcome) CheckOutcome {
+	if state == (CheckOutcome{Kind: CheckOutcomeFalse}) {
+		return CheckOutcome{Kind: CheckOutcomeError, Error: MakeSqlError(nondeterministicCollation)}
 	}
 	return state
 }

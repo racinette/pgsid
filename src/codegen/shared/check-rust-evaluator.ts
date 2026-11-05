@@ -134,6 +134,7 @@ import {
   isRegexArrayCallable,
   isIdentifierParseCallable,
   raisesOnCollationConflict,
+  raisesOnNondeterministicCollation,
   supportsTextCallableCollation,
   isTextOrderingCallable,
   isCtypeCallable,
@@ -4048,8 +4049,8 @@ export function emitCheckRustEvaluator(
       if (folded) return folded
       if (
         call.kind !== 'cast' &&
-        call.collationConflict &&
-        raisesOnCollationConflict(call.signature)
+        ((call.collationConflict && raisesOnCollationConflict(call.signature)) ||
+          (call.collationNondeterministic && raisesOnNondeterministicCollation(call.signature)))
       ) {
         let state = bind('collation_conflict_start()')
         for (const operand of operands) {
@@ -4058,7 +4059,9 @@ export function emitCheckRustEvaluator(
           )
           state = bind(`collation_conflict_argument(${state}, ${nullness})`)
         }
-        const finished = bind(`collation_conflict_finish(${state})`)
+        const finished = bind(
+          `${call.collationConflict ? 'collation_conflict_finish' : 'nondeterministic_collation_finish'}(${state})`,
+        )
         const prefix = rustValuePrefix(rustType(call.type))
         const name = fresh('collation_conflict')
         destination.push(

@@ -10006,7 +10006,7 @@ export function jsonbPartialShape(maximum: bigint, kind: number, length: number)
     maximum = langruntime.checkedI64(maximum);
     kind = langruntime.checkedI32(kind);
     length = langruntime.checkedI32(length);
-    const unresolvedFlavor: number = 0;
+    const unresolvedFlavor: number = 1;
     if (maximum < 0n || maximum > jsonbStorageLimit) {
         return jsonbUnresolved(unresolvedFlavor);
     }
@@ -10020,7 +10020,7 @@ export function jsonbEmptyShape(): JsonbPayload {
 export function jsonbPartialTree(maximum: bigint, shape: JsonbPayload): JsonbValue {
     maximum = langruntime.checkedI64(maximum);
     shape = copyJsonbPayload(shape);
-    const unresolvedFlavor: number = 0;
+    const unresolvedFlavor: number = 1;
     if (maximum < 0n || maximum > jsonbStorageLimit) {
         return jsonbUnresolved(unresolvedFlavor);
     }
@@ -24750,6 +24750,13 @@ export function collationConflictStart(): CheckOutcome {
 export function collationConflictFinish(state: CheckOutcome): CheckOutcome {
     if (equalCheckOutcome(state, { kind: "False" })) {
         return { kind: "Error", value: makeSqlError(collationConflict) };
+    }
+    return state;
+}
+const nondeterministicCollation = 466560;
+export function nondeterministicCollationFinish(state: CheckOutcome): CheckOutcome {
+    if (equalCheckOutcome(state, { kind: "False" })) {
+        return { kind: "Error", value: makeSqlError(nondeterministicCollation) };
     }
     return state;
 }

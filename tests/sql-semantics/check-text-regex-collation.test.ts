@@ -67,6 +67,7 @@ describe('catalog regex collation boundary', () => {
       const catalog = await snapshotCatalog(pg)
       const checks: Parameters<typeof prepareCheckRustGroup>[0][number][] = []
       const fixtures: { name: string; row: Row; expected: Outcome }[] = []
+      const nondeterministic: Outcome = { kind: 'Error', value: { state: parseInt('0A000', 36) } }
       for (const [index, collation] of collations.entries()) {
         const table = catalog.tables.find((table) => table.name === `regex_collation_${index}`)!
         for (const fn of functions) {
@@ -99,12 +100,13 @@ describe('catalog regex collation boundary', () => {
             fixtures.push({
               name,
               row: { ...row },
-              expected: { kind: index === 1 ? 'True' : 'Unknown' },
+              expected: index === 3 ? nondeterministic : { kind: index === 1 ? 'True' : 'Unknown' },
             })
             fixtures.push({
               name,
               row: { ...row, recorded: input(!recorded) },
-              expected: { kind: index === 1 ? 'False' : 'Unknown' },
+              expected:
+                index === 3 ? nondeterministic : { kind: index === 1 ? 'False' : 'Unknown' },
             })
             fixtures.push({
               name,

@@ -831,6 +831,7 @@ export type SqlCallableExpression =
       collationResolved?: boolean
       collationAbsent?: boolean
       collationConflict?: boolean
+      collationNondeterministic?: boolean
       variadic?: true
       enum?: EnumDefinition
       inputEnums?: readonly EnumDefinition[]

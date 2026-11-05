@@ -278,6 +278,57 @@ const collationConflictRaising: ReadonlySet<string> = new Set([
   'function:["pg_catalog","upper"](pg_catalog.text)',
 ])
 
+// Calls the server rejects with 0A000 under a nondeterministic collation, after answering NULL on a
+// NULL argument.
+const nondeterministicRaising: ReadonlySet<string> = new Set([
+  'function:["pg_catalog","bpchariclike"](pg_catalog.bpchar,pg_catalog.text)',
+  'function:["pg_catalog","bpcharicnlike"](pg_catalog.bpchar,pg_catalog.text)',
+  'function:["pg_catalog","bpcharicregexeq"](pg_catalog.bpchar,pg_catalog.text)',
+  'function:["pg_catalog","bpcharicregexne"](pg_catalog.bpchar,pg_catalog.text)',
+  'function:["pg_catalog","bpcharregexeq"](pg_catalog.bpchar,pg_catalog.text)',
+  'function:["pg_catalog","bpcharregexne"](pg_catalog.bpchar,pg_catalog.text)',
+  'function:["pg_catalog","regexp_count"](pg_catalog.text,pg_catalog.text)',
+  'function:["pg_catalog","regexp_count"](pg_catalog.text,pg_catalog.text,pg_catalog.int4)',
+  'function:["pg_catalog","regexp_count"](pg_catalog.text,pg_catalog.text,pg_catalog.int4,pg_catalog.text)',
+  'function:["pg_catalog","regexp_instr"](pg_catalog.text,pg_catalog.text)',
+  'function:["pg_catalog","regexp_instr"](pg_catalog.text,pg_catalog.text,pg_catalog.int4)',
+  'function:["pg_catalog","regexp_instr"](pg_catalog.text,pg_catalog.text,pg_catalog.int4,pg_catalog.int4)',
+  'function:["pg_catalog","regexp_instr"](pg_catalog.text,pg_catalog.text,pg_catalog.int4,pg_catalog.int4,pg_catalog.int4)',
+  'function:["pg_catalog","regexp_instr"](pg_catalog.text,pg_catalog.text,pg_catalog.int4,pg_catalog.int4,pg_catalog.int4,pg_catalog.text)',
+  'function:["pg_catalog","regexp_instr"](pg_catalog.text,pg_catalog.text,pg_catalog.int4,pg_catalog.int4,pg_catalog.int4,pg_catalog.text,pg_catalog.int4)',
+  'function:["pg_catalog","regexp_like"](pg_catalog.text,pg_catalog.text)',
+  'function:["pg_catalog","regexp_like"](pg_catalog.text,pg_catalog.text,pg_catalog.text)',
+  'function:["pg_catalog","regexp_match"](pg_catalog.text,pg_catalog.text)',
+  'function:["pg_catalog","regexp_match"](pg_catalog.text,pg_catalog.text,pg_catalog.text)',
+  'function:["pg_catalog","regexp_replace"](pg_catalog.text,pg_catalog.text,pg_catalog.text)',
+  'function:["pg_catalog","regexp_replace"](pg_catalog.text,pg_catalog.text,pg_catalog.text,pg_catalog.int4)',
+  'function:["pg_catalog","regexp_replace"](pg_catalog.text,pg_catalog.text,pg_catalog.text,pg_catalog.int4,pg_catalog.int4)',
+  'function:["pg_catalog","regexp_replace"](pg_catalog.text,pg_catalog.text,pg_catalog.text,pg_catalog.int4,pg_catalog.int4,pg_catalog.text)',
+  'function:["pg_catalog","regexp_replace"](pg_catalog.text,pg_catalog.text,pg_catalog.text,pg_catalog.text)',
+  'function:["pg_catalog","regexp_split_to_array"](pg_catalog.text,pg_catalog.text)',
+  'function:["pg_catalog","regexp_split_to_array"](pg_catalog.text,pg_catalog.text,pg_catalog.text)',
+  'function:["pg_catalog","regexp_substr"](pg_catalog.text,pg_catalog.text)',
+  'function:["pg_catalog","regexp_substr"](pg_catalog.text,pg_catalog.text,pg_catalog.int4)',
+  'function:["pg_catalog","regexp_substr"](pg_catalog.text,pg_catalog.text,pg_catalog.int4,pg_catalog.int4)',
+  'function:["pg_catalog","regexp_substr"](pg_catalog.text,pg_catalog.text,pg_catalog.int4,pg_catalog.int4,pg_catalog.text)',
+  'function:["pg_catalog","regexp_substr"](pg_catalog.text,pg_catalog.text,pg_catalog.int4,pg_catalog.int4,pg_catalog.text,pg_catalog.int4)',
+  'function:["pg_catalog","starts_with"](pg_catalog.text,pg_catalog.text)',
+  'function:["pg_catalog","substring"](pg_catalog.text,pg_catalog.text)',
+  'function:["pg_catalog","texticlike"](pg_catalog.text,pg_catalog.text)',
+  'function:["pg_catalog","texticnlike"](pg_catalog.text,pg_catalog.text)',
+  'function:["pg_catalog","texticregexeq"](pg_catalog.text,pg_catalog.text)',
+  'function:["pg_catalog","texticregexne"](pg_catalog.text,pg_catalog.text)',
+  'function:["pg_catalog","textregexeq"](pg_catalog.text,pg_catalog.text)',
+  'function:["pg_catalog","textregexne"](pg_catalog.text,pg_catalog.text)',
+])
+
+export function raisesOnNondeterministicCollation(signature: string): boolean {
+  const metadata = builtinMetadata(signature)
+  return nondeterministicRaising.has(
+    metadata.kind === 'operator' ? metadata.implementation : signature,
+  )
+}
+
 export function raisesOnCollationConflict(signature: string): boolean {
   const metadata = builtinMetadata(signature)
   return collationConflictRaising.has(
@@ -725,6 +776,7 @@ export type BoundCollation = {
   identity: string | number
   default?: true
   explicit?: true
+  nondeterministic?: true
 }
 
 export const defaultCollation: BoundCollation = {
