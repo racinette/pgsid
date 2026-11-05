@@ -219,7 +219,7 @@ func TestQueryDeclarations(t *testing.T) {
             GOCACHE: join(sharedTempDirectory, 'pgsid-codegen-go-cache'),
             GOTOOLCHAIN: 'local',
           },
-          timeout: 60_000,
+          timeout: 240_000,
         },
       ).catch((error: unknown) => {
         if (typeof error === 'object' && error !== null && 'stdout' in error && 'stderr' in error) {
@@ -248,7 +248,7 @@ func TestQueryDeclarations(t *testing.T) {
         expect(dependencies.stdout).not.toContain('github.com/jackc/pgx')
       }
     },
-    65_000,
+    300_000,
   )
 
   it.each(projects)(

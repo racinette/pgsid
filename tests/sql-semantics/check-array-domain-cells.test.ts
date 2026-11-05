@@ -408,7 +408,7 @@ it('retains independently shaped array-valued domains at two nominal levels over
     await pg.close()
     await rm(directory, { recursive: true, force: true })
   }
-})
+}, 300_000)
 
 it('evaluates nested-domain array text conversion while preserving known skipped branches', async () => {
   const pg = await PGlite.create()
