@@ -83047,7 +83047,9 @@ function tsvectorFinishInput(lexemes: checkruntime.TsvectorLexeme[], stored: boo
     lexemes = langruntime.checkedStructs(lexemes, checkruntime.copyTsvectorLexeme);
     stored = langruntime.checkedBool(stored);
     if (stored) {
-        return checkruntime.makeTsvectorValue({ lexemes: lexemes, nativeBytes: langruntime.checkedSignedNegate(1) });
+        const payload: checkruntime.TsvectorPayload = { lexemes: lexemes, nativeBytes: langruntime.checkedSignedNegate(1) };
+        const bytes: number = checkruntime.tsvectorCanonicalBytes(payload);
+        return checkruntime.makeTsvectorValue({ lexemes: payload.lexemes, nativeBytes: bytes });
     }
     return tsvectorNormalize(lexemes);
 }
@@ -84313,9 +84315,6 @@ function tsvectorCompare(left: checkruntime.TsvectorValue, right: checkruntime.T
         const a: checkruntime.TsvectorPayload = checkruntime.copyTsvectorPayload(left.value);
         if (right.kind === "Value") {
             const b: checkruntime.TsvectorPayload = checkruntime.copyTsvectorPayload(right.value);
-            if (a.nativeBytes === langruntime.checkedSignedNegate(1) || b.nativeBytes === langruntime.checkedSignedNegate(1)) {
-                return checkruntime.int4Unresolved(unresolvedFlavor);
-            }
             if (a.nativeBytes < 0 || b.nativeBytes < 0) {
                 return checkruntime.int4Unresolved(checkruntime.resolutionContext(unresolvedFlavor));
             }

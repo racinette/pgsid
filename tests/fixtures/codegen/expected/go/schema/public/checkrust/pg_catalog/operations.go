@@ -82521,7 +82521,9 @@ func tsvectorParseText(input checkruntime.TextValue, utf8 bool, stored bool) che
 func tsvectorFinishInput(lexemes []checkruntime.TsvectorLexeme, stored bool) checkruntime.TsvectorValue {
 	lexemes = langruntime.CheckedStructs(lexemes, checkruntime.CopyTsvectorLexeme)
 	if stored {
-		return checkruntime.MakeTsvectorValue(checkruntime.TsvectorPayload{Lexemes: lexemes, NativeBytes: langruntime.CheckedSignedNegate(1)})
+		payload := checkruntime.TsvectorPayload{Lexemes: lexemes, NativeBytes: langruntime.CheckedSignedNegate(1)}
+		bytes := checkruntime.TsvectorCanonicalBytes(&payload)
+		return checkruntime.MakeTsvectorValue(checkruntime.TsvectorPayload{Lexemes: payload.Lexemes, NativeBytes: bytes})
 	}
 	return tsvectorNormalize(lexemes)
 }
@@ -83797,9 +83799,6 @@ func tsvectorCompare(left checkruntime.TsvectorValue, right checkruntime.Tsvecto
 		a := checkruntime.CopyTsvectorPayload(left.Value)
 		if right.Kind == checkruntime.TsvectorValueValue {
 			b := checkruntime.CopyTsvectorPayload(right.Value)
-			if a.NativeBytes == langruntime.CheckedSignedNegate(1) || b.NativeBytes == langruntime.CheckedSignedNegate(1) {
-				return checkruntime.Int4Unresolved(unresolvedFlavor)
-			}
 			if a.NativeBytes < 0 || b.NativeBytes < 0 {
 				return checkruntime.Int4Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
 			}

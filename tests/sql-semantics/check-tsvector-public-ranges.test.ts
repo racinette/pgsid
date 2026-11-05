@@ -310,10 +310,10 @@ it('validates public tsvector range, array, record and nested range inputs with 
       changeDocument(missing.row.v, (node) => {
         node.nativeBytes = -1
       })
-      // A tsvector's in-memory size follows from its lexemes and positions, so ordering a value
-      // whose size was not supplied is a missing computation rather than database state.
+      // Binary input lays lexemes out in arrival order, so a value's stored size can differ from
+      // its canonical layout; ordering one whose size the caller did not supply waits on the caller.
       for (const name of ['ordered', 'contained', 'located', 'projected', 'recursive'])
-        missing.expected[name] = { kind: 'Unimplemented' }
+        missing.expected[name] = { kind: 'Unknown' }
       for (const additional of [missing]) {
         cases.push(additional)
         for (const [name, expected] of Object.entries(additional.expected))
