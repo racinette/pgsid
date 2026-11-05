@@ -48,6 +48,7 @@ fn oid_alias_read(input: TextValue, dash: bool, grammar: i32, soft: bool) -> Oid
         if outcome == 2 { return OidValue::Error(make_sql_error(OID_ALIAS_INVALID_SIGNATURE)); };
         if outcome == 3 || outcome == 4 { return OidValue::Error(make_sql_error(OID_ALIAS_INVALID_TYPE)); };
         if outcome == 5 { return OidValue::Error(make_sql_error(OID_ALIAS_OPERATOR_ARGUMENTS)); };
+        if outcome == 6 { return oid_unresolved(2); };
     };
     // A name resolves through the deployment's catalog, and a three-part name through the
     // current database's name.
@@ -142,22 +143,84 @@ fn oid_alias_signature_read(text: &str, operator: bool) -> i32 {
     0
 }
 
-// Type names go through the SQL parser. Comments and literals can hold any character, so text
-// with them is left to the server; otherwise an open quote, an empty quoted name, unbalanced
-// brackets, an empty or fourth dotted part, or a leading digit or sign cannot parse. Blank text is the one syntax
-// error the lookups catch.
+// Type names go through the SQL parser, whose lexer reads a comment as whitespace (block comments
+// nest) and rejects one left open. A literal or parameter needs the full grammar, so text with
+// one is not decided here; otherwise an open quote, an empty quoted name, unbalanced brackets, an
+// empty or fourth dotted part, or a leading digit or sign cannot parse. Blank text is the one
+// syntax error the lookups catch, and only before comments are read.
 fn oid_alias_type_read(text: &str) -> i32 {
-    let chars: Vec<char> = text.chars().collect();
+    let source: Vec<char> = text.chars().collect();
+    let mut stripped = String::new();
+    let mut commented = false;
+    let mut cursor: usize = 0;
+    while cursor < source.len() {
+        let ch = source[cursor];
+        if ch == '"' {
+            stripped.push(ch);
+            cursor += 1;
+            let mut open = true;
+            while cursor < source.len() && open {
+                if source[cursor] == '"' && cursor + 1 < source.len() && source[cursor + 1] == '"' {
+                    stripped.push('"');
+                    stripped.push('"');
+                    cursor += 2;
+                } else {
+                    if source[cursor] == '"' { open = false; };
+                    stripped.push(source[cursor]);
+                    cursor += 1;
+                };
+            }
+        } else if ch == '-' && cursor + 1 < source.len() && source[cursor + 1] == '-' {
+            commented = true;
+            while cursor < source.len() && source[cursor] != '\n' && source[cursor] != '\r' {
+                cursor += 1;
+            }
+            stripped.push(' ');
+        } else if ch == '/' && cursor + 1 < source.len() && source[cursor + 1] == '*' {
+            commented = true;
+            let mut nesting: i32 = 1;
+            cursor += 2;
+            while cursor < source.len() && nesting > 0 {
+                if source[cursor] == '/' && cursor + 1 < source.len() && source[cursor + 1] == '*' {
+                    nesting = nesting + 1;
+                    cursor += 2;
+                } else if source[cursor] == '*' && cursor + 1 < source.len() && source[cursor + 1] == '/' {
+                    nesting = nesting - 1;
+                    cursor += 2;
+                } else {
+                    cursor += 1;
+                };
+            }
+            if nesting > 0 { return 3; };
+            stripped.push(' ');
+        } else {
+            if ch == '\'' { return 6; };
+            if ch == '$' {
+                // A dollar inside an identifier is part of it; elsewhere it opens a literal or a
+                // parameter.
+                let mut inside = false;
+                if cursor > 0 {
+                    let previous = source[cursor - 1] as i32;
+                    inside = (previous >= 48 && previous <= 57) || (previous >= 65 && previous <= 90) || (previous >= 97 && previous <= 122) || previous == 95 || previous == 36;
+                };
+                if inside == false { return 6; };
+            };
+            stripped.push(ch);
+            cursor += 1;
+        };
+    }
+    let chars: Vec<char> = stripped.chars().collect();
     let mut first = ' ';
     let mut index: usize = 0;
     while index < chars.len() {
         let ch = chars[index];
-        if ch == '\'' || ch == '$' { return 0; };
-        if index + 1 < chars.len() && ((ch == '-' && chars[index + 1] == '-') || (ch == '/' && chars[index + 1] == '*')) { return 0; };
         if first == ' ' && oid_input_space(ch) == false { first = ch; };
         index += 1;
     }
-    if first == ' ' { return 4; };
+    if first == ' ' {
+        if commented { return 3; };
+        return 4;
+    };
     let code = first as i32;
     if (code >= 48 && code <= 57) || first == '+' || first == '-' { return 3; };
     let mut quoted = false;
@@ -205,7 +268,154 @@ fn oid_alias_type_read(text: &str) -> i32 {
     }
     if parts > 1 && part_length == 0 { empty_part = true; };
     if quoted || empty_part || parts > 3 || depth != 0 || brackets != 0 || balanced == false { return 3; };
-    0
+    oid_alias_type_words(stripped.as_str())
+}
+
+// Two words name a type only through the grammar's multi-word spellings, which begin with one of
+// a few keywords and continue with words of their own; any other second word, except a trailing
+// array marker, is a syntax error. SETOF before a type is rejected before the type resolves, and
+// the lookups catch that error.
+fn oid_alias_type_words(text: &str) -> i32 {
+    let chars: Vec<char> = text.chars().collect();
+    let mut first_word = String::new();
+    let mut second_word = String::new();
+    let mut second_start = ' ';
+    let mut token: i32 = 0;
+    let mut depth: i32 = 0;
+    let mut quoted = false;
+    let mut first_quoted = false;
+    let mut first_dotted = false;
+    let mut first_open = false;
+    let mut first_last = ' ';
+    let mut first_end: usize = 0;
+    let mut second_broken = false;
+    let mut index: usize = 0;
+    let mut previous_space = true;
+    while index < chars.len() && token < 3 {
+        let ch = chars[index];
+        if quoted {
+            if ch == '"' { quoted = false; };
+        } else if ch == '"' {
+            quoted = true;
+        };
+        let space = oid_input_space(ch) && quoted == false && depth == 0;
+        if space == false && previous_space && depth == 0 {
+            token = token + 1;
+            if token == 2 { second_start = ch; };
+        };
+        if ch == '(' || ch == '[' { depth = depth + 1; };
+        if ch == ')' || ch == ']' { depth = depth - 1; };
+        if token == 1 {
+            if ch == '"' { first_quoted = true; };
+            if ch == '.' { first_dotted = true; };
+            if ch == '(' || ch == '[' { first_open = true; };
+            if first_open == false && space == false { first_word.push(ch.to_ascii_lowercase()); };
+            if space == false {
+                first_last = ch;
+                first_end = index + 1;
+            };
+        };
+        if token == 2 {
+            let code = ch as i32;
+            let letter = (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || code == 95;
+            if letter == false && space == false { second_broken = true; };
+            if letter && second_broken == false { second_word.push(ch.to_ascii_lowercase()); };
+        };
+        previous_space = space;
+        index += 1;
+    }
+    let setof = first_quoted == false && first_dotted == false && first_open == false && first_word == "setof";
+    if setof {
+        if token < 2 { return 3; };
+        let mut rest = String::new();
+        let mut plain = true;
+        let mut position = first_end;
+        while position < chars.len() {
+            let code = chars[position] as i32;
+            let allowed = (code >= 48 && code <= 57) || (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || code == 95 || code == 36 || code == 34 || code == 46 || code == 40 || code == 41 || code == 91 || code == 93 || code == 44 || oid_input_space(chars[position]);
+            if allowed == false { plain = false; };
+            rest.push(chars[position]);
+            position += 1;
+        }
+        if plain == false { return 6; };
+        let inner = oid_alias_type_read(rest.as_str());
+        if inner == 0 { return 4; };
+        if inner == 6 { return 6; };
+        return 3;
+    };
+    // Whitespace may surround the dot of a qualified name.
+    if token < 2 || first_last == '.' { return 0; };
+    let start = second_start as i32;
+    let identifier = (start >= 65 && start <= 90) || (start >= 97 && start <= 122) || start == 95 || second_start == '"';
+    // Only a modifier, array bounds or the rest of a qualified name continue a type otherwise.
+    if identifier == false {
+        if second_start == '(' || second_start == '[' || second_start == '.' { return 0; };
+        return 3;
+    };
+    if second_word == "array" { return 0; };
+    let keyword = first_quoted == false && first_dotted == false && (first_word == "double" || first_word == "character" || first_word == "char" || first_word == "national" || first_word == "nchar" || first_word == "bit" || first_word == "time" || first_word == "timestamp" || first_word == "interval");
+    if keyword == false { return 3; };
+    if second_word == "precision" || second_word == "varying" || second_word == "character" || second_word == "char" || second_word == "with" || second_word == "without" || second_word == "year" || second_word == "month" || second_word == "day" || second_word == "hour" || second_word == "minute" || second_word == "second" {
+        // Words of the multi-word spellings in other orders need the rest of the grammar.
+        if oid_alias_type_spelling(text) { return 0; };
+        return 6;
+    };
+    3
+}
+
+const OID_ALIAS_TYPE_SPELLINGS: &[&str] = &[
+    "double precision", "character varying", "char varying", "national character",
+    "national char", "national character varying", "national char varying", "nchar varying",
+    "bit varying", "time with time zone", "time without time zone", "timestamp with time zone",
+    "timestamp without time zone", "interval year", "interval month", "interval day",
+    "interval hour", "interval minute", "interval second", "interval year to month",
+    "interval day to hour", "interval day to minute", "interval day to second",
+    "interval hour to minute", "interval hour to second", "interval minute to second",
+];
+
+// The words outside modifiers and bounds, with a trailing array marker removed, must form one of
+// the grammar's multi-word spellings.
+fn oid_alias_type_spelling(text: &str) -> bool {
+    let chars: Vec<char> = text.chars().collect();
+    let mut words = String::new();
+    let mut word = String::new();
+    let mut depth: i32 = 0;
+    let mut index: usize = 0;
+    while index <= chars.len() {
+        let mut letter = false;
+        if index < chars.len() {
+            let code = chars[index] as i32;
+            letter = depth == 0 && ((code >= 65 && code <= 90) || (code >= 97 && code <= 122));
+            if chars[index] == '(' || chars[index] == '[' { depth = depth + 1; };
+            if chars[index] == ')' || chars[index] == ']' { depth = depth - 1; };
+        };
+        if letter {
+            word.push(chars[index].to_ascii_lowercase());
+        } else if word != "" {
+            if words != "" { words.push(' '); };
+            words.push_str(word.as_str());
+            word = String::new();
+        };
+        index += 1;
+    }
+    let mut spelled = words.clone();
+    let all: Vec<char> = words.chars().collect();
+    let count = all.len();
+    if count > 6 && all[count - 6] == ' ' && all[count - 5] == 'a' && all[count - 4] == 'r' && all[count - 3] == 'r' && all[count - 2] == 'a' && all[count - 1] == 'y' {
+        let mut trimmed = String::new();
+        let mut position: usize = 0;
+        while position + 6 < count {
+            trimmed.push(all[position]);
+            position += 1;
+        }
+        spelled = trimmed;
+    };
+    let mut entry: usize = 0;
+    while entry < OID_ALIAS_TYPE_SPELLINGS.len() {
+        if OID_ALIAS_TYPE_SPELLINGS[entry] == spelled.as_str() { return true; };
+        entry += 1;
+    }
+    false
 }
 
 pub fn oid_alias_to_text(input: OidValue, dash: bool) -> TextValue {
