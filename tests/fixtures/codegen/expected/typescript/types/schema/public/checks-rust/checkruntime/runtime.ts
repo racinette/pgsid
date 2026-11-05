@@ -22322,7 +22322,7 @@ function parseTemporalFields(value: TextValue, withTimezone: boolean, dateOnly: 
     if (value.kind === "Value") {
         const input: string = langruntime.checkedString(value.value);
         const chars: string[] = Array.from(input);
-        if (chars.length > 128) {
+        if (chars.length > 152) {
             return int8Unresolved(unresolvedFlavor);
         }
         if (temporalSpecialWordConflict(input, dateOrder)) {
@@ -22378,7 +22378,20 @@ function parseTemporalFields(value: TextValue, withTimezone: boolean, dateOnly: 
                         }
                         eraAfter = langruntime.checkedAdd(eraAfter, 1);
                     }
-                    if ((eraDigitBefore === false && eraTrailing === false) || eras > 0) {
+                    if (eras > 0) {
+                        let prefix: string = "";
+                        let position: number = 0;
+                        while (position < eraIndex) {
+                            prefix = prefix + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(position)));
+                            position = langruntime.checkedAdd(position, 1);
+                        }
+                        const before: Int8Value = parseTemporalText({ kind: "Value", value: prefix }, false, false, dateOrder);
+                        if (before.kind === "Value") {
+                            return { kind: "Error", value: { state: invalidTimestampText } };
+                        }
+                        return int8Unresolved(unresolvedFlavor);
+                    }
+                    if (eraDigitBefore === false && eraTrailing === false) {
                         return int8Unresolved(unresolvedFlavor);
                     }
                     const eraPrevious: string = langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(eraIndex, 1)));
@@ -22845,22 +22858,21 @@ function parseTemporalFields(value: TextValue, withTimezone: boolean, dateOnly: 
             const sign: string = langruntime.indexChar(text.chars, langruntime.checkedIndex(index));
             const zoneHour: TimestampNumber = readTimestampNumber(text, langruntime.checkedAdd(index, 1), end);
             index = langruntime.checkedIndex(zoneHour.next);
-            if (zoneHour.digits < 1 || zoneHour.digits > 4) {
+            if (zoneHour.digits < 1) {
                 return int8Unresolved(unresolvedFlavor);
             }
             let hours1: number = zoneHour.value;
             let minutes: number = 0;
             let seconds: number = 0;
+            let zoneOverflow: boolean = zoneHour.overflow;
             if (index < end && langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === ":") {
-                if (zoneHour.digits > 2) {
-                    return int8Unresolved(unresolvedFlavor);
-                }
                 const zoneMinute: TimestampNumber = readTimestampNumber(text, langruntime.checkedAdd(index, 1), end);
                 index = langruntime.checkedIndex(zoneMinute.next);
                 if (zoneMinute.digits < 1) {
                     return int8Unresolved(unresolvedFlavor);
                 }
                 minutes = langruntime.checkedI32(zoneMinute.value);
+                zoneOverflow = langruntime.checkedBool(zoneOverflow || zoneMinute.overflow);
                 if (index < end && langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === ":") {
                     const zoneSecond: TimestampNumber = readTimestampNumber(text, langruntime.checkedAdd(index, 1), end);
                     index = langruntime.checkedIndex(zoneSecond.next);
@@ -22868,13 +22880,14 @@ function parseTemporalFields(value: TextValue, withTimezone: boolean, dateOnly: 
                         return int8Unresolved(unresolvedFlavor);
                     }
                     seconds = langruntime.checkedI32(zoneSecond.value);
+                    zoneOverflow = langruntime.checkedBool(zoneOverflow || zoneSecond.overflow);
                 }
             }
-            else if (zoneHour.digits > 2) {
+            else if (zoneHour.digits > 2 && zoneOverflow === false) {
                 hours1 = langruntime.checkedI32(langruntime.checkedSignedDivide(zoneHour.value, 100));
                 minutes = langruntime.checkedI32(langruntime.checkedSignedRemainder(zoneHour.value, 100));
             }
-            if (hours1 > 15 || minutes > 59 || seconds > 59) {
+            if (zoneOverflow || hours1 > 15 || minutes > 59 || seconds > 59) {
                 offset = langruntime.checkedI32(57600);
             }
             else {

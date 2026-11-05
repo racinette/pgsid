@@ -22313,7 +22313,7 @@ func parseTemporalFields(value TextValue, withTimezone bool, dateOnly bool, date
 	if value.Kind == TextValueValue {
 		input := langruntime.CheckedString(value.Value)
 		chars := []rune(input)
-		if len(chars) > 128 {
+		if len(chars) > 152 {
 			return Int8Unresolved(unresolvedFlavor)
 		}
 		if temporalSpecialWordConflict(input, dateOrder) {
@@ -22369,7 +22369,20 @@ func parseTemporalFields(value TextValue, withTimezone bool, dateOnly bool, date
 						}
 						eraAfter = langruntime.CheckedAdd(eraAfter, 1)
 					}
-					if (eraDigitBefore == false && eraTrailing == false) || eras > 0 {
+					if eras > 0 {
+						prefix := langruntime.NewTextBuffer("")
+						position := 0
+						for position < eraIndex {
+							prefix = append(prefix, string(langruntime.CheckedChar(chars[position]))...)
+							position = langruntime.CheckedAdd(position, 1)
+						}
+						before := parseTemporalText(TextValue{Kind: TextValueValue, Value: string(prefix)}, false, false, dateOrder)
+						if before.Kind == Int8ValueValue {
+							return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampText}}
+						}
+						return Int8Unresolved(unresolvedFlavor)
+					}
+					if eraDigitBefore == false && eraTrailing == false {
 						return Int8Unresolved(unresolvedFlavor)
 					}
 					eraPrevious := chars[langruntime.CheckedSubtract(eraIndex, 1)]
@@ -22819,22 +22832,21 @@ func parseTemporalFields(value TextValue, withTimezone bool, dateOnly bool, date
 			sign := text.chars[index]
 			zoneHour := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
 			index = langruntime.CheckedIndex(zoneHour.next)
-			if zoneHour.digits < 1 || zoneHour.digits > 4 {
+			if zoneHour.digits < 1 {
 				return Int8Unresolved(unresolvedFlavor)
 			}
 			hours := zoneHour.value
 			minutes := 0
 			seconds := 0
+			zoneOverflow := zoneHour.overflow
 			if index < end && text.chars[index] == ':' {
-				if zoneHour.digits > 2 {
-					return Int8Unresolved(unresolvedFlavor)
-				}
 				zoneMinute := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
 				index = langruntime.CheckedIndex(zoneMinute.next)
 				if zoneMinute.digits < 1 {
 					return Int8Unresolved(unresolvedFlavor)
 				}
 				minutes = langruntime.CheckedI32(zoneMinute.value)
+				zoneOverflow = zoneOverflow || zoneMinute.overflow
 				if index < end && text.chars[index] == ':' {
 					zoneSecond := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
 					index = langruntime.CheckedIndex(zoneSecond.next)
@@ -22842,12 +22854,13 @@ func parseTemporalFields(value TextValue, withTimezone bool, dateOnly bool, date
 						return Int8Unresolved(unresolvedFlavor)
 					}
 					seconds = langruntime.CheckedI32(zoneSecond.value)
+					zoneOverflow = zoneOverflow || zoneSecond.overflow
 				}
-			} else if zoneHour.digits > 2 {
+			} else if zoneHour.digits > 2 && zoneOverflow == false {
 				hours = langruntime.CheckedI32(langruntime.CheckedSignedDivide(zoneHour.value, 100))
 				minutes = langruntime.CheckedI32(langruntime.CheckedSignedRemainder(zoneHour.value, 100))
 			}
-			if hours > 15 || minutes > 59 || seconds > 59 {
+			if zoneOverflow || hours > 15 || minutes > 59 || seconds > 59 {
 				offset = langruntime.CheckedI32(57600)
 			} else {
 				offset = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply((langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(hours, 60), minutes)), 60), seconds))

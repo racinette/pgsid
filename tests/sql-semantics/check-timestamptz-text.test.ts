@@ -193,7 +193,6 @@ describe('Rust text-to-timestamptz CHECK casts', () => {
       'not a timestamp',
       '2000-01-01 junk',
       'λ',
-      '2'.repeat(129) + '-01-01',
       '2000-01-01T00:00:00ZBC',
       '2000-01-01T00:00:00ZAD',
       'infinitybc',
