@@ -803,7 +803,12 @@ describe('CHECK measurement boundaries', () => {
     })
     for (const type of ['pg_catalog.date', 'pg_catalog."timestamp"', 'pg_catalog.timestamptz']) {
       const forms = report.inputForms.types.find((entry) => entry.type === type)!
-      expect(forms).toMatchObject({ runtimeRequired: ['today', 'tomorrow', 'yesterday', 'now'] })
+      expect('runtimeRequired' in forms && forms.runtimeRequired.slice(0, 4)).toEqual([
+        'today',
+        'tomorrow',
+        'yesterday',
+        'now',
+      ])
       expect('unimplementedGrammar' in forms && forms.unimplementedGrammar.length).toBeGreaterThan(
         0,
       )

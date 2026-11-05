@@ -614,6 +614,17 @@ fn temporal_zone_field(text: &str, date_order: i32) -> TemporalZoneSplit {
     if let TimestamptzValue::Error(_) = own {
         unread = true;
     };
+    // A month or day the calendar rejects is reported only after the zone field.
+    if own == TimestamptzValue::Error(make_sql_error(TEMPORAL_CAST_RANGE)) {
+        let valid = temporal_valid_date_spelling(rest.as_str());
+        if valid != "" {
+            let checked = timestamptz_from_text_order(TextValue::Value(valid), date_order);
+            if let TimestamptzValue::Value(_) = checked {
+                zoned = true;
+                unread = false;
+            };
+        };
+    };
     // A word outside the core table right before the zone field is either a zone, which the field
     // then repeats, or a word the server rejects; both are 22007 once the fields before it read.
     let mut end = begin;
@@ -637,10 +648,18 @@ fn temporal_zone_field(text: &str, date_order: i32) -> TemporalZoneSplit {
             position += 1;
         }
         if temporal_core_token(word.as_str()) == false {
+            let valid = temporal_valid_date_spelling(before.as_str());
             let local = timestamp_from_text_order(TextValue::Value(before), date_order);
             if let TimestampValue::Value(_) = local {
                 zoned = true;
                 unread = false;
+            };
+            if local == TimestampValue::Error(make_sql_error(TEMPORAL_CAST_RANGE)) && valid != "" {
+                let checked = timestamp_from_text_order(TextValue::Value(valid), date_order);
+                if let TimestampValue::Value(_) = checked {
+                    zoned = true;
+                    unread = false;
+                };
             };
         };
     };

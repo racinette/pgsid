@@ -782,7 +782,6 @@ const numericTailLocalText = [
 export const numericTailUnknownText = [
   '2000 . 060',
   '2000 - 060',
-  '2000 01 12:',
   '0 01 12:00',
   '2000 /01/01',
   '2000-01-01 +05 01',
@@ -903,6 +902,20 @@ const fieldShapeErrorText = [
   'today epoch',
   'now now',
   'infinity -infinity',
+  '12:00 now',
+  '12:00 epoch',
+  '12:00 infinity',
+  '12:00 -infinity',
+  '12:00. now',
+  '12:00 now 5',
+  // A month or day the calendar rejects is reported only after every field reads.
+  '2000-02-30 today',
+  '2000-13-01 today',
+  '2000-13-01 BC today',
+  '2000-02-30 12:00 now',
+  '2000-00-01 today',
+  '2000-01-32 epoch',
+  '0000-01-01 today',
 ]
 const gluedWordText = ['2000-01-01am', '2000-01-01bc']
 // A repeated era repeats a field, which is rejected where it stands once the fields before it read.
@@ -937,6 +950,42 @@ const fieldEndPunctuationText = [
   '2000-01:01',
   '2000-01-01 12:00/+05',
   '2000-01-01 12_00',
+  '2000-060_',
+  '2000-060:',
+  '2000/060_',
+  '2000-060_12:00',
+  '1999-365_ 12:00',
+  '2000.060_',
+]
+// The time decoder reads each clock part as one integer, so an empty part is zero, and two parts
+// before a dot are minutes and seconds.
+const clockFieldText = [
+  '2000-01-01 12:00:',
+  '2000-01-01 12:00.',
+  '2000-01-01 12:00:00.',
+  '2000-01-01 12:',
+  '2000-01-01 12:.5',
+  '2000-01-01 12:30.25',
+  '2000-01-01 59:59.9999995',
+  '2000-01-01 60:00.',
+  '2000-01-01 12:60.',
+  '2000-01-01 12:00:.5',
+  '2000-01-01 00:60.5',
+  '2000-01-01 123:00.',
+  '2000-01-01 12::30.5',
+  '2000-01-01 12:00:60.',
+  '2000-01-01 12:00. BC',
+  '2000-01-01 12:30. pm',
+  '2000-01-01 012:000:00.5',
+  '2000 01 12:',
+  // A third colon, a second dot or a colon after the dot is rejected once earlier fields read.
+  '2000-01-01 12:00:00:',
+  '2000-01-01 12:00::',
+  '2000-01-01 12:00:00.5.',
+  '2000-01-01 12:00:00:00 BC',
+  '2000-01-01 12:00.:',
+  'J2451545 1:2:3:4',
+  '2000-01-01 25:00 12:00:00:00',
 ]
 // Fields fit the timestamp buffer past 128 characters, and an offset reads each part as one
 // integer, so leading zeros never matter and an out-of-range part is a displacement error.
@@ -987,6 +1036,8 @@ const zoneFieldText = [
   '2000-01-01 00:00 qqq xx99zz',
   '2000-01-01 xx99zz',
   '2000-01-01 BC-05',
+  '2000-13-01 00:00 UTC e2',
+  '2000-02-30 00:00+05 e2',
 ]
 // The lexer copies fields into a fixed buffer and allows 25 fields; whitespace is never copied.
 const fieldBufferText = [
@@ -1014,6 +1065,7 @@ export const dateHandledText = [
   ...gluedWordText,
   ...repeatedEraText,
   ...fieldEndPunctuationText,
+  ...clockFieldText,
   ...longFieldText,
   ...offsetDigitText,
   ...compactDateText,
@@ -1104,7 +1156,17 @@ export const dateHandledText = [
   'julian',
 ]
 
-export const dateDeferredText = ['today', 'tomorrow', 'yesterday', 'now', '01-02-03', '01/02/2000']
+// A clock alone and a trailing day word take the date from the transaction.
+const clockDayText = ['12:00 today', '12:00 tomorrow', '12:00:30.5 yesterday', '12: today']
+export const dateDeferredText = [
+  'today',
+  'tomorrow',
+  'yesterday',
+  'now',
+  ...clockDayText,
+  '01-02-03',
+  '01/02/2000',
+]
 
 export const timestampHandledText = [
   ...zoneFieldText,
@@ -1117,6 +1179,7 @@ export const timestampHandledText = [
   ...gluedWordText,
   ...repeatedEraText,
   ...fieldEndPunctuationText,
+  ...clockFieldText,
   ...longFieldText,
   ...offsetDigitText,
   ...compactDateText,
@@ -1254,6 +1317,7 @@ export const timestampDeferredText = [
   'tomorrow',
   'yesterday',
   'now',
+  ...clockDayText,
   '2000-01-01 00:00:00 UTC',
   '01/02/2000 00:00:00+00',
 ]
@@ -1407,7 +1471,7 @@ export const timestamptzDeferredText = [
   '2000 060 12:00',
 ]
 
-const runtimeDateText = new Set(['today', 'tomorrow', 'yesterday', 'now'])
+const runtimeDateText = new Set(['today', 'tomorrow', 'yesterday', 'now', ...clockDayText])
 
 export const temporalInputForms = [
   {
