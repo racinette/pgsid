@@ -286,6 +286,8 @@ fn jsonpath_execution_make_task(
     }
 }
 
+const JSONPATH_PRINTED_SYNTAX: u32 = 6819553;
+
 fn jsonpath_print_operator(kind: i32) -> bool {
     (kind >= JSONPATH_NODE_PLUS && kind <= JSONPATH_NODE_STARTS) || kind == JSONPATH_NODE_REGEX
 }
@@ -394,6 +396,14 @@ fn jsonpath_execution_stored(input: JsonpathValue) -> JsonpathValue {
     if let JsonpathValue::Unknown = input { unresolved_flavor = 1; };
     if let JsonpathValue::Unimplemented = input { unresolved_flavor = 2; };
     if let JsonpathValue::StoredText(text) = input {
+        // Printed text the server's own grammar rejects lost its grouping in printing, so only
+        // the catalog's stored form decides the path.
+        let checked = jsonpath_from_text(TextValue::Value(text.clone()), true, true);
+        if let JsonpathValue::Error(error) = checked {
+            if error.state == JSONPATH_PRINTED_SYNTAX {
+                return jsonpath_unresolved(resolution_context(unresolved_flavor));
+            };
+        };
         let parsed = jsonpath_from_coerced_source_utf8(TextValue::Value(text));
         if let JsonpathValue::Unknown = parsed { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
         if let JsonpathValue::Unimplemented = parsed { unresolved_flavor = 2; };
@@ -435,11 +445,6 @@ fn jsonpath_execution_stored(input: JsonpathValue) -> JsonpathValue {
                 return jsonpath_unresolved(resolution_context(unresolved_flavor));
             };
             return JsonpathValue::Value(path);
-        };
-        // Printed text that does not read back lost its grouping, so again only the catalog's
-        // stored form decides the path.
-        if let JsonpathValue::Error(_) = parsed {
-            return jsonpath_unresolved(resolution_context(unresolved_flavor));
         };
         return jsonpath_unresolved(unresolved_flavor);
     };
