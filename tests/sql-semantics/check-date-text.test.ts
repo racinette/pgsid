@@ -339,6 +339,21 @@ describe('Rust text-to-date CHECK casts', () => {
       ['2000-01-01 25:00', false, '22008', { certain: true, error: '22008' }],
       ['2000-13-01 00:00+16', false, '22009', { certain: true, error: '22009' }],
       ['today', false, null, { certain: false }],
+      // Shapes the temporal field rules decide, against real INSERTs.
+      ['2000-01-01 e2', false, null, { certain: true, value: true }],
+      ['2000-01-01 00:00+05 America/New_York', false, '22007', { certain: true, error: '22007' }],
+      ['BC 20000102', false, '23514', { certain: true, value: false }],
+      ['2000-', false, '22007', { certain: true, error: '22007' }],
+      ['2000-01-01 today', false, '22007', { certain: true, error: '22007' }],
+      ['2000-01-01_', false, null, { certain: true, value: true }],
+      ['2000-01-02 12:00.5', false, null, { certain: true, value: true }],
+      ['12:00 2000-01-01', false, '22007', { certain: true, error: '22007' }],
+      ['+05 2000-01-02', false, null, { certain: true, value: true }],
+      ['2000-02-30 today', false, '22007', { certain: true, error: '22007' }],
+      ['2000-01-01.', true, null, { certain: true, value: true }],
+      ['12:00 today', false, null, { certain: false }],
+      ['2000-01-01 12:00:00:00', false, '22007', { certain: true, error: '22007' }],
+      ['Feb 30 2000 today', false, '22007', { certain: true, error: '22007' }],
     ] as const) {
       await pg.exec('BEGIN')
       try {

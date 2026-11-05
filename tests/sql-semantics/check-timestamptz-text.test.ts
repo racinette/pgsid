@@ -337,6 +337,12 @@ describe('Rust text-to-timestamptz CHECK casts', () => {
       ['2000-01-02+05', false, null, { certain: true, value: true }],
       ['1999-12-31+05', false, '23514', { certain: true, value: false }],
       ['2000-01-01 00:00:00 America/New_York', false, null, { certain: false }],
+      // Shapes the temporal field rules decide, against real INSERTs.
+      ['2000-01-01 00:00:00+00005', false, '23514', { certain: true, value: false }],
+      ['+05 2000-01-01 06:00', false, null, { certain: true, value: true }],
+      ['BC 20000102 00:00+00', false, '23514', { certain: true, value: false }],
+      ['2000-01-01 12:00 now', false, '22007', { certain: true, error: '22007' }],
+      ['2000-01-01 00:00:00 -0015:59:59', false, null, { certain: true, value: true }],
     ] as const) {
       await pg.exec('BEGIN')
       try {
