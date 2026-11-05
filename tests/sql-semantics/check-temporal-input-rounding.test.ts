@@ -172,8 +172,16 @@ describe('temporal epoch and fractional input rounding', () => {
         add(
           'parse',
           { raw: input(raw), anchor: input(null), skip: input(false) },
-          // A leading sign is a parser gap, while the words are looked up in the session.
-          { kind: raw === '+epoch' ? 'Unimplemented' : 'Unknown' },
+          // A leading sign is a parser gap, while the words are looked up in the session; a
+          // timestamp checks a zone name and ignores it, so its value is never NULL.
+          {
+            kind:
+              raw === '+epoch'
+                ? 'Unimplemented'
+                : type === 'timestamp' && raw.endsWith('America/New_York')
+                  ? 'False'
+                  : 'Unknown',
+          },
         )
       for (const fixture of fixtures)
         for (const name of ['raw', 'anchor', 'skip']) fixture.row[name] ??= { kind: 'Unknown' }
