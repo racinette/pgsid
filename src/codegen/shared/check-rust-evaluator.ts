@@ -9680,11 +9680,16 @@ export function emitCheckRustEvaluator(
       const subject = emitScalar(node.subject, bindings, used)
       const finish = node.operation === 'or' ? 'or_finish' : 'and_finish'
       const stop = node.operation === 'or' ? 'or_stops' : 'and_stops'
-      const emitGroup = (group: readonly EvalExpression[], lines: string[]): string => {
+      const emitGroup = (
+        group: readonly EvalExpression[],
+        lines: string[],
+        groupIndex: number,
+      ): string => {
         const members = group.map((member) => emitScalar(member, lines, used))
+        const call = node.groupComparisons?.[groupIndex] ?? node.comparison
         let result: string | null = null
         for (const member of members) {
-          const comparison = emitCall(node.comparison, [subject, member], lines)
+          const comparison = emitCall(call, [subject, member], lines)
           const outcome = fresh('membership_comparison')
           lines.push(`let ${outcome} = check_from_bool(${comparison.name});`)
           if (result === null) result = outcome
@@ -9696,12 +9701,12 @@ export function emitCheckRustEvaluator(
         }
         return result!
       }
-      const first = emitGroup(node.groups[0]!, bindings)
+      const first = emitGroup(node.groups[0]!, bindings, 0)
       if (node.groups.length === 1)
         return { name: bind(`bool_from_check(${first})`), type: node.type }
       const name = fresh('membership_result')
       bindings.push(`let mut ${name}: CheckOutcome = ${first};`)
-      for (const group of node.groups.slice(1)) {
+      for (const [offset, group] of node.groups.slice(1).entries()) {
         const lines: string[] = []
         const outer: string | null = arrayValidityScope
         const validity = outer && preparationDepth === 0 ? fresh('array_member_validity') : null
@@ -9715,7 +9720,7 @@ export function emitCheckRustEvaluator(
         }
         let selected: string
         try {
-          selected = emitGroup(group, lines)
+          selected = emitGroup(group, lines, offset + 1)
         } finally {
           arrayValidityScope = outer
         }

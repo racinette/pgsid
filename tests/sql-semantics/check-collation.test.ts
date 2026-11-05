@@ -146,6 +146,7 @@ describe('CHECK text collation', () => {
     'conflict',
     'c_conflict',
     'scalar_conflict',
+    'membership_conflict',
   ])
   it.each(Object.entries(unsupported))('defers %s', (name, sql) => {
     const expression = bind(sql)

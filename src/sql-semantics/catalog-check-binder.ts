@@ -7862,9 +7862,6 @@ export function bindCatalogCheck(
       const collation = type.startsWith('array:')
         ? arrayCollations([subject, ...members].map((member) => member.collation))
         : combineCollations([subject, ...members].map((member) => member.collation))
-      // The server compares each column member, and the constants together, under their own
-      // collations and stops at the first match, so one combined conflict does not describe it.
-      if (collation?.identity === 'conflict') return unbound()
       const resolved = members.map((member) =>
         candidate('operator', name!, [
           { ...subject, type, value, literal: undefined, collation },
@@ -7894,6 +7891,29 @@ export function bindCatalogCheck(
               ),
             ]
           : resolved.map((member) => [member!.operands[1]!])
+      // The server compares each column member, and the constants together, under their own
+      // collations in that order and stops at the first match, so a combined conflict may never
+      // be reached.
+      const groupMembers =
+        constants.length > 1
+          ? [
+              members.filter((_, index) => !withColumns[index]),
+              ...members.flatMap((member, index) => (withColumns[index] ? [[member]] : [])),
+            ]
+          : members.map((member) => [member])
+      const groupComparisons =
+        collation?.identity === 'conflict' && !collation.explicit
+          ? groupMembers.map((group) => {
+              const own = combineCollations([subject, ...group].map((member) => member.collation))
+              return {
+                kind: 'operator' as const,
+                signature: first.signature,
+                type: 'pg_catalog.bool' as const,
+                collation: own?.kind,
+                ...callDefaultCollation(first.signature, own),
+              }
+            })
+          : undefined
       return {
         type: 'pg_catalog.bool',
         value: {
@@ -7901,6 +7921,7 @@ export function bindCatalogCheck(
           type: 'pg_catalog.bool',
           subject: first.operands[0]!,
           groups,
+          ...(groupComparisons ? { groupComparisons } : {}),
           operation,
           comparison: {
             kind: 'operator',
