@@ -286,6 +286,109 @@ fn jsonpath_execution_make_task(
     }
 }
 
+fn jsonpath_print_operator(kind: i32) -> bool {
+    (kind >= JSONPATH_NODE_PLUS && kind <= JSONPATH_NODE_STARTS) || kind == JSONPATH_NODE_REGEX
+}
+
+// Whether steps written after an operator printed without brackets would read back as belonging
+// to its rightmost piece: an operand that carries steps itself, or a bracketed group that does.
+// A number prints its own brackets when steps follow it, so it never takes another's steps.
+fn jsonpath_stored_trailing_steps(path: &JsonpathPayload, index: usize) -> bool {
+    let mut current = index;
+    let mut found = false;
+    let mut searching = true;
+    while searching {
+        let node = path.nodes[current];
+        let mut operand: usize = 0;
+        if node.kind == JSONPATH_NODE_PLUS || node.kind == JSONPATH_NODE_MINUS {
+            operand = node.left;
+        } else if node.kind != JSONPATH_NODE_REGEX {
+            operand = node.right;
+        };
+        if operand == 0 {
+            searching = false;
+        } else {
+            let child = path.nodes[operand];
+            if jsonpath_print_operator(child.kind)
+                && jsonpath_print_priority(child.kind) > jsonpath_print_priority(node.kind)
+            {
+                current = operand;
+            } else {
+                found = child.next > 0 && child.kind != JSONPATH_NODE_NUMBER;
+                searching = false;
+            };
+        };
+    }
+    found
+}
+
+// Stored paths arrive as the server's printed text, which drops the brackets of an operator
+// nested where its parent's priority is lower, so `(@ + @).abs() > 2` and `@ + @.abs() > 2` print
+// alike. A path is read only when no other path prints to the same text; predicates that the
+// printer never brackets cannot carry steps in text it can read back.
+fn jsonpath_stored_ambiguous(path: &JsonpathPayload, index: usize, brackets: bool) -> bool {
+    if index == 0 {
+        return false;
+    };
+    let node = path.nodes[index];
+    if jsonpath_print_operator(node.kind) {
+        // A predicate takes steps only inside brackets, so only arithmetic can lose its own.
+        let arithmetic = node.kind >= JSONPATH_NODE_PLUS && node.kind <= JSONPATH_NODE_MOD;
+        if brackets == false
+            && arithmetic
+            && (node.next > 0 || jsonpath_stored_trailing_steps(path, index))
+        {
+            return true;
+        };
+        let priority = jsonpath_print_priority(node.kind);
+        if node.left > 0
+            && jsonpath_stored_ambiguous(
+                path,
+                node.left,
+                jsonpath_print_priority(path.nodes[node.left].kind) <= priority,
+            )
+        {
+            return true;
+        };
+        if node.kind != JSONPATH_NODE_REGEX
+            && node.right > 0
+            && jsonpath_stored_ambiguous(
+                path,
+                node.right,
+                jsonpath_print_priority(path.nodes[node.right].kind) <= priority,
+            )
+        {
+            return true;
+        };
+    } else if node.kind == JSONPATH_NODE_EXISTS
+        || node.kind == JSONPATH_NODE_NOT
+        || node.kind == JSONPATH_NODE_IS_UNKNOWN
+    {
+        if node.next > 0 || jsonpath_stored_ambiguous(path, node.left, false) {
+            return true;
+        };
+    } else if node.kind == JSONPATH_NODE_FILTER {
+        if jsonpath_stored_ambiguous(path, node.left, false) {
+            return true;
+        };
+    } else if node.kind == JSONPATH_NODE_INDEX {
+        let mut subscript = node.left;
+        while subscript > 0 {
+            let item = path.nodes[subscript];
+            if jsonpath_stored_ambiguous(path, item.left, false)
+                || jsonpath_stored_ambiguous(path, item.right, false)
+            {
+                return true;
+            };
+            subscript = item.next;
+        }
+    };
+    if node.kind != JSONPATH_NODE_SUBSCRIPT && node.next > 0 {
+        return jsonpath_stored_ambiguous(path, node.next, true);
+    };
+    false
+}
+
 fn jsonpath_execution_stored(input: JsonpathValue) -> JsonpathValue {
     let mut unresolved_flavor: i32 = 0;
     if let JsonpathValue::Unknown = input { unresolved_flavor = 1; };
@@ -325,19 +428,11 @@ fn jsonpath_execution_stored(input: JsonpathValue) -> JsonpathValue {
                 {
                     return jsonpath_unresolved(unresolved_flavor);
                 };
-                if jsonpath_predicate_kind(node.kind) && node.next > 0 {
-                    return jsonpath_unresolved(unresolved_flavor);
-                };
-                if node.kind >= JSONPATH_NODE_PLUS && node.kind <= JSONPATH_NODE_MOD {
-                    if node.next > 0 || path.nodes[node.left].next > 0 {
-                        return jsonpath_unresolved(unresolved_flavor);
-                    };
-                    if node.right > 0 && path.nodes[node.right].next > 0 {
-                        return jsonpath_unresolved(unresolved_flavor);
-                    };
-                };
                 index += 1;
             }
+            if jsonpath_stored_ambiguous(&path, path.root, true) {
+                return jsonpath_unresolved(unresolved_flavor);
+            };
             return JsonpathValue::Value(path);
         };
         return jsonpath_unresolved(unresolved_flavor);
