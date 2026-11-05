@@ -8044,6 +8044,67 @@ export function bindCatalogCheck(
               call['func_variadic'] === true,
             ) ?? unbound())
           : unbound()
+      // An untyped constant reaches the call without a collation, so the server reports none
+      // whatever its value; any other argument resolves through the overloads below.
+      const untyped = Array.isArray(args0) && args0.length === 1 ? fields(args0[0]) : undefined
+      const untypedCast = fields(untyped?.['TypeCast']),
+        untypedCastNames = strings(fields(untypedCast?.['typeName'])?.['names'])
+      const untypedConstant =
+        fields(untyped?.['A_Const']) ??
+        (untypedCastNames?.at(-1) === 'unknown' &&
+        (untypedCastNames.length === 1 ||
+          (untypedCastNames.length === 2 && untypedCastNames[0] === 'pg_catalog'))
+          ? fields(fields(untypedCast!['arg'])?.['A_Const'])
+          : undefined)
+      if (
+        (!selected ||
+          (selected.kind === 'function' &&
+            selected.names.at(-1) === 'pg_collation_for' &&
+            (selected.names.length === 1 || selected.names[0] === 'pg_catalog'))) &&
+        names &&
+        names.at(-1) === 'pg_collation_for' &&
+        (names.length === 1 || (names.length === 2 && names[0] === 'pg_catalog')) &&
+        untypedConstant &&
+        (untypedConstant['isnull'] === true || fields(untypedConstant['sval'])) &&
+        !call['func_variadic'] &&
+        !call['agg_order'] &&
+        !call['agg_filter'] &&
+        !call['agg_star'] &&
+        !call['agg_distinct'] &&
+        !call['over'] &&
+        !call['agg_within_group']
+      ) {
+        const signature = callables.find(
+          ({ item }) => item.schema === 'pg_catalog' && isCollationMetadataCallable(item),
+        )!.signature
+        const operand = materialize(
+          untypedConstant['isnull'] === true
+            ? { type: null, value: null, literal: { kind: 'null', value: null } }
+            : {
+                type: null,
+                value: null,
+                literal: {
+                  kind: 'string',
+                  value: String(fields(untypedConstant['sval'])!['sval'] ?? ''),
+                },
+              },
+          'pg_catalog.text',
+        )
+        if (operand)
+          return {
+            type: 'pg_catalog.text',
+            value: {
+              kind: 'call',
+              call: {
+                kind: 'function',
+                signature,
+                type: 'pg_catalog.text',
+                collationAbsent: true,
+              },
+              operands: [operand],
+            },
+          }
+      }
       let boundArgs: readonly Bound[] | undefined
       if (selected?.kind === 'cast' && Array.isArray(args0) && args0.length === 1) {
         if (
