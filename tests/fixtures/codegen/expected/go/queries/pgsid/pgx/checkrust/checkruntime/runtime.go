@@ -21703,7 +21703,41 @@ func temporalSpecialWord(word string) bool {
 	word = langruntime.CheckedString(word)
 	return word == "now" || word == "today" || word == "tomorrow" || word == "yesterday" || word == "epoch" || word == "infinity" || word == "-infinity"
 }
-func temporalSpecialWordConflict(input string, dateOrder int) bool {
+func TemporalValidDateSpelling(text string) string {
+	text = langruntime.CheckedString(text)
+	chars := []rune(text)
+	start := 0
+	for start < len(chars) && dateTextSpace(chars[start]) {
+		start = langruntime.CheckedAdd(start, 1)
+	}
+	output := langruntime.NewTextBuffer("")
+	if langruntime.CheckedAdd(start, 10) > len(chars) {
+		return string(output)
+	}
+	position := 0
+	for position < 10 {
+		character := chars[langruntime.CheckedAdd(start, position)]
+		separator := position == 4 || position == 7
+		if separator && character != '-' {
+			return string(output)
+		}
+		if separator == false && dateTextDigit(character) < 0 {
+			return string(output)
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	if langruntime.CheckedAdd(start, 10) < len(chars) && dateTextSpace(chars[langruntime.CheckedAdd(start, 10)]) == false {
+		return string(output)
+	}
+	output = append(output, "2000-01-01"...)
+	rest := langruntime.CheckedAdd(start, 10)
+	for rest < len(chars) {
+		output = append(output, string(langruntime.CheckedChar(chars[rest]))...)
+		rest = langruntime.CheckedAdd(rest, 1)
+	}
+	return string(output)
+}
+func temporalSpecialWordConflict(input string, dateOrder int) int {
 	input = langruntime.CheckedString(input)
 	dateOrder = langruntime.CheckedI32(dateOrder)
 	chars := []rune(input)
@@ -21715,6 +21749,8 @@ func temporalSpecialWordConflict(input string, dateOrder int) bool {
 	specialEnd := 0
 	specialFirst := false
 	specialSign := false
+	specialWord := langruntime.NewTextBuffer("")
+	specialFields := 0
 	for index < len(chars) && found == false {
 		if dateTextSpace(chars[index]) {
 			index = langruntime.CheckedAdd(index, 1)
@@ -21731,13 +21767,15 @@ func temporalSpecialWordConflict(input string, dateOrder int) bool {
 				specialEnd = langruntime.CheckedIndex(index)
 				specialFirst = fields == 0
 				specialSign = previousSign
+				specialWord = langruntime.NewTextBuffer(langruntime.CheckedString(string(word)))
+				specialFields = langruntime.CheckedI32(fields)
 			}
 			previousSign = string(word) == "+" || string(word) == "-"
 			fields = langruntime.CheckedI32(langruntime.CheckedSignedAdd(fields, 1))
 		}
 	}
 	if found == false || specialSign {
-		return false
+		return 0
 	}
 	if specialFirst {
 		next := specialEnd
@@ -21749,7 +21787,10 @@ func temporalSpecialWordConflict(input string, dateOrder int) bool {
 			word = append(word, string(langruntime.CheckedChar(langruntime.AsciiLowercase(chars[next])))...)
 			next = langruntime.CheckedAdd(next, 1)
 		}
-		return temporalSpecialWord(string(word))
+		if temporalSpecialWord(string(word)) {
+			return 1
+		}
+		return 0
 	}
 	prefix := langruntime.NewTextBuffer("")
 	position := 0
@@ -21757,11 +21798,64 @@ func temporalSpecialWordConflict(input string, dateOrder int) bool {
 		prefix = append(prefix, string(langruntime.CheckedChar(chars[position]))...)
 		position = langruntime.CheckedAdd(position, 1)
 	}
-	before := parseTemporalText(TextValue{Kind: TextValueValue, Value: string(prefix)}, false, false, dateOrder)
+	before := parseTemporalText(TextValue{Kind: TextValueValue, Value: langruntime.CheckedString(string(prefix))}, false, false, dateOrder)
 	if before.Kind == Int8ValueValue {
-		return true
+		return 1
 	}
-	return false
+	if before == (Int8Value{Kind: Int8ValueError, Error: SqlError{State: temporalFieldOverflow}}) {
+		valid := TemporalValidDateSpelling(string(prefix))
+		if valid != "" {
+			checked := parseTemporalText(TextValue{Kind: TextValueValue, Value: valid}, false, false, dateOrder)
+			if checked.Kind == Int8ValueValue {
+				return 1
+			}
+		}
+	}
+	if specialFields != 1 {
+		return 0
+	}
+	loneClock := false
+	colon := false
+	digitFirst := false
+	seen := false
+	scan := 0
+	for scan < specialStart {
+		character := chars[scan]
+		if dateTextSpace(character) == false {
+			if seen == false {
+				digitFirst = dateTextDigit(character) >= 0
+				seen = true
+				loneClock = true
+			}
+			if character == ':' {
+				colon = true
+			} else if character != '.' && dateTextDigit(character) < 0 {
+				loneClock = false
+			}
+		}
+		scan = langruntime.CheckedAdd(scan, 1)
+	}
+	if loneClock == false || colon == false || digitFirst == false {
+		return 0
+	}
+	dated := langruntime.NewTextBuffer("")
+	dated = append(dated, "2000-01-01 "...)
+	dated = append(dated, string(prefix)...)
+	reading := parseTemporalText(TextValue{Kind: TextValueValue, Value: string(dated)}, false, false, dateOrder)
+	if reading.Kind == Int8ValueValue {
+		if string(specialWord) == "today" || string(specialWord) == "tomorrow" || string(specialWord) == "yesterday" {
+			rest := specialEnd
+			for rest < len(chars) && dateTextSpace(chars[rest]) {
+				rest = langruntime.CheckedAdd(rest, 1)
+			}
+			if rest == len(chars) {
+				return 2
+			}
+			return 0
+		}
+		return 1
+	}
+	return 0
 }
 func temporalLoneDateField(text string) int {
 	text = langruntime.CheckedString(text)
@@ -21809,6 +21903,140 @@ func temporalLoneDateField(text string) int {
 		return 1
 	}
 	return 2
+}
+func temporalClockSpelling(text string) string {
+	text = langruntime.CheckedString(text)
+	chars := []rune(text)
+	output := langruntime.NewTextBuffer("")
+	index := 0
+	for index < len(chars) {
+		if dateTextSpace(chars[index]) {
+			output = append(output, string(langruntime.CheckedChar(chars[index]))...)
+			index = langruntime.CheckedAdd(index, 1)
+		} else {
+			start := index
+			clock := dateTextDigit(chars[index]) >= 0
+			colons := 0
+			for index < len(chars) && dateTextSpace(chars[index]) == false {
+				character := chars[index]
+				if character == ':' {
+					colons = langruntime.CheckedIndex(langruntime.CheckedAdd(colons, 1))
+				} else if character != '.' && dateTextDigit(character) < 0 {
+					clock = false
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			end := index
+			rewritten := langruntime.NewTextBuffer("")
+			done := false
+			if clock && colons >= 1 && colons <= 2 {
+				hour := langruntime.NewTextBuffer("")
+				minute := langruntime.NewTextBuffer("")
+				second := langruntime.NewTextBuffer("")
+				fraction := langruntime.NewTextBuffer("")
+				dotted := false
+				part := 0
+				valid := true
+				cursor := start
+				for cursor < end {
+					character := chars[cursor]
+					if character == ':' {
+						if dotted {
+							valid = false
+						}
+						part = langruntime.CheckedIndex(langruntime.CheckedAdd(part, 1))
+					} else if character == '.' {
+						if dotted || part == 0 {
+							valid = false
+						}
+						dotted = true
+					} else if dotted {
+						fraction = append(fraction, string(langruntime.CheckedChar(character))...)
+					} else if part == 0 {
+						hour = append(hour, string(langruntime.CheckedChar(character))...)
+					} else if part == 1 {
+						minute = append(minute, string(langruntime.CheckedChar(character))...)
+					} else {
+						second = append(second, string(langruntime.CheckedChar(character))...)
+					}
+					cursor = langruntime.CheckedAdd(cursor, 1)
+				}
+				if valid {
+					if string(minute) == "" {
+						minute = append(minute, "00"...)
+					}
+					if string(second) == "" {
+						second = append(second, "00"...)
+					}
+					if dotted && part == 1 {
+						rewritten = append(rewritten, "00:"...)
+						rewritten = append(rewritten, string(hour)...)
+						rewritten = append(rewritten, string(langruntime.CheckedChar(':'))...)
+						rewritten = append(rewritten, string(minute)...)
+					} else {
+						rewritten = append(rewritten, string(hour)...)
+						rewritten = append(rewritten, string(langruntime.CheckedChar(':'))...)
+						rewritten = append(rewritten, string(minute)...)
+						rewritten = append(rewritten, string(langruntime.CheckedChar(':'))...)
+						rewritten = append(rewritten, string(second)...)
+					}
+					if string(fraction) != "" {
+						rewritten = append(rewritten, string(langruntime.CheckedChar('.'))...)
+						rewritten = append(rewritten, string(fraction)...)
+					}
+					done = true
+				}
+			}
+			if done {
+				output = append(output, string(rewritten)...)
+			} else {
+				copy := start
+				for copy < end {
+					output = append(output, string(langruntime.CheckedChar(chars[copy]))...)
+					copy = langruntime.CheckedAdd(copy, 1)
+				}
+			}
+		}
+	}
+	return string(output)
+}
+func temporalBadClockStart(text string) int64 {
+	text = langruntime.CheckedString(text)
+	chars := []rune(text)
+	index := 0
+	for index < len(chars) {
+		if dateTextSpace(chars[index]) {
+			index = langruntime.CheckedAdd(index, 1)
+		} else {
+			start := index
+			clock := dateTextDigit(chars[index]) >= 0
+			colons := 0
+			dots := 0
+			colonAfterDot := false
+			dotFirst := false
+			for index < len(chars) && dateTextSpace(chars[index]) == false {
+				character := chars[index]
+				if character == ':' {
+					colons = langruntime.CheckedIndex(langruntime.CheckedAdd(colons, 1))
+					if dots > 0 {
+						colonAfterDot = true
+					}
+				} else if character == '.' {
+					if colons == 0 {
+						dotFirst = true
+					}
+					dots = langruntime.CheckedIndex(langruntime.CheckedAdd(dots, 1))
+				} else if dateTextDigit(character) < 0 {
+					clock = false
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			if clock && dotFirst == false && colons >= 1 && (colons > 2 || dots > 1 || colonAfterDot) {
+				return int64(langruntime.CheckedI32((int(int32(start)))))
+			}
+		}
+	}
+	return int64(-1)
 }
 func temporalRelativeWord(input string) bool {
 	input = langruntime.CheckedString(input)
@@ -22254,6 +22482,23 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool, dateOr
 		if buffer == 0 {
 			compact = langruntime.NewTextBuffer(temporalCollapsedSpace(text))
 		}
+		badClock := temporalBadClockStart(string(compact))
+		if badClock > int64(0) {
+			narrow := int(int32(badClock))
+			cut := langruntime.IndexFromI32(narrow, 0)
+			compactChars := []rune(string(compact))
+			prefix := langruntime.NewTextBuffer("")
+			position := 0
+			for position < cut {
+				prefix = append(prefix, string(langruntime.CheckedChar(compactChars[position]))...)
+				position = langruntime.CheckedAdd(position, 1)
+			}
+			before := parseTemporalText(TextValue{Kind: TextValueValue, Value: string(prefix)}, false, false, dateOrder)
+			if before.Kind == Int8ValueValue {
+				return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampText}}
+			}
+		}
+		compact = langruntime.NewTextBuffer(temporalClockSpelling(string(compact)))
 		lone := temporalLoneDateField(string(compact))
 		if lone == 1 {
 			return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampText}}
@@ -22316,8 +22561,12 @@ func parseTemporalFields(value TextValue, withTimezone bool, dateOnly bool, date
 		if len(chars) > 152 {
 			return Int8Unresolved(unresolvedFlavor)
 		}
-		if temporalSpecialWordConflict(input, dateOrder) {
+		special := temporalSpecialWordConflict(input, dateOrder)
+		if special == 1 {
 			return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampText}}
+		}
+		if special == 2 {
+			return Int8Unresolved(ResolutionContext(unresolvedFlavor))
 		}
 		if temporalRelativeWord(input) {
 			return Int8Unresolved(ResolutionContext(unresolvedFlavor))
@@ -22379,7 +22628,15 @@ func parseTemporalFields(value TextValue, withTimezone bool, dateOnly bool, date
 						if dot {
 							kinds = langruntime.CheckedIndex(langruntime.CheckedAdd(kinds, 1))
 						}
-						shaped = kinds == 0 || (kinds == 1 && dateSeparators == 2)
+						leading := true
+						before := 0
+						for before < tokenStart {
+							if dateTextSpace(scanned[before]) == false {
+								leading = false
+							}
+							before = langruntime.CheckedAdd(before, 1)
+						}
+						shaped = kinds == 0 || (kinds == 1 && dateSeparators == 2) || (kinds == 1 && dateSeparators == 1 && leading)
 					}
 					if plain && shaped {
 						digitsOnly := colon == false && dash == false && dot == false && slash == false
