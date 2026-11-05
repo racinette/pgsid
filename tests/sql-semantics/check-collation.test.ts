@@ -50,6 +50,10 @@ const supported = {
   c_default: 'note = plain',
   override_order: 'plain < (\'z\' COLLATE pg_catalog."C")',
   override_membership: "ci IN ('A' COLLATE pg_catalog.\"C\", 'a')",
+  // A deterministic collation compares a prefix byte for byte.
+  prefix: "starts_with(plain, 'a')",
+  literal_prefix: "starts_with('abc', 'a')",
+  custom_prefix: "starts_with(det, 'e')",
 }
 const unsupported = {
   nondeterministic: "ci = 'a'",
@@ -65,8 +69,7 @@ const unsupported = {
   explicit_conflict: 'plain COLLATE pg_catalog."C" = (\'a\' COLLATE public.insensitive)',
   foreign_c: 'plain COLLATE public."C" = \'a\'',
   custom_ordering: "det > 'a'",
-  prefix: "starts_with(plain, 'a')",
-  literal_prefix: "starts_with('abc', 'a')",
+  nondeterministic_prefix: "starts_with(ci, 'a')",
 }
 
 describe('CHECK text collation', () => {
@@ -147,6 +150,7 @@ describe('CHECK text collation', () => {
     'c_conflict',
     'scalar_conflict',
     'membership_conflict',
+    'nondeterministic_prefix',
   ])
   it.each(Object.entries(unsupported))('defers %s', (name, sql) => {
     const expression = bind(sql)

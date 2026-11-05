@@ -879,6 +879,13 @@ export type CheckExecutionContext = {
   clientEncoding?: 'UTF8'
 }
 
+const similarSubstringSignature =
+  'function:["pg_catalog","substring"](pg_catalog.text,pg_catalog.text,pg_catalog.text)'
+const regexSubstringSignature =
+  'function:["pg_catalog","substring"](pg_catalog.text,pg_catalog.text)'
+const similarEscapeSignature =
+  'function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text)'
+
 export function emitCheckRustEvaluator(
   expression: EvalBoolExpression,
   identity?: CheckConstraintIdentity,
@@ -2074,6 +2081,35 @@ export function emitCheckRustEvaluator(
     bindings: string[],
     used: Set<string>,
   ): { name: string; type: string } => {
+    // A CHECK runs this SQL-bodied call as its inlined body, so the escape translation can raise
+    // before the regex call's collation and strictness apply.
+    if (
+      node.kind === 'call' &&
+      node.call.kind === 'function' &&
+      node.call.signature === similarSubstringSignature &&
+      node.operands.length === 3
+    )
+      return emitScalarWithValidity(
+        {
+          kind: 'call',
+          call: { ...node.call, signature: regexSubstringSignature },
+          operands: [
+            node.operands[0]!,
+            {
+              kind: 'call',
+              call: {
+                kind: 'function',
+                signature: similarEscapeSignature,
+                type: 'pg_catalog.text',
+                collation: 'C',
+              },
+              operands: [node.operands[1]!, node.operands[2]!],
+            },
+          ],
+        },
+        bindings,
+        used,
+      )
     if (
       valueLiteralDepth === 0 &&
       (node.kind === 'interval-literal' ||

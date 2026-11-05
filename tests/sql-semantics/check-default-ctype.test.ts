@@ -34,6 +34,12 @@ const profiles = [
   { name: 'regexp_replace', sql: `regexp_replace(a,b,'x') = a` },
   { name: 'bpchar_ilike', sql: 'a::bpchar ILIKE b' },
   { name: 'name_regex', sql: 'a::name ~ b' },
+  { name: 'similar_substring', sql: `substring(a, b, '#') = a` },
+  // The escape is translated before the regex runs, so it fails on every row a NULL pattern does
+  // not skip.
+  { name: 'similar_bad_escape', sql: `substring(a, b, '##') = a`, escapeFails: true },
+  { name: 'starts_with', sql: 'starts_with(a, b)', ctypeFree: true },
+  { name: 'prefix_operator', sql: 'a ^@ b', ctypeFree: true },
   { name: 'explicit_c', sql: 'lower(a COLLATE "C") = b', explicit: true },
 ] as const
 // PGlite orders by C but classifies by C.UTF-8, so only ASCII rows can witness a declared C ctype.
@@ -153,6 +159,8 @@ it('decides default-collation casing and regex only under a declared C ctype in 
         } catch (cause) {
           code = (cause as { code: string }).code
         }
+        // A SELECT folds a NULL subject before the escape is translated; a CHECK reads a column.
+        if ('escapeFails' in p && code !== undefined && code !== '23514') native = failure(code)
         expect(code, `${p.name} ${a} ${b}`).toBe(
           native.kind === 'False' ? '23514' : native.kind === 'Error' ? code : undefined,
         )
@@ -162,7 +170,12 @@ it('decides default-collation casing and regex only under a declared C ctype in 
           // Case mapping cannot raise, so a NULL beside its deferred result still decides a strict
           // comparison.
           const decided =
-            a === null || b === null || 'explicit' in p || context.defaultCtype === 'C'
+            a === null ||
+            b === null ||
+            'explicit' in p ||
+            'ctypeFree' in p ||
+            'escapeFails' in p ||
+            context.defaultCtype === 'C'
           add(
             name,
             a === null ? nil : value(a),
