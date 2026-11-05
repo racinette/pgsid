@@ -87962,6 +87962,11 @@ function xmlTreeWriteNode(tree: XmlTree, node: number): string {
     }
     return output;
 }
+function xmlRenderedDeclaration(text: string): boolean {
+    text = langruntime.checkedString(text);
+    const chars: string[] = Array.from(text);
+    return chars.length > 5 && langruntime.indexChar(chars, langruntime.checkedIndex(0)) === "<" && langruntime.indexChar(chars, langruntime.checkedIndex(1)) === "?" && langruntime.indexChar(chars, langruntime.checkedIndex(2)) === "x" && langruntime.indexChar(chars, langruntime.checkedIndex(3)) === "m" && langruntime.indexChar(chars, langruntime.checkedIndex(4)) === "l" && (langruntime.indexChar(chars, langruntime.checkedIndex(5)) === " " || langruntime.indexChar(chars, langruntime.checkedIndex(5)) === "\t" || langruntime.indexChar(chars, langruntime.checkedIndex(5)) === "\r" || langruntime.indexChar(chars, langruntime.checkedIndex(5)) === "\n");
+}
 export function xmlIndentUtf8(input: checkruntime.XmlValue, document: boolean, utf8: boolean): checkruntime.TextValue {
     document = langruntime.checkedBool(document);
     utf8 = langruntime.checkedBool(utf8);
@@ -88003,6 +88008,9 @@ export function xmlIndentUtf8(input: checkruntime.XmlValue, document: boolean, u
         const value: string = langruntime.checkedString(input.value);
         if (document && xmlTextEncodingAvailable(value, utf8) && xmlWellFormed(value, true) === false) {
             return { kind: "Error", value: checkruntime.makeSqlError(sqlstateNotXmlDocument) };
+        }
+        if (document === false || xmlRenderedDeclaration(value)) {
+            return xmlIndentUtf8({ kind: "Value", value: value }, document, utf8);
         }
         return checkruntime.textUnresolved(unresolvedFlavor);
     }
