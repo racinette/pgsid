@@ -14908,6 +14908,212 @@ export function timestampOutputContext(input: checkruntime.TimestampValue, style
     style = langruntime.checkedI32(style);
     return timestampOutputProfile(input, style, false);
 }
+export function btequalimageYluj(input: checkruntime.OidValue): checkruntime.BoolValue {
+    let unresolvedFlavor: number = 0;
+    if (input.kind === "Unknown") {
+        unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalOidValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    return checkruntime.boolUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
+}
+export function btvarstrequalimageCfwd(input: checkruntime.OidValue): checkruntime.BoolValue {
+    let unresolvedFlavor: number = 0;
+    if (input.kind === "Unknown") {
+        unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalOidValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    return checkruntime.boolUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
+}
+export function pgWalfileNameEi2i(input: checkruntime.PgLsnValue): checkruntime.TextValue {
+    let unresolvedFlavor: number = 0;
+    if (input.kind === "Unknown") {
+        unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    return checkruntime.textUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
+}
+export function pgIndexamProgressPhasenameGf1h(method: checkruntime.OidValue, phase: checkruntime.Int8Value): checkruntime.TextValue {
+    let unresolvedFlavor: number = 0;
+    if (method.kind === "Unknown") {
+        unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (phase.kind === "Unknown") {
+        unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (method.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (phase.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (method.kind === "Error") {
+        const error: checkruntime.SqlError = method.value;
+        return { kind: "Error", value: error };
+    }
+    if (phase.kind === "Error") {
+        const error: checkruntime.SqlError = phase.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalOidValue(method, { kind: "Null" }) || checkruntime.equalInt8Value(phase, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    return checkruntime.textUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
+}
+export function pgPartitionRootSfoe(input: checkruntime.OidValue): checkruntime.OidValue {
+    let unresolvedFlavor: number = 0;
+    if (input.kind === "Unknown") {
+        unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalOidValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    return checkruntime.oidUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
+}
+export function postgresqlFdwValidatorG0wo(options: checkruntime.ArrayValue, catalog: checkruntime.OidValue): checkruntime.BoolValue {
+    options = checkruntime.copyArrayValue(options);
+    let unresolvedFlavor: number = 0;
+    if (options.kind === "Unknown") {
+        unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (catalog.kind === "Unknown") {
+        unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (options.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (catalog.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (options.kind === "Error") {
+        const error: checkruntime.SqlError = options.value;
+        return { kind: "Error", value: error };
+    }
+    if (catalog.kind === "Error") {
+        const error: checkruntime.SqlError = catalog.value;
+        return { kind: "Error", value: error };
+    }
+    if (options.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (checkruntime.equalOidValue(catalog, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    return checkruntime.boolUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
+}
+export function nameconcatoidMlo8(name: checkruntime.TextValue, oid: checkruntime.OidValue, limit: number, utf8: boolean): checkruntime.TextValue {
+    limit = langruntime.checkedI32(limit);
+    utf8 = langruntime.checkedBool(utf8);
+    let unresolvedFlavor: number = 0;
+    if (name.kind === "Unknown") {
+        unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (name.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
+    if (oid.kind === "Unknown") {
+        unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (name.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (oid.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (name.kind === "Error") {
+        const error: checkruntime.SqlError = name.value;
+        return { kind: "Error", value: error };
+    }
+    if (oid.kind === "Error") {
+        const error: checkruntime.SqlError = oid.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(name, { kind: "Null" }) || checkruntime.equalOidValue(oid, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (name.kind === "Value") {
+        const text: string = langruntime.checkedString(name.value);
+        if (oid.kind === "Value") {
+            const number: bigint = langruntime.checkedI64(oid.value);
+            let digits: string = "";
+            let remaining: bigint = number;
+            if (remaining === 0n) {
+                digits = digits + langruntime.checkedChar("0");
+            }
+            let reversed: string[] = [];
+            while (remaining > 0n) {
+                const code: number = langruntime.checkedSignedAdd((Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Remainder(remaining, 10n)))))), 48);
+                langruntime.pushChar(reversed, langruntime.characterFromI32(code, "0"));
+                remaining = langruntime.checkedI64(langruntime.checkedI64Divide(remaining, 10n));
+            }
+            let index: number = reversed.length;
+            while (index > 0) {
+                index = langruntime.checkedIndex(langruntime.checkedSubtract(index, 1));
+                digits = digits + langruntime.checkedChar(langruntime.indexChar(reversed, langruntime.checkedIndex(index)));
+            }
+            let digitCount: number = langruntime.checkedI32(langruntime.checkedIndex(reversed.length));
+            if (number === 0n) {
+                digitCount = langruntime.checkedI32(1);
+            }
+            if (limit < 0) {
+                return checkruntime.textUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
+            }
+            let budget: number = langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(limit, digitCount), 1);
+            if (budget < 0) {
+                budget = langruntime.checkedI32(0);
+            }
+            const clipped: checkruntime.TextValue = nameFromTextContext({ kind: "Value", value: text }, budget, utf8);
+            if (clipped.kind === "Value") {
+                const prefix: string = langruntime.checkedString(clipped.value);
+                let output: string = prefix;
+                output = output + langruntime.checkedChar("_");
+                output = output + digits;
+                return { kind: "Value", value: output };
+            }
+            if (clipped.kind === "Error") {
+                const error: checkruntime.SqlError = clipped.value;
+                return { kind: "Error", value: error };
+            }
+            return checkruntime.textUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
+        }
+    }
+    return checkruntime.textUnresolved(unresolvedFlavor);
+}
 const vectorDatatypeMismatch = 6822148;
 function catalogVectorStatus(value: checkruntime.ArrayPayload, oid: boolean): checkruntime.BoolValue {
     oid = langruntime.checkedBool(oid);

@@ -14903,6 +14903,212 @@ func TimestampOutputContext(input checkruntime.TimestampValue, style int) checkr
 	style = langruntime.CheckedI32(style)
 	return timestampOutputProfile(input, style, false)
 }
+func BtequalimageYluj(input checkruntime.OidValue) checkruntime.BoolValue {
+	unresolvedFlavor := 0
+	if input.Kind == checkruntime.OidValueUnknown {
+		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.OidValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if input.Kind == checkruntime.OidValueError {
+		error := input.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if input == (checkruntime.OidValue{Kind: checkruntime.OidValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	return checkruntime.BoolUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
+}
+func BtvarstrequalimageCfwd(input checkruntime.OidValue) checkruntime.BoolValue {
+	unresolvedFlavor := 0
+	if input.Kind == checkruntime.OidValueUnknown {
+		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.OidValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if input.Kind == checkruntime.OidValueError {
+		error := input.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if input == (checkruntime.OidValue{Kind: checkruntime.OidValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	return checkruntime.BoolUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
+}
+func PgWalfileNameEi2i(input checkruntime.PgLsnValue) checkruntime.TextValue {
+	unresolvedFlavor := 0
+	if input.Kind == checkruntime.PgLsnValueUnknown {
+		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.PgLsnValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if input.Kind == checkruntime.PgLsnValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.PgLsnValueNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	return checkruntime.TextUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
+}
+func PgIndexamProgressPhasenameGf1h(method checkruntime.OidValue, phase checkruntime.Int8Value) checkruntime.TextValue {
+	unresolvedFlavor := 0
+	if method.Kind == checkruntime.OidValueUnknown {
+		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if phase.Kind == checkruntime.Int8ValueUnknown {
+		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if method.Kind == checkruntime.OidValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if phase.Kind == checkruntime.Int8ValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if method.Kind == checkruntime.OidValueError {
+		error := method.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if phase.Kind == checkruntime.Int8ValueError {
+		error := phase.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if method == (checkruntime.OidValue{Kind: checkruntime.OidValueNull}) || phase == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	return checkruntime.TextUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
+}
+func PgPartitionRootSfoe(input checkruntime.OidValue) checkruntime.OidValue {
+	unresolvedFlavor := 0
+	if input.Kind == checkruntime.OidValueUnknown {
+		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.OidValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if input.Kind == checkruntime.OidValueError {
+		error := input.Error
+		return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: error}
+	}
+	if input == (checkruntime.OidValue{Kind: checkruntime.OidValueNull}) {
+		return checkruntime.OidValue{Kind: checkruntime.OidValueNull}
+	}
+	return checkruntime.OidUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
+}
+func PostgresqlFdwValidatorG0wo(options checkruntime.ArrayValue, catalog checkruntime.OidValue) checkruntime.BoolValue {
+	options = checkruntime.CopyArrayValue(options)
+	unresolvedFlavor := 0
+	if options.Kind == checkruntime.ArrayValueUnknown {
+		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if catalog.Kind == checkruntime.OidValueUnknown {
+		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if options.Kind == checkruntime.ArrayValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if catalog.Kind == checkruntime.OidValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if options.Kind == checkruntime.ArrayValueError {
+		error := options.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if catalog.Kind == checkruntime.OidValueError {
+		error := catalog.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if options.Kind == checkruntime.ArrayValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if catalog == (checkruntime.OidValue{Kind: checkruntime.OidValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	return checkruntime.BoolUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
+}
+func NameconcatoidMlo8(name checkruntime.TextValue, oid checkruntime.OidValue, limit int, utf8 bool) checkruntime.TextValue {
+	limit = langruntime.CheckedI32(limit)
+	unresolvedFlavor := 0
+	if name.Kind == checkruntime.TextValueUnknown {
+		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if name.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
+	if oid.Kind == checkruntime.OidValueUnknown {
+		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if name.Kind == checkruntime.TextValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if oid.Kind == checkruntime.OidValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if name.Kind == checkruntime.TextValueError {
+		error := name.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if oid.Kind == checkruntime.OidValueError {
+		error := oid.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if name == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || oid == (checkruntime.OidValue{Kind: checkruntime.OidValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if name.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(name.Value)
+		if oid.Kind == checkruntime.OidValueValue {
+			number := oid.Value
+			digits := langruntime.NewTextBuffer("")
+			remaining := number
+			if remaining == int64(0) {
+				digits = append(digits, string(langruntime.CheckedChar('0'))...)
+			}
+			reversed := []rune{}
+			for remaining > int64(0) {
+				code := langruntime.CheckedSignedAdd((int(int32((langruntime.CheckedI64Remainder(remaining, int64(10)))))), 48)
+				langruntime.CheckedAdd(len(reversed), 1)
+				reversed = append(reversed, langruntime.CheckedChar(langruntime.CharacterFromI32(code, '0')))
+				remaining = langruntime.CheckedI64Divide(remaining, int64(10))
+			}
+			index := len(reversed)
+			for index > 0 {
+				index = langruntime.CheckedIndex(langruntime.CheckedSubtract(index, 1))
+				digits = append(digits, string(langruntime.CheckedChar(reversed[index]))...)
+			}
+			digitCount := int(int32(len(reversed)))
+			if number == int64(0) {
+				digitCount = langruntime.CheckedI32(1)
+			}
+			if limit < 0 {
+				return checkruntime.TextUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
+			}
+			budget := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(limit, digitCount), 1)
+			if budget < 0 {
+				budget = langruntime.CheckedI32(0)
+			}
+			clipped := NameFromTextContext(checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: text}, budget, utf8)
+			if clipped.Kind == checkruntime.TextValueValue {
+				prefix := langruntime.CheckedString(clipped.Value)
+				output := langruntime.NewTextBuffer(prefix)
+				output = append(output, string(langruntime.CheckedChar('_'))...)
+				output = append(output, string(digits)...)
+				return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+			}
+			if clipped.Kind == checkruntime.TextValueError {
+				error := clipped.Error
+				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+			}
+			return checkruntime.TextUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
+		}
+	}
+	return checkruntime.TextUnresolved(unresolvedFlavor)
+}
 
 const vectorDatatypeMismatch = 6822148
 

@@ -6476,6 +6476,16 @@ export function emitCheckRustEvaluator(
       }
       if (isMoneyNumericConversion(implementation))
         arguments_.push(String(moneyContextFractionDigits(executionContext)))
+      // The suffix must fit the server's identifier limit, clipped in the server's encoding.
+      if (
+        implementation.kind === 'function' &&
+        implementation.schema === 'pg_catalog' &&
+        implementation.name === 'nameconcatoid'
+      )
+        arguments_.push(
+          String(executionContext.maxIdentifierBytes ?? -1),
+          String(executionContext.serverEncoding === 'UTF8'),
+        )
       if (isTemporalDatePart(implementation))
         arguments_.push(
           String(executionContext.maxIdentifierBytes ?? -1),
