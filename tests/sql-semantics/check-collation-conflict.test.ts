@@ -23,6 +23,11 @@ const expressions: Record<string, string> = {
   joined: "label || recorded = 'ab'",
   matched: 'regexp_substr(label, pattern) = recorded',
   chosen: "(CASE WHEN label = 'a' THEN label ELSE recorded END) = 'a'",
+  // An IN list compares the constants together, then each column member, each under its own
+  // collation, and stops at the first match.
+  membership: "label IN ('a', recorded)",
+  grouped: "label IN ('a', 'b', recorded)",
+  excluded: "label NOT IN ('a', recorded)",
 }
 const values = ['a', 'b', 'é😊 a', '']
 

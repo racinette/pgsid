@@ -131,6 +131,8 @@ export type EvalExpression =
       subject: EvalExpression
       groups: readonly (readonly EvalExpression[])[]
       comparison: SqlCallableExpression
+      // One per group when the groups compare under different collations.
+      groupComparisons?: readonly SqlCallableExpression[]
       operation: 'and' | 'or'
     }
   | {
@@ -546,11 +548,12 @@ export function emitEvalExpression<Ast>(
       emit(node.subject),
       (subject) => {
         const result = combine(
-          node.groups.map((group) => {
+          node.groups.map((group, groupIndex) => {
             const operands = group.map(emit)
             const names = group.map(() => `membership_member_${nextBinding++}`)
+            const comparison = node.groupComparisons?.[groupIndex] ?? node.comparison
             const comparisons = (members: readonly EmittedEvalExpression<Ast>[]) =>
-              combine(members.map((member) => emitCall(node.comparison, [subject, member])))
+              combine(members.map((member) => emitCall(comparison, [subject, member])))
             const bindMembers = (
               index: number,
               members: readonly EmittedEvalExpression<Ast>[],
