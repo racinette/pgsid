@@ -189,8 +189,22 @@ export const deferredIntervalContextForms = [
   '-1 year 2 mons',
   '-1 02:03',
 ] as const
-export const unimplementedIntervalGrammarForms = ['P0x1p2Y', 'PT0x1p2S'] as const
+export const unimplementedIntervalGrammarForms = [] as const
 intervalInputForms.push(
+  // Fields go through strtod, which reads C99 hexadecimal floats and, after a sign, infinities.
+  'P0x1p2Y',
+  'PT0x1p2S',
+  'P0x10D',
+  'PT0x1.8pH',
+  'P0x.8D',
+  'P0x1p-1Y',
+  'P0xY',
+  'P00x1D',
+  'PT0x1p9999S',
+  'P0x1p50D',
+  'P0x10-02-03',
+  'P-infD',
+  'P-nanD',
   'P0001-02-03T04:05:06',
   'P00020304T010203',
   'P00020304.5T010203.5',
