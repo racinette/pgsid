@@ -5,8 +5,10 @@ import { promisify } from 'node:util'
 
 // Generated CHECK packages differ in almost every run, so Go rarely reuses this cache and only
 // expires entries after days of disuse; across many parity and world runs it reached 17 GB and
-// filled the disk.
-export const checkGoCacheDirectory = '/tmp/pgsid-check-rust-go-cache'
+// filled the disk. Trimming deletes entries another run may be reading, so concurrent runs from
+// separate checkouts each name their own directory.
+export const checkGoCacheDirectory =
+  process.env['PGSID_CHECK_GO_CACHE_DIR'] ?? '/tmp/pgsid-check-rust-go-cache'
 
 const ownershipMarker = '.pgsid-check-go-cache'
 const goCacheReadme = 'This directory holds cached build artifacts from the Go build system.'
