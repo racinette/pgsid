@@ -8504,6 +8504,34 @@ export function bindCatalogCheck(
     args = args.map((arg) =>
       arg.type?.startsWith('array:enum:') ? { ...arg, enum: resultEnum(arg.type, [arg]) } : arg,
     )
+    // Text beside a value with no implicit cast to text resolves to textanycat or anytextcat, whose
+    // inlined body casts that value with the catalog's text cast before concatenating.
+    if (kind === 'operator' && name === '||' && nodes.length === 2 && args.length === 2) {
+      const textual = (arg: Bound) =>
+        arg.literal?.kind === 'string' ||
+        arg.literal?.kind === 'null' ||
+        arg.type === 'pg_catalog.text' ||
+        (arg.type !== null && builtinCast(arg.type, 'pg_catalog.text')?.context === 'i')
+      const scalar = (arg: Bound) =>
+        arg.literal === undefined &&
+        arg.type !== null &&
+        !textual(arg) &&
+        !isArrayLikeType(arg.type) &&
+        catalogScalarType(arg.type) === arg.type
+      const other =
+        textual(args[0]!) && scalar(args[1]!) ? 1 : textual(args[1]!) && scalar(args[0]!) ? 0 : -1
+      if (other >= 0) {
+        const cast = {
+          TypeCast: {
+            arg: nodes[other],
+            typeName: {
+              names: [{ String: { sval: 'pg_catalog' } }, { String: { sval: 'text' } }],
+            },
+          },
+        }
+        return bindCall(kind, name, other === 1 ? [nodes[0], cast] : [cast, nodes[1]])
+      }
+    }
     const aliasType = catalogScalarType(name)
     if (
       kind === 'function' &&
