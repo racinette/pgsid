@@ -26,6 +26,7 @@ import {
   intersectionType,
   nullableType,
   printFile,
+  parseType,
   propertyName,
   unionType,
 } from './ast.js'
@@ -1083,7 +1084,11 @@ const renderWrapper = (
       )
       return jsonParameters.includes(index + 1)
         ? jsonEncoded(index + 1)
-        : encodeExpression(parameterCodecs[index]!, value, name ?? `$${index + 1}`)
+        : encodeExpression(
+            parameterCodecs[index]!,
+            value,
+            factory.createStringLiteral(name ?? `$${index + 1}`),
+          )
     }),
   )
   const decodedRow = (values: ts.Expression) =>
@@ -1228,33 +1233,77 @@ const rowDeclaration = (row: ts.Expression): ts.Statement =>
     ),
   )
 
+const codecName = (codec: TypescriptCodec, direction: 'decode' | 'encode'): string =>
+  `${direction}${
+    codec.kind === 'scalar'
+      ? codec.name
+      : codec.kind === 'array'
+        ? 'Array'
+        : codec.kind === 'range'
+          ? 'Range'
+          : 'Multirange'
+  }`
+
+// A container converts its elements through a function, so a nested codec becomes a closure.
+const codecFunction = (codec: TypescriptCodec, direction: 'decode' | 'encode'): ts.Expression => {
+  if (codec.kind === 'scalar') return factory.createIdentifier(codecName(codec, direction))
+  const item = factory.createIdentifier('item')
+  const name = factory.createIdentifier('name')
+  return factory.createArrowFunction(
+    undefined,
+    undefined,
+    [
+      factory.createParameterDeclaration(
+        undefined,
+        undefined,
+        item,
+        undefined,
+        direction === 'decode'
+          ? parseType('string | null')
+          : factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword),
+      ),
+      ...(direction === 'encode'
+        ? [
+            factory.createParameterDeclaration(
+              undefined,
+              undefined,
+              name,
+              undefined,
+              factory.createKeywordTypeNode(ts.SyntaxKind.StringKeyword),
+            ),
+          ]
+        : []),
+    ],
+    undefined,
+    factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
+    direction === 'decode' ? decodeExpression(codec, item) : encodeExpression(codec, item, name),
+  )
+}
+
 const codecArguments = (codec: TypescriptCodec, direction: 'decode' | 'encode') =>
-  codec.kind === 'array'
-    ? [
-        factory.createIdentifier(
-          `${direction}${codec.element.kind === 'scalar' ? codec.element.name : 'Text'}`,
-        ),
-        factory.createStringLiteral(codec.delimiter),
+  codec.kind === 'scalar'
+    ? []
+    : [
+        codecFunction(codec.element, direction),
+        ...(codec.kind === 'array' ? [factory.createStringLiteral(codec.delimiter)] : []),
       ]
-    : []
 
 const decodeExpression = (codec: TypescriptCodec, value: ts.Expression): ts.Expression =>
-  factory.createCallExpression(
-    factory.createIdentifier(`decode${codec.kind === 'array' ? 'Array' : codec.name}`),
-    undefined,
-    [value, ...codecArguments(codec, 'decode')],
-  )
+  factory.createCallExpression(factory.createIdentifier(codecName(codec, 'decode')), undefined, [
+    value,
+    ...codecArguments(codec, 'decode'),
+  ])
 
 const encodeExpression = (
   codec: TypescriptCodec,
   value: ts.Expression,
-  name: string,
+  name: ts.Expression,
 ): ts.Expression =>
-  factory.createCallExpression(
-    factory.createIdentifier(`encode${codec.kind === 'array' ? 'Array' : codec.name}`),
-    undefined,
-    [value, ...codecArguments(codec, 'encode'), factory.createStringLiteral(name)],
-  )
+  factory.createCallExpression(factory.createIdentifier(codecName(codec, 'encode')), undefined, [
+    value,
+    ...codecArguments(codec, 'encode'),
+    name,
+  ])
 
 // A codec can rely on shared helpers, so every function an emitted one names is emitted with it.
 const codecStatements = (names: ReadonlySet<string>): ts.Statement[] => {

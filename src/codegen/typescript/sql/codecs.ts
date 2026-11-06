@@ -1,10 +1,13 @@
 import type { CatalogSnapshot } from '../../../catalog/types.js'
+import { PG18_RANGE_TYPES } from '../../../postgres/builtins/type-ranges.generated.js'
 
 // Generated queries exchange every value with the server as text the driver leaves untouched, so
 // each PostgreSQL type has one public TypeScript shape and native conversions to and from it.
 export type TypescriptCodec =
   | { kind: 'scalar'; name: TypescriptScalarCodec }
   | { kind: 'array'; element: TypescriptCodec; delimiter: string }
+  | { kind: 'range'; element: TypescriptCodec }
+  | { kind: 'multirange'; element: TypescriptCodec }
 
 export type TypescriptScalarCodec =
   | 'Bool'
@@ -16,17 +19,12 @@ export type TypescriptScalarCodec =
   | 'Text'
   | 'Bytea'
   | 'Json'
-  | 'Int8Range'
   | 'Date'
   | 'Timestamp'
   | 'Timestamptz'
   | 'Time'
   | 'Timetz'
   | 'Interval'
-
-// An empty range is a value without points, unlike SQL NULL, and a null bound is unbounded.
-export const typescriptInt8RangeType =
-  '{ readonly empty: true } | { readonly empty: false; readonly lower: bigint | null; readonly upper: bigint | null; readonly lowerInclusive: boolean; readonly upperInclusive: boolean }'
 
 export const typescriptScalarTypes: Readonly<Record<TypescriptScalarCodec, string>> = {
   Bool: 'boolean',
@@ -38,7 +36,6 @@ export const typescriptScalarTypes: Readonly<Record<TypescriptScalarCodec, strin
   Text: 'string',
   Bytea: 'Uint8Array',
   Json: 'unknown',
-  Int8Range: typescriptInt8RangeType,
   Date: 'string',
   Timestamp: '{ readonly localMicroseconds: bigint } | { readonly infinity: 1 | -1 }',
   Timestamptz: '{ readonly epochMicroseconds: bigint } | { readonly infinity: 1 | -1 }',
@@ -63,7 +60,6 @@ const builtinCodecs: Readonly<Record<string, TypescriptScalarCodec>> = {
   bytea: 'Bytea',
   json: 'Json',
   jsonb: 'Json',
-  int8range: 'Int8Range',
   date: 'Date',
   timestamp: 'Timestamp',
   'timestamp without time zone': 'Timestamp',
@@ -134,16 +130,50 @@ export function typescriptCodec(
       catalog,
       new Set([...seen, `${domain.schema}.${domain.name}`]),
     )
+  const range = rangeSubtype(schema, plain, catalog)
+  if (range) return { kind: range.kind, element: typescriptCodec(range.subtype, catalog, seen) }
   return { kind: 'scalar', name: typescriptScalarCodec(type) }
+}
+
+const builtinRanges = Object.values(PG18_RANGE_TYPES)
+
+const rangeSubtype = (
+  schema: string | undefined,
+  name: string,
+  catalog: CatalogSnapshot | undefined,
+): { kind: 'range' | 'multirange'; subtype: string } | null => {
+  const qualified = (identity: string) =>
+    identity.split('.').map((part) => part.replaceAll('"', ''))
+  const matches = (identity: string) => {
+    const [owner, item] = qualified(identity)
+    return item === name && (schema === undefined ? true : owner === schema)
+  }
+  for (const range of [...(catalog?.rangeTypes ?? []), ...builtinRanges]) {
+    if (matches(range.identity)) return { kind: 'range', subtype: range.subtype }
+    if (matches(range.multirange)) return { kind: 'multirange', subtype: range.subtype }
+  }
+  return null
+}
+
+// An empty range is a value without points, unlike SQL NULL, and a null bound is unbounded.
+export function typescriptCodecType(codec: TypescriptCodec): string {
+  if (codec.kind === 'scalar') return typescriptScalarTypes[codec.name]
+  const element = typescriptCodecType(codec.element)
+  if (codec.kind === 'array') return `(${element} | null)[]`
+  const range = `{ readonly empty: true } | { readonly empty: false; readonly lower: (${element}) | null; readonly upper: (${element}) | null; readonly lowerInclusive: boolean; readonly upperInclusive: boolean }`
+  return codec.kind === 'range' ? range : `(${range})[]`
 }
 
 export const typescriptCodecNames = (codec: TypescriptCodec, direction: 'decode' | 'encode') => {
   const names = new Set<string>()
   const visit = (item: TypescriptCodec) => {
-    if (item.kind === 'array') {
-      names.add(`${direction}Array`)
+    if (item.kind === 'scalar') names.add(`${direction}${item.name}`)
+    else {
+      names.add(
+        `${direction}${item.kind === 'array' ? 'Array' : item.kind === 'range' ? 'Range' : 'Multirange'}`,
+      )
       visit(item.element)
-    } else names.add(`${direction}${item.name}`)
+    }
   }
   visit(codec)
   return names
@@ -248,20 +278,71 @@ function encodeJson(value: unknown, name: string): string | null {
   if (text === undefined) return encodeInvalid(name, 'JSON')
   return text
 }
-function decodeInt8Range(value: string | null): unknown {
-  if (value === null) return null
-  if (value === 'empty') return { empty: true }
-  const match = /^([[(])(-?[0-9]*),(-?[0-9]*)([\\])])$/u.exec(value)
-  if (!match) throw new TypeError('Unexpected int8range output ' + JSON.stringify(value))
-  return { empty: false, lower: match[2] ? BigInt(match[2]) : null, upper: match[3] ? BigInt(match[3]) : null, lowerInclusive: match[1] === '[', upperInclusive: match[4] === ']' }
+function readRange(value: string, start: number, element: (item: string | null) => unknown): [unknown, number] {
+  if (value.startsWith('empty', start)) return [{ empty: true }, start + 5]
+  const lowerInclusive = value[start] === '['
+  let index = start + 1
+  const bound = (): unknown => {
+    if (value[index] === ',' || value[index] === ']' || value[index] === ')') return null
+    let text = ''
+    let quoted = false
+    while (index < value.length) {
+      const character = value[index]!
+      if (character === '"') {
+        if (quoted && value[index + 1] === '"') {
+          text += '"'
+          index += 2
+        } else {
+          quoted = !quoted
+          index++
+        }
+      } else if (character === '\\\\') {
+        text += value[index + 1]
+        index += 2
+      } else if (!quoted && (character === ',' || character === ']' || character === ')')) break
+      else {
+        text += character
+        index++
+      }
+    }
+    return element(text)
+  }
+  const lower = bound()
+  index++
+  const upper = bound()
+  return [{ empty: false, lower, upper, lowerInclusive, upperInclusive: value[index] === ']' }, index + 1]
 }
-function encodeInt8Range(value: unknown, name: string): string | null {
-  if (value === null || value === undefined) return null
-  if (!value || typeof value !== 'object' || !('empty' in value) || typeof value.empty !== 'boolean') return encodeInvalid(name, 'int8range')
+function decodeRange(value: string | null, element: (item: string | null) => unknown): unknown {
+  return value === null ? null : readRange(value, 0, element)[0]
+}
+function writeRange(value: unknown, element: (item: unknown, name: string) => string | null, name: string): string {
+  if (!value || typeof value !== 'object' || !('empty' in value) || typeof value.empty !== 'boolean') return encodeInvalid(name, 'range')
   if (value.empty) return 'empty'
-  if (!('lower' in value) || !('upper' in value) || !('lowerInclusive' in value) || !('upperInclusive' in value) || (value.lower !== null && typeof value.lower !== 'bigint') || (value.upper !== null && typeof value.upper !== 'bigint') || typeof value.lowerInclusive !== 'boolean' || typeof value.upperInclusive !== 'boolean')
-    return encodeInvalid(name, 'int8range')
-  return (value.lowerInclusive ? '[' : '(') + (value.lower ?? '') + ',' + (value.upper ?? '') + (value.upperInclusive ? ']' : ')')
+  if (!('lower' in value) || !('upper' in value) || !('lowerInclusive' in value) || !('upperInclusive' in value) || typeof value.lowerInclusive !== 'boolean' || typeof value.upperInclusive !== 'boolean') return encodeInvalid(name, 'range')
+  const bound = (item: unknown) => {
+    if (item === null) return ''
+    const text = element(item, name)
+    return text === null ? encodeInvalid(name, 'range') : '"' + text.replace(/["\\\\]/gu, '\\\\$&') + '"'
+  }
+  return (value.lowerInclusive ? '[' : '(') + bound(value.lower) + ',' + bound(value.upper) + (value.upperInclusive ? ']' : ')')
+}
+function encodeRange(value: unknown, element: (item: unknown, name: string) => string | null, name: string): string | null {
+  return value === null || value === undefined ? null : writeRange(value, element, name)
+}
+function decodeMultirange(value: string | null, element: (item: string | null) => unknown): unknown {
+  if (value === null) return null
+  const ranges: unknown[] = []
+  for (let index = 1; value[index] !== '}'; ) {
+    const [range, next] = readRange(value, index, element)
+    ranges.push(range)
+    index = value[next] === ',' ? next + 1 : next
+  }
+  return ranges
+}
+function encodeMultirange(value: unknown, element: (item: unknown, name: string) => string | null, name: string): string | null {
+  if (value === null || value === undefined) return null
+  if (!Array.isArray(value)) return encodeInvalid(name, 'multirange')
+  return '{' + value.map((range) => writeRange(range, element, name)).join(',') + '}'
 }
 // Calendar arithmetic is proleptic Gregorian with astronomical years, as the server's is; output is
 // read in the ISO date style that client libraries already assume.
