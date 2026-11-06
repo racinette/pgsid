@@ -1,0 +1,47 @@
+# Builds the generated parser, transpiler and catalog-grammar assets once, so every other job
+# downloads them instead of installing TinyGo and rebuilding.
+name: Assets
+on:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+        with:
+          tinygo: 'true'
+          assets: 'false'
+      - run: bash scripts/build-check-rust-wasm.sh
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: check-assets
+          if-no-files-found: error
+          retention-days: 3
+          path: |
+            src/codegen/go/assets/check-rust-parser.wasm
+            src/codegen/go/assets/check-catalog-grammar.wasm
+            src/codegen/go/assets/check-go-transpiler.wasm
+            src/codegen/go/assets/check-rust-sources.json
+            src/codegen/go/assets/check-ts-prelude.ts
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: check-tables
+          if-no-files-found: error
+          retention-days: 3
+          path: |
+            /tmp/pgsid-check-timezone-data/tables.rs
+            /tmp/pgsid-check-unicode-data/tables.rs
+      # Only this job saves the Cargo cache, so parallel jobs never race to write it.
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            tools/*/target
+            crates/*/target
+            /tmp/pgsid-check-rust-transpiler-target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', 'tools/**/*.rs', 'crates/**/*.rs') }}

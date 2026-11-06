@@ -4,14 +4,15 @@ set -euo pipefail
 # The per-change tier: structural checks, then only the CHECK owner suites a change can affect
 # (see affected.ts). The full tier, check.sh, runs every owner and belongs to nightly or
 # pre-release runs; it also records the reach data this tier selects with.
-# Usage: check-fast.sh [base revision, default HEAD]. PGSID_CHECK_WORKERS sets parallel suites.
+# Usage: check-fast.sh [base revision, default HEAD]. PGSID_CHECK_WORKERS sets parallel suites;
+# PGSID_CHECK_ASSETS=prebuilt skips the asset build where a CI job already built them.
 
 repo_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 cd "$repo_dir"
 base="${1:-HEAD}"
 workers="${PGSID_CHECK_WORKERS:-2}"
 export GOFLAGS="${GOFLAGS:+$GOFLAGS }-trimpath"
-bash scripts/build-check-rust-wasm.sh
+[[ "${PGSID_CHECK_ASSETS:-}" == prebuilt ]] || bash scripts/build-check-rust-wasm.sh
 cargo test --quiet --locked --manifest-path crates/check-evaluator/Cargo.toml
 go -C tools/check-transpiler/go test ./...
 # The structural tests the full tier also runs; the generated-tree goldens stay serial because

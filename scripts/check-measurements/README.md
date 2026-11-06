@@ -129,6 +129,6 @@ the inventory finds both Unimplemented deferrals to implement and Unknown result
 that name no database fact. The summary groups results by origin site:
 
 ```sh
-PGSID_PARITY_DATA_DRIVEN=always PGSID_PARITY_ORIGINS=artifacts/check-origins.tsv vitest run tests/sql-semantics
+PGSID_PARITY_ORIGINS=artifacts/check-origins.tsv vitest run tests/sql-semantics
 node --import tsx scripts/check-measurements/origins.ts artifacts/check-origins.tsv --rows 80
 ```
