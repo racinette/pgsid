@@ -22,8 +22,15 @@ jobs:
       - uses: ./.github/actions/setup
       - run: node node_modules/typescript/bin/tsc --noEmit -p .
       - run: node node_modules/eslint/bin/eslint.js .
-      - run: node node_modules/espalier/dist/src/cli.js lint --config tests/unit/query/espalier.config.yaml
-      - run: node node_modules/espalier/dist/src/cli.js build --check --config tests/unit/query/espalier.config.yaml
+      # The report is written synchronously and is large enough to fail with EAGAIN on the runner's non-blocking stdout.
+      - run: |
+          for command in lint 'build --check'; do
+            status=0
+            node node_modules/espalier/dist/src/cli.js $command --config tests/unit/query/espalier.config.yaml \
+              --out "$RUNNER_TEMP/espalier-${command%% *}.txt" || status=$?
+            cat "$RUNNER_TEMP/espalier-${command%% *}.txt"
+            [ "$status" -eq 0 ] || exit "$status"
+          done
       - run: >-
           node node_modules/prettier/bin/prettier.cjs --check . --ignore-path .gitignore
           --ignore-path .prettierignore --ignore-path tests/unit/query/.prettierignore
