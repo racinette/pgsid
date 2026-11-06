@@ -92,9 +92,6 @@ export type Input =
   | { kind: 'Unknown' }
   | { kind: 'Error'; value: { state: number } }
 export type Row = Record<string, Input>
-// Above this many fixtures, inline assertions make rustc and the Go toolchain spend
-// minutes per suite; value tables keep generated code proportional to distinct values.
-const DATA_DRIVEN_FIXTURES = 20000
 // Every suite writes its Go code under one module path: the build cache keys packages by import
 // path and content (paths are trimmed), so suites sharing a runtime reuse its compiled packages,
 // while each suite keeps its own directory.
@@ -497,10 +494,10 @@ export async function runCheckParity(
   const originFiles = group.source.modules.flatMap((module) =>
     module.files.map((file, index) => [`${module.name}-${index}.rs`, file.path] as const),
   )
-  const dataDrivenSetting = process.env['PGSID_PARITY_DATA_DRIVEN']
-  const dataDriven =
-    dataDrivenSetting === 'always' ||
-    (dataDrivenSetting !== 'never' && fixtures.length >= DATA_DRIVEN_FIXTURES)
+  // Value tables keep generated code proportional to checks and distinct values: inline
+  // assertions cost rustc seconds per suite at a few thousand fixtures and minutes at hundreds of
+  // thousands, and stop at the first mismatch. PGSID_PARITY_DATA_DRIVEN=never forces them.
+  const dataDriven = process.env['PGSID_PARITY_DATA_DRIVEN'] !== 'never'
 
   const flushGoAssertions = async (): Promise<void> => {
     if (!goAssertions.length) return
@@ -730,6 +727,8 @@ ${
             mismatches.push(format!("{} {}: expected {} got {}", names[check], fixture, expected, actual));
         }
     }
+    // A short case file would otherwise pass on the cases it still holds.
+    assert_eq!(count, ${caseLines.length}, "the case file holds {} of ${caseLines.length} cases", count);
     assert!(mismatches.is_empty(), "{} of {} cases mismatched:\\n{}", mismatches.len(), count, mismatches.iter().take(20).cloned().collect::<Vec<_>>().join("\\n"));
 }
 `,
@@ -905,6 +904,9 @@ func TestChecksMatchPostgres(t *testing.T) {
 		if actual := runParityCase(runners[check], tables, args); actual != parts[2] {
 			mismatches = append(mismatches, fmt.Sprintf("%s %s: expected %s got %s", names[check], parts[1], parts[2], actual))
 		}
+	}
+	if count != ${caseLines.length} {
+		t.Fatalf("the case file holds %d of ${caseLines.length} cases", count)
 	}
 	if len(mismatches) > 0 {
 		shown := mismatches

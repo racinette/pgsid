@@ -9,7 +9,9 @@ import { checkReachDirectory } from './reach.js'
 // - suites whose recorded reach includes a changed runtime source file;
 // - a smoke set when shared TypeScript, transpiler or harness code changed, because those affect
 //   every suite in ways reach does not record. The full tier (check.sh) covers the rest.
-// Suites without reach data are reported on stderr; a full run records them.
+// Suites without reach data are reported on stderr; a full run records them. With
+// PGSID_CHECK_MISSING_REACH=select they are selected instead, for runners whose reach data can be
+// missing or evicted, where skipping them would let a runtime change pass untested.
 const smoke = [
   'tests/sql-semantics/check-float.test.ts',
   'tests/sql-semantics/check-number-format.test.ts',
@@ -27,6 +29,7 @@ const smoke = [
 ]
 
 const base = process.argv[2] ?? 'HEAD'
+const selectMissing = process.env['PGSID_CHECK_MISSING_REACH'] === 'select'
 const git = (args: string[]) =>
   execFileSync('git', args, { encoding: 'utf8' })
     .split('\n')
@@ -49,6 +52,7 @@ if (runtimeChanges.length)
     const record = join(checkReachDirectory, suite.split('/').pop()! + '.json')
     if (!existsSync(record)) {
       missing.push(suite)
+      if (selectMissing) selected.add(suite)
       continue
     }
     const files = new Set((JSON.parse(readFileSync(record, 'utf8')) as { files: string[] }).files)
@@ -67,6 +71,6 @@ if (
 
 if (missing.length)
   process.stderr.write(
-    `${missing.length} CHECK suites have no reach record and are not selected; a full run records them.\n`,
+    `${missing.length} CHECK suites have no reach record and are ${selectMissing ? 'selected' : 'not selected'}; a full run records them.\n`,
   )
 for (const suite of [...selected].sort()) process.stdout.write(suite + '\n')
