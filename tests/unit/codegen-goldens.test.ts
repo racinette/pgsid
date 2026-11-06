@@ -230,7 +230,8 @@ func TestQueryDeclarations(t *testing.T) {
         }
         throw error
       })
-      expect(result.stderr).toBe('')
+      // A cold module cache reports each download; anything else on stderr is a real warning.
+      expect(result.stderr.replace(/^go: downloading .*\n/gmu, '')).toBe('')
       if (project.inputTests || project.standaloneTests) {
         const dependencies = await runFile(
           goBinary,
