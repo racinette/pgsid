@@ -50740,6 +50740,490 @@ func ToChar1rcw(input checkruntime.Float4Value, template checkruntime.TextValue,
 	}
 	return checkruntime.TextUnresolved(unresolvedFlavor)
 }
+
+const numberParseUnsupported = 466560
+const numberParseRomanLength = 15
+
+type numberParseByte struct {
+	value int
+}
+
+func copynumberParseByte(value numberParseByte) numberParseByte {
+	return numberParseByte{value: langruntime.CheckedI32(value.value)}
+}
+
+type numberParseInput struct {
+	bytes []numberParseByte
+}
+
+func copynumberParseInput(value numberParseInput) numberParseInput {
+	return numberParseInput{bytes: langruntime.CheckedStructs(value.bytes, copynumberParseByte)}
+}
+func numberParseBytes(text string) numberParseInput {
+	text = langruntime.CheckedString(text)
+	chars := []rune(text)
+	bytes := []numberParseByte{}
+	index := 0
+	for index < len(chars) {
+		code := int(langruntime.CheckedChar(chars[index]))
+		if code <= 127 {
+			langruntime.CheckedAdd(len(bytes), 1)
+			bytes = append(bytes, copynumberParseByte(numberParseByte{value: code}))
+		} else if code <= 2047 {
+			langruntime.CheckedAdd(len(bytes), 1)
+			bytes = append(bytes, copynumberParseByte(numberParseByte{value: langruntime.CheckedSignedAdd(192, langruntime.CheckedSignedDivide(code, 64))}))
+			langruntime.CheckedAdd(len(bytes), 1)
+			bytes = append(bytes, copynumberParseByte(numberParseByte{value: langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(code, 64))}))
+		} else if code <= 65535 {
+			langruntime.CheckedAdd(len(bytes), 1)
+			bytes = append(bytes, copynumberParseByte(numberParseByte{value: langruntime.CheckedSignedAdd(224, langruntime.CheckedSignedDivide(code, 4096))}))
+			langruntime.CheckedAdd(len(bytes), 1)
+			bytes = append(bytes, copynumberParseByte(numberParseByte{value: langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder((langruntime.CheckedSignedDivide(code, 64)), 64))}))
+			langruntime.CheckedAdd(len(bytes), 1)
+			bytes = append(bytes, copynumberParseByte(numberParseByte{value: langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(code, 64))}))
+		} else {
+			langruntime.CheckedAdd(len(bytes), 1)
+			bytes = append(bytes, copynumberParseByte(numberParseByte{value: langruntime.CheckedSignedAdd(240, langruntime.CheckedSignedDivide(code, 262144))}))
+			langruntime.CheckedAdd(len(bytes), 1)
+			bytes = append(bytes, copynumberParseByte(numberParseByte{value: langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder((langruntime.CheckedSignedDivide(code, 4096)), 64))}))
+			langruntime.CheckedAdd(len(bytes), 1)
+			bytes = append(bytes, copynumberParseByte(numberParseByte{value: langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder((langruntime.CheckedSignedDivide(code, 64)), 64))}))
+			langruntime.CheckedAdd(len(bytes), 1)
+			bytes = append(bytes, copynumberParseByte(numberParseByte{value: langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(code, 64))}))
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return numberParseInput{bytes: bytes}
+}
+func numberParseWidth(input *numberParseInput, position int) int {
+	position = langruntime.CheckedIndex(position)
+	byte := input.bytes[position].value
+	width := 1
+	if byte >= 192 && byte < 224 {
+		width = langruntime.CheckedIndex(2)
+	} else if byte >= 224 && byte < 240 {
+		width = langruntime.CheckedIndex(3)
+	} else if byte >= 240 && byte < 248 {
+		width = langruntime.CheckedIndex(4)
+	}
+	if langruntime.CheckedAdd(position, width) > len(input.bytes) {
+		width = langruntime.CheckedIndex(langruntime.CheckedSubtract(len(input.bytes), position))
+	}
+	return width
+}
+func numberParseDataByte(byte int) bool {
+	byte = langruntime.CheckedI32(byte)
+	return (byte >= 48 && byte <= 57) || byte == 46 || byte == 44 || byte == 43 || byte == 45
+}
+func numberParseSkip(input *numberParseInput, start int, count int) int {
+	start = langruntime.CheckedIndex(start)
+	count = langruntime.CheckedI32(count)
+	position := start
+	remaining := count
+	stopped := false
+	for remaining > 0 && stopped == false {
+		if position >= len(input.bytes) || numberParseDataByte(input.bytes[position].value) {
+			stopped = true
+		} else {
+			position = langruntime.CheckedIndex(langruntime.CheckedAdd(position, numberParseWidth(input, position)))
+			remaining = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(remaining, 1))
+		}
+	}
+	return position
+}
+func numberParseRomanValue(byte int) int {
+	byte = langruntime.CheckedI32(byte)
+	if byte == 73 {
+		return 1
+	}
+	if byte == 86 {
+		return 5
+	}
+	if byte == 88 {
+		return 10
+	}
+	if byte == 76 {
+		return 50
+	}
+	if byte == 67 {
+		return 100
+	}
+	if byte == 68 {
+		return 500
+	}
+	if byte == 77 {
+		return 1000
+	}
+	return 0
+}
+func numberParseRomanPair(current int, next int) bool {
+	current = langruntime.CheckedI32(current)
+	next = langruntime.CheckedI32(next)
+	return (current == 73 && (next == 86 || next == 88)) || (current == 88 && (next == 76 || next == 67)) || (current == 67 && (next == 68 || next == 77))
+}
+
+type numberParseNumeral struct {
+	valid    bool
+	value    int
+	position int
+}
+
+func copynumberParseNumeral(value numberParseNumeral) numberParseNumeral {
+	return numberParseNumeral{valid: value.valid, value: langruntime.CheckedI32(value.value), position: langruntime.CheckedIndex(value.position)}
+}
+func numberParseRoman(input *numberParseInput, start int) numberParseNumeral {
+	start = langruntime.CheckedIndex(start)
+	position := start
+	end := len(input.bytes)
+	for position < end && (input.bytes[position].value == 32 || (input.bytes[position].value >= 9 && input.bytes[position].value <= 13)) {
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	numerals := []numberParseByte{}
+	values := []numberParseByte{}
+	collecting := true
+	for collecting && len(numerals) < numberParseRomanLength && position < end {
+		byte := input.bytes[position].value
+		if byte >= 97 && byte <= 122 {
+			byte = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(byte, 32))
+		}
+		value := numberParseRomanValue(byte)
+		if value == 0 {
+			collecting = false
+		} else {
+			langruntime.CheckedAdd(len(numerals), 1)
+			numerals = append(numerals, copynumberParseByte(numberParseByte{value: byte}))
+			langruntime.CheckedAdd(len(values), 1)
+			values = append(values, copynumberParseByte(numberParseByte{value: value}))
+			position = langruntime.CheckedAdd(position, 1)
+		}
+	}
+	if len(numerals) == 0 {
+		return numberParseNumeral{valid: false, value: 0, position: position}
+	}
+	result := 0
+	repeat := 1
+	vCount := 0
+	lCount := 0
+	dCount := 0
+	subtracted := false
+	lastSubtracted := 0
+	index := 0
+	for index < len(numerals) {
+		numeral := numerals[index].value
+		value := values[index].value
+		if subtracted && value >= lastSubtracted {
+			return numberParseNumeral{valid: false, value: 0, position: position}
+		}
+		if (vCount > 0 && value >= 5) || (lCount > 0 && value >= 50) || (dCount > 0 && value >= 500) {
+			return numberParseNumeral{valid: false, value: 0, position: position}
+		}
+		if numeral == 86 {
+			vCount = langruntime.CheckedI32(langruntime.CheckedSignedAdd(vCount, 1))
+		} else if numeral == 76 {
+			lCount = langruntime.CheckedI32(langruntime.CheckedSignedAdd(lCount, 1))
+		} else if numeral == 68 {
+			dCount = langruntime.CheckedI32(langruntime.CheckedSignedAdd(dCount, 1))
+		}
+		if langruntime.CheckedAdd(index, 1) < len(numerals) {
+			next := numerals[langruntime.CheckedAdd(index, 1)].value
+			nextValue := values[langruntime.CheckedAdd(index, 1)].value
+			if value < nextValue {
+				if numberParseRomanPair(numeral, next) == false || repeat > 1 {
+					return numberParseNumeral{valid: false, value: 0, position: position}
+				}
+				if (vCount > 0 && nextValue >= 5) || (lCount > 0 && nextValue >= 50) || (dCount > 0 && nextValue >= 500) {
+					return numberParseNumeral{valid: false, value: 0, position: position}
+				}
+				if next == 86 {
+					vCount = langruntime.CheckedI32(langruntime.CheckedSignedAdd(vCount, 1))
+				} else if next == 76 {
+					lCount = langruntime.CheckedI32(langruntime.CheckedSignedAdd(lCount, 1))
+				} else if next == 68 {
+					dCount = langruntime.CheckedI32(langruntime.CheckedSignedAdd(dCount, 1))
+				}
+				index = langruntime.CheckedAdd(index, 1)
+				repeat = langruntime.CheckedI32(1)
+				subtracted = true
+				lastSubtracted = langruntime.CheckedI32(value)
+				result = langruntime.CheckedI32(langruntime.CheckedSignedAdd(result, (langruntime.CheckedSignedSubtract(nextValue, value))))
+			} else {
+				if numeral == next {
+					repeat = langruntime.CheckedI32(langruntime.CheckedSignedAdd(repeat, 1))
+					if repeat > 3 {
+						return numberParseNumeral{valid: false, value: 0, position: position}
+					}
+				} else {
+					repeat = langruntime.CheckedI32(1)
+				}
+				result = langruntime.CheckedI32(langruntime.CheckedSignedAdd(result, value))
+			}
+		} else {
+			result = langruntime.CheckedI32(langruntime.CheckedSignedAdd(result, value))
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return numberParseNumeral{valid: true, value: result, position: position}
+}
+func numberParseNumeric(text string, template string, numericC bool, monetaryC bool) checkruntime.NumericValue {
+	text = langruntime.CheckedString(text)
+	template = langruntime.CheckedString(template)
+	format := numberFormatPrepare(template, numericC, monetaryC)
+	unresolvedFlavor := 0
+	if format.error != 0 && format.error != 1 {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(format.error)}
+	}
+	if format.eeee {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(numberParseUnsupported)}
+	}
+	if format.error == 1 {
+		return checkruntime.NumericUnresolved(checkruntime.ResolutionContext(unresolvedFlavor))
+	}
+	input := numberParseBytes(text)
+	end := len(input.bytes)
+	position := 0
+	sign := 32
+	digits := []numberParseByte{}
+	readPre := 0
+	readPost := 0
+	readDec := false
+	pre := format.pre
+	nodeIndex := 0
+	stopped := false
+	for nodeIndex < len(format.nodes) && stopped == false {
+		if position >= end {
+			stopped = true
+		} else {
+			node := format.nodes[nodeIndex]
+			advance := true
+			if node.action == false {
+				position = langruntime.CheckedIndex(langruntime.CheckedAdd(position, numberParseWidth(&input, position)))
+				advance = false
+			} else if node.key == numberKeyNine || node.key == numberKeyZero || node.key == numberKeyDec || node.key == numberKeyD {
+				done := false
+				if input.bytes[position].value == 32 {
+					position = langruntime.CheckedAdd(position, 1)
+				}
+				if position >= end {
+					done = true
+				}
+				if done == false && sign == 32 && (node.key == numberKeyNine || node.key == numberKeyZero) && langruntime.CheckedSignedAdd(readPre, readPost) == 0 {
+					byte := input.bytes[position].value
+					if format.lsign == 1 {
+						if byte == 45 {
+							position = langruntime.CheckedAdd(position, 1)
+							sign = langruntime.CheckedI32(45)
+						} else if byte == 43 {
+							position = langruntime.CheckedAdd(position, 1)
+							sign = langruntime.CheckedI32(43)
+						}
+					} else if byte == 45 || (format.bracket && byte == 60) {
+						sign = langruntime.CheckedI32(45)
+						position = langruntime.CheckedAdd(position, 1)
+					} else if byte == 43 {
+						sign = langruntime.CheckedI32(43)
+						position = langruntime.CheckedAdd(position, 1)
+					}
+				}
+				if position >= end {
+					done = true
+				}
+				read := false
+				if done == false {
+					byte := input.bytes[position].value
+					if byte >= 48 && byte <= 57 {
+						if readDec && readPost == format.post {
+							done = true
+						} else {
+							langruntime.CheckedAdd(len(digits), 1)
+							digits = append(digits, copynumberParseByte(numberParseByte{value: byte}))
+							if readDec {
+								readPost = langruntime.CheckedI32(langruntime.CheckedSignedAdd(readPost, 1))
+							} else {
+								readPre = langruntime.CheckedI32(langruntime.CheckedSignedAdd(readPre, 1))
+							}
+							read = true
+						}
+					} else if format.decimal && readDec == false && byte == 46 {
+						langruntime.CheckedAdd(len(digits), 1)
+						digits = append(digits, copynumberParseByte(numberParseByte{value: 46}))
+						readDec = true
+						read = true
+					}
+				}
+				if position >= end {
+					done = true
+				}
+				if done == false && sign == 32 && langruntime.CheckedSignedAdd(readPre, readPost) > 0 {
+					if format.lsign != 0 && read && langruntime.CheckedAdd(position, 1) < end && (input.bytes[langruntime.CheckedAdd(position, 1)].value < 48 || input.bytes[langruntime.CheckedAdd(position, 1)].value > 57) {
+						next := input.bytes[langruntime.CheckedAdd(position, 1)].value
+						if next == 45 {
+							position = langruntime.CheckedAdd(position, 1)
+							sign = langruntime.CheckedI32(45)
+						} else if next == 43 {
+							position = langruntime.CheckedAdd(position, 1)
+							sign = langruntime.CheckedI32(43)
+						}
+					} else if read == false && format.lsign == 0 && (format.plus || format.minus) {
+						byte := input.bytes[position].value
+						if byte == 45 {
+							sign = langruntime.CheckedI32(45)
+						} else if byte == 43 {
+							sign = langruntime.CheckedI32(43)
+						}
+					}
+				}
+			} else if node.key == numberKeyComma || node.key == numberKeyG {
+				if format.fillmode || input.bytes[position].value != 44 {
+					advance = false
+				}
+			} else if node.key == numberKeyL {
+				position = langruntime.CheckedIndex(numberParseSkip(&input, position, 1))
+				advance = false
+			} else if node.key == numberKeyRn || node.key == numberKeyLowerRn {
+				roman := numberParseRoman(&input, position)
+				if roman.valid == false {
+					return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(numberFormatText)}
+				}
+				position = langruntime.CheckedIndex(roman.position)
+				magnitude := 1
+				width := 1
+				for langruntime.CheckedSignedMultiply(magnitude, 10) <= roman.value {
+					magnitude = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(magnitude, 10))
+					width = langruntime.CheckedI32(langruntime.CheckedSignedAdd(width, 1))
+				}
+				for magnitude > 0 {
+					langruntime.CheckedAdd(len(digits), 1)
+					digits = append(digits, copynumberParseByte(numberParseByte{value: langruntime.CheckedSignedAdd(48, langruntime.CheckedSignedRemainder((langruntime.CheckedSignedDivide(roman.value, magnitude)), 10))}))
+					magnitude = langruntime.CheckedI32(langruntime.CheckedSignedDivide(magnitude, 10))
+				}
+				pre = langruntime.CheckedI32(width)
+				advance = false
+			} else if node.key == numberKeyTh || node.key == numberKeyLowerTh {
+				if format.roman == false && format.decimal == false {
+					position = langruntime.CheckedIndex(numberParseSkip(&input, position, 2))
+				}
+				advance = false
+			} else if node.key == numberKeyMi {
+				if input.bytes[position].value == 45 {
+					sign = langruntime.CheckedI32(45)
+				} else {
+					position = langruntime.CheckedIndex(numberParseSkip(&input, position, 1))
+					advance = false
+				}
+			} else if node.key == numberKeyPl {
+				if input.bytes[position].value == 43 {
+					sign = langruntime.CheckedI32(43)
+				} else {
+					position = langruntime.CheckedIndex(numberParseSkip(&input, position, 1))
+					advance = false
+				}
+			} else if node.key == numberKeySg {
+				if input.bytes[position].value == 45 {
+					sign = langruntime.CheckedI32(45)
+				} else if input.bytes[position].value == 43 {
+					sign = langruntime.CheckedI32(43)
+				} else {
+					position = langruntime.CheckedIndex(numberParseSkip(&input, position, 1))
+					advance = false
+				}
+			} else {
+				advance = false
+			}
+			if advance {
+				position = langruntime.CheckedAdd(position, 1)
+			}
+			nodeIndex = langruntime.CheckedAdd(nodeIndex, 1)
+		}
+	}
+	kept := len(digits)
+	if kept > 0 && digits[langruntime.CheckedSubtract(kept, 1)].value == 46 {
+		kept = langruntime.CheckedIndex(langruntime.CheckedSubtract(kept, 1))
+	}
+	number := langruntime.NewTextBuffer("")
+	if sign == 45 {
+		number = append(number, string(langruntime.CheckedChar('-'))...)
+	} else if sign == 43 {
+		number = append(number, string(langruntime.CheckedChar('+'))...)
+	} else {
+		number = append(number, string(langruntime.CheckedChar(' '))...)
+	}
+	index := 0
+	for index < kept {
+		byte := digits[index].value
+		if byte == 46 {
+			number = append(number, string(langruntime.CheckedChar('.'))...)
+		} else {
+			number = append(number, string(langruntime.CheckedChar(numberParseDigit(byte)))...)
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	value := ScalarNumericFromText(checkruntime.MakeTextValue(string(number)))
+	modifier := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply((langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(pre, format.multi), readPost)), 65536), readPost), 4)
+	typed := Numeric879l(value, checkruntime.MakeInt4Value(modifier))
+	if format.multiplied == false {
+		return typed
+	}
+	scale := PowerJfdf(checkruntime.MakeNumericValue("10"), NumericNcrk(checkruntime.MakeInt4Value(langruntime.CheckedSignedSubtract(0, format.multi))))
+	return NumericMulBj4l(typed, scale)
+}
+func numberParseDigit(byte int) rune {
+	byte = langruntime.CheckedI32(byte)
+	digits := []rune("0123456789")
+	index := 0
+	code := 48
+	for code < byte {
+		code = langruntime.CheckedI32(langruntime.CheckedSignedAdd(code, 1))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return digits[index]
+}
+func ToNumberIbqn(input checkruntime.TextValue, template checkruntime.TextValue, numericC bool, monetaryC bool) checkruntime.NumericValue {
+	unresolvedFlavor := 0
+	if input.Kind == checkruntime.TextValueUnknown {
+		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if input.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
+	if template.Kind == checkruntime.TextValueUnknown {
+		unresolvedFlavor = langruntime.CheckedI32(1)
+	}
+	if template.Kind == checkruntime.TextValueNonNull {
+		if unresolvedFlavor < 1 {
+			unresolvedFlavor = langruntime.CheckedI32(1)
+		}
+	}
+	if input.Kind == checkruntime.TextValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if template.Kind == checkruntime.TextValueUnimplemented {
+		unresolvedFlavor = langruntime.CheckedI32(2)
+	}
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if template.Kind == checkruntime.TextValueError {
+		error := template.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || template == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if template == (checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: ""}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		if template.Kind == checkruntime.TextValueValue {
+			format := langruntime.CheckedString(template.Value)
+			return numberParseNumeric(text, format, numericC, monetaryC)
+		}
+	}
+	return checkruntime.NumericUnresolved(unresolvedFlavor)
+}
 func numericCompare(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.Int4Value {
 	unresolvedFlavor := 0
 	if left.Kind == checkruntime.NumericValueUnknown {

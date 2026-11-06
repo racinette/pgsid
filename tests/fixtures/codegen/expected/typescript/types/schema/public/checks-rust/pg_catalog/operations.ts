@@ -51097,6 +51097,515 @@ export function toChar1rcw(input: checkruntime.Float4Value, template: checkrunti
     }
     return checkruntime.textUnresolved(unresolvedFlavor);
 }
+const numberParseUnsupported = 466560;
+const numberParseRomanLength = 15;
+interface NumberParseByte {
+    value: number;
+}
+function copyNumberParseByte(value: NumberParseByte): NumberParseByte {
+    return { value: langruntime.checkedI32(value.value) };
+}
+function equalNumberParseByte(left: NumberParseByte, right: NumberParseByte): boolean {
+    return left.value === right.value;
+}
+interface NumberParseInput {
+    bytes: NumberParseByte[];
+}
+function copyNumberParseInput(value: NumberParseInput): NumberParseInput {
+    return { bytes: langruntime.checkedStructs(value.bytes, copyNumberParseByte) };
+}
+function numberParseBytes(text: string): NumberParseInput {
+    text = langruntime.checkedString(text);
+    const chars: string[] = Array.from(text);
+    let bytes: NumberParseByte[] = [];
+    let index: number = 0;
+    while (index < chars.length) {
+        const code: number = langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index))).codePointAt(0)!;
+        if (code <= 127) {
+            langruntime.pushStruct(bytes, { value: code }, copyNumberParseByte);
+        }
+        else if (code <= 2047) {
+            langruntime.pushStruct(bytes, { value: langruntime.checkedSignedAdd(192, langruntime.checkedSignedDivide(code, 64)) }, copyNumberParseByte);
+            langruntime.pushStruct(bytes, { value: langruntime.checkedSignedAdd(128, langruntime.checkedSignedRemainder(code, 64)) }, copyNumberParseByte);
+        }
+        else if (code <= 65535) {
+            langruntime.pushStruct(bytes, { value: langruntime.checkedSignedAdd(224, langruntime.checkedSignedDivide(code, 4096)) }, copyNumberParseByte);
+            langruntime.pushStruct(bytes, { value: langruntime.checkedSignedAdd(128, langruntime.checkedSignedRemainder((langruntime.checkedSignedDivide(code, 64)), 64)) }, copyNumberParseByte);
+            langruntime.pushStruct(bytes, { value: langruntime.checkedSignedAdd(128, langruntime.checkedSignedRemainder(code, 64)) }, copyNumberParseByte);
+        }
+        else {
+            langruntime.pushStruct(bytes, { value: langruntime.checkedSignedAdd(240, langruntime.checkedSignedDivide(code, 262144)) }, copyNumberParseByte);
+            langruntime.pushStruct(bytes, { value: langruntime.checkedSignedAdd(128, langruntime.checkedSignedRemainder((langruntime.checkedSignedDivide(code, 4096)), 64)) }, copyNumberParseByte);
+            langruntime.pushStruct(bytes, { value: langruntime.checkedSignedAdd(128, langruntime.checkedSignedRemainder((langruntime.checkedSignedDivide(code, 64)), 64)) }, copyNumberParseByte);
+            langruntime.pushStruct(bytes, { value: langruntime.checkedSignedAdd(128, langruntime.checkedSignedRemainder(code, 64)) }, copyNumberParseByte);
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return { bytes: bytes };
+}
+function numberParseWidth(input: NumberParseInput, position: number): number {
+    position = langruntime.checkedIndex(position);
+    const byte: number = langruntime.indexStruct(input.bytes, langruntime.checkedIndex(position), copyNumberParseByte).value;
+    let width: number = 1;
+    if (byte >= 192 && byte < 224) {
+        width = langruntime.checkedIndex(2);
+    }
+    else if (byte >= 224 && byte < 240) {
+        width = langruntime.checkedIndex(3);
+    }
+    else if (byte >= 240 && byte < 248) {
+        width = langruntime.checkedIndex(4);
+    }
+    if (langruntime.checkedAdd(position, width) > input.bytes.length) {
+        width = langruntime.checkedIndex(langruntime.checkedSubtract(input.bytes.length, position));
+    }
+    return width;
+}
+function numberParseDataByte(byte: number): boolean {
+    byte = langruntime.checkedI32(byte);
+    return (byte >= 48 && byte <= 57) || byte === 46 || byte === 44 || byte === 43 || byte === 45;
+}
+function numberParseSkip(input: NumberParseInput, start: number, count: number): number {
+    start = langruntime.checkedIndex(start);
+    count = langruntime.checkedI32(count);
+    let position: number = start;
+    let remaining: number = count;
+    let stopped: boolean = false;
+    while (remaining > 0 && stopped === false) {
+        if (position >= input.bytes.length || numberParseDataByte(langruntime.indexStruct(input.bytes, langruntime.checkedIndex(position), copyNumberParseByte).value)) {
+            stopped = langruntime.checkedBool(true);
+        }
+        else {
+            position = langruntime.checkedIndex(langruntime.checkedAdd(position, numberParseWidth(input, position)));
+            remaining = langruntime.checkedI32(langruntime.checkedSignedSubtract(remaining, 1));
+        }
+    }
+    return position;
+}
+function numberParseRomanValue(byte: number): number {
+    byte = langruntime.checkedI32(byte);
+    if (byte === 73) {
+        return 1;
+    }
+    if (byte === 86) {
+        return 5;
+    }
+    if (byte === 88) {
+        return 10;
+    }
+    if (byte === 76) {
+        return 50;
+    }
+    if (byte === 67) {
+        return 100;
+    }
+    if (byte === 68) {
+        return 500;
+    }
+    if (byte === 77) {
+        return 1000;
+    }
+    return 0;
+}
+function numberParseRomanPair(current: number, next: number): boolean {
+    current = langruntime.checkedI32(current);
+    next = langruntime.checkedI32(next);
+    return (current === 73 && (next === 86 || next === 88)) || (current === 88 && (next === 76 || next === 67)) || (current === 67 && (next === 68 || next === 77));
+}
+interface NumberParseNumeral {
+    valid: boolean;
+    value: number;
+    position: number;
+}
+function copyNumberParseNumeral(value: NumberParseNumeral): NumberParseNumeral {
+    return { valid: langruntime.checkedBool(value.valid), value: langruntime.checkedI32(value.value), position: langruntime.checkedIndex(value.position) };
+}
+function numberParseRoman(input: NumberParseInput, start: number): NumberParseNumeral {
+    start = langruntime.checkedIndex(start);
+    let position: number = start;
+    const end: number = input.bytes.length;
+    while (position < end && (langruntime.indexStruct(input.bytes, langruntime.checkedIndex(position), copyNumberParseByte).value === 32 || (langruntime.indexStruct(input.bytes, langruntime.checkedIndex(position), copyNumberParseByte).value >= 9 && langruntime.indexStruct(input.bytes, langruntime.checkedIndex(position), copyNumberParseByte).value <= 13))) {
+        position = langruntime.checkedAdd(position, 1);
+    }
+    let numerals: NumberParseByte[] = [];
+    let values: NumberParseByte[] = [];
+    let collecting: boolean = true;
+    while (collecting && numerals.length < numberParseRomanLength && position < end) {
+        let byte: number = langruntime.indexStruct(input.bytes, langruntime.checkedIndex(position), copyNumberParseByte).value;
+        if (byte >= 97 && byte <= 122) {
+            byte = langruntime.checkedI32(langruntime.checkedSignedSubtract(byte, 32));
+        }
+        const value: number = numberParseRomanValue(byte);
+        if (value === 0) {
+            collecting = langruntime.checkedBool(false);
+        }
+        else {
+            langruntime.pushStruct(numerals, { value: byte }, copyNumberParseByte);
+            langruntime.pushStruct(values, { value: value }, copyNumberParseByte);
+            position = langruntime.checkedAdd(position, 1);
+        }
+    }
+    if (numerals.length === 0) {
+        return { valid: false, value: 0, position: position };
+    }
+    let result: number = 0;
+    let repeat: number = 1;
+    let vCount: number = 0;
+    let lCount: number = 0;
+    let dCount: number = 0;
+    let subtracted: boolean = false;
+    let lastSubtracted: number = 0;
+    let index: number = 0;
+    while (index < numerals.length) {
+        const numeral: number = langruntime.indexStruct(numerals, langruntime.checkedIndex(index), copyNumberParseByte).value;
+        const value: number = langruntime.indexStruct(values, langruntime.checkedIndex(index), copyNumberParseByte).value;
+        if (subtracted && value >= lastSubtracted) {
+            return { valid: false, value: 0, position: position };
+        }
+        if ((vCount > 0 && value >= 5) || (lCount > 0 && value >= 50) || (dCount > 0 && value >= 500)) {
+            return { valid: false, value: 0, position: position };
+        }
+        if (numeral === 86) {
+            vCount = langruntime.checkedI32(langruntime.checkedSignedAdd(vCount, 1));
+        }
+        else if (numeral === 76) {
+            lCount = langruntime.checkedI32(langruntime.checkedSignedAdd(lCount, 1));
+        }
+        else if (numeral === 68) {
+            dCount = langruntime.checkedI32(langruntime.checkedSignedAdd(dCount, 1));
+        }
+        if (langruntime.checkedAdd(index, 1) < numerals.length) {
+            const next: number = langruntime.indexStruct(numerals, langruntime.checkedIndex(langruntime.checkedAdd(index, 1)), copyNumberParseByte).value;
+            const nextValue: number = langruntime.indexStruct(values, langruntime.checkedIndex(langruntime.checkedAdd(index, 1)), copyNumberParseByte).value;
+            if (value < nextValue) {
+                if (numberParseRomanPair(numeral, next) === false || repeat > 1) {
+                    return { valid: false, value: 0, position: position };
+                }
+                if ((vCount > 0 && nextValue >= 5) || (lCount > 0 && nextValue >= 50) || (dCount > 0 && nextValue >= 500)) {
+                    return { valid: false, value: 0, position: position };
+                }
+                if (next === 86) {
+                    vCount = langruntime.checkedI32(langruntime.checkedSignedAdd(vCount, 1));
+                }
+                else if (next === 76) {
+                    lCount = langruntime.checkedI32(langruntime.checkedSignedAdd(lCount, 1));
+                }
+                else if (next === 68) {
+                    dCount = langruntime.checkedI32(langruntime.checkedSignedAdd(dCount, 1));
+                }
+                index = langruntime.checkedAdd(index, 1);
+                repeat = langruntime.checkedI32(1);
+                subtracted = langruntime.checkedBool(true);
+                lastSubtracted = langruntime.checkedI32(value);
+                result = langruntime.checkedI32(langruntime.checkedSignedAdd(result, (langruntime.checkedSignedSubtract(nextValue, value))));
+            }
+            else {
+                if (numeral === next) {
+                    repeat = langruntime.checkedI32(langruntime.checkedSignedAdd(repeat, 1));
+                    if (repeat > 3) {
+                        return { valid: false, value: 0, position: position };
+                    }
+                }
+                else {
+                    repeat = langruntime.checkedI32(1);
+                }
+                result = langruntime.checkedI32(langruntime.checkedSignedAdd(result, value));
+            }
+        }
+        else {
+            result = langruntime.checkedI32(langruntime.checkedSignedAdd(result, value));
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return { valid: true, value: result, position: position };
+}
+function numberParseNumeric(text: string, template: string, numericC: boolean, monetaryC: boolean): checkruntime.NumericValue {
+    text = langruntime.checkedString(text);
+    template = langruntime.checkedString(template);
+    numericC = langruntime.checkedBool(numericC);
+    monetaryC = langruntime.checkedBool(monetaryC);
+    const format: NumberFormat = numberFormatPrepare(template, numericC, monetaryC);
+    const unresolvedFlavor: number = 0;
+    if (!(format.error === 0) && !(format.error === 1)) {
+        return { kind: "Error", value: checkruntime.makeSqlError(format.error) };
+    }
+    if (format.eeee) {
+        return { kind: "Error", value: checkruntime.makeSqlError(numberParseUnsupported) };
+    }
+    if (format.error === 1) {
+        return checkruntime.numericUnresolved(checkruntime.resolutionContext(unresolvedFlavor));
+    }
+    const input: NumberParseInput = numberParseBytes(text);
+    const end: number = input.bytes.length;
+    let position: number = 0;
+    let sign: number = 32;
+    let digits: NumberParseByte[] = [];
+    let readPre: number = 0;
+    let readPost: number = 0;
+    let readDec: boolean = false;
+    let pre: number = format.pre;
+    let nodeIndex: number = 0;
+    let stopped: boolean = false;
+    while (nodeIndex < format.nodes.length && stopped === false) {
+        if (position >= end) {
+            stopped = langruntime.checkedBool(true);
+        }
+        else {
+            const node: NumberFormatNode = copyNumberFormatNode(langruntime.indexStruct(format.nodes, langruntime.checkedIndex(nodeIndex), copyNumberFormatNode));
+            let advance: boolean = true;
+            if (node.action === false) {
+                position = langruntime.checkedIndex(langruntime.checkedAdd(position, numberParseWidth(input, position)));
+                advance = langruntime.checkedBool(false);
+            }
+            else if (node.key === numberKeyNine || node.key === numberKeyZero || node.key === numberKeyDec || node.key === numberKeyD) {
+                let done: boolean = false;
+                if (langruntime.indexStruct(input.bytes, langruntime.checkedIndex(position), copyNumberParseByte).value === 32) {
+                    position = langruntime.checkedAdd(position, 1);
+                }
+                if (position >= end) {
+                    done = langruntime.checkedBool(true);
+                }
+                if (done === false && sign === 32 && (node.key === numberKeyNine || node.key === numberKeyZero) && langruntime.checkedSignedAdd(readPre, readPost) === 0) {
+                    const byte: number = langruntime.indexStruct(input.bytes, langruntime.checkedIndex(position), copyNumberParseByte).value;
+                    if (format.lsign === 1) {
+                        if (byte === 45) {
+                            position = langruntime.checkedAdd(position, 1);
+                            sign = langruntime.checkedI32(45);
+                        }
+                        else if (byte === 43) {
+                            position = langruntime.checkedAdd(position, 1);
+                            sign = langruntime.checkedI32(43);
+                        }
+                    }
+                    else if (byte === 45 || (format.bracket && byte === 60)) {
+                        sign = langruntime.checkedI32(45);
+                        position = langruntime.checkedAdd(position, 1);
+                    }
+                    else if (byte === 43) {
+                        sign = langruntime.checkedI32(43);
+                        position = langruntime.checkedAdd(position, 1);
+                    }
+                }
+                if (position >= end) {
+                    done = langruntime.checkedBool(true);
+                }
+                let read: boolean = false;
+                if (done === false) {
+                    const byte: number = langruntime.indexStruct(input.bytes, langruntime.checkedIndex(position), copyNumberParseByte).value;
+                    if (byte >= 48 && byte <= 57) {
+                        if (readDec && readPost === format.post) {
+                            done = langruntime.checkedBool(true);
+                        }
+                        else {
+                            langruntime.pushStruct(digits, { value: byte }, copyNumberParseByte);
+                            if (readDec) {
+                                readPost = langruntime.checkedI32(langruntime.checkedSignedAdd(readPost, 1));
+                            }
+                            else {
+                                readPre = langruntime.checkedI32(langruntime.checkedSignedAdd(readPre, 1));
+                            }
+                            read = langruntime.checkedBool(true);
+                        }
+                    }
+                    else if (format.decimal && readDec === false && byte === 46) {
+                        langruntime.pushStruct(digits, { value: 46 }, copyNumberParseByte);
+                        readDec = langruntime.checkedBool(true);
+                        read = langruntime.checkedBool(true);
+                    }
+                }
+                if (position >= end) {
+                    done = langruntime.checkedBool(true);
+                }
+                if (done === false && sign === 32 && langruntime.checkedSignedAdd(readPre, readPost) > 0) {
+                    if (!(format.lsign === 0) && read && langruntime.checkedAdd(position, 1) < end && (langruntime.indexStruct(input.bytes, langruntime.checkedIndex(langruntime.checkedAdd(position, 1)), copyNumberParseByte).value < 48 || langruntime.indexStruct(input.bytes, langruntime.checkedIndex(langruntime.checkedAdd(position, 1)), copyNumberParseByte).value > 57)) {
+                        const next: number = langruntime.indexStruct(input.bytes, langruntime.checkedIndex(langruntime.checkedAdd(position, 1)), copyNumberParseByte).value;
+                        if (next === 45) {
+                            position = langruntime.checkedAdd(position, 1);
+                            sign = langruntime.checkedI32(45);
+                        }
+                        else if (next === 43) {
+                            position = langruntime.checkedAdd(position, 1);
+                            sign = langruntime.checkedI32(43);
+                        }
+                    }
+                    else if (read === false && format.lsign === 0 && (format.plus || format.minus)) {
+                        const byte: number = langruntime.indexStruct(input.bytes, langruntime.checkedIndex(position), copyNumberParseByte).value;
+                        if (byte === 45) {
+                            sign = langruntime.checkedI32(45);
+                        }
+                        else if (byte === 43) {
+                            sign = langruntime.checkedI32(43);
+                        }
+                    }
+                }
+            }
+            else if (node.key === numberKeyComma || node.key === numberKeyG) {
+                if (format.fillmode || !(langruntime.indexStruct(input.bytes, langruntime.checkedIndex(position), copyNumberParseByte).value === 44)) {
+                    advance = langruntime.checkedBool(false);
+                }
+            }
+            else if (node.key === numberKeyL) {
+                position = langruntime.checkedIndex(numberParseSkip(input, position, 1));
+                advance = langruntime.checkedBool(false);
+            }
+            else if (node.key === numberKeyRn || node.key === numberKeyLowerRn) {
+                const roman: NumberParseNumeral = numberParseRoman(input, position);
+                if (roman.valid === false) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(numberFormatText) };
+                }
+                position = langruntime.checkedIndex(roman.position);
+                let magnitude: number = 1;
+                let width: number = 1;
+                while (langruntime.checkedSignedMultiply(magnitude, 10) <= roman.value) {
+                    magnitude = langruntime.checkedI32(langruntime.checkedSignedMultiply(magnitude, 10));
+                    width = langruntime.checkedI32(langruntime.checkedSignedAdd(width, 1));
+                }
+                while (magnitude > 0) {
+                    langruntime.pushStruct(digits, { value: langruntime.checkedSignedAdd(48, langruntime.checkedSignedRemainder((langruntime.checkedSignedDivide(roman.value, magnitude)), 10)) }, copyNumberParseByte);
+                    magnitude = langruntime.checkedI32(langruntime.checkedSignedDivide(magnitude, 10));
+                }
+                pre = langruntime.checkedI32(width);
+                advance = langruntime.checkedBool(false);
+            }
+            else if (node.key === numberKeyTh || node.key === numberKeyLowerTh) {
+                if (format.roman === false && format.decimal === false) {
+                    position = langruntime.checkedIndex(numberParseSkip(input, position, 2));
+                }
+                advance = langruntime.checkedBool(false);
+            }
+            else if (node.key === numberKeyMi) {
+                if (langruntime.indexStruct(input.bytes, langruntime.checkedIndex(position), copyNumberParseByte).value === 45) {
+                    sign = langruntime.checkedI32(45);
+                }
+                else {
+                    position = langruntime.checkedIndex(numberParseSkip(input, position, 1));
+                    advance = langruntime.checkedBool(false);
+                }
+            }
+            else if (node.key === numberKeyPl) {
+                if (langruntime.indexStruct(input.bytes, langruntime.checkedIndex(position), copyNumberParseByte).value === 43) {
+                    sign = langruntime.checkedI32(43);
+                }
+                else {
+                    position = langruntime.checkedIndex(numberParseSkip(input, position, 1));
+                    advance = langruntime.checkedBool(false);
+                }
+            }
+            else if (node.key === numberKeySg) {
+                if (langruntime.indexStruct(input.bytes, langruntime.checkedIndex(position), copyNumberParseByte).value === 45) {
+                    sign = langruntime.checkedI32(45);
+                }
+                else if (langruntime.indexStruct(input.bytes, langruntime.checkedIndex(position), copyNumberParseByte).value === 43) {
+                    sign = langruntime.checkedI32(43);
+                }
+                else {
+                    position = langruntime.checkedIndex(numberParseSkip(input, position, 1));
+                    advance = langruntime.checkedBool(false);
+                }
+            }
+            else {
+                advance = langruntime.checkedBool(false);
+            }
+            if (advance) {
+                position = langruntime.checkedAdd(position, 1);
+            }
+            nodeIndex = langruntime.checkedAdd(nodeIndex, 1);
+        }
+    }
+    let kept: number = digits.length;
+    if (kept > 0 && langruntime.indexStruct(digits, langruntime.checkedIndex(langruntime.checkedSubtract(kept, 1)), copyNumberParseByte).value === 46) {
+        kept = langruntime.checkedIndex(langruntime.checkedSubtract(kept, 1));
+    }
+    let number: string = "";
+    if (sign === 45) {
+        number = number + langruntime.checkedChar("-");
+    }
+    else if (sign === 43) {
+        number = number + langruntime.checkedChar("+");
+    }
+    else {
+        number = number + langruntime.checkedChar(" ");
+    }
+    let index: number = 0;
+    while (index < kept) {
+        const byte: number = langruntime.indexStruct(digits, langruntime.checkedIndex(index), copyNumberParseByte).value;
+        if (byte === 46) {
+            number = number + langruntime.checkedChar(".");
+        }
+        else {
+            number = number + langruntime.checkedChar(numberParseDigit(byte));
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    const value: checkruntime.NumericValue = scalarNumericFromText(checkruntime.makeTextValue(number));
+    const modifier: number = langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply((langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(pre, format.multi), readPost)), 65536), readPost), 4);
+    const typed: checkruntime.NumericValue = numeric879l(value, checkruntime.makeInt4Value(modifier));
+    if (format.multiplied === false) {
+        return typed;
+    }
+    const scale: checkruntime.NumericValue = powerJfdf(checkruntime.makeNumericValue("10"), numericNcrk(checkruntime.makeInt4Value(langruntime.checkedSignedSubtract(0, format.multi))));
+    return numericMulBj4l(typed, scale);
+}
+function numberParseDigit(byte: number): string {
+    byte = langruntime.checkedI32(byte);
+    const digits: string[] = Array.from("0123456789");
+    let index: number = 0;
+    let code: number = 48;
+    while (code < byte) {
+        code = langruntime.checkedI32(langruntime.checkedSignedAdd(code, 1));
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return langruntime.indexChar(digits, langruntime.checkedIndex(index));
+}
+export function toNumberIbqn(input: checkruntime.TextValue, template: checkruntime.TextValue, numericC: boolean, monetaryC: boolean): checkruntime.NumericValue {
+    numericC = langruntime.checkedBool(numericC);
+    monetaryC = langruntime.checkedBool(monetaryC);
+    let unresolvedFlavor: number = 0;
+    if (input.kind === "Unknown") {
+        unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (input.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
+    if (template.kind === "Unknown") {
+        unresolvedFlavor = langruntime.checkedI32(1);
+    }
+    if (template.kind === "NonNull") {
+        if (unresolvedFlavor < 1) {
+            unresolvedFlavor = langruntime.checkedI32(1);
+        }
+    }
+    if (input.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (template.kind === "Unimplemented") {
+        unresolvedFlavor = langruntime.checkedI32(2);
+    }
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (template.kind === "Error") {
+        const error: checkruntime.SqlError = template.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" }) || checkruntime.equalTextValue(template, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (checkruntime.equalTextValue(template, { kind: "Value", value: "" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        if (template.kind === "Value") {
+            const format: string = langruntime.checkedString(template.value);
+            return numberParseNumeric(text, format, numericC, monetaryC);
+        }
+    }
+    return checkruntime.numericUnresolved(unresolvedFlavor);
+}
 function numericCompare(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.Int4Value {
     let unresolvedFlavor: number = 0;
     if (left.kind === "Unknown") {
