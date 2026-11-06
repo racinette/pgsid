@@ -320,8 +320,12 @@ describe('renderTypescriptQueryArtifacts', () => {
 
     const types = compact(rendered.types!)
     const runtime = compact(rendered.runtime!)
-    expect(types).toContain('readonly [ string, string | null ]')
-    expect(types).toContain('readonly [ string | null, string ]')
+    expect(types).toContain(
+      'readonly [ { readonly localMicroseconds: bigint; } | { readonly infinity: 1 | -1; }, string | null ]',
+    )
+    expect(types).toContain(
+      'readonly [ { readonly localMicroseconds: bigint; } | { readonly infinity: 1 | -1; } | null, string ]',
+    )
     expect(runtime).toContain('db: Queryable, ...params: DeleteOldParams')
     expect(runtime).toContain('return result.rowCount ?? 0')
   })

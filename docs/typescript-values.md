@@ -23,7 +23,12 @@ number are bigints, numeric values are decimal text, bytea is a byte array, and
 a real is the single-precision value the server stored, not the nearest double
 of its printed text. A range is either empty or has bounds and inclusivity; an
 empty range is a value without points, distinct from SQL NULL, and a null bound
-is unbounded. Types without a dedicated shape yet arrive as the server's text.
+is unbounded. Timestamps are exact microsecond counts, an instant from the Unix
+epoch for a zoned timestamp and a wall-clock reading for an unzoned one, and an
+interval keeps its months, days and microseconds apart as the server does.
+Infinite timestamps and intervals are values of their own, and dates are ISO
+text whose years extend past four digits and below zero as astronomical years.
+Types without a dedicated shape yet arrive as the server's text.
 
 ## Sending and reading
 
@@ -34,4 +39,6 @@ error naming it before the server is contacted.
 
 Results are the server's output text, decoded by the shape of the column's
 type. Where the server offers more than one output format for a type, as for
-bytea, the decoder reads each of them.
+bytea and intervals, the decoder reads each format it can read exactly. Dates
+and timestamps are read in the ISO date style, as client libraries already
+assume; any other style fails loudly instead of being misread.

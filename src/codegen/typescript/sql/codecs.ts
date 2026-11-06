@@ -17,6 +17,12 @@ export type TypescriptScalarCodec =
   | 'Bytea'
   | 'Json'
   | 'Int8Range'
+  | 'Date'
+  | 'Timestamp'
+  | 'Timestamptz'
+  | 'Time'
+  | 'Timetz'
+  | 'Interval'
 
 // An empty range is a value without points, unlike SQL NULL, and a null bound is unbounded.
 export const typescriptInt8RangeType =
@@ -33,6 +39,13 @@ export const typescriptScalarTypes: Readonly<Record<TypescriptScalarCodec, strin
   Bytea: 'Uint8Array',
   Json: 'unknown',
   Int8Range: typescriptInt8RangeType,
+  Date: 'string',
+  Timestamp: '{ readonly localMicroseconds: bigint } | { readonly infinity: 1 | -1 }',
+  Timestamptz: '{ readonly epochMicroseconds: bigint } | { readonly infinity: 1 | -1 }',
+  Time: '{ readonly microseconds: number }',
+  Timetz: '{ readonly microseconds: number; readonly offsetSeconds: number }',
+  Interval:
+    '{ readonly months: number; readonly days: number; readonly microseconds: bigint } | { readonly infinity: 1 | -1 }',
 }
 
 const builtinCodecs: Readonly<Record<string, TypescriptScalarCodec>> = {
@@ -51,6 +64,16 @@ const builtinCodecs: Readonly<Record<string, TypescriptScalarCodec>> = {
   json: 'Json',
   jsonb: 'Json',
   int8range: 'Int8Range',
+  date: 'Date',
+  timestamp: 'Timestamp',
+  'timestamp without time zone': 'Timestamp',
+  timestamptz: 'Timestamptz',
+  'timestamp with time zone': 'Timestamptz',
+  time: 'Time',
+  'time without time zone': 'Time',
+  timetz: 'Timetz',
+  'time with time zone': 'Timetz',
+  interval: 'Interval',
 }
 
 const aliases: Readonly<Record<string, string>> = {
@@ -63,9 +86,15 @@ const aliases: Readonly<Record<string, string>> = {
   decimal: 'numeric',
 }
 
+// Type modifiers can sit inside a name, as in timestamp(3) with time zone, and an interval can
+// carry its fields; neither changes the wire value.
 export const typescriptBuiltinName = (type: string): string => {
-  const unmodified = type.replace(/\([^)]*\)$/u, '')
+  const unmodified = type
+    .replace(/\([^)]*\)/gu, '')
+    .replace(/\s+/gu, ' ')
+    .trim()
   const unqualified = unmodified.split('.').at(-1)?.replaceAll('"', '') ?? unmodified
+  if (/^interval(?: |$)/u.test(unqualified)) return 'interval'
   return aliases[unqualified] ?? unqualified
 }
 
@@ -233,6 +262,142 @@ function encodeInt8Range(value: unknown, name: string): string | null {
   if (!('lower' in value) || !('upper' in value) || !('lowerInclusive' in value) || !('upperInclusive' in value) || (value.lower !== null && typeof value.lower !== 'bigint') || (value.upper !== null && typeof value.upper !== 'bigint') || typeof value.lowerInclusive !== 'boolean' || typeof value.upperInclusive !== 'boolean')
     return encodeInvalid(name, 'int8range')
   return (value.lowerInclusive ? '[' : '(') + (value.lower ?? '') + ',' + (value.upper ?? '') + (value.upperInclusive ? ']' : ')')
+}
+// Calendar arithmetic is proleptic Gregorian with astronomical years, as the server's is; output is
+// read in the ISO date style that client libraries already assume.
+function temporalOutput(type: string, value: string): never {
+  throw new TypeError('Unexpected ' + type + ' output ' + JSON.stringify(value) + '; generated code reads the ISO DateStyle and the postgres or iso_8601 IntervalStyle')
+}
+function civilDays(year: number, month: number, day: number): number {
+  const shifted = month <= 2 ? year - 1 : year
+  const era = Math.floor(shifted / 400)
+  const yearOfEra = shifted - era * 400
+  const dayOfYear = Math.floor((153 * (month + (month > 2 ? -3 : 9)) + 2) / 5) + day - 1
+  return era * 146097 + yearOfEra * 365 + Math.floor(yearOfEra / 4) - Math.floor(yearOfEra / 100) + dayOfYear - 719468
+}
+function civilDate(days: number): [number, number, number] {
+  const shifted = days + 719468
+  const era = Math.floor(shifted / 146097)
+  const dayOfEra = shifted - era * 146097
+  const yearOfEra = Math.floor((dayOfEra - Math.floor(dayOfEra / 1460) + Math.floor(dayOfEra / 36524) - Math.floor(dayOfEra / 146096)) / 365)
+  const dayOfYear = dayOfEra - (365 * yearOfEra + Math.floor(yearOfEra / 4) - Math.floor(yearOfEra / 100))
+  const shiftedMonth = Math.floor((5 * dayOfYear + 2) / 153)
+  const month = shiftedMonth + (shiftedMonth < 10 ? 3 : -9)
+  return [yearOfEra + era * 400 + (month <= 2 ? 1 : 0), month, dayOfYear - Math.floor((153 * shiftedMonth + 2) / 5) + 1]
+}
+function serverDate(year: number, month: number, day: number): string {
+  const pad = (part: number) => String(part).padStart(2, '0')
+  return String(year <= 0 ? 1 - year : year).padStart(4, '0') + '-' + pad(month) + '-' + pad(day)
+}
+function serverClock(microseconds: bigint): string {
+  const pad = (part: bigint) => String(part).padStart(2, '0')
+  return pad(microseconds / 3600000000n) + ':' + pad((microseconds / 60000000n) % 60n) + ':' + pad((microseconds / 1000000n) % 60n) + '.' + String(microseconds % 1000000n).padStart(6, '0')
+}
+function serverTimestamp(value: unknown, field: string, name: string, type: string, zone: string): string | null {
+  if (value === null || value === undefined) return null
+  if (value && typeof value === 'object' && 'infinity' in value && (value.infinity === 1 || value.infinity === -1)) return value.infinity === 1 ? 'infinity' : '-infinity'
+  if (!value || typeof value !== 'object' || !(field in value) || typeof (value as Record<string, unknown>)[field] !== 'bigint') return encodeInvalid(name, type)
+  const microseconds = (value as Record<string, bigint>)[field]!
+  let days = microseconds / 86400000000n
+  if (days * 86400000000n > microseconds) days -= 1n
+  const [year, month, day] = civilDate(Number(days))
+  return serverDate(year, month, day) + ' ' + serverClock(microseconds - days * 86400000000n) + zone + (year <= 0 ? ' BC' : '')
+}
+function readTimestamp(value: string, type: string, zoned: boolean): bigint | { infinity: 1 | -1 } {
+  if (value === 'infinity') return { infinity: 1 }
+  if (value === '-infinity') return { infinity: -1 }
+  const match = /^([0-9]{4,})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\\.([0-9]{1,6}))?(?:([+-])([0-9]{2})(?::([0-9]{2}))?(?::([0-9]{2}))?)?( BC)?$/u.exec(value)
+  if (!match || Boolean(match[8]) !== zoned) return temporalOutput(type, value)
+  const year = match[12] ? 1 - Number(match[1]) : Number(match[1])
+  const seconds = Number(match[4]) * 3600 + Number(match[5]) * 60 + Number(match[6])
+  const offset = match[8] ? (match[8] === '-' ? -1 : 1) * (Number(match[9]) * 3600 + Number(match[10] ?? 0) * 60 + Number(match[11] ?? 0)) : 0
+  return BigInt(civilDays(year, Number(match[2]), Number(match[3]))) * 86400000000n + BigInt(seconds - offset) * 1000000n + BigInt((match[7] ?? '').padEnd(6, '0'))
+}
+function decodeDate(value: string | null): string | null {
+  if (value === null || value === 'infinity' || value === '-infinity') return value
+  const match = /^([0-9]{4,})-([0-9]{2})-([0-9]{2})( BC)?$/u.exec(value)
+  if (!match) return temporalOutput('date', value)
+  const year = match[4] ? 1 - Number(match[1]) : Number(match[1])
+  const text = year >= 0 && year <= 9999 ? String(year).padStart(4, '0') : (year < 0 ? '-' : '+') + String(Math.abs(year)).padStart(6, '0')
+  return text + '-' + match[2] + '-' + match[3]
+}
+function encodeDate(value: unknown, name: string): string | null {
+  if (value === null || value === undefined) return null
+  if (value === 'infinity' || value === '-infinity') return value
+  const match = typeof value === 'string' ? /^(?:([0-9]{4})|([+-][0-9]{6,}))-([0-9]{2})-([0-9]{2})$/u.exec(value) : null
+  if (!match || match[2] === '-000000') return encodeInvalid(name, 'date')
+  const year = Number(match[1] ?? match[2])
+  return serverDate(year, Number(match[3]), Number(match[4])) + (year <= 0 ? ' BC' : '')
+}
+function decodeTimestamp(value: string | null): unknown {
+  if (value === null) return null
+  const read = readTimestamp(value, 'timestamp', false)
+  return typeof read === 'bigint' ? { localMicroseconds: read } : read
+}
+function encodeTimestamp(value: unknown, name: string): string | null {
+  return serverTimestamp(value, 'localMicroseconds', name, 'timestamp', '')
+}
+function decodeTimestamptz(value: string | null): unknown {
+  if (value === null) return null
+  const read = readTimestamp(value, 'timestamptz', true)
+  return typeof read === 'bigint' ? { epochMicroseconds: read } : read
+}
+function encodeTimestamptz(value: unknown, name: string): string | null {
+  return serverTimestamp(value, 'epochMicroseconds', name, 'timestamptz', '+00')
+}
+function readClock(value: string, type: string): [number, number] {
+  const match = /^([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\\.([0-9]{1,6}))?(?:([+-])([0-9]{2})(?::([0-9]{2}))?(?::([0-9]{2}))?)?$/u.exec(value)
+  if (!match || Boolean(match[5]) !== (type === 'timetz')) return temporalOutput(type, value)
+  const microseconds = (Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3])) * 1000000 + Number((match[4] ?? '').padEnd(6, '0'))
+  return [microseconds, match[5] ? (match[5] === '-' ? -1 : 1) * (Number(match[6]) * 3600 + Number(match[7] ?? 0) * 60 + Number(match[8] ?? 0)) : 0]
+}
+function decodeTime(value: string | null): unknown {
+  return value === null ? null : { microseconds: readClock(value, 'time')[0] }
+}
+function encodeTime(value: unknown, name: string): string | null {
+  if (value === null || value === undefined) return null
+  if (!value || typeof value !== 'object' || !('microseconds' in value) || typeof value.microseconds !== 'number' || !Number.isSafeInteger(value.microseconds) || value.microseconds < 0) return encodeInvalid(name, 'time')
+  return serverClock(BigInt(value.microseconds))
+}
+function decodeTimetz(value: string | null): unknown {
+  if (value === null) return null
+  const [microseconds, offsetSeconds] = readClock(value, 'timetz')
+  return { microseconds, offsetSeconds }
+}
+function encodeTimetz(value: unknown, name: string): string | null {
+  if (value === null || value === undefined) return null
+  if (!value || typeof value !== 'object' || !('microseconds' in value) || !('offsetSeconds' in value) || typeof value.microseconds !== 'number' || !Number.isSafeInteger(value.microseconds) || value.microseconds < 0 || typeof value.offsetSeconds !== 'number' || !Number.isSafeInteger(value.offsetSeconds)) return encodeInvalid(name, 'timetz')
+  const offset = Math.abs(value.offsetSeconds)
+  const pad = (part: number) => String(part).padStart(2, '0')
+  return serverClock(BigInt(value.microseconds)) + (value.offsetSeconds < 0 ? '-' : '+') + pad(Math.floor(offset / 3600)) + ':' + pad(Math.floor(offset / 60) % 60) + ':' + pad(offset % 60)
+}
+function decodeInterval(value: string | null): unknown {
+  if (value === null) return null
+  if (value === 'infinity') return { infinity: 1 }
+  if (value === '-infinity') return { infinity: -1 }
+  const fraction = (sign: string | undefined, whole: string | undefined, part: string | undefined) => (sign === '-' ? -1n : 1n) * (BigInt(whole ?? 0) * 1000000n + BigInt((part ?? '').padEnd(6, '0')))
+  const postgres = /^(?:([+-]?[0-9]+) years? ?)?(?:([+-]?[0-9]+) mons? ?)?(?:([+-]?[0-9]+) days? ?)?(?:([+-])?([0-9]+):([0-9]{2}):([0-9]{2})(?:\\.([0-9]{1,6}))?)?$/u.exec(value)
+  if (postgres && value !== '')
+    return {
+      months: Number(postgres[1] ?? 0) * 12 + Number(postgres[2] ?? 0),
+      days: Number(postgres[3] ?? 0),
+      microseconds: (postgres[4] === '-' ? -1n : 1n) * ((BigInt(postgres[5] ?? 0) * 3600n + BigInt(postgres[6] ?? 0) * 60n) * 1000000n) + fraction(postgres[4], postgres[7], postgres[8]),
+    }
+  const iso = /^P(?:(-?[0-9]+)Y)?(?:(-?[0-9]+)M)?(?:(-?[0-9]+)D)?(?:T(?:(-?[0-9]+)H)?(?:(-?[0-9]+)M)?(?:(-?)([0-9]+)(?:\\.([0-9]{1,6}))?S)?)?$/u.exec(value)
+  if (!iso) return temporalOutput('interval', value)
+  return {
+    months: Number(iso[1] ?? 0) * 12 + Number(iso[2] ?? 0),
+    days: Number(iso[3] ?? 0),
+    microseconds: (BigInt(iso[4] ?? 0) * 3600n + BigInt(iso[5] ?? 0) * 60n) * 1000000n + fraction(iso[6], iso[7], iso[8]),
+  }
+}
+function encodeInterval(value: unknown, name: string): string | null {
+  if (value === null || value === undefined) return null
+  if (value && typeof value === 'object' && 'infinity' in value && (value.infinity === 1 || value.infinity === -1)) return value.infinity === 1 ? 'infinity' : '-infinity'
+  if (!value || typeof value !== 'object' || !('months' in value) || !('days' in value) || !('microseconds' in value) || typeof value.months !== 'number' || !Number.isSafeInteger(value.months) || typeof value.days !== 'number' || !Number.isSafeInteger(value.days) || typeof value.microseconds !== 'bigint') return encodeInvalid(name, 'interval')
+  // Under the SQL-standard style a leading minus also negates later unsigned fields.
+  const signed = (part: number | bigint) => (part < 0 ? '' : '+') + part
+  return signed(value.months) + ' mons ' + signed(value.days) + ' days ' + signed(value.microseconds) + ' microseconds'
 }
 function decodeArray(value: string | null, element: (item: string | null) => unknown, delimiter: string): unknown {
   if (value === null) return null

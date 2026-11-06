@@ -17,7 +17,11 @@ export type Events = TableTypes<{
     "audit": import("../../jsonschemas/index.js").EventAudit | null;
     "metadata": string | null;
     "note": string | null;
-    "created_at": string;
+    "created_at": {
+        readonly epochMicroseconds: bigint;
+    } | {
+        readonly infinity: 1 | -1;
+    };
 }, {
     "id": import("./domains.js").EventId;
     "default_id"?: import("./domains.js").DefaultEventId;
@@ -28,7 +32,11 @@ export type Events = TableTypes<{
     "audit"?: import("../../jsonschemas/index.js").EventAudit | null;
     "metadata"?: string | null;
     "note"?: string | null;
-    "created_at"?: string;
+    "created_at"?: {
+        readonly epochMicroseconds: bigint;
+    } | {
+        readonly infinity: 1 | -1;
+    };
 }, {
     "id"?: import("./domains.js").EventId;
     "default_id"?: import("./domains.js").DefaultEventId;
@@ -39,7 +47,11 @@ export type Events = TableTypes<{
     "audit"?: import("../../jsonschemas/index.js").EventAudit | null;
     "metadata"?: string | null;
     "note"?: string | null;
-    "created_at"?: string;
+    "created_at"?: {
+        readonly epochMicroseconds: bigint;
+    } | {
+        readonly infinity: 1 | -1;
+    };
 }>;
 export type EventDetails = TableTypes<{
     "id": import("./domains.js").EventId;
