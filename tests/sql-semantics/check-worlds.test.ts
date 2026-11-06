@@ -1442,7 +1442,22 @@ describe('world CHECK INSERT parity', () => {
           catalog.rangeTypes,
         )!
         const payload = await readRangeFixture(pg, `SELECT ${expressions.join(',')}`, name, type)
-        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
+        const bound = (cell: NonNullable<typeof payload>['bounds'][number]) =>
+          cell.kind === 'Int8' ? cell.value : null
+        // TypeScript takes an int8range as its public value; Go still takes the payload.
+        portableRow[name] =
+          payload === null
+            ? null
+            : payload.typeName === 'pg_catalog.int8range'
+              ? payload.empty
+                ? 'empty'
+                : {
+                    lower: bound(payload.bounds[0]!),
+                    upper: bound(payload.bounds[1]!),
+                    lowerInclusive: payload.lowerInclusive,
+                    upperInclusive: payload.upperInclusive,
+                  }
+              : { kind: 'Value', value: payload }
         goRow[name] = payload
       }
       for (const name of pathColumns) {

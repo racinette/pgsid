@@ -10,6 +10,7 @@ import { planJsonSchemaInputs } from '../shared/json-schema-inputs.js'
 import { planCheckInputs, type CheckInputPlan } from '../shared/check-inputs.js'
 import { checkTriggerWarning } from '../shared/check-trigger-warning.js'
 import { renderTypescriptSchemaCheckArtifacts } from './sql/catalog-checks.js'
+import { isTypescriptInt8Range, typescriptInt8RangeCodecSource } from './sql/int8range.js'
 import {
   asyncModifier,
   exportModifier,
@@ -88,6 +89,7 @@ interface RenderedQuery {
   imports: TypeImport[]
   typeNames: string[]
   usesJsonSchemaRuntime: boolean
+  usesInt8Range: boolean
   hasValidators: boolean
   checkInputs: readonly CheckInputPlan[]
 }
@@ -283,6 +285,9 @@ export function renderTypescriptQueryArtifacts(
   }
 }`)
       : []),
+    ...(rendered.some((query) => query.usesInt8Range)
+      ? synthesizedStatements(typescriptInt8RangeCodecSource)
+      : []),
     ...rendered.flatMap((query) => query.runtimeDeclarations),
     ...rendered.map((query) => query.wrapper),
   ])
@@ -349,7 +354,12 @@ const renderQuery = (
     analysis.writeLineage ?? [],
     options.catalog,
     parameterTypes,
+    (column) => isTypescriptInt8Range(column.typeName),
   )
+  const rangeParameters = (parameterTypes ?? []).flatMap((type, index) =>
+    isTypescriptInt8Range(type) ? [index + 1] : [],
+  )
+  const rangeOutputs = outputNames.filter((_, index) => isTypescriptInt8Range(outputTypes?.[index]))
   if (options.emitRuntime !== false)
     for (const message of new Set(
       checkInputs.map((plan) => checkTriggerWarning(plan.table, plan.operation)),
@@ -686,6 +696,7 @@ const renderQuery = (
     usesJsonSchemaRuntime,
     hasValidators: validators.length + inputValidators.length > 0,
     checkInputs,
+    usesInt8Range: rangeParameters.length + rangeOutputs.length > 0,
     wrapper: renderWrapper(
       analysis,
       queryName,
@@ -695,6 +706,8 @@ const renderQuery = (
       inputValidators,
       [...inputPlan.parameters.keys()],
       checkInputs,
+      rangeParameters,
+      rangeOutputs,
       options.queryableModuleSpecifier
         ? factory.createTypeReferenceNode(
             factory.createQualifiedName(factory.createIdentifier('pgsid'), 'Queryable'),
@@ -821,6 +834,8 @@ const renderWrapper = (
   inputValidators: readonly RenderedValidator[],
   jsonParameters: readonly number[],
   checkInputs: readonly CheckInputPlan[],
+  rangeParameters: readonly number[],
+  rangeOutputs: readonly string[],
   queryableType: ts.TypeNode,
   validationError: ts.Expression,
 ): ts.FunctionDeclaration => {
@@ -1049,7 +1064,10 @@ const renderWrapper = (
     )
   }
   const values =
-    !jsonParameters.length && !named.length && analysis.contract.params.length
+    !jsonParameters.length &&
+    !rangeParameters.length &&
+    !named.length &&
+    analysis.contract.params.length
       ? factory.createArrayLiteralExpression([
           factory.createSpreadElement(factory.createIdentifier('params')),
         ])
@@ -1060,6 +1078,12 @@ const renderWrapper = (
               factory.createIdentifier('params'),
               name ? factory.createStringLiteral(name) : factory.createNumericLiteral(index),
             )
+            if (rangeParameters.includes(index + 1))
+              return factory.createCallExpression(
+                factory.createIdentifier('encodeInt8Range'),
+                undefined,
+                [value, factory.createStringLiteral(name ?? `$${index + 1}`)],
+              )
             return jsonParameters.includes(index + 1) ? jsonEncoded(index + 1) : value
           }),
         )
@@ -1116,6 +1140,7 @@ const renderWrapper = (
         ),
         factory.createReturnStatement(factory.createIdentifier('undefined')),
       ),
+      ...decodeStatements(rangeOutputs),
       ...validatorStatements(validators, analysis.query.name, validationError),
       factory.createReturnStatement(
         factory.createAsExpression(factory.createIdentifier('row'), rowType),
@@ -1139,6 +1164,7 @@ const renderWrapper = (
           factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
           factory.createBlock(
             [
+              ...decodeStatements(rangeOutputs),
               ...validatorStatements(validators, analysis.query.name, validationError),
               factory.createReturnStatement(
                 factory.createAsExpression(factory.createIdentifier('row'), rowType),
@@ -1184,6 +1210,22 @@ const renderWrapper = (
     ),
   )
 }
+
+const decodeStatements = (outputs: readonly string[]): ts.Statement[] =>
+  outputs.map((name) => {
+    const field = factory.createElementAccessExpression(
+      factory.createIdentifier('row'),
+      factory.createStringLiteral(name),
+    )
+    return factory.createExpressionStatement(
+      factory.createAssignment(
+        field,
+        factory.createCallExpression(factory.createIdentifier('decodeInt8Range'), undefined, [
+          field,
+        ]),
+      ),
+    )
+  })
 
 const validatorStatements = (
   validators: readonly RenderedValidator[],

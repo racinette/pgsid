@@ -136,6 +136,8 @@ it('validates range array and domain-cell profiles before copying public inputs,
         metadata.subtype,
         String.fromCharCode(head.elementKind),
       ])
+      const int8Bound = (cell: (typeof head.bounds)[number]) =>
+        cell.kind === 'Int8' ? cell.value : null
       const evaluate = (
         value: unknown,
         domain: unknown = domains,
@@ -156,7 +158,18 @@ it('validates range array and domain-cell profiles before copying public inputs,
               nested && typeof nested === 'object' && 'elementKind' in nested
                 ? { kind: 'Value', value: nested }
                 : nested,
-            head: { kind: 'Value', value: head },
+            // The int8range column takes its public TypeScript value; other ranges take payloads.
+            head:
+              metadata.identity === 'pg_catalog.int8range'
+                ? head.empty
+                  ? 'empty'
+                  : {
+                      lower: int8Bound(head.bounds[0]!),
+                      upper: int8Bound(head.bounds[1]!),
+                      lowerInclusive: head.lowerInclusive,
+                      upperInclusive: head.upperInclusive,
+                    }
+                : { kind: 'Value', value: head },
             bypass,
           }).map((c: { constraint: string; result: unknown }) => [c.constraint, c.result]),
         )

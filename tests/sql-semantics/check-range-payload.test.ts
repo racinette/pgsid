@@ -13,7 +13,7 @@ import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
 import { parseConfigString } from '../../src/config/loader.js'
 
-it('validates public range payloads, nominal subtype guards, partial finite bounds and lazy behavior in Go and TypeScript', async () => {
+it('validates public int8range values in TypeScript, range payloads in Go, and lazy behavior in both', async () => {
   const pg = await PGlite.create(),
     root = await mkdtemp(join(tmpdir(), 'pgsid-range-payload-')),
     run = promisify(execFile)
@@ -74,88 +74,46 @@ it('validates public range payloads, nominal subtype guards, partial finite boun
           .evaluatePublicRangePayloadsChecks({ span, expected, bypass })
           .map((c: { constraint: string; result: Result }) => [c.constraint, c.result]),
       )
-    const payload = {
-      typeName: 'pg_catalog.int8range',
-      elementType: 'pg_catalog.int8',
-      elementKind: 3,
-      empty: false,
+    const value = {
+      lower: 9007199254740993n,
+      upper: 9007199254740999n,
       lowerInclusive: true,
       upperInclusive: false,
-      bounds: [
-        { kind: 'Int8', value: 9007199254740993n },
-        { kind: 'Int8', value: 9007199254740999n },
-      ],
     }
-    const value = { kind: 'Value', value: payload }
     for (const result of Object.values(evaluate(value)))
       expect(result).toEqual({ certain: true, value: true })
     expect(evaluate(value, 9007199254740994n).bound).toEqual({ certain: true, value: false })
     expect(evaluate(value, 9007199254740994n, true).guarded).toEqual({ certain: true, value: true })
+    const exclusive = { ...value, lower: 9007199254740992n, lowerInclusive: false }
+    for (const result of Object.values(evaluate(exclusive)))
+      expect(result).toEqual({ certain: true, value: true })
+    expect(evaluate('empty', null).shape).toEqual({ certain: true, value: false })
     const invalid: unknown[] = [
       undefined,
       '[1,9)',
       1,
       {},
       { kind: 'Value', value: {} },
-      { kind: 'Value', value: null },
-      { kind: 'Error', value: { state: -1 } },
+      { kind: 'Null' },
+      { ...value, lower: 9007199254740993 },
+      { ...value, lower: 9223372036854775808n },
+      { ...value, upper: -9223372036854775809n },
+      { ...value, lowerInclusive: 'true' },
+      { lower: 1n, upper: 9n, lowerInclusive: true },
     ]
-    for (const change of [
-      { typeName: 'pg_catalog.int4range' },
-      { elementType: 'pg_catalog.int4' },
-      { elementKind: 2 },
-      { typeName: 'bad\0name' },
-      { elementType: '\ud800' },
-      { empty: 'false' },
-      { empty: true },
-      { lowerInclusive: 'true' },
-      { bounds: [] },
-      { bounds: [{ kind: 'Int8', value: 1n }] },
-      { bounds: [{ kind: 'Null' }, { kind: 'Int8', value: 9n }] },
-      {
-        bounds: [
-          { kind: 'Int4', value: 1 },
-          { kind: 'Int8', value: 9n },
-        ],
-      },
-      {
-        bounds: [
-          { kind: 'Int8', value: 9007199254740993 },
-          { kind: 'Int8', value: 9n },
-        ],
-      },
-      {
-        bounds: [
-          { kind: 'Int8', value: 9223372036854775808n },
-          { kind: 'Int8', value: 9n },
-        ],
-      },
-    ])
-      invalid.push({ kind: 'Value', value: { ...payload, ...change } })
     for (const input of invalid)
       expectUndecidedOrRejected(
         () => evaluate(input, null, true),
         JSON.stringify(input, (_key, item) => (typeof item === 'bigint' ? String(item) : item)),
         ['bound', 'shape', 'present'],
       )
-    for (const input of [null, { kind: 'Null' }]) {
-      const result = evaluate(input, null, true)
-      expect(result.bound).toEqual({ certain: true, value: true })
-      expect(result.shape).toEqual({ certain: true, value: null })
-      expect(result.present).toEqual({ certain: true, value: false })
-    }
-    const partial = {
-      kind: 'Value',
-      value: { ...payload, bounds: [{ kind: 'Unknown' }, { kind: 'Int8', value: 9n }] },
-    }
-    expect(evaluate(partial).bound).toMatchObject({ certain: false })
-    expect(evaluate(partial).shape).toEqual({ certain: true, value: true })
-    expect(evaluate(partial).present).toEqual({ certain: true, value: true })
-    const error = evaluate({ kind: 'Error', value: { state: parseInt('22012', 36) } }, null, true)
-    expect(error.bound).toEqual({ certain: true, error: '22012' })
-    expect(error.shape).toEqual({ certain: true, error: '22012' })
-    expect(error.present).toEqual({ certain: true, error: '22012' })
-    expect(error.guarded).toEqual({ certain: true, value: true })
+    const result = evaluate(null, null, true)
+    expect(result.bound).toEqual({ certain: true, value: true })
+    expect(result.shape).toEqual({ certain: true, value: null })
+    expect(result.present).toEqual({ certain: true, value: false })
+    // The server rejects a reversed range while reading the value, before any CHECK can skip it.
+    for (const result of Object.values(evaluate({ ...value, lower: 9n, upper: 1n }, null, true)))
+      expect(result).toEqual({ certain: true, error: '22000' })
     await pg.query(
       "INSERT INTO range_payloads VALUES('[9007199254740993,9007199254740999)'::int8range,$1,false)",
       [9007199254740993n],

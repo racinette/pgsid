@@ -64,6 +64,7 @@ import { typeName } from '../type-mapping.js'
 import { typescriptEvalBoolBackend } from './check.js'
 import { typescriptSqlBackend } from './registry.js'
 import { typescriptSqlRuntime } from './runtime.js'
+import { isTypescriptInt8Range } from './int8range.js'
 
 export function renderTypescriptSchemaChecks(
   tables: readonly TableInfo[],
@@ -106,6 +107,17 @@ export function renderTypescriptSchemaCheckArtifacts(
   } | null
 } {
   const typedInputs = options.typedInputs ?? false
+  // A domain chain over int8range takes the same public value as its base type.
+  const int8RangeColumn = (name: string, oid: number | undefined): boolean => {
+    const seen = new Set<number>()
+    let domain = domains.find((item) => item.oid === oid)
+    while (domain && !seen.has(domain.oid)) {
+      seen.add(domain.oid)
+      name = domain.baseTypeName
+      domain = domains.find((item) => item.oid === domain!.baseTypeOid)
+    }
+    return isTypescriptInt8Range(name)
+  }
   const portableValueType = (name: string, oid: number | undefined): string | null => {
     if (catalogCompositeType(name, options.compositeTypeGraph, options.rangeTypes))
       return 'CompositeValue'
@@ -345,7 +357,9 @@ export function renderTypescriptSchemaCheckArtifacts(
                 : item.rustType === 'MultirangeValue'
                   ? 'checkRustMultirange'
                   : item.rustType === 'RangeValue'
-                    ? 'checkRustRange'
+                    ? isTypescriptInt8Range(item.type)
+                      ? 'checkRustInt8Range'
+                      : 'checkRustRange'
                     : item.rustType === 'XmlValue'
                       ? 'checkRustXml'
                       : item.rustType === 'JsonpathValue'
@@ -791,9 +805,13 @@ export function renderTypescriptSchemaCheckArtifacts(
         ? table
           ? table.columns.flatMap((column) => {
               const type = portableValueType(column.typeName, column.typeOid)
-              return type ? [[column.name, type] as const] : []
+              return type && !int8RangeColumn(column.typeName, column.typeOid)
+                ? [[column.name, type] as const]
+                : []
             })
-          : domain && portableValueType(domain.baseTypeName, domain.baseTypeOid)
+          : domain &&
+              portableValueType(domain.baseTypeName, domain.baseTypeOid) &&
+              !int8RangeColumn(domain.baseTypeName, domain.baseTypeOid)
             ? [['value', portableValueType(domain.baseTypeName, domain.baseTypeOid)!]]
             : []
         : [],
@@ -1421,6 +1439,37 @@ function checkRustRange(row: object, name: string, enumLabels: string, enumCount
     bounds.push(cell)
   }
   return _checkRust.makeCoercedRangeValue({typeName:p.typeName as string,elementType:p.elementType as string,elementKind:p.elementKind as number,enumLabels,enumCount,boundProfile,support:_checkRust.rangeBuiltinSupport(p.typeName as string,p.elementType as string,p.elementKind as number),empty:p.empty,lowerInclusive:p.lowerInclusive,upperInclusive:p.upperInclusive,bounds})
+}
+function checkRustInt8Range(row: object, name: string, ..._profile: unknown[]): _checkRust.RangeValue {
+  const input=Reflect.get(row,name)
+  if (!Object.hasOwn(row,name) || input===undefined) return _checkRust.rangeUnknown()
+  if (input===null) return _checkRust.rangeNull()
+  const range=(empty: boolean, lowerInclusive: boolean, upperInclusive: boolean, bounds: _checkRust.ArrayElement[]) => _checkRust.makeCoercedRangeValue({typeName:'pg_catalog.int8range',elementType:'pg_catalog.int8',elementKind:3,enumLabels:'',enumCount:-1,boundProfile:{nodes:[]},support:_checkRust.rangeBuiltinSupport('pg_catalog.int8range','pg_catalog.int8',3),empty,lowerInclusive,upperInclusive,bounds})
+  if (input==='empty') return range(true,false,false,[])
+  if (!input || typeof input!=='object' || !('lower' in input) || !('upper' in input) || !('lowerInclusive' in input) || !('upperInclusive' in input) || (input.lower!==null && typeof input.lower!=='bigint') || (input.upper!==null && typeof input.upper!=='bigint') || typeof input.lowerInclusive!=='boolean' || typeof input.upperInclusive!=='boolean') return checkRustInvalid(name)
+  const max=9223372036854775807n
+  for (const bound of [input.lower,input.upper]) if (bound!==null && (bound< -max-1n || bound>max)) return checkRustInvalid(name)
+  let lower=input.lower, upper=input.upper
+  let lowerInclusive=lower!==null && input.lowerInclusive, upperInclusive=upper!==null && input.upperInclusive
+  const empty=()=>range(true,false,false,[])
+  // Bounds are ordered before the discrete canonical form is taken, as the server does.
+  if (lower!==null && upper!==null) {
+    if (lower>upper) throw Object.assign(new Error('range lower bound must be less than or equal to range upper bound'),{code:'22000'})
+    if (lower===upper && !(lowerInclusive && upperInclusive)) return empty()
+  }
+  if (lower!==null && !lowerInclusive) {
+    if (lower===max) throw Object.assign(new Error('bigint out of range'),{code:'22003'})
+    lower+=1n
+    lowerInclusive=true
+  }
+  if (upper!==null && upperInclusive) {
+    if (upper===max) throw Object.assign(new Error('bigint out of range'),{code:'22003'})
+    upper+=1n
+    upperInclusive=false
+  }
+  if (lower!==null && upper!==null && lower>=upper) return empty()
+  const cell=(bound: bigint | null): _checkRust.ArrayElement => bound===null?{kind:'Null'}:{kind:'Int8',value:bound}
+  return range(false,lowerInclusive,upperInclusive,[cell(lower),cell(upper)])
 }
 function checkRustSnapshot(row: object, name: string): _checkRust.SnapshotValue {
   const value = Reflect.get(row, name)
