@@ -1,6 +1,6 @@
 import type { Node } from 'libpg-query'
 import type { CatalogSnapshot, ColumnInfo, TableInfo } from '../../catalog/types.js'
-import type { WriteValueLineage, ValueLineage } from '../../query/value-lineage.js'
+import type { WriteValueLineage } from '../../query/value-lineage.js'
 import { catalogCheckGroups } from '../../sql-semantics/catalog-checks.js'
 import {
   catalogPointType,
@@ -51,21 +51,8 @@ export interface CheckWritePlan {
 
 export interface CheckInputPlan {
   table: TableInfo
+  operation: 'insert' | 'update'
   columns: readonly { name: string; parameter: number }[]
-}
-
-const directParameter = (value: ValueLineage): number | null => {
-  if (value.kind === 'parameter') return value.number
-  if (value.kind === 'transform' && value.operation.kind === 'assignment')
-    return directParameter(value.inputs[0]!)
-  return null
-}
-
-const directNull = (value: ValueLineage): boolean => {
-  if (value.kind === 'literal') return value.value === null
-  if (value.kind === 'transform' && value.operation.kind === 'assignment')
-    return directNull(value.inputs[0]!)
-  return false
 }
 
 const hasDefault = (column: ColumnInfo, catalog: CatalogSnapshot): boolean => {
@@ -85,39 +72,122 @@ const hasDefault = (column: ColumnInfo, catalog: CatalogSnapshot): boolean => {
 const defaultSource = (column: ColumnInfo, catalog: CatalogSnapshot): CheckColumnSource =>
   hasDefault(column, catalog) ? { kind: 'default' } : { kind: 'sql-null' }
 
-const assignedSource = (
-  table: TableInfo,
-  column: ColumnInfo,
-  operation: 'insert' | 'update',
-  writes: readonly WriteValueLineage[],
-  parameterTypes: readonly string[] | undefined,
-): CheckColumnSource => {
-  const assignments = writes.filter(
-    (write) =>
-      write.target.schema === table.schema &&
-      write.target.relation === table.name &&
-      write.target.column === column.name &&
-      write.source === operation,
-  )
-  if (assignments.length !== 1 || assignments[0]!.partial) return { kind: 'unknown' }
-  const value = assignments[0]!.value
-  if (directNull(value)) return { kind: 'sql-null' }
-  const number = directParameter(value)
-  const parameterType = parameterTypes?.[number === null ? -1 : number - 1] ?? ''
-  const type = catalogScalarType(column.typeName)
-  if (
-    number !== null &&
-    (type !== null ? type === catalogScalarType(parameterType) : column.typeName === parameterType)
-  )
-    return { kind: 'parameter', number }
-  return { kind: 'unknown' }
+type Assignment =
+  { kind: 'value'; node: Node } | { kind: 'default' } | { kind: 'previous' } | { kind: 'unknown' }
+
+interface CandidateRow {
+  operation: 'insert' | 'update'
+  rewritten: boolean
+  identityDefaults: boolean
+  assignment(name: string): Assignment
+  excluded?: CandidateRow
 }
 
-const targetNames = (nodes: readonly Node[] | undefined): string[] =>
-  (nodes ?? []).flatMap((node) => {
-    const name = (node as { ResTarget?: { name?: string } }).ResTarget?.name
-    return name ? [name] : []
-  })
+interface ResTargetNode {
+  name?: string
+  val?: Node
+  indirection?: unknown[]
+}
+
+const resTarget = (node: Node): ResTargetNode | undefined =>
+  (node as { ResTarget?: ResTargetNode }).ResTarget
+
+const isDefault = (node: Node | undefined): boolean =>
+  Boolean((node as { SetToDefault?: unknown } | undefined)?.SetToDefault)
+
+const insertRow = (
+  names: readonly string[],
+  partial: ReadonlySet<string>,
+  values: readonly (Node | undefined)[] | 'defaults' | 'unknown',
+  rewritten: boolean,
+  identityDefaults: boolean,
+): CandidateRow => ({
+  operation: 'insert',
+  rewritten,
+  identityDefaults,
+  assignment(name) {
+    const index = names.indexOf(name)
+    if (index < 0 || values === 'defaults') return { kind: 'default' }
+    if (values === 'unknown' || partial.has(name)) return { kind: 'unknown' }
+    const node = values[index]
+    if (!node) return { kind: 'unknown' }
+    return isDefault(node) ? { kind: 'default' } : { kind: 'value', node }
+  },
+})
+
+const updateRow = (
+  targets: readonly Node[],
+  rewritten: boolean,
+  excluded?: CandidateRow,
+): CandidateRow => ({
+  operation: 'update',
+  rewritten,
+  identityDefaults: false,
+  ...(excluded ? { excluded } : {}),
+  assignment(name) {
+    const matches = targets.flatMap((node) => {
+      const target = resTarget(node)
+      return target?.name === name ? [target] : []
+    })
+    if (!matches.length) return { kind: 'previous' }
+    const target = matches[0]!
+    if (matches.length > 1 || target.indirection?.length || !target.val) return { kind: 'unknown' }
+    if (isDefault(target.val)) return { kind: 'default' }
+    const multi = (target.val as { MultiAssignRef?: { source?: Node; colno?: number } })
+      .MultiAssignRef
+    if (!multi) return { kind: 'value', node: target.val }
+    const value = (multi.source as { RowExpr?: { args?: Node[] } } | undefined)?.RowExpr?.args?.[
+      (multi.colno ?? 0) - 1
+    ]
+    if (!value) return { kind: 'unknown' }
+    return isDefault(value) ? { kind: 'default' } : { kind: 'value', node: value }
+  },
+})
+
+const parameterSource = (
+  number: number,
+  column: ColumnInfo,
+  parameterTypes: readonly string[] | undefined,
+): CheckColumnSource => {
+  const parameterType = parameterTypes?.[number - 1] ?? ''
+  const type = catalogScalarType(column.typeName)
+  return (
+    type !== null ? type === catalogScalarType(parameterType) : column.typeName === parameterType
+  )
+    ? { kind: 'parameter', number }
+    : { kind: 'unknown' }
+}
+
+const columnSource = (
+  table: TableInfo,
+  column: ColumnInfo,
+  row: CandidateRow,
+  catalog: CatalogSnapshot,
+  parameterTypes: readonly string[] | undefined,
+): CheckColumnSource => {
+  if (row.rewritten) return { kind: 'unknown' }
+  if (column.generated !== 'none') return { kind: 'generated' }
+  if (row.identityDefaults && column.identity !== null) return defaultSource(column, catalog)
+  const assignment = row.assignment(column.name)
+  if (assignment.kind === 'default') return defaultSource(column, catalog)
+  if (assignment.kind !== 'value') return { kind: assignment.kind }
+  const node = assignment.node as {
+    ParamRef?: { number?: number }
+    A_Const?: { isnull?: boolean }
+    ColumnRef?: { fields?: Node[] }
+  }
+  if (node.ParamRef?.number) return parameterSource(node.ParamRef.number, column, parameterTypes)
+  if (node.A_Const?.isnull) return { kind: 'sql-null' }
+  const fields = (node.ColumnRef?.fields ?? []).map(
+    (field) => (field as { String?: { sval?: string } }).String?.sval,
+  )
+  const proposed = fields.length === 2 && fields[0] === 'excluded' ? fields[1] : undefined
+  const proposedColumn = table.columns.find((item) => item.name === proposed)
+  if (!row.excluded || !proposedColumn) return { kind: 'unknown' }
+  const source = columnSource(table, proposedColumn, row.excluded, catalog, parameterTypes)
+  if (source.kind === 'parameter') return parameterSource(source.number, column, parameterTypes)
+  return source.kind === 'sql-null' ? source : { kind: 'unknown' }
+}
 
 const inputNeedsCoercion = (column: ColumnInfo, catalog: CatalogSnapshot): boolean => {
   let name = column.typeName
@@ -154,7 +224,18 @@ export function planCheckWrite(
   catalog: CatalogSnapshot | undefined,
   parameterTypes: readonly string[] | undefined,
 ): CheckWritePlan | null {
-  if (!catalog) return null
+  return planCheckWrites(statement, writes, catalog, parameterTypes)[0] ?? null
+}
+
+// Every row a statement can write is checked, even one it may never reach: a value that violates
+// a CHECK is rejected before the server decides whether a row matched or an action fired.
+export function planCheckWrites(
+  statement: Node,
+  writes: readonly WriteValueLineage[],
+  catalog: CatalogSnapshot | undefined,
+  parameterTypes: readonly string[] | undefined,
+): CheckWritePlan[] {
+  if (!catalog) return []
   const insert = (
     statement as {
       InsertStmt?: {
@@ -162,6 +243,7 @@ export function planCheckWrite(
         cols?: Node[]
         selectStmt?: Node
         override?: string
+        onConflictClause?: { action?: string; targetList?: Node[] }
       }
     }
   ).InsertStmt
@@ -170,9 +252,16 @@ export function planCheckWrite(
       UpdateStmt?: { relation?: { relname?: string; schemaname?: string }; targetList?: Node[] }
     }
   ).UpdateStmt
-  const operation = insert ? 'insert' : update ? 'update' : null
-  const relation = insert?.relation ?? update?.relation
-  if (!operation || !relation?.relname) return null
+  const merge = (
+    statement as {
+      MergeStmt?: {
+        relation?: { relname?: string; schemaname?: string }
+        mergeWhenClauses?: Node[]
+      }
+    }
+  ).MergeStmt
+  const relation = insert?.relation ?? update?.relation ?? merge?.relation
+  if (!relation?.relname) return []
   const matches = catalog.tables.filter(
     (item) =>
       item.name === relation.relname &&
@@ -184,60 +273,111 @@ export function planCheckWrite(
     ),
   )
   const resolved = writtenMatches.length === 1 ? writtenMatches : matches
-  if (resolved.length !== 1) return null
+  if (resolved.length !== 1) return []
   const table = resolved[0]!
   const groups = catalogCheckGroups([table], catalog.domains, [], catalog.enums, catalog.rangeTypes)
   const used = new Set(groups.flatMap((group) => group.checks.flatMap(({ plan }) => plan.inputs)))
-  if (!used.size) return null
+  if (!used.size) return []
 
-  const select = (insert?.selectStmt as { SelectStmt?: { valuesLists?: Node[] } } | undefined)
-    ?.SelectStmt
-  const rows = select?.valuesLists ?? []
-  const values =
-    rows.length === 1 ? ((rows[0] as { List?: { items?: Node[] } }).List?.items ?? []) : []
-  const explicitNames = targetNames(insert?.cols)
-  const insertNames = insert
-    ? explicitNames.length
-      ? explicitNames
-      : table.columns.map((column) => column.name)
-    : []
-  const updateTargets = new Map(
-    (update?.targetList ?? []).flatMap((node) => {
-      const target = (node as { ResTarget?: { name?: string; val?: Node } }).ResTarget
-      return target?.name ? [[target.name, target.val] as const] : []
-    }),
-  )
   const rewrites = table.writeRewritesTree
-  const rowRewritten =
+  const rewritten = (operation: 'insert' | 'update') =>
     rewrites.insteadOf.includes(operation) || rewrites.insteadRules.includes(operation)
-  const columns = [...used].map((name) => {
-    const column = table.columns.find((item) => item.name === name)!
-    let source: CheckColumnSource
-    if (rowRewritten) source = { kind: 'unknown' }
-    else if (column.generated !== 'none') source = { kind: 'generated' }
-    else if (operation === 'update') {
-      if (!updateTargets.has(name)) source = { kind: 'previous' }
-      else if (
-        Boolean((updateTargets.get(name) as { SetToDefault?: unknown } | undefined)?.SetToDefault)
-      )
-        source = defaultSource(column, catalog)
-      else source = assignedSource(table, column, operation, writes, parameterTypes)
-    } else {
-      const index = insertNames.indexOf(name)
-      if (
-        (column.identity !== null && insert?.override === 'OVERRIDING_USER_VALUE') ||
-        index < 0 ||
-        (!insert?.selectStmt && rows.length === 0) ||
-        (rows.length === 1 &&
-          (!values[index] || Boolean((values[index] as { SetToDefault?: unknown }).SetToDefault)))
-      )
-        source = defaultSource(column, catalog)
-      else source = assignedSource(table, column, operation, writes, parameterTypes)
+  const insertNames = (cols: readonly Node[] | undefined) => {
+    const explicit = (cols ?? []).flatMap((node) => {
+      const name = resTarget(node)?.name
+      return name ? [name] : []
+    })
+    return explicit.length ? explicit : table.columns.map((column) => column.name)
+  }
+  const partialNames = (cols: readonly Node[] | undefined) =>
+    new Set(
+      (cols ?? []).flatMap((node) => {
+        const target = resTarget(node)
+        return target?.name && target.indirection?.length ? [target.name] : []
+      }),
+    )
+  const rows: CandidateRow[] = []
+  if (insert) {
+    const names = insertNames(insert.cols)
+    const partial = partialNames(insert.cols)
+    const identityDefaults = insert.override === 'OVERRIDING_USER_VALUE'
+    const select = (
+      insert.selectStmt as
+        | {
+            SelectStmt?: {
+              valuesLists?: Node[]
+              targetList?: Node[]
+              op?: string
+            }
+          }
+        | undefined
+    )?.SelectStmt
+    const row = (values: Parameters<typeof insertRow>[2]) =>
+      insertRow(names, partial, values, rewritten('insert'), identityDefaults)
+    const proposed = !insert.selectStmt
+      ? [row('defaults')]
+      : select?.valuesLists?.length
+        ? select.valuesLists.map((list) =>
+            row((list as { List?: { items?: Node[] } }).List?.items ?? []),
+          )
+        : select?.op === 'SETOP_NONE' &&
+            select.targetList?.every((node) => {
+              const value = resTarget(node)?.val as { ColumnRef?: { fields?: Node[] } } | undefined
+              return !value?.ColumnRef?.fields?.some((field) => 'A_Star' in field)
+            })
+          ? [row(select.targetList.map((node) => resTarget(node)?.val))]
+          : [row('unknown')]
+    rows.push(...proposed)
+    if (insert.onConflictClause?.action === 'ONCONFLICT_UPDATE')
+      for (const excluded of proposed)
+        rows.push(
+          updateRow(
+            insert.onConflictClause.targetList ?? [],
+            rewritten('insert') || rewritten('update'),
+            excluded,
+          ),
+        )
+  } else if (update) rows.push(updateRow(update.targetList ?? [], rewritten('update')))
+  else if (merge)
+    for (const node of merge.mergeWhenClauses ?? []) {
+      const arm = (
+        node as {
+          MergeWhenClause?: {
+            commandType?: string
+            override?: string
+            targetList?: Node[]
+            values?: Node[]
+          }
+        }
+      ).MergeWhenClause
+      if (arm?.commandType === 'CMD_UPDATE')
+        rows.push(updateRow(arm.targetList ?? [], rewritten('update')))
+      else if (arm?.commandType === 'CMD_INSERT')
+        rows.push(
+          insertRow(
+            insertNames(arm.targetList),
+            partialNames(arm.targetList),
+            arm.values?.length ? arm.values : 'defaults',
+            rewritten('insert'),
+            arm.override === 'OVERRIDING_USER_VALUE',
+          ),
+        )
     }
-    return { name, source }
-  })
-  const canPrevalidate = operation === 'insert' && rows.length === 1 && !rowRewritten
-  return { table, operation, columns, canPrevalidate }
+  return rows.map((row) => ({
+    table,
+    operation: row.operation,
+    columns: [...used].map((name) => ({
+      name,
+      source: columnSource(
+        table,
+        table.columns.find((item) => item.name === name)!,
+        row,
+        catalog,
+        parameterTypes,
+      ),
+    })),
+    canPrevalidate: !row.rewritten,
+  }))
 }
 
 export function planCheckInputs(
@@ -246,9 +386,22 @@ export function planCheckInputs(
   catalog: CatalogSnapshot | undefined,
   parameterTypes: readonly string[] | undefined,
 ): CheckInputPlan[] {
-  const plan = planCheckWrite(statement, writes, catalog, parameterTypes)
-  if (!plan?.canPrevalidate) return []
-  const columns = plan.columns.flatMap(({ name, source }) => {
+  const plans = new Map<string, CheckInputPlan>()
+  for (const plan of planCheckWrites(statement, writes, catalog, parameterTypes)) {
+    if (!plan.canPrevalidate) continue
+    const columns = parameterColumns(plan, catalog)
+    if (!columns.length) continue
+    const key = JSON.stringify([plan.operation, columns])
+    if (!plans.has(key)) plans.set(key, { table: plan.table, operation: plan.operation, columns })
+  }
+  return [...plans.values()]
+}
+
+const parameterColumns = (
+  plan: CheckWritePlan,
+  catalog: CatalogSnapshot | undefined,
+): CheckInputPlan['columns'] =>
+  plan.columns.flatMap(({ name, source }) => {
     if (source.kind !== 'parameter') return []
     const column = plan.table.columns.find((column) => column.name === name)!
     if (
@@ -293,5 +446,3 @@ export function planCheckInputs(
     if (catalog && inputNeedsCoercion(column, catalog)) return []
     return [{ name, parameter: source.number }]
   })
-  return columns.length ? [{ table: plan.table, columns }] : []
-}

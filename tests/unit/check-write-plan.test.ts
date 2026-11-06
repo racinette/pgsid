@@ -246,7 +246,7 @@ describe('CHECK write boundary', () => {
     expect(go.artifacts.some((item) => item.path.endsWith('/checks.go'))).toBe(true)
   })
 
-  it('marks untouched UPDATE columns as previous and never prevalidates a possible zero-row write', async () => {
+  it('marks untouched UPDATE columns as previous and prevalidates even a possible zero-row write', async () => {
     const update = await statement('UPDATE check_boundary SET j = $1 WHERE id = $2')
     const writes = [write('j', 'update', parameter(1))]
     const plan = planCheckWrite(update, writes, catalog, ['pg_catalog.int4', 'pg_catalog.int4'])
@@ -254,10 +254,16 @@ describe('CHECK write boundary', () => {
       i: { kind: 'previous' },
       j: { kind: 'parameter', number: 1 },
     })
-    expect(plan?.canPrevalidate).toBe(false)
+    expect(plan?.canPrevalidate).toBe(true)
     expect(
       planCheckInputs(update, writes, catalog, ['pg_catalog.int4', 'pg_catalog.int4']),
-    ).toEqual([])
+    ).toEqual([
+      {
+        table: catalog.tables.find((item) => item.name === 'check_boundary'),
+        operation: 'update',
+        columns: [{ name: 'j', parameter: 1 }],
+      },
+    ])
     expect(
       (await db.query('UPDATE check_boundary SET j = $1 WHERE id = $2', [-1, -999])).affectedRows,
     ).toBe(0)

@@ -351,8 +351,9 @@ const renderQuery = (
     parameterTypes,
   )
   if (options.emitRuntime !== false)
-    for (const plan of checkInputs) {
-      const message = checkTriggerWarning(plan.table, 'insert')
+    for (const message of new Set(
+      checkInputs.map((plan) => checkTriggerWarning(plan.table, plan.operation)),
+    )) {
       if (message)
         diagnostics.push({
           code: 'check-before-trigger',

@@ -9,11 +9,17 @@ distinct. When a value cannot be reproduced in the target language, the
 evaluator leaves the affected result uncertain and PostgreSQL decides.
 
 The row validator evaluates constraints against the row it receives. The
-query adapter interprets assignments and decides when the row is available.
-For a single-row insert with a portable expression, it can evaluate the
-expression from query inputs. A default that depends on database state stays
-unknown. An update may need the previous row and may affect no rows, so a
-parameter alone does not justify rejecting the update before it executes.
+query adapter interprets assignments and builds one candidate row for every
+row a statement can write: each VALUES row, the proposed and conflict-update
+rows of an upsert, an update's assignments, and each MERGE action. A column
+an update leaves alone keeps its previous value, which the adapter does not
+know, and a default that depends on database state stays unknown.
+
+A candidate row is validated even when the statement might not write it: an
+update can match no rows, an upsert may never conflict, and a MERGE action
+may never fire. PostgreSQL accepts such a statement without checking the
+row. Generated queries reject it when its own values certainly violate a
+CHECK, because those values would fail on any row they reached.
 
 Already-coerced temporal values preserve native cast and precision results even
 when text input would reject them. Binary operations, comparisons and nullness
