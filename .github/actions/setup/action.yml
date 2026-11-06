@@ -33,19 +33,6 @@ runs:
         curl -fsSL -o "$RUNNER_TEMP/tinygo.deb" https://github.com/tinygo-org/tinygo/releases/download/v0.42.0/tinygo_0.42.0_amd64.deb
         echo "2082c4762fea6d5cc4cd1f4a243eaacf07b12f576717d4c6b74828bd163cb563  $RUNNER_TEMP/tinygo.deb" | sha256sum --check
         sudo dpkg -i "$RUNNER_TEMP/tinygo.deb"
-    # The extension comes from an upstream CI artifact, which expires; the cache keeps a verified
-    # copy while scheduled runs keep touching it.
-    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-      id: extension
-      with:
-        path: vendor/electric-sql-pglite-plpgsql-check-0.0.1.tgz
-        key: plpgsql-check-98cc5ed8ffb9705ffe4388811a9d228fed75c7ee73ee828a1c75689298004413
-    - name: PGlite extension
-      if: steps.extension.outputs.cache-hit != 'true'
-      shell: bash
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: bash scripts/fetch-plpgsql-check.sh
     - name: Dependencies
       shell: bash
       run: pnpm install --frozen-lockfile

@@ -28,5 +28,6 @@ crates/check-evaluator/target/
 
 vendor/*
 !vendor/README.MD
+!vendor/electric-sql-pglite-plpgsql-check-0.0.1.tgz
 !vendor/postgresql-timezone/
 !vendor/postgresql-unicode/
