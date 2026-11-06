@@ -1256,17 +1256,28 @@ const encodeExpression = (
     [value, ...codecArguments(codec, 'encode'), factory.createStringLiteral(name)],
   )
 
-const codecStatements = (names: ReadonlySet<string>): ts.Statement[] =>
-  names.size
-    ? synthesizedStatements(typescriptCodecSource).filter(
-        (statement) =>
-          ts.isFunctionDeclaration(statement) &&
-          statement.name !== undefined &&
-          (names.has(statement.name.text) ||
-            (statement.name.text === 'encodeInvalid' &&
-              [...names].some((name) => name.startsWith('encode')))),
-      )
-    : []
+// A codec can rely on shared helpers, so every function an emitted one names is emitted with it.
+const codecStatements = (names: ReadonlySet<string>): ts.Statement[] => {
+  if (!names.size) return []
+  const functions = synthesizedStatements(typescriptCodecSource).filter(
+    (statement): statement is ts.FunctionDeclaration =>
+      ts.isFunctionDeclaration(statement) && statement.name !== undefined,
+  )
+  const emitted = new Set(names)
+  for (let index = 0; index < functions.length; index++) {
+    const statement = functions[index]!
+    if (!emitted.has(statement.name!.text)) continue
+    const before = emitted.size
+    const visit = (node: ts.Node): void => {
+      if (ts.isIdentifier(node) && functions.some((item) => item.name!.text === node.text))
+        emitted.add(node.text)
+      ts.forEachChild(node, visit)
+    }
+    visit(statement)
+    if (emitted.size !== before) index = -1
+  }
+  return functions.filter((statement) => emitted.has(statement.name!.text))
+}
 
 const validatorStatements = (
   validators: readonly RenderedValidator[],
