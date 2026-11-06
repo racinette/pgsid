@@ -1450,8 +1450,9 @@ describe('world CHECK INSERT parity', () => {
             ? null
             : payload.typeName === 'pg_catalog.int8range'
               ? payload.empty
-                ? 'empty'
+                ? { empty: true }
                 : {
+                    empty: false,
                     lower: bound(payload.bounds[0]!),
                     upper: bound(payload.bounds[1]!),
                     lowerInclusive: payload.lowerInclusive,

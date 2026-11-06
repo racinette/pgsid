@@ -75,6 +75,7 @@ it('validates public int8range values in TypeScript, range payloads in Go, and l
           .map((c: { constraint: string; result: Result }) => [c.constraint, c.result]),
       )
     const value = {
+      empty: false,
       lower: 9007199254740993n,
       upper: 9007199254740999n,
       lowerInclusive: true,
@@ -87,7 +88,7 @@ it('validates public int8range values in TypeScript, range payloads in Go, and l
     const exclusive = { ...value, lower: 9007199254740992n, lowerInclusive: false }
     for (const result of Object.values(evaluate(exclusive)))
       expect(result).toEqual({ certain: true, value: true })
-    expect(evaluate('empty', null).shape).toEqual({ certain: true, value: false })
+    expect(evaluate({ empty: true }, null).shape).toEqual({ certain: true, value: false })
     const invalid: unknown[] = [
       undefined,
       '[1,9)',
@@ -99,7 +100,10 @@ it('validates public int8range values in TypeScript, range payloads in Go, and l
       { ...value, lower: 9223372036854775808n },
       { ...value, upper: -9223372036854775809n },
       { ...value, lowerInclusive: 'true' },
-      { lower: 1n, upper: 9n, lowerInclusive: true },
+      { lower: 1n, upper: 9n, lowerInclusive: true, upperInclusive: false },
+      { empty: false, lower: 1n, upper: 9n, lowerInclusive: true },
+      { empty: 'false', lower: 1n, upper: 9n, lowerInclusive: true, upperInclusive: false },
+      'empty',
     ]
     for (const input of invalid)
       expectUndecidedOrRejected(
