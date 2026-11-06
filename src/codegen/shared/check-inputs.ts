@@ -385,11 +385,12 @@ export function planCheckInputs(
   writes: readonly WriteValueLineage[],
   catalog: CatalogSnapshot | undefined,
   parameterTypes: readonly string[] | undefined,
+  publicInput: (column: ColumnInfo) => boolean = () => false,
 ): CheckInputPlan[] {
   const plans = new Map<string, CheckInputPlan>()
   for (const plan of planCheckWrites(statement, writes, catalog, parameterTypes)) {
     if (!plan.canPrevalidate) continue
-    const columns = parameterColumns(plan, catalog)
+    const columns = parameterColumns(plan, catalog, publicInput)
     if (!columns.length) continue
     const key = JSON.stringify([plan.operation, columns])
     if (!plans.has(key)) plans.set(key, { table: plan.table, operation: plan.operation, columns })
@@ -400,10 +401,13 @@ export function planCheckInputs(
 const parameterColumns = (
   plan: CheckWritePlan,
   catalog: CatalogSnapshot | undefined,
+  publicInput: (column: ColumnInfo) => boolean,
 ): CheckInputPlan['columns'] =>
   plan.columns.flatMap(({ name, source }) => {
     if (source.kind !== 'parameter') return []
     const column = plan.table.columns.find((column) => column.name === name)!
+    // A target whose parameters take a public value converts it for the evaluator itself.
+    if (publicInput(column)) return [{ name, parameter: source.number }]
     if (
       catalogArrayType(
         column.typeName,

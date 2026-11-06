@@ -10,6 +10,7 @@ import { factory, intersectionType, parseType, nullableType, unionType } from '.
 import { typescriptTypeFromJsonSchema } from './json-schema.js'
 import type { TypescriptJsonSchemaTypes } from './json-schema-types.js'
 import { arrayDimensionsMapping, assertArrayDimensions } from '../shared/array-dimensions.js'
+import { typescriptInt8RangeType } from './sql/int8range.js'
 
 export interface TypescriptTypeContext {
   inlineNative?: boolean
@@ -47,6 +48,7 @@ const DEFAULT_TYPES: Readonly<Record<string, string>> = {
   int2: 'number',
   int4: 'number',
   int8: 'string',
+  int8range: typescriptInt8RangeType,
   integer: 'number',
   inet: 'string',
   interval: 'string',
