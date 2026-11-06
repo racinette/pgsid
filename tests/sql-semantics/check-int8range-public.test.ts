@@ -22,11 +22,18 @@ UPDATE booking SET seats = @seats WHERE id = @id;
 `
 
 type Range =
-  | 'empty'
-  | { lower: bigint | null; upper: bigint | null; lowerInclusive: boolean; upperInclusive: boolean }
+  | { empty: true }
+  | {
+      empty: false
+      lower: bigint | null
+      upper: bigint | null
+      lowerInclusive: boolean
+      upperInclusive: boolean
+    }
 const range = (text: string): Range => {
   const match = /^([[(])(-?[0-9]*),(-?[0-9]*)([\])])$/u.exec(text)!
   return {
+    empty: false,
     lower: match[2] ? BigInt(match[2]) : null,
     upper: match[3] ? BigInt(match[3]) : null,
     lowerInclusive: match[1] === '[',
@@ -53,7 +60,7 @@ const values: { value: Range; text: string }[] = [
   `[1,${max}]`,
   `[0,${max})`,
 ].map((text) => ({ value: range(text), text }))
-values.push({ value: 'empty', text: 'empty' })
+values.push({ value: { empty: true }, text: 'empty' })
 
 let root: string
 let db: PGlite
@@ -126,15 +133,17 @@ import { evaluatePublicBookingChecks } from './generated/schema/public/checks.js
 import type { Booking } from './generated/schema/public/tables.js'
 declare const db: Parameters<typeof insertBooking>[0]
 export async function usage(): Promise<bigint | null | undefined> {
-  await insertBooking(db, { id: 1, seats: { lower: 1n, upper: 5n, lowerInclusive: true, upperInclusive: false } })
-  await insertBooking(db, { id: 2, seats: 'empty' })
+  await insertBooking(db, { id: 1, seats: { empty: false, lower: 1n, upper: 5n, lowerInclusive: true, upperInclusive: false } })
+  await insertBooking(db, { id: 2, seats: { empty: true } })
   // @ts-expect-error range text is not the public value
   await insertBooking(db, { id: 3, seats: '[1,5)' })
-  evaluatePublicBookingChecks({ seats: 'empty' })
-  const stored: Booking['select']['seats'] = 'empty'
+  // @ts-expect-error a non-empty range needs its bounds
+  await insertBooking(db, { id: 4, seats: { empty: false } })
+  evaluatePublicBookingChecks({ seats: { empty: true } })
+  const stored: Booking['select']['seats'] = { empty: true }
   void stored
   const row = await getBooking(db, { id: 1 })
-  return row && row.seats !== 'empty' ? row.seats.lower : undefined
+  return row && !row.seats.empty ? row.seats.lower : undefined
 }
 `,
     )
@@ -184,13 +193,16 @@ export async function usage(): Promise<bigint | null | undefined> {
     const { getBooking } = await load('GetBooking')
     const calls = { count: 0 }
     await insertBooking!(queryable(calls), { id: 7, seats: range('(0,10]') })
-    await insertBooking!(queryable(calls), { id: 8, seats: 'empty' })
+    await insertBooking!(queryable(calls), { id: 8, seats: { empty: true } })
     await insertBooking!(queryable(calls), { id: 9, seats: range('[,5]') })
     expect(await getBooking!(queryable(calls), { id: 7 })).toEqual({
       id: 7,
       seats: range('[1,11)'),
     })
-    expect(await getBooking!(queryable(calls), { id: 8 })).toEqual({ id: 8, seats: 'empty' })
+    expect(await getBooking!(queryable(calls), { id: 8 })).toEqual({
+      id: 8,
+      seats: { empty: true },
+    })
     expect(await getBooking!(queryable(calls), { id: 9 })).toEqual({ id: 9, seats: range('(,6)') })
   })
 

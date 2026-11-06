@@ -162,8 +162,9 @@ it('validates range array and domain-cell profiles before copying public inputs,
             head:
               metadata.identity === 'pg_catalog.int8range'
                 ? head.empty
-                  ? 'empty'
+                  ? { empty: true }
                   : {
+                      empty: false,
                       lower: int8Bound(head.bounds[0]!),
                       upper: int8Bound(head.bounds[1]!),
                       lowerInclusive: head.lowerInclusive,

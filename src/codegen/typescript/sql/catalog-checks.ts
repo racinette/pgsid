@@ -1445,8 +1445,9 @@ function checkRustInt8Range(row: object, name: string, ..._profile: unknown[]): 
   if (!Object.hasOwn(row,name) || input===undefined) return _checkRust.rangeUnknown()
   if (input===null) return _checkRust.rangeNull()
   const range=(empty: boolean, lowerInclusive: boolean, upperInclusive: boolean, bounds: _checkRust.ArrayElement[]) => _checkRust.makeCoercedRangeValue({typeName:'pg_catalog.int8range',elementType:'pg_catalog.int8',elementKind:3,enumLabels:'',enumCount:-1,boundProfile:{nodes:[]},support:_checkRust.rangeBuiltinSupport('pg_catalog.int8range','pg_catalog.int8',3),empty,lowerInclusive,upperInclusive,bounds})
-  if (input==='empty') return range(true,false,false,[])
-  if (!input || typeof input!=='object' || !('lower' in input) || !('upper' in input) || !('lowerInclusive' in input) || !('upperInclusive' in input) || (input.lower!==null && typeof input.lower!=='bigint') || (input.upper!==null && typeof input.upper!=='bigint') || typeof input.lowerInclusive!=='boolean' || typeof input.upperInclusive!=='boolean') return checkRustInvalid(name)
+  if (!input || typeof input!=='object' || !('empty' in input) || typeof input.empty!=='boolean') return checkRustInvalid(name)
+  if (input.empty) return range(true,false,false,[])
+  if (!('lower' in input) || !('upper' in input) || !('lowerInclusive' in input) || !('upperInclusive' in input) || (input.lower!==null && typeof input.lower!=='bigint') || (input.upper!==null && typeof input.upper!=='bigint') || typeof input.lowerInclusive!=='boolean' || typeof input.upperInclusive!=='boolean') return checkRustInvalid(name)
   const max=9223372036854775807n
   for (const bound of [input.lower,input.upper]) if (bound!==null && (bound< -max-1n || bound>max)) return checkRustInvalid(name)
   let lower=input.lower, upper=input.upper
