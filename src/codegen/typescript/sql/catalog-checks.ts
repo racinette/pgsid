@@ -64,7 +64,7 @@ import { typeName } from '../type-mapping.js'
 import { typescriptEvalBoolBackend } from './check.js'
 import { typescriptSqlBackend } from './registry.js'
 import { typescriptSqlRuntime } from './runtime.js'
-import { isTypescriptInt8Range } from './int8range.js'
+import { isTypescriptInt8Range } from './codecs.js'
 
 export function renderTypescriptSchemaChecks(
   tables: readonly TableInfo[],

@@ -3,6 +3,17 @@ export type { InsertMaybeParams } from "../../../types/queries/items/InsertMaybe
 import * as pgsid from "./pgsid/queryable.js";
 export { QueryValidationError } from "./pgsid/queryable.js";
 import * as _jsonSchemas from "../../jsonschemas/index.js";
+function encodeInvalid(name: string, type: string): never {
+    throw new TypeError("Parameter " + name + " holds a malformed " + type + " value");
+}
+function encodeJson(value: unknown, name: string): string | null {
+    if (value === null || value === undefined)
+        return null;
+    const text = JSON.stringify(value);
+    if (text === undefined)
+        return encodeInvalid(name, "JSON");
+    return text;
+}
 export const insertMaybeSql = "INSERT INTO items (payload, maybe) VALUES ('{\"actor\":1}', $1);";
 export function isInsertMaybeParamsPayloadPublicItemsMaybe(value: unknown): value is InsertMaybeParams["payload"] {
     return _jsonSchemas.isMaybe(value);
@@ -28,5 +39,5 @@ export async function insertMaybe(db: pgsid.Queryable, params: InsertMaybeParams
         if (!isInsertMaybeParamsPayloadPublicItemsMaybe(jsonInput1Value))
             throw new pgsid.QueryValidationError("InsertMaybe", "payload", validateInsertMaybeParamsPayloadPublicItemsMaybe(jsonInput1Value).issues);
     }
-    await db.query(insertMaybeSql, [jsonInput1]);
+    await db.queryText(insertMaybeSql, [jsonInput1]);
 }

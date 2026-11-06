@@ -17,11 +17,10 @@ sql:
           public.measurements.values: { dimensions: [1, 2] }
 ```
 
-Element types remain inferred from PostgreSQL, including domain types and
-custom element mappings. Dimension annotations cannot accompany an explicit
-column type override or a JSON Schema mapping.
-Complete PostgreSQL array type overrides also conflict with dimension
-annotations; use an element type mapping when the generator should add depth.
+Element types remain inferred from PostgreSQL, including domain types. A
+dimension annotation cannot accompany a JSON Schema mapping. Go also accepts
+type overrides: an element type mapping keeps the annotation, while a column
+type override or a complete array type override conflicts with it.
 
 Fixed depths produce nested arrays or slices. TypeScript represents several
 allowed depths as a union of complete array shapes. Go represents an explicit

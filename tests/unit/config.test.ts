@@ -238,21 +238,7 @@ describe('config schema', () => {
             convention: sqlc
             brands: [__brand, brand]
             mappings:
-              pgType:
-                pg_catalog.int8: bigint
-                pg_catalog.numeric:
-                  type: Decimal
-                  imports:
-                    - from: decimal.js
-                      default: Decimal
-                public.uint256:
-                  type: BigNumber
-                  imports:
-                    - from: bn.js
-                      name: BN
-                      as: BigNumber
               column:
-                public.users.external_id: string
                 public.events.payload:
                   jsonSchema: EventPayload
                   runtime: {validate: false}
@@ -314,10 +300,6 @@ describe('config schema', () => {
       },
     })
     expect(cfg.sql.codegen?.typescript?.driver).toBe('pg')
-    expect(cfg.sql.codegen?.typescript?.mappings.pgType['pg_catalog.numeric']).toEqual({
-      type: 'Decimal',
-      imports: [{ from: 'decimal.js', default: 'Decimal' }],
-    })
     expect(cfg.sql.codegen?.typescript?.mappings.column['public.events.payload']).toEqual({
       jsonSchema: 'EventPayload',
       runtime: { validate: false },
@@ -371,8 +353,24 @@ describe('config schema', () => {
     expect(cfg.sql.codegen?.typescript?.driver).toBe('pg')
     expect(cfg.sql.codegen?.typescript?.convention).toBe('sqlc')
     expect(cfg.sql.codegen?.typescript?.brands).toEqual(['__brand'])
-    expect(cfg.sql.codegen?.typescript?.mappings).toEqual({ pgType: {}, column: {} })
+    expect(cfg.sql.codegen?.typescript?.mappings).toEqual({ column: {} })
     expect(cfg.sql.codegen?.typescript?.jsonSchemas.runtime).toBeUndefined()
+  })
+
+  it.each([
+    ['a PostgreSQL type', 'pgType:\n                pg_catalog.int8: bigint'],
+    ['a column type', 'column:\n                public.users.external_id: string'],
+  ])('rejects a TypeScript mapping that replaces %s', (_name, mapping) => {
+    expect(() =>
+      parseConfigString(`
+        schema: schema.sql
+        sql:
+          codegen:
+            typescript:
+              mappings:
+                ${mapping}
+      `),
+    ).toThrow()
   })
 
   it('enables native Go domain types by default', () => {

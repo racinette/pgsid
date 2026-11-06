@@ -257,12 +257,19 @@ describe('CHECK prevalidation across write shapes', () => {
       const sql = module[`${name}Sql`] as string
       expect(await rolledBack(() => outcome(() => db.query(sql, values)))).toBe(server)
       let calls = 0
+      const { fromPglite } = (await import(
+        join(root, 'generated/ts/runtime/ledger/pgsid/queryable.ts')
+      )) as {
+        fromPglite(db: PGlite): {
+          queryText(text: string, values: readonly (string | null)[]): Promise<unknown>
+        }
+      }
+      const text = fromPglite(db)
       const queryable = {
-        query: async (text: string, parameters?: unknown[]) => {
+        queryText: async (sql: string, parameters: readonly (string | null)[]) => {
           calls++
-          expect([text, parameters]).toEqual([sql, values])
-          const result = await db.query<Record<string, unknown>>(text, parameters)
-          return { rows: result.rows, rowCount: result.affectedRows ?? null }
+          expect(parameters).toEqual(values.map((value) => (value === null ? null : String(value))))
+          return text.queryText(sql, parameters)
         },
       }
       const generated = module[name] as (db: unknown, params: unknown) => Promise<unknown>

@@ -3,6 +3,25 @@ export type { GetEventParams, GetEventRow } from "../../../types/queries/events/
 import * as pgsid from "./pgsid/queryable.js";
 export { QueryValidationError } from "./pgsid/queryable.js";
 import * as _jsonSchemas from "../../jsonschemas/index.js";
+function encodeInvalid(name: string, type: string): never {
+    throw new TypeError("Parameter " + name + " holds a malformed " + type + " value");
+}
+function decodeBigint(value: string | null): bigint | null {
+    return value === null ? null : BigInt(value);
+}
+function encodeBigint(value: unknown, name: string): string | null {
+    if (value === null || value === undefined)
+        return null;
+    if (typeof value !== "bigint")
+        return encodeInvalid(name, "bigint");
+    return String(value);
+}
+function decodeText(value: string | null): string | null {
+    return value;
+}
+function decodeJson(value: string | null): unknown {
+    return value === null ? null : JSON.parse(value);
+}
 export const getEventSql = "WITH selected AS (\n  SELECT id, account_id, payload, state, created_at\n  FROM public.events\n  WHERE id = $1\n)\nSELECT\n  selected.id,\n  selected.payload,\n  selected.payload -> 'actor' AS actor,\n  selected.state,\n  selected.created_at,\n  accounts.id AS joined_account_id,\n  accounts.display_name\nFROM selected\nLEFT JOIN public.accounts AS accounts ON accounts.id = selected.account_id;";
 export function isGetEventPayload(value: unknown): value is GetEventRow["payload"] {
     return _jsonSchemas.isEventPayload(value);
@@ -35,10 +54,11 @@ export function validateGetEventActor(value: unknown): {
     return value === null ? { valid: true, issues: [] } : _jsonSchemas.validateEventPayloadActor(value);
 }
 export async function getEvent(db: pgsid.Queryable, params: GetEventParams): Promise<GetEventRow | undefined> {
-    const result = await db.query(getEventSql, [params["id"]]);
-    const row = result.rows[0];
-    if (row === undefined)
+    const result = await db.queryText(getEventSql, [encodeBigint(params["id"], "id")]);
+    const values = result.rows[0];
+    if (values === undefined)
         return undefined;
+    const row = { "id": decodeBigint(values[0]), "payload": decodeJson(values[1]), "actor": decodeJson(values[2]), "state": decodeText(values[3]), "created_at": decodeText(values[4]), "joined_account_id": decodeBigint(values[5]), "display_name": decodeText(values[6]) };
     if (!isGetEventPayload(row["payload"]))
         throw new pgsid.QueryValidationError("GetEvent", "payload", validateGetEventPayload(row["payload"]).issues);
     if (!isGetEventActor(row["actor"]))

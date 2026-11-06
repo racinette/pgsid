@@ -83,16 +83,6 @@ export const typeImportSchema = z.union([
   z.object({ from: z.string().min(1), namespace: z.string().min(1) }).strict(),
 ])
 
-export const targetTypeMappingSchema = z.union([
-  z.string().min(1),
-  z
-    .object({
-      type: z.string().min(1),
-      imports: z.array(typeImportSchema).min(1).optional(),
-    })
-    .strict(),
-])
-
 export const arrayDimensionsMappingSchema = z
   .object({
     dimensions: z.union([
@@ -109,7 +99,6 @@ export const arrayDimensionsMappingSchema = z
   .strict()
 
 export const columnMappingSchema = z.union([
-  targetTypeMappingSchema,
   arrayDimensionsMappingSchema,
   z
     .object({
@@ -119,9 +108,10 @@ export const columnMappingSchema = z.union([
     .strict(),
 ])
 
+// TypeScript owns the representation of every PostgreSQL type, so a column mapping only refines
+// one: array dimensions or a JSON Schema for a JSON value.
 export const mappingsSchema = z
   .object({
-    pgType: z.record(z.string(), targetTypeMappingSchema).default({}),
     column: z.record(z.string(), columnMappingSchema).default({}),
   })
   .strict()
@@ -471,7 +461,6 @@ export type MaterializedViewsNullabilityConfig = z.infer<typeof materializedView
 export type NullabilityAnalysisConfig = z.infer<typeof nullabilityAnalysisSchema>
 export type AnalysisConfig = z.infer<typeof analysisSchema>
 export type TypeImport = z.infer<typeof typeImportSchema>
-export type TargetTypeMapping = z.infer<typeof targetTypeMappingSchema>
 export type ColumnMapping = z.infer<typeof columnMappingSchema>
 export type ArrayDimensionsMapping = z.infer<typeof arrayDimensionsMappingSchema>
 export type MappingsConfig = z.infer<typeof mappingsSchema>

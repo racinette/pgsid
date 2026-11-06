@@ -167,8 +167,6 @@ describe('generated TypeScript project', () => {
           codegen:
             typescript:
               mappings:
-                pgType:
-                  pg_catalog.int8: bigint
                 column:
                   public.events.payload: {jsonSchema: Document}
               jsonSchemas: {types: generated/jsonschemas}
@@ -367,7 +365,7 @@ describe('generated TypeScript project', () => {
           assert.deepEqual(validateDocument(invalid).issues.map(({path, keyword, expected, received}) => ({path, keyword, expected, received})), [{path: ['next', 'next', 'actor', 'id'], keyword: 'type', expected: 'integer', received: 'string'}]);
           assert.equal(validateDocumentActor({id: 'bad'}).valid, false);
           const check = async (payload, audit, rejectedColumn) => {
-            const db = {query: async () => ({rows: [{id: 1, payload, audit}], rowCount: 1})};
+            const db = {queryText: async () => ({rows: [['1', JSON.stringify(payload), JSON.stringify(audit)]], rowCount: 1})};
             if (rejectedColumn) {
               for (const [execute, name] of [[getEvent, 'GetEvent'], [listEvents, 'ListEvents'], [reports.getReport, 'GetReport']]) await assert.rejects(execute(db), error => {
                 assert.ok(error instanceof QueryValidationError);

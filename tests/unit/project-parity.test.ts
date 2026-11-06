@@ -110,8 +110,6 @@ describe('project build parity', () => {
         codegen:
           typescript:
             mappings:
-              pgType:
-                pg_catalog.int8: bigint
               column:
                 public.events.payload:
                   jsonSchema: Payload

@@ -612,7 +612,7 @@ func TestPortableACLInputs(t *testing.T){v:=checkruntime.MakeAclitemValue(1,2,2,
     )
     let captured: unknown[] = []
     const db = {
-      query: async (_sql: string, values: unknown[]) => {
+      queryText: async (_sql: string, values: unknown[]) => {
         captured = values
         return { rows: [] }
       },
@@ -624,14 +624,16 @@ func TestPortableACLInputs(t *testing.T){v:=checkruntime.MakeAclitemValue(1,2,2,
     }
     await generated.insertEntry(db, raw)
     expect(captured).toEqual([raw.entry, raw.domain_entry, raw.reference])
+    // Generated queries send only text they produced themselves, so a driver object is rejected.
     const opaque = { driver: 'acl', text: raw.entry }
-    await generated.insertEntry(db, { entry: opaque, domain_entry: opaque, reference: opaque })
-    expect(captured.every((value) => value === opaque)).toBe(true)
+    await expect(
+      generated.insertEntry(db, { entry: opaque, domain_entry: raw.entry, reference: raw.entry }),
+    ).rejects.toThrow(new TypeError('Parameter entry holds a malformed text value'))
     const failure = new Error('database ACL rejection')
     await expect(
       generated.insertEntry(
         {
-          query: async () => {
+          queryText: async () => {
             throw failure
           },
         },
@@ -644,7 +646,7 @@ func TestPortableACLInputs(t *testing.T){v:=checkruntime.MakeAclitemValue(1,2,2,
       JSON.stringify(
         {
           rawParameterIdentityPreserved: true,
-          typescriptRawAndOpaqueParametersPreserved: true,
+          typescriptRawParametersPreservedAndOpaqueRejected: true,
           databaseFailurePreserved: true,
           portablePayloadValidation: true,
           domainFailure: '23514',

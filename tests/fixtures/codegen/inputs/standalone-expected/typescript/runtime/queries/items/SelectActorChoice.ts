@@ -3,6 +3,19 @@ export type { SelectActorChoiceParams, SelectActorChoiceRow } from "../../../typ
 import * as pgsid from "./pgsid/queryable.js";
 export { QueryValidationError } from "./pgsid/queryable.js";
 import * as _jsonSchemas from "../../jsonschemas/index.js";
+function encodeInvalid(name: string, type: string): never {
+    throw new TypeError("Parameter " + name + " holds a malformed " + type + " value");
+}
+function encodeInt(value: unknown, name: string): string | null {
+    if (value === null || value === undefined)
+        return null;
+    if (typeof value !== "number" || !Number.isSafeInteger(value))
+        return encodeInvalid(name, "integer");
+    return String(value);
+}
+function decodeJson(value: string | null): unknown {
+    return value === null ? null : JSON.parse(value);
+}
 export const selectActorChoiceSql = "SELECT CASE WHEN id > 0 THEN payload -> 'actor' ELSE audit -> 'actor' END AS actor\nFROM items WHERE id = $1;";
 export function isSelectActorChoiceActor(value: unknown): value is SelectActorChoiceRow["actor"] {
     return value === null || (_jsonSchemas.jsonSchemaValidators["Event"]["/properties/actor"].is(value) || _jsonSchemas.jsonSchemaValidators["Audit"]["/properties/actor"].is(value));
@@ -28,10 +41,11 @@ export function validateSelectActorChoiceActor(value: unknown): {
     return { valid, issues: _issues };
 }
 export async function selectActorChoice(db: pgsid.Queryable, params: SelectActorChoiceParams): Promise<SelectActorChoiceRow | undefined> {
-    const result = await db.query(selectActorChoiceSql, [params["id"]]);
-    const row = result.rows[0];
-    if (row === undefined)
+    const result = await db.queryText(selectActorChoiceSql, [encodeInt(params["id"], "id")]);
+    const values = result.rows[0];
+    if (values === undefined)
         return undefined;
+    const row = { "actor": decodeJson(values[0]) };
     if (!isSelectActorChoiceActor(row["actor"]))
         throw new pgsid.QueryValidationError("SelectActorChoice", "actor", validateSelectActorChoiceActor(row["actor"]).issues);
     return row as SelectActorChoiceRow;

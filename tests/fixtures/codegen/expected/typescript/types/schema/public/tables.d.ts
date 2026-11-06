@@ -15,9 +15,9 @@ export type Events = TableTypes<{
     "states": (import("./enums.js").EventState | null)[] | null;
     "payload": import("../../jsonschemas/index.js").EventPayload;
     "audit": import("../../jsonschemas/index.js").EventAudit | null;
-    "metadata": unknown;
+    "metadata": string | null;
     "note": string | null;
-    "created_at": Date;
+    "created_at": string;
 }, {
     "id": import("./domains.js").EventId;
     "default_id"?: import("./domains.js").DefaultEventId;
@@ -26,9 +26,9 @@ export type Events = TableTypes<{
     "states"?: (import("./enums.js").EventState | null)[] | null;
     "payload": import("../../jsonschemas/index.js").EventPayload;
     "audit"?: import("../../jsonschemas/index.js").EventAudit | null;
-    "metadata"?: unknown;
+    "metadata"?: string | null;
     "note"?: string | null;
-    "created_at"?: Date;
+    "created_at"?: string;
 }, {
     "id"?: import("./domains.js").EventId;
     "default_id"?: import("./domains.js").DefaultEventId;
@@ -37,9 +37,9 @@ export type Events = TableTypes<{
     "states"?: (import("./enums.js").EventState | null)[] | null;
     "payload"?: import("../../jsonschemas/index.js").EventPayload;
     "audit"?: import("../../jsonschemas/index.js").EventAudit | null;
-    "metadata"?: unknown;
+    "metadata"?: string | null;
     "note"?: string | null;
-    "created_at"?: Date;
+    "created_at"?: string;
 }>;
 export type EventDetails = TableTypes<{
     "id": import("./domains.js").EventId;
