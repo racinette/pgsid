@@ -774,6 +774,17 @@ const commonEnumDomain = (args: readonly Bound[]): number | undefined => {
   return domain !== undefined && args.every((arg) => arg.enumDomain === domain) ? domain : undefined
 }
 const unboundBinding: Bound = { type: null, value: null }
+// Stable builtins that read only a declarable setting or a fixed table, so an unbound call is an
+// implementation gap rather than a fact only the database holds.
+const settingOnlyStableNames: ReadonlySet<string> = new Set([
+  'to_number',
+  'getdatabaseencoding',
+  'pg_client_encoding',
+  'pg_char_to_encoding',
+  'pg_encoding_to_char',
+  // Only the encoding-counting overload is stable.
+  'length',
+])
 // What left the current lowering unbound: a missing or inconsistent database fact, or anything else.
 let unboundObstacles = { context: false, other: false }
 // Whether a nested binding of the node being bound came back unbound, so that an unbound result of
@@ -8952,7 +8963,12 @@ export function bindCatalogCheck(
             args.length <= item.args.length) ||
           (item.variadic !== null && args.length >= item.args.length - 1)),
     )
-    return candidates.length > 0 && candidates.every(({ item }) => item.volatility !== 'i')
+    return (
+      candidates.length > 0 &&
+      candidates.every(
+        ({ item }) => item.volatility !== 'i' && !settingOnlyStableNames.has(item.name),
+      )
+    )
   }
   const lower = (node: unknown): EvalBoolExpression => {
     const result = lowerNode(node)

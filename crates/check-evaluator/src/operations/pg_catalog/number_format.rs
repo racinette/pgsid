@@ -1805,3 +1805,476 @@ pub fn sql__pg_catalog__to_char__1rcw(
     };
     text_unresolved(unresolved_flavor)
 }
+
+const NUMBER_PARSE_UNSUPPORTED: u32 = 466560;
+const NUMBER_PARSE_ROMAN_LENGTH: usize = 15;
+
+// The server's reader walks the UTF-8 bytes of its input, so a digit slot over a multibyte
+// character steps into the middle of it.
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct NumberParseByte {
+    value: i32,
+}
+
+struct NumberParseInput {
+    bytes: Vec<NumberParseByte>,
+}
+
+fn number_parse_bytes(text: &str) -> NumberParseInput {
+    let chars: Vec<char> = text.chars().collect();
+    let mut bytes: Vec<NumberParseByte> = Vec::new();
+    let mut index: usize = 0;
+    while index < chars.len() {
+        let code = chars[index] as i32;
+        if code <= 127 {
+            bytes.push(NumberParseByte { value: code });
+        } else if code <= 2047 {
+            bytes.push(NumberParseByte { value: 192 + code / 64 });
+            bytes.push(NumberParseByte { value: 128 + code % 64 });
+        } else if code <= 65535 {
+            bytes.push(NumberParseByte { value: 224 + code / 4096 });
+            bytes.push(NumberParseByte { value: 128 + (code / 64) % 64 });
+            bytes.push(NumberParseByte { value: 128 + code % 64 });
+        } else {
+            bytes.push(NumberParseByte { value: 240 + code / 262144 });
+            bytes.push(NumberParseByte { value: 128 + (code / 4096) % 64 });
+            bytes.push(NumberParseByte { value: 128 + (code / 64) % 64 });
+            bytes.push(NumberParseByte { value: 128 + code % 64 });
+        };
+        index += 1;
+    }
+    NumberParseInput { bytes: bytes }
+}
+
+// pg_utf_mblen of the byte at a position; a continuation byte counts as one.
+fn number_parse_width(input: &NumberParseInput, position: usize) -> usize {
+    let byte = input.bytes[position].value;
+    let mut width: usize = 1;
+    if byte >= 192 && byte < 224 {
+        width = 2;
+    } else if byte >= 224 && byte < 240 {
+        width = 3;
+    } else if byte >= 240 && byte < 248 {
+        width = 4;
+    };
+    if position + width > input.bytes.len() {
+        width = input.bytes.len() - position;
+    };
+    width
+}
+
+fn number_parse_data_byte(byte: i32) -> bool {
+    (byte >= 48 && byte <= 57) || byte == 46 || byte == 44 || byte == 43 || byte == 45
+}
+
+// NUM_eat_non_data_chars: skips up to a count of characters that cannot belong to the number.
+fn number_parse_skip(input: &NumberParseInput, start: usize, count: i32) -> usize {
+    let mut position = start;
+    let mut remaining = count;
+    let mut stopped = false;
+    while remaining > 0 && stopped == false {
+        if position >= input.bytes.len() || number_parse_data_byte(input.bytes[position].value) {
+            stopped = true;
+        } else {
+            position = position + number_parse_width(input, position);
+            remaining = remaining - 1;
+        };
+    }
+    position
+}
+
+fn number_parse_roman_value(byte: i32) -> i32 {
+    if byte == 73 {
+        return 1;
+    };
+    if byte == 86 {
+        return 5;
+    };
+    if byte == 88 {
+        return 10;
+    };
+    if byte == 76 {
+        return 50;
+    };
+    if byte == 67 {
+        return 100;
+    };
+    if byte == 68 {
+        return 500;
+    };
+    if byte == 77 {
+        return 1000;
+    };
+    0
+}
+
+fn number_parse_roman_pair(current: i32, next: i32) -> bool {
+    (current == 73 && (next == 86 || next == 88))
+        || (current == 88 && (next == 76 || next == 67))
+        || (current == 67 && (next == 68 || next == 77))
+}
+
+struct NumberParseNumeral {
+    valid: bool,
+    value: i32,
+    position: usize,
+}
+
+// roman_to_int, which rejects text that is not a valid numeral.
+fn number_parse_roman(input: &NumberParseInput, start: usize) -> NumberParseNumeral {
+    let mut position = start;
+    let end = input.bytes.len();
+    while position < end
+        && (input.bytes[position].value == 32 || (input.bytes[position].value >= 9 && input.bytes[position].value <= 13))
+    {
+        position += 1;
+    }
+    let mut numerals: Vec<NumberParseByte> = Vec::new();
+    let mut values: Vec<NumberParseByte> = Vec::new();
+    let mut collecting = true;
+    while collecting && numerals.len() < NUMBER_PARSE_ROMAN_LENGTH && position < end {
+        let mut byte = input.bytes[position].value;
+        if byte >= 97 && byte <= 122 {
+            byte = byte - 32;
+        };
+        let value = number_parse_roman_value(byte);
+        if value == 0 {
+            collecting = false;
+        } else {
+            numerals.push(NumberParseByte { value: byte });
+            values.push(NumberParseByte { value: value });
+            position += 1;
+        };
+    }
+    if numerals.len() == 0 {
+        return NumberParseNumeral { valid: false, value: 0, position: position };
+    };
+    let mut result: i32 = 0;
+    let mut repeat: i32 = 1;
+    let mut v_count: i32 = 0;
+    let mut l_count: i32 = 0;
+    let mut d_count: i32 = 0;
+    let mut subtracted = false;
+    let mut last_subtracted: i32 = 0;
+    let mut index: usize = 0;
+    while index < numerals.len() {
+        let numeral = numerals[index].value;
+        let value = values[index].value;
+        if subtracted && value >= last_subtracted {
+            return NumberParseNumeral { valid: false, value: 0, position: position };
+        };
+        if (v_count > 0 && value >= 5) || (l_count > 0 && value >= 50) || (d_count > 0 && value >= 500)
+        {
+            return NumberParseNumeral { valid: false, value: 0, position: position };
+        };
+        if numeral == 86 {
+            v_count = v_count + 1;
+        } else if numeral == 76 {
+            l_count = l_count + 1;
+        } else if numeral == 68 {
+            d_count = d_count + 1;
+        };
+        if index + 1 < numerals.len() {
+            let next = numerals[index + 1].value;
+            let next_value = values[index + 1].value;
+            if value < next_value {
+                if number_parse_roman_pair(numeral, next) == false || repeat > 1 {
+                    return NumberParseNumeral { valid: false, value: 0, position: position };
+                };
+                if (v_count > 0 && next_value >= 5)
+                    || (l_count > 0 && next_value >= 50)
+                    || (d_count > 0 && next_value >= 500)
+                {
+                    return NumberParseNumeral { valid: false, value: 0, position: position };
+                };
+                if next == 86 {
+                    v_count = v_count + 1;
+                } else if next == 76 {
+                    l_count = l_count + 1;
+                } else if next == 68 {
+                    d_count = d_count + 1;
+                };
+                index += 1;
+                repeat = 1;
+                subtracted = true;
+                last_subtracted = value;
+                result = result + (next_value - value);
+            } else {
+                if numeral == next {
+                    repeat = repeat + 1;
+                    if repeat > 3 {
+                        return NumberParseNumeral { valid: false, value: 0, position: position };
+                    };
+                } else {
+                    repeat = 1;
+                };
+                result = result + value;
+            };
+        } else {
+            result = result + value;
+        };
+        index += 1;
+    }
+    NumberParseNumeral { valid: true, value: result, position: position }
+}
+
+// numeric_to_number: NUM_processor reads the input against the template into a sign slot and
+// digits, which numeric_in reads under the template's precision and scale.
+fn number_parse_numeric(text: &str, template: &str, numeric_c: bool, monetary_c: bool) -> NumericValue {
+    let format = number_format_prepare(template, numeric_c, monetary_c);
+    let unresolved_flavor: i32 = 0;
+    if format.error != 0 && format.error != 1 {
+        return NumericValue::Error(make_sql_error(format.error));
+    };
+    // The reader rejects scientific notation before it consults the locale.
+    if format.eeee {
+        return NumericValue::Error(make_sql_error(NUMBER_PARSE_UNSUPPORTED));
+    };
+    if format.error == 1 {
+        return numeric_unresolved(resolution_context(unresolved_flavor));
+    };
+    let input = number_parse_bytes(text);
+    let end = input.bytes.len();
+    let mut position: usize = 0;
+    let mut sign: i32 = 32;
+    let mut digits: Vec<NumberParseByte> = Vec::new();
+    let mut read_pre: i32 = 0;
+    let mut read_post: i32 = 0;
+    let mut read_dec = false;
+    let mut pre = format.pre;
+    let mut node_index: usize = 0;
+    let mut stopped = false;
+    while node_index < format.nodes.len() && stopped == false {
+        if position >= end {
+            stopped = true;
+        } else {
+            let node = format.nodes[node_index];
+            let mut advance = true;
+            if node.action == false {
+                position = position + number_parse_width(&input, position);
+                advance = false;
+            } else if node.key == NUMBER_KEY_NINE
+                || node.key == NUMBER_KEY_ZERO
+                || node.key == NUMBER_KEY_DEC
+                || node.key == NUMBER_KEY_D
+            {
+                let mut done = false;
+                if input.bytes[position].value == 32 {
+                    position += 1;
+                };
+                if position >= end {
+                    done = true;
+                };
+                if done == false
+                    && sign == 32
+                    && (node.key == NUMBER_KEY_NINE || node.key == NUMBER_KEY_ZERO)
+                    && read_pre + read_post == 0
+                {
+                    let byte = input.bytes[position].value;
+                    if format.lsign == 1 {
+                        if byte == 45 {
+                            position += 1;
+                            sign = 45;
+                        } else if byte == 43 {
+                            position += 1;
+                            sign = 43;
+                        };
+                    } else if byte == 45 || (format.bracket && byte == 60) {
+                        sign = 45;
+                        position += 1;
+                    } else if byte == 43 {
+                        sign = 43;
+                        position += 1;
+                    };
+                };
+                if position >= end {
+                    done = true;
+                };
+                let mut read = false;
+                if done == false {
+                    let byte = input.bytes[position].value;
+                    if byte >= 48 && byte <= 57 {
+                        if read_dec && read_post == format.post {
+                            done = true;
+                        } else {
+                            digits.push(NumberParseByte { value: byte });
+                            if read_dec {
+                                read_post = read_post + 1;
+                            } else {
+                                read_pre = read_pre + 1;
+                            };
+                            read = true;
+                        };
+                    } else if format.decimal && read_dec == false && byte == 46 {
+                        digits.push(NumberParseByte { value: 46 });
+                        read_dec = true;
+                        read = true;
+                    };
+                };
+                if position >= end {
+                    done = true;
+                };
+                if done == false && sign == 32 && read_pre + read_post > 0 {
+                    if format.lsign != 0
+                        && read
+                        && position + 1 < end
+                        && (input.bytes[position + 1].value < 48 || input.bytes[position + 1].value > 57)
+                    {
+                        let next = input.bytes[position + 1].value;
+                        if next == 45 {
+                            position += 1;
+                            sign = 45;
+                        } else if next == 43 {
+                            position += 1;
+                            sign = 43;
+                        };
+                    } else if read == false && format.lsign == 0 && (format.plus || format.minus) {
+                        let byte = input.bytes[position].value;
+                        if byte == 45 {
+                            sign = 45;
+                        } else if byte == 43 {
+                            sign = 43;
+                        };
+                    };
+                };
+            } else if node.key == NUMBER_KEY_COMMA || node.key == NUMBER_KEY_G {
+                if format.fillmode || input.bytes[position].value != 44 {
+                    advance = false;
+                };
+            } else if node.key == NUMBER_KEY_L {
+                position = number_parse_skip(&input, position, 1);
+                advance = false;
+            } else if node.key == NUMBER_KEY_RN || node.key == NUMBER_KEY_LOWER_RN {
+                let roman = number_parse_roman(&input, position);
+                if roman.valid == false {
+                    return NumericValue::Error(make_sql_error(NUMBER_FORMAT_TEXT));
+                };
+                position = roman.position;
+                let mut magnitude: i32 = 1;
+                let mut width: i32 = 1;
+                while magnitude * 10 <= roman.value {
+                    magnitude = magnitude * 10;
+                    width = width + 1;
+                }
+                while magnitude > 0 {
+                    digits.push(NumberParseByte { value: 48 + (roman.value / magnitude) % 10 });
+                    magnitude = magnitude / 10;
+                }
+                pre = width;
+                advance = false;
+            } else if node.key == NUMBER_KEY_TH || node.key == NUMBER_KEY_LOWER_TH {
+                if format.roman == false && format.decimal == false {
+                    position = number_parse_skip(&input, position, 2);
+                };
+                advance = false;
+            } else if node.key == NUMBER_KEY_MI {
+                if input.bytes[position].value == 45 {
+                    sign = 45;
+                } else {
+                    position = number_parse_skip(&input, position, 1);
+                    advance = false;
+                };
+            } else if node.key == NUMBER_KEY_PL {
+                if input.bytes[position].value == 43 {
+                    sign = 43;
+                } else {
+                    position = number_parse_skip(&input, position, 1);
+                    advance = false;
+                };
+            } else if node.key == NUMBER_KEY_SG {
+                if input.bytes[position].value == 45 {
+                    sign = 45;
+                } else if input.bytes[position].value == 43 {
+                    sign = 43;
+                } else {
+                    position = number_parse_skip(&input, position, 1);
+                    advance = false;
+                };
+            } else {
+                advance = false;
+            };
+            if advance {
+                position += 1;
+            };
+            node_index += 1;
+        };
+    }
+    let mut kept = digits.len();
+    if kept > 0 && digits[kept - 1].value == 46 {
+        kept = kept - 1;
+    };
+    let mut number = String::new();
+    if sign == 45 {
+        number.push('-');
+    } else if sign == 43 {
+        number.push('+');
+    } else {
+        number.push(' ');
+    };
+    let mut index: usize = 0;
+    while index < kept {
+        let byte = digits[index].value;
+        if byte == 46 {
+            number.push('.');
+        } else {
+            number.push(number_parse_digit(byte));
+        };
+        index += 1;
+    }
+    let value = scalar_numeric_from_text(make_text_value(number.as_str()));
+    let modifier = (pre + format.multi + read_post) * 65536 + read_post + 4;
+    let typed = sql__pg_catalog__numeric__879l(value, make_int4_value(modifier));
+    if format.multiplied == false {
+        return typed;
+    };
+    let scale = sql__pg_catalog__power__jfdf(
+        make_numeric_value("10"),
+        sql__pg_catalog__numeric__ncrk(make_int4_value(0 - format.multi)),
+    );
+    sql__pg_catalog__numeric_mul__bj4l(typed, scale)
+}
+
+fn number_parse_digit(byte: i32) -> char {
+    let digits: Vec<char> = "0123456789".chars().collect();
+    let mut index: usize = 0;
+    let mut code: i32 = 48;
+    while code < byte {
+        code = code + 1;
+        index += 1;
+    }
+    digits[index]
+}
+
+pub fn sql__pg_catalog__to_number__ibqn(
+    input: TextValue,
+    template: TextValue,
+    numeric_c: bool,
+    monetary_c: bool,
+) -> NumericValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
+    if let TextValue::Unknown = template { unresolved_flavor = 1; };
+    if let TextValue::NonNull = template { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TextValue::Unimplemented = template { unresolved_flavor = 2; };
+    if let TextValue::Error(error) = input {
+        return NumericValue::Error(error);
+    };
+    if let TextValue::Error(error) = template {
+        return NumericValue::Error(error);
+    };
+    if input == TextValue::Null || template == TextValue::Null {
+        return NumericValue::Null;
+    };
+    // An empty template answers NULL before the input is read.
+    if template == TextValue::Value("".to_owned()) {
+        return NumericValue::Null;
+    };
+    if let TextValue::Value(text) = input {
+        if let TextValue::Value(format) = template {
+            return number_parse_numeric(text.as_str(), format.as_str(), numeric_c, monetary_c);
+        };
+    };
+    numeric_unresolved(unresolved_flavor)
+}
