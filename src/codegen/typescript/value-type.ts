@@ -89,11 +89,7 @@ export function resolveTypescriptValueType(
         )
       : null
   }
-  if (typeof mapping === 'object' && 'jsonSchema' in mapping) return null
-  if (typeof mapping === 'object' && 'dimensions' in mapping) return null
-  return typeof mapping === 'string'
-    ? { type: parseType(mapping), imports: [] }
-    : { type: parseType(mapping.type), imports: [...(mapping.imports ?? [])] }
+  return null
 }
 
 const directColumn = (value: ValueLineage): DatabaseColumn | null =>

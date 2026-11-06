@@ -80,7 +80,7 @@ describe('reconcileProjectBuild', () => {
       'artifact-added',
     ])
     expect(initial.state.artifacts['/generated/events/GetEvent.d.ts']?.content).toContain(
-      '"id": string;',
+      '"id": bigint;',
     )
     expect(initial.state.artifacts['/generated/events/GetEvent.d.ts']?.content).toContain(
       '"note": string | null;',

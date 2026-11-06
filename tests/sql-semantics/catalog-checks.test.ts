@@ -1129,7 +1129,7 @@ func TestPartialCheckInputs(t *testing.T) {
     Function('module', 'exports', compiled.outputText)(module, module.exports)
     let queries = 0
     const db = {
-      query: async () => {
+      queryText: async () => {
         queries++
         return { rows: [], rowCount: 1 }
       },

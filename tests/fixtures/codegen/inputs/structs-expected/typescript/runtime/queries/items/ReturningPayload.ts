@@ -3,6 +3,20 @@ export type { ReturningPayloadParams, ReturningPayloadRow } from "../../../types
 import * as pgsid from "./pgsid/queryable.js";
 export { QueryValidationError } from "./pgsid/queryable.js";
 import * as _jsonSchemas from "../../jsonschemas/index.js";
+function encodeInvalid(name: string, type: string): never {
+    throw new TypeError("Parameter " + name + " holds a malformed " + type + " value");
+}
+function decodeJson(value: string | null): unknown {
+    return value === null ? null : JSON.parse(value);
+}
+function encodeJson(value: unknown, name: string): string | null {
+    if (value === null || value === undefined)
+        return null;
+    const text = JSON.stringify(value);
+    if (text === undefined)
+        return encodeInvalid(name, "JSON");
+    return text;
+}
 export const returningPayloadSql = "UPDATE items SET payload = $1 RETURNING payload;";
 export function isReturningPayloadPayload(value: unknown): value is ReturningPayloadRow["payload"] {
     return _jsonSchemas.isEvent(value);
@@ -43,10 +57,11 @@ export async function returningPayload(db: pgsid.Queryable, params: ReturningPay
         if (!isReturningPayloadParamsPayloadPublicItemsPayload(jsonInput1Value))
             throw new pgsid.QueryValidationError("ReturningPayload", "payload", validateReturningPayloadParamsPayloadPublicItemsPayload(jsonInput1Value).issues);
     }
-    const result = await db.query(returningPayloadSql, [jsonInput1]);
-    const row = result.rows[0];
-    if (row === undefined)
+    const result = await db.queryText(returningPayloadSql, [jsonInput1]);
+    const values = result.rows[0];
+    if (values === undefined)
         return undefined;
+    const row = { "payload": decodeJson(values[0]) };
     if (!isReturningPayloadPayload(row["payload"]))
         throw new pgsid.QueryValidationError("ReturningPayload", "payload", validateReturningPayloadPayload(row["payload"]).issues);
     return row as ReturningPayloadRow;

@@ -6,7 +6,7 @@ export type GetEventRow = {
     "payload": import("../../jsonschemas/index.js").EventPayload;
     "actor": import("../../jsonschemas/index.js").EventPayloadActor | null;
     "state": import("../../schema/public/enums.js").EventState;
-    "created_at": Date;
+    "created_at": string;
     "joined_account_id": bigint | null;
     "display_name": string | null;
 } & ({

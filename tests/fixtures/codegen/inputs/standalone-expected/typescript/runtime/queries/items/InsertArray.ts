@@ -3,6 +3,17 @@ export type { InsertArrayParams } from "../../../types/queries/items/InsertArray
 import * as pgsid from "./pgsid/queryable.js";
 export { QueryValidationError } from "./pgsid/queryable.js";
 import * as _jsonSchemas from "../../jsonschemas/index.js";
+function encodeInvalid(name: string, type: string): never {
+    throw new TypeError("Parameter " + name + " holds a malformed " + type + " value");
+}
+function encodeJson(value: unknown, name: string): string | null {
+    if (value === null || value === undefined)
+        return null;
+    const text = JSON.stringify(value);
+    if (text === undefined)
+        return encodeInvalid(name, "JSON");
+    return text;
+}
 export const insertArraySql = "INSERT INTO items (payload, numbers) VALUES ('{\"actor\":1}', $1);";
 export function isInsertArrayParamsPayloadPublicItemsNumbers(value: unknown): value is InsertArrayParams["payload"] {
     return _jsonSchemas.isNumbers(value);
@@ -28,5 +39,5 @@ export async function insertArray(db: pgsid.Queryable, params: InsertArrayParams
         if (!isInsertArrayParamsPayloadPublicItemsNumbers(jsonInput1Value))
             throw new pgsid.QueryValidationError("InsertArray", "payload", validateInsertArrayParamsPayloadPublicItemsNumbers(jsonInput1Value).issues);
     }
-    await db.query(insertArraySql, [jsonInput1]);
+    await db.queryText(insertArraySql, [jsonInput1]);
 }

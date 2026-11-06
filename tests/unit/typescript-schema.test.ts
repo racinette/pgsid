@@ -110,7 +110,7 @@ describe('renderTypescriptSchemaArtifacts', () => {
       'readonly "__pgType": "public.event_id";',
     )
     expect(artifacts['/generated/public/domains.d.ts']).toContain(
-      'export type DefaultEventId = string &',
+      'export type DefaultEventId = bigint &',
     )
     const checks = artifacts['/generated/public/checks.ts']!
     expect(checks).toContain('evaluatePublicEventIdDomainChecks')
@@ -134,7 +134,7 @@ describe('renderTypescriptSchemaArtifacts', () => {
     expect(tables.match(/"id"/gu)).toHaveLength(2)
     expect(tables).toContain('export type EventLabels = TableTypes<')
     expect(tables.replace(/\s+/gu, ' ')).toContain(
-      'export type EventLabels = TableTypes<{ "id": string; "label": string; }, never, never>;',
+      'export type EventLabels = TableTypes<{ "id": bigint; "label": string; }, never, never>;',
     )
     expect(tables.replace(/\s+/gu, ' ')).toContain(
       'export type EventKinds = TableTypes<{ "kind": string | null; }, never, never>;',

@@ -38,8 +38,6 @@ sql:
   codegen:
     typescript:
       mappings:
-        pgType:
-          pg_catalog.int8: bigint
         column:
           public.events.payload: { jsonSchema: EventPayload }
           public.events.audit: { jsonSchema: EventAudit }

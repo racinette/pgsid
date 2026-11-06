@@ -110,13 +110,19 @@ const rolledBack = async <T>(work: () => Promise<T>): Promise<T> => {
     await db.exec('ROLLBACK')
   }
 }
-const queryable = (calls: { count: number }) => ({
-  query: async (text: string, parameters?: unknown[]) => {
-    calls.count++
-    const result = await db.query<Record<string, unknown>>(text, parameters)
-    return { rows: result.rows, rowCount: result.affectedRows ?? null }
-  },
-})
+type Queryable = { queryText(text: string, values: readonly (string | null)[]): Promise<unknown> }
+const queryable = async (calls: { count: number }) => {
+  const { fromPglite } = (await import(
+    join(root, 'generated/runtime/booking/pgsid/queryable.ts')
+  )) as { fromPglite(db: PGlite): Queryable }
+  const text = fromPglite(db)
+  return {
+    queryText: (sql: string, values: readonly (string | null)[]) => {
+      calls.count++
+      return text.queryText(sql, values)
+    },
+  }
+}
 const load = async (name: string) =>
   (await import(join(root, `generated/runtime/booking/${name}.ts`))) as Record<
     string,
@@ -175,7 +181,7 @@ export async function usage(): Promise<bigint | null | undefined> {
     const { insertBooking } = await load('InsertBooking')
     const calls = { count: 0 }
     const local = await rolledBack(() =>
-      outcome(() => insertBooking!(queryable(calls), { id: 1, seats: value })),
+      outcome(async () => insertBooking!(await queryable(calls), { id: 1, seats: value })),
     )
     expect({ local, calls: calls.count }).toEqual({
       local: server,
@@ -184,7 +190,7 @@ export async function usage(): Promise<bigint | null | undefined> {
     const { moveBooking } = await load('MoveBooking')
     const moved = { count: 0 }
     await expect(
-      outcome(() => moveBooking!(queryable(moved), { id: 99, seats: value })),
+      outcome(async () => moveBooking!(await queryable(moved), { id: 99, seats: value })),
     ).resolves.toBe(server)
   })
 
@@ -192,18 +198,21 @@ export async function usage(): Promise<bigint | null | undefined> {
     const { insertBooking } = await load('InsertBooking')
     const { getBooking } = await load('GetBooking')
     const calls = { count: 0 }
-    await insertBooking!(queryable(calls), { id: 7, seats: range('(0,10]') })
-    await insertBooking!(queryable(calls), { id: 8, seats: { empty: true } })
-    await insertBooking!(queryable(calls), { id: 9, seats: range('[,5]') })
-    expect(await getBooking!(queryable(calls), { id: 7 })).toEqual({
+    await insertBooking!(await queryable(calls), { id: 7, seats: range('(0,10]') })
+    await insertBooking!(await queryable(calls), { id: 8, seats: { empty: true } })
+    await insertBooking!(await queryable(calls), { id: 9, seats: range('[,5]') })
+    expect(await getBooking!(await queryable(calls), { id: 7 })).toEqual({
       id: 7,
       seats: range('[1,11)'),
     })
-    expect(await getBooking!(queryable(calls), { id: 8 })).toEqual({
+    expect(await getBooking!(await queryable(calls), { id: 8 })).toEqual({
       id: 8,
       seats: { empty: true },
     })
-    expect(await getBooking!(queryable(calls), { id: 9 })).toEqual({ id: 9, seats: range('(,6)') })
+    expect(await getBooking!(await queryable(calls), { id: 9 })).toEqual({
+      id: 9,
+      seats: range('(,6)'),
+    })
   })
 
   it('evaluates the schema-level CHECK API on public values', async () => {

@@ -3,6 +3,24 @@ export type { UpsertParams } from "../../../types/queries/items/Upsert.js";
 import * as pgsid from "./pgsid/queryable.js";
 export { QueryValidationError } from "./pgsid/queryable.js";
 import * as _jsonSchemas from "../../jsonschemas/index.js";
+function encodeInvalid(name: string, type: string): never {
+    throw new TypeError("Parameter " + name + " holds a malformed " + type + " value");
+}
+function encodeInt(value: unknown, name: string): string | null {
+    if (value === null || value === undefined)
+        return null;
+    if (typeof value !== "number" || !Number.isSafeInteger(value))
+        return encodeInvalid(name, "integer");
+    return String(value);
+}
+function encodeJson(value: unknown, name: string): string | null {
+    if (value === null || value === undefined)
+        return null;
+    const text = JSON.stringify(value);
+    if (text === undefined)
+        return encodeInvalid(name, "JSON");
+    return text;
+}
 export const upsertSql = "INSERT INTO items (id, payload) VALUES ($1, $2)\nON CONFLICT (id) DO UPDATE SET payload = $3;";
 export function isUpsertParamsFirstPublicItemsPayload(value: unknown): value is UpsertParams["first"] {
     return _jsonSchemas.isEvent(value);
@@ -51,5 +69,5 @@ export async function upsert(db: pgsid.Queryable, params: UpsertParams): Promise
         if (!isUpsertParamsSecondPublicItemsPayload(jsonInput3Value))
             throw new pgsid.QueryValidationError("Upsert", "second", validateUpsertParamsSecondPublicItemsPayload(jsonInput3Value).issues);
     }
-    await db.query(upsertSql, [params["id"], jsonInput2, jsonInput3]);
+    await db.queryText(upsertSql, [encodeInt(params["id"], "id"), jsonInput2, jsonInput3]);
 }

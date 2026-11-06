@@ -95,13 +95,7 @@ const config = parseConfigString(`
     codegen:
       typescript:
         mappings:
-          pgType:
-            pg_catalog.int8: bigint
           column:
-            public.events.id:
-              type: EventId
-              imports:
-                - { from: ./ids.js, name: EventId }
             public.events.payload:
               jsonSchema: EventPayload
         jsonSchemas:
@@ -167,9 +161,8 @@ describe('renderTypescriptQueryArtifacts', () => {
     expect(rendered.diagnostics).toEqual([])
     const types = compact(rendered.types!)
     const runtime = compact(rendered.runtime!)
-    expect(types).toContain('import type { EventId } from "./ids.js";')
     expect(types).toContain('export type GetEventParams = { "id": bigint; };')
-    expect(types).toContain('export type GetEventRow = { "id": EventId; "actor": number | null; };')
+    expect(types).toContain('export type GetEventRow = { "id": bigint; "actor": number | null; };')
     expect(runtime).toContain('export function isGetEventActor(')
     expect(runtime).toContain('export function validateGetEventActor(')
     expect(types).not.toContain('SELECT')
@@ -178,7 +171,10 @@ describe('renderTypescriptQueryArtifacts', () => {
     expect(runtime).toContain(
       'export async function getEvent(db: Queryable, params: GetEventParams)',
     )
-    expect(runtime).toContain('db.query(getEventSql, [params["id"]])')
+    expect(runtime).toContain('db.queryText(getEventSql, [encodeBigint(params["id"], "id")])')
+    expect(runtime).toContain(
+      'const row = { "id": decodeBigint(values[0]), "actor": decodeJson(values[1]) };',
+    )
     expect(runtime).toContain('if (!isGetEventActor(row["actor"]))')
     expect(runtime).toContain(
       'new QueryValidationError("GetEvent", "actor", validateGetEventActor(row["actor"]).issues)',
@@ -303,25 +299,6 @@ describe('renderTypescriptQueryArtifacts', () => {
     )
     expect(collision.runtime).toBeNull()
     expect(collision.diagnostics[0]?.code).toBe('generated-name-collision')
-
-    const invalidMappingConfig = parseConfigString(`
-      schema: migrations/*.sql
-      sql:
-        codegen:
-          typescript:
-            mappings:
-              pgType:
-                int4: 'number; export const injected = true'
-            queries:
-              out: {}
-    `)
-    const invalidMapping = renderTypescriptQueryArtifacts(
-      [analysis({ columns: ['id'], columnTypes: ['int4'] })],
-      invalidMappingConfig,
-      {},
-    )
-    expect(invalidMapping.types).toBeNull()
-    expect(invalidMapping.diagnostics[0]?.code).toBe('invalid-type-mapping')
   })
 
   it('renders positional parameters and execution result commands', () => {
@@ -343,8 +320,8 @@ describe('renderTypescriptQueryArtifacts', () => {
 
     const types = compact(rendered.types!)
     const runtime = compact(rendered.runtime!)
-    expect(types).toContain('readonly [ Date, string | null ]')
-    expect(types).toContain('readonly [ Date | null, string ]')
+    expect(types).toContain('readonly [ string, string | null ]')
+    expect(types).toContain('readonly [ string | null, string ]')
     expect(runtime).toContain('db: Queryable, ...params: DeleteOldParams')
     expect(runtime).toContain('return result.rowCount ?? 0')
   })

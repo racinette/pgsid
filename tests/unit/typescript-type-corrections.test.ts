@@ -10,9 +10,7 @@ import {
   resolveTypescriptPgType,
 } from '../../src/codegen/typescript/type-mapping.js'
 
-const config = parseConfigString(
-  'schema: schema.sql\nsql:\n  codegen:\n    typescript:\n      mappings:\n        pgType:\n          pg_catalog.int8: bigint',
-)
+const config = parseConfigString('schema: schema.sql\nsql:\n  codegen:\n    typescript: {}')
 
 const errors = (source: string) => {
   const path = '/tmp/pgsid-typescript-type-corrections.ts'

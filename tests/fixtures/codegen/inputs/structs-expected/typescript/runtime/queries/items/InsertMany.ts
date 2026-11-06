@@ -3,6 +3,17 @@ export type { InsertManyParams } from "../../../types/queries/items/InsertMany.j
 import * as pgsid from "./pgsid/queryable.js";
 export { QueryValidationError } from "./pgsid/queryable.js";
 import * as _jsonSchemas from "../../jsonschemas/index.js";
+function encodeInvalid(name: string, type: string): never {
+    throw new TypeError("Parameter " + name + " holds a malformed " + type + " value");
+}
+function encodeJson(value: unknown, name: string): string | null {
+    if (value === null || value === undefined)
+        return null;
+    const text = JSON.stringify(value);
+    if (text === undefined)
+        return encodeInvalid(name, "JSON");
+    return text;
+}
 export const insertManySql = "INSERT INTO items (payload) VALUES ($1), ($2);";
 export function isInsertManyParamsFirstPublicItemsPayload(value: unknown): value is InsertManyParams["first"] {
     return _jsonSchemas.isEvent(value);
@@ -51,5 +62,5 @@ export async function insertMany(db: pgsid.Queryable, params: InsertManyParams):
         if (!isInsertManyParamsSecondPublicItemsPayload(jsonInput2Value))
             throw new pgsid.QueryValidationError("InsertMany", "second", validateInsertManyParamsSecondPublicItemsPayload(jsonInput2Value).issues);
     }
-    await db.query(insertManySql, [jsonInput1, jsonInput2]);
+    await db.queryText(insertManySql, [jsonInput1, jsonInput2]);
 }

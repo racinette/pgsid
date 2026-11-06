@@ -3,6 +3,20 @@ export type { ReturningManyParams, ReturningManyRow } from "../../../types/queri
 import * as pgsid from "./pgsid/queryable.js";
 export { QueryValidationError } from "./pgsid/queryable.js";
 import * as _jsonSchemas from "../../jsonschemas/index.js";
+function encodeInvalid(name: string, type: string): never {
+    throw new TypeError("Parameter " + name + " holds a malformed " + type + " value");
+}
+function decodeJson(value: string | null): unknown {
+    return value === null ? null : JSON.parse(value);
+}
+function encodeJson(value: unknown, name: string): string | null {
+    if (value === null || value === undefined)
+        return null;
+    const text = JSON.stringify(value);
+    if (text === undefined)
+        return encodeInvalid(name, "JSON");
+    return text;
+}
 export const returningManySql = "UPDATE items SET payload = $1 RETURNING payload;";
 export function isReturningManyPayload(value: unknown): value is ReturningManyRow["payload"] {
     return _jsonSchemas.isEvent(value);
@@ -43,8 +57,9 @@ export async function returningMany(db: pgsid.Queryable, params: ReturningManyPa
         if (!isReturningManyParamsPayloadPublicItemsPayload(jsonInput1Value))
             throw new pgsid.QueryValidationError("ReturningMany", "payload", validateReturningManyParamsPayloadPublicItemsPayload(jsonInput1Value).issues);
     }
-    const result = await db.query(returningManySql, [jsonInput1]);
-    return result.rows.map(row => {
+    const result = await db.queryText(returningManySql, [jsonInput1]);
+    return result.rows.map(values => {
+        const row = { "payload": decodeJson(values[0]) };
         if (!isReturningManyPayload(row["payload"]))
             throw new pgsid.QueryValidationError("ReturningMany", "payload", validateReturningManyPayload(row["payload"]).issues);
         return row as ReturningManyRow;

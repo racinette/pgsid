@@ -9,7 +9,7 @@ import { buildProject } from '../../src/project-runtime.js'
 const fixture = fileURLToPath(new URL('../fixtures/codegen/inputs/project', import.meta.url))
 const load = (url: string): Promise<Record<string, unknown>> => import(url)
 type Executor = (
-  db: { query: (...args: unknown[]) => Promise<unknown> },
+  db: { queryText: (...args: unknown[]) => Promise<unknown> },
   params: unknown,
 ) => Promise<unknown>
 
@@ -51,7 +51,7 @@ describe('generated TypeScript JSON write validation', () => {
       pathToFileURL(join(root, `generated/typescript/runtime/queries/items/${name}.js`)).href,
     )
     const functionName = `${name[0]!.toLowerCase()}${name.slice(1)}`
-    return (module[functionName] as Executor)({ query }, params)
+    return (module[functionName] as Executor)({ queryText: query }, params)
   }
   it.each([
     'InsertPayload',
@@ -101,7 +101,7 @@ describe('generated TypeScript JSON write validation', () => {
       return { rows: [], rowCount: 4 }
     })
     expect(result).toBe(4)
-    expect(calls[0]?.[1]).toEqual([JSON.stringify(params.payload), 7])
+    expect(calls[0]?.[1]).toEqual([JSON.stringify(params.payload), '7'])
     expect(params).toEqual(before)
   })
   it('distinguishes SQL null and JSON null and serializes JSON arrays', async () => {
@@ -187,13 +187,13 @@ describe('generated TypeScript JSON write validation', () => {
     const guard = vi.spyOn(actor, 'is')
     try {
       for (const name of ['SelectActor', 'SelectActorFromCte', 'SelectActorChoice'])
-        await expect(
-          execute(name, { id: 1 }, async () => ({ rows: [{ actor: 2 }] })),
-        ).resolves.toEqual({ actor: 2 })
+        await expect(execute(name, { id: 1 }, async () => ({ rows: [['2']] }))).resolves.toEqual({
+          actor: 2,
+        })
       expect(guard).toHaveBeenCalledTimes(3)
       for (const name of ['SelectActor', 'SelectActorFromCte'])
         await expect(
-          execute(name, { id: 1 }, async () => ({ rows: [{ actor: 0 }] })),
+          execute(name, { id: 1 }, async () => ({ rows: [['0']] })),
         ).rejects.toMatchObject({
           query: name,
           column: 'actor',
@@ -203,12 +203,12 @@ describe('generated TypeScript JSON write validation', () => {
       guard.mockRestore()
     }
     await expect(
-      execute('SelectActorChoice', { id: 1 }, async () => ({ rows: [{ actor: false }] })),
+      execute('SelectActorChoice', { id: 1 }, async () => ({ rows: [['false']] })),
     ).rejects.toMatchObject({
       issues: expect.arrayContaining([expect.objectContaining({ keyword: 'anyOf' })]),
     })
     await expect(
-      execute('SelectActorChoice', { id: 1 }, async () => ({ rows: [{ actor: 0 }] })),
+      execute('SelectActorChoice', { id: 1 }, async () => ({ rows: [['0']] })),
     ).resolves.toEqual({ actor: 0 })
     const choice = await load(
       pathToFileURL(join(root, 'generated/typescript/runtime/queries/items/SelectActorChoice.js'))

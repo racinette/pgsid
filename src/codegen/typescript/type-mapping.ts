@@ -1,16 +1,15 @@
 import ts from 'typescript'
-import type {
-  Config,
-  JsonSchemaDocument,
-  TargetTypeMapping,
-  TypeImport,
-} from '../../config/schema.js'
+import type { Config, JsonSchemaDocument, TypeImport } from '../../config/schema.js'
 import type { CatalogSnapshot, ColumnInfo, DomainInfo, EnumInfo } from '../../catalog/types.js'
 import { factory, intersectionType, parseType, nullableType, unionType } from './ast.js'
 import { typescriptTypeFromJsonSchema } from './json-schema.js'
 import type { TypescriptJsonSchemaTypes } from './json-schema-types.js'
 import { arrayDimensionsMapping, assertArrayDimensions } from '../shared/array-dimensions.js'
-import { typescriptInt8RangeType } from './sql/int8range.js'
+import {
+  typescriptBuiltinName,
+  typescriptScalarCodec,
+  typescriptScalarTypes,
+} from './sql/codecs.js'
 
 export interface TypescriptTypeContext {
   inlineNative?: boolean
@@ -32,60 +31,6 @@ export interface ResolvedTypescriptType {
   type: ts.TypeNode
   imports: TypeImport[]
   reference?: { kind: 'domain' | 'enum'; schema: string; name: string }
-}
-
-const DEFAULT_TYPES: Readonly<Record<string, string>> = {
-  bit: 'string',
-  bool: 'boolean',
-  boolean: 'boolean',
-  bpchar: 'string',
-  char: 'string',
-  bytea: 'Buffer',
-  cidr: 'string',
-  date: 'Date',
-  float4: 'number',
-  float8: 'number',
-  int2: 'number',
-  int4: 'number',
-  int8: 'string',
-  int8range: typescriptInt8RangeType,
-  integer: 'number',
-  inet: 'string',
-  interval: 'string',
-  json: 'unknown',
-  jsonb: 'unknown',
-  macaddr: 'string',
-  macaddr8: 'string',
-  money: 'string',
-  name: 'string',
-  refcursor: 'string',
-  numeric: 'string',
-  oid: 'number',
-  real: 'number',
-  smallint: 'number',
-  text: 'string',
-  time: 'string',
-  timetz: 'string',
-  timestamp: 'Date',
-  timestamptz: 'Date',
-  uuid: 'string',
-  varbit: 'string',
-  varchar: 'string',
-  xml: 'string',
-}
-
-const TYPE_ALIASES: Readonly<Record<string, string>> = {
-  bigint: 'int8',
-  'bit varying': 'varbit',
-  boolean: 'bool',
-  character: 'bpchar',
-  'character varying': 'varchar',
-  'double precision': 'float8',
-  integer: 'int4',
-  real: 'float4',
-  smallint: 'int2',
-  'timestamp with time zone': 'timestamptz',
-  'timestamp without time zone': 'timestamp',
 }
 
 export function resolveTypescriptColumnType(
@@ -113,15 +58,13 @@ export function resolveTypescriptColumnType(
         arrayMapping.dimensions,
       )
     }
-    if (typeof mapping === 'object' && 'jsonSchema' in mapping) {
+    if ('jsonSchema' in mapping)
       return {
         type:
           context?.jsonSchemaReference?.(typeName(mapping.jsonSchema)) ??
           typescriptTypeFromJsonSchema(schemas[mapping.jsonSchema]!),
         imports: [],
       }
-    }
-    return mapped(mapping as TargetTypeMapping)
   }
   return resolveTypescriptPgType(column.typeName, config, catalog, schema, column.typeOid, context)
 }
@@ -135,20 +78,10 @@ export function resolveTypescriptPgType(
   context?: TypescriptTypeContext,
   dimensions?: number | readonly number[],
 ): ResolvedTypescriptType {
-  const mappings = config.sql.codegen?.typescript?.mappings.pgType ?? {}
   const array = pgType.endsWith('[]')
   const base = array ? pgType.slice(0, -2) : pgType
   const unmodified = base.replace(/\([^)]*\)$/u, '')
-  const unqualified = unmodified.split('.').at(-1)?.replaceAll('"', '') ?? unmodified
-  const alias = TYPE_ALIASES[unqualified] ?? unqualified
-  if (mappings[pgType]) {
-    if (array && dimensions !== undefined)
-      throw new Error(
-        `Array dimensions cannot accompany a complete ${pgType} type mapping; map the element type instead`,
-      )
-    return mapped(mappings[pgType]!)
-  }
-  const mapping = mappings[base] ?? mappings[unmodified] ?? mappings[`pg_catalog.${alias}`]
+  const unqualified = typescriptBuiltinName(unmodified)
   const sourceSchema =
     defaultSchema ??
     config.sql.searchPath.find((schema) =>
@@ -166,14 +99,10 @@ export function resolveTypescriptPgType(
     : enumeration
       ? enumReference(enumeration)
       : undefined
-  const resolved = mapping
-    ? mapped(mapping)
-    : native && catalog
+  const resolved =
+    native && catalog
       ? contextualReference(native, domain, enumeration, catalog, config, context)
-      : {
-          type: parseType(DEFAULT_TYPES[alias] ?? DEFAULT_TYPES[unmodified] ?? 'unknown'),
-          imports: [],
-        }
+      : { type: parseType(typescriptScalarTypes[typescriptScalarCodec(unmodified)]), imports: [] }
   return arrayReference(resolved, array, dimensions ?? 1)
 }
 
@@ -280,11 +209,6 @@ const domainRepresentation = (
         context,
       )
 }
-
-const mapped = (mapping: TargetTypeMapping): ResolvedTypescriptType =>
-  typeof mapping === 'string'
-    ? { type: parseType(mapping), imports: [] }
-    : { type: parseType(mapping.type), imports: [...(mapping.imports ?? [])] }
 
 const domainReference = (domain: DomainInfo): ResolvedTypescriptType => ({
   type: factory.createTypeReferenceNode(typeName(domain.name)),

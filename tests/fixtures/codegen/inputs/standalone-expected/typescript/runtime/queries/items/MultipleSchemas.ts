@@ -3,6 +3,17 @@ export type { MultipleSchemasParams } from "../../../types/queries/items/Multipl
 import * as pgsid from "./pgsid/queryable.js";
 export { QueryValidationError } from "./pgsid/queryable.js";
 import * as _jsonSchemas from "../../jsonschemas/index.js";
+function encodeInvalid(name: string, type: string): never {
+    throw new TypeError("Parameter " + name + " holds a malformed " + type + " value");
+}
+function encodeJson(value: unknown, name: string): string | null {
+    if (value === null || value === undefined)
+        return null;
+    const text = JSON.stringify(value);
+    if (text === undefined)
+        return encodeInvalid(name, "JSON");
+    return text;
+}
 export const multipleSchemasSql = "INSERT INTO items (payload, audit) VALUES ($1, $1);";
 export function isMultipleSchemasParamsPayloadPublicItemsPayload(value: unknown): value is MultipleSchemasParams["payload"] {
     return _jsonSchemas.isEvent(value);
@@ -47,5 +58,5 @@ export async function multipleSchemas(db: pgsid.Queryable, params: MultipleSchem
         if (!isMultipleSchemasParamsPayloadPublicItemsAudit(jsonInput1Value))
             throw new pgsid.QueryValidationError("MultipleSchemas", "payload", validateMultipleSchemasParamsPayloadPublicItemsAudit(jsonInput1Value).issues);
     }
-    await db.query(multipleSchemasSql, [jsonInput1]);
+    await db.queryText(multipleSchemasSql, [jsonInput1]);
 }

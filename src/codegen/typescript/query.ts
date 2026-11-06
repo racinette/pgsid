@@ -10,7 +10,14 @@ import { planJsonSchemaInputs } from '../shared/json-schema-inputs.js'
 import { planCheckInputs, type CheckInputPlan } from '../shared/check-inputs.js'
 import { checkTriggerWarning } from '../shared/check-trigger-warning.js'
 import { renderTypescriptSchemaCheckArtifacts } from './sql/catalog-checks.js'
-import { isTypescriptInt8Range, typescriptInt8RangeCodecSource } from './sql/int8range.js'
+import {
+  isTypescriptInt8Range,
+  typescriptCodec,
+  typescriptCodecNames,
+  typescriptCodecSource,
+  typescriptQueryableSource,
+  type TypescriptCodec,
+} from './sql/codecs.js'
 import {
   asyncModifier,
   exportModifier,
@@ -89,7 +96,7 @@ interface RenderedQuery {
   imports: TypeImport[]
   typeNames: string[]
   usesJsonSchemaRuntime: boolean
-  usesInt8Range: boolean
+  codecNames: ReadonlySet<string>
   hasValidators: boolean
   checkInputs: readonly CheckInputPlan[]
 }
@@ -246,7 +253,7 @@ export function renderTypescriptQueryArtifacts(
             factory.createStringLiteral(options.queryableModuleSpecifier),
           ),
         ]
-      : [queryableDeclaration()]),
+      : synthesizedStatements(typescriptQueryableSource)),
     ...(hasValidators
       ? options.queryableModuleSpecifier
         ? [
@@ -285,9 +292,7 @@ export function renderTypescriptQueryArtifacts(
   }
 }`)
       : []),
-    ...(rendered.some((query) => query.usesInt8Range)
-      ? synthesizedStatements(typescriptInt8RangeCodecSource)
-      : []),
+    ...codecStatements(new Set(rendered.flatMap((query) => [...query.codecNames]))),
     ...rendered.flatMap((query) => query.runtimeDeclarations),
     ...rendered.map((query) => query.wrapper),
   ])
@@ -356,10 +361,13 @@ const renderQuery = (
     parameterTypes,
     (column) => isTypescriptInt8Range(column.typeName),
   )
-  const rangeParameters = (parameterTypes ?? []).flatMap((type, index) =>
-    isTypescriptInt8Range(type) ? [index + 1] : [],
+  const parameterCodecs = analysis.contract.params.map((_, index) =>
+    typescriptCodec(parameterTypes?.[index] ?? 'text', options.catalog),
   )
-  const rangeOutputs = outputNames.filter((_, index) => isTypescriptInt8Range(outputTypes?.[index]))
+  const outputCodecs = outputNames.map((name, index) => ({
+    name,
+    codec: typescriptCodec(outputTypes?.[index] ?? 'text', options.catalog),
+  }))
   if (options.emitRuntime !== false)
     for (const message of new Set(
       checkInputs.map((plan) => checkTriggerWarning(plan.table, plan.operation)),
@@ -696,7 +704,10 @@ const renderQuery = (
     usesJsonSchemaRuntime,
     hasValidators: validators.length + inputValidators.length > 0,
     checkInputs,
-    usesInt8Range: rangeParameters.length + rangeOutputs.length > 0,
+    codecNames: new Set([
+      ...parameterCodecs.flatMap((codec) => [...typescriptCodecNames(codec, 'encode')]),
+      ...outputCodecs.flatMap(({ codec }) => [...typescriptCodecNames(codec, 'decode')]),
+    ]),
     wrapper: renderWrapper(
       analysis,
       queryName,
@@ -706,8 +717,8 @@ const renderQuery = (
       inputValidators,
       [...inputPlan.parameters.keys()],
       checkInputs,
-      rangeParameters,
-      rangeOutputs,
+      parameterCodecs,
+      outputCodecs,
       options.queryableModuleSpecifier
         ? factory.createTypeReferenceNode(
             factory.createQualifiedName(factory.createIdentifier('pgsid'), 'Queryable'),
@@ -834,8 +845,8 @@ const renderWrapper = (
   inputValidators: readonly RenderedValidator[],
   jsonParameters: readonly number[],
   checkInputs: readonly CheckInputPlan[],
-  rangeParameters: readonly number[],
-  rangeOutputs: readonly string[],
+  parameterCodecs: readonly TypescriptCodec[],
+  outputCodecs: readonly { name: string; codec: TypescriptCodec }[],
   queryableType: ts.TypeNode,
   validationError: ts.Expression,
 ): ts.FunctionDeclaration => {
@@ -1063,32 +1074,29 @@ const renderWrapper = (
       ),
     )
   }
-  const values =
-    !jsonParameters.length &&
-    !rangeParameters.length &&
-    !named.length &&
-    analysis.contract.params.length
-      ? factory.createArrayLiteralExpression([
-          factory.createSpreadElement(factory.createIdentifier('params')),
-        ])
-      : factory.createArrayLiteralExpression(
-          analysis.contract.params.map((_, index) => {
-            const name = named.find((item) => item.index === index + 1)?.name
-            const value = factory.createElementAccessExpression(
-              factory.createIdentifier('params'),
-              name ? factory.createStringLiteral(name) : factory.createNumericLiteral(index),
-            )
-            if (rangeParameters.includes(index + 1))
-              return factory.createCallExpression(
-                factory.createIdentifier('encodeInt8Range'),
-                undefined,
-                [value, factory.createStringLiteral(name ?? `$${index + 1}`)],
-              )
-            return jsonParameters.includes(index + 1) ? jsonEncoded(index + 1) : value
-          }),
-        )
+  const values = factory.createArrayLiteralExpression(
+    analysis.contract.params.map((_, index) => {
+      const name = named.find((item) => item.index === index + 1)?.name
+      const value = factory.createElementAccessExpression(
+        factory.createIdentifier('params'),
+        name ? factory.createStringLiteral(name) : factory.createNumericLiteral(index),
+      )
+      return jsonParameters.includes(index + 1)
+        ? jsonEncoded(index + 1)
+        : encodeExpression(parameterCodecs[index]!, value, name ?? `$${index + 1}`)
+    }),
+  )
+  const decodedRow = (values: ts.Expression) =>
+    factory.createObjectLiteralExpression(
+      outputCodecs.map(({ name, codec }, index) =>
+        factory.createPropertyAssignment(
+          factory.createStringLiteral(name),
+          decodeExpression(codec, factory.createElementAccessExpression(values, index)),
+        ),
+      ),
+    )
   const query = factory.createCallExpression(
-    factory.createPropertyAccessExpression(factory.createIdentifier('db'), 'query'),
+    factory.createPropertyAccessExpression(factory.createIdentifier('db'), 'queryText'),
     undefined,
     [factory.createIdentifier(sqlName), values],
   )
@@ -1120,7 +1128,7 @@ const renderWrapper = (
         factory.createVariableDeclarationList(
           [
             factory.createVariableDeclaration(
-              'row',
+              'values',
               undefined,
               undefined,
               factory.createElementAccessExpression(
@@ -1134,13 +1142,13 @@ const renderWrapper = (
       ),
       factory.createIfStatement(
         factory.createBinaryExpression(
-          factory.createIdentifier('row'),
+          factory.createIdentifier('values'),
           factory.createToken(ts.SyntaxKind.EqualsEqualsEqualsToken),
           factory.createIdentifier('undefined'),
         ),
         factory.createReturnStatement(factory.createIdentifier('undefined')),
       ),
-      ...decodeStatements(rangeOutputs),
+      rowDeclaration(decodedRow(factory.createIdentifier('values'))),
       ...validatorStatements(validators, analysis.query.name, validationError),
       factory.createReturnStatement(
         factory.createAsExpression(factory.createIdentifier('row'), rowType),
@@ -1159,12 +1167,12 @@ const renderWrapper = (
         factory.createArrowFunction(
           undefined,
           undefined,
-          [factory.createParameterDeclaration(undefined, undefined, 'row')],
+          [factory.createParameterDeclaration(undefined, undefined, 'values')],
           undefined,
           factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
           factory.createBlock(
             [
-              ...decodeStatements(rangeOutputs),
+              rowDeclaration(decodedRow(factory.createIdentifier('values'))),
               ...validatorStatements(validators, analysis.query.name, validationError),
               factory.createReturnStatement(
                 factory.createAsExpression(factory.createIdentifier('row'), rowType),
@@ -1211,21 +1219,54 @@ const renderWrapper = (
   )
 }
 
-const decodeStatements = (outputs: readonly string[]): ts.Statement[] =>
-  outputs.map((name) => {
-    const field = factory.createElementAccessExpression(
-      factory.createIdentifier('row'),
-      factory.createStringLiteral(name),
-    )
-    return factory.createExpressionStatement(
-      factory.createAssignment(
-        field,
-        factory.createCallExpression(factory.createIdentifier('decodeInt8Range'), undefined, [
-          field,
-        ]),
-      ),
-    )
-  })
+const rowDeclaration = (row: ts.Expression): ts.Statement =>
+  factory.createVariableStatement(
+    undefined,
+    factory.createVariableDeclarationList(
+      [factory.createVariableDeclaration('row', undefined, undefined, row)],
+      ts.NodeFlags.Const,
+    ),
+  )
+
+const codecArguments = (codec: TypescriptCodec, direction: 'decode' | 'encode') =>
+  codec.kind === 'array'
+    ? [
+        factory.createIdentifier(
+          `${direction}${codec.element.kind === 'scalar' ? codec.element.name : 'Text'}`,
+        ),
+        factory.createStringLiteral(codec.delimiter),
+      ]
+    : []
+
+const decodeExpression = (codec: TypescriptCodec, value: ts.Expression): ts.Expression =>
+  factory.createCallExpression(
+    factory.createIdentifier(`decode${codec.kind === 'array' ? 'Array' : codec.name}`),
+    undefined,
+    [value, ...codecArguments(codec, 'decode')],
+  )
+
+const encodeExpression = (
+  codec: TypescriptCodec,
+  value: ts.Expression,
+  name: string,
+): ts.Expression =>
+  factory.createCallExpression(
+    factory.createIdentifier(`encode${codec.kind === 'array' ? 'Array' : codec.name}`),
+    undefined,
+    [value, ...codecArguments(codec, 'encode'), factory.createStringLiteral(name)],
+  )
+
+const codecStatements = (names: ReadonlySet<string>): ts.Statement[] =>
+  names.size
+    ? synthesizedStatements(typescriptCodecSource).filter(
+        (statement) =>
+          ts.isFunctionDeclaration(statement) &&
+          statement.name !== undefined &&
+          (names.has(statement.name.text) ||
+            (statement.name.text === 'encodeInvalid' &&
+              [...names].some((name) => name.startsWith('encode')))),
+      )
+    : []
 
 const validatorStatements = (
   validators: readonly RenderedValidator[],
@@ -1285,7 +1326,7 @@ const resultDeclaration = (query: ts.Expression): ts.VariableStatement =>
 
 export const renderTypescriptQueryHelpers = (validationModuleSpecifier?: string): string =>
   printFile([
-    queryableDeclaration(),
+    ...synthesizedStatements(typescriptQueryableSource),
     ...(validationModuleSpecifier
       ? [
           factory.createExportDeclaration(
@@ -1299,56 +1340,6 @@ export const renderTypescriptQueryHelpers = (validationModuleSpecifier?: string)
           ),
         ]
       : queryValidationErrorDeclarations()),
-  ])
-
-const queryableDeclaration = (): ts.InterfaceDeclaration =>
-  factory.createInterfaceDeclaration([exportModifier], 'Queryable', undefined, undefined, [
-    factory.createMethodSignature(
-      undefined,
-      'query',
-      undefined,
-      undefined,
-      [
-        factory.createParameterDeclaration(
-          undefined,
-          undefined,
-          'sql',
-          undefined,
-          factory.createKeywordTypeNode(ts.SyntaxKind.StringKeyword),
-        ),
-        factory.createParameterDeclaration(
-          undefined,
-          undefined,
-          'values',
-          factory.createToken(ts.SyntaxKind.QuestionToken),
-          factory.createArrayTypeNode(factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword)),
-        ),
-      ],
-      factory.createTypeReferenceNode('Promise', [
-        factory.createTypeLiteralNode([
-          factory.createPropertySignature(
-            undefined,
-            'rows',
-            undefined,
-            factory.createArrayTypeNode(
-              factory.createTypeReferenceNode('Record', [
-                factory.createKeywordTypeNode(ts.SyntaxKind.StringKeyword),
-                factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword),
-              ]),
-            ),
-          ),
-          factory.createPropertySignature(
-            undefined,
-            'rowCount',
-            factory.createToken(ts.SyntaxKind.QuestionToken),
-            unionType([
-              factory.createKeywordTypeNode(ts.SyntaxKind.NumberKeyword),
-              factory.createLiteralTypeNode(factory.createNull()),
-            ]),
-          ),
-        ]),
-      ]),
-    ),
   ])
 
 const namedImport = (
