@@ -15,7 +15,10 @@ export type Events = TableTypes<{
     "states": (import("./enums.js").EventState | null)[] | null;
     "payload": import("../../jsonschemas/index.js").EventPayload;
     "audit": import("../../jsonschemas/index.js").EventAudit | null;
-    "metadata": string | null;
+    "metadata": {
+        readonly "source": string | null;
+        readonly "confidence": string | null;
+    } | null;
     "note": string | null;
     "created_at": {
         readonly epochMicroseconds: bigint;
@@ -30,7 +33,10 @@ export type Events = TableTypes<{
     "states"?: (import("./enums.js").EventState | null)[] | null;
     "payload": import("../../jsonschemas/index.js").EventPayload;
     "audit"?: import("../../jsonschemas/index.js").EventAudit | null;
-    "metadata"?: string | null;
+    "metadata"?: {
+        readonly "source": string | null;
+        readonly "confidence": string | null;
+    } | null;
     "note"?: string | null;
     "created_at"?: {
         readonly epochMicroseconds: bigint;
@@ -45,7 +51,10 @@ export type Events = TableTypes<{
     "states"?: (import("./enums.js").EventState | null)[] | null;
     "payload"?: import("../../jsonschemas/index.js").EventPayload;
     "audit"?: import("../../jsonschemas/index.js").EventAudit | null;
-    "metadata"?: string | null;
+    "metadata"?: {
+        readonly "source": string | null;
+        readonly "confidence": string | null;
+    } | null;
     "note"?: string | null;
     "created_at"?: {
         readonly epochMicroseconds: bigint;

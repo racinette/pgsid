@@ -24,7 +24,8 @@ a real is the single-precision value the server stored, not the nearest double
 of its printed text. A range is either empty or has bounds and inclusivity; an
 empty range is a value without points, distinct from SQL NULL, and a null bound
 is unbounded, unlike an infinite one. Bounds take the shape of the range's
-subtype, and a multirange is the list of its ranges. Timestamps are exact microsecond counts, an instant from the Unix
+subtype, and a multirange is the list of its ranges. A composite value, and a
+relation's row, is an object of its fields, each in its own type's shape. Timestamps are exact microsecond counts, an instant from the Unix
 epoch for a zoned timestamp and a wall-clock reading for an unzoned one, and an
 interval keeps its months, days and microseconds apart as the server does.
 Infinite timestamps and intervals are values of their own, and dates are ISO

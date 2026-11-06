@@ -3,15 +3,21 @@ export type Events = TableTypes<{
     "id": import("./domains.js").EventId;
     "source_id": import("../public/domains.js").EventId;
     "state": import("./enums.js").EventState;
-    "metadata": string | null;
+    "metadata": {
+        readonly "event": bigint | null;
+    } | null;
 }, {
     "id": import("./domains.js").EventId;
     "source_id": import("../public/domains.js").EventId;
     "state": import("./enums.js").EventState;
-    "metadata"?: string | null;
+    "metadata"?: {
+        readonly "event": bigint | null;
+    } | null;
 }, {
     "id"?: import("./domains.js").EventId;
     "source_id"?: import("../public/domains.js").EventId;
     "state"?: import("./enums.js").EventState;
-    "metadata"?: string | null;
+    "metadata"?: {
+        readonly "event": bigint | null;
+    } | null;
 }>;
