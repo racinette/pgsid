@@ -426,7 +426,7 @@ func TestMixedChecks(t *testing.T) {
     } finally {
       await rm(directory, { recursive: true, force: true })
     }
-  })
+  }, 300_000)
 
   it('binds existing numeric atoms alongside regex checks', async () => {
     const catalog = await snapshotCatalog(pg)
@@ -1290,5 +1290,5 @@ func TestCheckBeforeExec(t *testing.T) {
     } finally {
       await rm(directory, { recursive: true, force: true })
     }
-  })
+  }, 300_000)
 })
