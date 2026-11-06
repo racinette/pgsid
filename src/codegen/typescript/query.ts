@@ -360,7 +360,12 @@ const renderQuery = (
     analysis.writeLineage ?? [],
     options.catalog,
     parameterTypes,
-    (column) => isTypescriptInt8Range(column.typeName),
+    (column) =>
+      isTypescriptInt8Range(column.typeName)
+        ? 'public'
+        : typescriptCodec(column.typeName, options.catalog).kind === 'composite'
+          ? 'skip'
+          : undefined,
   )
   const parameterCodecs = analysis.contract.params.map((_, index) =>
     typescriptCodec(parameterTypes?.[index] ?? 'text', options.catalog),
@@ -1241,7 +1246,9 @@ const codecName = (codec: TypescriptCodec, direction: 'decode' | 'encode'): stri
         ? 'Array'
         : codec.kind === 'range'
           ? 'Range'
-          : 'Multirange'
+          : codec.kind === 'multirange'
+            ? 'Multirange'
+            : 'Composite'
   }`
 
 // A container converts its elements through a function, so a nested codec becomes a closure.
@@ -1283,10 +1290,21 @@ const codecFunction = (codec: TypescriptCodec, direction: 'decode' | 'encode'): 
 const codecArguments = (codec: TypescriptCodec, direction: 'decode' | 'encode') =>
   codec.kind === 'scalar'
     ? []
-    : [
-        codecFunction(codec.element, direction),
-        ...(codec.kind === 'array' ? [factory.createStringLiteral(codec.delimiter)] : []),
-      ]
+    : codec.kind === 'composite'
+      ? [
+          factory.createArrayLiteralExpression(
+            codec.fields.map((field) =>
+              factory.createArrayLiteralExpression([
+                factory.createStringLiteral(field.name),
+                codecFunction(field.codec, direction),
+              ]),
+            ),
+          ),
+        ]
+      : [
+          codecFunction(codec.element, direction),
+          ...(codec.kind === 'array' ? [factory.createStringLiteral(codec.delimiter)] : []),
+        ]
 
 const decodeExpression = (codec: TypescriptCodec, value: ts.Expression): ts.Expression =>
   factory.createCallExpression(factory.createIdentifier(codecName(codec, 'decode')), undefined, [

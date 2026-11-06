@@ -8,6 +8,7 @@ export type TypescriptCodec =
   | { kind: 'array'; element: TypescriptCodec; delimiter: string }
   | { kind: 'range'; element: TypescriptCodec }
   | { kind: 'multirange'; element: TypescriptCodec }
+  | { kind: 'composite'; fields: readonly { name: string; codec: TypescriptCodec }[] }
 
 export type TypescriptScalarCodec =
   | 'Bool'
@@ -132,6 +133,33 @@ export function typescriptCodec(
     )
   const range = rangeSubtype(schema, plain, catalog)
   if (range) return { kind: range.kind, element: typescriptCodec(range.subtype, catalog, seen) }
+  // A composite type and every relation's row type carry their fields in attribute order.
+  const composite = [
+    ...(catalog?.compositeTypes ?? []).map((item) => ({
+      schema: item.schema,
+      name: item.name,
+      fields: item.attributes.map((field) => ({ name: field.name, type: field.typeName })),
+    })),
+    ...[
+      ...(catalog?.tables ?? []),
+      ...(catalog?.views ?? []),
+      ...(catalog?.materializedViews ?? []),
+    ].map((item) => ({
+      schema: item.schema,
+      name: item.name,
+      fields: item.columns.map((field) => ({ name: field.name, type: field.typeName })),
+    })),
+  ].find((item) => item.name === plain && (schema === undefined || item.schema === schema))
+  if (composite && !seen.has(`${composite.schema}.${composite.name}`)) {
+    const inner = new Set([...seen, `${composite.schema}.${composite.name}`])
+    return {
+      kind: 'composite',
+      fields: composite.fields.map((field) => ({
+        name: field.name,
+        codec: typescriptCodec(field.type, catalog, inner),
+      })),
+    }
+  }
   return { kind: 'scalar', name: typescriptScalarCodec(type) }
 }
 
@@ -156,11 +184,20 @@ const rangeSubtype = (
 }
 
 // An empty range is a value without points, unlike SQL NULL, and a null bound is unbounded.
+const grouped = (type: string): string => (/[|&]/u.test(type) ? `(${type})` : type)
+
 export function typescriptCodecType(codec: TypescriptCodec): string {
   if (codec.kind === 'scalar') return typescriptScalarTypes[codec.name]
+  if (codec.kind === 'composite')
+    return `{ ${codec.fields
+      .map(
+        (field) =>
+          `readonly ${JSON.stringify(field.name)}: ${grouped(typescriptCodecType(field.codec))} | null`,
+      )
+      .join('; ')} }`
   const element = typescriptCodecType(codec.element)
   if (codec.kind === 'array') return `(${element} | null)[]`
-  const range = `{ readonly empty: true } | { readonly empty: false; readonly lower: (${element}) | null; readonly upper: (${element}) | null; readonly lowerInclusive: boolean; readonly upperInclusive: boolean }`
+  const range = `{ readonly empty: true } | { readonly empty: false; readonly lower: ${grouped(element)} | null; readonly upper: ${grouped(element)} | null; readonly lowerInclusive: boolean; readonly upperInclusive: boolean }`
   return codec.kind === 'range' ? range : `(${range})[]`
 }
 
@@ -168,7 +205,10 @@ export const typescriptCodecNames = (codec: TypescriptCodec, direction: 'decode'
   const names = new Set<string>()
   const visit = (item: TypescriptCodec) => {
     if (item.kind === 'scalar') names.add(`${direction}${item.name}`)
-    else {
+    else if (item.kind === 'composite') {
+      names.add(`${direction}Composite`)
+      for (const field of item.fields) visit(field.codec)
+    } else {
       names.add(
         `${direction}${item.kind === 'array' ? 'Array' : item.kind === 'range' ? 'Range' : 'Multirange'}`,
       )
@@ -328,6 +368,48 @@ function writeRange(value: unknown, element: (item: unknown, name: string) => st
 }
 function encodeRange(value: unknown, element: (item: unknown, name: string) => string | null, name: string): string | null {
   return value === null || value === undefined ? null : writeRange(value, element, name)
+}
+function decodeComposite(value: string | null, fields: readonly (readonly [string, (item: string | null) => unknown])[]): unknown {
+  if (value === null) return null
+  const row: Record<string, unknown> = {}
+  let index = 1
+  for (const [name, element] of fields) {
+    if (value[index] === ',' || value[index] === ')') row[name] = element(null)
+    else {
+      let text = ''
+      let quoted = false
+      while (index < value.length) {
+        const character = value[index]!
+        if (character === '"') {
+          if (quoted && value[index + 1] === '"') {
+            text += '"'
+            index += 2
+          } else {
+            quoted = !quoted
+            index++
+          }
+        } else if (character === '\\\\') {
+          text += value[index + 1]
+          index += 2
+        } else if (!quoted && (character === ',' || character === ')')) break
+        else {
+          text += character
+          index++
+        }
+      }
+      row[name] = element(text)
+    }
+    index++
+  }
+  return row
+}
+function encodeComposite(value: unknown, fields: readonly (readonly [string, (item: unknown, name: string) => string | null])[], name: string): string | null {
+  if (value === null || value === undefined) return null
+  if (typeof value !== 'object' || Array.isArray(value)) return encodeInvalid(name, 'composite')
+  return '(' + fields.map(([field, element]) => {
+    const text = element((value as Record<string, unknown>)[field], name)
+    return text === null ? '' : '"' + text.replace(/["\\\\]/gu, '\\\\$&') + '"'
+  }).join(',') + ')'
 }
 function decodeMultirange(value: string | null, element: (item: string | null) => unknown): unknown {
   if (value === null) return null
