@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest'
 import { bindProbe } from '../../../scripts/check-measurements/probes.js'
 
-it('retains source collation on functional name casts and rejects unsupported ordering or explicit conflicts', () => {
+it('retains source collation on functional name casts and rejects explicit conflicts', () => {
   for (const typeName of ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar']) {
     const c = [
         {
@@ -18,7 +18,8 @@ it('retains source collation on functional name casts and rejects unsupported or
         bindProbe(`value::name ${operation} value::name`, c).fullyBound,
         typeName + ' ' + operation,
       ).toBe(true)
-    expect(bindProbe('value::name<value::name', other).fullyBound).toBe(false)
+    // A declared non-C ordering binds; only its rows without a NULL wait on the provider.
+    expect(bindProbe('value::name<value::name', other).fullyBound).toBe(true)
     expect(
       bindProbe('(value COLLATE "C")::name=(value COLLATE "ucs_basic")::name', c).fullyBound,
     ).toBe(false)
