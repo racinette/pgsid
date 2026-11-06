@@ -5,11 +5,7 @@ import { factory, intersectionType, parseType, nullableType, unionType } from '.
 import { typescriptTypeFromJsonSchema } from './json-schema.js'
 import type { TypescriptJsonSchemaTypes } from './json-schema-types.js'
 import { arrayDimensionsMapping, assertArrayDimensions } from '../shared/array-dimensions.js'
-import {
-  typescriptBuiltinName,
-  typescriptScalarCodec,
-  typescriptScalarTypes,
-} from './sql/codecs.js'
+import { typescriptBuiltinName, typescriptCodec, typescriptCodecType } from './sql/codecs.js'
 
 export interface TypescriptTypeContext {
   inlineNative?: boolean
@@ -102,7 +98,7 @@ export function resolveTypescriptPgType(
   const resolved =
     native && catalog
       ? contextualReference(native, domain, enumeration, catalog, config, context)
-      : { type: parseType(typescriptScalarTypes[typescriptScalarCodec(unmodified)]), imports: [] }
+      : { type: parseType(typescriptCodecType(typescriptCodec(unmodified, catalog))), imports: [] }
   return arrayReference(resolved, array, dimensions ?? 1)
 }
 
