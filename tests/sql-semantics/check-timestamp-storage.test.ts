@@ -13,6 +13,7 @@ import { parseConfigString } from '../../src/config/loader.js'
 import { renderGoCheckTests, type GoCheckCase } from './check-codegen.js'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import { lowerTableCheck } from '../../src/sql-semantics/catalog-checks.js'
+import { internalCheckRows } from '../support/check-entries.js'
 import { hasUncertain } from '../../scripts/check-measurements/probes.js'
 import {
   assembleCheckRust,
@@ -370,6 +371,8 @@ it('admits projected and rounded timestamp rows, containers and captured constan
       join(root, 'checks.ts'),
     ])
     const validators = await import(pathToFileURL(join(root, 'js/checks.js')).href),
+      runtime = await import(pathToFileURL(join(root, 'js/checks-rust/checks.js')).href),
+      internal = internalCheckRows(ts.checks, runtime),
       cases: GoCheckCase[] = []
     for (const { type, owner, expressions } of definitions) {
       const table = tables.find((t) => t.name === owner)!,
@@ -384,7 +387,38 @@ it('admits projected and rounded timestamp rows, containers and captured constan
               ? 'evaluatePublicPublicStoredStampsChecks'
               : 'evaluatePublicPublicStoredInstantsChecks'
           ]!
-      for (const { id, wire } of samples)
+      for (const { id, wire } of samples) {
+        // The stored value as a public value: microseconds from the Unix epoch, read from the
+        // binary send form, or a signed infinity. Projections below the first Julian day and
+        // readings rounded past the last one stay exact even though the server cannot print them.
+        const { sendHex, sign } = (
+            await pg.query<{ sendHex: string | null; sign: number | null }>(
+              `SELECT CASE WHEN isfinite(v) THEN encode(${type}_send(v),'hex') END "sendHex",
+                CASE WHEN v = 'infinity' THEN 1 WHEN v = '-infinity' THEN -1 END sign
+              FROM ${owner}_inputs WHERE id=$1`,
+              [id],
+            )
+          ).rows[0]!,
+          stored =
+            sign !== null
+              ? { infinity: sign }
+              : sendHex === null
+                ? null
+                : {
+                    [type === 'timestamp' ? 'localMicroseconds' : 'epochMicroseconds']:
+                      Buffer.from(sendHex, 'hex').readBigInt64BE() + 946684800000000n,
+                  }
+        // A reading rounded past the last input value is stored, but the server rejects its own
+        // text for it as input, so a public value naming it fails as that input does.
+        const rejected = await pg
+          .query(`SELECT v::text::${type} FROM ${owner}_inputs WHERE id=$1`, [id])
+          .then(
+            () => false,
+            (cause: { code?: string }) => {
+              expect(cause.code).toBe('22008')
+              return true
+            },
+          )
         for (const expectedText of [wire, 'wrong'])
           for (const bypass of [false, true]) {
             const value = wire === null ? null : Buffer.from(wire, 'hex').readBigInt64BE(),
@@ -413,17 +447,47 @@ it('admits projected and rounded timestamp rows, containers and captured constan
                     : { certain: true as const, value: outcome.kind === 'True' },
               })
             }
-            const row = {
-                v: value === null ? null : { kind: 'Value', value },
-                expected: expectedText,
-                bypass,
-              },
-              actual = evaluate(row)
+            const row = { v: stored, expected: expectedText, bypass },
+              actual = evaluate(row),
+              publicResult = (outcome: { kind: string; value?: { state: number } }) =>
+                outcome.kind === 'Error'
+                  ? {
+                      certain: true,
+                      error: outcome.value!.state.toString(36).toUpperCase().padStart(5, '0'),
+                    }
+                  : { certain: true, value: outcome.kind === 'True' }
+            // A public value the server rejects as input fails, as that input does, every check
+            // that reads it; the others still decide.
             for (const expected of results)
               expect(
                 actual.find((k: { constraint: string }) => k.constraint === expected.constraint)
                   ?.result,
                 `${owner}/${id}/${expected.constraint}`,
+              ).toEqual(
+                rejected && internal.reads(`public.${owner}`, expected.constraint).includes('v')
+                  ? { certain: true, error: '22008' }
+                  : expected.result,
+              )
+            // The stored value itself stays exact through the evaluator entries.
+            const storedResults = internal(`public.${owner}`, {
+              v:
+                value === null
+                  ? type === 'timestamp'
+                    ? runtime.timestampNull()
+                    : runtime.timestamptzNull()
+                  : type === 'timestamp'
+                    ? runtime.makeStoredTimestampValue(value)
+                    : runtime.makeStoredTimestamptzValue(value),
+              expected:
+                expectedText === null ? runtime.textNull() : runtime.makeTextValue(expectedText),
+              bypass: runtime.makeBoolValue(bypass),
+            })
+            for (const expected of results)
+              expect(
+                publicResult(
+                  storedResults[expected.constraint] as { kind: string; value?: { state: number } },
+                ),
+                `${owner}/${id}/${expected.constraint}/internal`,
               ).toEqual(expected.result)
             cases.push({
               name: `${owner}/${id}/${expectedText}/${bypass}`,
@@ -434,6 +498,10 @@ it('admits projected and rounded timestamp rows, containers and captured constan
               ),
             })
           }
+      }
+      // The internal payload format is no longer a public value, even when well formed.
+      for (const v of [{ kind: 'Value', value: 0n }, { kind: 'Null' }, { kind: 'Unknown' }, 0n])
+        expect(() => evaluate({ v, expected: '', bypass: false }), owner).toThrow(TypeError)
     }
     const goRoot = join(root, 'go')
     await mkdir(goRoot)

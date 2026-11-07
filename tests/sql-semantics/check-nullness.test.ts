@@ -23,6 +23,7 @@ import {
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
 import { renderGoCheckTests, type GoCheckCase } from './check-codegen.js'
 import { writeCheckRustSources } from '../../tools/check-rust/sources.js'
+import { internalCheckRows, type InternalCheckRows } from '../support/check-entries.js'
 
 const run = promisify(execFile)
 const portableItems = (value: unknown) =>
@@ -39,6 +40,14 @@ const portableItems = (value: unknown) =>
         },
       }
     : value
+const publicResult = (outcome: unknown) => {
+  const { kind, value } = outcome as { kind: string; value?: { state: number } }
+  if (kind === 'True' || kind === 'False' || kind === 'Null')
+    return { certain: true, value: kind === 'Null' ? null : kind === 'True' }
+  if (kind === 'Unknown') return { certain: false }
+  if (kind === 'Unimplemented') return { certain: false, unimplemented: true }
+  return { certain: true, error: value!.state.toString(36).toUpperCase().padStart(5, '0') }
+}
 const fields = [
   { name: 'amount', type: 'numeric', literal: '12.50' },
   { name: 'day', type: 'date', literal: "'2026-01-02'" },
@@ -66,6 +75,8 @@ describe('CHECK input nullness', () => {
   let cases: GoCheckCase[]
   let evaluate: (row: object) => GoCheckCase['results']
   let fallback: typeof evaluate
+  let internal: InternalCheckRows
+  let runtime: Record<string, (...inputs: unknown[]) => unknown>
 
   beforeAll(async () => {
     pg = await PGlite.create()
@@ -211,6 +222,8 @@ describe('CHECK input nullness', () => {
       .evaluatePublicNullInputsChecks
     fallback = (await import(pathToFileURL(join(directory, 'js/fallback.js')).href))
       .evaluatePublicNullInputsChecks
+    runtime = await import(pathToFileURL(join(directory, 'js/checks-rust/checks.js')).href)
+    internal = internalCheckRows(ts.checks, runtime)
 
     const arrayFallback = join(directory, 'array-fallback')
     await mkdir(arrayFallback)
@@ -397,30 +410,58 @@ fn nullness() {
           portable['items'] === null && item.nullViaValue
             ? { kind: 'Null' }
             : portableItems(portable['items'])
-      for (const name of ['day', 'instant', 'local_time']) {
-        const value = portable[name]
-        if (value instanceof Date) {
-          const elapsed = value.getTime() - Date.UTC(2000, 0, 1)
-          portable[name] = {
-            kind: 'Value',
-            value: name === 'day' ? elapsed / 86_400_000 : BigInt(elapsed) * 1000n,
-          }
-        } else if (value === null && item.nullViaValue) portable[name] = { kind: 'Null' }
-      }
+      // Public values: the shapes generated queries read and write.
+      const day = portable['day']
+      if (day instanceof Date) portable['day'] = day.toISOString().slice(0, 10)
+      const instant = portable['instant']
+      if (instant instanceof Date)
+        portable['instant'] = { epochMicroseconds: BigInt(instant.getTime()) * 1000n }
+      // The driver read the unzoned timestamp as local time; its wall clock is the public value.
+      const local = portable['local_time']
+      if (local instanceof Date)
+        portable['local_time'] = {
+          localMicroseconds: BigInt(local.getTime() - local.getTimezoneOffset() * 60_000) * 1000n,
+        }
       for (const name of ['duration', 'domain_duration', 'clock', 'zoned_clock', 'domain_clock']) {
-        if (portable[name] === undefined) continue
-        if (portable[name] === null) {
-          if (item.nullViaValue) portable[name] = { kind: 'Null' }
-          continue
-        }
-        portable[name] = {
-          kind: 'Value',
-          value: name.includes('duration')
-            ? { months: 0, days: 0, time: 3_600_000_000n }
-            : name === 'clock'
-              ? 43_200_000_000n
-              : { time: 43_200_000_000n, zone: -7200 },
-        }
+        if (portable[name] === undefined || portable[name] === null) continue
+        portable[name] = name.includes('duration')
+          ? { months: 0, days: 0, microseconds: 3_600_000_000n }
+          : name === 'clock'
+            ? { microseconds: 43_200_000_000 }
+            : { microseconds: 43_200_000_000, offsetSeconds: 7200 }
+      }
+      if (item.nullViaValue) {
+        // SQL NULL is the public null; the payload that used to carry it is no public value. The
+        // evaluator entries take it directly and decide every check as the public null does.
+        for (const name of [
+          'amount',
+          'day',
+          'instant',
+          'local_time',
+          'duration',
+          'domain_duration',
+          'clock',
+          'zoned_clock',
+          'domain_clock',
+          'price',
+          'nested_price',
+          'floating',
+        ])
+          expect(() => evaluate({ ...portable, [name]: { kind: 'Null' } }), name).toThrow(TypeError)
+        const nulls: Record<string, unknown> = Object.fromEntries(
+          fields.map((field) => [field.name, { kind: 'Null' }]),
+        )
+        // Nullness of these inputs reaches the entries already decided.
+        nulls['identifier'] = runtime['makeBoolValue']!(true)
+        nulls['state'] = runtime['makeBoolValue']!(true)
+        nulls['items'] = runtime['arrayIsNull']!({ kind: 'Null' })
+        const outcomes = internal('public.null_inputs', nulls)
+        expect(
+          item.results.map(({ constraint }) => ({
+            constraint,
+            result: publicResult(outcomes[constraint]),
+          })),
+        ).toEqual(item.results)
       }
       const results = evaluate(portable).map(({ constraint, result }) => ({ constraint, result }))
       expect(results).toEqual(item.results)
@@ -457,31 +498,48 @@ fn nullness() {
     })
 
   it('preserves clock and interval payload states and rejects malformed known payloads', () => {
-    const malformed: Record<string, object> = {
-      clock: { kind: 'Value', value: -1n },
-      zoned_clock: { kind: 'Value', value: { time: 0n, zone: 2147483648 } },
-      domain_clock: { kind: 'Value', value: { time: 0n, zone: 2147483648 } },
-      duration: { kind: 'Value', value: { time: 0n, months: 2147483648, days: 0 } },
-      domain_duration: { kind: 'Value', value: { time: 0n, months: 2147483648, days: 0 } },
+    const zone = [
+      { microseconds: 0, offsetSeconds: 2147483648 },
+      { kind: 'Value', value: { time: 0n, zone: 2147483648 } },
+    ]
+    const months = [
+      { months: 2147483648, days: 0, microseconds: 0n },
+      { kind: 'Value', value: { time: 0n, months: 2147483648, days: 0 } },
+    ]
+    const malformed: Record<string, object[]> = {
+      clock: [{ microseconds: -1 }, { kind: 'Value', value: -1n }],
+      zoned_clock: zone,
+      domain_clock: zone,
+      duration: months,
+      domain_duration: months,
     }
+    // Unknown and failed operands are no public values; the evaluator entries take them directly.
+    const unknown = Object.fromEntries(fields.map((field) => [field.name, { kind: 'Unknown' }]))
+    const failure = { kind: 'Error', value: { state: parseInt('22012', 36) } }
     for (const [name, invalid] of Object.entries(malformed)) {
-      const pair = (input: object) =>
+      const pair = (input: unknown) =>
         evaluate({ [name]: input })
           .filter((item) => [name + '_null', name + '_present'].includes(item.constraint))
           .map((item) => item.result)
-      expect(pair({ kind: 'Null' }), name).toEqual([
+      const entries = (input: unknown) => {
+        const outcomes = internal('public.null_inputs', { ...unknown, [name]: input })
+        return [outcomes[name + '_null'], outcomes[name + '_present']]
+      }
+      expect(pair(null), name).toEqual([
         { certain: true, value: true },
         { certain: true, value: false },
       ])
-      expect(pair({ kind: 'Unknown' }), name).toEqual([{ certain: false }, { certain: false }])
-      expectUndecidedOrRejected(() => evaluate({ [name]: invalid }), name, [
-        name + '_null',
-        name + '_present',
-      ])
-      expect(pair({ kind: 'Error', value: { state: parseInt('22012', 36) } }), name).toEqual([
-        { certain: true, error: '22012' },
-        { certain: true, error: '22012' },
-      ])
+      expect(entries({ kind: 'Null' }), name).toEqual([{ kind: 'True' }, { kind: 'False' }])
+      expect(pair(undefined), name).toEqual([{ certain: false }, { certain: false }])
+      expect(entries({ kind: 'Unknown' }), name).toEqual([{ kind: 'Unknown' }, { kind: 'Unknown' }])
+      for (const input of invalid)
+        expectUndecidedOrRejected(() => evaluate({ [name]: input }), name, [
+          name + '_null',
+          name + '_present',
+        ])
+      expect(entries(failure), name).toEqual([failure, failure])
+      for (const payload of [{ kind: 'Null' }, { kind: 'Unknown' }, failure])
+        expect(() => evaluate({ [name]: payload }), name).toThrow(TypeError)
     }
   })
 

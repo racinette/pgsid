@@ -334,13 +334,31 @@ describe('portable Rust CHECK dates', () => {
       evaluatePublicDateChecksChecks: evaluate,
       evaluatePublicValidDateDomainChecks: evaluateDomain,
     } = await import(pathToFileURL(join(directory, 'js/checks.js')).href)
+    // Public dates are ISO text with astronomical years, read here from PostgreSQL's own fields.
+    const publicDate = async (date: string | null): Promise<string | null> =>
+      (
+        await pg.query<{ text: string | null }>(
+          `SELECT CASE WHEN NOT isfinite(d) THEN d::text ELSE
+             CASE WHEN y BETWEEN 0 AND 9999 THEN lpad(y::text, 4, '0')
+               ELSE CASE WHEN y < 0 THEN '-' ELSE '+' END || lpad(abs(y)::text, greatest(6, length(abs(y)::text)), '0') END
+             || '-' || lpad(extract(month FROM d)::int::text, 2, '0')
+             || '-' || lpad(extract(day FROM d)::int::text, 2, '0') END AS text
+           FROM (SELECT $1::date AS d) value,
+             LATERAL (SELECT CASE WHEN isfinite(d) THEN extract(year FROM d)::int
+               + CASE WHEN extract(year FROM d) < 0 THEN 1 ELSE 0 END END AS y) year`,
+          [date],
+        )
+      ).rows[0]!.text
+    expect(
+      await Promise.all(['4714-11-24 BC', '0001-01-01 BC', '5874897-12-31'].map(publicDate)),
+    ).toEqual(['-004713-11-24', '0000-01-01', '+5874897-12-31'])
     const cases: GoCheckCase[] = []
     for (const date of dates) {
       const row = { a: days.get(date), b: 0, flag: true, year: 2000, month: 1, day: 1 }
       const wrapped = {
         ...row,
-        a: date === null ? runtime.dateNull() : runtime.makeDateValue(row.a),
-        b: runtime.dateFromYmd(2000, 1, 1),
+        a: await publicDate(date),
+        b: await publicDate('2000-01-01'),
       }
       const results = evaluate(wrapped).map(
         ({ constraint, result }: GoCheckCase['results'][number]) => ({ constraint, result }),
@@ -382,9 +400,10 @@ describe('portable Rust CHECK dates', () => {
         result,
       })),
     })
-    expect(() => evaluate({ a: new Date('2000-01-01'), b: runtime.makeDateValue(0) })).toThrow(
-      TypeError,
-    )
+    expect(() => evaluate({ a: new Date('2000-01-01'), b: '2000-01-01' })).toThrow(TypeError)
+    // The internal payload format is no longer a public value.
+    for (const payload of [{ kind: 'Value', value: 0 }, { kind: 'Null' }, { kind: 'Unknown' }])
+      expect(() => evaluate({ a: payload, b: '2000-01-01' })).toThrow(TypeError)
     for (const payload of [-2451546, 2145031949])
       expect(runtime.makeDateValue(payload)).toEqual({
         kind: 'Error',

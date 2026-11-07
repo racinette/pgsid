@@ -364,7 +364,7 @@ describe('Rust text-to-date CHECK casts', () => {
       } finally {
         await pg.exec('ROLLBACK')
       }
-      const wrapped = { raw, anchor: runtime.makeDateValue(0), skip }
+      const wrapped = { raw, anchor: '2000-01-01', skip }
       expect(evaluate(wrapped)[0].result).toEqual(result)
       cases.push({
         name: `${raw ?? 'NULL'}:${skip}`,
@@ -373,7 +373,7 @@ describe('Rust text-to-date CHECK casts', () => {
         results: [{ constraint: 'parsed_date', result }],
       })
     }
-    expect(evaluate({ anchor: runtime.makeDateValue(0), skip: false })[0].result).toEqual({
+    expect(evaluate({ anchor: '2000-01-01', skip: false })[0].result).toEqual({
       certain: false,
     })
     expect(runtime.dateFromText(runtime.makeTextValue('2000-01-01'))).toEqual({

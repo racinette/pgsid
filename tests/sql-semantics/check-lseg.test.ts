@@ -20,6 +20,7 @@ import {
   type Row,
 } from '../../tools/check-rust/parity.js'
 import { lsegInputForms, deferredLsegPlatformForms } from './check-lseg-input-forms.js'
+import { internalCheckRows } from '../support/check-entries.js'
 const known = (value: Extract<Input, { kind: 'Value' }>['value'] | null): Input =>
   value === null ? { kind: 'Null' } : { kind: 'Value', value }
 const failure = (code: string): Input & Outcome => ({
@@ -466,14 +467,9 @@ describe('portable line segments', () => {
       throw new Error(error.stdout + error.stderr, { cause: error })
     })
     const generated = await import(pathToFileURL(join(target, 'js/checks.js')).href)
-    const payload = {
-        x1: 0n,
-        y1: 0n,
-        x2: 0x4008000000000000n,
-        y2: 0x4010000000000000n,
-        wireKnown: true,
-      },
-      value = { kind: 'Value', value: payload }
+    const runtime = await import(pathToFileURL(join(target, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(bundle.checks, runtime)
+    const value = { start: { x: 0, y: 0 }, end: { x: 3, y: 4 } }
     const wire = Buffer.from(
       '0000000000000000000000000000000040080000000000004010000000000000',
       'hex',
@@ -496,39 +492,77 @@ describe('portable line segments', () => {
       absent: { certain: true, value: false },
     }
     expect(evaluate(value)).toEqual(knownResults)
-    expect(evaluate({ kind: 'Value', value: { ...payload, wireKnown: false } })).toEqual({
-      ...knownResults,
-      wire: { certain: false },
-    })
-    for (const edge of [undefined, { kind: 'Unknown' }])
-      expect(Object.values(evaluate(edge))).toEqual(
-        Array.from({ length: 4 }, () => ({ certain: false })),
-      )
+    expect(Object.values(evaluate(undefined))).toEqual(
+      Array.from({ length: 4 }, () => ({ certain: false })),
+    )
+    const payload = {
+      x1: 0n,
+      y1: 0n,
+      x2: 0x4008000000000000n,
+      y2: 0x4010000000000000n,
+      wireKnown: true,
+    }
     for (const edge of [
       '[(0,0),(3,4)]',
+      { start: { x: 0n, y: 0 }, end: { x: 3, y: 4 } },
+      { start: { x: 0, y: 0 }, end: { x: 3, y: '4' } },
+      { start: { x: 0, y: 0 } },
+      { start: { x: 0, y: 0 }, end: null },
+      { kind: 'Value', value: payload },
       { kind: 'Value', value: { ...payload, x1: 9223372036854775808n } },
       { kind: 'Value', value: { ...payload, y2: '0' } },
+      { kind: 'Value', value: { ...payload, wireKnown: false } },
       { kind: 'Value', value: { ...payload, wireKnown: 'false' } },
+      { kind: 'Unknown' },
+      { kind: 'Null' },
+      failure('22012'),
     ])
       expect(() => evaluate(edge)).toThrow(TypeError)
-    for (const edge of [null, { kind: 'Null' }])
-      expect(evaluate(edge)).toEqual({
-        wire: { certain: true, value: null },
-        same: { certain: true, value: null },
-        present: { certain: true, value: false },
-        absent: { certain: true, value: true },
-      })
-    expect(Object.values(evaluate(failure('22012')))).toEqual(
-      Array.from({ length: 4 }, () => ({ certain: true, error: '22012' })),
+    expect(evaluate(null)).toEqual({
+      wire: { certain: true, value: null },
+      same: { certain: true, value: null },
+      present: { certain: true, value: false },
+      absent: { certain: true, value: true },
+    })
+    // States no public value expresses go to the evaluator entries directly: a value whose wire
+    // bits are unknown keeps every result but the wire comparison, an unknown or failed operand
+    // leaves or fails every check that reads it, and a NaN with payload bits still compares by its
+    // stored bits.
+    const known = runtime.makeLsegBits(payload.x1, payload.y1, payload.x2, payload.y2)
+    const bytes = (hex: string): unknown => runtime.makeByteaValue(hex)
+    const internalResults = {
+      wire: { kind: 'True' },
+      same: { kind: 'True' },
+      present: { kind: 'True' },
+      absent: { kind: 'False' },
+    }
+    const rows = (
+      edge: unknown,
+      reference: unknown = known,
+      expected: unknown = bytes(wire.toString('hex')),
+    ) => internal('public.segment_payloads', { edge, reference, expected })
+    expect(known).toEqual({ kind: 'Value', value: payload })
+    expect(rows(known)).toEqual(internalResults)
+    expect(rows({ kind: 'Value', value: { ...payload, wireKnown: false } })).toEqual({
+      ...internalResults,
+      wire: { kind: 'Unknown' },
+    })
+    expect(Object.values(rows({ kind: 'Unknown' }))).toEqual(
+      Array.from({ length: 4 }, () => ({ kind: 'Unknown' })),
     )
-    const nan = { kind: 'Value', value: { ...payload, x1: 0x7ff0000000000001n } }
+    expect(rows({ kind: 'Null' })).toEqual({
+      wire: { kind: 'Null' },
+      same: { kind: 'Null' },
+      present: { kind: 'False' },
+      absent: { kind: 'True' },
+    })
+    expect(Object.values(rows(failure('22012')))).toEqual(
+      Array.from({ length: 4 }, () => failure('22012')),
+    )
+    const nan = runtime.makeLsegBits(0x7ff0000000000001n, payload.y1, payload.x2, payload.y2)
     expect(
-      evaluate(
-        nan,
-        nan,
-        Buffer.from('7ff0000000000001000000000000000040080000000000004010000000000000', 'hex'),
-      ),
-    ).toEqual(knownResults)
+      rows(nan, nan, bytes('7ff0000000000001000000000000000040080000000000004010000000000000')),
+    ).toEqual(internalResults)
   }, 120_000)
   it('enforces geometric domains and resolves qualified domain names separately from builtins', async () => {
     await pg.exec(`CREATE DOMAIN checked_segment AS lseg CHECK(ishorizontal(VALUE));

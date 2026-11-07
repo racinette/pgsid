@@ -1529,6 +1529,9 @@ function checkRustPublicInstant(value: object, field: string, name: string): big
   if (typeof micros !== 'bigint') return checkRustInvalid(name)
   const shifted = micros - 946684800000000n
   if (shifted < -9223372036854775807n || shifted > 9223372036854775806n) return checkRustInvalid(name)
+  // Input accepts 4714-11-24 00:00 BC up to, not including, 294277-01-01 (IS_VALID_TIMESTAMP),
+  // although stored values can project below that range or round up to its end.
+  if (shifted < -211813488000000000n || shifted >= 9223371331200000000n) throw Object.assign(new Error('timestamp out of range'), { code: '22008' })
   return shifted
 }
 function checkRustPublicInterval(value: object, name: string): _checkRust.IntervalValue {
@@ -1556,7 +1559,8 @@ function checkRustPublicPoint(value: object, name: string): _checkRust.PointValu
 function checkRustPublicLine(value: object, name: string): _checkRust.LineValue {
   if (!('a' in value) || !('b' in value) || !('c' in value)) return checkRustInvalid(name)
   const a = checkRustFloatBits(value.a, name), b = checkRustFloatBits(value.b, name), c = checkRustFloatBits(value.c, name)
-  if (value.a === 0 && value.b === 0) throw Object.assign(new Error('invalid line specification: A and B cannot both be zero'), { code: '22P02' })
+  // line_in rejects coefficients that FPzero (within 1e-6 of zero) both.
+  if (Math.abs(value.a as number) <= 1e-6 && Math.abs(value.b as number) <= 1e-6) throw Object.assign(new Error('invalid line specification: A and B cannot both be zero'), { code: '22P02' })
   return _checkRust.makeLineBits(a, b, c)
 }
 function checkRustPublicLseg(value: object, name: string): _checkRust.LsegValue {
@@ -1567,9 +1571,11 @@ function checkRustPublicBox(value: object, name: string): _checkRust.BoxValue {
   if (!('high' in value) || !('low' in value) || !value.high || !value.low || typeof value.high !== 'object' || typeof value.low !== 'object' || !('x' in value.high) || !('y' in value.high) || !('x' in value.low) || !('y' in value.low)) return checkRustInvalid(name)
   const { high, low } = value as { high: { x: unknown; y: unknown }; low: { x: unknown; y: unknown } }
   if (typeof high.x !== 'number' || typeof high.y !== 'number' || typeof low.x !== 'number' || typeof low.y !== 'number') return checkRustInvalid(name)
-  // The server orders a box's corners on input, so either corner order describes the same box.
-  const highX = high.x < low.x ? low.x : high.x, lowX = high.x < low.x ? high.x : low.x
-  const highY = high.y < low.y ? low.y : high.y, lowY = high.y < low.y ? high.y : low.y
+  // box_in orders the corners with float8_lt, which sorts NaN above every number, so either corner
+  // order describes the same box.
+  const swapX = checkRustFloat8Lt(high.x, low.x), swapY = checkRustFloat8Lt(high.y, low.y)
+  const highX = swapX ? low.x : high.x, lowX = swapX ? high.x : low.x
+  const highY = swapY ? low.y : high.y, lowY = swapY ? high.y : low.y
   return _checkRust.makeBoxBits(checkRustFloatBits(highX, name), checkRustFloatBits(highY, name), checkRustFloatBits(lowX, name), checkRustFloatBits(lowY, name))
 }
 function checkRustPublicCircle(value: object, name: string): _checkRust.CircleValue {
@@ -1586,11 +1592,29 @@ function checkRustPublicPoints(value: unknown, name: string): { x: bigint; y: bi
 }
 function checkRustPublicPath(value: object, name: string): _checkRust.PathValue {
   if (!('closed' in value) || typeof value.closed !== 'boolean' || !('points' in value)) return checkRustInvalid(name)
-  return checkRustPath({ path: { kind: 'Value', value: { closed: value.closed, points: checkRustPublicPoints(value.points, name) } } }, 'path')
+  const points = checkRustPublicPoints(value.points, name)
+  if (points.length === 0) return checkRustInvalid(name)
+  return _checkRust.makePathValue({ closed: value.closed, points: points.map(({ x, y }) => ({ x, y, wireKnown: true })) })
 }
 function checkRustPublicPolygon(value: object, name: string): _checkRust.PolygonValue {
   if (!('points' in value)) return checkRustInvalid(name)
-  return checkRustPolygon({ polygon: { kind: 'Value', value: { points: checkRustPublicPoints(value.points, name) } } }, 'polygon')
+  const points = checkRustPublicPoints(value.points, name)
+  if (points.length === 0) return checkRustInvalid(name)
+  // poly_in caches the bounding box make_bound_box computes from the points in order.
+  const coordinates = (value.points as { x: number; y: number }[])
+  let lowX = coordinates[0]!.x, highX = lowX, lowY = coordinates[0]!.y, highY = lowY
+  for (const point of coordinates.slice(1)) {
+    if (checkRustFloat8Lt(point.x, lowX)) lowX = point.x
+    if (checkRustFloat8Lt(highX, point.x)) highX = point.x
+    if (checkRustFloat8Lt(point.y, lowY)) lowY = point.y
+    if (checkRustFloat8Lt(highY, point.y)) highY = point.y
+  }
+  const bounds = _checkRust.makeBoxBits(checkRustFloatBits(highX, name), checkRustFloatBits(highY, name), checkRustFloatBits(lowX, name), checkRustFloatBits(lowY, name))
+  return _checkRust.makePolygonValue({ points: points.map(({ x, y }) => ({ x, y, wireKnown: true })), bounds })
+}
+// float8_lt: NaN sorts above every number and equals itself.
+function checkRustFloat8Lt(left: number, right: number): boolean {
+  return !Number.isNaN(left) && (Number.isNaN(right) || left < right)
 }
 function checkRustSnapshot(row: object, name: string): _checkRust.SnapshotValue {
   const value = Reflect.get(row, name)
@@ -1681,130 +1705,56 @@ function checkRustPolygon(row: object, name: string): _checkRust.PolygonValue {
   const value = Reflect.get(row, name)
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.polygonUnknown()
   if (value === null) return _checkRust.polygonNull()
-  if (value && typeof value === 'object' && !('kind' in value)) return checkRustPublicPolygon(value, name)
-  if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
-  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.PolygonValue
-  if (value.kind !== 'Value' || !('value' in value) || !value.value || typeof value.value !== 'object' || !('points' in value.value)) return checkRustInvalid(name)
-  const path = checkRustPath({p: {kind: 'Value', value: {closed: true, points: value.value.points}}}, 'p')
-  if (path.kind !== 'Value') return checkRustInvalid(name)
-  let bounds = _checkRust.boxUnknown()
-  if ('bounds' in value.value && value.value.bounds !== undefined) {
-    const raw = value.value.bounds
-    if (!raw || typeof raw !== 'object') return checkRustInvalid(name)
-    const boxed = 'kind' in raw ? raw : {kind: 'Value', value: raw}
-    bounds = checkRustBox({b: boxed}, 'b')
-    if (bounds.kind === 'Unknown' && (!('kind' in boxed) || boxed.kind !== 'Unknown')) return checkRustInvalid(name)
-    if (bounds.kind === 'Null' || bounds.kind === 'Error') return checkRustInvalid(name)
-  }
-  // Cached bounds that disagree with the points describe no polygon.
-  const polygon = _checkRust.makePolygonValue({points: path.value.points, bounds})
-  return polygon.kind === 'Value' || bounds.kind === 'Unknown' ? polygon : checkRustInvalid(name)
+  if (value && typeof value === 'object') return checkRustPublicPolygon(value, name)
+  return checkRustInvalid(name)
 }
 function checkRustPath(row: object, name: string): _checkRust.PathValue {
   const value = Reflect.get(row, name)
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.pathUnknown()
   if (value === null) return _checkRust.pathNull()
-  if (value && typeof value === 'object' && !('kind' in value)) return checkRustPublicPath(value, name)
-  if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
-  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.PathValue
-  if (value.kind !== 'Value' || !('value' in value) || !value.value || typeof value.value !== 'object' || !('closed' in value.value) || typeof value.value.closed !== 'boolean' || !('points' in value.value) || !Array.isArray(value.value.points) || value.value.points.length === 0 || value.value.points.length > 2147483647) return checkRustInvalid(name)
-  const points: _checkRust.PointPayload[] = []
-  for (const point of value.value.points) {
-    if (!point || typeof point !== 'object' || typeof point.x !== 'bigint' || point.x < -9223372036854775808n || point.x > 9223372036854775807n || typeof point.y !== 'bigint' || point.y < -9223372036854775808n || point.y > 9223372036854775807n || ('wireKnown' in point && typeof point.wireKnown !== 'boolean')) return checkRustInvalid(name)
-    points.push({x: point.x, y: point.y, wireKnown: point.wireKnown ?? true})
-  }
-  return _checkRust.makePathValue({closed: value.value.closed, points})
+  if (value && typeof value === 'object') return checkRustPublicPath(value, name)
+  return checkRustInvalid(name)
 }
 function checkRustCircle(row: object, name: string): _checkRust.CircleValue {
   const value = Reflect.get(row, name)
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.circleUnknown()
   if (value === null) return _checkRust.circleNull()
-  if (value && typeof value === 'object' && !('kind' in value)) return checkRustPublicCircle(value, name)
-  if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
-  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.CircleValue
-  if (value.kind === 'Value' && 'value' in value && value.value && typeof value.value === 'object' && 'x' in value.value && typeof value.value.x === 'bigint' && value.value.x >= -9223372036854775808n && value.value.x <= 9223372036854775807n && 'y' in value.value && typeof value.value.y === 'bigint' && value.value.y >= -9223372036854775808n && value.value.y <= 9223372036854775807n && 'radius' in value.value && typeof value.value.radius === 'bigint' && value.value.radius >= -9223372036854775808n && value.value.radius <= 9223372036854775807n) {
-    if ('wireKnown' in value.value) {
-      if (typeof value.value.wireKnown !== 'boolean') return checkRustInvalid(name)
-      if (!value.value.wireKnown) return value as _checkRust.CircleValue
-    }
-    return _checkRust.makeCircleBits(value.value.x,value.value.y,value.value.radius)
-  }
+  if (value && typeof value === 'object') return checkRustPublicCircle(value, name)
   return checkRustInvalid(name)
 }
 function checkRustBox(row: object, name: string): _checkRust.BoxValue {
   const value = Reflect.get(row, name)
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.boxUnknown()
   if (value === null) return _checkRust.boxNull()
-  if (value && typeof value === 'object' && !('kind' in value)) return checkRustPublicBox(value, name)
-  if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
-  if (value.kind === 'NonNull' || value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.BoxValue
-  if (value.kind === 'Value' && 'value' in value && value.value && typeof value.value === 'object' && 'highX' in value.value && typeof value.value.highX === 'bigint' && value.value.highX >= -9223372036854775808n && value.value.highX <= 9223372036854775807n && 'highY' in value.value && typeof value.value.highY === 'bigint' && value.value.highY >= -9223372036854775808n && value.value.highY <= 9223372036854775807n && 'lowX' in value.value && typeof value.value.lowX === 'bigint' && value.value.lowX >= -9223372036854775808n && value.value.lowX <= 9223372036854775807n && 'lowY' in value.value && typeof value.value.lowY === 'bigint' && value.value.lowY >= -9223372036854775808n && value.value.lowY <= 9223372036854775807n) {
-    if ('wireKnown' in value.value) {
-      if (typeof value.value.wireKnown !== 'boolean') return checkRustInvalid(name)
-      if (!value.value.wireKnown) return value as _checkRust.BoxValue
-    }
-    return _checkRust.makeBoxBits(value.value.highX,value.value.highY,value.value.lowX,value.value.lowY)
-  }
+  if (value && typeof value === 'object') return checkRustPublicBox(value, name)
   return checkRustInvalid(name)
 }
 function checkRustLseg(row: object, name: string): _checkRust.LsegValue {
   const value = Reflect.get(row, name)
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.lsegUnknown()
   if (value === null) return _checkRust.lsegNull()
-  if (value && typeof value === 'object' && !('kind' in value)) return checkRustPublicLseg(value, name)
-  if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
-  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.LsegValue
-  if (value.kind === 'Value' && 'value' in value && value.value && typeof value.value === 'object' && 'x1' in value.value && typeof value.value.x1 === 'bigint' && value.value.x1 >= -9223372036854775808n && value.value.x1 <= 9223372036854775807n && 'y1' in value.value && typeof value.value.y1 === 'bigint' && value.value.y1 >= -9223372036854775808n && value.value.y1 <= 9223372036854775807n && 'x2' in value.value && typeof value.value.x2 === 'bigint' && value.value.x2 >= -9223372036854775808n && value.value.x2 <= 9223372036854775807n && 'y2' in value.value && typeof value.value.y2 === 'bigint' && value.value.y2 >= -9223372036854775808n && value.value.y2 <= 9223372036854775807n) {
-    if ('wireKnown' in value.value) {
-      if (typeof value.value.wireKnown !== 'boolean') return checkRustInvalid(name)
-      if (!value.value.wireKnown) return value as _checkRust.LsegValue
-    }
-    return _checkRust.makeLsegBits(value.value.x1, value.value.y1, value.value.x2, value.value.y2)
-  }
+  if (value && typeof value === 'object') return checkRustPublicLseg(value, name)
   return checkRustInvalid(name)
 }
 function checkRustLine(row: object, name: string): _checkRust.LineValue {
   const value = Reflect.get(row, name)
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.lineUnknown()
   if (value === null) return _checkRust.lineNull()
-  if (value && typeof value === 'object' && !('kind' in value)) return checkRustPublicLine(value, name)
-  if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
-  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.LineValue
-  if (value.kind === 'Value' && 'value' in value && value.value && typeof value.value === 'object' && 'a' in value.value && 'b' in value.value && 'c' in value.value && typeof value.value.a === 'bigint' && typeof value.value.b === 'bigint' && typeof value.value.c === 'bigint' && value.value.a >= -9223372036854775808n && value.value.a <= 9223372036854775807n && value.value.b >= -9223372036854775808n && value.value.b <= 9223372036854775807n && value.value.c >= -9223372036854775808n && value.value.c <= 9223372036854775807n) {
-    const valid = _checkRust.makeLineBits(value.value.a, value.value.b, value.value.c)
-    if (valid.kind !== 'Value') return checkRustInvalid(name)
-    if ('wireKnown' in value.value) {
-      if (typeof value.value.wireKnown !== 'boolean') return checkRustInvalid(name)
-      if (!value.value.wireKnown) return value as _checkRust.LineValue
-    }
-    return valid
-  }
+  if (value && typeof value === 'object') return checkRustPublicLine(value, name)
   return checkRustInvalid(name)
 }
 function checkRustPoint(row: object, name: string): _checkRust.PointValue {
-  const value = (row as Record<string, unknown>)[name]
+  const value = Reflect.get(row, name)
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.pointUnknown()
   if (value === null) return _checkRust.pointNull()
-  if (value && typeof value === 'object' && !('kind' in value)) return checkRustPublicPoint(value, name)
-  if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
-  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.PointValue
-  if (value.kind === 'Value' && 'value' in value && value.value && typeof value.value === 'object' && 'x' in value.value && 'y' in value.value && typeof value.value.x === 'bigint' && typeof value.value.y === 'bigint' && value.value.x >= -9223372036854775808n && value.value.x <= 9223372036854775807n && value.value.y >= -9223372036854775808n && value.value.y <= 9223372036854775807n) {
-    if ('wireKnown' in value.value) {
-      if (typeof value.value.wireKnown !== 'boolean') return checkRustInvalid(name)
-      if (!value.value.wireKnown) return value as _checkRust.PointValue
-    }
-    return _checkRust.makePointBits(value.value.x, value.value.y)
-  }
+  if (value && typeof value === 'object') return checkRustPublicPoint(value, name)
   return checkRustInvalid(name)
 }
 function checkRustTime(row: object, name: string): _checkRust.TimeValue {
   const value = Reflect.get(row, name)
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.timeUnknown()
   if (value === null) return _checkRust.timeNull()
-  if (value && typeof value === 'object' && !('kind' in value)) return 'microseconds' in value && typeof value.microseconds === 'number' && Number.isSafeInteger(value.microseconds) && value.microseconds >= 0 && value.microseconds <= 86400000000 ? _checkRust.makeTimeValue(BigInt(value.microseconds)) : checkRustInvalid(name)
-  if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
-  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.TimeValue
-  if (value.kind === 'Value' && 'value' in value && typeof value.value === 'bigint') return _checkRust.makeTimeValue(value.value)
+  if (value && typeof value === 'object' && 'microseconds' in value && typeof value.microseconds === 'number' && Number.isSafeInteger(value.microseconds) && value.microseconds >= 0 && value.microseconds <= 86400000000) return _checkRust.makeTimeValue(BigInt(value.microseconds))
   return checkRustInvalid(name)
 }
 function checkRustTimetz(row: object, name: string): _checkRust.TimetzValue {
@@ -1812,40 +1762,28 @@ function checkRustTimetz(row: object, name: string): _checkRust.TimetzValue {
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.timetzUnknown()
   if (value === null) return _checkRust.timetzNull()
   // The server keeps a time zone as seconds west of UTC, the negated offset.
-  if (value && typeof value === 'object' && !('kind' in value)) return 'microseconds' in value && 'offsetSeconds' in value && typeof value.microseconds === 'number' && Number.isSafeInteger(value.microseconds) && value.microseconds >= 0 && value.microseconds <= 86400000000 && typeof value.offsetSeconds === 'number' && Number.isSafeInteger(value.offsetSeconds) && Math.abs(value.offsetSeconds) <= 57599 ? _checkRust.makeTimetzValue(BigInt(value.microseconds), -value.offsetSeconds) : checkRustInvalid(name)
-  if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
-  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.TimetzValue
-  if (value.kind === 'Value' && 'value' in value && value.value && typeof value.value === 'object' && 'time' in value.value && 'zone' in value.value && typeof value.value.time === 'bigint' && typeof value.value.zone === 'number' && Number.isInteger(value.value.zone) && value.value.zone >= -2147483648 && value.value.zone <= 2147483647) return _checkRust.makeTimetzValue(value.value.time, value.value.zone)
+  if (value && typeof value === 'object' && 'microseconds' in value && 'offsetSeconds' in value && typeof value.microseconds === 'number' && Number.isSafeInteger(value.microseconds) && value.microseconds >= 0 && value.microseconds <= 86400000000 && typeof value.offsetSeconds === 'number' && Number.isSafeInteger(value.offsetSeconds) && Math.abs(value.offsetSeconds) <= 57599) return _checkRust.makeTimetzValue(BigInt(value.microseconds), -value.offsetSeconds)
   return checkRustInvalid(name)
 }
 function checkRustInterval(row: object, name: string): _checkRust.IntervalValue {
   const value = Reflect.get(row, name)
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.intervalUnknown()
   if (value === null) return _checkRust.intervalNull()
-  if (value && typeof value === 'object' && !('kind' in value)) return checkRustPublicInterval(value, name)
-  if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
-  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.IntervalValue
-  if (value.kind === 'Value' && 'value' in value && value.value && typeof value.value === 'object' && 'time' in value.value && 'months' in value.value && 'days' in value.value && typeof value.value.time === 'bigint' && value.value.time >= -9223372036854775808n && value.value.time <= 9223372036854775807n && typeof value.value.months === 'number' && Number.isInteger(value.value.months) && value.value.months >= -2147483648 && value.value.months <= 2147483647 && typeof value.value.days === 'number' && Number.isInteger(value.value.days) && value.value.days >= -2147483648 && value.value.days <= 2147483647) return _checkRust.makeIntervalValue(value.value.months, value.value.days, value.value.time)
+  if (value && typeof value === 'object') return checkRustPublicInterval(value, name)
   return checkRustInvalid(name)
 }
 function checkRustTimestamp(row: object, name: string): _checkRust.TimestampValue {
   const value = Reflect.get(row, name)
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.timestampUnknown()
   if (value === null) return _checkRust.timestampNull()
-  if (value && typeof value === 'object' && !('kind' in value)) return _checkRust.makeStoredTimestampValue(checkRustPublicInstant(value, 'localMicroseconds', name))
-  if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
-  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.TimestampValue
-  if (value.kind === 'Value' && 'value' in value && typeof value.value === 'bigint' && value.value >= -9223372036854775808n && value.value <= 9223372036854775807n) return _checkRust.makeStoredTimestampValue(value.value)
+  if (value && typeof value === 'object') return _checkRust.makeStoredTimestampValue(checkRustPublicInstant(value, 'localMicroseconds', name))
   return checkRustInvalid(name)
 }
 function checkRustTimestamptz(row: object, name: string): _checkRust.TimestamptzValue {
   const value = Reflect.get(row, name)
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.timestamptzUnknown()
   if (value === null) return _checkRust.timestamptzNull()
-  if (value && typeof value === 'object' && !('kind' in value)) return _checkRust.makeStoredTimestamptzValue(checkRustPublicInstant(value, 'epochMicroseconds', name))
-  if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
-  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.TimestamptzValue
-  if (value.kind === 'Value' && 'value' in value && typeof value.value === 'bigint' && value.value >= -9223372036854775808n && value.value <= 9223372036854775807n) return _checkRust.makeStoredTimestamptzValue(value.value)
+  if (value && typeof value === 'object') return _checkRust.makeStoredTimestamptzValue(checkRustPublicInstant(value, 'epochMicroseconds', name))
   return checkRustInvalid(name)
 }
 function checkRustFloat4(row: object, name: string): _checkRust.Float4Value {
@@ -1853,9 +1791,6 @@ function checkRustFloat4(row: object, name: string): _checkRust.Float4Value {
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.float4Unknown()
   if (value === null) return _checkRust.float4Null()
   if (typeof value === 'number') return Number.isNaN(value) ? { kind: 'UnspecifiedNan' } : Math.fround(value) === value ? _checkRust.makeFloat4Value(value) : checkRustInvalid(name)
-  if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
-  if (value.kind === 'UnspecifiedNan' || value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.Float4Value
-  if (value.kind === 'Value' && 'value' in value && typeof value.value === 'number' && Number.isInteger(value.value) && value.value >= -2147483648 && value.value <= 2147483647) return _checkRust.makeFloat4Bits(value.value)
   return checkRustInvalid(name)
 }
 function checkRustFloat8(row: object, name: string): _checkRust.Float8Value {
@@ -1863,9 +1798,6 @@ function checkRustFloat8(row: object, name: string): _checkRust.Float8Value {
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.float8Unknown()
   if (value === null) return _checkRust.float8Null()
   if (typeof value === 'number') return Number.isNaN(value) ? { kind: 'UnspecifiedNan' } : _checkRust.makeFloat8Value(value)
-  if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
-  if (value.kind === 'UnspecifiedNan' || value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.Float8Value
-  if (value.kind === 'Value' && 'value' in value && typeof value.value === 'bigint' && value.value >= -9223372036854775808n && value.value <= 9223372036854775807n) return _checkRust.makeFloat8Bits(value.value)
   return checkRustInvalid(name)
 }
 function checkRustBit(row: object, name: string): _checkRust.BitValue {
@@ -1917,9 +1849,6 @@ function checkRustNumeric(row: object, name: string): _checkRust.NumericValue {
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.numericUnknown()
   if (value === null) return _checkRust.numericNull()
   if (typeof value === 'string') return _checkRust.makeNumericValue(value)
-  if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
-  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.NumericValue
-  if (value.kind === 'Value' && 'value' in value && typeof value.value === 'string') return _checkRust.makeNumericValue(value.value)
   return checkRustInvalid(name)
 }
 function checkRustDate(row: object, name: string): _checkRust.DateValue {
@@ -1927,9 +1856,6 @@ function checkRustDate(row: object, name: string): _checkRust.DateValue {
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.dateUnknown()
   if (value === null) return _checkRust.dateNull()
   if (typeof value === 'string') return checkRustPublicDate(value, name)
-  if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
-  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.DateValue
-  if (value.kind === 'Value' && 'value' in value && typeof value.value === 'number' && Number.isInteger(value.value) && value.value >= -2147483648 && value.value <= 2147483647) return _checkRust.makeStoredDateValue(value.value)
   return checkRustInvalid(name)
 }
 function checkRustInt2(row: object, name: string): _checkRust.Int2Value {
@@ -1981,12 +1907,6 @@ function checkRustBool(row: object, name: string): _checkRust.BoolValue {
   return _checkRust.makeBoolValue(input.value)
 }
 function checkRustNullness(row: object, name: string): _checkRust.BoolValue {
-  const value = Reflect.get(row, name)
-  if (Object.hasOwn(row, name) && value !== null && typeof value === 'object' && 'kind' in value) {
-    if ('value' in value && typeof value.value === 'string') return _checkRust.numericIsNull(checkRustNumeric(row, name))
-    if ('value' in value && typeof value.value === 'bigint') return _checkRust.timestamptzIsNull(checkRustTimestamptz(row, name))
-    return _checkRust.dateIsNull(checkRustDate(row, name))
-  }
   const input = checkInputNullness(row, name)
   return input.certain ? _checkRust.makeBoolValue(input.value!) : _checkRust.boolUnknown()
 }

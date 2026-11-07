@@ -9,6 +9,7 @@ import { pathToFileURL } from 'node:url'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
+import { internalCheckRows } from '../support/check-entries.js'
 
 it('validates SQL-coerced path point lists, partial states and binary precision through the public TypeScript API', async () => {
   const pg = await PGlite.create(),
@@ -43,12 +44,18 @@ it('validates SQL-coerced path point lists, partial states and binary precision 
       throw new Error(caught.stdout + caught.stderr, { cause: caught })
     })
     const generated = await import(pathToFileURL(join(root, 'js/checks.js')).href)
+    const runtime = await import(pathToFileURL(join(root, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(bundle.checks, runtime)
+    const float = (bits: bigint): number => {
+      const view = new DataView(new ArrayBuffer(8))
+      view.setBigInt64(0, bits)
+      return view.getFloat64(0)
+    }
     const points = [
-        { x: 0n, y: 0n, wireKnown: true },
-        { x: 0x4008000000000000n, y: 0x4010000000000000n, wireKnown: true },
+        { x: 0, y: 0 },
+        { x: 3, y: 4 },
       ],
-      payload = { closed: false, points },
-      value = { kind: 'Value', value: payload }
+      value = { closed: false, points }
     const wire = (
       await pg.query<{ wire: Uint8Array }>("SELECT path_send('[(0,0),(3,4)]'::path) wire")
     ).rows[0]!.wire
@@ -67,52 +74,93 @@ it('validates SQL-coerced path point lists, partial states and binary precision 
     }
     expect(evaluate(value)).toEqual(known)
     expect(
-      evaluate({
-        kind: 'Value',
-        value: { closed: false, points: points.map((p) => ({ ...p, wireKnown: false })) },
-      }),
-    ).toEqual({ ...known, wire: { certain: false } })
-    expect(
       evaluate(value, {
-        kind: 'Value',
-        value: {
-          closed: true,
-          points: [
-            { x: 99n, y: 99n },
-            { x: 100n, y: 100n },
-          ],
-        },
+        closed: true,
+        points: [
+          { x: float(99n), y: float(99n) },
+          { x: float(100n), y: float(100n) },
+        ],
       }),
     ).toEqual(known)
-    for (const bad of [undefined, { kind: 'Unknown' }])
-      expect(Object.values(evaluate(bad))).toEqual(
-        Array.from({ length: 4 }, () => ({ certain: false })),
-      )
+    expect(Object.values(evaluate(undefined))).toEqual(
+      Array.from({ length: 4 }, () => ({ certain: false })),
+    )
+    const payloadPoints = [
+      { x: 0n, y: 0n, wireKnown: true },
+      { x: 0x4008000000000000n, y: 0x4010000000000000n, wireKnown: true },
+    ]
     for (const bad of [
       '[(0,0),(3,4)]',
+      { closed: false, points: [] },
+      { closed: 'false', points },
+      { points },
+      { closed: false },
+      { closed: false, points: [null] },
+      { closed: false, points: [{ x: 0, y: 0n }] },
+      { closed: false, points: [{ x: '0', y: 0 }] },
+      { closed: false, points: [{ x: 0 }] },
+      { kind: 'Value', value: { closed: false, points: payloadPoints } },
       { kind: 'Value', value: { closed: false, points: [] } },
-      { kind: 'Value', value: { closed: 'false', points } },
+      { kind: 'Value', value: { closed: 'false', points: payloadPoints } },
       { kind: 'Value', value: { closed: false, points: [null] } },
       { kind: 'Value', value: { closed: false, points: [{ x: 0, y: 0n }] } },
       { kind: 'Value', value: { closed: false, points: [{ x: 9223372036854775808n, y: 0n }] } },
       { kind: 'Value', value: { closed: false, points: [{ x: 0n, y: 0n, wireKnown: 'false' }] } },
+      { kind: 'Unknown' },
+      { kind: 'Null' },
+      { kind: 'Error', value: { state: parseInt('22012', 36) } },
     ])
       expect(() => evaluate(bad)).toThrow(TypeError)
-    for (const nullValue of [null, { kind: 'Null' }])
-      expect(evaluate(nullValue)).toEqual({
-        wire: { certain: true, value: null },
-        cardinality: { certain: true, value: null },
-        present: { certain: true, value: false },
-        absent: { certain: true, value: true },
+    expect(evaluate(null)).toEqual({
+      wire: { certain: true, value: null },
+      cardinality: { certain: true, value: null },
+      present: { certain: true, value: false },
+      absent: { certain: true, value: true },
+    })
+    expect(evaluate({ closed: false, points: [{ x: 0, y: 0 }] }).cardinality).toEqual({
+      certain: true,
+      value: false,
+    })
+    // States no public value expresses go to the evaluator entries directly: points whose wire
+    // bits are unknown keep every result but the wire comparison, and an unknown or failed operand
+    // leaves or fails every check that reads it.
+    const internalValue = runtime.makePathValue({ closed: false, points: payloadPoints })
+    const rows = (route: unknown, reference: unknown = internalValue) =>
+      internal('public.path_payloads', {
+        route,
+        reference,
+        expected: runtime.makeByteaValue(Buffer.from(wire).toString('hex')),
       })
+    const internalKnown = {
+      wire: { kind: 'True' },
+      cardinality: { kind: 'True' },
+      present: { kind: 'True' },
+      absent: { kind: 'False' },
+    }
+    expect(rows(internalValue)).toEqual(internalKnown)
     expect(
-      Object.values(evaluate({ kind: 'Error', value: { state: parseInt('22012', 36) } })),
-    ).toEqual(Array.from({ length: 4 }, () => ({ certain: true, error: '22012' })))
-    expect(
-      evaluate({ kind: 'Value', value: { closed: false, points: [{ x: 0n, y: 0n }] } }).cardinality,
-    ).toEqual({ certain: true, value: false })
+      rows(
+        runtime.makePathValue({
+          closed: false,
+          points: payloadPoints.map((p) => ({ ...p, wireKnown: false })),
+        }),
+      ),
+    ).toEqual({ ...internalKnown, wire: { kind: 'Unknown' } })
+    expect(Object.values(rows({ kind: 'Unknown' }))).toEqual(
+      Array.from({ length: 4 }, () => ({ kind: 'Unknown' })),
+    )
+    expect(rows({ kind: 'Null' })).toEqual({
+      wire: { kind: 'Null' },
+      cardinality: { kind: 'Null' },
+      present: { kind: 'False' },
+      absent: { kind: 'True' },
+    })
+    const failed = { kind: 'Error', value: { state: parseInt('22012', 36) } }
+    expect(Object.values(rows(failed))).toEqual(Array.from({ length: 4 }, () => failed))
+    expect(runtime.makePathValue({ closed: false, points: [] }).kind).not.toBe('Value')
     expect(points).toHaveLength(2)
-    expect(points[1]!.x).toBe(0x4008000000000000n)
+    expect(points[1]).toEqual({ x: 3, y: 4 })
+    expect(payloadPoints[1]!.x).toBe(0x4008000000000000n)
   } finally {
     await pg.close()
     await rm(root, { recursive: true, force: true })

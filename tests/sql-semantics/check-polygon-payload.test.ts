@@ -9,6 +9,7 @@ import { pathToFileURL } from 'node:url'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
+import { internalCheckRows } from '../support/check-entries.js'
 
 it('validates public polygon payloads, cached bounds, malformed inputs and partial binary precision', async () => {
   const pg = await PGlite.create(),
@@ -44,6 +45,8 @@ it('validates public polygon payloads, cached bounds, malformed inputs and parti
       throw new Error(caught.stdout + caught.stderr, { cause: caught })
     })
     const generated = await import(pathToFileURL(join(root, 'js/checks.js')).href)
+    const runtime = await import(pathToFileURL(join(root, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(bundle.checks, runtime)
     const row = (
       await pg.query<{ wire: Uint8Array; bounds: Uint8Array }>(
         "SELECT poly_send(p) wire,box_send(box(p)) bounds FROM (SELECT polygon('(0,0),(-0,-0)'::box) p) input",
@@ -51,16 +54,19 @@ it('validates public polygon payloads, cached bounds, malformed inputs and parti
     ).rows[0]!
     const bytes = Buffer.from(row.wire),
       boundsBytes = Buffer.from(row.bounds),
-      points: { x: bigint; y: bigint }[] = []
-    for (let at = 4; at < bytes.length; at += 16)
+      points: { x: bigint; y: bigint }[] = [],
+      corners: { x: number; y: number }[] = []
+    for (let at = 4; at < bytes.length; at += 16) {
       points.push({ x: bytes.readBigInt64BE(at), y: bytes.readBigInt64BE(at + 8) })
+      corners.push({ x: bytes.readDoubleBE(at), y: bytes.readDoubleBE(at + 8) })
+    }
     const bounds = {
       highX: boundsBytes.readBigInt64BE(),
       highY: boundsBytes.readBigInt64BE(8),
       lowX: boundsBytes.readBigInt64BE(16),
       lowY: boundsBytes.readBigInt64BE(24),
     }
-    const value = { kind: 'Value', value: { points, bounds } }
+    const value = { points: corners }
     type Result = { certain: boolean; value?: boolean | null; error?: string }
     const evaluate = (shape: unknown): Record<string, Result> =>
       Object.fromEntries(
@@ -80,27 +86,30 @@ it('validates public polygon payloads, cached bounds, malformed inputs and parti
       bounds_present: { certain: true, value: true },
       bounds_length: { certain: true, value: true },
     }
-    expect(evaluate(value)).toEqual(known)
-    expect(
-      evaluate({
-        kind: 'Value',
-        value: { points, bounds: { kind: 'Value', value: { ...bounds, wireKnown: true } } },
-      }),
-    ).toEqual(known)
-    expect(evaluate({ kind: 'Value', value: { points } })).toEqual({
-      ...known,
-      bounds_wire: { certain: false },
-    })
-    expect(evaluate({ kind: 'Value', value: { points, bounds: { kind: 'NonNull' } } })).toEqual({
-      ...known,
-      bounds_wire: { certain: false },
-    })
-    for (const bad of [undefined, { kind: 'Unknown' }])
-      expect(Object.values(evaluate(bad))).toEqual(
-        Array.from({ length: 6 }, () => ({ certain: false })),
-      )
+    // A public polygon reaches the server as text, so poly_in computes its cached bounds from the
+    // points in order; the server's answer for that text decides the bounds' wire bits.
+    const text = `(${corners.map(({ x, y }) => `(${Object.is(x, -0) ? '-0' : x},${Object.is(y, -0) ? '-0' : y})`).join(',')})`
+    const sameBounds = (
+      await pg.query<{ same: boolean }>('SELECT box_send(box($1::polygon)) = $2::bytea same', [
+        text,
+        row.bounds,
+      ])
+    ).rows[0]!.same
+    expect(evaluate(value)).toEqual({ ...known, bounds_wire: { certain: true, value: sameBounds } })
+    expect(Object.values(evaluate(undefined))).toEqual(
+      Array.from({ length: 6 }, () => ({ certain: false })),
+    )
+    const payloadPoints = points.map((point) => ({ ...point, wireKnown: true }))
     for (const bad of [
       '((0,0))',
+      { points: [] },
+      {},
+      { points: [null] },
+      { points: [{ x: 0, y: 0n }] },
+      { points: [{ x: '0', y: 0 }] },
+      { points: [{ x: 0 }] },
+      { kind: 'Value', value: { points } },
+      { kind: 'Value', value: { points, bounds } },
       { kind: 'Value', value: { points: [] } },
       { kind: 'Value', value: { points: [null] } },
       { kind: 'Value', value: { points: [{ x: 0, y: 0n }] } },
@@ -110,24 +119,74 @@ it('validates public polygon payloads, cached bounds, malformed inputs and parti
       { kind: 'Value', value: { points, bounds: { ...bounds, highX: 0x3ff0000000000000n } } },
       { kind: 'Value', value: { points, bounds: { kind: 'Null' } } },
       { kind: 'Value', value: { points, bounds: { kind: 'Error', value: { state: 1 } } } },
+      { kind: 'Unknown' },
+      { kind: 'Null' },
+      { kind: 'Error', value: { state: parseInt('22012', 36) } },
     ])
       expect(
         () => evaluate(bad),
         JSON.stringify(bad, (_key, item) => (typeof item === 'bigint' ? String(item) : item)),
       ).toThrow(TypeError)
-    for (const shape of [null, { kind: 'Null' }])
-      expect(evaluate(shape)).toEqual({
-        wire: { certain: true, value: null },
-        bounds_wire: { certain: true, value: null },
-        present: { certain: true, value: false },
-        absent: { certain: true, value: true },
-        bounds_present: { certain: true, value: false },
-        bounds_length: { certain: true, value: null },
+    expect(evaluate(null)).toEqual({
+      wire: { certain: true, value: null },
+      bounds_wire: { certain: true, value: null },
+      present: { certain: true, value: false },
+      absent: { certain: true, value: true },
+      bounds_present: { certain: true, value: false },
+      bounds_length: { certain: true, value: null },
+    })
+    // States no public value expresses go to the evaluator entries directly: the stored bounds the
+    // server caches decide the bounds' wire bits, a bounds whose bits are unknown or only known to
+    // be present leaves them undecided, cached bounds that disagree with the points (or are SQL
+    // NULL or failed) describe no polygon, and an unknown or failed operand leaves or fails every
+    // check that reads it.
+    const rows = (shape: unknown) =>
+      internal('public.polygon_payloads', {
+        shape,
+        expected: runtime.makeByteaValue(bytes.toString('hex')),
+        expected_bounds: runtime.makeByteaValue(boundsBytes.toString('hex')),
       })
-    expect(
-      Object.values(evaluate({ kind: 'Error', value: { state: parseInt('22012', 36) } })),
-    ).toEqual(Array.from({ length: 6 }, () => ({ certain: true, error: '22012' })))
+    const polygon = (cached: unknown): { kind: string } =>
+      runtime.makePolygonValue({ points: payloadPoints, bounds: cached })
+    const internalKnown = {
+      wire: { kind: 'True' },
+      bounds_wire: { kind: 'True' },
+      present: { kind: 'True' },
+      absent: { kind: 'False' },
+      bounds_present: { kind: 'True' },
+      bounds_length: { kind: 'True' },
+    }
+    const cached = runtime.makeBoxBits(bounds.highX, bounds.highY, bounds.lowX, bounds.lowY)
+    expect(rows(polygon(cached))).toEqual(internalKnown)
+    for (const unresolved of [runtime.boxUnknown(), { kind: 'NonNull' }])
+      expect(rows(polygon(unresolved))).toEqual({
+        ...internalKnown,
+        bounds_wire: { kind: 'Unknown' },
+      })
+    for (const invalid of [
+      runtime.makeBoxBits(0x3ff0000000000000n, bounds.highY, bounds.lowX, bounds.lowY),
+      { kind: 'Null' },
+      { kind: 'Error', value: { state: 1 } },
+    ])
+      expect(polygon(invalid).kind).not.toBe('Value')
+    expect(runtime.makePolygonValue({ points: [], bounds: runtime.boxUnknown() }).kind).not.toBe(
+      'Value',
+    )
+    expect(Object.values(rows({ kind: 'Unknown' }))).toEqual(
+      Array.from({ length: 6 }, () => ({ kind: 'Unknown' })),
+    )
+    expect(rows({ kind: 'Null' })).toEqual({
+      wire: { kind: 'Null' },
+      bounds_wire: { kind: 'Null' },
+      present: { kind: 'False' },
+      absent: { kind: 'True' },
+      bounds_present: { kind: 'False' },
+      bounds_length: { kind: 'Null' },
+    })
+    const failed = { kind: 'Error', value: { state: parseInt('22012', 36) } }
+    expect(Object.values(rows(failed))).toEqual(Array.from({ length: 6 }, () => failed))
     expect(points).toHaveLength(4)
+    expect(corners).toHaveLength(4)
     expect(bounds).toEqual({
       highX: -9223372036854775808n,
       highY: -9223372036854775808n,

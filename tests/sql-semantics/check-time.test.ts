@@ -390,11 +390,21 @@ describe('time, timetz and interval CHECK values', () => {
           return [name, input.kind === 'Value' ? input.value : null]
         }),
       )
-      const wrapped = {
-        local_time: row.local_time === null ? null : runtime.makeTimeValue(row.local_time),
-        zoned_time: inputs[1],
-        span: inputs[2],
-      }
+      // Public clock values carry the server's binary fields: a time's microseconds, a timetz's
+      // clock and its offset east of UTC (the server keeps seconds west), and an interval's three
+      // fields as they are.
+      const [localTime, zonedTime, interval] = inputs.map((input, index) => {
+        if (input.kind !== 'Value') return null
+        const payload = input.value as
+          bigint | { time: bigint; zone: number } | { time: bigint; days: number; months: number }
+        if (typeof payload === 'bigint') return { microseconds: Number(payload) }
+        if (index === 1 && 'zone' in payload)
+          return { microseconds: Number(payload.time), offsetSeconds: 0 - payload.zone }
+        if ('days' in payload)
+          return { months: payload.months, days: payload.days, microseconds: payload.time }
+        throw new Error('unexpected clock payload')
+      })
+      const wrapped = { local_time: localTime, zoned_time: zonedTime, span: interval }
       const result = (
         await pg.query<Record<string, boolean | null>>(
           'SELECT ' +
@@ -431,20 +441,28 @@ describe('time, timetz and interval CHECK values', () => {
     expect(evaluate({}).every((item: GoCheckCase['results'][number]) => !item.result.certain)).toBe(
       true,
     )
+    const midnight = { microseconds: 0 }
+    const zonedMidnight = { microseconds: 0, offsetSeconds: 0 }
+    const zeroSpan = { months: 0, days: 0, microseconds: 0n }
+    // The valid neighbours decide the check, so each invalid input below is what leaves it open.
+    expect(
+      evaluate({ local_time: midnight, zoned_time: zonedMidnight, span: zeroSpan }).find(
+        (item: GoCheckCase['results'][number]) => item.constraint === 'local_equal',
+      ).result,
+    ).toEqual({ certain: true, value: true })
     for (const invalid of [
       '24:00',
       0n,
       new Date(),
       { kind: 'Value', value: -1n },
       { kind: 'Value', value: 86400000001n },
+      { microseconds: -1 },
+      { microseconds: 86400000001 },
+      { microseconds: 0n },
+      { microseconds: 0.5 },
     ])
       expectUndecidedOrRejected(
-        () =>
-          evaluate({
-            local_time: invalid,
-            zoned_time: runtime.makeTimetzValue(0n, 0),
-            span: runtime.makeIntervalValue(0, 0, 0n),
-          }),
+        () => evaluate({ local_time: invalid, zoned_time: zonedMidnight, span: zeroSpan }),
         undefined,
         ['local_equal'],
       )
@@ -452,12 +470,30 @@ describe('time, timetz and interval CHECK values', () => {
       { kind: 'Value', value: { time: 0n, zone: 2147483648 } },
       { kind: 'Value', value: { time: 0n, zone: -2147483649 } },
       { kind: 'Value', value: { time: 0, zone: 0 } },
+      { microseconds: 0, offsetSeconds: 57600 },
+      { microseconds: 0, offsetSeconds: -57600 },
+      { microseconds: 0, offsetSeconds: 0.5 },
+      { microseconds: 0n, offsetSeconds: 0 },
+      { microseconds: 0 },
     ])
       expectUndecidedOrRejected(
-        () => evaluate({ local_time: runtime.makeTimeValue(0n), zoned_time: invalid }),
+        () => evaluate({ local_time: midnight, zoned_time: invalid }),
         undefined,
         ['local_equal'],
       )
+    // The internal payload format is no longer a public value, even when well formed.
+    for (const row of [
+      { local_time: runtime.makeTimeValue(0n), zoned_time: zonedMidnight, span: zeroSpan },
+      { local_time: midnight, zoned_time: runtime.makeTimetzValue(0n, 0), span: zeroSpan },
+      {
+        local_time: midnight,
+        zoned_time: zonedMidnight,
+        span: runtime.makeIntervalValue(0, 0, 0n),
+      },
+      { local_time: { kind: 'Unknown' }, zoned_time: zonedMidnight, span: zeroSpan },
+      { local_time: midnight, zoned_time: { kind: 'Null' }, span: zeroSpan },
+    ])
+      expect(() => evaluate(row)).toThrow(TypeError)
     const generated = renderGoSchemaArtifacts(
       { ...catalog, tables: [table] },
       parseConfigString(
