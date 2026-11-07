@@ -668,14 +668,14 @@ describe('portable Rust CHECK timestamp and timezone offsets', () => {
     await writeFile(
       join(root, 'consumer.ts'),
       `import { evaluatePublicUtcAgreementChecks, evaluatePublicValidLocalTimeDomainChecks } from './schema/public/checks.js'
-import { makeTimestampValue, makeTimestamptzValue, makeDateValue } from './schema/public/checks-rust/checkruntime/runtime.js'
-evaluatePublicUtcAgreementChecks({ local_at: makeTimestampValue(0n), instant_at: makeTimestamptzValue(0n) })
-evaluatePublicUtcAgreementChecks({ local_at: null, instant_at: null })
-evaluatePublicValidLocalTimeDomainChecks({ value: makeTimestampValue(0n) })
+import type { NestedLocalTime, ValidLocalTime } from './schema/public/domains.js'
+evaluatePublicUtcAgreementChecks({ local_at: { localMicroseconds: 0n } as NestedLocalTime, instant_at: { epochMicroseconds: 0n } })
+evaluatePublicUtcAgreementChecks({ local_at: null, instant_at: { infinity: 1 } })
+evaluatePublicValidLocalTimeDomainChecks({ value: { localMicroseconds: 0n } as ValidLocalTime })
 // @ts-expect-error native date objects require caller conversion
 evaluatePublicUtcAgreementChecks({ local_at: new Date() })
-// @ts-expect-error date day counts are not timestamp microseconds
-evaluatePublicValidLocalTimeDomainChecks({ value: makeDateValue(0) })
+// @ts-expect-error an instant is not a wall-clock timestamp
+evaluatePublicUtcAgreementChecks({ instant_at: { localMicroseconds: 0n } })
 `,
     )
     await run('node_modules/.bin/tsc', [
@@ -689,6 +689,8 @@ evaluatePublicValidLocalTimeDomainChecks({ value: makeDateValue(0) })
       'nodenext',
       '--noEmit',
       join(root, 'consumer.ts'),
-    ])
+    ]).catch((error: { stdout: string; stderr: string }) => {
+      throw new Error(error.stdout + error.stderr, { cause: error })
+    })
   }, 300_000)
 })

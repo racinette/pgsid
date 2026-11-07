@@ -11,7 +11,8 @@ import { planCheckInputs, type CheckInputPlan } from '../shared/check-inputs.js'
 import { checkTriggerWarning } from '../shared/check-trigger-warning.js'
 import { renderTypescriptSchemaCheckArtifacts } from './sql/catalog-checks.js'
 import {
-  isTypescriptInt8Range,
+  typescriptDomainBase,
+  typescriptPublicCheckInput,
   typescriptCodec,
   typescriptCodecNames,
   typescriptCodecSource,
@@ -366,7 +367,7 @@ const renderQuery = (
     options.catalog,
     parameterTypes,
     (column) =>
-      isTypescriptInt8Range(column.typeName)
+      typescriptPublicCheckInput(typescriptDomainBase(column.typeName, options.catalog))
         ? 'public'
         : typescriptCodec(column.typeName, options.catalog).kind === 'composite'
           ? 'skip'

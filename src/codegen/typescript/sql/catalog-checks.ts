@@ -64,7 +64,7 @@ import { typeName } from '../type-mapping.js'
 import { typescriptEvalBoolBackend } from './check.js'
 import { typescriptSqlBackend } from './registry.js'
 import { typescriptSqlRuntime } from './runtime.js'
-import { isTypescriptInt8Range } from './codecs.js'
+import { isTypescriptInt8Range, typescriptPublicCheckInput } from './codecs.js'
 
 export function renderTypescriptSchemaChecks(
   tables: readonly TableInfo[],
@@ -107,8 +107,8 @@ export function renderTypescriptSchemaCheckArtifacts(
   } | null
 } {
   const typedInputs = options.typedInputs ?? false
-  // A domain chain over int8range takes the same public value as its base type.
-  const int8RangeColumn = (name: string, oid: number | undefined): boolean => {
+  // A domain chain takes the same public value as its base type.
+  const publicColumn = (name: string, oid: number | undefined): boolean => {
     const seen = new Set<number>()
     let domain = domains.find((item) => item.oid === oid)
     while (domain && !seen.has(domain.oid)) {
@@ -116,7 +116,7 @@ export function renderTypescriptSchemaCheckArtifacts(
       name = domain.baseTypeName
       domain = domains.find((item) => item.oid === domain!.baseTypeOid)
     }
-    return isTypescriptInt8Range(name)
+    return typescriptPublicCheckInput(name)
   }
   const portableValueType = (name: string, oid: number | undefined): string | null => {
     if (catalogCompositeType(name, options.compositeTypeGraph, options.rangeTypes))
@@ -805,13 +805,13 @@ export function renderTypescriptSchemaCheckArtifacts(
         ? table
           ? table.columns.flatMap((column) => {
               const type = portableValueType(column.typeName, column.typeOid)
-              return type && !int8RangeColumn(column.typeName, column.typeOid)
+              return type && !publicColumn(column.typeName, column.typeOid)
                 ? [[column.name, type] as const]
                 : []
             })
           : domain &&
               portableValueType(domain.baseTypeName, domain.baseTypeOid) &&
-              !int8RangeColumn(domain.baseTypeName, domain.baseTypeOid)
+              !publicColumn(domain.baseTypeName, domain.baseTypeOid)
             ? [['value', portableValueType(domain.baseTypeName, domain.baseTypeOid)!]]
             : []
         : [],
@@ -912,7 +912,8 @@ export function renderTypescriptSchemaCheckArtifacts(
       ...checkInputStatements(inputHelpers),
       ...synthesizedStatements(typescriptCheckEvaluationSource),
       ...(rustGroup?.source
-        ? synthesizedStatements(typescriptRustAdapterSource).filter(
+        ? keepWithDependencies(
+            synthesizedStatements(typescriptRustAdapterSource),
             (statement) =>
               (ts.isVariableStatement(statement) &&
                 statement.declarationList.declarations.every(
@@ -1004,6 +1005,34 @@ export function renderTypescriptSchemaCheckArtifacts(
     rust: rustFiles?.checks ?? null,
     rustFiles,
   }
+}
+
+// An adapter can call shared helpers, so every function a kept adapter names is kept with it.
+const keepWithDependencies = (
+  statements: ts.Statement[],
+  keep: (statement: ts.Statement) => boolean | undefined,
+): ts.Statement[] => {
+  const functions = new Map(
+    statements.flatMap((statement) =>
+      ts.isFunctionDeclaration(statement) && statement.name
+        ? [[statement.name.text, statement] as const]
+        : [],
+    ),
+  )
+  const kept = new Set(statements.filter(keep))
+  const pending = [...kept]
+  while (pending.length) {
+    const visit = (node: ts.Node): void => {
+      const dependency = ts.isIdentifier(node) ? functions.get(node.text) : undefined
+      if (dependency && !kept.has(dependency)) {
+        kept.add(dependency)
+        pending.push(dependency)
+      }
+      ts.forEachChild(node, visit)
+    }
+    visit(pending.pop()!)
+  }
+  return statements.filter((statement) => kept.has(statement))
 }
 
 const typescriptRustAdapterSource = `const checkRustArrayRecords: Readonly<Record<string,Readonly<Record<string,string>>>> = {"TsqueryPayload":{"nodes":"Vec<TsqueryNode>","root":"usize","nativeBytes":"i32"},"TsqueryNode":{"kind":"i32","text":"String","weight":"i32","prefix":"bool","distance":"i32","left":"usize","right":"usize"},"TsvectorPayload":{"lexemes":"Vec<TsvectorLexeme>","nativeBytes":"i32"},"TsvectorLexeme":{"text":"String","positions":"Vec<TsvectorPosition>"},"TsvectorPosition":{"position":"i32","weight":"i32"},"AclitemPayload":{"grantee":"i64","grantor":"i64","privileges":"i64","grantOptions":"i64"},"SqlError":{"state":"u32"},"ArrayDimension":{"lower":"i32","length":"i32"},"BoxPayload":{"highX":"i64","highY":"i64","lowX":"i64","lowY":"i64","wireKnown":"bool"},"CirclePayload":{"x":"i64","y":"i64","radius":"i64","wireKnown":"bool"},"EnumPayload":{"ordinal":"i32","labelOid":"i64"},"IntervalPayload":{"months":"i32","days":"i32","time":"i64"},"JsonPayload":{"source":"String","kind":"i32","depth":"usize"},"JsonbNode":{"kind":"i32","child":"usize","next":"usize","keyStart":"usize","keyEnd":"usize","textStart":"usize","textEnd":"usize"},"JsonbPayload":{"characters":"Vec<char>","nodes":"Vec<JsonbNode>","root":"usize"},"JsonpathNode":{"kind":"i32","next":"usize","left":"usize","right":"usize","textStart":"usize","textEnd":"usize","first":"i32","last":"i32","flags":"i32"},"JsonpathPayload":{"characters":"Vec<char>","nodes":"Vec<JsonpathNode>","root":"usize","lax":"bool"},"LinePayload":{"a":"i64","b":"i64","c":"i64","wireKnown":"bool"},"LsegPayload":{"x1":"i64","y1":"i64","x2":"i64","y2":"i64","wireKnown":"bool"},"MacAddress":{"word0":"i32","word1":"i32","word2":"i32","word3":"i32"},"NetworkAddress":{"family":"usize","prefix":"i32","word0":"i32","word1":"i32","word2":"i32","word3":"i32","word4":"i32","word5":"i32","word6":"i32","word7":"i32"},"PathPayload":{"closed":"bool","points":"Vec<PointPayload>"},"PointPayload":{"x":"i64","y":"i64","wireKnown":"bool"},"PolygonPayload":{"points":"Vec<PointPayload>","bounds":"BoxValue"},"SnapshotPayload":{"xmin":"i64","xmax":"i64","xip":"Vec<SnapshotXid>"},"SnapshotXid":{"bits":"i64"},"TimetzPayload":{"time":"i64","zone":"i32"},"Uuid":{"word0":"i32","word1":"i32","word2":"i32","word3":"i32","word4":"i32","word5":"i32","word6":"i32","word7":"i32"}}
@@ -1472,6 +1501,44 @@ function checkRustInt8Range(row: object, name: string, ..._profile: unknown[]): 
   const cell=(bound: bigint | null): _checkRust.ArrayElement => bound===null?{kind:'Null'}:{kind:'Int8',value:bound}
   return range(false,lowerInclusive,upperInclusive,[cell(lower),cell(upper)])
 }
+// Public temporal values count from the Unix epoch; the server counts from 2000-01-01 and keeps
+// infinities at the integer extremes.
+function checkRustCivilDays(year: number, month: number, day: number): number {
+  const shifted = month <= 2 ? year - 1 : year
+  const era = Math.floor(shifted / 400)
+  const yearOfEra = shifted - era * 400
+  const dayOfYear = Math.floor((153 * (month + (month > 2 ? -3 : 9)) + 2) / 5) + day - 1
+  return era * 146097 + yearOfEra * 365 + Math.floor(yearOfEra / 4) - Math.floor(yearOfEra / 100) + dayOfYear - 719468
+}
+function checkRustPublicDate(value: string, name: string): _checkRust.DateValue {
+  if (value === 'infinity') return _checkRust.makeStoredDateValue(2147483647)
+  if (value === '-infinity') return _checkRust.makeStoredDateValue(-2147483648)
+  const match = /^(?:([0-9]{4})|([+-][0-9]{6,}))-([0-9]{2})-([0-9]{2})$/u.exec(value)
+  if (!match || match[2] === '-000000') return checkRustInvalid(name)
+  const year = Number(match[1] ?? match[2]), month = Number(match[3]), day = Number(match[4])
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
+  if (month < 1 || month > 12 || day < 1 || day > [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1]!)
+    throw Object.assign(new Error('date/time field value out of range: "' + value + '"'), { code: '22008' })
+  const days = checkRustCivilDays(year, month, day) - 10957
+  if (days < -2451545 || days > 2145031948) throw Object.assign(new Error('date out of range: "' + value + '"'), { code: '22008' })
+  return _checkRust.makeStoredDateValue(days)
+}
+function checkRustPublicInstant(value: object, field: string, name: string): bigint {
+  if ('infinity' in value && (value.infinity === 1 || value.infinity === -1)) return value.infinity === 1 ? 9223372036854775807n : -9223372036854775808n
+  const micros = (value as Record<string, unknown>)[field]
+  if (typeof micros !== 'bigint') return checkRustInvalid(name)
+  const shifted = micros - 946684800000000n
+  if (shifted < -9223372036854775807n || shifted > 9223372036854775806n) return checkRustInvalid(name)
+  return shifted
+}
+function checkRustPublicInterval(value: object, name: string): _checkRust.IntervalValue {
+  if ('infinity' in value && (value.infinity === 1 || value.infinity === -1))
+    return value.infinity === 1 ? _checkRust.makeIntervalValue(2147483647, 2147483647, 9223372036854775807n) : _checkRust.makeIntervalValue(-2147483648, -2147483648, -9223372036854775808n)
+  const months = (value as Record<string, unknown>)['months'], days = (value as Record<string, unknown>)['days'], micros = (value as Record<string, unknown>)['microseconds']
+  const int32 = (part: unknown): part is number => typeof part === 'number' && Number.isInteger(part) && part >= -2147483648 && part <= 2147483647
+  if (!int32(months) || !int32(days) || typeof micros !== 'bigint' || micros < -9223372036854775808n || micros > 9223372036854775807n) return checkRustInvalid(name)
+  return _checkRust.makeIntervalValue(months, days, micros)
+}
 function checkRustSnapshot(row: object, name: string): _checkRust.SnapshotValue {
   const value = Reflect.get(row, name)
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.snapshotUnknown()
@@ -1674,6 +1741,7 @@ function checkRustTime(row: object, name: string): _checkRust.TimeValue {
   const value = Reflect.get(row, name)
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.timeUnknown()
   if (value === null) return _checkRust.timeNull()
+  if (value && typeof value === 'object' && !('kind' in value)) return 'microseconds' in value && typeof value.microseconds === 'number' && Number.isSafeInteger(value.microseconds) && value.microseconds >= 0 && value.microseconds <= 86400000000 ? _checkRust.makeTimeValue(BigInt(value.microseconds)) : checkRustInvalid(name)
   if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
   if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.TimeValue
   if (value.kind === 'Value' && 'value' in value && typeof value.value === 'bigint') return _checkRust.makeTimeValue(value.value)
@@ -1683,6 +1751,8 @@ function checkRustTimetz(row: object, name: string): _checkRust.TimetzValue {
   const value = Reflect.get(row, name)
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.timetzUnknown()
   if (value === null) return _checkRust.timetzNull()
+  // The server keeps a time zone as seconds west of UTC, the negated offset.
+  if (value && typeof value === 'object' && !('kind' in value)) return 'microseconds' in value && 'offsetSeconds' in value && typeof value.microseconds === 'number' && Number.isSafeInteger(value.microseconds) && value.microseconds >= 0 && value.microseconds <= 86400000000 && typeof value.offsetSeconds === 'number' && Number.isSafeInteger(value.offsetSeconds) && Math.abs(value.offsetSeconds) <= 57599 ? _checkRust.makeTimetzValue(BigInt(value.microseconds), -value.offsetSeconds) : checkRustInvalid(name)
   if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
   if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.TimetzValue
   if (value.kind === 'Value' && 'value' in value && value.value && typeof value.value === 'object' && 'time' in value.value && 'zone' in value.value && typeof value.value.time === 'bigint' && typeof value.value.zone === 'number' && Number.isInteger(value.value.zone) && value.value.zone >= -2147483648 && value.value.zone <= 2147483647) return _checkRust.makeTimetzValue(value.value.time, value.value.zone)
@@ -1692,6 +1762,7 @@ function checkRustInterval(row: object, name: string): _checkRust.IntervalValue 
   const value = Reflect.get(row, name)
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.intervalUnknown()
   if (value === null) return _checkRust.intervalNull()
+  if (value && typeof value === 'object' && !('kind' in value)) return checkRustPublicInterval(value, name)
   if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
   if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.IntervalValue
   if (value.kind === 'Value' && 'value' in value && value.value && typeof value.value === 'object' && 'time' in value.value && 'months' in value.value && 'days' in value.value && typeof value.value.time === 'bigint' && value.value.time >= -9223372036854775808n && value.value.time <= 9223372036854775807n && typeof value.value.months === 'number' && Number.isInteger(value.value.months) && value.value.months >= -2147483648 && value.value.months <= 2147483647 && typeof value.value.days === 'number' && Number.isInteger(value.value.days) && value.value.days >= -2147483648 && value.value.days <= 2147483647) return _checkRust.makeIntervalValue(value.value.months, value.value.days, value.value.time)
@@ -1701,6 +1772,7 @@ function checkRustTimestamp(row: object, name: string): _checkRust.TimestampValu
   const value = Reflect.get(row, name)
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.timestampUnknown()
   if (value === null) return _checkRust.timestampNull()
+  if (value && typeof value === 'object' && !('kind' in value)) return _checkRust.makeStoredTimestampValue(checkRustPublicInstant(value, 'localMicroseconds', name))
   if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
   if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.TimestampValue
   if (value.kind === 'Value' && 'value' in value && typeof value.value === 'bigint' && value.value >= -9223372036854775808n && value.value <= 9223372036854775807n) return _checkRust.makeStoredTimestampValue(value.value)
@@ -1710,6 +1782,7 @@ function checkRustTimestamptz(row: object, name: string): _checkRust.Timestamptz
   const value = Reflect.get(row, name)
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.timestamptzUnknown()
   if (value === null) return _checkRust.timestamptzNull()
+  if (value && typeof value === 'object' && !('kind' in value)) return _checkRust.makeStoredTimestamptzValue(checkRustPublicInstant(value, 'epochMicroseconds', name))
   if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
   if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.TimestamptzValue
   if (value.kind === 'Value' && 'value' in value && typeof value.value === 'bigint' && value.value >= -9223372036854775808n && value.value <= 9223372036854775807n) return _checkRust.makeStoredTimestamptzValue(value.value)
@@ -1793,6 +1866,7 @@ function checkRustDate(row: object, name: string): _checkRust.DateValue {
   const value = Reflect.get(row, name)
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.dateUnknown()
   if (value === null) return _checkRust.dateNull()
+  if (typeof value === 'string') return checkRustPublicDate(value, name)
   if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
   if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.DateValue
   if (value.kind === 'Value' && 'value' in value && typeof value.value === 'number' && Number.isInteger(value.value) && value.value >= -2147483648 && value.value <= 2147483647) return _checkRust.makeStoredDateValue(value.value)
