@@ -236,7 +236,7 @@ ${domainAssertions.join('\n')}
       )
       await run('go', ['test', './...'], {
         cwd: directory,
-        env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
+        env: process.env,
       })
     } finally {
       await pg.close()

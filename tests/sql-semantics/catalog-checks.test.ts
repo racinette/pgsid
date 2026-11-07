@@ -419,7 +419,7 @@ func TestMixedChecks(t *testing.T) {
       )
       await run(process.env.PGSID_GO_BINARY ?? 'go', ['test', '.'], {
         cwd: directory,
-        env: { ...process.env, GOCACHE: join(sharedTempDirectory, 'pgsid-check-rust-go-cache') },
+        env: process.env,
       }).catch((error: { stdout: string; stderr: string }) => {
         throw new Error(error.stdout + error.stderr, { cause: error })
       })
@@ -660,7 +660,7 @@ func TestMixedChecks(t *testing.T) {
       )
       await run('go', ['test', '.'], {
         cwd: directory,
-        env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
+        env: process.env,
       }).catch((error: { stdout: string; stderr: string }) => {
         throw new Error(error.stdout + error.stderr, { cause: error })
       })

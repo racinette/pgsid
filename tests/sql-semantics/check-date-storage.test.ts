@@ -309,7 +309,7 @@ it('admits projected dates through generated public row adapters and checked rec
     )
     await run('go', ['test', '-mod=mod', './...'], {
       cwd: goRoot,
-      env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
+      env: process.env,
     }).catch((cause: { stdout: string; stderr: string }) => {
       throw new Error(cause.stdout + cause.stderr, { cause })
     })

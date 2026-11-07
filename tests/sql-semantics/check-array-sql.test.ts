@@ -594,7 +594,7 @@ evaluatePublicFamily2Checks(supplied)
     )
     await run('go', ['test', '-p', '1', './...'], {
       cwd: root,
-      env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
+      env: process.env,
     }).catch((error) => {
       throw new Error(error.stdout + error.stderr)
     })

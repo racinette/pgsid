@@ -394,7 +394,7 @@ describe('portable Rust CHECK UUID values', () => {
     )
     await run('go', ['test', './...'], {
       cwd: root,
-      env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
+      env: process.env,
     })
   }, 180000)
 })

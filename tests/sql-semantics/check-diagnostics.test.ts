@@ -117,7 +117,7 @@ ${conditions.map(([state, message]) => `if value := SqlErrorMessage(MakeSqlError
       const run = promisify(execFile)
       await run('go', ['test', './...'], {
         cwd: root,
-        env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
+        env: process.env,
       })
       await run('rustc', ['--test', join(root, 'diagnostics.rs'), '-o', join(root, 'diagnostics')])
       await run(join(root, 'diagnostics'))

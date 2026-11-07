@@ -646,7 +646,7 @@ describe('portable Rust CHECK timestamp and timezone offsets', () => {
       )
       await run('go', ['test', '-mod=mod', './...'], {
         cwd: root,
-        env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
+        env: process.env,
       }).catch((error: { stdout: string; stderr: string }) => {
         throw new Error(error.stdout + error.stderr, { cause: error })
       })

@@ -236,7 +236,7 @@ describe('CHECK list and range validators', () => {
         )
         await run('go', ['test', './...'], {
           cwd: directory,
-          env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
+          env: process.env,
         })
       } finally {
         await rm(directory, { recursive: true, force: true })

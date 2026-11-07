@@ -8,6 +8,8 @@ set -euo pipefail
 repo_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 cd "$repo_dir"
 export GOFLAGS="${GOFLAGS:+$GOFLAGS }-trimpath"
+# Builds stay out of ~/.cache/go-build, in the cache the test setup trims (tools/check-rust/go-cache.ts).
+export GOCACHE="${PGSID_CHECK_GO_CACHE_DIR:-/tmp/pgsid-check-rust-go-cache}"
 cargo test --quiet --locked --manifest-path crates/check-evaluator/Cargo.toml
 cargo test --quiet --locked --manifest-path tools/check-timezone-data/Cargo.toml
 cargo test --quiet --locked --manifest-path tools/check-unicode-data/Cargo.toml

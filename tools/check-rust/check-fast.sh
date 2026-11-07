@@ -12,6 +12,8 @@ cd "$repo_dir"
 base="${1:-HEAD}"
 workers="${PGSID_CHECK_WORKERS:-2}"
 export GOFLAGS="${GOFLAGS:+$GOFLAGS }-trimpath"
+# Builds stay out of ~/.cache/go-build, in the cache the test setup trims (tools/check-rust/go-cache.ts).
+export GOCACHE="${PGSID_CHECK_GO_CACHE_DIR:-/tmp/pgsid-check-rust-go-cache}"
 [[ "${PGSID_CHECK_ASSETS:-}" == prebuilt ]] || bash scripts/build-check-rust-wasm.sh
 cargo test --quiet --locked --manifest-path crates/check-evaluator/Cargo.toml
 go -C tools/check-transpiler/go test ./...

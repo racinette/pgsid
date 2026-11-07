@@ -64,7 +64,7 @@ func TestDecimalText(t *testing.T) {
       )
       await run('go', ['test', './...'], {
         cwd: directory,
-        env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
+        env: process.env,
       })
       await run('rustc', ['--test', join(directory, 'text.rs'), '-o', join(directory, 'text')])
       await run(join(directory, 'text'), [])

@@ -405,7 +405,7 @@ describe('Rust text-to-timestamptz CHECK casts', () => {
     )
     await run('go', ['test', '-mod=mod', './...'], {
       cwd: goRoot,
-      env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
+      env: process.env,
     }).catch((error: { stdout: string; stderr: string }) => {
       throw new Error(error.stdout + error.stderr, { cause: error })
     })

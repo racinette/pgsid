@@ -184,7 +184,7 @@ func TestZeroFloatValuesRemainUnknown(t *testing.T) {
     )
     await promisify(execFile)('go', ['test', '-p', '1', './defaults'], {
       cwd: join(directory, 'go'),
-      env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
+      env: process.env,
     }).catch((error: { stdout: string; stderr: string }) => {
       throw new Error(error.stdout + error.stderr, { cause: error })
     })

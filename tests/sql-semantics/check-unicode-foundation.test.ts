@@ -262,7 +262,7 @@ func TestUnicodeOracle(t *testing.T) {
       await run(join(directory, 'native'), [], { cwd: directory })
       await run('go', ['test', './...'], {
         cwd: directory,
-        env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
+        env: process.env,
       })
     } finally {
       await pg.close()

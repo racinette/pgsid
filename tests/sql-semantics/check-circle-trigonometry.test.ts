@@ -229,7 +229,7 @@ fn main() {
     await writeFile(join(root, 'go.mod'), 'module circlemath\n\ngo 1.25\n')
     await run('go', ['test', './...'], {
       cwd: root,
-      env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
+      env: process.env,
     })
     console.info('Circle trigonometry parity:', corpus.length * 2, 'exact results per target')
   } finally {

@@ -495,7 +495,7 @@ it('composes vector domains, records, arrays and catalog deferrals through nativ
     await writeFile(join(root, 'go.mod'), 'module vectorpublic\n\ngo 1.25\n')
     await run('go', ['test', '-p', '1', './...'], {
       cwd: root,
-      env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
+      env: process.env,
     }).catch((e: { stdout: string; stderr: string }) => {
       throw Error(e.stdout + e.stderr)
     })

@@ -182,7 +182,7 @@ func TestPartialText(t *testing.T){
     )
     await run('go', ['test', '-p', '1', '-mod=readonly', './schema/...'], {
       cwd: root,
-      env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache', GOTOOLCHAIN: 'local' },
+      env: { ...process.env, GOTOOLCHAIN: 'local' },
     }).catch((e: { stdout: string; stderr: string }) => {
       throw Error(e.stdout + e.stderr)
     })
