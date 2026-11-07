@@ -65,7 +65,6 @@ export {
   analyzeValueLineage,
   interpretValueLineage,
   traceValueLineage,
-  traceStatementValueLineage,
   UnsupportedValueLineageError,
   type DatabaseColumn,
   type DatabaseType,
