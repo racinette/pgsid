@@ -1,9 +1,15 @@
 import { defineConfig } from 'vitest/config'
+import { checkGoCacheDirectory } from './tools/check-rust/go-cache.js'
 import { useTestRunDirectory } from './tools/test-run-temp.js'
 
 // Before Vitest creates its own temporary directory, so a killed run leaves nothing outside the
 // directory a later run removes.
 useTestRunDirectory()
+
+// Suites that run `go test` without naming a cache would otherwise build into the user's
+// ~/.cache/go-build, which nothing trims; it reached 54 GB and filled the disk. Workers inherit
+// this, so those builds land in the cache the global setup trims.
+process.env['GOCACHE'] = checkGoCacheDirectory
 
 export default defineConfig({
   test: {
