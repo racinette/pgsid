@@ -7,6 +7,7 @@ import { interpretValueLineage } from '../../query/value-lineage.js'
 import { checkTriggerWarning } from '../shared/check-trigger-warning.js'
 import type { SchemaRelationAnalyses } from '../../schema-analysis.js'
 import { renderTypescriptSchemaCheckArtifacts } from './sql/catalog-checks.js'
+import { withTypescriptJsonValue } from './sql/codecs.js'
 import {
   exportModifier,
   factory,
@@ -188,9 +189,9 @@ export function renderTypescriptSchemaArtifacts(
         compositeTypeGraph: catalog.compositeTypeGraph,
       })
       const files: [string, string][] = [
-        ['tables.d.ts', tableFile],
+        ['tables.d.ts', withTypescriptJsonValue(tableFile)],
         ['enums.d.ts', enumFile],
-        ['domains.d.ts', domainFile],
+        ['domains.d.ts', withTypescriptJsonValue(domainFile)],
         ['checks.ts', checks.checks],
       ]
       const exported = files.filter(([, content]) => content.length > 0)
