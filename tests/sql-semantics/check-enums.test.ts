@@ -141,7 +141,6 @@ describe('catalog enum CHECKs', () => {
   let cases: GoCheckCase[]
   let evaluate: (row: object) => GoCheckCase['results']
   let fallback: typeof evaluate
-  let knownDay: object
 
   beforeAll(async () => {
     pg = await PGlite.create()
@@ -277,7 +276,6 @@ describe('catalog enum CHECKs', () => {
     const runtime = await import(
       pathToFileURL(join(directory, 'js/checks-rust/checkruntime/runtime.js')).href
     )
-    knownDay = runtime.dateFromYmd(2026, 1, 2)
     const fixtures: OperationCase[] = []
     for (const fn of builtinCallables().filter(
       (item) => item.kind === 'function' && enumEqualityOperation(callableIdentity(item)) !== null,
@@ -459,11 +457,8 @@ fn enum_checks() {
   for (const item of ordinary)
     it(item.name, () => {
       const test = cases.find((test) => test.name === item.name)!
-      const portable = {
-        ...test.row,
-        ...(typeof test.row['day'] === 'string' ? { day: knownDay } : {}),
-      }
-      expect(evaluate(portable).map(({ constraint, result }) => ({ constraint, result }))).toEqual(
+      // The row's day is already the public date text.
+      expect(evaluate(test.row).map(({ constraint, result }) => ({ constraint, result }))).toEqual(
         test.results,
       )
       expect(fallback(test.row).map(({ constraint, result }) => ({ constraint, result }))).toEqual(

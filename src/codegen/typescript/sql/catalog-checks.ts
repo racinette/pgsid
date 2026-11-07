@@ -2,9 +2,17 @@ import type { CompositeTypeGraph } from '../../../catalog/types.js'
 import {
   catalogCompositeType,
   compositeContainerProfile,
+  compositeFieldType,
+  compositePhysicalType,
+  compositeProfile,
 } from '../../../sql-semantics/composite-profiles.js'
 import { compositeNodes } from '../../shared/check-composite-types.js'
-import { multirangeTypeProfile, rangeTypeProfile } from '../../../sql-semantics/range-profiles.js'
+import {
+  multirangeTypeProfile,
+  rangeContainerKind,
+  rangeProfileSupport,
+  rangeTypeProfile,
+} from '../../../sql-semantics/range-profiles.js'
 import {
   arrayElementFamily,
   arrayRangeProfile,
@@ -13,11 +21,16 @@ import {
   arrayElementIdentity,
   arrayInputPlan,
 } from '../../shared/check-array-types.js'
-import type { CheckExecutionContext } from '../../shared/check-rust-evaluator.js'
+import {
+  checkRustValueType,
+  type CheckExecutionContext,
+} from '../../shared/check-rust-evaluator.js'
 import ts from 'typescript'
 import type { DomainInfo, EnumInfo, TableInfo, RangeTypeInfo } from '../../../catalog/types.js'
 import {
   enumType,
+  isCatalogVectorType,
+  isSnapshotType,
   isRangeType,
   isMultirangeType,
   isArrayLikeType,
@@ -54,7 +67,12 @@ import {
   catalogCircleType,
   catalogBoxType,
 } from '../../../sql-semantics/catalog-check-binder.js'
-import { emitEvalBoolExpression } from '../../../sql-semantics/check-expressions.js'
+import {
+  emitEvalBoolExpression,
+  type EvalBoolExpression,
+} from '../../../sql-semantics/check-expressions.js'
+import type { EvalExpression } from '../../../sql-semantics/eval-expressions.js'
+import { isOidAliasType } from '../../../catalog/oid-alias-constant-storage.js'
 import { portableCheckAtoms } from '../../shared/check-atom-support.js'
 import { checkUnknownMessage } from '../../shared/check-diagnostics.js'
 import { prepareCheckRustGroup } from '../../shared/check-rust-source.js'
@@ -64,7 +82,59 @@ import { typeName } from '../type-mapping.js'
 import { typescriptEvalBoolBackend } from './check.js'
 import { typescriptSqlBackend } from './registry.js'
 import { typescriptSqlRuntime } from './runtime.js'
-import { isTypescriptInt8Range, typescriptPublicCheckInput } from './codecs.js'
+import { typescriptPublicCheckInput } from './codecs.js'
+
+// A type whose public value is the server's text (a JSON value as its JSON text) reaches the
+// server through its input function, so a CHECK reads such a column the same way: the column is
+// a text input and the expression parses it with that type's input.
+function publicTextInput(type: string, operand: EvalExpression): EvalExpression | null {
+  if (type === 'pg_catalog.tsvector') return { kind: 'text-to-tsvector', type, operand }
+  if (type === 'pg_catalog.tsquery') return { kind: 'text-to-tsquery', type, operand }
+  if (type === 'pg_catalog.aclitem') return { kind: 'text-to-aclitem', type, operand }
+  if (type === 'pg_catalog.money') return { kind: 'text-to-money', type, operand }
+  if (type === 'pg_catalog.pg_lsn') return { kind: 'text-to-pg_lsn', type, operand }
+  if (type === 'pg_catalog.tid') return { kind: 'text-to-tid', type, operand }
+  if (isSnapshotType(type)) return { kind: 'text-to-snapshot', type, operand }
+  if (isOidAliasType(type)) return { kind: 'text-to-oid', type, operand }
+  if (isCatalogVectorType(type)) return { kind: 'text-to-vector', type, operand }
+  if (type === 'pg_catalog."json"' || type === 'pg_catalog.jsonb' || type === 'pg_catalog.jsonpath')
+    return { kind: 'text-to-json', type, operand }
+  // texttoxml parses under xmloption exactly as xml_in does.
+  if (type === 'pg_catalog.xml') return { kind: 'xml-operation', type, operation: 'cast', operand }
+  return null
+}
+
+function readPublicText(
+  expression: EvalBoolExpression,
+  columns: ReadonlySet<string>,
+  read: Map<string, 'text' | 'json'>,
+): EvalBoolExpression {
+  const visit = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(visit)
+    if (!value || typeof value !== 'object') return value
+    const node = value as Record<string, unknown>
+    const name = node['name'],
+      type = node['type']
+    // Only the group's own columns: CASE operands and other lexical inputs keep their types.
+    if (
+      node['kind'] === 'input' &&
+      typeof name === 'string' &&
+      typeof type === 'string' &&
+      columns.has(name)
+    ) {
+      const parsed = publicTextInput(type, { kind: 'input', type: 'pg_catalog.text', name })
+      if (parsed) {
+        read.set(
+          name,
+          type === 'pg_catalog."json"' || type === 'pg_catalog.jsonb' ? 'json' : 'text',
+        )
+        return parsed
+      }
+    }
+    return Object.fromEntries(Object.entries(node).map(([key, item]) => [key, visit(item)]))
+  }
+  return visit(expression) as EvalBoolExpression
+}
 
 export function renderTypescriptSchemaChecks(
   tables: readonly TableInfo[],
@@ -116,7 +186,23 @@ export function renderTypescriptSchemaCheckArtifacts(
       name = domain.baseTypeName
       domain = domains.find((item) => item.oid === domain!.baseTypeOid)
     }
-    return typescriptPublicCheckInput(name)
+    return (
+      typescriptPublicCheckInput(name) ||
+      Boolean(catalogRangeType(name, oid, domains, options.rangeTypes)) ||
+      Boolean(catalogMultirangeType(name, oid, domains, options.rangeTypes)) ||
+      Boolean(
+        catalogArrayType(
+          name,
+          oid,
+          domains,
+          options.enums,
+          options.rangeTypes,
+          undefined,
+          options.compositeTypeGraph,
+        ),
+      ) ||
+      Boolean(catalogCompositeType(name, options.compositeTypeGraph, options.rangeTypes))
+    )
   }
   const portableValueType = (name: string, oid: number | undefined): string | null => {
     if (catalogCompositeType(name, options.compositeTypeGraph, options.rangeTypes))
@@ -183,11 +269,28 @@ export function renderTypescriptSchemaCheckArtifacts(
     options.compositeTypeGraph,
   )
   if (!groups.length) return { checks: '', rust: null, rustFiles: null }
+  const publicText = new Map<(typeof groups)[number], Map<string, 'text' | 'json'>>()
+  const groupColumns = (group: (typeof groups)[number]): ReadonlySet<string> =>
+    new Set(
+      group.kind === 'table'
+        ? (tables
+            .find(
+              (table) => table.schema === group.source.schema && table.name === group.source.name,
+            )
+            ?.columns.map((column) => column.name) ?? [])
+        : ['value'],
+    )
   const rustGroup = rust
     ? prepareCheckRustGroup(
         groups.flatMap((group) =>
           group.checks.map(({ plan, source }) => ({
-            expression: portableCheckAtoms(plan.expression),
+            expression: portableCheckAtoms(
+              readPublicText(
+                plan.expression,
+                groupColumns(group),
+                publicText.get(group) ?? publicText.set(group, new Map()).get(group)!,
+              ),
+            ),
             identity: {
               schema: group.source.schema,
               kind: group.kind,
@@ -204,6 +307,267 @@ export function renderTypescriptSchemaCheckArtifacts(
   const row = identifier('row')
   const inputHelpers = new Set<string>()
   const rustInputAdapters = new Set<string>()
+  // Public values reach the evaluator through generated converters, one per type: a scalar through
+  // its adapter, a range through the evaluator's range constructor, so PostgreSQL's rules
+  // (canonical bounds, empty and reversed ranges) apply as they do on input.
+  const converters = new Map<string, { name: string; statement?: ts.FunctionDeclaration }>()
+  const scalarAdapters: Readonly<Record<string, string>> = {
+    Int2Value: 'checkRustInt2',
+    Int4Value: 'checkRustInt4',
+    Int8Value: 'checkRustInt8',
+    BoolValue: 'checkRustBool',
+    NumericValue: 'checkRustNumeric',
+    Float4Value: 'checkRustFloat4',
+    Float8Value: 'checkRustFloat8',
+    DateValue: 'checkRustDate',
+    TimestampValue: 'checkRustTimestamp',
+    TimestamptzValue: 'checkRustTimestamptz',
+    TimeValue: 'checkRustTime',
+    TimetzValue: 'checkRustTimetz',
+    IntervalValue: 'checkRustInterval',
+    PointValue: 'checkRustPoint',
+    LineValue: 'checkRustLine',
+    LsegValue: 'checkRustLseg',
+    BoxValue: 'checkRustBox',
+    PathValue: 'checkRustPath',
+    PolygonValue: 'checkRustPolygon',
+    CircleValue: 'checkRustCircle',
+    BitValue: 'checkRustBit',
+    UuidValue: 'checkRustUuid',
+    ByteaValue: 'checkRustBytea',
+    MacaddrValue: 'checkRustMacaddr',
+    Macaddr8Value: 'checkRustMacaddr8',
+    NetworkValue: 'checkRustNetwork',
+    XidValue: 'checkRustXid',
+    CidValue: 'checkRustCid',
+    Xid8Value: 'checkRustXid8',
+  }
+  const runtimeCall = (member: string, args: ts.Expression[], module = '_checkRust') =>
+    factory.createCallExpression(
+      factory.createPropertyAccessExpression(identifier(module), member),
+      undefined,
+      args,
+    )
+  const helperCall = (helper: string, args: ts.Expression[]) =>
+    factory.createCallExpression(identifier(helper), undefined, args)
+  const numberLiteral = (value: number): ts.Expression =>
+    value < 0
+      ? factory.createPrefixUnaryExpression(
+          ts.SyntaxKind.MinusToken,
+          factory.createNumericLiteral(-value),
+        )
+      : factory.createNumericLiteral(value)
+  // A scalar adapter reads a row; a converter hands it a one-field row named after the value.
+  const oneFieldRow = () =>
+    factory.createObjectLiteralExpression([
+      factory.createPropertyAssignment(
+        factory.createComputedPropertyName(identifier('name')),
+        identifier('value'),
+      ),
+    ])
+  const rangeSupport = (profile: NonNullable<ReturnType<typeof rangeTypeProfile>>) => {
+    const support = rangeProfileSupport(profile, options.executionContext)
+    return runtimeCall('makeRangeSupport', [
+      numberLiteral(support.comparison),
+      numberLiteral(support.canonical),
+    ])
+  }
+  // Each converter takes a public value, never undefined, and its name for errors. Converters are
+  // generated once per type and recurse through containers to their scalar elements.
+  const defineConverter = (
+    key: string,
+    prefix: string,
+    returnType: string,
+    build: () => ts.Expression | string,
+  ): string => {
+    const existing = converters.get(key)
+    if (existing) return existing.name
+    const name = `${prefix}${converters.size}`
+    converters.set(key, { name })
+    const body = build()
+    // A shared helper stands in for a type the conversion cannot decide yet.
+    if (typeof body === 'string') {
+      converters.set(key, { name: body })
+      return body
+    }
+    converters.set(key, {
+      name,
+      statement: factory.createFunctionDeclaration(
+        undefined,
+        undefined,
+        name,
+        undefined,
+        [
+          factory.createParameterDeclaration(
+            undefined,
+            undefined,
+            'value',
+            undefined,
+            factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword),
+          ),
+          factory.createParameterDeclaration(
+            undefined,
+            undefined,
+            'name',
+            undefined,
+            factory.createKeywordTypeNode(ts.SyntaxKind.StringKeyword),
+          ),
+        ],
+        factory.createTypeReferenceNode(
+          factory.createQualifiedName(identifier('_checkRust'), returnType),
+        ),
+        factory.createBlock([factory.createReturnStatement(body)], true),
+      ),
+    })
+    return name
+  }
+  const scalarElement = (type: string): ts.Expression | null => {
+    let valueType: string
+    try {
+      valueType = checkRustValueType(type)
+    } catch {
+      return null
+    }
+    const element = (prefix: string, adapter: string, extra: ts.Expression[] = []) =>
+      runtimeCall(`arrayElementFrom${prefix}`, [
+        helperCall(adapter, [oneFieldRow(), identifier('name'), ...extra]),
+      ])
+    const input = {
+      Int2Value: 'checkInputInteger',
+      Int4Value: 'checkInputInteger',
+      Int8Value: 'checkInputInt8',
+      BoolValue: 'checkInputBoolean',
+      TextValue: 'checkInputText',
+      EnumValue: 'checkInputText',
+    }[valueType]
+    if (input) inputHelpers.add(input)
+    if (scalarAdapters[valueType])
+      return element(valueType.slice(0, -'Value'.length), scalarAdapters[valueType]!)
+    if (valueType === 'TextValue')
+      return element(
+        'Text',
+        type === 'pg_catalog.name'
+          ? 'checkRustName'
+          : type === 'pg_catalog.refcursor'
+            ? 'checkRustRefcursor'
+            : 'checkRustText',
+      )
+    if (valueType === 'OidValue' && type === 'pg_catalog.oid') return element('Oid', 'checkRustOid')
+    if (valueType === 'InternalCharValue')
+      return element('InternalChar', 'checkRustInternalChar', [
+        options.executionContext?.serverEncoding === 'UTF8'
+          ? factory.createTrue()
+          : factory.createFalse(),
+      ])
+    if (valueType === 'EnumValue') {
+      const [schema, enumName] = JSON.parse(type.slice('enum:'.length)) as [string, string]
+      const labels = options.enums?.find(
+        (item) => item.schema === schema && item.name === enumName,
+      )?.values
+      return labels
+        ? element('Enum', 'checkRustEnum', [
+            factory.createArrayLiteralExpression(
+              labels.map((label) => factory.createStringLiteral(label)),
+            ),
+          ])
+        : null
+    }
+    return null
+  }
+  const elementConverter = (type: string): string =>
+    defineConverter(`element\0${type}`, 'checkRustElement', 'ArrayElement', () => {
+      const call = (member: string, convert: string) =>
+        runtimeCall(member, [helperCall(convert, [identifier('value'), identifier('name')])])
+      if (compositeProfile(type)) return call('arrayElementFromComposite', compositeConverter(type))
+      if (multirangeTypeProfile(type) && !isArrayLikeType(type))
+        return call('arrayElementFromMultirange', multirangeConverter(type))
+      if (rangeTypeProfile(type) && !isArrayLikeType(type))
+        return call('arrayElementFromRange', rangeConverter(type))
+      if (arrayLikeElementType(type) && !isCatalogVectorType(type))
+        return call('arrayElementFromArray', arrayConverter(type))
+      return scalarElement(type) ?? 'checkRustUndecidedElement'
+    })
+  const arrayConverter = (type: string): string =>
+    defineConverter(`array\0${type}`, 'checkRustArray', 'ArrayValue', () => {
+      const element = arrayLikeElementType(type)!
+      // Arrays whose elements are arrays (domains over arrays) stay undecided.
+      if (isArrayLikeType(element)) return 'checkRustUndecidedArray'
+      const array = helperCall('checkRustPublicArray', [
+        identifier('value'),
+        identifier('name'),
+        factory.createStringLiteral(arrayElementIdentity(element)),
+        numberLiteral(arrayElementFamily(element)!),
+        identifier(elementConverter(element)),
+      ])
+      // Composite elements are checked against their type plan, as stored composites are.
+      return compositeProfile(element)
+        ? runtimeCall('arrayFromCoercedCompositePlan', [
+            array,
+            factory.createStringLiteral(arrayElementIdentity(element)),
+            compositeContext(element),
+          ])
+        : array
+    })
+  const compositeConverter = (type: string): string =>
+    defineConverter(`composite\0${type}`, 'checkRustComposite', 'CompositeValue', () => {
+      const profile = compositeProfile(type)
+      const definition = profile && compositePhysicalType(profile, profile.identity)
+      const root = compositeNodes(type, options.executionContext)?.[0]
+      if (!profile || !definition || !root) return 'checkRustUndecidedComposite'
+      const fields = [...definition.fields].sort((left, right) => left.position - right.position)
+      return runtimeCall('compositeFromCoercedPlan', [
+        helperCall('checkRustPublicComposite', [
+          identifier('value'),
+          identifier('name'),
+          factory.createStringLiteral(root.typeName),
+          factory.createArrayLiteralExpression(
+            fields.map((field) => factory.createStringLiteral(field.name)),
+          ),
+          factory.createArrayLiteralExpression(
+            fields.map((field) => {
+              const fieldType = compositeFieldType(profile, field.type)
+              return identifier(
+                fieldType ? elementConverter(fieldType) : 'checkRustUndecidedElement',
+              )
+            }),
+          ),
+        ]),
+        compositeContext(type),
+      ])
+    })
+  const multirangeConverter = (type: string): string =>
+    defineConverter(`multirange\0${type}`, 'checkRustMultirange', 'MultirangeValue', () => {
+      const profile = multirangeTypeProfile(type)!
+      // Ranges over composites and arrays need the subtype's bound profile; they stay undecided.
+      if (rangeContainerKind(profile.elementType) !== null) return 'checkRustUndecidedMultirange'
+      return helperCall('checkRustPublicMultirange', [
+        identifier('value'),
+        identifier('name'),
+        factory.createStringLiteral(profile.multirange),
+        factory.createStringLiteral(profile.identity),
+        factory.createStringLiteral(profile.subtype),
+        numberLiteral(arrayElementFamily(profile.elementType)!),
+        rangeSupport(profile),
+        identifier(rangeConverter(profile.rangeType)),
+      ])
+    })
+  const rangeConverter = (type: string): string =>
+    defineConverter(`range\0${type}`, 'checkRustRange', 'RangeValue', () => {
+      const profile = rangeTypeProfile(type)!
+      if (rangeContainerKind(profile.elementType) !== null) return 'checkRustUndecidedRange'
+      const labels = profile.subtypeEnum?.values
+      return helperCall('checkRustPublicRange', [
+        identifier('value'),
+        identifier('name'),
+        factory.createStringLiteral(profile.identity),
+        factory.createStringLiteral(profile.subtype),
+        numberLiteral(arrayElementFamily(profile.elementType)!),
+        rangeSupport(profile),
+        factory.createStringLiteral(labels?.join('\0') ?? ''),
+        numberLiteral(labels?.length ?? -1),
+        identifier(elementConverter(profile.elementType)),
+      ])
+    })
   const callInput = (helper: string, name: string): ts.Expression => {
     inputHelpers.add(helper)
     return factory.createCallExpression(identifier(helper), undefined, [
@@ -344,140 +708,124 @@ export function renderTypescriptSchemaCheckArtifacts(
           const compositeArray =
             isArrayLikeType(item.type) &&
             compositeContainerProfile(arrayLikeElementType(item.type)!)
-          const helper = compositeArray
-            ? item.nullness
-              ? 'checkRustCompositeArrayNullness'
-              : 'checkRustCompositeArray'
-            : item.rustType === 'CompositeValue'
-              ? 'checkRustComposite'
-              : isArrayLikeType(item.type)
-                ? item.nullness
-                  ? 'checkRustArrayNullness'
-                  : 'checkRustArray'
-                : item.rustType === 'MultirangeValue'
-                  ? 'checkRustMultirange'
-                  : item.rustType === 'RangeValue'
-                    ? isTypescriptInt8Range(item.type)
-                      ? 'checkRustInt8Range'
-                      : 'checkRustRange'
-                    : item.rustType === 'XmlValue'
-                      ? 'checkRustXml'
-                      : item.rustType === 'JsonpathValue'
-                        ? 'checkRustJsonpath'
-                        : item.rustType === 'JsonbValue'
-                          ? 'checkRustJsonb'
-                          : item.rustType === 'JsonValue'
-                            ? 'checkRustJson'
-                            : item.rustType === 'SnapshotValue'
-                              ? 'checkRustSnapshot'
-                              : item.type === 'pg_catalog.refcursor' &&
-                                  item.rustType === 'TextValue'
-                                ? 'checkRustRefcursor'
-                                : item.type === 'pg_catalog.name' && item.rustType === 'TextValue'
-                                  ? 'checkRustName'
-                                  : item.rustType === 'InternalCharValue'
-                                    ? 'checkRustInternalChar'
-                                    : item.rustType === 'XidValue'
-                                      ? 'checkRustXid'
-                                      : item.rustType === 'CidValue'
-                                        ? 'checkRustCid'
-                                        : item.rustType === 'PgLsnValue'
-                                          ? 'checkRustPgLsn'
-                                          : item.rustType === 'TidValue'
-                                            ? 'checkRustTid'
-                                            : item.rustType === 'Xid8Value'
-                                              ? 'checkRustXid8'
-                                              : item.rustType === 'OidValue'
-                                                ? 'checkRustOid'
-                                                : item.rustType === 'TsqueryValue'
-                                                  ? 'checkRustTsquery'
-                                                  : item.rustType === 'TsvectorValue'
-                                                    ? 'checkRustTsvector'
-                                                    : item.rustType === 'AclitemValue'
-                                                      ? 'checkRustAclitem'
-                                                      : item.rustType === 'MoneyValue'
-                                                        ? 'checkRustMoney'
-                                                        : item.rustType === 'PolygonValue'
-                                                          ? 'checkRustPolygon'
-                                                          : item.rustType === 'PathValue'
-                                                            ? 'checkRustPath'
-                                                            : item.rustType === 'CircleValue'
-                                                              ? 'checkRustCircle'
-                                                              : item.rustType === 'BoxValue'
-                                                                ? 'checkRustBox'
-                                                                : item.rustType === 'LsegValue'
-                                                                  ? 'checkRustLseg'
-                                                                  : item.rustType === 'LineValue'
-                                                                    ? 'checkRustLine'
-                                                                    : item.rustType === 'PointValue'
-                                                                      ? 'checkRustPoint'
+          const textRead = item.nullness ? undefined : publicText.get(group)?.get(item.name)
+          if (
+            !textRead &&
+            [
+              'XmlValue',
+              'JsonpathValue',
+              'JsonbValue',
+              'JsonValue',
+              'SnapshotValue',
+              'PgLsnValue',
+              'TidValue',
+              'TsqueryValue',
+              'TsvectorValue',
+              'AclitemValue',
+              'MoneyValue',
+            ].includes(item.rustType)
+          )
+            throw new Error(`CHECK input ${item.name} of ${item.type} must read its public text`)
+          const helper = textRead
+            ? textRead === 'json'
+              ? 'checkRustJsonText'
+              : 'checkRustText'
+            : compositeArray
+              ? item.nullness
+                ? 'checkRustCompositeArrayNullness'
+                : 'checkRustCompositeArray'
+              : item.rustType === 'CompositeValue'
+                ? 'checkRustComposite'
+                : isArrayLikeType(item.type)
+                  ? item.nullness
+                    ? 'checkRustArrayNullness'
+                    : 'checkRustArray'
+                  : item.rustType === 'MultirangeValue'
+                    ? 'checkRustMultirangeColumn'
+                    : item.rustType === 'RangeValue'
+                      ? 'checkRustRangeColumn'
+                      : item.type === 'pg_catalog.refcursor' && item.rustType === 'TextValue'
+                        ? 'checkRustRefcursor'
+                        : item.type === 'pg_catalog.name' && item.rustType === 'TextValue'
+                          ? 'checkRustName'
+                          : item.rustType === 'InternalCharValue'
+                            ? 'checkRustInternalChar'
+                            : item.rustType === 'XidValue'
+                              ? 'checkRustXid'
+                              : item.rustType === 'CidValue'
+                                ? 'checkRustCid'
+                                : item.rustType === 'Xid8Value'
+                                  ? 'checkRustXid8'
+                                  : item.rustType === 'OidValue'
+                                    ? 'checkRustOid'
+                                    : item.rustType === 'PolygonValue'
+                                      ? 'checkRustPolygon'
+                                      : item.rustType === 'PathValue'
+                                        ? 'checkRustPath'
+                                        : item.rustType === 'CircleValue'
+                                          ? 'checkRustCircle'
+                                          : item.rustType === 'BoxValue'
+                                            ? 'checkRustBox'
+                                            : item.rustType === 'LsegValue'
+                                              ? 'checkRustLseg'
+                                              : item.rustType === 'LineValue'
+                                                ? 'checkRustLine'
+                                                : item.rustType === 'PointValue'
+                                                  ? 'checkRustPoint'
+                                                  : item.rustType === 'TimeValue'
+                                                    ? 'checkRustTime'
+                                                    : item.rustType === 'TimetzValue'
+                                                      ? 'checkRustTimetz'
+                                                      : item.rustType === 'IntervalValue'
+                                                        ? 'checkRustInterval'
+                                                        : item.rustType === 'Float4Value'
+                                                          ? 'checkRustFloat4'
+                                                          : item.rustType === 'Float8Value'
+                                                            ? 'checkRustFloat8'
+                                                            : item.rustType === 'BitValue'
+                                                              ? 'checkRustBit'
+                                                              : item.rustType === 'UuidValue'
+                                                                ? 'checkRustUuid'
+                                                                : item.rustType === 'ByteaValue'
+                                                                  ? 'checkRustBytea'
+                                                                  : item.rustType === 'MacaddrValue'
+                                                                    ? 'checkRustMacaddr'
+                                                                    : item.rustType ===
+                                                                        'Macaddr8Value'
+                                                                      ? 'checkRustMacaddr8'
                                                                       : item.rustType ===
-                                                                          'TimeValue'
-                                                                        ? 'checkRustTime'
+                                                                          'NetworkValue'
+                                                                        ? 'checkRustNetwork'
                                                                         : item.rustType ===
-                                                                            'TimetzValue'
-                                                                          ? 'checkRustTimetz'
+                                                                            'NumericValue'
+                                                                          ? 'checkRustNumeric'
                                                                           : item.rustType ===
-                                                                              'IntervalValue'
-                                                                            ? 'checkRustInterval'
+                                                                              'DateValue'
+                                                                            ? 'checkRustDate'
                                                                             : item.rustType ===
-                                                                                'Float4Value'
-                                                                              ? 'checkRustFloat4'
+                                                                                'TimestampValue'
+                                                                              ? 'checkRustTimestamp'
                                                                               : item.rustType ===
-                                                                                  'Float8Value'
-                                                                                ? 'checkRustFloat8'
-                                                                                : item.rustType ===
-                                                                                    'BitValue'
-                                                                                  ? 'checkRustBit'
-                                                                                  : item.rustType ===
-                                                                                      'UuidValue'
-                                                                                    ? 'checkRustUuid'
+                                                                                  'TimestamptzValue'
+                                                                                ? 'checkRustTimestamptz'
+                                                                                : item.nullness
+                                                                                  ? 'checkRustNullness'
+                                                                                  : item.enum
+                                                                                    ? 'checkRustEnum'
                                                                                     : item.rustType ===
-                                                                                        'ByteaValue'
-                                                                                      ? 'checkRustBytea'
+                                                                                        'Int2Value'
+                                                                                      ? 'checkRustInt2'
                                                                                       : item.rustType ===
-                                                                                          'MacaddrValue'
-                                                                                        ? 'checkRustMacaddr'
+                                                                                          'Int4Value'
+                                                                                        ? 'checkRustInt4'
                                                                                         : item.rustType ===
-                                                                                            'Macaddr8Value'
-                                                                                          ? 'checkRustMacaddr8'
+                                                                                            'Int8Value'
+                                                                                          ? 'checkRustInt8'
                                                                                           : item.rustType ===
-                                                                                              'NetworkValue'
-                                                                                            ? 'checkRustNetwork'
-                                                                                            : item.rustType ===
-                                                                                                'NumericValue'
-                                                                                              ? 'checkRustNumeric'
-                                                                                              : item.rustType ===
-                                                                                                  'DateValue'
-                                                                                                ? 'checkRustDate'
-                                                                                                : item.rustType ===
-                                                                                                    'TimestampValue'
-                                                                                                  ? 'checkRustTimestamp'
-                                                                                                  : item.rustType ===
-                                                                                                      'TimestamptzValue'
-                                                                                                    ? 'checkRustTimestamptz'
-                                                                                                    : item.nullness
-                                                                                                      ? 'checkRustNullness'
-                                                                                                      : item.enum
-                                                                                                        ? 'checkRustEnum'
-                                                                                                        : item.rustType ===
-                                                                                                            'Int2Value'
-                                                                                                          ? 'checkRustInt2'
-                                                                                                          : item.rustType ===
-                                                                                                              'Int4Value'
-                                                                                                            ? 'checkRustInt4'
-                                                                                                            : item.rustType ===
-                                                                                                                'Int8Value'
-                                                                                                              ? 'checkRustInt8'
-                                                                                                              : item.rustType ===
-                                                                                                                  'TextValue'
-                                                                                                                ? 'checkRustText'
-                                                                                                                : 'checkRustBool'
+                                                                                              'TextValue'
+                                                                                            ? 'checkRustText'
+                                                                                            : 'checkRustBool'
           rustInputAdapters.add(helper)
-          if (item.rustType === 'TsvectorValue' || item.rustType === 'TsqueryValue') {
-            rustInputAdapters.add('checkRustArrayField')
-            rustInputAdapters.add('checkRustArrayRecords')
-          }
           if (item.rustType === 'CompositeValue' || compositeArray)
             rustInputAdapters.add('checkRustCompositeCell')
           if (compositeArray) rustInputAdapters.add('checkRustCompositeArray')
@@ -574,9 +922,51 @@ export function renderTypescriptSchemaCheckArtifacts(
             nodes: nodes.map((node) => ({ ...node, fields: node.fields ?? [] })),
           })
           const enumDefinition = (range ?? multirange)?.subtypeEnum
+          if (
+            (isArrayLikeType(item.type) && !isCatalogVectorType(item.type)) ||
+            item.rustType === 'CompositeValue'
+          ) {
+            if (item.nullness) {
+              inputHelpers.add('checkInputNullness')
+              rustInputAdapters.add('checkRustNullness')
+              return factory.createCallExpression(identifier('checkRustNullness'), undefined, [
+                row,
+                factory.createStringLiteral(item.name),
+              ])
+            }
+            const composite = !isArrayLikeType(item.type)
+            const convert = composite ? compositeConverter(item.type) : arrayConverter(item.type)
+            const column = composite ? 'checkRustCompositeColumn' : 'checkRustArrayColumn'
+            rustInputAdapters.add(column)
+            rustInputAdapters.add(convert)
+            return factory.createCallExpression(identifier(column), undefined, [
+              row,
+              factory.createStringLiteral(item.name),
+              identifier(convert),
+            ])
+          }
+          if (helper === 'checkRustRangeColumn' || helper === 'checkRustMultirangeColumn') {
+            const convert =
+              helper === 'checkRustRangeColumn'
+                ? rangeConverter(item.type)
+                : multirangeConverter(item.type)
+            rustInputAdapters.add(convert)
+            return factory.createCallExpression(identifier(helper), undefined, [
+              row,
+              factory.createStringLiteral(item.name),
+              identifier(convert),
+            ])
+          }
           return factory.createCallExpression(identifier(helper), undefined, [
             row,
             factory.createStringLiteral(item.name),
+            ...(helper === 'checkRustInternalChar'
+              ? [
+                  options.executionContext?.serverEncoding === 'UTF8'
+                    ? factory.createTrue()
+                    : factory.createFalse(),
+                ]
+              : []),
             ...(item.rustType === 'CompositeValue' || compositeArray
               ? [compositeContext(compositeArray ? arrayLikeElementType(item.type)! : item.type)]
               : []),
@@ -882,6 +1272,25 @@ export function renderTypescriptSchemaCheckArtifacts(
               ),
               factory.createStringLiteral(options.rustModuleSpecifier ?? './checks-rust/checks.js'),
             ),
+            // The evaluator's constructors, which build public ranges as PostgreSQL's input does.
+            ...([...converters.keys()].some((key) => /^(?:multi)?range\0/u.test(key))
+              ? [
+                  factory.createImportDeclaration(
+                    undefined,
+                    factory.createImportClause(
+                      false,
+                      undefined,
+                      factory.createNamespaceImport(identifier('_checkRustOperations')),
+                    ),
+                    factory.createStringLiteral(
+                      (options.rustModuleSpecifier ?? './checks-rust/checks.js').replace(
+                        /checks\.js$/u,
+                        'pg_catalog/operations.js',
+                      ),
+                    ),
+                  ),
+                ]
+              : []),
           ]
         : []),
       ...(typedInputs && groups.some((group) => group.kind === 'table')
@@ -913,7 +1322,12 @@ export function renderTypescriptSchemaCheckArtifacts(
       ...synthesizedStatements(typescriptCheckEvaluationSource),
       ...(rustGroup?.source
         ? keepWithDependencies(
-            synthesizedStatements(typescriptRustAdapterSource),
+            [
+              ...synthesizedStatements(typescriptRustAdapterSource),
+              ...[...converters.values()].flatMap(({ statement }) =>
+                statement ? [statement] : [],
+              ),
+            ],
             (statement) =>
               (ts.isVariableStatement(statement) &&
                 statement.declarationList.declarations.every(
@@ -1286,149 +1700,29 @@ function checkRustXid(row: object, name: string): _checkRust.XidValue {
   const value = Reflect.get(row, name)
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.xidUnknown()
   if (value === null) return _checkRust.xidNull()
-  if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
-  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.XidValue
-  if (value.kind === 'Value' && 'value' in value && typeof value.value === 'bigint' && value.value >= 0n && value.value <= 4294967295n)
-    return _checkRust.makeXidValue(value.value)
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 4294967295) return _checkRust.makeXidValue(BigInt(value))
   return checkRustInvalid(name)
 }
 function checkRustCid(row: object, name: string): _checkRust.CidValue {
   const value = Reflect.get(row, name)
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.cidUnknown()
   if (value === null) return _checkRust.cidNull()
-  if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
-  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.CidValue
-  if (value.kind === 'Value' && 'value' in value && typeof value.value === 'bigint' && value.value >= 0n && value.value <= 4294967295n)
-    return _checkRust.makeCidValue(value.value)
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 4294967295) return _checkRust.makeCidValue(BigInt(value))
   return checkRustInvalid(name)
 }
-function checkRustPgLsn(row: object, name: string): _checkRust.PgLsnValue {
+function checkRustInternalChar(row: object, name: string, utf8: boolean): _checkRust.InternalCharValue {
   const value = Reflect.get(row, name)
-  if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.pgLsnUnknown()
-  if (value === null) return _checkRust.pgLsnNull()
-  if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
-  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.PgLsnValue
-  if (value.kind === 'Value' && 'value' in value && typeof value.value === 'bigint' && value.value >= -9223372036854775808n && value.value <= 9223372036854775807n)
-    return _checkRust.makePgLsnBits(value.value)
-  return checkRustInvalid(name)
-}
-function checkRustInternalChar(row: object, name: string): _checkRust.InternalCharValue {
-  const value = (row as Record<string, unknown>)[name]
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.internalCharUnknown()
   if (value === null) return _checkRust.internalCharNull()
-  if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
-  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.InternalCharValue
-  if (value.kind === 'Value' && 'value' in value && typeof value.value === 'number' && Number.isInteger(value.value) && value.value >= 0 && value.value <= 255)
-    return _checkRust.makeInternalCharValue(value.value)
-  return checkRustInvalid(name)
-}
-function checkRustTid(row: object, name: string): _checkRust.TidValue {
-  const value = Reflect.get(row, name)
-  if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.tidUnknown()
-  if (value === null) return _checkRust.tidNull()
-  if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
-  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.TidValue
-  if (value.kind === 'Value' && 'value' in value && typeof value.value === 'bigint' && value.value >= 0n && value.value <= 281474976710655n)
-    return _checkRust.makeTidValue(value.value)
-  return checkRustInvalid(name)
-}
-function checkRustXml(row: object, name: string): _checkRust.XmlValue {
-  const value = Reflect.get(row,name)
-  if (!Object.hasOwn(row,name) || value === undefined) return _checkRust.xmlUnknown()
-  if (value === null) return _checkRust.xmlNull()
-  if (!value || typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
-  if(value.kind==='Unknown' || value.kind==='Null') return {kind:value.kind}
-  if(value.kind==='Error') {
-    if(!('value' in value) || !value.value || typeof value.value!=='object' || !('state' in value.value) || typeof value.value.state!=='number' || !Number.isInteger(value.value.state) || value.value.state<0 || value.value.state>4294967295) return checkRustInvalid(name)
-    return {kind:'Error',value:{state:value.value.state}}
-  }
-  if(value.kind==='NonNull') {
-    if(!('value' in value)||!value.value||typeof value.value!=='object'||!('document' in value.value))return checkRustInvalid(name)
-    const document=value.value.document,content='content' in value.value?value.value.content:{kind:'Unknown'}
-    const valid=(flag:unknown):flag is _checkRust.BoolValue=>!!flag&&typeof flag==='object'&&'kind' in flag&&(flag.kind==='Unknown'||flag.kind==='Value'&&'value' in flag&&typeof flag.value==='boolean')
-    if(!valid(document)||!valid(content))return checkRustInvalid(name)
-    return _checkRust.makeXmlKnowledge(document,content)
-  }
-  if((value.kind!=='Value' && value.kind!=='RenderedText') || !('value' in value) || typeof value.value!=='string' || value.value.includes(String.fromCharCode(0)) || /[\\uD800-\\uDBFF](?![\\uDC00-\\uDFFF])|(?<![\\uD800-\\uDBFF])[\\uDC00-\\uDFFF]/u.test(value.value)) return checkRustInvalid(name)
-  return {kind:value.kind,value:value.value}
-}
-function checkRustJsonpath(row: object, name: string): _checkRust.JsonpathValue {
-  const value = Reflect.get(row, name)
-  if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.jsonpathUnknown()
-  if (value === null) return _checkRust.jsonpathNull()
-  if (!value || typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
-  if (value.kind === 'Unknown' || value.kind === 'Null') return {kind:value.kind}
-  if (value.kind === 'Error') {
-    if (!('value' in value) || !value.value || typeof value.value !== 'object' || !('state' in value.value) || typeof value.value.state !== 'number' || !Number.isInteger(value.value.state) || value.value.state < 0 || value.value.state > 4294967295) return checkRustInvalid(name)
-    return {kind:'Error',value:{state:value.value.state}}
-  }
-  if (value.kind === 'StoredText') {
-    if (!('value' in value) || typeof value.value !== 'string' || value.value.length === 0 || value.value.includes(String.fromCharCode(0)) || /[\\uD800-\\uDBFF](?![\\uDC00-\\uDFFF])|(?<![\\uD800-\\uDBFF])[\\uDC00-\\uDFFF]/u.test(value.value)) return checkRustInvalid(name)
-    return { kind: 'StoredText', value: value.value }
-  }
-  if (value.kind !== 'Value' || !('value' in value) || !value.value || typeof value.value !== 'object') return checkRustInvalid(name)
-  const payload = value.value
-  if (!('characters' in payload) || !Array.isArray(payload.characters) || !('nodes' in payload) || !Array.isArray(payload.nodes) || !('root' in payload) || typeof payload.root !== 'number' || !Number.isInteger(payload.root) || payload.root < 0 || payload.root > 2147483647 || payload.characters.length > 2147483647 || payload.nodes.length > 2147483647 || !('lax' in payload) || typeof payload.lax !== 'boolean') return checkRustInvalid(name)
-  const characters: string[] = []
-  for (const character of payload.characters) {
-    if (typeof character !== 'string' || Array.from(character).length !== 1) return checkRustInvalid(name)
-    const code = character.codePointAt(0)!
-    if (code >= 55296 && code <= 57343) return checkRustInvalid(name)
-    characters.push(character)
-  }
-  const nodes: _checkRust.JsonpathNode[] = []
-  for (const node of payload.nodes) {
-    if (!node || typeof node !== 'object' || typeof node.kind !== 'number' || !Number.isInteger(node.kind) || node.kind < -2147483648 || node.kind > 2147483647) return checkRustInvalid(name)
-    for (const field of ['next','left','right','textStart','textEnd']) {
-      const index = Reflect.get(node,field)
-      if (typeof index !== 'number' || !Number.isInteger(index) || index < 0 || index > 2147483647) return checkRustInvalid(name)
-    }
-    for (const field of ['first','last','flags']) { const number = Reflect.get(node,field); if (typeof number !== 'number' || !Number.isInteger(number) || number < -2147483648 || number > 2147483647) return checkRustInvalid(name) }
-    nodes.push({kind:node.kind,next:node.next,left:node.left,right:node.right,textStart:node.textStart,textEnd:node.textEnd,first:node.first,last:node.last,flags:node.flags})
-  }
-  return _checkRust.jsonpathFromCoercedValue({kind:'Value',value:{characters,nodes,root:payload.root,lax:payload.lax}})
-}
-function checkRustJsonb(row: object, name: string): _checkRust.JsonbValue {
-  const value = Reflect.get(row, name)
-  if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.jsonbUnknown()
-  if (value === null) return _checkRust.jsonbNull()
-  if (!value || typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
-  if (value.kind === 'Unknown' || value.kind === 'Null') return {kind:value.kind}
-  if (value.kind === 'Error') {
-    if (!('value' in value) || !value.value || typeof value.value !== 'object' || !('state' in value.value) || typeof value.value.state !== 'number' || !Number.isInteger(value.value.state) || value.value.state < 0 || value.value.state > 4294967295) return checkRustInvalid(name)
-    return {kind:'Error',value:{state:value.value.state}}
-  }
-  if (value.kind !== 'Value' || !('value' in value) || !value.value || typeof value.value !== 'object') return checkRustInvalid(name)
-  const payload = value.value
-  if (!('characters' in payload) || !Array.isArray(payload.characters) || !('nodes' in payload) || !Array.isArray(payload.nodes) || !('root' in payload) || typeof payload.root !== 'number' || !Number.isInteger(payload.root) || payload.root < 0 || payload.root > 2147483647 || payload.characters.length > 2147483647 || payload.nodes.length > 2147483647) return checkRustInvalid(name)
-  const characters: string[] = []
-  for (const character of payload.characters) {
-    if (typeof character !== 'string' || Array.from(character).length !== 1) return checkRustInvalid(name)
-    const code = character.codePointAt(0)!
-    if (code >= 55296 && code <= 57343) return checkRustInvalid(name)
-    characters.push(character)
-  }
-  const nodes: _checkRust.JsonbNode[] = []
-  for (const node of payload.nodes) {
-    if (!node || typeof node !== 'object' || typeof node.kind !== 'number' || !Number.isInteger(node.kind) || node.kind < -2147483648 || node.kind > 2147483647) return checkRustInvalid(name)
-    for (const field of ['child','next','keyStart','keyEnd','textStart','textEnd']) {
-      const index = Reflect.get(node,field)
-      if (typeof index !== 'number' || !Number.isInteger(index) || index < 0 || index > 2147483647) return checkRustInvalid(name)
-    }
-    nodes.push({kind:node.kind,child:node.child,next:node.next,keyStart:node.keyStart,keyEnd:node.keyEnd,textStart:node.textStart,textEnd:node.textEnd})
-  }
-  return _checkRust.jsonbFromCoercedValue({kind:'Value',value:{characters,nodes,root:payload.root}})
-}
-function checkRustJson(row: object, name: string): _checkRust.JsonValue {
-  const value = Reflect.get(row, name)
-  if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.jsonUnknown()
-  if (value === null) return _checkRust.jsonNull()
-  if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
-  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.JsonValue
-  if (value.kind !== 'Value' || !('value' in value) || !value.value || typeof value.value !== 'object' || !('source' in value.value) || typeof value.value.source !== 'string') return checkRustInvalid(name)
-  const source = value.value.source
-  if (source.includes(String.fromCharCode(0)) || /[\\uD800-\\uDBFF](?![\\uDC00-\\uDFFF])|(?<![\\uD800-\\uDBFF])[\\uDC00-\\uDFFF]/u.test(source)) return checkRustInvalid(name)
-  return _checkRust.makeJsonValue(source)
+  if (typeof value !== 'string' || value.includes(String.fromCharCode(0)) || /[\\uD800-\\uDBFF](?![\\uDC00-\\uDFFF])|(?<![\\uD800-\\uDBFF])[\\uDC00-\\uDFFF]/u.test(value)) return checkRustInvalid(name)
+  const bytes = new TextEncoder().encode(value)
+  // Another server encoding stores a non-ASCII character's first byte differently.
+  if (!utf8 && bytes.some((byte) => byte > 127)) return _checkRust.internalCharUnknown()
+  // charin: a four-byte \\ooo escape names one byte; otherwise the first byte, or 0 when empty.
+  const octal = (byte: number) => byte >= 48 && byte <= 55
+  if (bytes.length === 4 && bytes[0] === 92 && octal(bytes[1]!) && octal(bytes[2]!) && octal(bytes[3]!))
+    return _checkRust.makeInternalCharValue((((bytes[1]! - 48) << 6) + ((bytes[2]! - 48) << 3) + (bytes[3]! - 48)) & 255)
+  return _checkRust.makeInternalCharValue(bytes[0] ?? 0)
 }
 function checkRustMultirange(row: object, name: string, typeName: string, rangeType: string, elementType: string, elementKind: number, enumLabels: string, enumCount: number,boundProfile: _checkRust.RangeBoundContext={nodes:[]}): _checkRust.MultirangeValue {
   const input=Reflect.get(row,name)
@@ -1469,37 +1763,103 @@ function checkRustRange(row: object, name: string, enumLabels: string, enumCount
   }
   return _checkRust.makeCoercedRangeValue({typeName:p.typeName as string,elementType:p.elementType as string,elementKind:p.elementKind as number,enumLabels,enumCount,boundProfile,support:_checkRust.rangeBuiltinSupport(p.typeName as string,p.elementType as string,p.elementKind as number),empty:p.empty,lowerInclusive:p.lowerInclusive,upperInclusive:p.upperInclusive,bounds})
 }
-function checkRustInt8Range(row: object, name: string, ..._profile: unknown[]): _checkRust.RangeValue {
-  const input=Reflect.get(row,name)
-  if (!Object.hasOwn(row,name) || input===undefined) return _checkRust.rangeUnknown()
-  if (input===null) return _checkRust.rangeNull()
-  const range=(empty: boolean, lowerInclusive: boolean, upperInclusive: boolean, bounds: _checkRust.ArrayElement[]) => _checkRust.makeCoercedRangeValue({typeName:'pg_catalog.int8range',elementType:'pg_catalog.int8',elementKind:3,enumLabels:'',enumCount:-1,boundProfile:{nodes:[]},support:_checkRust.rangeBuiltinSupport('pg_catalog.int8range','pg_catalog.int8',3),empty,lowerInclusive,upperInclusive,bounds})
-  if (!input || typeof input!=='object' || !('empty' in input) || typeof input.empty!=='boolean') return checkRustInvalid(name)
-  if (input.empty) return range(true,false,false,[])
-  if (!('lower' in input) || !('upper' in input) || !('lowerInclusive' in input) || !('upperInclusive' in input) || (input.lower!==null && typeof input.lower!=='bigint') || (input.upper!==null && typeof input.upper!=='bigint') || typeof input.lowerInclusive!=='boolean' || typeof input.upperInclusive!=='boolean') return checkRustInvalid(name)
-  const max=9223372036854775807n
-  for (const bound of [input.lower,input.upper]) if (bound!==null && (bound< -max-1n || bound>max)) return checkRustInvalid(name)
-  let lower=input.lower, upper=input.upper
-  let lowerInclusive=lower!==null && input.lowerInclusive, upperInclusive=upper!==null && input.upperInclusive
-  const empty=()=>range(true,false,false,[])
-  // Bounds are ordered before the discrete canonical form is taken, as the server does.
-  if (lower!==null && upper!==null) {
-    if (lower>upper) throw Object.assign(new Error('range lower bound must be less than or equal to range upper bound'),{code:'22000'})
-    if (lower===upper && !(lowerInclusive && upperInclusive)) return empty()
+function checkRustRangeColumn(row: object, name: string, convert: (value: unknown, name: string) => _checkRust.RangeValue): _checkRust.RangeValue {
+  const value = Reflect.get(row, name)
+  if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.rangeUnknown()
+  if (value === null) return _checkRust.rangeNull()
+  return convert(value, name)
+}
+// The evaluator's range constructor orders and canonicalizes the bounds as range_in does.
+function checkRustPublicRange(value: unknown, name: string, typeName: string, elementType: string, kind: number, support: _checkRust.RangeSupport, labels: string, count: number, bound: (value: unknown, name: string) => _checkRust.ArrayElement): _checkRust.RangeValue {
+  if (!value || typeof value !== 'object' || !('empty' in value) || typeof value.empty !== 'boolean') return checkRustInvalid(name)
+  if (value.empty) {
+    const none: _checkRust.ArrayElement = { kind: 'Null' }
+    return labels ? _checkRust.rangeFromDefinedBounds(typeName, elementType, kind, true, false, false, none, none, support, labels, count) : _checkRust.rangeFromProfiledBounds(typeName, elementType, kind, true, false, false, none, none, support)
   }
-  if (lower!==null && !lowerInclusive) {
-    if (lower===max) throw Object.assign(new Error('bigint out of range'),{code:'22003'})
-    lower+=1n
-    lowerInclusive=true
+  if (!('lower' in value) || !('upper' in value) || !('lowerInclusive' in value) || !('upperInclusive' in value) || value.lower === undefined || value.upper === undefined || typeof value.lowerInclusive !== 'boolean' || typeof value.upperInclusive !== 'boolean') return checkRustInvalid(name)
+  const cell = (item: unknown): _checkRust.ArrayElement => (item === null ? { kind: 'Null' } : bound(item, name))
+  const flags = _checkRust.makeTextValue((value.lowerInclusive ? '[' : '(') + (value.upperInclusive ? ']' : ')'))
+  return labels ? _checkRustOperations.rangeConstructDefined(typeName, elementType, kind, cell(value.lower), cell(value.upper), flags, support, labels, count) : _checkRustOperations.rangeConstructWithSupport(typeName, elementType, kind, cell(value.lower), cell(value.upper), flags, support)
+}
+function checkRustMultirangeColumn(row: object, name: string, convert: (value: unknown, name: string) => _checkRust.MultirangeValue): _checkRust.MultirangeValue {
+  const value = Reflect.get(row, name)
+  if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.multirangeUnknown()
+  if (value === null) return _checkRust.multirangeNull()
+  return convert(value, name)
+}
+// The evaluator's multirange constructor sorts, drops empty ranges and merges as multirange_in does.
+function checkRustPublicMultirange(value: unknown, name: string, typeName: string, rangeType: string, elementType: string, kind: number, support: _checkRust.RangeSupport, range: (value: unknown, name: string) => _checkRust.RangeValue): _checkRust.MultirangeValue {
+  if (!Array.isArray(value)) return checkRustInvalid(name)
+  let members = _checkRust.makeArrayArguments(rangeType, 42)
+  for (const item of value) {
+    if (item === null || item === undefined) return checkRustInvalid(name)
+    members = _checkRust.appendArrayArgument(members, _checkRust.arrayElementFromRange(range(item, name)))
   }
-  if (upper!==null && upperInclusive) {
-    if (upper===max) throw Object.assign(new Error('bigint out of range'),{code:'22003'})
-    upper+=1n
-    upperInclusive=false
+  return _checkRustOperations.multirangeConstructArrayWithSupport(_checkRust.finishArrayConstructor(members), typeName, rangeType, elementType, kind, support)
+}
+// Values of types whose conversion is not decided yet: well-formed values stay Unknown.
+function checkRustUndecidedElement(): _checkRust.ArrayElement {
+  return { kind: 'Unknown' }
+}
+function checkRustUndecidedArray(value: unknown, name: string): _checkRust.ArrayValue {
+  return Array.isArray(value) ? _checkRust.arrayUnknown() : checkRustInvalid(name)
+}
+function checkRustUndecidedRange(value: unknown, name: string): _checkRust.RangeValue {
+  return value !== null && typeof value === 'object' ? _checkRust.rangeUnknown() : checkRustInvalid(name)
+}
+function checkRustUndecidedMultirange(value: unknown, name: string): _checkRust.MultirangeValue {
+  return Array.isArray(value) ? _checkRust.multirangeUnknown() : checkRustInvalid(name)
+}
+function checkRustUndecidedComposite(value: unknown, name: string): _checkRust.CompositeValue {
+  return value !== null && typeof value === 'object' && !Array.isArray(value) ? _checkRust.compositeUnknown() : checkRustInvalid(name)
+}
+function checkRustCompositeColumn(row: object, name: string, convert: (value: unknown, name: string) => _checkRust.CompositeValue): _checkRust.CompositeValue {
+  const value = Reflect.get(row, name)
+  if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.compositeUnknown()
+  if (value === null) return _checkRust.compositeNull()
+  return convert(value, name)
+}
+// A composite is an object of its fields in attribute order; queries send a missing field as NULL.
+function checkRustPublicComposite(value: unknown, name: string, typeName: string, fields: readonly string[], convert: readonly ((value: unknown, name: string) => _checkRust.ArrayElement)[]): _checkRust.CompositeValue {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return checkRustInvalid(name)
+  let composite = _checkRust.makeCompositeFields(typeName)
+  fields.forEach((field, index) => {
+    const item = Reflect.get(value, field)
+    composite = _checkRust.appendCompositeField(composite, item === null || item === undefined ? { kind: 'Null' } : convert[index]!(item, name))
+  })
+  return composite
+}
+function checkRustArrayColumn(row: object, name: string, convert: (value: unknown, name: string) => _checkRust.ArrayValue): _checkRust.ArrayValue {
+  const value = Reflect.get(row, name)
+  if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.arrayUnknown()
+  if (value === null) return _checkRust.arrayNull()
+  return convert(value, name)
+}
+// Queries send nested lists as array dimensions, so array_in's rules apply: sub-arrays must match,
+// at most six dimensions, and an empty list has none.
+function checkRustPublicArray(value: unknown, name: string, elementType: string, kind: number, element: (value: unknown, name: string) => _checkRust.ArrayElement): _checkRust.ArrayValue {
+  if (!Array.isArray(value)) return checkRustInvalid(name)
+  const lengths: number[] = []
+  for (let level: unknown = value; Array.isArray(level) && level.length; level = level[0]) lengths.push(level.length)
+  const malformed = () => { throw Object.assign(new Error('malformed array literal'), { code: '22P02' }) }
+  const cells: unknown[] = []
+  const walk = (items: unknown, depth: number): void => {
+    if (!Array.isArray(items) || items.length !== lengths[depth]) return malformed()
+    for (const item of items) {
+      if (depth + 1 < lengths.length) walk(item, depth + 1)
+      else if (Array.isArray(item)) malformed()
+      else cells.push(item)
+    }
   }
-  if (lower!==null && upper!==null && lower>=upper) return empty()
-  const cell=(bound: bigint | null): _checkRust.ArrayElement => bound===null?{kind:'Null'}:{kind:'Int8',value:bound}
-  return range(false,lowerInclusive,upperInclusive,[cell(lower),cell(upper)])
+  if (lengths.length) walk(value, 0)
+  if (lengths.length > 6) throw Object.assign(new Error('number of array dimensions exceeds the maximum allowed (6)'), { code: '54000' })
+  let args = _checkRust.makeArrayArguments(elementType, kind)
+  for (const length of lengths) args = _checkRust.appendArrayDimension(args, 1, length)
+  for (const cell of cells) {
+    if (cell === undefined) return checkRustInvalid(name)
+    args = _checkRust.appendArrayArgument(args, cell === null ? { kind: 'Null' } : element(cell, name))
+  }
+  return _checkRust.finishArrayArguments(args)
 }
 // Public temporal values count from the Unix epoch; the server counts from 2000-01-01 and keeps
 // infinities at the integer extremes.
@@ -1616,89 +1976,19 @@ function checkRustPublicPolygon(value: object, name: string): _checkRust.Polygon
 function checkRustFloat8Lt(left: number, right: number): boolean {
   return !Number.isNaN(left) && (Number.isNaN(right) || left < right)
 }
-function checkRustSnapshot(row: object, name: string): _checkRust.SnapshotValue {
-  const value = Reflect.get(row, name)
-  if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.snapshotUnknown()
-  if (value === null) return _checkRust.snapshotNull()
-  if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
-  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.SnapshotValue
-  if (value.kind !== 'Value' || !('value' in value) || !value.value || typeof value.value !== 'object' || !('xmin' in value.value) || typeof value.value.xmin !== 'bigint' || value.value.xmin < -9223372036854775808n || value.value.xmin > 9223372036854775807n || !('xmax' in value.value) || typeof value.value.xmax !== 'bigint' || value.value.xmax < -9223372036854775808n || value.value.xmax > 9223372036854775807n || !('xip' in value.value) || !Array.isArray(value.value.xip) || value.value.xip.length > 134217724) return checkRustInvalid(name)
-  const xip: _checkRust.SnapshotXid[] = []
-  for (const word of value.value.xip) {
-    if (!word || typeof word !== 'object' || typeof word.bits !== 'bigint' || word.bits < -9223372036854775808n || word.bits > 9223372036854775807n) return checkRustInvalid(name)
-    xip.push({bits: word.bits})
-  }
-  return _checkRust.makeSnapshotValue({xmin: value.value.xmin, xmax: value.value.xmax, xip})
-}
 function checkRustXid8(row: object, name: string): _checkRust.Xid8Value {
   const value = Reflect.get(row, name)
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.xid8Unknown()
   if (value === null) return _checkRust.xid8Null()
-  if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
-  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.Xid8Value
-  if (value.kind === 'Value' && 'value' in value && typeof value.value === 'bigint' && value.value >= -9223372036854775808n && value.value <= 9223372036854775807n)
-    return _checkRust.makeXid8Bits(value.value)
+  // The runtime keeps the unsigned identifier's 64 bits as a signed integer.
+  if (typeof value === 'bigint' && value >= 0n && value <= 18446744073709551615n) return _checkRust.makeXid8Bits(BigInt.asIntN(64, value))
   return checkRustInvalid(name)
 }
 function checkRustOid(row: object, name: string): _checkRust.OidValue {
   const value = Reflect.get(row, name)
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.oidUnknown()
   if (value === null) return _checkRust.oidNull()
-  if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
-  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.OidValue
-  if (value.kind === 'Value' && 'value' in value && typeof value.value === 'bigint' && value.value >= 0n && value.value <= 4294967295n)
-    return _checkRust.makeOidValue(value.value)
-  return checkRustInvalid(name)
-}
-function checkRustTsvector(row: object, name: string): _checkRust.TsvectorValue {
-  const input = Reflect.get(row, name)
-  if (!Object.hasOwn(row, name) || input === undefined) return _checkRust.tsvectorUnknown()
-  if (input === null) return _checkRust.tsvectorNull()
-  if (!input || typeof input !== 'object' || !('kind' in input)) return checkRustInvalid(name)
-  if (input.kind === 'Unknown' || input.kind === 'Null') return {kind: input.kind}
-  if (input.kind === 'Error' && 'value' in input && checkRustArrayField(input.value,'SqlError'))
-    return {kind:'Error',value:{state:Reflect.get(input.value as object,'state') as number}}
-  if (input.kind === 'Value' && 'value' in input && checkRustArrayField(input.value,'TsvectorPayload'))
-    return _checkRust.makeTsvectorValue(input.value as _checkRust.TsvectorPayload)
-  return checkRustInvalid(name)
-}
-function checkRustTsquery(row: object, name: string): _checkRust.TsqueryValue {
-  const input = Reflect.get(row, name)
-  if (!Object.hasOwn(row, name) || input === undefined) return _checkRust.tsqueryUnknown()
-  if (input === null) return _checkRust.tsqueryNull()
-  if (!input || typeof input !== 'object' || !('kind' in input)) return checkRustInvalid(name)
-  if (input.kind === 'Unknown' || input.kind === 'Null') return {kind: input.kind}
-  if (input.kind === 'Error' && 'value' in input && checkRustArrayField(input.value,'SqlError'))
-    return {kind:'Error',value:{state:Reflect.get(input.value as object,'state') as number}}
-  if (input.kind === 'Value' && 'value' in input && checkRustArrayField(input.value,'TsqueryPayload'))
-    return _checkRust.makeTsqueryValue(input.value as _checkRust.TsqueryPayload)
-  return checkRustInvalid(name)
-}
-function checkRustAclitem(row: object, name: string): _checkRust.AclitemValue {
-  const input = Reflect.get(row, name)
-  if (!Object.hasOwn(row, name) || input === undefined) return _checkRust.aclitemUnknown()
-  if (input === null) return _checkRust.aclitemNull()
-  if (!input || typeof input !== 'object' || !('kind' in input)) return checkRustInvalid(name)
-  if (input.kind === 'Unknown' || input.kind === 'Null') return {kind: input.kind}
-  if (input.kind === 'Error' && 'value' in input && input.value && typeof input.value === 'object' && 'state' in input.value && typeof input.value.state === 'number' && Number.isInteger(input.value.state) && input.value.state >= 0 && input.value.state <= 4294967295)
-    return {kind:'Error',value:{state:input.value.state}}
-  if (input.kind !== 'Value' || !('value' in input) || !input.value || typeof input.value !== 'object') return checkRustInvalid(name)
-  const value = input.value
-  if ('grantee' in value && typeof value.grantee === 'bigint' && value.grantee >= 0n && value.grantee <= 4294967295n &&
-      'grantor' in value && typeof value.grantor === 'bigint' && value.grantor >= 0n && value.grantor <= 4294967295n &&
-      'privileges' in value && typeof value.privileges === 'bigint' && value.privileges >= 0n && value.privileges <= 4294967295n &&
-      'grantOptions' in value && typeof value.grantOptions === 'bigint' && value.grantOptions >= 0n && value.grantOptions <= 4294967295n)
-    return _checkRust.makeAclitemValue(value.grantee,value.grantor,value.privileges,value.grantOptions)
-  return checkRustInvalid(name)
-}
-function checkRustMoney(row: object, name: string): _checkRust.MoneyValue {
-  const value = Reflect.get(row, name)
-  if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.moneyUnknown()
-  if (value === null) return _checkRust.moneyNull()
-  if (typeof value !== 'object' || !('kind' in value)) return checkRustInvalid(name)
-  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.MoneyValue
-  if (value.kind === 'Value' && 'value' in value && typeof value.value === 'bigint' && value.value >= -9223372036854775808n && value.value <= 9223372036854775807n)
-    return _checkRust.makeMoneyValue(value.value)
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 4294967295) return _checkRust.makeOidValue(BigInt(value))
   return checkRustInvalid(name)
 }
 function checkRustPolygon(row: object, name: string): _checkRust.PolygonValue {
@@ -1900,6 +2190,15 @@ function checkRustText(row: object, name: string): _checkRust.TextValue {
   if (input.value.includes(String.fromCharCode(0)) || /[\\uD800-\\uDBFF](?![\\uDC00-\\uDFFF])|(?<![\\uD800-\\uDBFF])[\\uDC00-\\uDFFF]/u.test(input.value)) return checkRustInvalid(name)
   return _checkRust.makeTextValue(input.value)
 }
+// A JSON value reaches the server as the JSON text the query sends, and null as SQL NULL.
+function checkRustJsonText(row: object, name: string): _checkRust.TextValue {
+  const value = Reflect.get(row, name)
+  if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.textUnknown()
+  if (value === null) return _checkRust.textNull()
+  const text = JSON.stringify(value)
+  if (typeof text !== 'string' || text.includes(String.fromCharCode(0)) || /[\\uD800-\\uDBFF](?![\\uDC00-\\uDFFF])|(?<![\\uD800-\\uDBFF])[\\uDC00-\\uDFFF]/u.test(text)) return checkRustInvalid(name)
+  return _checkRust.makeTextValue(text)
+}
 function checkRustBool(row: object, name: string): _checkRust.BoolValue {
   const input = checkInputBoolean(row, name)
   if (!input.certain) return Object.hasOwn(row, name) && Reflect.get(row, name) !== undefined ? checkRustInvalid(name) : _checkRust.boolUnknown()
@@ -2034,20 +2333,18 @@ const checkInputHelpers: Record<string, { dependencies: readonly string[]; sourc
     source: `function checkInputInteger(row: object, name: string): EvalValue<bigint> {
   const value = checkRawInput(row, name)
   if (value === null) return { certain: true, value: null }
-  if (typeof value === 'bigint') return { certain: true, value }
+  // int2 and int4 values are numbers, as queries send them.
   if (typeof value === 'number' && Number.isSafeInteger(value)) return { certain: true, value: BigInt(value) }
   return { certain: false }
 }`,
   },
   checkInputInt8: {
-    dependencies: ['checkRawInput', 'checkInputInteger'],
+    dependencies: ['checkRawInput'],
     source: `function checkInputInt8(row: object, name: string): EvalValue<bigint> {
   const value = checkRawInput(row, name)
-  if (typeof value !== 'string') return checkInputInteger(row, name)
-  if (!/^-?(?:0|[1-9][0-9]{0,18})$/.test(value)) return { certain: false }
-  const integer = BigInt(value)
-  if (integer < -9223372036854775808n || integer > 9223372036854775807n) return { certain: false }
-  return { certain: true, value: integer }
+  if (value === null) return { certain: true, value: null }
+  // int8 values are bigints, as queries send them.
+  return typeof value === 'bigint' ? { certain: true, value } : { certain: false }
 }`,
   },
   checkInputFloat: {
