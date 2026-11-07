@@ -789,6 +789,9 @@ export const isJsonpathTimezoneCallable = (
   !item.returnsSet &&
   item.args.join(',') === 'pg_catalog.jsonb,pg_catalog.jsonpath,pg_catalog.jsonb,pg_catalog.bool'
 
+// The runtime value type that holds a SQL type's values.
+export const checkRustValueType = (type: string): string => rustType(type)
+
 const rustType = (type: string): string => {
   type = arrayElementBaseType(type)
   if (compositeProfile(type) || anonymousRecordProfile(type)) return 'CompositeValue'

@@ -48,3 +48,14 @@ type. Where the server offers more than one output format for a type, as for
 bytea and intervals, the decoder reads each format it can read exactly. Dates
 and timestamps are read in the ISO date style, as client libraries already
 assume; any other style fails loudly instead of being misread.
+
+## CHECK inputs
+
+Generated CHECK validators and query prevalidation take the same shapes and
+read them as the server reads the parameter. A value sent as text, such as a
+text search value, money or a JSON value's JSON text, goes through that type's
+own input function in the evaluator, under the server settings the project
+declares. A value the server would reject as input, such as a timestamp outside
+the input range or malformed text, fails each check that reads it with the
+server's error; the server would refuse the statement before any check ran. A
+value of the wrong shape is a type error.

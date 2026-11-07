@@ -3,6 +3,10 @@ import type { CatalogSnapshot, ColumnInfo, TableInfo } from '../../catalog/types
 import type { WriteValueLineage } from '../../query/value-lineage.js'
 import { catalogCheckGroups } from '../../sql-semantics/catalog-checks.js'
 import {
+  catalogCompositeArrayType,
+  catalogCompositeType,
+} from '../../sql-semantics/composite-profiles.js'
+import {
   catalogPointType,
   catalogLineType,
   catalogLsegType,
@@ -148,14 +152,21 @@ const parameterSource = (
   number: number,
   column: ColumnInfo,
   parameterTypes: readonly string[] | undefined,
+  catalog: CatalogSnapshot,
 ): CheckColumnSource => {
   const parameterType = parameterTypes?.[number - 1] ?? ''
   const type = catalogScalarType(column.typeName)
-  return (
-    type !== null ? type === catalogScalarType(parameterType) : column.typeName === parameterType
-  )
-    ? { kind: 'parameter', number }
-    : { kind: 'unknown' }
+  // Parameter types are named as the server describes them, composites without their schema.
+  const composite = (name: string) =>
+    catalogCompositeType(name, catalog.compositeTypeGraph, catalog.rangeTypes) ??
+    catalogCompositeArrayType(name, catalog.compositeTypeGraph, catalog.rangeTypes)
+  const same =
+    type !== null
+      ? type === catalogScalarType(parameterType)
+      : column.typeName === parameterType ||
+        (composite(column.typeName) !== null &&
+          composite(column.typeName) === composite(parameterType))
+  return same ? { kind: 'parameter', number } : { kind: 'unknown' }
 }
 
 const columnSource = (
@@ -176,7 +187,8 @@ const columnSource = (
     A_Const?: { isnull?: boolean }
     ColumnRef?: { fields?: Node[] }
   }
-  if (node.ParamRef?.number) return parameterSource(node.ParamRef.number, column, parameterTypes)
+  if (node.ParamRef?.number)
+    return parameterSource(node.ParamRef.number, column, parameterTypes, catalog)
   if (node.A_Const?.isnull) return { kind: 'sql-null' }
   const fields = (node.ColumnRef?.fields ?? []).map(
     (field) => (field as { String?: { sval?: string } }).String?.sval,
@@ -185,7 +197,8 @@ const columnSource = (
   const proposedColumn = table.columns.find((item) => item.name === proposed)
   if (!row.excluded || !proposedColumn) return { kind: 'unknown' }
   const source = columnSource(table, proposedColumn, row.excluded, catalog, parameterTypes)
-  if (source.kind === 'parameter') return parameterSource(source.number, column, parameterTypes)
+  if (source.kind === 'parameter')
+    return parameterSource(source.number, column, parameterTypes, catalog)
   return source.kind === 'sql-null' ? source : { kind: 'unknown' }
 }
 
@@ -275,7 +288,14 @@ export function planCheckWrites(
   const resolved = writtenMatches.length === 1 ? writtenMatches : matches
   if (resolved.length !== 1) return []
   const table = resolved[0]!
-  const groups = catalogCheckGroups([table], catalog.domains, [], catalog.enums, catalog.rangeTypes)
+  const groups = catalogCheckGroups(
+    [table],
+    catalog.domains,
+    [],
+    catalog.enums,
+    catalog.rangeTypes,
+    catalog.compositeTypeGraph,
+  )
   const used = new Set(groups.flatMap((group) => group.checks.flatMap(({ plan }) => plan.inputs)))
   if (!used.size) return []
 

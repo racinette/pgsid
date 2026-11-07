@@ -113,6 +113,9 @@ interface RenderedValidator {
   parameter?: number
 }
 
+// Containers convert their public value for the CHECK evaluator as scalars do.
+const publicContainer = (codec: TypescriptCodec): boolean => codec.kind !== 'scalar'
+
 export function renderTypescriptQueryArtifacts(
   analyses: readonly QueryAnalysisItem[],
   config: Config,
@@ -227,6 +230,7 @@ export function renderTypescriptQueryArtifacts(
       executionContext: config.sql.codegen?.checks,
       enums: options.catalog?.enums,
       rangeTypes: options.catalog?.rangeTypes,
+      compositeTypeGraph: options.catalog?.compositeTypeGraph,
     },
     Boolean(options.checkRustModuleSpecifier),
   )
@@ -367,7 +371,8 @@ const renderQuery = (
     options.catalog,
     parameterTypes,
     (column) =>
-      typescriptPublicCheckInput(typescriptDomainBase(column.typeName, options.catalog))
+      typescriptPublicCheckInput(typescriptDomainBase(column.typeName, options.catalog)) ||
+      publicContainer(typescriptCodec(column.typeName, options.catalog))
         ? 'public'
         : typescriptCodec(column.typeName, options.catalog).kind === 'composite'
           ? 'skip'
