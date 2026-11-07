@@ -145,6 +145,13 @@ const publicCheckTypes = new Set([
   'time',
   'timetz',
   'interval',
+  'point',
+  'line',
+  'lseg',
+  'box',
+  'path',
+  'polygon',
+  'circle',
 ])
 
 export const typescriptPublicCheckInput = (type: string | undefined): boolean => {
