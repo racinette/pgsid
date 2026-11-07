@@ -480,16 +480,16 @@ describe('portable Rust CHECK timestamptz', () => {
     await writeFile(
       join(root, 'consumer.ts'),
       `import { evaluatePublicTypedTemporalInputsChecks, evaluatePublicValidInstantDomainChecks } from './schema/public/checks.js'
-import { makeDateValue, makeTimestamptzValue } from './schema/public/checks-rust/checkruntime/runtime.js'
-evaluatePublicTypedTemporalInputsChecks({ event_day: makeDateValue(0), occurred_at: makeTimestamptzValue(0n) })
+import type { NestedInstant, ValidInstant } from './schema/public/domains.js'
+evaluatePublicTypedTemporalInputsChecks({ event_day: '2000-01-01', occurred_at: { epochMicroseconds: 0n } as NestedInstant })
 evaluatePublicTypedTemporalInputsChecks({ event_day: null, occurred_at: null })
-evaluatePublicValidInstantDomainChecks({ value: makeTimestamptzValue(0n) })
+evaluatePublicValidInstantDomainChecks({ value: { epochMicroseconds: 0n } as ValidInstant })
 // @ts-expect-error native date objects need caller conversion
 evaluatePublicTypedTemporalInputsChecks({ occurred_at: new Date() })
-// @ts-expect-error date and timestamp payloads have different types
-evaluatePublicTypedTemporalInputsChecks({ event_day: makeTimestamptzValue(0n) })
-// @ts-expect-error temporal domains use the timestamp wrapper
-evaluatePublicValidInstantDomainChecks({ value: makeDateValue(0) })
+// @ts-expect-error dates and instants have different shapes
+evaluatePublicTypedTemporalInputsChecks({ event_day: { epochMicroseconds: 0n } })
+// @ts-expect-error temporal domains take the instant shape
+evaluatePublicValidInstantDomainChecks({ value: '2000-01-01' })
 `,
     )
     await run('node_modules/.bin/tsc', [
@@ -503,6 +503,8 @@ evaluatePublicValidInstantDomainChecks({ value: makeDateValue(0) })
       'nodenext',
       '--noEmit',
       join(root, 'consumer.ts'),
-    ])
+    ]).catch((error: { stdout: string; stderr: string }) => {
+      throw new Error(error.stdout + error.stderr, { cause: error })
+    })
   }, 120_000)
 })

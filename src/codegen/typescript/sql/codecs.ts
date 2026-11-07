@@ -103,6 +103,14 @@ const builtinCodecs: Readonly<Record<string, TypescriptScalarCodec>> = {
   circle: 'Circle',
 }
 
+// Long SQL spellings of the temporal types name the same built-in types.
+const aliasNames: Readonly<Record<string, string>> = {
+  'timestamp without time zone': 'timestamp',
+  'timestamp with time zone': 'timestamptz',
+  'time without time zone': 'time',
+  'time with time zone': 'timetz',
+}
+
 const aliases: Readonly<Record<string, string>> = {
   bigint: 'int8',
   boolean: 'bool',
@@ -128,8 +136,41 @@ export const typescriptBuiltinName = (type: string): string => {
 export const isTypescriptInt8Range = (type: string | undefined): boolean =>
   type !== undefined && typescriptBuiltinName(type) === 'int8range'
 
+// Types whose CHECK adapters read the public shape, so CHECK inputs and query prevalidation pass it.
+const publicCheckTypes = new Set([
+  'int8range',
+  'date',
+  'timestamp',
+  'timestamptz',
+  'time',
+  'timetz',
+  'interval',
+])
+
+export const typescriptPublicCheckInput = (type: string | undefined): boolean => {
+  if (type === undefined) return false
+  const name = typescriptBuiltinName(type)
+  return publicCheckTypes.has(builtinCodecs[name] ? (aliasNames[name] ?? name) : name)
+}
+
 export function typescriptScalarCodec(type: string): TypescriptScalarCodec {
   return builtinCodecs[typescriptBuiltinName(type)] ?? 'Text'
+}
+
+export function typescriptDomainBase(type: string, catalog: CatalogSnapshot | undefined): string {
+  const seen = new Set<string>()
+  for (;;) {
+    const unmodified = type.replace(/\([^)]*\)$/u, '')
+    const parts = unmodified.split('.').map((part) => part.replaceAll('"', ''))
+    const [schema, name] =
+      parts.length > 1 ? [parts[0], parts.slice(1).join('.')] : [undefined, parts[0]]
+    const domain = catalog?.domains.find(
+      (item) => item.name === name && (schema === undefined || item.schema === schema),
+    )
+    if (!domain || seen.has(`${domain.schema}.${domain.name}`)) return type
+    seen.add(`${domain.schema}.${domain.name}`)
+    type = domain.baseTypeName
+  }
 }
 
 // The wire value follows the type the server reports, which for a domain is its base type and for
