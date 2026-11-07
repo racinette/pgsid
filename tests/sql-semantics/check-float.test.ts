@@ -15,6 +15,7 @@ import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import { lowerTableCheck } from '../../src/sql-semantics/catalog-checks.js'
 import { prepareCheckRustGroup } from '../../src/codegen/shared/check-rust-source.js'
 import { hasUncertain } from '../../scripts/check-measurements/probes.js'
+import { internalCheckRows } from '../support/check-entries.js'
 import {
   runCheckParity,
   type Input,
@@ -469,6 +470,8 @@ describe('portable SQL floating-point values', () => {
       join(folder, 'checks.ts'),
     ])
     const generated = await import(pathToFileURL(join(folder, 'js/checks.js')).href)
+    const runtime = await import(pathToFileURL(join(folder, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(output.checks, runtime)
     const evaluate = (a: unknown, d: unknown = 1, skip: boolean = true) =>
       generated.evaluatePublicPublicFloatValuesChecks({ a, d, skip }) as {
         constraint: string
@@ -482,22 +485,48 @@ describe('portable SQL floating-point values', () => {
       expect(result(a)).toEqual({ certain: true, value: true })
     expect(result(null)).toEqual({ certain: true, value: null })
     expect(result(undefined)).toEqual({ certain: false })
-    for (const a of [1.1, 1e100, 1e-100, '1', {}, { kind: 'Value', value: 2147483648 }])
+    for (const a of [
+      1.1,
+      1e100,
+      1e-100,
+      '1',
+      {},
+      { kind: 'Value', value: 2147483648 },
+      { kind: 'Value', value: 0x3f800000 },
+      { kind: 'Value', value: -2147483648 },
+      { kind: 'Unknown' },
+      { kind: 'Null' },
+      { kind: 'Error', value: { state: parseInt('22003', 36) } },
+    ])
       expect(() => result(a)).toThrow(TypeError)
-    expect(result({ kind: 'Value', value: 0x3f800000 })).toEqual({ certain: true, value: true })
-    expect(result({ kind: 'Value', value: -2147483648 })).toEqual({ certain: true, value: true })
-    expect(result(1, { kind: 'Value', value: 0x3ff0000000000000n }, 'positive8')).toEqual({
-      certain: true,
-      value: true,
-    })
     expect(result(1, 1.1, 'positive8')).toEqual({ certain: true, value: true })
-    expect(() => result(1, { kind: 'Value', value: 9223372036854775808n }, 'positive8')).toThrow(
-      TypeError,
-    )
-    expect(result({ kind: 'Error', value: { state: parseInt('22003', 36) } })).toMatchObject({
-      certain: true,
-      error: '22003',
-    })
+    for (const d of [
+      { kind: 'Value', value: 0x3ff0000000000000n },
+      { kind: 'Value', value: 9223372036854775808n },
+      0x3ff0000000000000n,
+    ])
+      expect(() => result(1, d, 'positive8')).toThrow(TypeError)
+    // A public float is the exact value the server stored, so the numbers with the old carriers'
+    // bits reach the same results. The evaluator entries take those bits directly, and a failed
+    // operand, which no public value expresses.
+    const bits = new DataView(new ArrayBuffer(8))
+    bits.setFloat32(0, 1)
+    expect(bits.getInt32(0)).toBe(0x3f800000)
+    bits.setFloat32(0, -0)
+    expect(bits.getInt32(0)).toBe(-2147483648)
+    bits.setFloat64(0, 1)
+    expect(bits.getBigInt64(0)).toBe(0x3ff0000000000000n)
+    expect(result(1, 1, 'positive8')).toEqual({ certain: true, value: true })
+    const rows = (a: unknown, d: unknown = runtime.makeFloat8Bits(0x3ff0000000000000n)) =>
+      internal('public.public_float_values', { a, d, skip: runtime.makeBoolValue(true) })
+    expect(rows(runtime.makeFloat4Bits(0x3f800000)).positive4).toEqual({ kind: 'True' })
+    expect(rows(runtime.makeFloat4Bits(-2147483648)).positive4).toEqual({ kind: 'True' })
+    expect(
+      rows(runtime.makeFloat4Bits(0x3f800000), runtime.makeFloat8Bits(0x3ff0000000000000n))
+        .positive8,
+    ).toEqual({ kind: 'True' })
+    expect(rows(error('22003')).positive4).toEqual(error('22003'))
+    expect(runtime.sqlErrorMessage({ state: parseInt('22003', 36) }).message).toBeTruthy()
     const failure = evaluate(1, 1, false).find((check) => check.constraint === 'guarded_divide')!
     expect(failure.result).toMatchObject({ certain: true, error: '22012' })
     expect(failure.message).toBeTruthy()

@@ -20,6 +20,7 @@ import {
   type Row,
 } from '../../tools/check-rust/parity.js'
 import { boxInputForms, deferredBoxPlatformForms } from './check-box-input-forms.js'
+import { internalCheckRows } from '../support/check-entries.js'
 const known = (value: Extract<Input, { kind: 'Value' }>['value'] | null): Input =>
   value === null ? { kind: 'Null' } : { kind: 'Value', value }
 const failure = (code: string): Input & Outcome => ({
@@ -513,14 +514,9 @@ describe('portable boxes', () => {
       throw new Error(error.stdout + error.stderr, { cause: error })
     })
     const generated = await import(pathToFileURL(join(target, 'js/checks.js')).href)
-    const payload = {
-        highX: 0x4008000000000000n,
-        highY: 0x4010000000000000n,
-        lowX: 0n,
-        lowY: 0n,
-        wireKnown: true,
-      },
-      value = { kind: 'Value', value: payload }
+    const runtime = await import(pathToFileURL(join(target, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(bundle.checks, runtime)
+    const value = { high: { x: 3, y: 4 }, low: { x: 0, y: 0 } }
     const wire = Buffer.from(
       '4008000000000000401000000000000000000000000000000000000000000000',
       'hex',
@@ -543,37 +539,92 @@ describe('portable boxes', () => {
       absent: { certain: true, value: false },
     }
     expect(evaluate(value)).toEqual(knownResults)
-    expect(evaluate({ kind: 'Value', value: { ...payload, wireKnown: false } })).toEqual({
-      ...knownResults,
-      wire: { certain: false },
-    })
-    for (const edge of [undefined, { kind: 'Unknown' }])
-      expect(Object.values(evaluate(edge))).toEqual(
-        Array.from({ length: 4 }, () => ({ certain: false })),
-      )
+    // The server orders a box's corners on input, so a public box names either corner first.
+    expect(evaluate({ high: value.low, low: value.high })).toEqual(knownResults)
+    // box_in orders corners with float8_lt, which sorts NaN above every number.
+    for (const [text, edge] of [
+      ['((0,4),(NaN,0))', { high: { x: 0, y: 4 }, low: { x: NaN, y: 0 } }],
+      ['((Infinity,0),(NaN,-1))', { high: { x: Infinity, y: 0 }, low: { x: NaN, y: -1 } }],
+    ] as const) {
+      const stored = (await pg.query<{ wire: Uint8Array }>('SELECT box_send($1::box) wire', [text]))
+        .rows[0]!.wire
+      expect(evaluate(edge, edge, Buffer.from(stored))['wire']).toEqual({
+        certain: true,
+        value: true,
+      })
+    }
+    expect(Object.values(evaluate(undefined))).toEqual(
+      Array.from({ length: 4 }, () => ({ certain: false })),
+    )
+    const payload = {
+      highX: 0x4008000000000000n,
+      highY: 0x4010000000000000n,
+      lowX: 0n,
+      lowY: 0n,
+      wireKnown: true,
+    }
     for (const edge of [
       '((0,0),(3,4))',
+      { high: { x: 3n, y: 4 }, low: { x: 0, y: 0 } },
+      { high: { x: 3, y: 4 }, low: { x: 0, y: '0' } },
+      { high: { x: 3, y: 4 } },
+      { high: { x: 3, y: 4 }, low: null },
+      { kind: 'Value', value: payload },
       { kind: 'Value', value: { ...payload, highX: 9223372036854775808n } },
       { kind: 'Value', value: { ...payload, lowY: '0' } },
+      { kind: 'Value', value: { ...payload, wireKnown: false } },
       { kind: 'Value', value: { ...payload, wireKnown: 'false' } },
+      { kind: 'Unknown' },
+      { kind: 'Null' },
+      failure('22012'),
     ])
       expect(() => evaluate(edge)).toThrow(TypeError)
-    for (const edge of [null, { kind: 'Null' }])
-      expect(evaluate(edge)).toEqual({
-        wire: { certain: true, value: null },
-        same: { certain: true, value: null },
-        present: { certain: true, value: false },
-        absent: { certain: true, value: true },
-      })
-    expect(Object.values(evaluate(failure('22012')))).toEqual(
-      Array.from({ length: 4 }, () => ({ certain: true, error: '22012' })),
+    expect(evaluate(null)).toEqual({
+      wire: { certain: true, value: null },
+      same: { certain: true, value: null },
+      present: { certain: true, value: false },
+      absent: { certain: true, value: true },
+    })
+    // States no public value expresses go to the evaluator entries directly: a value whose wire
+    // bits are unknown keeps every result but the wire comparison, an unknown or failed operand
+    // leaves or fails every check that reads it, and stored boxes the input syntax would reorder
+    // or reject (inverted corners, a NaN with payload bits) still compare by their stored bits.
+    const known = runtime.makeBoxBits(payload.highX, payload.highY, payload.lowX, payload.lowY)
+    const bytes = (hex: string): unknown => runtime.makeByteaValue(hex)
+    const internalResults = {
+      wire: { kind: 'True' },
+      same: { kind: 'True' },
+      present: { kind: 'True' },
+      absent: { kind: 'False' },
+    }
+    const rows = (
+      edge: unknown,
+      reference: unknown = known,
+      expected: unknown = bytes(wire.toString('hex')),
+    ) => internal('public.box_payloads', { edge, reference, expected })
+    expect(rows(known)).toEqual(internalResults)
+    expect(rows({ kind: 'Value', value: { ...payload, wireKnown: false } })).toEqual({
+      ...internalResults,
+      wire: { kind: 'Unknown' },
+    })
+    expect(Object.values(rows({ kind: 'Unknown' }))).toEqual(
+      Array.from({ length: 4 }, () => ({ kind: 'Unknown' })),
+    )
+    expect(rows({ kind: 'Null' })).toEqual({
+      wire: { kind: 'Null' },
+      same: { kind: 'Null' },
+      present: { kind: 'False' },
+      absent: { kind: 'True' },
+    })
+    expect(Object.values(rows(failure('22012')))).toEqual(
+      Array.from({ length: 4 }, () => failure('22012')),
     )
     for (const lower of [0x4008000000000000n, 0x7ff8000000000000n]) {
-      const unordered = { kind: 'Value', value: { ...payload, highX: 0n, lowX: lower } }
-      expect(evaluate(unordered)).toEqual({
-        ...knownResults,
-        wire: { certain: true, value: false },
-        same: { certain: true, value: false },
+      const unordered = runtime.makeBoxBits(0n, payload.highY, lower, payload.lowY)
+      expect(rows(unordered)).toEqual({
+        ...internalResults,
+        wire: { kind: 'False' },
+        same: { kind: 'False' },
       })
     }
     await pg.exec(`CREATE TABLE stored_box_values(id int,shape box CHECK(shape IS NOT NULL));
@@ -584,26 +635,19 @@ describe('portable boxes', () => {
         "SELECT encode(box_send(shape),'hex') wire FROM stored_box_values ORDER BY id",
       )
     ).rows) {
-      const bytes = Buffer.from(stored.wire, 'hex')
-      const row = {
-        kind: 'Value',
-        value: {
-          highX: bytes.readBigInt64BE(),
-          highY: bytes.readBigInt64BE(8),
-          lowX: bytes.readBigInt64BE(16),
-          lowY: bytes.readBigInt64BE(24),
-        },
-      }
-      expect(evaluate(row, row, bytes)).toEqual(knownResults)
+      const buffer = Buffer.from(stored.wire, 'hex')
+      const row = runtime.makeBoxBits(
+        buffer.readBigInt64BE(),
+        buffer.readBigInt64BE(8),
+        buffer.readBigInt64BE(16),
+        buffer.readBigInt64BE(24),
+      )
+      expect(rows(row, row, bytes(stored.wire))).toEqual(internalResults)
     }
-    const nan = { kind: 'Value', value: { ...payload, highX: 0x7ff0000000000001n } }
+    const nan = runtime.makeBoxBits(0x7ff0000000000001n, payload.highY, payload.lowX, payload.lowY)
     expect(
-      evaluate(
-        nan,
-        nan,
-        Buffer.from('7ff0000000000001401000000000000000000000000000000000000000000000', 'hex'),
-      ),
-    ).toEqual(knownResults)
+      rows(nan, nan, bytes('7ff0000000000001401000000000000000000000000000000000000000000000')),
+    ).toEqual(internalResults)
   }, 120_000)
   it('enforces geometric domains and resolves qualified domain names separately from builtins', async () => {
     await pg.exec(`CREATE DOMAIN checked_box AS box CHECK(area(VALUE)=0);

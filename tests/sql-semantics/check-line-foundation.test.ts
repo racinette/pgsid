@@ -19,6 +19,7 @@ import {
   type Outcome,
   type Row,
 } from '../../tools/check-rust/parity.js'
+import { internalCheckRows } from '../support/check-entries.js'
 
 const known = (value: Extract<Input, { kind: 'Value' }>['value'] | null): Input =>
   value === null ? { kind: 'Null' } : { kind: 'Value', value }
@@ -284,8 +285,9 @@ describe('portable line value foundation', () => {
       throw new Error(error.stdout + error.stderr, { cause: error })
     })
     const generated = await import(pathToFileURL(join(target, 'js/checks.js')).href)
-    const payload = { a: 0x3ff0000000000000n, b: -4616189618054758400n, c: 0n, wireKnown: true }
-    const value = { kind: 'Value', value: payload }
+    const runtime = await import(pathToFileURL(join(target, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(bundle.checks, runtime)
+    const value = { a: 1, b: -1, c: 0 }
     const wire = Buffer.from('3ff0000000000000bff00000000000000000000000000000', 'hex')
     type Result = { certain: boolean; value?: boolean | null; error?: string }
     const evaluate = (
@@ -305,47 +307,111 @@ describe('portable line value foundation', () => {
       payload_null: { certain: true, value: false },
     }
     expect(evaluate(value)).toEqual(knownResults)
-    expect(evaluate({ kind: 'Value', value: { ...payload, wireKnown: false } })).toEqual({
-      ...knownResults,
-      payload_wire: { certain: false },
-    })
-    for (const axis of [undefined, { kind: 'Unknown' }])
-      expect(Object.values(evaluate(axis))).toEqual(
-        Array.from({ length: 4 }, () => ({ certain: false })),
-      )
+    expect(Object.values(evaluate(undefined))).toEqual(
+      Array.from({ length: 4 }, () => ({ certain: false })),
+    )
+    // line_in rejects A and B that are both within 1e-6 of zero, not only exact zeros.
+    for (const [text, axis] of [
+      ['{0.0000001,0,1}', { a: 0.0000001, b: 0, c: 1 }],
+      ['{-0.000001,0.000001,1}', { a: -0.000001, b: 0.000001, c: 1 }],
+    ] as const) {
+      await expect(pg.query('SELECT $1::line', [text])).rejects.toMatchObject({ code: '22P02' })
+      expect(evaluate(axis)['payload_present']).toMatchObject({ certain: true, error: '22P02' })
+    }
+    const payload = { a: 0x3ff0000000000000n, b: -4616189618054758400n, c: 0n, wireKnown: true }
     for (const axis of [
       '{1,-1,0}',
+      { a: 1n, b: -1, c: 0 },
+      { a: 1, b: -1, c: '0' },
+      { a: 1, b: -1 },
+      { kind: 'Value', value: payload },
       { kind: 'Value', value: { ...payload, a: 0n, b: 0n } },
       { kind: 'Value', value: { ...payload, a: 0n, b: 0n, wireKnown: false } },
+      { kind: 'Value', value: { ...payload, wireKnown: false } },
       { kind: 'Value', value: { ...payload, a: 9223372036854775808n } },
       { kind: 'Value', value: { ...payload, c: '0' } },
       { kind: 'Value', value: { ...payload, wireKnown: 'false' } },
+      { kind: 'Unknown' },
+      { kind: 'Null' },
+      failure('22012'),
     ])
       expect(
         () => evaluate(axis),
         JSON.stringify(axis, (_key, item) => (typeof item === 'bigint' ? String(item) : item)),
       ).toThrow(TypeError)
-    for (const axis of [null, { kind: 'Null' }])
-      expect(evaluate(axis)).toEqual({
-        payload_wire: { certain: true, value: null },
-        payload_equal: { certain: true, value: null },
-        payload_present: { certain: true, value: false },
-        payload_null: { certain: true, value: true },
+    // Coefficients that describe no line are rejected the way the server rejects their text.
+    await expect(pg.query("SELECT '{0,0,0}'::line")).rejects.toMatchObject({ code: '22P02' })
+    for (const axis of [
+      { a: 0, b: 0, c: 0 },
+      { a: -0, b: 0, c: 1 },
+    ]) {
+      const checks = generated.evaluatePublicLinePayloadsChecks({
+        axis,
+        reference: value,
+        expected: wire,
       })
-    expect(Object.values(evaluate(failure('22012')))).toEqual(
-      Array.from({ length: 4 }, () => ({ certain: true, error: '22012' })),
-    )
-    const nan = {
-      kind: 'Value',
-      value: {
-        a: 0x7ff0000000000001n,
-        b: 0x3ff0000000000000n,
-        c: -9223372036854775808n,
-        wireKnown: true,
-      },
+      expect(checks).toHaveLength(4)
+      for (const check of checks)
+        expect(check).toMatchObject({
+          result: { certain: true, error: '22P02' },
+          message: 'invalid line specification: A and B cannot both be zero',
+        })
     }
-    expect(
-      evaluate(nan, nan, Buffer.from('7ff00000000000013ff00000000000008000000000000000', 'hex')),
-    ).toEqual(knownResults)
+    expect(evaluate(null)).toEqual({
+      payload_wire: { certain: true, value: null },
+      payload_equal: { certain: true, value: null },
+      payload_present: { certain: true, value: false },
+      payload_null: { certain: true, value: true },
+    })
+    // A public NaN coefficient and a negative zero keep their meaning and their wire bits.
+    const negativeZero = Buffer.from('7ff80000000000003ff00000000000008000000000000000', 'hex')
+    expect(evaluate({ a: NaN, b: 1, c: -0 }, { a: NaN, b: 1, c: -0 }, negativeZero)).toEqual(
+      knownResults,
+    )
+    // States no public value expresses go to the evaluator entries directly: a value whose wire
+    // bits are unknown keeps every result but the wire comparison, an unknown or failed operand
+    // leaves or fails every check that reads it, and a NaN with payload bits still compares by its
+    // stored bits. The runtime never builds a line whose A and B are both zero, whatever its wire
+    // precision.
+    const known = runtime.makeLineBits(payload.a, payload.b, payload.c)
+    const bytes = (hex: string): unknown => runtime.makeByteaValue(hex)
+    const internalResults = {
+      payload_wire: { kind: 'True' },
+      payload_equal: { kind: 'True' },
+      payload_present: { kind: 'True' },
+      payload_null: { kind: 'False' },
+    }
+    const rows = (
+      axis: unknown,
+      reference: unknown = known,
+      expected: unknown = bytes(wire.toString('hex')),
+    ) => internal('public.line_payloads', { axis, reference, expected })
+    expect(known).toEqual({ kind: 'Value', value: payload })
+    expect(rows(known)).toEqual(internalResults)
+    expect(rows({ kind: 'Value', value: { ...payload, wireKnown: false } })).toEqual({
+      ...internalResults,
+      payload_wire: { kind: 'Unknown' },
+    })
+    expect(runtime.makeLineBits(0n, 0n, 0n).kind).not.toBe('Value')
+    expect(Object.values(rows({ kind: 'Unknown' }))).toEqual(
+      Array.from({ length: 4 }, () => ({ kind: 'Unknown' })),
+    )
+    expect(rows({ kind: 'Null' })).toEqual({
+      payload_wire: { kind: 'Null' },
+      payload_equal: { kind: 'Null' },
+      payload_present: { kind: 'False' },
+      payload_null: { kind: 'True' },
+    })
+    expect(Object.values(rows(failure('22012')))).toEqual(
+      Array.from({ length: 4 }, () => failure('22012')),
+    )
+    const nan = runtime.makeLineBits(
+      0x7ff0000000000001n,
+      0x3ff0000000000000n,
+      -9223372036854775808n,
+    )
+    expect(rows(nan, nan, bytes('7ff00000000000013ff00000000000008000000000000000'))).toEqual(
+      internalResults,
+    )
   }, 120_000)
 })

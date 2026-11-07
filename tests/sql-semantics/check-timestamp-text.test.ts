@@ -317,6 +317,16 @@ describe('Rust text-to-timestamp CHECK casts', () => {
     const { evaluatePublicTimestampTextRowsChecks: evaluate } = await import(
       pathToFileURL(join(root, 'js/checks.js')).href
     )
+    // The anchor the INSERTs write, as the public wall-clock reading PostgreSQL reports for it.
+    const anchor = {
+      localMicroseconds: BigInt(
+        (
+          await pg.query<{ micros: string }>(
+            "SELECT (extract(epoch FROM TIMESTAMP '2000-01-01 00:00:00+00') * 1000000)::int8::text AS micros",
+          )
+        ).rows[0]!.micros,
+      ),
+    }
     const cases: GoCheckCase[] = []
     for (const [raw, skip, code, result] of [
       ['2000-01-01', false, null, { certain: true, value: true }],
@@ -366,7 +376,7 @@ describe('Rust text-to-timestamp CHECK casts', () => {
       } finally {
         await pg.exec('ROLLBACK')
       }
-      const wrapped = { raw, anchor: runtime.makeTimestampValue(0n), skip }
+      const wrapped = { raw, anchor, skip }
       expect(evaluate(wrapped)[0].result, String(raw)).toEqual(result)
       cases.push({
         name: `${raw ?? 'NULL'}:${skip}`,
@@ -376,7 +386,7 @@ describe('Rust text-to-timestamp CHECK casts', () => {
         results: [{ constraint: 'parsed_timestamp', result }],
       })
     }
-    expect(evaluate({ anchor: runtime.makeTimestampValue(0n), skip: false })[0].result).toEqual({
+    expect(evaluate({ anchor, skip: false })[0].result).toEqual({
       certain: false,
     })
     expect(runtime.timestampFromText(runtime.makeTextValue('2000-01-01 00:00:00Z'))).toEqual({

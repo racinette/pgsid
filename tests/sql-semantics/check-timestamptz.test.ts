@@ -23,6 +23,7 @@ import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
 import { renderTypescriptSchemaArtifacts } from '../../src/codegen/typescript/schema.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import { renderGoCheckTests, type GoCheckCase } from './check-codegen.js'
+import { internalCheckRows } from '../support/check-entries.js'
 
 const run = promisify(execFile)
 const supported: Record<string, string> = {
@@ -327,13 +328,35 @@ describe('portable Rust CHECK timestamptz', () => {
       evaluatePublicValidInstantDomainChecks: evaluateDomain,
       evaluatePublicChronologyChecksChecks: evaluateChronology,
     } = await import(pathToFileURL(join(directory, 'js/checks.js')).href)
+    const runtimeEntries = await import(
+      pathToFileURL(join(directory, 'js/checks-rust/checks.js')).href
+    )
+    const internal = internalCheckRows(ts.checks, runtimeEntries)
+    // Public instants as PostgreSQL stores them: microseconds from the Unix epoch, read from the
+    // binary send form (extract(epoch) rounds near the end of the range), or a signed infinity.
+    const publicInstant = async (text: string | null): Promise<unknown> => {
+      const { wire, sign } = (
+        await pg.query<{ wire: string | null; sign: number | null }>(
+          `SELECT CASE WHEN isfinite(v) THEN encode(timestamptz_send(v),'hex') END AS wire,
+             CASE WHEN v = 'infinity' THEN 1 WHEN v = '-infinity' THEN -1 END AS sign
+           FROM (SELECT $1::timestamptz AS v) value`,
+          [text],
+        )
+      ).rows[0]!
+      return sign !== null
+        ? { infinity: sign }
+        : wire === null
+          ? null
+          : { epochMicroseconds: Buffer.from(wire, 'hex').readBigInt64BE() + 946684800000000n }
+    }
+    const epoch2000 = await publicInstant('2000-01-01 00:00:00+00')
     const cases: GoCheckCase[] = []
     for (const date of dates) {
       const row = { a: microseconds.get(date), b: 0n, flag: true }
       const wrapped = {
         ...row,
-        a: date === null ? runtime.timestamptzNull() : runtime.makeTimestamptzValue(row.a),
-        b: runtime.makeTimestamptzValue(0n),
+        a: await publicInstant(date),
+        b: epoch2000,
       }
       const results = evaluate(wrapped).map(
         ({ constraint, result }: GoCheckCase['results'][number]) => ({ constraint, result }),
@@ -359,9 +382,7 @@ describe('portable Rust CHECK timestamptz', () => {
         result,
       })),
     })
-    expect(() =>
-      evaluate({ a: new Date('2000-01-01'), b: runtime.makeTimestamptzValue(0n) }),
-    ).toThrow(TypeError)
+    expect(() => evaluate({ a: new Date('2000-01-01'), b: epoch2000 })).toThrow(TypeError)
     for (const payload of [-211813488000000001n, 9223371331200000000n])
       expect(runtime.makeTimestamptzValue(payload)).toEqual({
         kind: 'Error',
@@ -388,9 +409,8 @@ describe('portable Rust CHECK timestamptz', () => {
       }
       expect(!rejected).toBe(accepted)
       const results = evaluateChronology({
-        started_at: start === null ? null : runtime.makeTimestamptzValue(microseconds.get(start)),
-        finished_at:
-          finish === null ? null : runtime.makeTimestamptzValue(microseconds.get(finish)),
+        started_at: await publicInstant(start),
+        finished_at: await publicInstant(finish),
         label: 'parity',
       })
       expect(results[0].result).toEqual({ certain: true, value: accepted })
@@ -411,20 +431,35 @@ describe('portable Rust CHECK timestamptz', () => {
       '2000-01-01',
       { kind: 'Value', value: 0 },
       { kind: 'Value', value: 9223372036854775808n },
+      // Well-formed internal payloads are no longer public values either.
+      { kind: 'Value', value: 0n },
+      { kind: 'Null' },
+      { kind: 'Unknown' },
+      runtime.makeTimestamptzValue(0n),
+      { epochMicroseconds: 0 },
+      { localMicroseconds: 0n },
+      { infinity: 2 },
+      // The internal infinity sentinels are not finite instants.
+      { epochMicroseconds: 9223372036854775807n + 946684800000000n },
+      { epochMicroseconds: -9223372036854775808n + 946684800000000n },
     ])
-      expect(() => evaluate({ a: invalid, b: runtime.makeTimestamptzValue(0n) })).toThrow(TypeError)
+      expect(() => evaluate({ a: invalid, b: epoch2000 })).toThrow(TypeError)
+    // An operand that failed range validation is no public value; it fails the checks that read it.
+    const [first] = evaluate({})
     expect(
-      evaluate({
+      internal('public.timestamptz_checks', {
         a: runtime.makeTimestamptzValue(9223371331200000000n),
         b: runtime.makeTimestamptzValue(0n),
-      })[0].result,
-    ).toEqual({ certain: true, error: '22008' })
-    expect(
-      evaluateChronology({
-        started_at: runtime.makeTimestamptzValue(0n),
-        finished_at: { kind: 'Null' },
-      })[0].result,
-    ).toEqual({ certain: true, value: true })
+        flag: runtime.makeBoolValue(true),
+      })[first.constraint],
+    ).toEqual({ kind: 'Error', value: { state: Number.parseInt('22008', 36) } })
+    expect(evaluateChronology({ started_at: epoch2000, finished_at: null })[0].result).toEqual({
+      certain: true,
+      value: true,
+    })
+    expect(() =>
+      evaluateChronology({ started_at: epoch2000, finished_at: { kind: 'Null' } }),
+    ).toThrow(TypeError)
     for (const nulls of ['pointers', 'structs']) {
       const root = join(directory, nulls)
       await mkdir(root)

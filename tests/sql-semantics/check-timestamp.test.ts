@@ -498,6 +498,29 @@ describe('portable Rust CHECK timestamp and timezone offsets', () => {
       evaluatePublicValidLocalTimeDomainChecks: evaluateDomain,
       evaluatePublicFixedAgreementChecks: evaluateFixed,
     } = await import(pathToFileURL(join(directory, 'js/checks.js')).href)
+    // Public timestamps as PostgreSQL stores them: microseconds from the Unix epoch, a wall-clock
+    // reading for timestamp and an instant for timestamptz, read from the binary send form
+    // (extract(epoch) rounds near the end of the range), or a signed infinity.
+    const publicStamp = async (
+      sql: string,
+      parameters: unknown[],
+      field: 'localMicroseconds' | 'epochMicroseconds',
+    ): Promise<unknown> => {
+      const send = field === 'localMicroseconds' ? 'timestamp_send' : 'timestamptz_send'
+      const { wire, sign } = (
+        await pg.query<{ wire: string | null; sign: number | null }>(
+          `SELECT CASE WHEN isfinite(v) THEN encode(${send}(v),'hex') END AS wire,
+             CASE WHEN v = 'infinity' THEN 1 WHEN v = '-infinity' THEN -1 END AS sign
+           FROM (SELECT ${sql} AS v) value`,
+          parameters,
+        )
+      ).rows[0]!
+      return sign !== null
+        ? { infinity: sign }
+        : wire === null
+          ? null
+          : { [field]: Buffer.from(wire, 'hex').readBigInt64BE() + 946684800000000n }
+    }
     const cases: GoCheckCase[] = []
     for (const [local, instant] of [
       [null, null],
@@ -522,8 +545,12 @@ describe('portable Rust CHECK timestamp and timezone offsets', () => {
       }
       const row = { local_at: microseconds.get(local), instant_at: microseconds.get(instant) }
       const results = evaluate({
-        local_at: row.local_at === null ? null : runtime.makeTimestampValue(row.local_at),
-        instant_at: row.instant_at === null ? null : runtime.makeTimestamptzValue(row.instant_at),
+        local_at: await publicStamp('$1::timestamp', [local], 'localMicroseconds'),
+        instant_at: await publicStamp(
+          "timezone('UTC',$1::timestamp)",
+          [instant],
+          'epochMicroseconds',
+        ),
       })
       expect(results[0].result).toEqual({
         certain: true,
@@ -554,11 +581,6 @@ describe('portable Rust CHECK timestamp and timezone offsets', () => {
       ['+168', 0n, 0n, false],
     ] as const) {
       const row = { zone, local_at: local, instant_at: instant, active }
-      const wrapped = {
-        ...row,
-        local_at: local === null ? null : runtime.makeTimestampValue(local),
-        instant_at: runtime.makeTimestamptzValue(instant),
-      }
       const inputSql = (kind: 'timestamp' | 'timestamptz', micros: bigint | null): string =>
         micros === null
           ? `NULL::${kind}`
@@ -567,6 +589,11 @@ describe('portable Rust CHECK timestamp and timezone offsets', () => {
             : micros === -9223372036854775808n
               ? `'-infinity'::${kind}`
               : `${kind} '2000-01-01 00:00:00${kind === 'timestamptz' ? 'Z' : ''}' + INTERVAL '${micros} microseconds'`
+      const wrapped = {
+        ...row,
+        local_at: await publicStamp(inputSql('timestamp', local), [], 'localMicroseconds'),
+        instant_at: await publicStamp(inputSql('timestamptz', instant), [], 'epochMicroseconds'),
+      }
       await pg.exec('BEGIN')
       let sqlstate: string | undefined
       try {
@@ -598,17 +625,40 @@ describe('portable Rust CHECK timestamp and timezone offsets', () => {
       })
     }
     expect(evaluate({})[0].result).toEqual({ certain: false })
+    const epoch2000 = await publicStamp(
+      "TIMESTAMPTZ '2000-01-01 00:00:00Z'",
+      [],
+      'epochMicroseconds',
+    )
     for (const invalid of [
       new Date(),
       0n,
       '2000-01-01',
       { kind: 'Value', value: 0 },
       { kind: 'Value', value: 9223372036854775808n },
+      // Well-formed internal payloads are no longer public values either.
+      { kind: 'Value', value: 0n },
+      { kind: 'Null' },
+      { kind: 'Unknown' },
+      runtime.makeTimestampValue(0n),
+      { localMicroseconds: 0 },
+      { localMicroseconds: '0' },
+      { epochMicroseconds: 0n },
+      { infinity: 0 },
+      // The internal infinity sentinels are not finite readings.
+      { localMicroseconds: 9223372036854775807n + 946684800000000n },
+      { localMicroseconds: -9223372036854775808n + 946684800000000n },
     ])
-      expect(() =>
-        evaluate({ local_at: invalid, instant_at: runtime.makeTimestamptzValue(0n) }),
-      ).toThrow(TypeError)
-    expect(evaluateDomain({ value: runtime.makeTimestampValue(-1n) })[0].result).toEqual({
+      expect(() => evaluate({ local_at: invalid, instant_at: epoch2000 })).toThrow(TypeError)
+    expect(
+      evaluateDomain({
+        value: await publicStamp(
+          "TIMESTAMP '2000-01-01 00:00:00' - INTERVAL '1 microsecond'",
+          [],
+          'localMicroseconds',
+        ),
+      })[0].result,
+    ).toEqual({
       certain: true,
       value: false,
     })

@@ -23,6 +23,7 @@ import {
   type Row,
 } from '../../tools/check-rust/parity.js'
 import { circleInputForms, deferredCirclePlatformForms } from './check-circle-input-forms.js'
+import { internalCheckRows } from '../support/check-entries.js'
 const known = (value: Extract<Input, { kind: 'Value' }>['value'] | null): Input =>
   value === null ? { kind: 'Null' } : { kind: 'Value', value }
 const failure = (code: string): Input & Outcome => ({
@@ -708,13 +709,9 @@ describe('portable circles', () => {
       throw new Error(error.stdout + error.stderr, { cause: error })
     })
     const generated = await import(pathToFileURL(join(target, 'js/checks.js')).href)
-    const payload = {
-        x: 0n,
-        y: 0n,
-        radius: 0x4008000000000000n,
-        wireKnown: true,
-      },
-      value = { kind: 'Value', value: payload }
+    const runtime = await import(pathToFileURL(join(target, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(bundle.checks, runtime)
+    const value = { center: { x: 0, y: 0 }, radius: 3 }
     const wire = Buffer.from('000000000000000000000000000000004008000000000000', 'hex')
     type Result = { certain: boolean; value?: boolean | null; error?: string }
     const evaluate = (
@@ -734,30 +731,49 @@ describe('portable circles', () => {
       absent: { certain: true, value: false },
     }
     expect(evaluate(value)).toEqual(knownResults)
-    expect(evaluate({ kind: 'Value', value: { ...payload, wireKnown: false } })).toEqual({
-      ...knownResults,
-      wire: { certain: false },
-    })
-    for (const disk of [undefined, { kind: 'Unknown' }])
-      expect(Object.values(evaluate(disk))).toEqual(
-        Array.from({ length: 4 }, () => ({ certain: false })),
-      )
+    expect(Object.values(evaluate(undefined))).toEqual(
+      Array.from({ length: 4 }, () => ({ certain: false })),
+    )
     for (const disk of [
       '((0,0),(3,4))',
-      { kind: 'Value', value: { ...payload, x: 9223372036854775808n } },
-      { kind: 'Value', value: { ...payload, radius: '0' } },
-      { kind: 'Value', value: { ...payload, wireKnown: 'false' } },
+      { center: { x: 0n, y: 0 }, radius: 3 },
+      { center: { x: 0, y: 0 }, radius: '0' },
+      { center: { x: 0, y: 0 } },
+      { kind: 'Value', value: { x: 0n, y: 0n, radius: 0x4008000000000000n } },
+      { kind: 'Unknown' },
     ])
       expect(() => evaluate(disk)).toThrow(TypeError)
-    for (const disk of [null, { kind: 'Null' }])
-      expect(evaluate(disk)).toEqual({
-        wire: { certain: true, value: null },
-        same: { certain: true, value: null },
-        present: { certain: true, value: false },
-        absent: { certain: true, value: true },
-      })
-    expect(Object.values(evaluate(failure('22012')))).toEqual(
-      Array.from({ length: 4 }, () => ({ certain: true, error: '22012' })),
+    expect(evaluate(null)).toEqual({
+      wire: { certain: true, value: null },
+      same: { certain: true, value: null },
+      present: { certain: true, value: false },
+      absent: { certain: true, value: true },
+    })
+    // States no public value expresses go to the evaluator entries directly: a value whose wire
+    // bits are unknown keeps every result but the wire comparison, a failed operand fails every
+    // check that reads it, and stored circles the input syntax rejects (a negative radius, a NaN
+    // with payload bits) still compare by their stored bits.
+    const payload = { x: 0n, y: 0n, radius: 0x4008000000000000n, wireKnown: true }
+    const known = { kind: 'Value', value: payload }
+    const bytes = (hex: string): unknown => runtime.makeByteaValue(hex)
+    const internalResults = {
+      wire: { kind: 'True' },
+      same: { kind: 'True' },
+      present: { kind: 'True' },
+      absent: { kind: 'False' },
+    }
+    const rows = (
+      disk: unknown,
+      reference: unknown = known,
+      expected: unknown = bytes(wire.toString('hex')),
+    ) => internal('public.circle_payloads', { disk, reference, expected })
+    expect(rows(known)).toEqual(internalResults)
+    expect(rows({ kind: 'Value', value: { ...payload, wireKnown: false } })).toEqual({
+      ...internalResults,
+      wire: { kind: 'Unknown' },
+    })
+    expect(Object.values(rows(failure('22012')))).toEqual(
+      Array.from({ length: 4 }, () => failure('22012')),
     )
     await pg.exec(`CREATE TABLE stored_circle_values(id int,shape circle CHECK(shape IS NOT NULL));
       INSERT INTO stored_circle_values VALUES(1,circle('(0,0)'::point,-3::float8)),
@@ -767,21 +783,22 @@ describe('portable circles', () => {
         "SELECT encode(circle_send(shape),'hex') wire FROM stored_circle_values ORDER BY id",
       )
     ).rows) {
-      const bytes = Buffer.from(stored.wire, 'hex')
+      const buffer = Buffer.from(stored.wire, 'hex')
       const row = {
         kind: 'Value',
         value: {
-          x: bytes.readBigInt64BE(),
-          y: bytes.readBigInt64BE(8),
-          radius: bytes.readBigInt64BE(16),
+          x: buffer.readBigInt64BE(),
+          y: buffer.readBigInt64BE(8),
+          radius: buffer.readBigInt64BE(16),
+          wireKnown: true,
         },
       }
-      expect(evaluate(row, row, bytes)).toEqual(knownResults)
+      expect(rows(row, row, bytes(stored.wire))).toEqual(internalResults)
     }
     const nan = { kind: 'Value', value: { ...payload, x: 0x7ff0000000000001n } }
-    expect(
-      evaluate(nan, nan, Buffer.from('7ff000000000000100000000000000004008000000000000', 'hex')),
-    ).toEqual(knownResults)
+    expect(rows(nan, nan, bytes('7ff000000000000100000000000000004008000000000000'))).toEqual(
+      internalResults,
+    )
   }, 120_000)
   it('enforces geometric domains and resolves qualified domain names separately from builtins', async () => {
     await pg.exec(`CREATE DOMAIN checked_circle AS circle CHECK(area(VALUE)=0);
@@ -1009,13 +1026,11 @@ describe('portable circles', () => {
           .evaluatePublicGuideDiskConstructionsChecks(row)
           .map((c: { constraint: string; result: Result }) => [c.constraint, c.result]),
       )
-    const radius = 0x7ff8000000000000n,
-      one = 0x3ff0000000000000n
     const row = {
-      position: { kind: 'Value', value: { x: radius, y: one } },
+      position: { x: NaN, y: 1 },
       radius_value: NaN,
       region: null,
-      recorded_disk: { kind: 'Value', value: { x: radius, y: one, radius } },
+      recorded_disk: { center: { x: NaN, y: 1 }, radius: NaN },
       recorded_disk_wire: null,
       recorded_circumscribed: null,
       recorded_box_wire: null,
@@ -1033,22 +1048,36 @@ describe('portable circles', () => {
     expect(evaluate({ ...row, recorded_disk_wire: Buffer.alloc(24) }).disk_construct).toEqual({
       certain: false,
     })
-    const large = Buffer.alloc(8)
-    large.writeDoubleBE(1.7e308)
-    const bits = large.readBigInt64BE()
     expect(
       evaluate({
         ...row,
-        recorded_disk: { kind: 'Value', value: { x: bits, y: 0n, radius: bits } },
+        recorded_disk: { center: { x: 1.7e308, y: 0 }, radius: 1.7e308 },
       }).disk_inscribe,
     ).toEqual({ certain: true, error: '22003' })
-    large.writeDoubleBE(1e308)
-    const edge = large.readBigInt64BE()
     expect(
       evaluate({
         ...row,
-        region: { kind: 'Value', value: { highX: edge, highY: one, lowX: edge, lowY: 0n } },
+        region: { high: { x: 1e308, y: 1 }, low: { x: 1e308, y: 0 } },
       }).disk_circumscribe,
     ).toEqual({ certain: true, error: '22003' })
+    // The payload format the public API used to take is no value of these columns.
+    for (const [name, payload] of [
+      ['position', { kind: 'Value', value: { x: 0x7ff8000000000000n, y: 0x3ff0000000000000n } }],
+      [
+        'recorded_disk',
+        {
+          kind: 'Value',
+          value: { x: 0x7ff8000000000000n, y: 0x3ff0000000000000n, radius: 0x7ff8000000000000n },
+        },
+      ],
+      [
+        'region',
+        {
+          kind: 'Value',
+          value: { highX: 0x7fe0000000000000n, highY: 0n, lowX: 0x7fe0000000000000n, lowY: 0n },
+        },
+      ],
+    ] as const)
+      expect(() => evaluate({ ...row, [name]: payload }), name).toThrow(TypeError)
   }, 120_000)
 })

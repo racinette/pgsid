@@ -20,6 +20,7 @@ import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-tr
 import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import { renderGoCheckTests, type GoCheckCase } from './check-codegen.js'
+import { internalCheckRows } from '../support/check-entries.js'
 
 const run = promisify(execFile)
 const forms: Record<string, string> = {
@@ -233,6 +234,8 @@ it('admits projected dates through generated public row adapters and checked rec
     const { evaluatePublicStorageDateValuesChecks: evaluate } = await import(
         pathToFileURL(join(root, 'js/checks.js')).href
       ),
+      runtime = await import(pathToFileURL(join(root, 'js/checks-rust/checks.js')).href),
+      internal = internalCheckRows(ts.checks, runtime),
       cases: GoCheckCase[] = []
     for (const { zone, value } of parameters) {
       await pg.query("SELECT set_config('TimeZone',$1,false)", [zone])
@@ -253,30 +256,61 @@ it('admits projected dates through generated public row adapters and checked rec
                 error: outcome.value.state.toString(36).toUpperCase().padStart(5, '0'),
               }
             : { certain: true as const, value: outcome.kind === 'True' }
-        results.push({ constraint, result })
+        results.push({ constraint, result, outcome })
       }
-      const actual = evaluate({
-        d: days === null ? null : { kind: 'Value', value: days },
-        expected: wire,
-        bypass: false,
-      })
+      // The projected date as a public value: ISO text with astronomical years, read from
+      // PostgreSQL's own fields of the same projection.
+      const { text: projected, server } = (
+        await pg.query<{ text: string | null; server: string | null }>(
+          `SELECT CASE WHEN NOT isfinite(d) THEN d::text ELSE
+             CASE WHEN y BETWEEN 0 AND 9999 THEN lpad(y::text, 4, '0')
+               ELSE CASE WHEN y < 0 THEN '-' ELSE '+' END
+                 || lpad(abs(y)::text, greatest(6, length(abs(y)::text)), '0') END
+             || '-' || lpad(extract(month FROM d)::int::text, 2, '0')
+             || '-' || lpad(extract(day FROM d)::int::text, 2, '0') END AS text, d::text AS server
+           FROM (SELECT ($1::timestamptz)::date AS d) value,
+             LATERAL (SELECT CASE WHEN isfinite(d) THEN extract(year FROM d)::int
+               + CASE WHEN extract(year FROM d) < 0 THEN 1 ELSE 0 END END AS y) year`,
+          [value],
+        )
+      ).rows[0]!
+      // A projection below the first Julian day is stored, but PostgreSQL rejects its own output
+      // text as date input, so no public value carries it: the public API refuses it as the
+      // server refuses that text, and the stored value is checked through the evaluator entries.
+      let input: string | undefined
+      try {
+        await pg.query('SELECT $1::date', [server])
+      } catch (cause) {
+        input = (cause as { code: string }).code
+      }
+      const actual = evaluate({ d: projected, expected: wire, bypass: false })
       for (const r of results)
         expect(
           actual.find((k: { constraint: string }) => k.constraint === r.constraint)!.result,
           `${zone} ${r.constraint}`,
-        ).toEqual(r.result)
+        ).toEqual(input === undefined ? r.result : { certain: true, error: input })
+      const stored = internal('public.storage_date_values', {
+        d: days === null ? runtime.dateNull() : runtime.makeStoredDateValue(days),
+        expected: wire === null ? runtime.textNull() : runtime.makeTextValue(wire),
+        bypass: runtime.makeBoolValue(false),
+      })
+      for (const r of results)
+        expect(stored[r.constraint], `${zone} ${r.constraint}`).toEqual(r.outcome)
       cases.push({
         name: zone + ':' + value,
         table: t,
         row: { d: days, expected: wire, bypass: false },
-        results: results.sort((a, b) =>
-          a.constraint < b.constraint ? -1 : a.constraint > b.constraint ? 1 : 0,
-        ),
+        results: results
+          .map(({ constraint, result }) => ({ constraint, result }))
+          .sort((a, b) => (a.constraint < b.constraint ? -1 : a.constraint > b.constraint ? 1 : 0)),
       })
     }
     expect(() =>
       evaluate({ d: { kind: 'Value', value: 0.5 }, expected: '', bypass: false }),
     ).toThrow(TypeError)
+    // The internal payload format is no longer a public value, even when well formed.
+    for (const d of [{ kind: 'Value', value: 0 }, { kind: 'Null' }, { kind: 'Unknown' }, 0])
+      expect(() => evaluate({ d, expected: '', bypass: false })).toThrow(TypeError)
     const goRoot = join(root, 'go')
     await mkdir(goRoot)
     const generated = renderGoSchemaArtifacts(

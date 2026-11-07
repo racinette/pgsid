@@ -18,6 +18,7 @@ import {
   type Outcome,
   type Row,
 } from '../../tools/check-rust/parity.js'
+import { internalCheckRows } from '../support/check-entries.js'
 
 const value = (value: Extract<Input, { kind: 'Value' }>['value'] | null): Input =>
   value === null ? { kind: 'Null' } : { kind: 'Value', value }
@@ -231,6 +232,8 @@ func TestZeroFloatValuesRemainUnknown(t *testing.T) {
       join(folder, 'checks.ts'),
     ])
     const generated = await import(pathToFileURL(join(folder, 'js/checks.js')).href)
+    const runtime = await import(pathToFileURL(join(folder, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(output.checks, runtime)
     type NativeRow = {
       single: number | null
       double: number | null
@@ -264,19 +267,46 @@ func TestZeroFloatValuesRemainUnknown(t *testing.T) {
             : { certain: true, value: oracle[constraint] },
         )
       }
+      // The stored bits are no public value; the evaluator entries take them directly and then
+      // decide even the wire comparisons, while the public API rejects the old bit carriers.
+      const hex = (bytes: Uint8Array | null) =>
+        bytes === null
+          ? { kind: 'Null' }
+          : runtime.makeByteaValue(Buffer.from(bytes).toString('hex'))
       const exact = {
-        ...row,
         single:
           row.expected_single === null
-            ? null
-            : { kind: 'Value', value: Buffer.from(row.expected_single).readInt32BE() },
+            ? { kind: 'Null' }
+            : runtime.makeFloat4Bits(Buffer.from(row.expected_single).readInt32BE()),
         double:
           row.expected_double === null
-            ? null
-            : { kind: 'Value', value: Buffer.from(row.expected_double).readBigInt64BE() },
+            ? { kind: 'Null' }
+            : runtime.makeFloat8Bits(Buffer.from(row.expected_double).readBigInt64BE()),
+        expected_single: hex(row.expected_single),
+        expected_double: hex(row.expected_double),
       }
-      for (const { constraint, result } of evaluate(exact))
-        expect(result, constraint).toEqual({ certain: true, value: oracle[constraint] })
+      for (const [constraint, outcome] of Object.entries(
+        internal('public.native_nan_inputs', exact),
+      ))
+        expect(outcome, constraint).toEqual({
+          kind: { true: 'True', false: 'False', null: 'Null' }[
+            String(oracle[constraint as keyof typeof predicates])
+          ],
+        })
+      if (row.expected_single !== null)
+        expect(() =>
+          evaluate({
+            ...row,
+            single: { kind: 'Value', value: Buffer.from(row.expected_single!).readInt32BE() },
+          }),
+        ).toThrow(TypeError)
+      if (row.expected_double !== null)
+        expect(() =>
+          evaluate({
+            ...row,
+            double: { kind: 'Value', value: Buffer.from(row.expected_double!).readBigInt64BE() },
+          }),
+        ).toThrow(TypeError)
     }
   }, 120_000)
 })
