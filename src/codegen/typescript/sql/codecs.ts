@@ -26,6 +26,15 @@ export type TypescriptScalarCodec =
   | 'Time'
   | 'Timetz'
   | 'Interval'
+  | 'Point'
+  | 'Line'
+  | 'Lseg'
+  | 'Box'
+  | 'Path'
+  | 'Polygon'
+  | 'Circle'
+
+const point = '{ readonly x: number; readonly y: number }'
 
 export const typescriptScalarTypes: Readonly<Record<TypescriptScalarCodec, string>> = {
   Bool: 'boolean',
@@ -36,7 +45,7 @@ export const typescriptScalarTypes: Readonly<Record<TypescriptScalarCodec, strin
   Numeric: 'string',
   Text: 'string',
   Bytea: 'Uint8Array',
-  Json: 'unknown',
+  Json: 'PgsidJsonValue',
   Date: 'string',
   Timestamp: '{ readonly localMicroseconds: bigint } | { readonly infinity: 1 | -1 }',
   Timestamptz: '{ readonly epochMicroseconds: bigint } | { readonly infinity: 1 | -1 }',
@@ -44,7 +53,21 @@ export const typescriptScalarTypes: Readonly<Record<TypescriptScalarCodec, strin
   Timetz: '{ readonly microseconds: number; readonly offsetSeconds: number }',
   Interval:
     '{ readonly months: number; readonly days: number; readonly microseconds: bigint } | { readonly infinity: 1 | -1 }',
+  Point: point,
+  Line: '{ readonly a: number; readonly b: number; readonly c: number }',
+  Lseg: `{ readonly start: ${point}; readonly end: ${point} }`,
+  Box: `{ readonly high: ${point}; readonly low: ${point} }`,
+  Path: `{ readonly closed: boolean; readonly points: ${point}[] }`,
+  Polygon: `{ readonly points: ${point}[] }`,
+  Circle: `{ readonly center: ${point}; readonly radius: number }`,
 }
+
+// JSON values recurse, so the generated declarations that use them carry this alias.
+export const typescriptJsonValueDeclaration =
+  'type PgsidJsonValue = null | boolean | number | string | PgsidJsonValue[] | { [key: string]: PgsidJsonValue }'
+
+export const withTypescriptJsonValue = (source: string): string =>
+  /\bPgsidJsonValue\b/u.test(source) ? `${typescriptJsonValueDeclaration};\n${source}` : source
 
 const builtinCodecs: Readonly<Record<string, TypescriptScalarCodec>> = {
   bool: 'Bool',
@@ -71,6 +94,13 @@ const builtinCodecs: Readonly<Record<string, TypescriptScalarCodec>> = {
   timetz: 'Timetz',
   'time with time zone': 'Timetz',
   interval: 'Interval',
+  point: 'Point',
+  line: 'Line',
+  lseg: 'Lseg',
+  box: 'Box',
+  path: 'Path',
+  polygon: 'Polygon',
+  circle: 'Circle',
 }
 
 const aliases: Readonly<Record<string, string>> = {
@@ -561,6 +591,95 @@ function encodeInterval(value: unknown, name: string): string | null {
   // Under the SQL-standard style a leading minus also negates later unsigned fields.
   const signed = (part: number | bigint) => (part < 0 ? '' : '+') + part
   return signed(value.months) + ' mons ' + signed(value.days) + ' days ' + signed(value.microseconds) + ' microseconds'
+}
+// Geometric output prints each float the way float8 output does, so every coordinate reads back
+// exactly; input is written in the same notation.
+function geometryOutput(type: string, value: string): never {
+  throw new TypeError('Unexpected ' + type + ' output ' + JSON.stringify(value))
+}
+function geometryPoints(value: string): { x: number; y: number }[] {
+  return [...value.matchAll(/\\(([^,()]+),([^,()]+)\\)/gu)].map((match) => ({ x: Number(match[1]), y: Number(match[2]) }))
+}
+function geometryNumber(value: unknown): value is number {
+  return typeof value === 'number'
+}
+function geometryText(value: number): string {
+  return Object.is(value, -0) ? '-0' : String(value)
+}
+function geometryPoint(value: unknown, name: string, type: string): string {
+  if (!value || typeof value !== 'object' || !('x' in value) || !('y' in value) || !geometryNumber(value.x) || !geometryNumber(value.y)) return encodeInvalid(name, type)
+  return '(' + geometryText(value.x) + ',' + geometryText(value.y) + ')'
+}
+function geometryPointList(value: unknown, name: string, type: string): string {
+  if (!Array.isArray(value)) return encodeInvalid(name, type)
+  return value.map((point) => geometryPoint(point, name, type)).join(',')
+}
+function decodePoint(value: string | null): unknown {
+  if (value === null) return null
+  const points = geometryPoints(value)
+  return points.length === 1 ? points[0] : geometryOutput('point', value)
+}
+function encodePoint(value: unknown, name: string): string | null {
+  return value === null || value === undefined ? null : geometryPoint(value, name, 'point')
+}
+function decodeLine(value: string | null): unknown {
+  if (value === null) return null
+  const match = /^\\{([^,]+),([^,]+),([^}]+)\\}$/u.exec(value)
+  return match ? { a: Number(match[1]), b: Number(match[2]), c: Number(match[3]) } : geometryOutput('line', value)
+}
+function encodeLine(value: unknown, name: string): string | null {
+  if (value === null || value === undefined) return null
+  if (!value || typeof value !== 'object' || !('a' in value) || !('b' in value) || !('c' in value) || !geometryNumber(value.a) || !geometryNumber(value.b) || !geometryNumber(value.c)) return encodeInvalid(name, 'line')
+  return '{' + geometryText(value.a) + ',' + geometryText(value.b) + ',' + geometryText(value.c) + '}'
+}
+function decodeLseg(value: string | null): unknown {
+  if (value === null) return null
+  const points = geometryPoints(value)
+  return points.length === 2 ? { start: points[0], end: points[1] } : geometryOutput('lseg', value)
+}
+function encodeLseg(value: unknown, name: string): string | null {
+  if (value === null || value === undefined) return null
+  if (!value || typeof value !== 'object' || !('start' in value) || !('end' in value)) return encodeInvalid(name, 'lseg')
+  return '[' + geometryPoint(value.start, name, 'lseg') + ',' + geometryPoint(value.end, name, 'lseg') + ']'
+}
+function decodeBox(value: string | null): unknown {
+  if (value === null) return null
+  const points = geometryPoints(value)
+  return points.length === 2 ? { high: points[0], low: points[1] } : geometryOutput('box', value)
+}
+function encodeBox(value: unknown, name: string): string | null {
+  if (value === null || value === undefined) return null
+  if (!value || typeof value !== 'object' || !('high' in value) || !('low' in value)) return encodeInvalid(name, 'box')
+  return geometryPoint(value.high, name, 'box') + ',' + geometryPoint(value.low, name, 'box')
+}
+function decodePath(value: string | null): unknown {
+  if (value === null) return null
+  if (value[0] !== '[' && value[0] !== '(') return geometryOutput('path', value)
+  return { closed: value[0] === '(', points: geometryPoints(value) }
+}
+function encodePath(value: unknown, name: string): string | null {
+  if (value === null || value === undefined) return null
+  if (!value || typeof value !== 'object' || !('closed' in value) || !('points' in value) || typeof value.closed !== 'boolean') return encodeInvalid(name, 'path')
+  const points = geometryPointList(value.points, name, 'path')
+  return value.closed ? '(' + points + ')' : '[' + points + ']'
+}
+function decodePolygon(value: string | null): unknown {
+  return value === null ? null : { points: geometryPoints(value) }
+}
+function encodePolygon(value: unknown, name: string): string | null {
+  if (value === null || value === undefined) return null
+  if (!value || typeof value !== 'object' || !('points' in value)) return encodeInvalid(name, 'polygon')
+  return '(' + geometryPointList(value.points, name, 'polygon') + ')'
+}
+function decodeCircle(value: string | null): unknown {
+  if (value === null) return null
+  const match = /^<\\(([^,]+),([^)]+)\\),([^>]+)>$/u.exec(value)
+  return match ? { center: { x: Number(match[1]), y: Number(match[2]) }, radius: Number(match[3]) } : geometryOutput('circle', value)
+}
+function encodeCircle(value: unknown, name: string): string | null {
+  if (value === null || value === undefined) return null
+  if (!value || typeof value !== 'object' || !('center' in value) || !('radius' in value) || !geometryNumber(value.radius)) return encodeInvalid(name, 'circle')
+  return '<' + geometryPoint(value.center, name, 'circle') + ',' + geometryText(value.radius) + '>'
 }
 function decodeArray(value: string | null, element: (item: string | null) => unknown, delimiter: string): unknown {
   if (value === null) return null

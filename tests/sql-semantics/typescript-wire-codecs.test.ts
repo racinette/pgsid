@@ -53,7 +53,10 @@ const values = [
       [1, 2],
       [3, 4],
     ],
-    boxes: ['(1,1),(0,0)', '(3,4),(2,2)'],
+    boxes: [
+      { high: { x: 1, y: 1 }, low: { x: 0, y: 0 } },
+      { high: { x: 3, y: 4 }, low: { x: 2, y: 2 } },
+    ],
     feeling: 'loud',
     amount: 5,
     ident: 4294967295,
@@ -103,8 +106,7 @@ const values = [
     ident: null,
   },
 ]
-// The server normalizes values it stores: a real keeps float4 precision, a JSON value keeps its
-// text and jsonb its canonical form, and a box orders its corners.
+// The server normalizes values it stores: a real keeps float4 precision.
 const stored = (value: (typeof values)[number]) => ({
   ...value,
   single: value.single === 0.1 ? Math.fround(0.1) : value.single,

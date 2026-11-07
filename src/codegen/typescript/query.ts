@@ -16,6 +16,7 @@ import {
   typescriptCodecNames,
   typescriptCodecSource,
   typescriptQueryableSource,
+  withTypescriptJsonValue,
   type TypescriptCodec,
 } from './sql/codecs.js'
 import {
@@ -186,25 +187,27 @@ export function renderTypescriptQueryArtifacts(
     return { types: null, runtime: null, checkRust: null, diagnostics }
   }
 
-  const types = printFile([
-    ...importDeclarations(rendered.flatMap((query) => query.imports)).map((declaration) =>
-      factory.updateImportDeclaration(
-        declaration,
-        declaration.modifiers,
-        declaration.importClause
-          ? factory.updateImportClause(
-              declaration.importClause,
-              true,
-              declaration.importClause.name,
-              declaration.importClause.namedBindings,
-            )
-          : undefined,
-        declaration.moduleSpecifier,
-        declaration.attributes,
+  const types = withTypescriptJsonValue(
+    printFile([
+      ...importDeclarations(rendered.flatMap((query) => query.imports)).map((declaration) =>
+        factory.updateImportDeclaration(
+          declaration,
+          declaration.modifiers,
+          declaration.importClause
+            ? factory.updateImportClause(
+                declaration.importClause,
+                true,
+                declaration.importClause.name,
+                declaration.importClause.namedBindings,
+              )
+            : undefined,
+          declaration.moduleSpecifier,
+          declaration.attributes,
+        ),
       ),
-    ),
-    ...rendered.flatMap((query) => query.typeDeclarations),
-  ])
+      ...rendered.flatMap((query) => query.typeDeclarations),
+    ]),
+  )
   const typeNames = [...new Set(rendered.flatMap((query) => query.typeNames))]
   const hasValidators = rendered.some((query) => query.hasValidators)
   const checkTables = [
@@ -226,77 +229,79 @@ export function renderTypescriptQueryArtifacts(
     },
     Boolean(options.checkRustModuleSpecifier),
   )
-  const runtime = printFile([
-    ...(typeNames.length
-      ? [namedImport(typeNames, options.typesModuleSpecifier ?? './types.js', true)]
-      : []),
-    ...(typeNames.length
-      ? [
-          factory.createExportDeclaration(
-            undefined,
-            true,
-            factory.createNamedExports(
-              typeNames.map((name) => factory.createExportSpecifier(false, undefined, name)),
-            ),
-            factory.createStringLiteral(options.typesModuleSpecifier ?? './types.js'),
-          ),
-        ]
-      : []),
-    ...(options.queryableModuleSpecifier
-      ? [
-          factory.createImportDeclaration(
-            undefined,
-            factory.createImportClause(
-              !hasValidators,
-              undefined,
-              factory.createNamespaceImport(factory.createIdentifier('pgsid')),
-            ),
-            factory.createStringLiteral(options.queryableModuleSpecifier),
-          ),
-        ]
-      : synthesizedStatements(typescriptQueryableSource)),
-    ...(hasValidators
-      ? options.queryableModuleSpecifier
+  const runtime = withTypescriptJsonValue(
+    printFile([
+      ...(typeNames.length
+        ? [namedImport(typeNames, options.typesModuleSpecifier ?? './types.js', true)]
+        : []),
+      ...(typeNames.length
         ? [
             factory.createExportDeclaration(
               undefined,
-              false,
-              factory.createNamedExports([
-                factory.createExportSpecifier(false, undefined, 'QueryValidationError'),
-              ]),
+              true,
+              factory.createNamedExports(
+                typeNames.map((name) => factory.createExportSpecifier(false, undefined, name)),
+              ),
+              factory.createStringLiteral(options.typesModuleSpecifier ?? './types.js'),
+            ),
+          ]
+        : []),
+      ...(options.queryableModuleSpecifier
+        ? [
+            factory.createImportDeclaration(
+              undefined,
+              factory.createImportClause(
+                !hasValidators,
+                undefined,
+                factory.createNamespaceImport(factory.createIdentifier('pgsid')),
+              ),
               factory.createStringLiteral(options.queryableModuleSpecifier),
             ),
           ]
-        : queryValidationErrorDeclarations()
-      : []),
-    ...(options.jsonSchemaRuntimeModuleSpecifier &&
-    rendered.some((query) => query.usesJsonSchemaRuntime)
-      ? [
-          factory.createImportDeclaration(
-            undefined,
-            factory.createImportClause(
-              false,
+        : synthesizedStatements(typescriptQueryableSource)),
+      ...(hasValidators
+        ? options.queryableModuleSpecifier
+          ? [
+              factory.createExportDeclaration(
+                undefined,
+                false,
+                factory.createNamedExports([
+                  factory.createExportSpecifier(false, undefined, 'QueryValidationError'),
+                ]),
+                factory.createStringLiteral(options.queryableModuleSpecifier),
+              ),
+            ]
+          : queryValidationErrorDeclarations()
+        : []),
+      ...(options.jsonSchemaRuntimeModuleSpecifier &&
+      rendered.some((query) => query.usesJsonSchemaRuntime)
+        ? [
+            factory.createImportDeclaration(
               undefined,
-              factory.createNamespaceImport(factory.createIdentifier('_jsonSchemas')),
+              factory.createImportClause(
+                false,
+                undefined,
+                factory.createNamespaceImport(factory.createIdentifier('_jsonSchemas')),
+              ),
+              factory.createStringLiteral(options.jsonSchemaRuntimeModuleSpecifier),
             ),
-            factory.createStringLiteral(options.jsonSchemaRuntimeModuleSpecifier),
-          ),
-        ]
-      : []),
-    ...synthesizedStatements(checkRuntime.checks),
-    ...(checkTables.length
-      ? synthesizedStatements(`export class SqlCheckViolationError extends Error {
+          ]
+        : []),
+      ...synthesizedStatements(checkRuntime.checks),
+      ...(checkTables.length
+        ? synthesizedStatements(`export class SqlCheckViolationError extends Error {
   readonly code = '23514'
   constructor(readonly owner: string, readonly constraint: string) {
     super('new row violates check constraint "' + constraint + '"')
     this.name = 'SqlCheckViolationError'
   }
 }`)
-      : []),
-    ...codecStatements(new Set(rendered.flatMap((query) => [...query.codecNames]))),
-    ...rendered.flatMap((query) => query.runtimeDeclarations),
-    ...rendered.map((query) => query.wrapper),
-  ])
+        : []),
+      ...codecStatements(new Set(rendered.flatMap((query) => [...query.codecNames]))),
+      ...rendered.flatMap((query) => query.runtimeDeclarations),
+      ...rendered.map((query) => query.wrapper),
+    ]),
+  )
   return {
     types,
     runtime: options.emitRuntime === false ? null : runtime,

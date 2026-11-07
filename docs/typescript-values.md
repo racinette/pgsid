@@ -30,7 +30,11 @@ epoch for a zoned timestamp and a wall-clock reading for an unzoned one, and an
 interval keeps its months, days and microseconds apart as the server does.
 Infinite timestamps and intervals are values of their own, and dates are ISO
 text whose years extend past four digits and below zero as astronomical years.
-Types without a dedicated shape yet arrive as the server's text.
+Geometric values are objects of exact float coordinates, and a JSON value is
+typed as JSON unless a JSON Schema describes it. Money, bit strings, network
+addresses, UUIDs, XML and text search values are the server's canonical text,
+as client libraries already return them; money's text depends on the server's
+monetary locale, so it is not reinterpreted.
 
 ## Sending and reading
 
