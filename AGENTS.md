@@ -94,3 +94,13 @@ Generated code the program executes stays in that check. A snapshot stays
 out: producer output kept for byte comparison, guidance a tool rewrites, and
 a borrowed corpus kept in upstream form. Fix a snapshot in the producer, then
 regenerate.
+
+## Code generation
+
+**26.** Generated code is built as syntax trees: `ts.factory` for TypeScript and the Go
+AST helpers for Go. Values from the catalog or a type, such as names, literals
+and type-specific arguments, enter the tree as nodes, never by interpolation
+into source text. Fixed runtime source written by hand and parsed into
+statements, such as the CHECK adapter runtime, is the one exception; code whose
+shape depends on a type is generated beside it as nodes, not added to it as
+text.
