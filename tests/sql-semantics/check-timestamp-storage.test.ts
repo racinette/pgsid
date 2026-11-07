@@ -467,7 +467,7 @@ it('admits projected and rounded timestamp rows, containers and captured constan
     )
     await run('go', ['test', '-mod=mod', './...'], {
       cwd: goRoot,
-      env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
+      env: process.env,
     }).catch((cause: { stdout: string; stderr: string }) => {
       throw new Error(cause.stdout + cause.stderr, { cause })
     })

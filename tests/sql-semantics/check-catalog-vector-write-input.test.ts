@@ -64,7 +64,7 @@ func TestRawVectorParameters(t *testing.T){
     )
     await promisify(execFile)('go', ['test', '-mod=mod', '-p', '1', './...'], {
       cwd: root,
-      env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
+      env: process.env,
     }).catch((e: { stdout: string; stderr: string }) => {
       throw Error(e.stdout + e.stderr)
     })

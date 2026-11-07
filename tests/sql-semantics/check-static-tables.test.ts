@@ -112,7 +112,7 @@ func TestTables(t *testing.T) {
       await run(join(directory, 'test'))
       await run('go', ['test', './...'], {
         cwd: directory,
-        env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
+        env: process.env,
       })
     } finally {
       await rm(directory, { recursive: true, force: true })

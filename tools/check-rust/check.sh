@@ -7,6 +7,8 @@ unset PGSID_CHECK_JSON_POPULATE_ARRAY_TYPES PGSID_CHECK_JSON_POPULATE_TYPES PGSI
 unset PGSID_CHECK_INTEGER_CASES
 unset PGSID_CHECK_JSONPATH_TIMEZONE_ZONES PGSID_CHECK_JSONPATH_TIMEZONE_CASES PGSID_CHECK_JSONPATH_ABBREVIATION_PROFILES PGSID_CHECK_JSONPATH_ABBREVIATION_CASES
 export GOFLAGS="${GOFLAGS:+$GOFLAGS }-trimpath"
+# Builds stay out of ~/.cache/go-build, in the cache the test setup trims (tools/check-rust/go-cache.ts).
+export GOCACHE="${PGSID_CHECK_GO_CACHE_DIR:-/tmp/pgsid-check-rust-go-cache}"
 vitest_args=("$@")
 has_worker_option=false
 for argument in "$@"; do

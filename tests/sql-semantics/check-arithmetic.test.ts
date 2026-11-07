@@ -177,7 +177,7 @@ func TestArithmetic(t *testing.T) {
       const run = promisify(execFile)
       await run('go', ['test', './...'], {
         cwd: root,
-        env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
+        env: process.env,
       })
       await run('rustc', ['--test', join(root, 'arithmetic.rs'), '-o', join(root, 'arithmetic')])
       await run(join(root, 'arithmetic'))
@@ -243,7 +243,7 @@ func TestNarrow(t *testing.T) {
       const run = promisify(execFile)
       await run('go', ['test', './...'], {
         cwd: root,
-        env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
+        env: process.env,
       })
       await run('rustc', ['--test', join(root, 'narrow.rs'), '-o', join(root, 'narrow')])
       await run(join(root, 'narrow'))

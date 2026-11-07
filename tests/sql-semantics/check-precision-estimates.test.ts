@@ -129,7 +129,7 @@ describe('CHECK numeric precision estimates', () => {
       await run(join(directory, 'precision'), [])
       await run('go', ['test', './...'], {
         cwd: directory,
-        env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache', GOMAXPROCS: '2' },
+        env: { ...process.env, GOMAXPROCS: '2' },
       })
     } finally {
       await rm(directory, { recursive: true, force: true })
