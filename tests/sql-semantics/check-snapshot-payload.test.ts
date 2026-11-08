@@ -10,6 +10,7 @@ import { pathToFileURL } from 'node:url'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
+import { internalCheckRows } from '../support/check-entries.js'
 
 it.each(['pg_snapshot', 'txid_snapshot'] as const)(
   'validates SQL-coerced %s payloads and their value states through the public TypeScript API',
@@ -69,6 +70,8 @@ it.each(['pg_snapshot', 'txid_snapshot'] as const)(
           '1:9:',
         ]),
       ).rejects.toMatchObject({ code: '22021' })
+      const runtime = await import(pathToFileURL(join(root, 'js/checks-rust/checks.js')).href)
+      const internal = internalCheckRows(bundle.checks, runtime)
       const wire = (
         await pg.query<{ wire: Uint8Array }>(`SELECT ${type}_send('1:9:3,5'::${type}) AS wire`)
       ).rows[0]!.wire
@@ -78,9 +81,29 @@ it.each(['pg_snapshot', 'txid_snapshot'] as const)(
             .evaluatePublicSnapshotPayloadsChecks({ position, expected })
             .map((c: { constraint: string; result: Result }) => [c.constraint, c.result]),
         )
-      const payload = { xmin: 1n, xmax: 9n, xip: [{ bits: 3n }, { bits: 5n }] },
-        value = { kind: 'Value', value: payload }
-      expect(evaluate(value)).toEqual({
+      // Each constraint evaluated by the server over the same parameters.
+      const constraints = (
+        await pg.query<{ name: string; definition: string }>(
+          `SELECT conname AS name, pg_get_constraintdef(oid) AS definition FROM pg_constraint
+           WHERE conrelid = 'snapshot_payloads'::regclass AND contype = 'c'`,
+        )
+      ).rows
+      const server = async (position: unknown, expected: unknown = wire) => {
+        const results: Record<string, Result> = {}
+        for (const { name, definition } of constraints)
+          try {
+            const { rows } = await pg.query<{ value: boolean | null }>(
+              `SELECT ${definition.replace(/^CHECK /u, '')} AS value
+               FROM (SELECT $1::nested_snapshot_edge AS position, $2::bytea AS expected) AS input`,
+              [position, expected],
+            )
+            results[name] = { certain: true, value: rows[0]!.value }
+          } catch (error) {
+            results[name] = { certain: true, error: (error as { code: string }).code }
+          }
+        return results
+      }
+      const known = {
         wire: { certain: true, value: true },
         lower_bound: { certain: true, value: true },
         upper_bound: { certain: true, value: true },
@@ -88,23 +111,52 @@ it.each(['pg_snapshot', 'txid_snapshot'] as const)(
         available: { certain: true, value: true },
         present: { certain: true, value: true },
         absent: { certain: true, value: false },
+      }
+      expect(evaluate('1:9:3,5')).toEqual(known)
+      expect(await server('1:9:3,5')).toEqual(known)
+      expect(evaluate('1:9:3,5', new Uint8Array([0])).wire).toEqual({ certain: true, value: false })
+      expect(evaluate(null)).toEqual({
+        wire: { certain: true, value: null },
+        lower_bound: { certain: true, value: null },
+        upper_bound: { certain: true, value: null },
+        pending: { certain: true, value: null },
+        available: { certain: true, value: null },
+        present: { certain: true, value: false },
+        absent: { certain: true, value: true },
       })
-      expect(evaluate(value, new Uint8Array([0])).wire).toEqual({ certain: true, value: false })
-      for (const position of [null, { kind: 'Null' }])
-        expect(evaluate(position)).toEqual({
-          wire: { certain: true, value: null },
-          lower_bound: { certain: true, value: null },
-          upper_bound: { certain: true, value: null },
-          pending: { certain: true, value: null },
-          available: { certain: true, value: null },
-          present: { certain: true, value: false },
-          absent: { certain: true, value: true },
-        })
+      expect(await server(null)).toEqual(evaluate(null))
+      expectUndecidedOrRejected(() => evaluate(undefined))
+      // Text the input function rejects fails every check that reads it, and text it accepts is
+      // normalized first, both as the server reads the parameter.
+      for (const text of [
+        '0:9:3,5',
+        '10:9:3,5',
+        '9223372036854775808:18446744073709551615:',
+        '1:4294967296:3,5',
+        '1:9223372036854775808:3,5',
+        '-9223372036854775809:9:3,5',
+        '1:9:5,3',
+        '1:9:3,3',
+        '1:9:0',
+        '1:9:10',
+        '1:9:9',
+        '1:9:',
+        '',
+      ])
+        expect({ text, results: evaluate(text) }).toEqual({ text, results: await server(text) })
+      expect(evaluate('1:9:3,3').wire).toEqual({ certain: true, value: false })
+      expect(evaluate('1:9:5,3').wire).toEqual({ certain: true, error: '22P02' })
+      const failure = { kind: 'Error', value: { state: parseInt('22003', 36) } }
+      const payload = { xmin: 1n, xmax: 9n, xip: [{ bits: 3n }, { bits: 5n }] },
+        value = { kind: 'Value', value: payload }
       for (const position of [
-        undefined,
-        '1:9:3,5',
         1n,
+        13,
+        { kind: 'Null' },
         { kind: 'Unknown' },
+        failure,
+        value,
+        { kind: 'Value', value: '1:9:3,5' },
         { kind: 'Value', value: { ...payload, xmin: 0n } },
         { kind: 'Value', value: { ...payload, xmin: 10n } },
         { kind: 'Value', value: { xmin: -9223372036854775808n, xmax: -1n, xip: [] } },
@@ -118,30 +170,62 @@ it.each(['pg_snapshot', 'txid_snapshot'] as const)(
         { kind: 'Value', value: { ...payload, xip: [{ bits: 3 }] } },
         { kind: 'Value', value: { ...payload, xip: null } },
         { kind: 'Value', value: null },
-      ]) {
-        expectUndecidedOrRejected(() => evaluate(position))
-      }
-      expect(
-        Object.values(evaluate({ kind: 'Error', value: { state: parseInt('22003', 36) } })),
-      ).toEqual(Array.from({ length: 7 }, () => ({ certain: true, error: '22003' })))
+      ])
+        expect(() => evaluate(position)).toThrow(TypeError)
+      // NULL, unknown and failed operands handed to the evaluator directly.
+      const rows = (position: unknown) =>
+        internal('public.snapshot_payloads', {
+          position,
+          expected: runtime.makeByteaValue(Buffer.from(wire).toString('hex')),
+        })
+      expect(rows(runtime.makeSnapshotValue(payload))).toEqual(
+        Object.fromEntries(
+          Object.entries(known).map(([name, result]) => [
+            name,
+            { kind: result.value ? 'True' : 'False' },
+          ]),
+        ),
+      )
+      expect(rows({ kind: 'Null' })).toEqual({
+        wire: { kind: 'Null' },
+        lower_bound: { kind: 'Null' },
+        upper_bound: { kind: 'Null' },
+        pending: { kind: 'Null' },
+        available: { kind: 'Null' },
+        present: { kind: 'False' },
+        absent: { kind: 'True' },
+      })
+      expect(Object.values(rows({ kind: 'Unknown' }))).toEqual(
+        Array.from({ length: 7 }, () => ({ kind: 'Unknown' })),
+      )
+      expect(Object.values(rows(failure))).toEqual(Array.from({ length: 7 }, () => failure))
       for (const text of [
         '9223372036854775807:9223372036854775809:9223372036854775808',
         '18446744073709551614:18446744073709551615:18446744073709551614',
       ]) {
-        const [xmin, xmax, xip] = text.split(':')
-        const snapshot = {
-          kind: 'Value',
-          value: {
-            xmin: BigInt.asIntN(64, BigInt(xmin!)),
-            xmax: BigInt.asIntN(64, BigInt(xmax!)),
-            xip: xip!.split(',').map((word) => ({ bits: BigInt.asIntN(64, BigInt(word)) })),
-          },
-        }
         const expected = (
           await pg.query<{ wire: Uint8Array }>(`SELECT ${type}_send($1::${type}) AS wire`, [text])
         ).rows[0]!.wire
-        expect(evaluate(snapshot, expected).wire).toEqual({ certain: true, value: true })
+        expect(evaluate(text, expected).wire).toEqual({ certain: true, value: true })
+        expect(evaluate(text, expected)).toEqual(await server(text, expected))
+        const [xmin, xmax, xip] = text.split(':')
+        const boundary = runtime.makeSnapshotValue({
+          xmin: BigInt.asIntN(64, BigInt(xmin!)),
+          xmax: BigInt.asIntN(64, BigInt(xmax!)),
+          xip: xip!.split(',').map((word) => ({ bits: BigInt.asIntN(64, BigInt(word)) })),
+        })
+        expect(
+          internal('public.snapshot_payloads', {
+            position: boundary,
+            expected: runtime.makeByteaValue(Buffer.from(expected).toString('hex')),
+          }).wire,
+        ).toEqual({ kind: 'True' })
       }
+      // Stored snapshots the text input rejects reach the evaluator entries as stored.
+      const bytea = (bytes: Uint8Array) =>
+        runtime.makeByteaValue(Buffer.from(bytes).toString('hex'))
+      const stored = (position: unknown, expected: Uint8Array) =>
+        internal('public.snapshot_payloads', { position, expected: bytea(expected) })
       await pg.exec(`CREATE TABLE binary_snapshots(value ${type})`)
       for (const sample of [
         { received: [9n], canonical: [9n], normalized: '1:9:9' },
@@ -168,26 +252,39 @@ it.each(['pg_snapshot', 'txid_snapshot'] as const)(
           )
         ).rows[0]!
         expect(row.normalized).toBe(sample.normalized)
-        const binaryValue = {
-          kind: 'Value',
-          value: { xmin: 1n, xmax: 9n, xip: sample.canonical.map((bits) => ({ bits })) },
-        }
-        expect(evaluate(binaryValue, row.wire).wire).toEqual({ certain: true, value: true })
-        expect(evaluate(binaryValue, row.wire).present).toEqual({ certain: true, value: true })
-        if (sample.normalized === '1:9:9')
+        const binaryValue = runtime.makeSnapshotValue({
+          xmin: 1n,
+          xmax: 9n,
+          xip: sample.canonical.map((bits) => ({ bits })),
+        })
+        expect(stored(binaryValue, row.wire).wire).toEqual({ kind: 'True' })
+        expect(stored(binaryValue, row.wire).present).toEqual({ kind: 'True' })
+        expect(evaluate(sample.normalized, row.wire)).toEqual(
+          await server(sample.normalized, row.wire),
+        )
+        if (sample.normalized === '1:9:9') {
+          expect(evaluate(sample.normalized, row.wire).present).toEqual({
+            certain: true,
+            error: '22P02',
+          })
           await expect(pg.query(`SELECT $1::${type}`, [sample.normalized])).rejects.toMatchObject({
             code: '22P02',
           })
+        } else {
+          expect(evaluate(sample.normalized, row.wire).wire).toEqual({ certain: true, value: true })
+          expect(evaluate(sample.normalized, row.wire).present).toEqual({
+            certain: true,
+            value: true,
+          })
+        }
       }
-      const runtime = await import(
-        pathToFileURL(join(root, 'js/checks-rust/checkruntime/runtime.js')).href
-      )
+      // The evaluator copies a snapshot's parts, so later changes to them do not reach it.
       const saved = runtime.makeSnapshotValue(payload)
       payload.xip[0]!.bits = 4n
       payload.xip.push({ bits: 8n })
       payload.xmin = 2n
-      expect(evaluate(saved).wire).toEqual({ certain: true, value: true })
-      expect(evaluate(value).wire).toEqual({ certain: true, value: false })
+      expect(stored(saved, wire).wire).toEqual({ kind: 'True' })
+      expect(stored(runtime.makeSnapshotValue(payload), wire).wire).toEqual({ kind: 'False' })
     } finally {
       await pg.close()
       await rm(root, { recursive: true, force: true })

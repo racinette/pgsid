@@ -4,6 +4,7 @@ import { promisify } from 'node:util'
 import { pathToFileURL } from 'node:url'
 import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
+import { internalCheckRows } from '../support/check-entries.js'
 import { lowerDomainCheck } from '../../src/sql-semantics/catalog-checks.js'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
@@ -506,7 +507,10 @@ describe('portable stored money', () => {
       CONSTRAINT price CHECK(amount >= '1.25'::money))`)
     const catalog = await snapshotCatalog(pg),
       table = catalog.tables.find((t) => t.name === 'money_payloads')!
-    const bundle = renderTypescriptSchemaCheckArtifacts([table], catalog.domains),
+    // The session reads money under the C monetary locale, and the project declares the same.
+    const bundle = renderTypescriptSchemaCheckArtifacts([table], catalog.domains, catalog.domains, {
+        executionContext: { moneyLocale: 'C' },
+      }),
       target = join(directory, 'public')
     await mkdir(target)
     await writeFile(join(target, 'package.json'), '{"type":"module"}\n')
@@ -532,58 +536,148 @@ describe('portable stored money', () => {
       throw new Error(error.stdout + error.stderr, { cause: error })
     })
     const generated = await import(pathToFileURL(join(target, 'js/checks.js')).href)
+    const runtime = await import(pathToFileURL(join(target, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(bundle.checks, runtime)
     type Result = { certain: boolean; value?: boolean | null; error?: string }
+    const expectedWire = Buffer.from('000000000000007d', 'hex')
     const evaluate = (
       amount: unknown,
-      reference: unknown = { kind: 'Value', value: 125n },
-      expected: unknown = Buffer.from('000000000000007d', 'hex'),
+      reference: unknown = '1.25',
+      expected: unknown = expectedWire,
     ): Record<string, Result> =>
       Object.fromEntries(
         generated
           .evaluatePublicMoneyPayloadsChecks({ amount, reference, expected })
           .map((c: { constraint: string; result: Result }) => [c.constraint, c.result]),
       )
-    expect(evaluate({ kind: 'Value', value: 125n })).toEqual({
+    // Each constraint evaluated by the server over the same parameters.
+    const constraints = (
+      await pg.query<{ name: string; definition: string }>(
+        `SELECT conname AS name, pg_get_constraintdef(oid) AS definition FROM pg_constraint
+         WHERE conrelid = 'money_payloads'::regclass AND contype = 'c'`,
+      )
+    ).rows
+    const server = async (
+      amount: unknown,
+      reference: unknown = '1.25',
+      expected: unknown = expectedWire,
+    ) => {
+      const results: Record<string, Result> = {}
+      for (const { name, definition } of constraints)
+        try {
+          const { rows } = await pg.query<{ value: boolean | null }>(
+            `SELECT ${definition.replace(/^CHECK /u, '')} AS value
+             FROM (SELECT $1::money AS amount, $2::money AS reference, $3::bytea AS expected) AS input`,
+            [amount, reference, expected],
+          )
+          results[name] = { certain: true, value: rows[0]!.value }
+        } catch (error) {
+          results[name] = { certain: true, error: (error as { code: string }).code }
+        }
+      return results
+    }
+    const known = {
       wire: { certain: true, value: true },
       same: { certain: true, value: true },
       present: { certain: true, value: true },
       absent: { certain: true, value: false },
       price: { certain: true, value: true },
-    })
-    expect(evaluate({ kind: 'Value', value: 124n }).price).toEqual({ certain: true, value: false })
-    for (const value of [-9223372036854775808n, 9223372036854775807n]) {
+    }
+    expect(evaluate('1.25')).toEqual(known)
+    expect(await server('1.25')).toEqual(known)
+    expect(evaluate('1.24').price).toEqual({ certain: true, value: false })
+    for (const [value, text] of [
+      [-9223372036854775808n, '-92233720368547758.08'],
+      [9223372036854775807n, '92233720368547758.07'],
+    ] as const) {
       const bytes = Buffer.alloc(8)
       bytes.writeBigInt64BE(value)
-      expect(evaluate({ kind: 'Value', value }, { kind: 'Value', value }, bytes).wire).toEqual({
+      expect(evaluate(text, text, bytes).wire).toEqual({
         certain: true,
         value: true,
       })
+      expect(evaluate(text, text, bytes)).toEqual(await server(text, text, bytes))
     }
+    // Text goes through the money input function exactly as the server reads the parameter.
+    for (const text of [
+      '$1.25',
+      '125',
+      '1,25',
+      '(1.25)',
+      '-1.25',
+      '0.00',
+      '1.255',
+      'abc',
+      '',
+      '92233720368547758.08',
+      '-92233720368547758.09',
+    ])
+      expect({ text, results: evaluate(text) }).toEqual({ text, results: await server(text) })
     for (const amount of [undefined])
       expect(Object.values(evaluate(amount))).toEqual(
         Array.from({ length: 5 }, () => ({ certain: false })),
       )
     for (const amount of [
-      '$1.25',
       1.25,
       125n,
+      { kind: 'Value', value: 125n },
       { kind: 'Value', value: 125 },
       { kind: 'Value', value: '125' },
       { kind: 'Value', value: 9223372036854775808n },
       { kind: 'Value', value: -9223372036854775809n },
+      { kind: 'Null' },
+      { kind: 'Unknown' },
+      failure('22003'),
     ])
-      expect(() => evaluate(amount)).toThrow(TypeError)
-    for (const amount of [null, { kind: 'Null' }])
-      expect(evaluate(amount)).toEqual({
-        wire: { certain: true, value: null },
-        same: { certain: true, value: null },
-        present: { certain: true, value: false },
-        absent: { certain: true, value: true },
-        price: { certain: true, value: null },
+      expect(
+        () => evaluate(amount),
+        JSON.stringify(amount, (_, v) => String(v)),
+      ).toThrow(TypeError)
+    expect(evaluate(null)).toEqual({
+      wire: { certain: true, value: null },
+      same: { certain: true, value: null },
+      present: { certain: true, value: false },
+      absent: { certain: true, value: true },
+      price: { certain: true, value: null },
+    })
+    expect(await server(null)).toEqual(evaluate(null))
+    // NULL and failed operands handed to the evaluator directly.
+    const rows = (amount: unknown) =>
+      internal('public.money_payloads', {
+        amount,
+        reference: runtime.makeMoneyValue(125n),
+        expected: runtime.makeByteaValue(expectedWire.toString('hex')),
       })
-    expect(Object.values(evaluate(failure('22003')))).toEqual(
-      Array.from({ length: 5 }, () => ({ certain: true, error: '22003' })),
+    expect(rows({ kind: 'Null' })).toEqual({
+      wire: { kind: 'Null' },
+      same: { kind: 'Null' },
+      present: { kind: 'False' },
+      absent: { kind: 'True' },
+      price: { kind: 'Null' },
+    })
+    expect(Object.values(rows(failure('22003')))).toEqual(
+      Array.from({ length: 5 }, () => failure('22003')),
     )
+    // Stored amounts in minor units, under whatever locale stored them.
+    expect(rows(runtime.makeMoneyValue(125n))).toEqual({
+      wire: { kind: 'True' },
+      same: { kind: 'True' },
+      present: { kind: 'True' },
+      absent: { kind: 'False' },
+      price: { kind: 'True' },
+    })
+    expect(rows(runtime.makeMoneyValue(124n)).price).toEqual({ kind: 'False' })
+    for (const value of [-9223372036854775808n, 9223372036854775807n]) {
+      const bytes = Buffer.alloc(8)
+      bytes.writeBigInt64BE(value)
+      expect(
+        internal('public.money_payloads', {
+          amount: runtime.makeMoneyValue(value),
+          reference: runtime.makeMoneyValue(value),
+          expected: runtime.makeByteaValue(bytes.toString('hex')),
+        }).wire,
+      ).toEqual({ kind: 'True' })
+    }
   }, 120_000)
   it('keeps context-free zero input definite and distinguishes locale-required parsing from stored constants', async () => {
     const expressions = {

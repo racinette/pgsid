@@ -1,7 +1,6 @@
 import { readTsqueryFixture } from './check-tsquery-fixtures.js'
 import { PGlite } from '@electric-sql/pglite'
 import { expect, it } from 'vitest'
-import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -15,6 +14,7 @@ import { prepareCheckRustGroup } from '../../src/codegen/shared/check-rust-sourc
 import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { renderGoSchemaCheckArtifacts } from '../../src/codegen/go/sql/catalog-checks.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
+import { internalCheckRows } from '../support/check-entries.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import {
   runCheckParity,
@@ -294,50 +294,95 @@ it('compares SQL-coerced query payloads and optional size through native, Rust a
       throw new Error(e.stdout + e.stderr)
     })
     const api = await import(pathToFileURL(join(tsRoot, 'js/checks.js')).href)
-    const result = (outcome: Outcome) =>
-      outcome.kind === 'Unknown'
-        ? { certain: false }
-        : outcome.kind === 'Error'
-          ? { certain: true, error: outcome.value.state.toString(36).toUpperCase() }
-          : { certain: true, value: outcome.kind === 'Null' ? null : outcome.kind === 'True' }
-    const evaluate = (row: Record<string, unknown>): Record<string, unknown> =>
+    const runtime = await import(pathToFileURL(join(tsRoot, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(tsBundle.checks, runtime)
+    type Result = { certain: boolean; value?: boolean | null; error?: string }
+    const evaluate = (row: Record<string, unknown>): Record<string, Result> =>
       Object.fromEntries(
         api
-          .evaluatePublicQueryRowsChecks(
-            Object.fromEntries(
-              Object.entries(row).map(([name, value]) => [
-                name,
-                name === 'item' || name === 'reference'
-                  ? value
-                  : value && typeof value === 'object' && 'kind' in value
-                    ? value.kind === 'Null'
-                      ? null
-                      : value.kind === 'Value' && 'value' in value
-                        ? value.value
-                        : undefined
-                    : value,
-              ]),
+          .evaluatePublicQueryRowsChecks(row)
+          .map((c: { constraint: string; result: Result }) => [c.constraint, c.result]),
+      )
+    // Each constraint evaluated by the server over the same parameters; a parameter a check does
+    // not read cannot fail it.
+    const server = async (row: Record<string, unknown>) => {
+      const results: Record<string, Result> = {}
+      for (const [name, sql] of Object.entries(definitions)) {
+        const reads = (column: string) => new RegExp(`\\b${column}\\b`, 'u').test(sql)
+        try {
+          const { rows } = await pg.query<{ value: boolean | null }>(
+            `SELECT (${sql}) AS value FROM (SELECT $1::nested_query item,$2::tsquery reference,$3::bool choose_first,$4::bool bypass) input`,
+            ['item', 'reference', 'choose_first', 'bypass'].map((column) =>
+              reads(column) ? row[column] : null,
             ),
           )
-          .map((c: { constraint: string; result: unknown }) => [c.constraint, c.result]),
-      )
-    for (const c of publicCases)
-      expect(evaluate(c.row)).toEqual(
-        Object.fromEntries(
-          Object.entries(c.expected).map(([name, outcome]) => [name, result(outcome)]),
-        ),
-      )
-
+          results[name] = { certain: true, value: rows[0]!.value }
+        } catch (error) {
+          results[name] = { certain: true, error: (error as { code: string }).code }
+        }
+      }
+      return results
+    }
+    // A tsquery's public value is its text, which the server reads through the tsquery input.
+    const publicRows: Record<string, unknown>[] = []
+    for (let i = 0; i < samples.length; i++)
+      for (let variant = 0; variant < 4; variant++) {
+        const source = samples[i]!,
+          reference =
+            variant === 0
+              ? source
+              : variant === 1
+                ? null
+                : source === 'fGEtsNKMDB'
+                  ? '6P7Sag1hsi'
+                  : source === 'a:A'
+                    ? 'a:*B'
+                    : source === 'é'
+                      ? 'ê'
+                      : source === 'a'
+                        ? 'a & b'
+                        : 'a'
+        publicRows.push({
+          item: source,
+          reference,
+          choose_first: variant % 2 === 0,
+          bypass: variant === 3,
+        })
+      }
+    for (const row of publicRows) {
+      const expected = await server(row)
+      // Ordering these two words compares their checksums, whose sign follows the platform's char.
+      if (row.item === 'fGEtsNKMDB' && row.reference === '6P7Sag1hsi')
+        expected.raw = { certain: false }
+      expect({ row, results: evaluate(row) }).toEqual({ row, results: expected })
+    }
+    const publicBase = publicRows[12]!
+    expect(publicBase.item).toBe('a & b')
+    expect(evaluate({ ...publicBase, item: undefined })).toEqual(
+      Object.fromEntries(
+        Object.keys(definitions).map((name) => [
+          name,
+          name === 'null_literal' ? { certain: true, value: true } : { certain: false },
+        ]),
+      ),
+    )
+    // Text the tsquery input rejects fails every check that reads it.
+    for (const item of ['a', 'a &', '(a', 'a:Z', '!', 'a <0> b', 'a <16385> b', "'a'b"])
+      expect({ item, results: evaluate({ ...publicBase, item }) }).toEqual({
+        item,
+        results: await server({ ...publicBase, item }),
+      })
     const good = complete.value
     const saved = structuredClone(good)
-    evaluate(base)
+    evaluate(publicBase)
     expect(good).toEqual(saved)
     const malformed: unknown[] = [
-      undefined,
-      'a',
       3,
       {},
+      { kind: 'Unknown' },
+      { kind: 'Null' },
       { kind: 'Value', value: null },
+      complete,
       ...[NaN, 1.5, '8', -2, 1073741824].map((nativeBytes) => ({
         kind: 'Value',
         value: { ...good, nativeBytes },
@@ -373,15 +418,50 @@ it('compares SQL-coerced query payloads and optional size through native, Rust a
           nativeBytes: -1,
         },
       },
+      { kind: 'Error', value: { state: parseInt('22003', 36) } },
       { kind: 'Error', value: { state: -1 } },
       { kind: 'Error', value: { state: 1.5 } },
+      '\ud800',
+      'a\0',
     ]
     for (const bad of malformed)
-      expectUndecidedOrRejected(
-        () => evaluate({ ...base, item: bad }),
+      expect(
+        () => evaluate({ ...publicBase, item: bad }),
         JSON.stringify(bad, (_key, item) => (typeof item === 'bigint' ? String(item) : item)),
-        ['rendered', 'presence'],
+      ).toThrow(TypeError)
+    // Unknown and failed items handed to the evaluator directly.
+    const stored = (input: Input) =>
+      input.kind === 'Value' && typeof input.value === 'object'
+        ? runtime.makeTsqueryValue(input.value)
+        : input
+    const internalBase = {
+      item: stored(base.item!),
+      reference: stored(base.reference!),
+      choose_first: runtime.makeBoolValue(true),
+      bypass: runtime.makeBoolValue(false),
+    }
+    expect(internal('public.query_rows', internalBase)).toEqual(publicCases[12]!.expected)
+    for (const item of [
+      { kind: 'Unknown' },
+      { kind: 'Error', value: { state: parseInt('22003', 36) } },
+    ])
+      expect(internal('public.query_rows', { ...internalBase, item })).toEqual(
+        Object.fromEntries(
+          Object.keys(definitions).map((name) => [
+            name,
+            name === 'null_literal' ? { kind: 'True' } : item,
+          ]),
+        ),
       )
+    // Every value of the matrix, including those whose stored size the caller did not supply,
+    // decides through the entries as the server did.
+    for (const c of publicCases)
+      expect(
+        internal(
+          'public.query_rows',
+          Object.fromEntries(Object.entries(c.row).map(([name, input]) => [name, stored(input)])),
+        ),
+      ).toEqual(c.expected)
     const goRoot = join(root, 'public-go'),
       goBundle = renderGoSchemaCheckArtifacts(
         [table],

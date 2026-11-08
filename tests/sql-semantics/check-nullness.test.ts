@@ -404,13 +404,8 @@ fn nullness() {
   ])
     it(name, () => {
       const item = cases.find((item) => item.name === name)!
+      // Public values: the shapes generated queries read and write; an int4[] value is its array.
       const portable = { ...item.row }
-      if (Object.hasOwn(portable, 'items'))
-        portable['items'] =
-          portable['items'] === null && item.nullViaValue
-            ? { kind: 'Null' }
-            : portableItems(portable['items'])
-      // Public values: the shapes generated queries read and write.
       const day = portable['day']
       if (day instanceof Date) portable['day'] = day.toISOString().slice(0, 10)
       const instant = portable['instant']
@@ -448,13 +443,26 @@ fn nullness() {
           'floating',
         ])
           expect(() => evaluate({ ...portable, [name]: { kind: 'Null' } }), name).toThrow(TypeError)
-        const nulls: Record<string, unknown> = Object.fromEntries(
-          fields.map((field) => [field.name, { kind: 'Null' }]),
-        )
-        // Nullness of these inputs reaches the entries already decided.
-        nulls['identifier'] = runtime['makeBoolValue']!(true)
-        nulls['state'] = runtime['makeBoolValue']!(true)
-        nulls['items'] = runtime['arrayIsNull']!({ kind: 'Null' })
+        // A check that only tests for NULL still reads the value, so a wrong shape is a type error.
+        for (const [name, wrong] of [
+          ['identifier', 5],
+          ['items', 'x'],
+          ['items', 5],
+          ['small', '0'],
+          ['small', 0n],
+          ['label', 5],
+          ['amount_nullness', 'false'],
+        ] as const)
+          for (const value of [{ kind: 'Null' }, wrong])
+            expect(
+              () => evaluate({ ...portable, [name]: value }),
+              `${name} ${JSON.stringify(value, (_, item) => (typeof item === 'bigint' ? `${item}n` : item))}`,
+            ).toThrow(TypeError)
+        for (const value of [{ kind: 'Null' }, 5])
+          expect
+            .soft(() => evaluate({ ...portable, state: value }), `state ${JSON.stringify(value)}`)
+            .toThrow(TypeError)
+        const nulls = Object.fromEntries(fields.map((field) => [field.name, { kind: 'Null' }]))
         const outcomes = internal('public.null_inputs', nulls)
         expect(
           item.results.map(({ constraint }) => ({

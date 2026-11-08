@@ -14,6 +14,7 @@ import { prepareCheckRustGroup } from '../../src/codegen/shared/check-rust-sourc
 import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { renderGoSchemaCheckArtifacts } from '../../src/codegen/go/sql/catalog-checks.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
+import { internalCheckRows } from '../support/check-entries.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import { checkUnknownMessage } from '../../src/codegen/shared/check-diagnostics.js'
 import {
@@ -231,45 +232,138 @@ it('validates SQL-coerced ACL payloads, domains and partial inputs through nativ
       throw new Error(e.stdout + e.stderr)
     })
     const api = await import(pathToFileURL(join(tsRoot, 'js/checks.js')).href)
-    const result = (outcome: Outcome) =>
-      outcome.kind === 'Unknown'
-        ? { certain: false }
-        : outcome.kind === 'Error'
-          ? { certain: true, error: outcome.value.state.toString(36).toUpperCase() }
-          : { certain: true, value: outcome.kind === 'Null' ? null : outcome.kind === 'True' }
-    const evaluate = (row: Record<string, unknown>): Record<string, unknown> =>
+    const runtime = await import(pathToFileURL(join(tsRoot, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(tsBundle.checks, runtime)
+    type Result = { certain: boolean; value?: boolean | null; error?: string }
+    const evaluate = (row: Record<string, unknown>): Record<string, Result> =>
       Object.fromEntries(
         api
-          .evaluatePublicAclRowsChecks(
-            Object.fromEntries(
-              Object.entries(row).map(([name, value]) => [
-                name,
-                name === 'item' || name === 'reference'
-                  ? value
-                  : value && typeof value === 'object' && 'kind' in value
-                    ? value.kind === 'Null'
-                      ? null
-                      : value.kind === 'Value' && 'value' in value
-                        ? value.value
-                        : undefined
-                    : value,
-              ]),
-            ),
+          .evaluatePublicAclRowsChecks(row)
+          .map((c: { constraint: string; result: Result }) => [c.constraint, c.result]),
+      )
+    // Each constraint evaluated by the server over the same parameters.
+    const columnTypes: Record<string, string> = {
+      item: 'nested_acl',
+      reference: 'aclitem',
+      expected_hash: 'int',
+      seed: 'bigint',
+      expected_extended: 'bigint',
+      expected_absent: 'bool',
+      choose_first: 'bool',
+      expected_distinct: 'bool',
+      expected_nullif: 'bool',
+      bypass: 'bool',
+    }
+    const columns = Object.keys(columnTypes)
+    const server = async (row: Record<string, unknown>) => {
+      const results: Record<string, Result> = {}
+      const source = columns
+        .map((name, index) => `$${index + 1}::${columnTypes[name]} AS ${name}`)
+        .join(', ')
+      for (const [name, sql] of Object.entries(definitions))
+        try {
+          const { rows } = await pg.query<{ value: boolean | null }>(
+            `SELECT (${sql}) AS value FROM (SELECT ${source}) AS input`,
+            columns.map((column) => {
+              // A parameter the check does not read cannot fail it.
+              if (!new RegExp(`\\b${column}\\b`, 'u').test(sql)) return null
+              const value = row[column]
+              return typeof value === 'bigint' ? value.toString() : value
+            }),
           )
-          .map((c: { constraint: string; result: unknown }) => [c.constraint, c.result]),
-      )
-    for (const c of publicCases)
-      expect(evaluate(c.row)).toEqual(
-        Object.fromEntries(
-          Object.entries(c.expected).map(([name, outcome]) => [name, result(outcome)]),
-        ),
-      )
+          results[name] = { certain: true, value: rows[0]!.value }
+        } catch (error) {
+          results[name] = { certain: true, error: (error as { code: string }).code }
+        }
+      return results
+    }
+    // An ACL item's public value is its text, and only PUBLIC grantees under the default grantor
+    // read without the role catalog; a stored item naming other roles is out of the public API's
+    // reach, so the matrix runs over PUBLIC items.
+    const publicRows: Record<string, unknown>[] = []
+    for (const [privilege] of masks)
+      for (const option of [false, true])
+        for (const missing of [false, true]) {
+          const seed = option ? -1n : 0n,
+            spelled = (
+              await pg.query<{
+                item: string
+                reference: string
+                hash: number
+                extended: string
+              }>(
+                `SELECT regexp_replace(a::text,'/[^/]*$','') item,regexp_replace(r::text,'/[^/]*$','') reference,
+                 hash_aclitem(a) hash,hash_aclitem_extended(a,$3::bigint)::text extended
+                 FROM (SELECT makeaclitem(0,'10'::oid,$1::text,$2::bool) a,makeaclitem(0,'10'::oid,$1::text,false) r) q`,
+                [privilege, option, seed.toString()],
+              )
+            ).rows[0]!
+          publicRows.push({
+            item: missing ? null : spelled.item,
+            reference: spelled.reference,
+            expected_hash: missing ? null : spelled.hash,
+            seed,
+            expected_extended: missing ? null : BigInt(spelled.extended),
+            expected_absent: missing,
+            choose_first: true,
+            expected_distinct: missing,
+            expected_nullif: true,
+            bypass: false,
+          })
+        }
+    let publicRejections = 0
+    for (const row of publicRows) {
+      const results = evaluate(row)
+      expect({ row, results }).toEqual({ row, results: await server(row) })
+      if (Object.values(results).some((r) => r.value === false)) publicRejections++
+    }
+    expect(publicRejections).toBe(5)
+    const publicBase = publicRows[0]!
+    // Items naming roles, as the server prints stored items whose roles are gone, resolve
+    // through the role catalog.
+    for (const grantee of [1n, 2147483648n, 4294967295n]) {
+      const spelled = (
+        await pg.query<{ item: string }>(
+          "SELECT makeaclitem($1::oid,'4294967295'::oid,'SELECT',false)::text item",
+          [grantee.toString()],
+        )
+      ).rows[0]!.item
+      expect(spelled).toBe(`${grantee}=r/4294967295`)
+      const results = evaluate({ ...publicBase, item: spelled, reference: spelled })
+      for (const [name, result] of Object.entries(results))
+        expect(result, name).toEqual(
+          name === 'null_literal' ? { certain: true, value: true } : { certain: false },
+        )
+      expect(await server({ ...publicBase, item: spelled })).toMatchObject({
+        same: { certain: true, error: '42704' },
+      })
+    }
+    for (const item of [undefined, '=r/postgres', '=r/nosuch', 'nosuch=r', 'public=r'])
+      expectUndecidedOrRejected(() => evaluate({ ...publicBase, item }), String(item), [
+        'same',
+        'presence',
+      ])
+    expect(evaluate({ ...publicBase, item: undefined })).toEqual(
+      Object.fromEntries(
+        Object.keys(definitions).map((name) => [
+          name,
+          name === 'null_literal' ? { certain: true, value: true } : { certain: false },
+        ]),
+      ),
+    )
+    // Text the ACL input rejects without consulting a role, or reads to a PUBLIC item.
+    for (const item of ['', '=q', '=r/', '=r x', '=r/=', ' =r ', '=rr', '=*r', '=r*'])
+      expect({ item, results: evaluate({ ...publicBase, item }) }).toEqual({
+        item,
+        results: await server({ ...publicBase, item }),
+      })
     for (const bad of [
-      undefined,
-      '=r/postgres',
       5n,
       {},
+      { kind: 'Unknown' },
+      { kind: 'Null' },
       { kind: 'Value', value: null },
+      { kind: 'Value', value: { grantee: 0n, grantor: 10n, privileges: 2n, grantOptions: 0n } },
       ...['grantee', 'grantor', 'privileges', 'grantOptions'].flatMap((field) =>
         [-1n, 4294967296n, 1.5, '2', null].map((value) => ({
           kind: 'Value',
@@ -282,14 +376,63 @@ it('validates SQL-coerced ACL payloads, domains and partial inputs through nativ
           },
         })),
       ),
+      { kind: 'Error', value: { state: parseInt('22003', 36) } },
       { kind: 'Error', value: { state: -1 } },
       { kind: 'Error', value: { state: 1.5 } },
-    ]) {
-      expectUndecidedOrRejected(() => evaluate({ ...base, item: bad }), undefined, [
-        'same',
-        'presence',
-      ])
+    ])
+      expect(
+        () => evaluate({ ...publicBase, item: bad }),
+        JSON.stringify(bad, (_, v) => (typeof v === 'bigint' ? String(v) : v)),
+      ).toThrow(TypeError)
+    // Unknown and failed items handed to the evaluator directly; a PUBLIC SELECT item under the
+    // bootstrap superuser is what '=r' reads to.
+    const internalBase = {
+      item: runtime.makeAclitemValue(0n, 10n, 2n, 0n),
+      reference: runtime.makeAclitemValue(0n, 10n, 2n, 0n),
+      expected_hash: runtime.makeInt4Value(publicBase.expected_hash as number),
+      seed: runtime.makeInt8Value(publicBase.seed as bigint),
+      expected_extended: runtime.makeInt8Value(publicBase.expected_extended as bigint),
+      expected_absent: runtime.makeBoolValue(false),
+      choose_first: runtime.makeBoolValue(true),
+      expected_distinct: runtime.makeBoolValue(false),
+      expected_nullif: runtime.makeBoolValue(true),
+      bypass: runtime.makeBoolValue(false),
     }
+    expect(internal('public.acl_rows', internalBase)).toEqual(
+      Object.fromEntries(Object.keys(definitions).map((name) => [name, { kind: 'True' }])),
+    )
+    for (const item of [
+      { kind: 'Unknown' },
+      { kind: 'Error', value: { state: parseInt('22003', 36) } },
+    ])
+      expect(internal('public.acl_rows', { ...internalBase, item })).toEqual(
+        Object.fromEntries(
+          Object.keys(definitions).map((name) => [
+            name,
+            name === 'null_literal' ? { kind: 'True' } : item,
+          ]),
+        ),
+      )
+    // Stored items naming any role, as the server stores them, decide through the entries exactly
+    // as the server's native evaluation did.
+    const storedAcl = (input: Input) =>
+      input.kind === 'Value' && typeof input.value === 'object' && 'grantee' in input.value
+        ? runtime.makeAclitemValue(
+            input.value.grantee,
+            input.value.grantor,
+            input.value.privileges,
+            input.value.grantOptions,
+          )
+        : input
+    for (const c of publicCases)
+      expect(
+        internal(
+          'public.acl_rows',
+          Object.fromEntries(
+            Object.entries(c.row).map(([name, input]) => [name, storedAcl(input)]),
+          ),
+        ),
+      ).toEqual(c.expected)
     const goRoot = join(root, 'public-go'),
       goBundle = renderGoSchemaCheckArtifacts(
         [table],
