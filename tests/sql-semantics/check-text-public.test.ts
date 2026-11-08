@@ -9,6 +9,7 @@ import { buildProject } from '../../src/project-runtime.js'
 // the numeric identifiers and "char", whose CHECK inputs read the value as the server's input
 // function reads the parameter text.
 const schema = `CREATE DOMAIN short_doc AS tsvector CHECK (length(VALUE) < 3);
+CREATE DOMAIN limited_positions AS int2vector CHECK (VALUE IS NOT NULL);
 CREATE TABLE notes (
   id integer PRIMARY KEY,
   body tsvector CONSTRAINT few_lexemes CHECK (length(body) < 3),
@@ -25,7 +26,8 @@ CREATE TABLE notes (
   tx8 xid8 CONSTRAINT past_five CHECK (tx8 > '5'::xid8),
   flag "char" CONSTRAINT not_a CHECK (flag <> 'a'),
   snap pg_snapshot CONSTRAINT late_snapshot CHECK (pg_snapshot_xmin(snap) > '1'::xid8),
-  short short_doc
+  short short_doc,
+  positions int2vector CONSTRAINT two_positions CHECK (cardinality(positions::limited_positions) = 2)
 );
 `
 const columns = [
@@ -44,6 +46,7 @@ const columns = [
   'flag',
   'snap',
   'short',
+  'positions',
 ] as const
 const queries = `-- name: InsertNote :exec
 INSERT INTO notes (id, ${columns.join(', ')}) VALUES (@id, ${columns.map((column) => `@${column}`).join(', ')});
@@ -95,6 +98,9 @@ const cases: Partial<Record<(typeof columns)[number], unknown>>[] = [
   { snap: '9:5:' },
   { short: 'a b' },
   { short: 'a b c' },
+  { positions: '1 2' },
+  { positions: '1 2 3' },
+  { positions: '1 x' },
 ]
 
 let root: string
