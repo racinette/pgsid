@@ -16,10 +16,11 @@ CREATE TABLE notes (
   days date[] CONSTRAINT modern_days CHECK (days[1] >= '2000-01-01'),
   spans int4range[] CONSTRAINT short_spans CHECK (upper(spans[1]) <= 10),
   moods mood[] CONSTRAINT calm CHECK (NOT ('high' = ANY (moods))),
-  ratios real[] CONSTRAINT small_ratios CHECK (ratios[1] < 0.5)
+  ratios real[] CONSTRAINT small_ratios CHECK (ratios[1] < 0.5),
+  labels text[] CONSTRAINT unlabeled CHECK (labels IS NULL)
 );
 `
-const columns = ['counts', 'grid', 'tags', 'days', 'spans', 'moods', 'ratios'] as const
+const columns = ['counts', 'grid', 'tags', 'days', 'spans', 'moods', 'ratios', 'labels'] as const
 const queries = `-- name: InsertNote :exec
 INSERT INTO notes (id, ${columns.join(', ')}) VALUES (@id, ${columns.map((column) => `@${column}`).join(', ')});
 `
@@ -77,6 +78,8 @@ const cases: Partial<Record<(typeof columns)[number], unknown>>[] = [
   { ratios: [0.1] },
   { ratios: [0.4999999999] },
   { ratios: [1e39] },
+  { labels: ['a'] },
+  { labels: [['a'], ['b', 'c']] },
 ]
 
 let root: string
@@ -171,6 +174,15 @@ describe('CHECKs on public TypeScript arrays', () => {
       certain: true,
       error: '22P02',
     })
+    // A NULL test reads the value as any other read does.
+    expect(result({ labels: null }, 'unlabeled')).toEqual({ certain: true, value: true })
+    expect(result({ labels: ['a'] }, 'unlabeled')).toEqual({ certain: true, value: false })
+    expect(result({ labels: [['a'], ['b', 'c']] }, 'unlabeled')).toMatchObject({
+      certain: true,
+      error: '22P02',
+    })
+    for (const labels of ['a', [1], { kind: 'Null' }])
+      expect(() => result({ labels }, 'unlabeled'), String(labels)).toThrow(TypeError)
     for (const counts of [
       1,
       '{1,2}',

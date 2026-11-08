@@ -118,6 +118,58 @@ function readPublicText(
   return visit(expression) as EvalBoolExpression
 }
 
+// The runtime value types a CHECK input can be read as.
+const checkRustReadTypes: ReadonlySet<string> = new Set([
+  'Int2Value',
+  'Int4Value',
+  'Int8Value',
+  'Float4Value',
+  'Float8Value',
+  'PointValue',
+  'LineValue',
+  'LsegValue',
+  'MoneyValue',
+  'TsvectorValue',
+  'TsqueryValue',
+  'AclitemValue',
+  'XidValue',
+  'CidValue',
+  'PgLsnValue',
+  'TidValue',
+  'InternalCharValue',
+  'Xid8Value',
+  'SnapshotValue',
+  'RangeValue',
+  'MultirangeValue',
+  'CompositeValue',
+  'JsonValue',
+  'JsonbValue',
+  'JsonpathValue',
+  'XmlValue',
+  'ArrayValue',
+  'OidValue',
+  'PolygonValue',
+  'PathValue',
+  'CircleValue',
+  'BoxValue',
+  'NetworkValue',
+  'UuidValue',
+  'MacaddrValue',
+  'Macaddr8Value',
+  'ByteaValue',
+  'BitValue',
+  'NumericValue',
+  'TimeValue',
+  'TimetzValue',
+  'IntervalValue',
+  'DateValue',
+  'TimestampValue',
+  'TimestamptzValue',
+  'EnumValue',
+  'TextValue',
+  'BoolValue',
+])
+
 export function renderTypescriptSchemaChecks(
   tables: readonly TableInfo[],
   domains: readonly DomainInfo[] = [],
@@ -667,59 +719,8 @@ export function renderTypescriptSchemaCheckArtifacts(
         options.executionContext,
       )
       if (prepared?.kind === 'supported') {
-        const args = prepared.inputs.map((item) => {
-          if (
-            ![
-              'Int2Value',
-              'Int4Value',
-              'Int8Value',
-              'Float4Value',
-              'Float8Value',
-              'PointValue',
-              'LineValue',
-              'LsegValue',
-              'MoneyValue',
-              'TsvectorValue',
-              'TsqueryValue',
-              'AclitemValue',
-              'XidValue',
-              'CidValue',
-              'PgLsnValue',
-              'TidValue',
-              'InternalCharValue',
-              'Xid8Value',
-              'SnapshotValue',
-              'RangeValue',
-              'MultirangeValue',
-              'CompositeValue',
-              'JsonValue',
-              'JsonbValue',
-              'JsonpathValue',
-              'XmlValue',
-              'ArrayValue',
-              'OidValue',
-              'PolygonValue',
-              'PathValue',
-              'CircleValue',
-              'BoxValue',
-              'NetworkValue',
-              'UuidValue',
-              'MacaddrValue',
-              'Macaddr8Value',
-              'ByteaValue',
-              'BitValue',
-              'NumericValue',
-              'TimeValue',
-              'TimetzValue',
-              'IntervalValue',
-              'DateValue',
-              'TimestampValue',
-              'TimestamptzValue',
-              'EnumValue',
-              'TextValue',
-              'BoolValue',
-            ].includes(item.rustType)
-          )
+        const read = (item: (typeof prepared.inputs)[number]): ts.Expression => {
+          if (!checkRustReadTypes.has(item.rustType))
             throw new Error(`Unsupported TypeScript Rust CHECK input: ${item.rustType}`)
           const compositeArray =
             isArrayLikeType(item.type) &&
@@ -1046,7 +1047,35 @@ export function renderTypescriptSchemaCheckArtifacts(
                 ]
               : []),
           ])
-        })
+        }
+        // A NULL test reads the value too: a value of the wrong shape is a type error and one the
+        // server's input rejects fails the check, as for any other read of the column.
+        const nullnessRead = (item: (typeof prepared.inputs)[number]): ts.Expression | null => {
+          let rustType: string
+          try {
+            rustType = checkRustValueType(item.type)
+          } catch {
+            return null
+          }
+          if (rustType === 'BoolValue' || !checkRustReadTypes.has(rustType)) return null
+          rustInputAdapters.add('checkRustNullnessOf')
+          inputHelpers.add('checkInputNullness')
+          return helperCall('checkRustNullnessOf', [
+            row,
+            factory.createStringLiteral(item.name),
+            factory.createArrowFunction(
+              undefined,
+              undefined,
+              [],
+              undefined,
+              factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
+              read({ ...item, nullness: undefined, rustType }),
+            ),
+          ])
+        }
+        const args = prepared.inputs.map(
+          (item) => (item.nullness ? nullnessRead(item) : null) ?? read(item),
+        )
         const diagnosticEvaluation = prepared.diagnosticEntryName
           ? factory.createCallExpression(
               factory.createPropertyAccessExpression(
@@ -2255,6 +2284,14 @@ function checkRustBool(row: object, name: string): _checkRust.BoolValue {
 function checkRustNullness(row: object, name: string): _checkRust.BoolValue {
   const input = checkInputNullness(row, name)
   return input.certain ? _checkRust.makeBoolValue(input.value!) : _checkRust.boolUnknown()
+}
+function checkRustNullnessOf(row: object, name: string, read: () => { kind: string }): _checkRust.BoolValue {
+  const input = checkInputNullness(row, name)
+  if (!input.certain) return _checkRust.boolUnknown()
+  if (input.value) return _checkRust.makeBoolValue(true)
+  const value = read()
+  if (value.kind === 'Error') return value as _checkRust.BoolValue
+  return value.kind === 'Unknown' || value.kind === 'Unimplemented' ? _checkRust.boolUnknown() : _checkRust.makeBoolValue(false)
 }
 function checkRustEnum(row: object, name: string, labels: readonly string[]): _checkRust.EnumValue {
   const input = checkInputText(row, name)
