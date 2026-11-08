@@ -404,16 +404,19 @@ export const isJsonbSetLax = (item: ReturnType<typeof builtinMetadata>): boolean
 // Codes for the session DateStyle field order that temporal text input reads: 0 when unknown.
 // The runtime's name grammars: 0 a qualified name, 1 a name with an argument list, 2 a type name
 // and 3 a single unqualified name.
-const oidAliasFromText = (text: string, type: string): string => {
-  const dash = !['pg_catalog.regoper', 'pg_catalog.regoperator'].includes(type)
-  const grammar =
+const oidAliasGrammar = (type: string): { dash: boolean; grammar: number } => ({
+  dash: !['pg_catalog.regoper', 'pg_catalog.regoperator'].includes(type),
+  grammar:
     type === 'pg_catalog.regtype'
       ? 2
       : ['pg_catalog.regprocedure', 'pg_catalog.regoperator'].includes(type)
         ? 1
         : ['pg_catalog.regnamespace', 'pg_catalog.regrole'].includes(type)
           ? 3
-          : 0
+          : 0,
+})
+const oidAliasFromText = (text: string, type: string): string => {
+  const { dash, grammar } = oidAliasGrammar(type)
   return `oid_alias_from_text(${text}, ${dash}, ${grammar})`
 }
 
@@ -791,6 +794,53 @@ export const isJsonpathTimezoneCallable = (
 
 // The runtime value type that holds a SQL type's values.
 export const checkRustValueType = (type: string): string => rustType(type)
+
+// The input function a parameter of a type sent as text goes through, with the server settings
+// it reads, as array input calls it for each element: the runtime module holding it, its name and
+// its arguments after the text. Types whose input needs more than these settings have none.
+export function checkRustTextInput(
+  type: string,
+  context: CheckExecutionContext = {},
+): { module: 'operations' | 'runtime'; callable: string; args: (boolean | number)[] } | null {
+  const utf8 = context.serverEncoding === 'UTF8'
+  if (type === 'pg_catalog.tsvector')
+    return { module: 'operations', callable: 'tsvector_from_text_context', args: [utf8] }
+  if (type === 'pg_catalog.tsquery')
+    return { module: 'operations', callable: 'tsquery_from_text_context', args: [utf8] }
+  if (type === 'pg_catalog.aclitem')
+    return {
+      module: 'operations',
+      callable: 'aclitem_from_text_context',
+      args: [context.maxIdentifierBytes ?? -1, utf8],
+    }
+  if (type === 'pg_catalog.money')
+    return {
+      module: 'operations',
+      callable: 'money_from_text_context',
+      args: [moneyTextCLocale(context)],
+    }
+  if (type === 'pg_catalog.pg_lsn')
+    return { module: 'operations', callable: 'pg_lsn_from_text', args: [] }
+  if (type === 'pg_catalog.tid')
+    return { module: 'operations', callable: 'tid_from_text', args: [] }
+  if (isSnapshotType(type))
+    return { module: 'operations', callable: 'snapshot_from_text', args: [] }
+  if (type === 'pg_catalog."json"')
+    return { module: 'operations', callable: 'json_from_text', args: [] }
+  if (type === 'pg_catalog.jsonb')
+    return { module: 'runtime', callable: 'jsonb_from_text_context', args: [utf8] }
+  if (type === 'pg_catalog.xml')
+    return {
+      module: 'operations',
+      callable: 'xml_from_text_context',
+      args: [context.xmlOption === 'document' ? 1 : context.xmlOption === 'content' ? 2 : 0, utf8],
+    }
+  if (isOidAliasType(type)) {
+    const { dash, grammar } = oidAliasGrammar(type)
+    return { module: 'operations', callable: 'oid_alias_from_text', args: [dash, grammar] }
+  }
+  return null
+}
 
 const rustType = (type: string): string => {
   type = arrayElementBaseType(type)
