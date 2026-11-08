@@ -483,6 +483,7 @@ export function renderTypescriptSchemaCheckArtifacts(
       ),
     )
   }
+  const undecided = (name: string): boolean => name.startsWith('checkRustUndecided')
   const scalarElement = (type: string): ts.Expression | null => {
     let valueType: string
     try {
@@ -544,8 +545,12 @@ export function renderTypescriptSchemaCheckArtifacts(
   }
   const elementConverter = (type: string): string =>
     defineConverter(`element\0${type}`, 'checkRustElement', 'ArrayElement', () => {
+      // A part the conversion cannot decide may be one the server rejects, so the whole value is
+      // undecided rather than read around it.
       const call = (member: string, convert: string) =>
-        runtimeCall(member, [helperCall(convert, [identifier('value'), identifier('name')])])
+        undecided(convert)
+          ? 'checkRustUndecidedElement'
+          : runtimeCall(member, [helperCall(convert, [identifier('value'), identifier('name')])])
       if (compositeProfile(type)) return call('arrayElementFromComposite', compositeConverter(type))
       if (multirangeTypeProfile(type) && !isArrayLikeType(type))
         return call('arrayElementFromMultirange', multirangeConverter(type))
@@ -559,7 +564,8 @@ export function renderTypescriptSchemaCheckArtifacts(
     defineConverter(`array\0${type}`, 'checkRustArray', 'ArrayValue', () => {
       const element = arrayLikeElementType(type)!
       // Arrays whose elements are arrays (domains over arrays) stay undecided.
-      if (isArrayLikeType(element)) return 'checkRustUndecidedArray'
+      if (isArrayLikeType(element) || undecided(elementConverter(element)))
+        return 'checkRustUndecidedArray'
       const array = helperCall('checkRustPublicArray', [
         identifier('value'),
         identifier('name'),
@@ -583,6 +589,11 @@ export function renderTypescriptSchemaCheckArtifacts(
       const root = compositeNodes(type, options.executionContext)?.[0]
       if (!profile || !definition || !root) return 'checkRustUndecidedComposite'
       const fields = [...definition.fields].sort((left, right) => left.position - right.position)
+      const converters = fields.map((field) => {
+        const fieldType = compositeFieldType(profile, field.type)
+        return fieldType ? elementConverter(fieldType) : 'checkRustUndecidedElement'
+      })
+      if (converters.some(undecided)) return 'checkRustUndecidedComposite'
       return runtimeCall('compositeFromCoercedPlan', [
         helperCall('checkRustPublicComposite', [
           identifier('value'),
@@ -591,14 +602,7 @@ export function renderTypescriptSchemaCheckArtifacts(
           factory.createArrayLiteralExpression(
             fields.map((field) => factory.createStringLiteral(field.name)),
           ),
-          factory.createArrayLiteralExpression(
-            fields.map((field) => {
-              const fieldType = compositeFieldType(profile, field.type)
-              return identifier(
-                fieldType ? elementConverter(fieldType) : 'checkRustUndecidedElement',
-              )
-            }),
-          ),
+          factory.createArrayLiteralExpression(converters.map((name) => identifier(name))),
         ]),
         compositeContext(type),
       ])
@@ -607,7 +611,11 @@ export function renderTypescriptSchemaCheckArtifacts(
     defineConverter(`multirange\0${type}`, 'checkRustMultirange', 'MultirangeValue', () => {
       const profile = multirangeTypeProfile(type)!
       // Ranges over composites and arrays need the subtype's bound profile; they stay undecided.
-      if (rangeContainerKind(profile.elementType) !== null) return 'checkRustUndecidedMultirange'
+      if (
+        rangeContainerKind(profile.elementType) !== null ||
+        undecided(rangeConverter(profile.rangeType))
+      )
+        return 'checkRustUndecidedMultirange'
       return helperCall('checkRustPublicMultirange', [
         identifier('value'),
         identifier('name'),
@@ -622,7 +630,11 @@ export function renderTypescriptSchemaCheckArtifacts(
   const rangeConverter = (type: string): string =>
     defineConverter(`range\0${type}`, 'checkRustRange', 'RangeValue', () => {
       const profile = rangeTypeProfile(type)!
-      if (rangeContainerKind(profile.elementType) !== null) return 'checkRustUndecidedRange'
+      if (
+        rangeContainerKind(profile.elementType) !== null ||
+        undecided(elementConverter(profile.elementType))
+      )
+        return 'checkRustUndecidedRange'
       const labels = profile.subtypeEnum?.values
       return helperCall('checkRustPublicRange', [
         identifier('value'),

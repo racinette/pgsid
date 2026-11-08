@@ -24,7 +24,8 @@ CREATE TABLE notes (
   snaps pg_snapshot[] CONSTRAINT late_snapshots CHECK (pg_snapshot_xmin(snaps[1]) > '1'::xid8),
   meta note_meta CONSTRAINT short_meta CHECK (length((meta).doc) < 3 AND (meta).cash > '0'::money),
   metas note_meta[] CONSTRAINT metas_a CHECK ((metas[1]).info ? 'a'),
-  span lsn_span CONSTRAINT early_span CHECK (upper(span) <= '1/0')
+  span lsn_span CONSTRAINT early_span CHECK (upper(span) <= '1/0'),
+  paths jsonpath[] CONSTRAINT few_paths CHECK (cardinality(paths) < 3)
 );
 `
 const columns = [
@@ -41,6 +42,7 @@ const columns = [
   'meta',
   'metas',
   'span',
+  'paths',
 ] as const
 const queries = `-- name: InsertNote :exec
 INSERT INTO notes (id, ${columns.join(', ')}) VALUES (@id, ${columns.map((column) => `@${column}`).join(', ')});
@@ -95,6 +97,11 @@ const cases: Partial<Record<(typeof columns)[number], unknown>>[] = [
   { span: span('0/10', '2/0') },
   { span: span('0/20', '0/10') },
   { span: span('0/10', 'x') },
+  // Elements whose input is not converted leave the whole array to the server, which may reject
+  // one of them before the check is reached.
+  { paths: ['$'] },
+  { paths: [''] },
+  { paths: ['$', '$', '$'] },
 ]
 
 let root: string
@@ -191,6 +198,8 @@ describe('CHECKs on text-valued elements in public containers', () => {
       certain: true,
       value: true,
     })
+    // The server rejects an empty JSON path before the check, so the check cannot be decided.
+    expect(result({ paths: [''] }, 'few_paths')).toMatchObject({ certain: false })
     for (const [row, constraint] of [
       [{ docs: [1] }, 'short_docs'],
       [{ docs: [{ kind: 'Value', value: { lexemes: [] } }] }, 'short_docs'],
