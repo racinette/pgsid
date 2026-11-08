@@ -8834,7 +8834,7 @@ export function emitCheckRustEvaluator(
       throw new UnsupportedCheckRustExpression(`Unsupported Rust CHECK constant: ${value.kind}`)
     }
     if (node.kind === 'input-null-test') {
-      const item = input(node.name, node.type, true)
+      const item = input(node.name, node.type, true, node.enum)
       used.add(item.name)
       return {
         name: node.negated ? bind(`bool_not_value(${item.rustName})`) : item.rustName,

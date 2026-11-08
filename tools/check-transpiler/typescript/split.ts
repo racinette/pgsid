@@ -110,6 +110,9 @@ const shortName = (name: string): string =>
     ? name.slice('sqlPgCatalog'.length).replace(/^./u, (letter) => letter.toLowerCase())
     : name
 
+// The name a Rust function of the runtime is exported under in TypeScript.
+export const typescriptRuntimeName = (rustName: string): string => shortName(lower(rustName))
+
 const groupSets = (): Record<Group, Set<string>> => ({
   regex: new Set(),
   operations: new Set(),

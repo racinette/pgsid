@@ -74,8 +74,13 @@ import {
 import type { EvalExpression } from '../../../sql-semantics/eval-expressions.js'
 import { portableCheckAtoms } from '../../shared/check-atom-support.js'
 import { checkUnknownMessage } from '../../shared/check-diagnostics.js'
-import { prepareCheckRustGroup } from '../../shared/check-rust-source.js'
-import { transpileCheckRustTypescriptFiles } from '../../shared/check-rust-transpile.js'
+import { checkRustCallableNames, prepareCheckRustGroup } from '../../shared/check-rust-source.js'
+import { builtinCast, builtinMetadata } from '../../../postgres/builtins/inventory.js'
+import { rustCallableName } from '../../../postgres/builtins/rust-name.js'
+import {
+  transpileCheckRustTypescriptFiles,
+  typescriptRuntimeName,
+} from '../../shared/check-rust-transpile.js'
 import { exportModifier, factory, identifier, printFile } from '../ast.js'
 import { typeName } from '../type-mapping.js'
 import { typescriptEvalBoolBackend } from './check.js'
@@ -116,6 +121,25 @@ function readPublicText(
     return Object.fromEntries(Object.entries(node).map(([key, item]) => [key, visit(item)]))
   }
   return visit(expression) as EvalBoolExpression
+}
+
+// The function the server applies a type modifier with when it reads a parameter of the type: the
+// type's length coercion, given the modifier and, where it takes one, that the cast is implicit.
+function typeModifierCoercion(type: string): { callable: string; explicit: boolean } | null {
+  const conversion = builtinCast(type, type)
+  if (conversion?.method !== 'f' || !conversion.implementation) return null
+  const callable = builtinMetadata(conversion.implementation)
+  if (
+    callable.kind !== 'function' ||
+    ![2, 3].includes(callable.args.length) ||
+    callable.args[1] !== 'pg_catalog.int4' ||
+    (callable.args.length === 3 && callable.args[2] !== 'pg_catalog.bool')
+  )
+    return null
+  const name = rustCallableName(callable)
+  return checkRustCallableNames().has(name)
+    ? { callable: typescriptRuntimeName(name), explicit: callable.args.length === 3 }
+    : null
 }
 
 // The runtime value types a CHECK input can be read as.
@@ -314,6 +338,33 @@ export function renderTypescriptSchemaCheckArtifacts(
             ?.columns.map((column) => column.name) ?? [])
         : ['value'],
     )
+  // The type modifier the server applies as it reads a group's input: the column's own or the one
+  // its domain chain declares for the base type.
+  const inputTypeMod = (group: (typeof groups)[number], name: string): number => {
+    const column =
+      group.kind === 'table'
+        ? tables
+            .find(
+              (table) => table.schema === group.source.schema && table.name === group.source.name,
+            )
+            ?.columns.find((item) => item.name === name)
+        : undefined
+    let typeMod = column?.typeMod ?? -1
+    let domain =
+      group.kind === 'table'
+        ? domains.find((item) => item.oid === column?.typeOid)
+        : domains.find(
+            (item) => item.schema === group.source.schema && item.name === group.source.name,
+          )
+    const seen = new Set<number>()
+    while (domain && !seen.has(domain.oid)) {
+      seen.add(domain.oid)
+      if ((domain.baseTypeMod ?? -1) >= 0) typeMod = domain.baseTypeMod!
+      const base = domain.baseTypeOid
+      domain = domains.find((item) => item.oid === base)
+    }
+    return typeMod
+  }
   const rustGroup = rust
     ? prepareCheckRustGroup(
         groups.flatMap((group) =>
@@ -463,7 +514,7 @@ export function renderTypescriptSchemaCheckArtifacts(
     inputHelpers.add('checkInputText')
     return defineConverter(`text\0${type}`, 'checkRustTextInput', checkRustValueType(type), () =>
       runtimeCall(
-        text.callable.replace(/_([a-z0-9])/gu, (_, letter: string) => letter.toUpperCase()),
+        typescriptRuntimeName(text.callable),
         [
           helperCall(
             type === 'pg_catalog."json"' || type === 'pg_catalog.jsonb'
@@ -589,9 +640,15 @@ export function renderTypescriptSchemaCheckArtifacts(
       const root = compositeNodes(type, options.executionContext)?.[0]
       if (!profile || !definition || !root) return 'checkRustUndecidedComposite'
       const fields = [...definition.fields].sort((left, right) => left.position - right.position)
+      // The server applies a field's type modifier and domain as it reads the field; neither is
+      // applied here yet, so such a field leaves the record undecided.
       const converters = fields.map((field) => {
         const fieldType = compositeFieldType(profile, field.type)
-        return fieldType ? elementConverter(fieldType) : 'checkRustUndecidedElement'
+        const domain =
+          profile.graph.definitions.find((item) => item.identity === field.type)?.kind === 'd'
+        return fieldType && field.typeMod < 0 && !domain
+          ? elementConverter(fieldType)
+          : 'checkRustUndecidedElement'
       })
       if (converters.some(undecided)) return 'checkRustUndecidedComposite'
       return runtimeCall('compositeFromCoercedPlan', [
@@ -1060,12 +1117,41 @@ export function renderTypescriptSchemaCheckArtifacts(
               : []),
           ])
         }
+        // A value is read as the server reads the parameter, through the type modifier too; a
+        // modifier the evaluator cannot apply leaves the value undecided.
+        const typedRead = (item: (typeof prepared.inputs)[number]): ts.Expression => {
+          const value = read(item)
+          const typeMod = item.nullness ? -1 : inputTypeMod(group, item.name)
+          if (typeMod < 0) return value
+          if (isArrayLikeType(item.type) && !isCatalogVectorType(item.type))
+            return runtimeCall(
+              'arrayWithTypmod',
+              [value, numberLiteral(typeMod)],
+              '_checkRustOperations',
+            )
+          const coercion = typeModifierCoercion(item.type)
+          if (!coercion)
+            return runtimeCall(
+              `${item.rustType[0]!.toLowerCase()}${item.rustType.slice(1, -'Value'.length)}Unknown`,
+              [],
+            )
+          return runtimeCall(
+            coercion.callable,
+            [
+              value,
+              runtimeCall('makeInt4Value', [numberLiteral(typeMod)]),
+              ...(coercion.explicit ? [runtimeCall('makeBoolValue', [factory.createFalse()])] : []),
+            ],
+            '_checkRustOperations',
+          )
+        }
         // A NULL test reads the value too: a value of the wrong shape is a type error and one the
         // server's input rejects fails the check, as for any other read of the column.
         const nullnessRead = (item: (typeof prepared.inputs)[number]): ts.Expression | null => {
           let rustType: string
+          const type = item.enum ? enumType(item.enum) : item.type
           try {
-            rustType = checkRustValueType(item.type)
+            rustType = checkRustValueType(type)
           } catch {
             return null
           }
@@ -1081,12 +1167,12 @@ export function renderTypescriptSchemaCheckArtifacts(
               [],
               undefined,
               factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
-              read({ ...item, nullness: undefined, rustType }),
+              typedRead({ ...item, type, nullness: undefined, rustType }),
             ),
           ])
         }
         const args = prepared.inputs.map(
-          (item) => (item.nullness ? nullnessRead(item) : null) ?? read(item),
+          (item) => (item.nullness ? nullnessRead(item) : null) ?? typedRead(item),
         )
         const diagnosticEvaluation = prepared.diagnosticEntryName
           ? factory.createCallExpression(

@@ -17,10 +17,21 @@ CREATE TABLE notes (
   spans int4range[] CONSTRAINT short_spans CHECK (upper(spans[1]) <= 10),
   moods mood[] CONSTRAINT calm CHECK (NOT ('high' = ANY (moods))),
   ratios real[] CONSTRAINT small_ratios CHECK (ratios[1] < 0.5),
-  labels text[] CONSTRAINT unlabeled CHECK (labels IS NULL)
+  labels text[] CONSTRAINT unlabeled CHECK (labels IS NULL),
+  mood mood CONSTRAINT moodless CHECK (mood IS NULL)
 );
 `
-const columns = ['counts', 'grid', 'tags', 'days', 'spans', 'moods', 'ratios', 'labels'] as const
+const columns = [
+  'counts',
+  'grid',
+  'tags',
+  'days',
+  'spans',
+  'moods',
+  'ratios',
+  'labels',
+  'mood',
+] as const
 const queries = `-- name: InsertNote :exec
 INSERT INTO notes (id, ${columns.join(', ')}) VALUES (@id, ${columns.map((column) => `@${column}`).join(', ')});
 `
@@ -181,6 +192,11 @@ describe('CHECKs on public TypeScript arrays', () => {
       certain: true,
       error: '22P02',
     })
+    expect(result({ mood: 'low' }, 'moodless')).toEqual({ certain: true, value: false })
+    // A label outside the captured ones may have been added to the type since.
+    expect(result({ mood: 'nope' }, 'moodless')).toMatchObject({ certain: false })
+    for (const mood of [5, { kind: 'Null' }])
+      expect(() => result({ mood }, 'moodless'), String(mood)).toThrow(TypeError)
     for (const labels of ['a', [1], { kind: 'Null' }])
       expect(() => result({ labels }, 'unlabeled'), String(labels)).toThrow(TypeError)
     for (const counts of [
