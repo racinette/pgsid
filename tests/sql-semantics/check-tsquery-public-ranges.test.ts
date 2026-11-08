@@ -1,6 +1,5 @@
 import { PGlite } from '@electric-sql/pglite'
 import { expect, it } from 'vitest'
-import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -18,16 +17,27 @@ import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-tr
 import { parseConfigString } from '../../src/config/loader.js'
 import { go, printGoFile, type GoExpression } from '../../src/codegen/go/ast.js'
 import { goFixtureBinding } from '../../tools/check-rust/go-fixtures.js'
-import { rangeGoInput, type RangeInputPayload } from '../../tools/check-rust/range-input.js'
+import {
+  rangeGoInput,
+  rangeTypescriptInput,
+  type RangeInputPayload,
+} from '../../tools/check-rust/range-input.js'
 import {
   multirangeGoInput,
+  multirangeTypescriptInput,
   type MultirangeInputPayload,
 } from '../../tools/check-rust/multirange-input.js'
-import { arrayGoInput, type OwnedArrayInputPayload } from '../../tools/check-rust/array-input.js'
+import {
+  arrayGoInput,
+  arrayTypescriptInput,
+  type OwnedArrayInputPayload,
+} from '../../tools/check-rust/array-input.js'
 import {
   compositeGoInput,
+  compositeTypescriptInput,
   type CompositeInputPayload,
 } from '../../tools/check-rust/composite-input.js'
+import { differingChecks, serverCheckResults } from '../support/check-server-results.js'
 import {
   runCheckParity,
   type Input,
@@ -39,6 +49,7 @@ import { readRangeFixture } from './check-range-fixtures.js'
 import { readMultirangeQueryFixture } from './check-multirange-fixtures.js'
 import { readRangeArrayFixture } from './check-range-array-fixtures.js'
 import { readCompositeFixture } from './check-composite-fixtures.js'
+import { internalCheckRows, storedOrRejected } from '../support/check-entries.js'
 
 const packet = 'artifacts/goal-checks/tsquery-public-ranges-active'
 const context = {
@@ -49,15 +60,6 @@ const context = {
 } as const
 const known = (value: Extract<Input, { kind: 'Value' }>['value'] | null): Input =>
   value === null ? { kind: 'Null' } : { kind: 'Value', value }
-const publicResult = (outcome: Outcome) =>
-  outcome.kind === 'Unknown'
-    ? { certain: false }
-    : outcome.kind === 'Error'
-      ? {
-          certain: true,
-          error: outcome.value.state.toString(36).toUpperCase().padStart(5, '0'),
-        }
-      : { certain: true, value: outcome.kind === 'Null' ? null : outcome.kind === 'True' }
 const forms = {
   ordered: 'v<w',
   contained: 'm @> v',
@@ -161,7 +163,12 @@ it('validates public tsquery range, array, record and nested range inputs with n
     for (const [i, check] of group.checks.entries())
       expect(check.kind, JSON.stringify({ plan: plans[i]!.identity, check })).toBe('supported')
     const fixtures: { name: string; row: Row; expected: Outcome }[] = [],
-      cases: { family: number; row: Row; expected: Record<string, Outcome> }[] = [],
+      cases: {
+        family: number
+        row: Row
+        expected: Record<string, Outcome>
+        source?: { left: string; right: string; seed: bigint | null; bypass: boolean }
+      }[] = [],
       references: unknown[] = []
     let nativeInserts = 0
     for (const [index, p] of profiles.entries()) {
@@ -303,7 +310,7 @@ it('validates public tsquery range, array, record and nested range inputs with n
                 expected: expected[name]!,
               })
           }
-          cases.push({ family: index, row, expected })
+          cases.push({ family: index, row, expected, source: { left, right, seed, bypass } })
         }
       }
     }
@@ -315,6 +322,7 @@ it('validates public tsquery range, array, record and nested range inputs with n
     for (const [family] of profiles.entries()) {
       const base = cases.find((c) => c.family === family)!
       const missing = structuredClone(base)
+      delete missing.source
       changeQuery(missing.row.v, (node) => {
         node.nativeBytes = -1
       })
@@ -395,46 +403,165 @@ it('validates public tsquery range, array, record and nested range inputs with n
       throw new Error(error.stdout + error.stderr)
     })
     const api = await import(pathToFileURL(join(tsRoot, 'js/checks.js')).href)
-    const publicRow = (row: Row) =>
-      Object.fromEntries(
-        Object.entries(row).map(([name, value]) => [
-          name,
-          ['v', 'w', 'm', 'items', 'bundle'].includes(name)
-            ? value
-            : value.kind === 'Value'
-              ? value.value
-              : null,
-        ]),
-      )
     const evaluate = (family: number, row: unknown): Record<string, unknown> =>
       Object.fromEntries(
         api[`evaluatePublicOwnedRange${family}Checks`](row).map(
           (c: { constraint: string; result: unknown }) => [c.constraint, c.result],
         ),
       )
-    for (const c of cases) {
-      const input = publicRow(c.row),
-        before = structuredClone(input)
-      expect(evaluate(c.family, input)).toEqual(
-        Object.fromEntries(
-          Object.entries(c.expected).map(([name, value]) => [name, publicResult(value)]),
-        ),
+    // Public ranges hold their subtype's public values: tsquery text, lists of it, records of it and
+    // ranges of it. Public lists start at 1, so these rows hold the stored items from 1.
+    const mismatches: ReturnType<typeof differingChecks> = [],
+      typeErrors: string[] = []
+    const publicRange = (expression: string, bound: (value: string) => string) =>
+      `CASE WHEN (${expression}) IS NULL THEN NULL WHEN isempty(${expression}) THEN json_build_object('empty',true) ELSE json_build_object('empty',false,'lower',${bound(`lower(${expression})`)},'upper',${bound(`upper(${expression})`)},'lowerInclusive',lower_inc(${expression}),'upperInclusive',upper_inc(${expression})) END`
+    for (const [family, p] of profiles.entries()) {
+      const text = (value: string) => `to_json((${value})::text)`
+      const bound =
+        p.name === 'array_span'
+          ? (value: string) => `array_to_json((${value})::text[])`
+          : p.name === 'record_span'
+            ? (value: string) =>
+                `CASE WHEN (${value}) IS NULL THEN NULL ELSE json_build_object('head',(${value}).head::text,'items',array_to_json((${value}).items::text[])) END`
+            : p.name === 'nested_span'
+              ? (value: string) => publicRange(value, text)
+              : text
+      const deploymentIds = ['array_span', 'record_span'].includes(p.name)
+      for (const c of cases.filter((c) => c.family === family && c.source)) {
+        const { left, right, seed, bypass } = c.source!
+        const values = (
+          await pg.query<Record<string, unknown>>(
+            `SELECT ${publicRange('v', bound)} v,${publicRange('w', bound)} w,
+              CASE WHEN m IS NULL THEN NULL ELSE COALESCE((SELECT json_agg(${publicRange('r', bound)} ORDER BY n) FROM unnest(m) WITH ORDINALITY u(r,n)),'[]') END m,
+              v::text v_text,w::text w_text,m::text m_text,ARRAY[v,NULL,w]::text items_text,
+              ROW(v,m,ARRAY[v,NULL,w],'a'::tsquery)::window_bundle_${family}::text bundle_text
+            FROM(SELECT v,w,CASE WHEN v IS NULL THEN NULL ELSE ${p.multirange}(v,w) END m FROM(SELECT ${left} v,${right} w) bounds) members`,
+          )
+        ).rows[0]!
+        const items = [values['v'], null, values['w']]
+        const row = {
+          v: values['v'],
+          w: values['w'],
+          m: values['m'],
+          items,
+          bundle: { span: values['v'], members: values['m'], history: items, document: "'a'" },
+          expected_text: c.row.expected_text!.kind === 'Value' ? c.row.expected_text!.value : null,
+          expected_wire: c.row.expected_wire!.kind === 'Value' ? c.row.expected_wire!.value : null,
+          expected_multi_wire:
+            c.row.expected_multi_wire!.kind === 'Value' ? c.row.expected_multi_wire!.value : null,
+          seed,
+          bypass,
+        }
+        const before = structuredClone(row)
+        const local = evaluate(family, row),
+          server = await serverCheckResults(pg, `owned_range_${family}`, {
+            v: values['v_text'] as string | null,
+            w: values['w_text'] as string | null,
+            m: values['m_text'] as string | null,
+            items: values['items_text'] as string,
+            bundle: values['bundle_text'] as string,
+            expected_text: row.expected_text as string | null,
+            expected_wire: row.expected_wire as string | null,
+            expected_multi_wire: row.expected_multi_wire as string | null,
+            seed: seed === null ? null : String(seed),
+            bypass: String(bypass),
+          })
+        // Sending an array or record writes its element types' catalog OIDs.
+        if (deploymentIds && !bypass)
+          for (const name of ['wire', 'multi_wire']) {
+            if ((local[name] as { certain: boolean }).certain)
+              expect(local[name], `${p.name} ${name}`).toEqual(server[name])
+            delete local[name]
+            delete server[name]
+          }
+        mismatches.push(
+          ...differingChecks(
+            `${p.name} ${JSON.stringify(row, (_key, item) => (typeof item === 'bigint' ? `${item}n` : item))}`,
+            local,
+            server,
+          ),
+        )
+        expect(row).toEqual(before)
+        // Payloads are not public values.
+        for (const field of ['v', 'm', 'items'] as const)
+          if (c.row[field]!.kind === 'Value')
+            try {
+              evaluate(family, { ...row, [field]: c.row[field] })
+              typeErrors.push(`${p.name} ${field}`)
+            } catch (error) {
+              if (!(error instanceof TypeError)) throw error
+            }
+      }
+    }
+    // Stored values go to the evaluator entries directly: items starting at -2, documents whose
+    // stored size is unknown, support the caller forged and malformed stored documents.
+    const checkRuntime = await import(pathToFileURL(join(tsRoot, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(ts.checks, checkRuntime)
+    const stored = (row: Row) =>
+      Object.fromEntries(
+        Object.entries(row).map(([name, input]) => {
+          const value = input.kind === 'Value' ? input.value : null
+          return [
+            name,
+            name === 'v' || name === 'w'
+              ? value === null
+                ? checkRuntime.rangeNull()
+                : checkRuntime.makeCoercedRangeValue(
+                    rangeTypescriptInput(value as RangeInputPayload, checkRuntime),
+                  )
+              : name === 'm'
+                ? value === null
+                  ? checkRuntime.multirangeNull()
+                  : checkRuntime.makeCoercedMultirangeValue(
+                      multirangeTypescriptInput(value as MultirangeInputPayload, checkRuntime),
+                    )
+                : name === 'items'
+                  ? value === null
+                    ? checkRuntime.arrayNull()
+                    : checkRuntime.makeArrayValue(
+                        arrayTypescriptInput(value as OwnedArrayInputPayload, checkRuntime),
+                      )
+                  : name === 'bundle'
+                    ? value === null
+                      ? checkRuntime.compositeNull()
+                      : checkRuntime.makeCompositeValue(
+                          compositeTypescriptInput(value as CompositeInputPayload, checkRuntime),
+                        )
+                    : name === 'seed'
+                      ? value === null
+                        ? checkRuntime.int8Null()
+                        : checkRuntime.makeInt8Value(value)
+                      : name === 'bypass'
+                        ? checkRuntime.makeBoolValue(value)
+                        : value === null
+                          ? checkRuntime.textNull()
+                          : checkRuntime.makeTextValue(value),
+          ]
+        }),
       )
-      expect(input).toEqual(before)
+    const undecided = ['Unknown', 'Unimplemented']
+    for (const c of cases) {
+      const results = internal(`public.owned_range_${c.family}`, stored(c.row))
+      for (const [name, outcome] of Object.entries(c.expected))
+        if (outcome.kind === 'Unknown')
+          expect(undecided, `${c.family} ${name}`).toContain(
+            (results[name] as { kind: string }).kind,
+          )
+        else expect(results[name], `${c.family} ${name}`).toEqual(outcome)
     }
     for (const [family] of profiles.entries()) {
       const base = cases.find((c) => c.family === family)!
-      const forged = publicRow(structuredClone(base.row))
+      const forged = structuredClone(base.row)
       visitObjects(forged, (node) => {
         if (Array.isArray(node.bounds) || Array.isArray(node.ranges))
           node.support = { comparison: 1, canonical: 2 }
         return false
       })
-      expect(evaluate(family, forged)).toEqual(
-        Object.fromEntries(
-          Object.entries(base.expected).map(([name, value]) => [name, publicResult(value)]),
-        ),
-      )
+      // Forged support never decides a check differently from the stored value's own.
+      const forgedResults = internal(`public.owned_range_${family}`, stored(forged))
+      for (const [name, outcome] of Object.entries(base.expected))
+        if (!undecided.includes((forgedResults[name] as { kind: string }).kind))
+          expect(forgedResults[name], `${family} forged ${name}`).toEqual(outcome)
       for (const [field, constraint] of [
         ['v', 'ordered'],
         ['m', 'contained'],
@@ -442,22 +569,28 @@ it('validates public tsquery range, array, record and nested range inputs with n
         ['bundle', 'projected'],
       ] as const)
         for (const defect of ['size', 'text', 'position']) {
-          const bad = publicRow(structuredClone(base.row))
+          const bad = structuredClone(base.row)
           changeQuery(bad[field], (node) => {
             if (defect === 'size') node.nativeBytes = -2
             if (defect === 'text') (node.nodes as { text: string }[])[0]!.text = 'a\0'
             if (defect === 'position') node.root = 999
           })
-          const before = structuredClone(bad)
-          const rejected = expectUndecidedOrRejected(() => evaluate(family, bad), defect, [
-            constraint,
-          ])
-          expect(bad).toEqual(before)
-          if (rejected) expect(() => evaluate(family, { ...bad, bypass: true })).toThrow(TypeError)
-          else
-            expect(Object.values(evaluate(family, { ...bad, bypass: true }))).toEqual(
-              Object.keys(forms).map(() => ({ certain: true, value: true })),
-            )
+          // A malformed stored document is no runtime value: the runtime rejects it, or the
+          // checks reading it decide nothing while a bypassed row still decides.
+          const built = storedOrRejected(() => stored(bad))
+          if (built === undefined) continue
+          const results = internal(`public.owned_range_${family}`, built)
+          expect(undecided, `${family} ${field} ${defect}`).toContain(
+            (results[constraint] as { kind: string }).kind,
+          )
+          expect(
+            Object.values(
+              internal(`public.owned_range_${family}`, {
+                ...built,
+                bypass: checkRuntime.makeBoolValue(true),
+              }),
+            ),
+          ).toEqual(Object.keys(forms).map(() => ({ kind: 'True' })))
         }
     }
     const runtime = (name: string) => go.selector(go.ident('checkruntime'), name)
@@ -604,6 +737,8 @@ func TestPublicRanges(t *testing.T){${assertions.join('\n')}}
         throw new Error(error.stdout + error.stderr)
       },
     )
+    // Every public case decides as the server does, and payloads are type errors.
+    expect({ mismatches, typeErrors }).toEqual({ mismatches: [], typeErrors: [] })
     await writeFile(
       join(packet, 'public-validation.json'),
       JSON.stringify(

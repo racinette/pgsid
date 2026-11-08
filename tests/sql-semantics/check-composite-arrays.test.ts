@@ -10,11 +10,16 @@ import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import { lowerTableCheck } from '../../src/sql-semantics/catalog-checks.js'
 import { prepareCheckRustGroup } from '../../src/codegen/shared/check-rust-source.js'
 import { runCheckParity, type Row, type Outcome } from '../../tools/check-rust/parity.js'
-import type { OwnedArrayInputPayload } from '../../tools/check-rust/array-input.js'
+import {
+  arrayTypescriptInput,
+  type OwnedArrayInputPayload,
+} from '../../tools/check-rust/array-input.js'
+import { serverCheckResults } from '../support/check-server-results.js'
 import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
+import { internalCheckRows } from '../support/check-entries.js'
 
 const outcome = (value: boolean | null): Outcome => ({
   kind: value === null ? 'Null' : value ? 'True' : 'False',
@@ -457,6 +462,26 @@ CONSTRAINT output CHECK(CASE WHEN bypass THEN true ELSE a::text='{"(2,z,hi)"}' E
             }[]
           ).map((c) => [c.constraint, c.result]),
         )
+    // Public records are objects of their fields, the enum field its label.
+    const publicGood = [{ n: 2, phase: 'z', label: 'hi' }]
+    const expected = {
+      first_score: { certain: true, value: true },
+      equal: { certain: true, value: true },
+      count: { certain: true, value: true },
+      output: { certain: true, value: true },
+    }
+    const before = structuredClone(publicGood)
+    expect(evaluate({ a: publicGood, bypass: false })).toEqual(expected)
+    expect(publicGood).toEqual(before)
+    for (const [a, text] of [
+      [publicGood, '{"(2,z,hi)"}'],
+      [[{ n: 1, phase: 'a', label: 'hi' }], '{"(1,a,hi)"}'],
+      [[{ n: 2 }, null, { label: 'x' }, {}], '{"(2,,)",NULL,"(,,x)","(,,)"}'],
+      [[[{ n: 2, phase: 'z', label: 'hi' }]], '{{"(2,z,hi)"}}'],
+    ] as const)
+      expect(evaluate({ a, bypass: false }), text).toEqual(
+        await serverCheckResults(pg, 'bundles', { a: text, bypass: 'false' }),
+      )
     const good = {
       kind: 'Value',
       value: {
@@ -479,24 +504,9 @@ CONSTRAINT output CHECK(CASE WHEN bypass THEN true ELSE a::text='{"(2,z,hi)"}' E
         nullBitmap: { kind: 'Value', value: false },
       },
     }
-    const expected = {
-      first_score: { certain: true, value: true },
-      equal: { certain: true, value: true },
-      count: { certain: true, value: true },
-      output: { certain: true, value: true },
-    }
-    const before = structuredClone(good)
-    expect(evaluate({ a: good, bypass: false })).toEqual(expected)
-    expect(good).toEqual(before)
-    const partial = structuredClone(good)
-    Object.assign(partial.value.elements[0]!.value.fields[1]!, { kind: 'Unknown' })
-    expect(evaluate({ a: partial, bypass: false })).toEqual({
-      first_score: { certain: true, value: true },
-      count: { certain: true, value: true },
-      equal: { certain: false },
-      output: { certain: false },
-    })
+    // Payloads, mutated or not, are not public values.
     const mutations: ((value: typeof good) => void)[] = [
+      () => {},
       (v) => {
         v.value.elementType = 'public.other'
       },
@@ -524,16 +534,51 @@ CONSTRAINT output CHECK(CASE WHEN bypass THEN true ELSE a::text='{"(2,z,hi)"}' E
       mutate(value)
       expect(() => evaluate({ a: value, bypass: false }), String(index)).toThrow(TypeError)
     }
-    // An enum ordinal outside the captured labels is decoded, and the catalog decides it.
+    // A field of the wrong shape or outside its type is a type error.
+    for (const leaf of [
+      { n: 40000, phase: 'z', label: 'hi' },
+      { n: '2', phase: 'z', label: 'hi' },
+      { n: 2.5, phase: 'z', label: 'hi' },
+      { n: 2, phase: 0, label: 'hi' },
+      { n: 2, phase: 'z', label: '\ud800' },
+      { n: 2, phase: 'z', label: 'bad\0label' },
+    ])
+      expect(() => evaluate({ a: [leaf], bypass: false }), JSON.stringify(leaf)).toThrow(TypeError)
+    // A label outside the captured ones may have been added since, so what reads it decides
+    // nothing, and a bypassed row still decides.
+    const added = [{ n: 2, phase: 'added', label: 'hi' }]
+    for (const name of ['equal', 'output'])
+      expect(evaluate({ a: added, bypass: false })[name], name).toMatchObject({ certain: false })
+    expect(evaluate({ a: added, bypass: true })).toEqual(expected)
+    expect(() => evaluate({ a: '{"(2,z,hi)"}', bypass: false })).toThrow(TypeError)
+    // Stored records go to the evaluator entries directly: a field whose value is unknown and an
+    // ordinal outside the captured labels.
+    const runtime = await import(pathToFileURL(join(root, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(ts.checks, runtime)
+    const stored = (value: typeof good, bypass = false) =>
+      internal('public.bundles', {
+        a: runtime.makeArrayValue(
+          arrayTypescriptInput(value.value as OwnedArrayInputPayload, runtime),
+        ),
+        bypass: runtime.makeBoolValue(bypass),
+      })
+    const undecided = ['Unknown', 'Unimplemented']
+    const partial = structuredClone(good)
+    Object.assign(partial.value.elements[0]!.value.fields[1]!, { kind: 'Unknown' })
+    const partialResults = stored(partial)
+    expect(partialResults['first_score']).toEqual({ kind: 'True' })
+    expect(partialResults['count']).toEqual({ kind: 'True' })
+    for (const name of ['equal', 'output'])
+      expect(undecided, name).toContain((partialResults[name] as { kind: string }).kind)
     const outsideLabels = structuredClone(good)
     Object.assign(outsideLabels.value.elements[0]!.value.fields[1]!, {
       kind: 'Enum',
       value: { ordinal: 99, labelOid: 0n },
     })
-    for (const result of Object.values(evaluate({ a: outsideLabels, bypass: false })))
-      expect(result).toMatchObject({ certain: false })
-    expect(evaluate({ a: outsideLabels, bypass: true })).toEqual(expected)
-    expect(() => evaluate({ a: '{"(2,z,hi)"}', bypass: false })).toThrow(TypeError)
+    for (const [name, result] of Object.entries(stored(outsideLabels)))
+      expect(undecided, name).toContain((result as { kind: string }).kind)
+    for (const result of Object.values(stored(outsideLabels, true)))
+      expect(result).toEqual({ kind: 'True' })
     await writeFile(
       join(root, 'schema/public/composite_arrays_test.go'),
       `package public

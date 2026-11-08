@@ -1,6 +1,5 @@
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
-import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
 import { join, dirname } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -12,11 +11,17 @@ import { lowerTableCheck } from '../../src/sql-semantics/catalog-checks.js'
 import { prepareCheckRustGroup } from '../../src/codegen/shared/check-rust-source.js'
 import { runCheckParity, type Row, type Outcome } from '../../tools/check-rust/parity.js'
 import type { CompositeInputCell } from '../../tools/check-rust/composite-input.js'
+import {
+  arrayTypescriptInput,
+  type OwnedArrayInputPayload,
+} from '../../tools/check-rust/array-input.js'
+import { differingChecks, serverCheckResults } from '../support/check-server-results.js'
 
 import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
+import { internalCheckRows, storedOrRejected } from '../support/check-entries.js'
 
 const schema = `CREATE TYPE leaf AS(n int2,label varchar(3) COLLATE "C");
 CREATE DOMAIN approved AS leaf CHECK((VALUE).n>0);
@@ -350,8 +355,39 @@ CONSTRAINT output CHECK(CASE WHEN bypass THEN true ELSE length(a::text)>2 END));
         ],
       },
     }
+    // An array of the array domain has no public value with elements: nested public lists are
+    // dimensions, as queries send them, so its records are leaves where a batch belongs.
+    const mismatches: ReturnType<typeof differingChecks> = []
+    for (const [a, text] of [
+      [[[{ n: 2, label: 'abc' }]], '{{"(2,abc)"}}'],
+      [[null], '{NULL}'],
+      [[], '{}'],
+      [[[null]], '{{NULL}}'],
+    ] as const)
+      mismatches.push(
+        ...differingChecks(
+          JSON.stringify(a),
+          Object.fromEntries(evaluate(a).map((c) => [c.constraint, c.result])),
+          await serverCheckResults(pg, 'bundles', { a: text, bypass: 'false' }),
+        ),
+      )
+    for (const value of [good, { n: 2, label: 'abc' }, '{}'])
+      expect(() => evaluate(value), JSON.stringify(value)).toThrow(TypeError)
+    // Stored arrays hold batches already coerced to their domains, which the entries take
+    // without replaying the domains' checks.
+    const runtime = await import(pathToFileURL(join(root, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(ts.checks, runtime)
+    const stored = (value: typeof good) =>
+      internal('public.bundles', {
+        a: runtime.makeArrayValue(
+          arrayTypescriptInput(value.value as unknown as OwnedArrayInputPayload, runtime),
+        ),
+        bypass: runtime.makeBoolValue(false),
+      })
+    const undecided = ['Unknown', 'Unimplemented']
     const before = structuredClone(good)
-    expect(evaluate(good).every((c) => c.result.certain && c.result.value === true)).toBe(true)
+    for (const [name, result] of Object.entries(stored(good)))
+      expect(result, name).toEqual({ kind: 'True' })
     expect(good).toEqual(before)
     const mutations: ((value: typeof good) => void)[] = [
       (v) => {
@@ -382,20 +418,30 @@ CONSTRAINT output CHECK(CASE WHEN bypass THEN true ELSE length(a::text)>2 END));
     for (const [index, mutate] of mutations.entries()) {
       const v = structuredClone(good)
       mutate(v)
-      expectUndecidedOrRejected(() => evaluate(v), String(index))
+      // Payloads are not public values; as stored values these describe no array of the
+      // column's type, so the runtime rejects them or decides nothing from them.
+      expect(() => evaluate(v), String(index)).toThrow(TypeError)
+      const built = storedOrRejected(() =>
+        runtime.makeArrayValue(
+          arrayTypescriptInput(v.value as unknown as OwnedArrayInputPayload, runtime),
+        ),
+      )
+      if (built === undefined) continue
+      const results = internal('public.bundles', {
+        a: built,
+        bypass: runtime.makeBoolValue(false),
+      })
+      for (const [name, result] of Object.entries(results))
+        expect(undecided, `${index} ${name}`).toContain((result as { kind: string }).kind)
     }
     const partial = structuredClone(good)
     Object.assign(partial.value.elements[0]!.value.elements[0]!.value.fields[0]!, {
       kind: 'Unknown',
     })
-    expect(
-      Object.fromEntries(evaluate(partial).map((c) => [c.constraint, c.result])),
-    ).toMatchObject({
-      score: { certain: false },
-      equal: { certain: false },
-      count: { certain: true, value: true },
-      output: { certain: false },
-    })
+    const partialResults = stored(partial)
+    for (const name of ['score', 'equal', 'output'])
+      expect(undecided, name).toContain((partialResults[name] as { kind: string }).kind)
+    expect(partialResults['count']).toEqual({ kind: 'True' })
     await pg.exec('CREATE TABLE supplied(value required_batch)')
     expect(
       (await pg.query<{ value: string }>('SELECT ARRAY[(SELECT value FROM supplied)]::text value'))
@@ -408,22 +454,18 @@ CONSTRAINT output CHECK(CASE WHEN bypass THEN true ELSE length(a::text)>2 END));
         elements: [{ kind: 'Null' }],
         nullBitmap: { kind: 'Value', value: true },
       },
-    }
-    expect(
-      Object.fromEntries(evaluate(nullInner).map((c) => [c.constraint, c.result])),
-    ).toMatchObject({
-      score: { certain: true, value: null },
-      equal: { certain: true, value: true },
-      count: { certain: true, value: true },
-      output: { certain: true, value: true },
+    } as unknown as typeof good
+    expect(stored(nullInner)).toMatchObject({
+      score: { kind: 'Null' },
+      equal: { kind: 'True' },
+      count: { kind: 'True' },
+      output: { kind: 'True' },
     })
     const negative = structuredClone(good)
     negative.value.elements[0]!.value.elements[0]!.value.fields[0]!.value = -1
-    expect(
-      Object.fromEntries(evaluate(negative).map((c) => [c.constraint, c.result])),
-    ).toMatchObject({
-      score: { certain: true, value: false },
-      equal: { certain: true, value: true },
+    expect(stored(negative)).toMatchObject({
+      score: { kind: 'False' },
+      equal: { kind: 'True' },
     })
     await writeFile(
       join(root, 'schema/public/nested_test.go'),
@@ -450,6 +492,8 @@ func TestNestedPayloads(t *testing.T){
         throw new Error(e.stdout + e.stderr, { cause: e })
       },
     )
+    // Every public case decides as the server does.
+    expect(mismatches).toEqual([])
     await writeFile(
       'artifacts/nested-composite-containers/public-report.json',
       JSON.stringify(

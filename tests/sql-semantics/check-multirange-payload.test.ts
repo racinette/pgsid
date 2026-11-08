@@ -12,6 +12,12 @@ import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescri
 import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
 import { parseConfigString } from '../../src/config/loader.js'
+import {
+  multirangeTypescriptInput,
+  type MultirangeInputPayload,
+} from '../../tools/check-rust/multirange-input.js'
+import { serverCheckResults } from '../support/check-server-results.js'
+import { internalCheckRows } from '../support/check-entries.js'
 
 it('validates public multirange payloads, nominal subtype guards, partial finite bounds and lazy behavior in Go and TypeScript', async () => {
   const pg = await PGlite.create(),
@@ -80,6 +86,8 @@ it('validates public multirange payloads, nominal subtype guards, partial finite
       throw new Error(error.stdout + error.stderr, { cause: error })
     })
     const generated = await import(pathToFileURL(join(root, 'js/checks.js')).href)
+    const runtime = await import(pathToFileURL(join(root, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(ts.checks, runtime)
     type Result = { certain: boolean; value?: boolean | null; error?: string }
     const evaluate = (
       span: unknown,
@@ -91,6 +99,70 @@ it('validates public multirange payloads, nominal subtype guards, partial finite
           .evaluatePublicMultirangePayloadsChecks({ span, expected, bypass })
           .map((c: { constraint: string; result: Result }) => [c.constraint, c.result]),
       )
+    const range = (
+      lower: unknown,
+      upper: unknown,
+      lowerInclusive = true,
+      upperInclusive = false,
+    ) => ({
+      empty: false,
+      lower,
+      upper,
+      lowerInclusive,
+      upperInclusive,
+    })
+    const value = [range(9007199254740993n, 9007199254740999n)]
+    // Public multiranges are compared against what the server makes of the same value.
+    for (const [span, text, expected, bypass] of [
+      [value, '{[9007199254740993,9007199254740999)}', 9007199254740993n, false],
+      [value, '{[9007199254740993,9007199254740999)}', 9007199254740994n, false],
+      [value, '{[9007199254740993,9007199254740999)}', 9007199254740994n, true],
+      // Members are canonicalized, sorted and merged, and empty members dropped, on input.
+      [
+        [
+          range(9007199254740995n, 9007199254740999n),
+          range(9007199254740992n, 9007199254740996n, false, true),
+        ],
+        '{[9007199254740995,9007199254740999),(9007199254740992,9007199254740996]}',
+        9007199254740993n,
+        false,
+      ],
+      [
+        [range(5n, 5n), range(9007199254740993n, null)],
+        '{[5,5),[9007199254740993,)}',
+        9007199254740993n,
+        false,
+      ],
+      [[{ empty: true }], '{empty}', null, false],
+      [[], '{}', null, false],
+      [[range(9n, 1n)], '{[9,1)}', null, false],
+      [[range(null, 9n, true, true)], '{[,9]}', null, false],
+      [null, null, null, true],
+    ] as const) {
+      const shown = JSON.stringify({ span, expected, bypass }, (_, item: unknown) =>
+        typeof item === 'bigint' ? `${item}n` : item,
+      )
+      expect({ shown, results: evaluate(span, expected, bypass) }).toEqual({
+        shown,
+        results: await serverCheckResults(pg, 'multirange_payloads', {
+          span: text,
+          expected: expected === null ? null : String(expected),
+          bypass: String(bypass),
+        }),
+      })
+    }
+    for (const result of Object.values(evaluate(value)))
+      expect(result).toEqual({ certain: true, value: true })
+    expect(evaluate(value, 9007199254740994n).bound).toEqual({ certain: true, value: false })
+    expect(evaluate(value, 9007199254740994n, true).guarded).toEqual({ certain: true, value: true })
+    // A missing value decides nothing that reads it.
+    expectUndecidedOrRejected(() => evaluate(undefined, null, true), undefined, [
+      'bound',
+      'shape',
+      'present',
+    ])
+    expect(evaluate(undefined, null, true).guarded).toEqual({ certain: true, value: true })
+    // Payloads and malformed public values are type errors before any check runs.
     const member = {
       typeName: 'pg_catalog.int8range',
       elementType: 'pg_catalog.int8',
@@ -110,19 +182,29 @@ it('validates public multirange payloads, nominal subtype guards, partial finite
       elementKind: 3,
       ranges: [{ kind: 'Value', value: member }],
     }
-    const value = { kind: 'Value', value: payload }
-    for (const result of Object.values(evaluate(value)))
-      expect(result).toEqual({ certain: true, value: true })
-    expect(evaluate(value, 9007199254740994n).bound).toEqual({ certain: true, value: false })
-    expect(evaluate(value, 9007199254740994n, true).guarded).toEqual({ certain: true, value: true })
     const invalid: unknown[] = [
-      undefined,
       '{[1,9)}',
       1,
       {},
+      range(1n, 9n),
+      [null],
+      [undefined],
+      [[range(1n, 9n)]],
+      [{ empty: 'false' }],
+      [{ empty: false }],
+      [{ ...range(1n, 9n), lowerInclusive: 'true' }],
+      [{ ...range(1n, 9n), lower: undefined }],
+      [range(1, 9n)],
+      [range(9007199254740993, 9n)],
+      [range('1', 9n)],
+      [range(9223372036854775808n, 9n)],
+      [{ kind: 'Value', value: member }],
       { kind: 'Value', value: {} },
       { kind: 'Value', value: null },
+      { kind: 'Null' },
+      { kind: 'Unknown' },
       { kind: 'Error', value: { state: -1 } },
+      { kind: 'Value', value: payload },
     ]
     for (const change of [
       { typeName: 'pg_catalog.int4multirange' },
@@ -196,21 +278,44 @@ it('validates public multirange payloads, nominal subtype guards, partial finite
         ],
       },
     })
-    for (const input of invalid)
-      expectUndecidedOrRejected(() => evaluate(input, null, true), undefined, [
-        'bound',
-        'shape',
-        'present',
-      ])
-    for (const input of [null, { kind: 'Null' }]) {
-      const result = evaluate(input, null, true)
-      expect(result.bound).toEqual({ certain: true, value: true })
-      expect(result.shape).toEqual({ certain: true, value: null })
-      expect(result.present).toEqual({ certain: true, value: false })
+    for (const [index, input] of invalid.entries())
+      expect(() => evaluate(input, null, true), `invalid input ${index}`).toThrow(TypeError)
+    // States no public value expresses go to the evaluator entries directly: members and bounds
+    // that are unknown or failed, and nominal identities other than the column's.
+    const multirange = (input: MultirangeInputPayload): unknown =>
+      runtime.makeCoercedMultirangeValue(multirangeTypescriptInput(input, runtime))
+    const failure = (code: string) => ({ kind: 'Error', value: { state: parseInt(code, 36) } })
+    const rows = (span: unknown, expected: bigint | null = 9007199254740993n, bypass = false) =>
+      internal('public.multirange_payloads', {
+        span,
+        expected: expected === null ? runtime.int8Null() : runtime.makeInt8Value(expected),
+        bypass: runtime.makeBoolValue(bypass),
+      })
+    const undecided = (outcome: unknown) =>
+      expect(['Unknown', 'Unimplemented']).toContain((outcome as { kind: string }).kind)
+    expect(rows(multirange(payload as MultirangeInputPayload))).toEqual({
+      bound: { kind: 'True' },
+      shape: { kind: 'True' },
+      present: { kind: 'True' },
+      guarded: { kind: 'True' },
+    })
+    for (const change of [
+      { typeName: 'pg_catalog.int4multirange' },
+      { ranges: [{ kind: 'Null' }] },
+      { ranges: [{ kind: 'Unknown' }] },
+      { ranges: [{ kind: 'Value', value: { ...member, typeName: 'pg_catalog.int4range' } }] },
+      { elementType: 'pg_catalog.int4' },
+    ]) {
+      const result = rows(
+        multirange({ ...payload, ...change } as MultirangeInputPayload),
+        null,
+        true,
+      )
+      for (const name of ['bound', 'shape', 'present']) undecided(result[name])
+      expect(result['guarded']).toEqual({ kind: 'True' })
     }
-    const partial = {
-      kind: 'Value',
-      value: {
+    const partial = rows(
+      multirange({
         ...payload,
         ranges: [
           {
@@ -218,35 +323,29 @@ it('validates public multirange payloads, nominal subtype guards, partial finite
             value: { ...member, bounds: [{ kind: 'Unknown' }, { kind: 'Int8', value: 9n }] },
           },
         ],
-      },
-    }
-    expect(evaluate(partial).bound).toMatchObject({ certain: false })
-    expect(evaluate(partial).shape).toEqual({ certain: true, value: true })
-    expect(evaluate(partial).present).toEqual({ certain: true, value: true })
-    const error = evaluate({ kind: 'Error', value: { state: parseInt('22012', 36) } }, null, true)
-    expect(error.bound).toEqual({ certain: true, error: '22012' })
-    expect(error.shape).toEqual({ certain: true, error: '22012' })
-    expect(error.present).toEqual({ certain: true, error: '22012' })
-    expect(error.guarded).toEqual({ certain: true, value: true })
+      } as MultirangeInputPayload),
+    )
+    undecided(partial['bound'])
+    expect(partial['shape']).toEqual({ kind: 'True' })
+    expect(partial['present']).toEqual({ kind: 'True' })
+    const error = rows(failure('22012'), null, true)
+    expect(error['bound']).toEqual(failure('22012'))
+    expect(error['shape']).toEqual(failure('22012'))
+    expect(error['present']).toEqual(failure('22012'))
+    expect(error['guarded']).toEqual({ kind: 'True' })
     for (const [first, expectedError] of [
       [{ kind: 'Unknown' }, null],
       [{ kind: 'Null' }, null],
-      [{ kind: 'Error', value: { state: parseInt('22012', 36) } }, '22012'],
+      [failure('22012'), '22012'],
     ] as const) {
-      const result = evaluate(
-        {
-          kind: 'Value',
-          value: {
-            ...payload,
-            ranges: [first, { kind: 'Error', value: { state: parseInt('22003', 36) } }],
-          },
-        },
+      const result = rows(
+        multirange({ ...payload, ranges: [first, failure('22003')] } as MultirangeInputPayload),
         null,
         true,
       )
-      if (expectedError === null) expect(result.bound).toMatchObject({ certain: false })
-      else expect(result.bound).toEqual({ certain: true, error: expectedError })
-      expect(result.guarded).toEqual({ certain: true, value: true })
+      if (expectedError === null) undecided(result['bound'])
+      else expect(result['bound']).toEqual(failure(expectedError))
+      expect(result['guarded']).toEqual({ kind: 'True' })
     }
     await pg.query(
       "INSERT INTO multirange_payloads VALUES('{[9007199254740993,9007199254740999)}'::int8multirange,$1,false)",

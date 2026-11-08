@@ -1,6 +1,5 @@
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
-import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -13,9 +12,19 @@ import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import { go, printGoFile, type GoDeclaration } from '../../src/codegen/go/ast.js'
-import { rangeGoInput, rangeGoCell } from '../../tools/check-rust/range-input.js'
-import { arrayGoInput } from '../../tools/check-rust/array-input.js'
-import { multirangeGoInput } from '../../tools/check-rust/multirange-input.js'
+import {
+  rangeGoInput,
+  rangeGoCell,
+  rangeTypescriptInput,
+  type RangeInputPayload,
+} from '../../tools/check-rust/range-input.js'
+import { arrayGoInput, arrayTypescriptInput } from '../../tools/check-rust/array-input.js'
+import {
+  multirangeGoInput,
+  multirangeTypescriptInput,
+  type MultirangeInputPayload,
+} from '../../tools/check-rust/multirange-input.js'
+import { serverCheckResults } from '../support/check-server-results.js'
 import { customRangeProfiles } from './check-custom-range-fixtures.js'
 import {
   scalarRangeBackends,
@@ -25,6 +34,61 @@ import {
 import { readRangeFixture } from './check-range-fixtures.js'
 import { readMultirangeFixture } from './check-multirange-fixtures.js'
 import { rangeArrayText, readRangeArrayFixture } from './check-range-array-fixtures.js'
+import { internalCheckRows } from '../support/check-entries.js'
+
+// Each subtype's three sample values in their public shapes, in the order of the backend fixtures.
+const publicScalars = {
+  'pg_catalog.int2': [-32768, 0, 32767],
+  'pg_catalog.bool': [false, true, true],
+  'pg_catalog.inet': ['10.0.0.0/8', '10.0.0.1/8', '::1'],
+  'pg_catalog."bit"': ['', '01', '1'],
+  'pg_catalog.varbit': ['', '01', '1'],
+  'pg_catalog.bytea': [new Uint8Array([0]), new Uint8Array([0, 255]), new Uint8Array([255])],
+  'pg_catalog.macaddr': ['00:00:00:00:00:00', '08:00:2b:01:02:03', 'ff:ff:ff:ff:ff:ff'],
+  'pg_catalog.macaddr8': [
+    '00:00:00:00:00:00:00:00',
+    '08:00:2b:01:02:03:04:05',
+    'ff:ff:ff:ff:ff:ff:ff:ff',
+  ],
+  'pg_catalog.uuid': [
+    '00000000-0000-0000-0000-000000000000',
+    '80000000-0000-0000-0000-000000000000',
+    'ffffffff-ffff-ffff-ffff-ffffffffffff',
+  ],
+  'pg_catalog.float4': [-0, 0, 3],
+  'pg_catalog.float8': [-0, 0, 3],
+  'pg_catalog."time"': [
+    { microseconds: 0 },
+    { microseconds: 45296123456 },
+    { microseconds: 86400000000 },
+  ],
+  'pg_catalog.timetz': [
+    { microseconds: 0, offsetSeconds: 0 },
+    { microseconds: 3600000000, offsetSeconds: 0 },
+    { microseconds: 0, offsetSeconds: -7200 },
+  ],
+  'pg_catalog."interval"': [
+    { months: 0, days: 0, microseconds: 0n },
+    { months: 1, days: 0, microseconds: 0n },
+    { months: 0, days: 60, microseconds: 0n },
+  ],
+  'pg_catalog.money': [],
+  'pg_catalog."char"': ['', 'A', '\\377'],
+  'pg_catalog.oid': [0, 2147483648, 4294967295],
+  'pg_catalog.xid8': [0n, 9223372036854775808n, 18446744073709551615n],
+  'pg_catalog.pg_lsn': ['0/0', '80000000/0', 'FFFFFFFF/FFFFFFFF'],
+  'pg_catalog.tid': ['(0,0)', '(2147483648,1)', '(4294967295,65535)'],
+  'pg_catalog.cidr': ['10.0.0.0/8', '10.0.0.1/32', '::1/128'],
+  'pg_catalog."varchar"': ['alpha ', 'beta', 'zeta  '],
+  'pg_catalog.bpchar': ['alpha ', 'beta  ', 'zeta '],
+  'pg_catalog.name': ['alpha ', 'beta', 'zeta '],
+  ...Object.fromEntries(
+    scalarRangeBackends
+      .filter((p) => p.type.startsWith('pg_catalog.reg'))
+      .map((p) => [p.type, ['0', '2147483648', '4294967295']]),
+  ),
+  'pg_catalog.jsonb': [{ a: [-1, null] }, { a: [0, null] }, { a: [1.23, null] }],
+} as Record<string, readonly unknown[]>
 
 it('validates public scalar range payloads, compiled support and snapshots independently of catalog OIDs in Go and TypeScript', async () => {
   const pg = await PGlite.create(),
@@ -57,6 +121,8 @@ it('validates public scalar range payloads, compiled support and snapshots indep
         defaultCollation: 'C' as const,
         serverEncoding: 'UTF8' as const,
         nativeByteOrder: 'little' as const,
+        // Money bounds are the server's text, read under the declared monetary locale.
+        moneyLocale: 'C' as const,
       }
     const ts = renderTypescriptSchemaCheckArtifacts(
       catalog.tables,
@@ -130,6 +196,31 @@ it('validates public scalar range payloads, compiled support and snapshots indep
       throw new Error(error.stdout + error.stderr, { cause: error })
     })
     const generated = await import(pathToFileURL(join(root, 'js/checks.js')).href)
+    const runtime = await import(pathToFileURL(join(root, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(ts.checks, runtime)
+    const True = { kind: 'True' }
+    const undecided = (outcome: unknown, label?: string) =>
+      expect(['Unknown', 'Unimplemented'], label).toContain((outcome as { kind: string }).kind)
+    const span = (lower: unknown, upper: unknown) => ({
+      empty: false,
+      lower,
+      upper,
+      lowerInclusive: true,
+      upperInclusive: true,
+    })
+    // Money is the server's text under its monetary locale.
+    const moneyBounds = async (first: string, last: string) => {
+      const index = scalarRangeBackends.findIndex((p) => p.kind === 31)
+      const bounds = async (text: string) =>
+        (
+          await pg.query<{ lower: string; upper: string }>(
+            `SELECT lower($1::"Scalar.Public".span_${index})::text AS lower, upper($1::"Scalar.Public".span_${index})::text AS upper`,
+            [text],
+          )
+        ).rows[0]!
+      const [low, high] = [await bounds(first), await bounds(last)]
+      return [low.lower, low.upper, high.upper] as const
+    }
     type Result = { certain: boolean; value?: boolean | null; error?: string }
     const map = (results: { constraint: string; result: Result }[]): Record<string, Result> =>
       Object.fromEntries(results.map((r) => [r.constraint, r.result]))
@@ -176,59 +267,125 @@ it('validates public scalar range payloads, compiled support and snapshots indep
       expect(w).not.toBeNull()
       expect(m).not.toBeNull()
       expect(items).not.toBeNull()
-      for (const forge of [false, true]) {
-        const support = forge
-            ? { comparison: backend.kind, canonical: 0 }
-            : { comparison: 0, canonical: 0 },
-          row = {
-            v: { kind: 'Value', value: { ...structuredClone(v!), support } },
-            w: { kind: 'Value', value: { ...structuredClone(w!), support } },
-            m: { kind: 'Value', value: { ...structuredClone(m!), support } },
-            items: { kind: 'Value', value: structuredClone(items!) },
-            bypass: false,
-          }
-        for (const member of row.m.value.ranges)
-          if (member.kind === 'Value') member.value.support = support
-        for (const item of row.items.value.elements)
-          if (item.kind === 'Range') item.value.support = support
-        const before = structuredClone(row),
-          evaluate = generated[`evaluatePublicScalarPayload${index}Checks`],
-          result = map(evaluate(row))
-        for (const r of Object.values(result)) expect(r).toEqual({ certain: true, value: true })
-        expect(row).toEqual(before)
-        expect(map(evaluate({ ...row, v: row.w, w: row.v })).range_order).toEqual({
-          certain: true,
-          value: false,
+      // Public bounds take the subtype's own shape; a public array always starts at 1.
+      const [pa, pb, pc] =
+        backend.kind === 31 ? await moneyBounds(first, last) : publicScalars[backend.type]!
+      const publicRow = {
+          v: span(pa, pb),
+          w: span(pb, pc),
+          m: [span(pa, pb), span(pb, pc)],
+          items: [span(pa, pb), null, span(pb, pc)],
+          bypass: false,
+        },
+        publicText = {
+          v: first,
+          w: last,
+          m: multi,
+          items: rangeArrayText([first, null, last]),
+          bypass: 'false',
+        },
+        evaluate = generated[`evaluatePublicScalarPayload${index}Checks`]
+      const compare = async (row: typeof publicRow, text: typeof publicText) => {
+        const shown = `${backend.type} ${JSON.stringify(row, (_key, item) =>
+          typeof item === 'bigint' ? `${item}n` : item instanceof Uint8Array ? [...item] : item,
+        )}`
+        expect.soft({ shown, results: map(evaluate(row)) }).toEqual({
+          shown,
+          results: await serverCheckResults(pg, `scalar_payload_${index}`, text),
         })
-        const bad = structuredClone(row)
-        Object.assign(
-          bad.v.value.bounds[0]!,
-          backend.kind === 8
-            ? { kind: 'Int4', value: 0 }
-            : { kind: 'Text', value: 'wrong carrier' },
-        )
-        expect(() => evaluate(bad)).toThrow(TypeError)
-        const nominal = structuredClone(row)
-        nominal.v.value.typeName = 'pg_catalog.int4range'
-        expectUndecidedOrRejected(() => map(evaluate(nominal)), undefined, ['range_order'])
-        for (const bound of invalidScalarRangeBounds(
-          row.v.value.bounds[0]!,
-          backend.type === 'pg_catalog.cidr',
-        )) {
-          const malformed = structuredClone(row)
-          malformed.v.value.bounds[0] = bound
-          expectUndecidedOrRejected(
-            () => map(evaluate(malformed)),
-            JSON.stringify(bound, (_key, item) => (typeof item === 'bigint' ? String(item) : item)),
-            ['range_order'],
-          )
-          expect(row).toEqual(before)
-        }
-        for (const r of Object.values(
-          map(evaluate({ ...row, v: null, w: null, m: null, items: null })),
-        ))
-          expect(r).toEqual({ certain: true, value: null })
       }
+      const before = structuredClone(publicRow)
+      await compare(publicRow, publicText)
+      expect(publicRow).toEqual(before)
+      await compare(
+        { ...publicRow, v: publicRow.w, w: publicRow.v },
+        { ...publicText, v: last, w: first },
+      )
+      await compare({ ...publicRow, bypass: true }, { ...publicText, bypass: 'true' })
+      for (const r of Object.values(
+        map(evaluate({ ...publicRow, v: null, w: null, m: null, items: null })),
+      ))
+        expect(r).toEqual({ certain: true, value: null })
+      // A bound of another shape is a type error, as are payloads.
+      const wrong =
+        backend.type === 'pg_catalog.jsonb' ? 1n : typeof pa === 'string' ? 0 : 'wrong carrier'
+      expect
+        .soft(() => evaluate({ ...publicRow, v: span(wrong, pb) }), backend.type)
+        .toThrow(TypeError)
+      expect(() => evaluate({ ...publicRow, v: { kind: 'Value', value: v } })).toThrow(TypeError)
+      expect(() => evaluate({ ...publicRow, items: { kind: 'Value', value: items } })).toThrow(
+        TypeError,
+      )
+      // Stored values go to the evaluator entries directly: an array starting at -2, nominal
+      // identities other than the column's, and bound bits the input syntax cannot produce.
+      const range = (payload: RangeInputPayload): unknown =>
+          runtime.makeCoercedRangeValue(rangeTypescriptInput(payload, runtime)),
+        multirange = (payload: MultirangeInputPayload): unknown =>
+          runtime.makeCoercedMultirangeValue(multirangeTypescriptInput(payload, runtime)),
+        stored = {
+          v: range(v!),
+          w: range(w!),
+          m: multirange(m!),
+          items: runtime.makeArrayValue(arrayTypescriptInput(items!, runtime)),
+          bypass: runtime.makeBoolValue(false),
+        },
+        owner = `public.scalar_payload_${index}`
+      const allTrue = { range_order: True, multi_contains: True, array_slot: True }
+      expect(internal(owner, stored)).toEqual(allTrue)
+      expect(internal(owner, { ...stored, v: stored.w, w: stored.v }).range_order).toEqual({
+        kind: 'False',
+      })
+      // Support other than the type's own never decides a comparison wrongly.
+      for (const support of [
+        { comparison: backend.kind, canonical: 0 },
+        { comparison: 0, canonical: 0 },
+      ]) {
+        const forged = internal(owner, {
+          ...stored,
+          v: range({ ...v!, support }),
+          w: range({ ...w!, support }),
+          m: multirange({
+            ...m!,
+            support,
+            ranges: m!.ranges.map((member) =>
+              member.kind === 'Value' ? { ...member, value: { ...member.value, support } } : member,
+            ),
+          }),
+        })
+        for (const [name, outcome] of Object.entries(forged))
+          expect(['True', 'Unknown', 'Unimplemented'], name).toContain(
+            (outcome as { kind: string }).kind,
+          )
+      }
+      undecided(
+        internal(owner, { ...stored, v: range({ ...v!, typeName: 'pg_catalog.int4range' }) })
+          .range_order,
+      )
+      for (const bound of invalidScalarRangeBounds(
+        v!.bounds[0]!,
+        backend.type === 'pg_catalog.cidr',
+      )) {
+        const malformed = structuredClone(v!)
+        malformed.bounds[0] = bound
+        const label = JSON.stringify(bound, (_key, item) =>
+          typeof item === 'bigint' ? String(item) : item,
+        )
+        undecided(internal(owner, { ...stored, v: range(malformed) }).range_order, label)
+        expect(
+          internal(owner, { ...stored, v: range(malformed), bypass: runtime.makeBoolValue(true) }),
+          label,
+        ).toEqual(allTrue)
+      }
+      for (const r of Object.values(
+        internal(owner, {
+          ...stored,
+          v: runtime.rangeNull(),
+          w: runtime.rangeNull(),
+          m: runtime.multirangeNull(),
+          items: runtime.arrayNull(),
+        }),
+      ))
+        expect(r).toEqual({ kind: 'Null' })
       await pg.query(`INSERT INTO scalar_payload_${index} VALUES($1,$2,$3,$4,false)`, [
         first,
         last,
