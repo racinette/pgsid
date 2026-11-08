@@ -22,6 +22,8 @@ import { catalogScalarType } from '../../src/sql-semantics/catalog-check-binder.
 import { parseConfigString } from '../../src/config/loader.js'
 import { writeCheckRustSources } from '../../tools/check-rust/sources.js'
 import { arrayFixtureSource } from './check-array-fixtures.js'
+import { serverCheckResults } from '../support/check-server-results.js'
+import { internalCheckRows } from '../support/check-entries.js'
 
 it('binds public arrays, metadata and owned composition through Rust, Go and TypeScript', async () => {
   const pg = await PGlite.create()
@@ -187,10 +189,10 @@ it('binds public arrays, metadata and owned composition through Rust, Go and Typ
     await writeFile(
       join(root, 'typed/usage.ts'),
       `import { evaluatePublicFamily2Checks, type PublicFamily2CheckInput } from './checks.js'
-const legacy: PublicFamily2CheckInput = {value:{kind:'Value',value:{elementType:'pg_catalog.int4',elementKind:2,dimensions:[{lower:1,length:1}],elements:[{kind:'Int4',value:1}]}},expected_count:1}
-const supplied: PublicFamily2CheckInput = {value:{kind:'Value',value:{elementType:'pg_catalog.int4',elementKind:2,dimensions:[{lower:1,length:1}],elements:[{kind:'Int4',value:1}],nullBitmap:{kind:'Value',value:false}}},expected_count:1}
-evaluatePublicFamily2Checks(legacy)
-evaluatePublicFamily2Checks(supplied)
+const flat: PublicFamily2CheckInput = {value:[1],expected_count:1}
+const nested: PublicFamily2CheckInput = {value:[[1,null]],expected_count:2}
+evaluatePublicFamily2Checks(flat)
+evaluatePublicFamily2Checks(nested)
 `,
     )
     const generatedEvidence = 'artifacts/array-sql/generated'
@@ -225,6 +227,21 @@ evaluatePublicFamily2Checks(supplied)
     const operations = await import(
       pathToFileURL(join(root, 'js/checks-rust/pg_catalog/operations.js')).href
     )
+    // States no public array expresses (lower bounds other than 1, unknown or failed cells and
+    // arrays, null bitmap metadata) go to the evaluator entries directly.
+    const entries = await import(pathToFileURL(join(root, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(ts.checks, entries)
+    const storedRows = internal
+    const stored = (payload: {
+      elementType: string
+      elementKind: number
+      dimensions: readonly { lower: number; length: number }[]
+      elements: readonly unknown[]
+      nullBitmap?: unknown
+    }): unknown => runtime.makeArrayValue({ nullBitmap: { kind: 'Unknown' }, ...payload })
+    const int4 = (value: number | null) =>
+      value === null ? runtime.int4Null() : runtime.makeInt4Value(value)
+    const True = { kind: 'True' }
     for (const table of catalog.tables.filter((table) => table.name.startsWith('family_'))) {
       const bound = bindProbe(
         'cardinality(value) IS NOT DISTINCT FROM expected_count',
@@ -268,16 +285,20 @@ evaluatePublicFamily2Checks(supplied)
       const elementType = input.type.slice(6),
         family = index + 1,
         cell = construct(expressions[index]!)
-      const value = {
-        kind: 'Value',
-        value: {
-          elementType,
-          elementKind: family,
-          dimensions: [{ lower: -2, length: 2 }],
-          elements: [cell, { kind: 'Null' }],
-        },
-      }
-      const result = generated[`evaluatePublicFamily${family}Checks`]({ value, expected_count: 2 })
+      let builder = runtime.makeArrayArguments(elementType, family)
+      builder = runtime.appendArrayDimension(builder, -2, 2)
+      builder = runtime.appendArrayArgument(builder, cell)
+      builder = runtime.appendArrayArgument(builder, { kind: 'Null' })
+      expect(
+        internal(`public.family_${family}`, {
+          value: runtime.finishArrayArguments(builder),
+          expected_count: int4(2),
+        }),
+      ).toEqual({ count: True })
+      const result = generated[`evaluatePublicFamily${family}Checks`]({
+        value: [null, null],
+        expected_count: 2,
+      })
       expect(result).toHaveLength(1)
       expect(result[0].result).toEqual({ certain: true, value: true })
       goCases.push(
@@ -309,13 +330,17 @@ evaluatePublicFamily2Checks(supplied)
         )
       ).rows[0]!
       expect(native).toEqual({ count: 0, rank: dimensions.length })
-      const value = {
-        kind: 'Value',
-        value: { elementType: 'pg_catalog.int2', elementKind: 1, dimensions, elements: [] },
-      }
       expect(
-        generated.evaluatePublicFamily1Checks({ value, expected_count: native.count })[0].result,
-      ).toEqual({ certain: true, value: true })
+        internal('public.family_1', {
+          value: stored({
+            elementType: 'pg_catalog.int2',
+            elementKind: 1,
+            dimensions,
+            elements: [],
+          }),
+          expected_count: int4(native.count),
+        }),
+      ).toEqual({ count: True })
       goCases.push(
         `{value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"pg_catalog.int2",ElementKind:1,Dimensions:[]checkruntime.ArrayDimension{${dimensions.map((dimension) => `{Lower:${dimension.lower},Length:${dimension.length}}`).join(',')}},Elements:[]checkruntime.ArrayElement{}}};result:=func() []CheckEvaluation {r, e := EvaluatePublicFamily1Checks(PublicFamily1CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(0))}); if e != nil {panic(e)}; return r}()[0].Result;if !result.Certain || !result.Value.Valid || !result.Value.Value {t.Fatal("shaped-empty public array",result)}}`,
       )
@@ -349,118 +374,119 @@ evaluatePublicFamily2Checks(supplied)
             [literal, dimension],
           )
         ).rows[0]!
-        const value = {
-          kind: 'Value',
-          value: { elementType: 'pg_catalog.int4', elementKind: 2, dimensions, elements },
-        }
-        const results = generated.evaluatePublicArrayMetadataChecks({
-          ...row,
+        const value = stored({
+          elementType: 'pg_catalog.int4',
+          elementKind: 2,
+          dimensions,
+          elements,
+        })
+        const results = internal('public.array_metadata', {
+          ...Object.fromEntries(
+            Object.entries(row).map(([name, item]) => [
+              name,
+              name === 'expected_dims'
+                ? item === null
+                  ? runtime.textNull()
+                  : runtime.makeTextValue(item)
+                : int4(item as number | null),
+            ]),
+          ),
           value,
           fallback: value,
-          dimension,
-          bypass: false,
+          dimension: int4(dimension),
+          bypass: runtime.makeBoolValue(false),
         })
-        for (const result of results) expect(result.result).toEqual({ certain: true, value: true })
+        for (const result of Object.values(results)) expect(result).toEqual(True)
+        // Arrays that start at 1 are public values.
+        if (dimensions.every((item) => item.lower === 1)) {
+          const cells = (elements as readonly { kind: string; value?: number }[]).map((cell) =>
+            cell.kind === 'Null' ? null : cell.value!,
+          )
+          const list = dimensions.length ? cells : []
+          for (const result of generated.evaluatePublicArrayMetadataChecks({
+            ...row,
+            value: list,
+            fallback: list,
+            dimension,
+            bypass: false,
+          }))
+            expect(result.result).toEqual({ certain: true, value: true })
+        }
         outcomes.push({ literal, dimension, expected: row })
       }
-    for (const value of [null, { kind: 'Null' }])
-      expect(generated.evaluatePublicFamily2Checks({ value, expected_count: 2 })[0].result).toEqual(
-        { certain: true, value: false },
-      )
-    for (const value of [undefined, { kind: 'Unknown' }])
-      expect(
-        generated.evaluatePublicFamily2Checks({ value, expected_count: 2 })[0].result.certain,
-      ).toBe(false)
     expect(
-      generated.evaluatePublicFamily2Checks({
-        value: { kind: 'Error', value: { state: parseInt('22012', 36) } },
-        expected_count: 2,
-      })[0].result,
-    ).toMatchObject({ certain: true, error: '22012' })
+      generated.evaluatePublicFamily2Checks({ value: null, expected_count: 2 })[0].result,
+    ).toEqual({ certain: true, value: false })
+    expect(
+      generated.evaluatePublicFamily2Checks({ value: undefined, expected_count: 2 })[0].result
+        .certain,
+    ).toBe(false)
+    const family2 = (value: unknown, count = 2) =>
+      internal('public.family_2', { value, expected_count: int4(count) })['count']
+    expect(family2(runtime.arrayNull())).toEqual({ kind: 'False' })
+    expect(['Unknown', 'Unimplemented']).toContain(
+      (family2(runtime.arrayUnknown()) as { kind: string }).kind,
+    )
+    const failure = (code: string) => ({ kind: 'Error', value: { state: parseInt(code, 36) } })
+    expect(family2(failure('22012'))).toEqual(failure('22012'))
     const partial = {
-      kind: 'Value',
-      value: {
-        elementType: 'pg_catalog.int4',
-        elementKind: 2,
-        dimensions: [{ lower: 0, length: 2 }],
-        elements: [{ kind: 'Unknown' }, { kind: 'Null' }],
-      },
+      elementType: 'pg_catalog.int4',
+      elementKind: 2,
+      dimensions: [{ lower: 0, length: 2 }],
+      elements: [{ kind: 'Unknown' }, { kind: 'Null' }],
     }
-    expect(
-      generated.evaluatePublicFamily2Checks({ value: partial, expected_count: 2 })[0].result,
-    ).toEqual({ certain: true, value: true })
+    expect(family2(stored(partial))).toEqual(True)
     const upperBoundary = {
-      kind: 'Value',
-      value: {
-        elementType: 'pg_catalog.int4',
-        elementKind: 2,
-        dimensions: [{ lower: 2147483646, length: 2 }],
-        elements: [
-          { kind: 'Int4', value: 0 },
-          { kind: 'Int4', value: 1 },
-        ],
-      },
+      elementType: 'pg_catalog.int4',
+      elementKind: 2,
+      dimensions: [{ lower: 2147483646, length: 2 }],
+      elements: [
+        { kind: 'Int4', value: 0 },
+        { kind: 'Int4', value: 1 },
+      ],
     }
-    expect(
-      generated.evaluatePublicFamily2Checks({ value: upperBoundary, expected_count: 2 })[0].result,
-    ).toEqual({ certain: true, value: true })
+    expect(family2(stored(upperBoundary))).toEqual(True)
     for (const nullBitmap of [
       undefined,
       { kind: 'Unknown' },
       ...[false, true].map((value) => ({ kind: 'Value', value })),
-    ]) {
-      const value = { ...upperBoundary, value: { ...upperBoundary.value, nullBitmap } }
-      expect(generated.evaluatePublicFamily2Checks({ value, expected_count: 2 })[0].result).toEqual(
-        { certain: true, value: true },
+    ])
+      expect(family2(stored({ ...upperBoundary, ...(nullBitmap ? { nullBitmap } : {}) }))).toEqual(
+        True,
       )
-    }
-    for (const nullBitmap of [{ kind: 'Unknown' }, { kind: 'Value', value: true }]) {
-      const value = { ...partial, value: { ...partial.value, nullBitmap } }
-      expect(generated.evaluatePublicFamily2Checks({ value, expected_count: 2 })[0].result).toEqual(
-        { certain: true, value: true },
+    for (const nullBitmap of [{ kind: 'Unknown' }, { kind: 'Value', value: true }])
+      expect(family2(stored({ ...partial, nullBitmap }))).toEqual(True)
+    // A bitmap that is not a known boolean decides nothing about the cells' nulls.
+    for (const nullBitmap of [{ kind: 'Null' }, { kind: 'Error', value: { state: 1 } }])
+      expect(['Unknown', 'Unimplemented']).toContain(
+        (family2(stored({ ...upperBoundary, nullBitmap })) as { kind: string }).kind,
       )
-    }
-    for (const nullBitmap of [null, false, { kind: 'Value', value: 'false' }]) {
-      const value = { ...upperBoundary, value: { ...upperBoundary.value, nullBitmap } }
-      expect(() => generated.evaluatePublicFamily2Checks({ value, expected_count: 2 })).toThrow(
-        'CHECK input holds a malformed value',
-      )
-    }
-    for (const nullBitmap of [{ kind: 'Null' }, { kind: 'Error', value: { state: 1 } }]) {
-      const value = { ...upperBoundary, value: { ...upperBoundary.value, nullBitmap } }
+    for (const nullBitmap of [{ kind: 'Null' }, { kind: 'Error', value: { state: 1 } }])
       expect(
-        generated.evaluatePublicFamily2Checks({ value, expected_count: 2 })[0].result.certain,
-      ).toBe(false)
-    }
-    for (const nullBitmap of [{ kind: 'Null' }, { kind: 'Error', value: { state: 1 } }]) {
-      const value = {
-        ...upperBoundary,
-        value: {
-          ...upperBoundary.value,
-          nullBitmap,
-          elements: [
-            { kind: 'Error', value: { state: parseInt('22012', 36) } },
-            { kind: 'Int4', value: 1 },
-          ],
-        },
-      }
-      expect(
-        generated.evaluatePublicFamily2Checks({ value, expected_count: 2 })[0].result,
-      ).toMatchObject({ certain: true, error: '22012' })
-    }
+        family2(
+          stored({
+            ...upperBoundary,
+            nullBitmap,
+            elements: [failure('22012'), { kind: 'Int4', value: 1 }],
+          }),
+        ),
+      ).toEqual(failure('22012'))
     goCases.push(
       `{for _,flag:=range []checkruntime.BoolValue{{Kind:checkruntime.BoolValueNull},{Kind:checkruntime.BoolValueError,Error:checkruntime.SqlError{State:1}}} {value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"pg_catalog.int4",ElementKind:2,Dimensions:[]checkruntime.ArrayDimension{{Lower:1,Length:1}},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementError,Error:checkruntime.SqlError{State:3452582}}},NullBitmap:flag}};result:=func() []CheckEvaluation {r, e := EvaluatePublicFamily2Checks(PublicFamily2CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(1))}); if e != nil {panic(e)}; return r}()[0].Result;if !result.Certain || result.Value.Error!="22012" {t.Fatal("incoming error before bitmap validation",flag,result)}}}`,
     )
-    // A bitmap that denies the NULL cell it holds describes no stored array.
-    expect(() =>
-      generated.evaluatePublicFamily2Checks({
-        value: {
-          ...partial,
-          value: { ...partial.value, nullBitmap: { kind: 'Value', value: false } },
-        },
-        expected_count: 2,
-      }),
-    ).toThrow('CHECK input holds a malformed value')
+    // Payloads, bitmaps included, are not public values.
+    for (const nullBitmap of [
+      null,
+      false,
+      { kind: 'Value', value: 'false' },
+      { kind: 'Value', value: false },
+    ])
+      expect(() =>
+        generated.evaluatePublicFamily2Checks({
+          value: { kind: 'Value', value: { ...partial, nullBitmap } },
+          expected_count: 2,
+        }),
+      ).toThrow(TypeError)
     goCases.push(
       `{for _,flag:=range []checkruntime.BoolValue{{Kind:checkruntime.BoolValueUnknown},{Kind:checkruntime.BoolValueValue,Value:false},{Kind:checkruntime.BoolValueValue,Value:true},{Kind:checkruntime.BoolValueNull},{Kind:checkruntime.BoolValueError,Error:checkruntime.SqlError{State:1}}} {for _,nullCell:=range []bool{false,true} {cell:=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementInt4,Int4:1};if nullCell {cell=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementNull}};value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"pg_catalog.int4",ElementKind:2,Dimensions:[]checkruntime.ArrayDimension{{Lower:1,Length:1}},Elements:[]checkruntime.ArrayElement{cell},NullBitmap:flag}};r,e:=EvaluatePublicFamily2Checks(PublicFamily2CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(1))});if flag.Kind==checkruntime.BoolValueValue && !flag.Value && nullCell {if e==nil {t.Fatal("bitmap denies its NULL cell",r)};continue};if e!=nil {panic(e)};result:=r[0].Result;valid:=flag.Kind==checkruntime.BoolValueUnknown || (flag.Kind==checkruntime.BoolValueValue && (flag.Value || !nullCell));if result.Certain!=valid || (valid && (!result.Value.Valid || !result.Value.Value)) {t.Fatal("bitmap metadata",flag,nullCell,result)}}}}`,
     )
@@ -474,68 +500,98 @@ evaluatePublicFamily2Checks(supplied)
     goCases.push(
       `{value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"pg_catalog.int4",ElementKind:2,Dimensions:[]checkruntime.ArrayDimension{{Lower:2147483646,Length:2}},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementInt4,Int4:0},{Kind:checkruntime.ArrayElementInt4,Int4:1}}}};result:=func() []CheckEvaluation {r, e := EvaluatePublicFamily2Checks(PublicFamily2CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(2))}); if e != nil {panic(e)}; return r}()[0].Result;if !result.Certain || !result.Value.Valid || !result.Value.Value {t.Fatal("inclusive upper bound",result)}}`,
     )
-    const composed = generated.evaluatePublicArrayMetadataChecks({
-      value: { kind: 'Unknown' },
-      fallback: partial,
-      bypass: true,
-      expected_count: 2,
-    })
     expect(
-      composed.find((check: { constraint: string }) => check.constraint === 'composition').result,
+      storedRows('public.array_metadata', {
+        value: runtime.arrayUnknown(),
+        fallback: stored(partial),
+        bypass: runtime.makeBoolValue(true),
+        expected_count: int4(2),
+        dimension: int4(null),
+        expected_ndims: int4(null),
+        expected_length: int4(null),
+        expected_lower: int4(null),
+        expected_upper: int4(null),
+        expected_dims: runtime.textNull(),
+      })['composition'],
+    ).toEqual(True)
+    expect(
+      generated
+        .evaluatePublicArrayMetadataChecks({
+          value: undefined,
+          fallback: [null, null],
+          bypass: true,
+          expected_count: 2,
+        })
+        .find((check: { constraint: string }) => check.constraint === 'composition').result,
     ).toEqual({ certain: true, value: true })
-    expect(generated.evaluatePublicNullArraysChecks({ value: partial })[0].result).toEqual({
-      certain: true,
-      value: true,
-    })
-    expect(generated.evaluatePublicNullArraysChecks({ value: null })[0].result).toEqual({
-      certain: true,
-      value: false,
-    })
-    expect(generated.evaluatePublicNullArraysChecks({ value: { kind: 'Null' } })[0].result).toEqual(
-      { certain: true, value: false },
+    const present = (value: unknown) => storedRows('public.null_arrays', { value })['present']
+    expect(present(stored(partial))).toEqual(True)
+    expect(present(runtime.arrayNull())).toEqual({ kind: 'False' })
+    expect(['Unknown', 'Unimplemented']).toContain(
+      (present(runtime.arrayUnknown()) as { kind: string }).kind,
     )
-    expect(
-      generated.evaluatePublicNullArraysChecks({ value: { kind: 'Unknown' } })[0].result.certain,
-    ).toBe(false)
-    expect(
-      generated.evaluatePublicNullArraysChecks({
-        value: { kind: 'Error', value: { state: parseInt('22012', 36) } },
-      })[0].result,
-    ).toMatchObject({ certain: true, error: '22012' })
+    expect(present(failure('22012'))).toEqual(failure('22012'))
+    for (const [value, expected] of [
+      [[null, 1], { certain: true, value: true }],
+      [null, { certain: true, value: false }],
+      [[], { certain: true, value: true }],
+    ] as const)
+      expect(generated.evaluatePublicNullArraysChecks({ value })[0].result).toEqual(expected)
+    expect(generated.evaluatePublicNullArraysChecks({ value: undefined })[0].result.certain).toBe(
+      false,
+    )
     goCases.push(
       `{for _,value:=range []checkruntime.ArrayValue{checkruntime.ArrayNull(),checkruntime.ArrayUnknown(),{Kind:checkruntime.ArrayValueError,Error:checkruntime.SqlError{State:3452558}}} {result:=func() []CheckEvaluation {r, e := EvaluatePublicNullArraysChecks(PublicNullArraysCheckInput{Value:KnownCheckValue(value)}); if e != nil {panic(e)}; return r}()[0].Result;if value.Kind==checkruntime.ArrayValueNull && (!result.Certain || !result.Value.Valid || result.Value.Value) {t.Fatal("NULL array",result)};if value.Kind==checkruntime.ArrayValueUnknown && result.Certain {t.Fatal("Unknown array",result)};if value.Kind==checkruntime.ArrayValueError && (!result.Certain || result.Value.Error=="") {t.Fatal("array error",result)}}}`,
     )
-    const storedPathArray = {
-      kind: 'Value',
-      value: {
-        elementType: 'pg_catalog.jsonpath',
-        elementKind: 40,
-        dimensions: [{ lower: 1, length: 1 }],
-        elements: [{ kind: 'JsonpathStoredText', value: '$.a' }],
-      },
-    }
+    // A stored JSONPath keeps its stored text; the public value is the path's text.
     expect(
-      generated.evaluatePublicFamily40Checks({ value: storedPathArray, expected_count: 1 })[0]
-        .result,
-    ).toEqual({ certain: true, value: true })
+      internal('public.family_40', {
+        value: stored({
+          elementType: 'pg_catalog.jsonpath',
+          elementKind: 40,
+          dimensions: [{ lower: 1, length: 1 }],
+          elements: [{ kind: 'JsonpathStoredText', value: '$.a' }],
+        }),
+        expected_count: int4(1),
+      }),
+    ).toEqual({ count: True })
     expect(() =>
       generated.evaluatePublicFamily40Checks({
         value: {
-          ...storedPathArray,
+          kind: 'Value',
           value: {
-            ...storedPathArray.value,
+            elementType: 'pg_catalog.jsonpath',
+            elementKind: 40,
+            dimensions: [{ lower: 1, length: 1 }],
             elements: [{ kind: 'JsonpathStoredText', value: '' }],
           },
         },
         expected_count: 1,
       }),
-    ).toThrow('CHECK input holds a malformed value')
+    ).toThrow(TypeError)
+    for (const value of [['$.a'], ['']])
+      expect
+        .soft(
+          generated.evaluatePublicFamily40Checks({ value, expected_count: 1 })[0].result,
+          JSON.stringify(value),
+        )
+        .toEqual(
+          await serverCheckResults(pg, 'family_40', {
+            value: `{${value.map((item) => JSON.stringify(item)).join(',')}}`,
+            expected_count: '1',
+          }).then((results) => results['count']),
+        )
     goCases.push(
       `{value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"pg_catalog.jsonpath",ElementKind:40,Dimensions:[]checkruntime.ArrayDimension{{Lower:1,Length:1}},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementJsonpathStoredText,JsonpathStoredText:"$.a"}}}};result:=func() []CheckEvaluation {r, e := EvaluatePublicFamily40Checks(PublicFamily40CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(1))}); if e != nil {panic(e)}; return r}()[0].Result;if !result.Certain || !result.Value.Valid || !result.Value.Value {t.Fatal("stored JSONPath array",result)}}`,
     )
     const invalid = [
       {},
-      [],
+      1,
+      '{1}',
+      [1.5],
+      [1n],
+      ['1'],
+      [undefined],
       { kind: 'Value', value: {} },
       {
         kind: 'Value',
@@ -550,13 +606,17 @@ evaluatePublicFamily2Checks(supplied)
         kind: 'Value',
         value: { elementType: 'pg_catalog.text', elementKind: 8, dimensions: [], elements: [] },
       },
+      { kind: 'Null' },
+      { kind: 'Unknown' },
+      { kind: 'Error', value: { state: parseInt('22012', 36) } },
     ]
     for (const value of invalid)
-      expect(() => generated.evaluatePublicFamily2Checks({ value, expected_count: 1 })).toThrow(
-        'CHECK input holds a malformed value',
-      )
+      expect(
+        () => generated.evaluatePublicFamily2Checks({ value, expected_count: 1 }),
+        JSON.stringify(value, (_key, item) => (typeof item === 'bigint' ? `${item}n` : item)),
+      ).toThrow(TypeError)
     // Structure no array can have: an upper bound past the integer limit, or a shape that does
-    // not match its cells.
+    // not match its cells. Nested lists that do not match are malformed array input instead.
     for (const shape of [
       {
         dimensions: [{ lower: 2147483647, length: 2 }],
@@ -575,7 +635,14 @@ evaluatePublicFamily2Checks(supplied)
           },
           expected_count: 1,
         }),
-      ).toThrow('CHECK input holds a malformed value')
+      ).toThrow(TypeError)
+    for (const value of [
+      [[1, 2], [3]],
+      [[1], 2],
+    ])
+      expect(generated.evaluatePublicFamily2Checks({ value, expected_count: 1 })[0].result).toEqual(
+        { certain: true, error: '22P02' },
+      )
     goCases.push(
       `{for _,dimension:=range []checkruntime.ArrayDimension{{Lower:2147483647,Length:2},{Lower:1,Length:3}} {value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"pg_catalog.int4",ElementKind:2,Dimensions:[]checkruntime.ArrayDimension{dimension},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementInt4,Int4:1},{Kind:checkruntime.ArrayElementInt4,Int4:2}}}};_,e:=EvaluatePublicFamily2Checks(PublicFamily2CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(1))});if e==nil {t.Fatal("malformed array shape",dimension)}}}`,
     )

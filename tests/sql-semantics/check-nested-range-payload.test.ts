@@ -12,13 +12,26 @@ import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import { go, printGoFile } from '../../src/codegen/go/ast.js'
-import { rangeGoInput } from '../../tools/check-rust/range-input.js'
-import { multirangeGoInput } from '../../tools/check-rust/multirange-input.js'
-import { arrayGoInput, type OwnedArrayInputPayload } from '../../tools/check-rust/array-input.js'
+import {
+  rangeGoInput,
+  rangeTypescriptInput,
+  type RangeInputPayload,
+} from '../../tools/check-rust/range-input.js'
+import {
+  multirangeGoInput,
+  multirangeTypescriptInput,
+} from '../../tools/check-rust/multirange-input.js'
+import {
+  arrayGoInput,
+  arrayTypescriptInput,
+  type OwnedArrayInputPayload,
+} from '../../tools/check-rust/array-input.js'
+import { serverCheckResults } from '../support/check-server-results.js'
 import { customRangeProfiles } from './check-custom-range-fixtures.js'
 import { readRangeFixture } from './check-range-fixtures.js'
 import { readMultirangeFixture } from './check-multirange-fixtures.js'
 import { rangeArrayText, readRangeArrayFixture } from './check-range-array-fixtures.js'
+import { internalCheckRows } from '../support/check-entries.js'
 
 it('injects compiled nested range contexts before public ownership validation without retaining deployment enum OIDs', async () => {
   const pg = await PGlite.create(),
@@ -134,62 +147,171 @@ it('injects compiled nested range contexts before public ownership validation wi
       elements: [{ kind: 'Array', value: structuredClone(items) }, { kind: 'Null' }],
       nullBitmap: { kind: 'Value', value: true },
     }
-    const row = {
-      v: { kind: 'Value', value: v },
-      w: { kind: 'Value', value: w },
-      m: { kind: 'Value', value: m },
-      items: { kind: 'Value', value: items },
-      nested: { kind: 'Value', value: nested },
-      bypass: false,
-    }
-    const map = (row: unknown) =>
+    const runtime = await import(pathToFileURL(join(root, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(ts.checks, runtime)
+    type Result = { certain: boolean; value?: boolean | null; error?: string }
+    const map = (row: unknown): Record<string, Result> =>
       Object.fromEntries(
         (
           generated.evaluatePublicArrayPayloadsChecks(row) as {
             constraint: string
-            result: { certain: boolean; value?: boolean | null }
+            result: Result
           }[]
         ).map((c) => [c.constraint, c.result]),
       )
-    for (const forge of [false, true]) {
-      const candidate = structuredClone(row)
-      const edit = (value: unknown): void => {
-        if (!value || typeof value !== 'object') return
-        if ('bounds' in value && 'elementKind' in value) {
-          if (forge) {
-            Object.assign(value, {
-              enumLabels: 'forged',
-              enumCount: 999,
-              support: { comparison: 99, canonical: 99 },
-              boundProfile: { nodes: [{ child: -1 }] },
-            })
-          } else {
-            Reflect.deleteProperty(value, 'boundProfile')
-            Reflect.deleteProperty(value, 'enumLabels')
-            Reflect.deleteProperty(value, 'enumCount')
-          }
-        }
-        for (const child of Object.values(value))
-          if (Array.isArray(child)) child.forEach(edit)
-          else edit(child)
-      }
-      edit(candidate)
-      const before = structuredClone(candidate)
-      for (const [constraint, result] of Object.entries(map(candidate)))
-        if (constraint.startsWith('hash_')) expect(result).toMatchObject({ certain: false })
-        else expect(result).toEqual({ certain: true, value: true })
-      expect(candidate).toEqual(before)
-      const bad = structuredClone(candidate)
-      const lower = bad.v.value.bounds[0]!
-      if (lower.kind !== 'Range') throw new Error('expected range bound')
-      lower.value.bounds[0] = { kind: 'Enum', value: { ordinal: 999, labelOid: 0n } }
-      expect(map(bad).ordered).toMatchObject({ certain: false })
-      for (const result of Object.values(map({ ...bad, bypass: true })))
-        expect(result).toEqual({ certain: true, value: true })
-      const wrong = structuredClone(candidate)
-      wrong.v.value.elementType = 'public.other_label'
-      expect(map(wrong).ordered).toMatchObject({ certain: false })
+    // Public bounds are ranges of labels, so the compiled definitions decide every comparison and
+    // nothing in the value can name another. A public array always starts at 1, and an array of
+    // the array domain cannot nest its elements in a public value: nested lists are dimensions.
+    const span = (lower: unknown, upper: unknown, upperInclusive = true) => ({
+      empty: false,
+      lower,
+      upper,
+      lowerInclusive: true,
+      upperInclusive,
+    })
+    const publicV = span(span('z', 'mid'), span('mid', 'a')),
+      publicW = span(span('mid', 'a'), null, false)
+    const publicRow = {
+      v: publicV,
+      w: publicW,
+      m: [publicV, publicW],
+      items: [publicV, null, publicW],
+      nested: [null] as unknown[],
+      bypass: false,
     }
+    const publicText = {
+      v: first,
+      w: last,
+      m: multi,
+      items: rangeArrayText([first, null, last]),
+      nested: '{NULL}',
+      bypass: 'false',
+    }
+    // Hashing an enum hashes its catalog OID, which only the deployment knows.
+    const hashes = ['hash_range', 'hash_multirange', 'hash_items', 'hash_nested']
+    for (const [row, text] of [
+      [publicRow, publicText],
+      [
+        { ...publicRow, v: publicW, w: publicV },
+        { ...publicText, v: last, w: first },
+      ],
+      [
+        { ...publicRow, nested: [publicRow.items, null] },
+        { ...publicText, nested: `{${publicText.items},NULL}` },
+      ],
+      [
+        { ...publicRow, bypass: true },
+        { ...publicText, bypass: 'true' },
+      ],
+    ] as const) {
+      const before = structuredClone(row)
+      const local = map(row),
+        server = await serverCheckResults(pg, 'array_payloads', text)
+      for (const name of hashes)
+        if (!row.bypass && local[name]!.certain) {
+          expect(local[name]).toEqual(server[name])
+          delete local[name]
+          delete server[name]
+        } else if (!row.bypass) {
+          delete local[name]
+          delete server[name]
+        }
+      expect
+        .soft({ row: JSON.stringify(row), results: local })
+        .toEqual({ row: JSON.stringify(row), results: server })
+      expect(row).toEqual(before)
+    }
+    for (const name of hashes)
+      if (name !== 'hash_nested') expect(map(publicRow)[name]).toMatchObject({ certain: false })
+    // A label outside the captured ones may have been added since, so it decides nothing, and a
+    // bypassed row still decides without reading it.
+    const added = { ...publicRow, v: span(span('z', 'added'), span('mid', 'a')) }
+    expect(map(added).ordered).toMatchObject({ certain: false })
+    for (const result of Object.values(map({ ...added, bypass: true })))
+      expect(result).toEqual({ certain: true, value: true })
+    // Payloads, forged contexts included, are not public values.
+    for (const payload of [
+      v,
+      { ...v, enumLabels: 'forged', enumCount: 999, boundProfile: { nodes: [{ child: -1 }] } },
+    ])
+      expect
+        .soft(() => map({ ...publicRow, v: { kind: 'Value', value: payload } }))
+        .toThrow(TypeError)
+    expect
+      .soft(() => map({ ...publicRow, items: { kind: 'Value', value: items } }))
+      .toThrow(TypeError)
+    // Stored values reach the evaluator entries directly: an array starting at -2 and an array of
+    // the array domain, whose value no public input expresses.
+    const range = (payload: RangeInputPayload): unknown =>
+      runtime.makeCoercedRangeValue(rangeTypescriptInput(payload, runtime))
+    const stored = {
+      v: range(v),
+      w: range(w),
+      m: runtime.makeCoercedMultirangeValue(multirangeTypescriptInput(m, runtime)),
+      items: runtime.makeArrayValue(arrayTypescriptInput(items, runtime)),
+      nested: runtime.makeArrayValue(arrayTypescriptInput(nested, runtime)),
+      bypass: runtime.makeBoolValue(false),
+    }
+    const undecided = (outcome: unknown) =>
+      expect(['Unknown', 'Unimplemented']).toContain((outcome as { kind: string }).kind)
+    const names = [
+      'contained',
+      'nested_order',
+      'ordered',
+      'output',
+      'position',
+      'hash_range',
+      'hash_multirange',
+      'hash_items',
+      'hash_nested',
+    ]
+    const results = internal('public.array_payloads', stored)
+    for (const name of names)
+      if (hashes.includes(name)) undecided(results[name])
+      else expect(results[name], name).toEqual({ kind: 'True' })
+    const bad = structuredClone(v)
+    const lower = bad.bounds[0]!
+    if (lower.kind !== 'Range') throw new Error('expected range bound')
+    lower.value.bounds[0] = { kind: 'Enum', value: { ordinal: 999, labelOid: 0n } }
+    undecided(internal('public.array_payloads', { ...stored, v: range(bad) })['ordered'])
+    expect(
+      internal('public.array_payloads', {
+        ...stored,
+        v: range(bad),
+        bypass: runtime.makeBoolValue(true),
+      }),
+    ).toEqual(Object.fromEntries(names.map((name) => [name, { kind: 'True' }])))
+    undecided(
+      internal('public.array_payloads', {
+        ...stored,
+        v: range({ ...v, elementType: 'public.other_label' }),
+      })['ordered'],
+    )
+    // An entry handed a range without its compiled context, or with forged labels and support,
+    // never decides from it. A forged bound profile is not a runtime value at all.
+    const strip = (payload: RangeInputPayload, forge: boolean): RangeInputPayload => {
+      const copy: RangeInputPayload = {
+        ...payload,
+        bounds: payload.bounds.map((cell) =>
+          cell.kind === 'Range' ? { kind: 'Range', value: strip(cell.value, forge) } : cell,
+        ),
+      }
+      delete copy.boundProfile
+      delete copy.enumLabels
+      delete copy.enumCount
+      return forge
+        ? {
+            ...copy,
+            enumLabels: 'forged',
+            enumCount: 999,
+            support: { comparison: 99, canonical: 99 },
+          }
+        : copy
+    }
+    for (const forge of [false, true])
+      undecided(
+        internal('public.array_payloads', { ...stored, v: range(strip(v, forge)) })['ordered'],
+      )
     await pg.query(
       'INSERT INTO array_payloads VALUES($1,$2,$3,$4::stage_span[],ARRAY[($4::stage_span[])::stage_history,NULL::stage_history],false)',
       [first, last, multi, array],

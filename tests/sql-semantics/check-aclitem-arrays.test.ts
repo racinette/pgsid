@@ -1,6 +1,5 @@
 import { PGlite } from '@electric-sql/pglite'
 import { expect, it } from 'vitest'
-import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { execFile } from 'node:child_process'
@@ -18,14 +17,17 @@ import {
   type Row,
   type Outcome,
 } from '../../tools/check-rust/parity.js'
-import type {
-  OwnedArrayInputCell,
-  OwnedArrayInputPayload,
+import {
+  arrayTypescriptInput,
+  type OwnedArrayInputCell,
+  type OwnedArrayInputPayload,
 } from '../../tools/check-rust/array-input.js'
+import { serverCheckResults } from '../support/check-server-results.js'
 import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { renderGoSchemaCheckArtifacts } from '../../src/codegen/go/sql/catalog-checks.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
 import { parseConfigString } from '../../src/config/loader.js'
+import { internalCheckRows, storedOrRejected } from '../support/check-entries.js'
 
 it('preserves ACL arrays, generic equality and hashing, privilege containment, shape errors and obsolete update behavior in every target', async () => {
   const pg = await PGlite.create(),
@@ -411,14 +413,7 @@ it('validates public owned ACL arrays and preserves bitmap metadata in both targ
           expected[name] = { certain: true, error: (error as { code: string }).code }
         }
       }
-      cases.push({
-        row: {
-          items: s.value === null ? { kind: 'Null' } : { kind: 'Value', value: s.value },
-          probe: s.probe === null ? { kind: 'Null' } : { kind: 'Value', value: s.probe },
-          reference: { kind: 'Value', value: array(['wide']) },
-        },
-        expected,
-      })
+      cases.push({ expected })
     }
     const tsBundle = renderTypescriptSchemaCheckArtifacts([table], catalog.domains, [], {
         compositeTypeGraph: catalog.compositeTypeGraph,
@@ -456,19 +451,94 @@ it('validates public owned ACL arrays and preserves bitmap metadata in both targ
             .evaluatePublicOwnedAclsChecks(row)
             .map((c: { constraint: string; result: unknown }) => [c.constraint, c.result]),
         )
-    for (const c of cases) expect(evaluate(c.row)).toEqual(c.expected)
-    const unknownBitmap = { ...array(['wide']), nullBitmap: { kind: 'Unknown' } }
-    expect(
-      evaluate({ ...cases[0]!.row, items: { kind: 'Value', value: unknownBitmap } }).covers,
-    ).toEqual({ certain: false })
+    // A public aclitem is the server's text, whose role names only the deployment resolves, so
+    // checks reading a non-NULL one stay undecided; rows of NULL items decide as the server does.
+    for (const [items, itemsText, probe, reference, referenceText] of [
+      [null, null, null, [], '{}'],
+      [[], '{}', null, [], '{}'],
+      [[null], '{NULL}', null, [null], '{NULL}'],
+      [[[null]], '{{NULL}}', null, [], '{}'],
+      [[null, null], '{NULL,NULL}', null, null, null],
+    ] as const) {
+      const row = { items, probe, reference }
+      expect(evaluate(row), JSON.stringify(row)).toEqual(
+        await serverCheckResults(pg, 'owned_acls', {
+          items: itemsText,
+          probe: null,
+          reference: referenceText,
+        }),
+      )
+    }
+    const named = evaluate({ items: ['=r/postgres'], probe: '=r/postgres', reference: [] }),
+      namedServer = await serverCheckResults(pg, 'owned_acls', {
+        items: '{"=r/postgres"}',
+        probe: '=r/postgres',
+        reference: '{}',
+      })
+    expect(named['covers']).toMatchObject({ certain: false })
+    for (const name of Object.keys(forms))
+      if ((named[name] as { certain: boolean }).certain)
+        expect(named[name], name).toEqual(namedServer[name])
+    for (const items of [
+      [1],
+      ['=r/postgres', 2n],
+      [undefined],
+      '{}',
+      { kind: 'Value', value: array(['wide']) },
+      { kind: 'Null' },
+    ])
+      expect(() => evaluate({ items, probe: null, reference: [] }), String(items)).toThrow(
+        TypeError,
+      )
+    expect(() =>
+      evaluate({ items: [], probe: { kind: 'Value', value: a }, reference: [] }),
+    ).toThrow(TypeError)
+    // Stored ACLs, by role OID and with null bitmap metadata, go to the evaluator entries directly.
+    const runtime = await import(pathToFileURL(join(tsRoot, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(tsBundle.checks, runtime)
+    const outcome = (result: { value?: boolean | null; error?: string }) =>
+      result.error !== undefined
+        ? { kind: 'Error', value: { state: parseInt(result.error, 36) } }
+        : { kind: result.value === null ? 'Null' : result.value ? 'True' : 'False' }
+    const acl = (p: typeof a | null) =>
+      p === null
+        ? runtime.aclitemNull()
+        : runtime.makeAclitemValue(p.grantee, p.grantor, p.privileges, p.grantOptions)
+    const items = (p: OwnedArrayInputPayload | null) =>
+      p === null ? runtime.arrayNull() : runtime.makeArrayValue(arrayTypescriptInput(p, runtime))
+    const stored = (value: OwnedArrayInputPayload | null, probe: typeof a | null) =>
+      internal('public.owned_acls', {
+        items: items(value),
+        probe: acl(probe),
+        reference: items(array(['wide'])),
+      })
+    for (const [index, sample] of samples.entries()) {
+      const results = stored(sample.value, sample.probe)
+      for (const [name, result] of Object.entries(cases[index]!.expected))
+        expect(results[name], `${index} ${name}`).toEqual(outcome(result))
+    }
+    const unknownBitmap = { ...array(['wide']), nullBitmap: { kind: 'Unknown' as const } }
+    expect(['Unknown', 'Unimplemented']).toContain(
+      (stored(unknownBitmap as OwnedArrayInputPayload, a)['covers'] as { kind: string }).kind,
+    )
     for (const field of ['grantee', 'grantor', 'privileges', 'grantOptions'])
       for (const invalid of [-1n, 4294967296n, 1.5, '2']) {
         const value = {
           ...array(['wide']),
           elements: [{ kind: 'Aclitem', value: { ...wide, [field]: invalid } }],
-        }
-        const row = { ...cases[0]!.row, items: { kind: 'Value', value } }
-        expectUndecidedOrRejected(() => evaluate(row), field, ['covers', 'same'])
+        } as OwnedArrayInputPayload
+        // A word outside its range is no stored ACL: the runtime rejects it or decides nothing.
+        const built = storedOrRejected(() => items(value))
+        if (built === undefined) continue
+        const results = internal('public.owned_acls', {
+          items: built,
+          probe: acl(a),
+          reference: items(array(['wide'])),
+        })
+        for (const name of ['covers', 'same'])
+          expect(['Unknown', 'Unimplemented'], `${field} ${String(invalid)} ${name}`).toContain(
+            (results[name] as { kind: string }).kind,
+          )
       }
     const goRoot = join(root, 'go'),
       goBundle = renderGoSchemaCheckArtifacts(

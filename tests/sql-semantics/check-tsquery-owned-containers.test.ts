@@ -1,11 +1,12 @@
 import {
   compositeGoInput,
+  compositeTypescriptInput,
   type CompositeInputPayload,
 } from '../../tools/check-rust/composite-input.js'
+import { differingChecks, serverCheckResults } from '../support/check-server-results.js'
 import { readTsqueryFixture } from './check-tsquery-fixtures.js'
 import { PGlite } from '@electric-sql/pglite'
 import { expect, it } from 'vitest'
-import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -23,6 +24,7 @@ import { parseConfigString } from '../../src/config/loader.js'
 import { go, printGoFile } from '../../src/codegen/go/ast.js'
 import {
   arrayGoInput,
+  arrayTypescriptInput,
   type OwnedArrayInputCell,
   type OwnedArrayInputPayload,
 } from '../../tools/check-rust/array-input.js'
@@ -33,6 +35,7 @@ import {
   type Row,
   type Outcome,
 } from '../../tools/check-rust/parity.js'
+import { internalCheckRows, storedOrRejected } from '../support/check-entries.js'
 
 it('validates owned tsquery arrays and record fields through native INSERTs and public Go and TypeScript inputs', async () => {
   const pg = await PGlite.create(),
@@ -217,12 +220,6 @@ it('validates owned tsquery arrays and record fields through native INSERTs and 
       checks.map((c) => c.identity.constraint),
       fixtures,
     )
-    const result = (o: Outcome) =>
-      o.kind === 'Unknown'
-        ? { certain: false }
-        : o.kind === 'Error'
-          ? { certain: true, error: o.value.state.toString(36).toUpperCase().padStart(5, '0') }
-          : { certain: true, value: o.kind === 'Null' ? null : o.kind === 'True' }
     const tsBundle = renderTypescriptSchemaCheckArtifacts([table], catalog.domains, [], {
         executionContext: context,
         compositeTypeGraph: catalog.compositeTypeGraph,
@@ -260,14 +257,90 @@ it('validates owned tsquery arrays and record fields through native INSERTs and 
           .evaluatePublicOwnedVectorsChecks(row)
           .map((c: { constraint: string; result: unknown }) => [c.constraint, c.result]),
       )
-    const publicRow = (row: Row) => ({
-      ...row,
-      bypass: row.bypass?.kind === 'Value' ? row.bypass.value : undefined,
+    // Public tsqueries are the server's text, in lists that start at 1; each row decides as the
+    // server does with the same values.
+    const mismatches: ReturnType<typeof differingChecks> = []
+    for (const s of samples)
+      for (const needle of ["'a'", null]) {
+        const { items, text } = (
+          await pg.query<{ items: unknown; text: string | null }>(
+            `SELECT array_to_json(x::text[]) items, regexp_replace(x::text, '^[^{]*', '') text FROM (SELECT ${s.sql} x) q`,
+          )
+        ).rows[0]!
+        const bundle = (
+          await pg.query<{ text: string }>(
+            'SELECT ROW($1::tsquery,$2::tsquery[])::owned_vector_bundle::text text',
+            [needle, text],
+          )
+        ).rows[0]!.text
+        const row = {
+          items,
+          reference: ["'a'", "'z':A"],
+          needle,
+          bypass: false,
+          bundle: { head: needle, items },
+        }
+        const before = structuredClone(row)
+        mismatches.push(
+          ...differingChecks(
+            JSON.stringify(row),
+            evaluate(row),
+            await serverCheckResults(pg, 'owned_vectors', {
+              items: text,
+              reference: `{"'a'","'z':A"}`,
+              needle,
+              bypass: 'false',
+              bundle,
+            }),
+          ),
+        )
+        expect(row).toEqual(before)
+      }
+    for (const items of [
+      [1],
+      [{ kind: 'Tsquery', value: a }],
+      { kind: 'Value', value: reference.value },
+      { kind: 'Null' },
+    ])
+      expect(() =>
+        evaluate({ items, reference: [], needle: null, bypass: false, bundle: null }),
+      ).toThrow(TypeError)
+    // Stored queries go to the evaluator entries directly: a list starting at -3, cells whose
+    // wire bytes are unknown, and malformed stored queries.
+    const checkRuntime = await import(pathToFileURL(join(tsRoot, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(tsBundle.checks, checkRuntime)
+    const storedRows = internal
+    const stored = (row: Row) => ({
+      items:
+        row.items!.kind === 'Value'
+          ? checkRuntime.makeArrayValue(
+              arrayTypescriptInput(row.items!.value as OwnedArrayInputPayload, checkRuntime),
+            )
+          : checkRuntime.arrayNull(),
+      reference: checkRuntime.makeArrayValue(
+        arrayTypescriptInput(
+          row.reference!.kind === 'Value'
+            ? (row.reference!.value as OwnedArrayInputPayload)
+            : array([]),
+          checkRuntime,
+        ),
+      ),
+      needle:
+        row.needle!.kind === 'Value'
+          ? checkRuntime.makeTsqueryValue(row.needle!.value as TsqueryInputPayload)
+          : checkRuntime.tsqueryNull(),
+      bypass: checkRuntime.makeBoolValue(
+        row.bypass!.kind === 'Value' && row.bypass!.value === true,
+      ),
+      bundle: checkRuntime.makeCompositeValue(
+        compositeTypescriptInput(
+          (row.bundle as { value: CompositeInputPayload }).value,
+          checkRuntime,
+        ),
+      ),
     })
-    for (const c of cases)
-      expect(evaluate(publicRow(c.row))).toEqual(
-        Object.fromEntries(Object.entries(c.expected).map(([n, o]) => [n, result(o)])),
-      )
+    for (const [index, c] of cases.entries())
+      expect(storedRows('public.owned_vectors', stored(c.row)), String(index)).toEqual(c.expected)
     const badPayloads: unknown[] = [
       { ...a, nativeBytes: -2 },
       { ...a, root: 999 },
@@ -277,14 +350,21 @@ it('validates owned tsquery arrays and record fields through native INSERTs and 
       { ...a, nodes: [{ ...a.nodes[0]!, kind: 99 }] },
     ]
     for (const bad of badPayloads) {
-      const input = {
-        ...publicRow(base.row),
-        items: {
-          kind: 'Value',
-          value: { ...reference.value, elements: [{ kind: 'Tsquery', value: bad }, cell(z)] },
-        },
-      }
-      expectUndecidedOrRejected(() => evaluate(input), undefined, ['same', 'presence'])
+      // A malformed stored query is no runtime value: the runtime rejects it or decides nothing.
+      const built = storedOrRejected(() =>
+        checkRuntime.makeArrayValue(
+          arrayTypescriptInput(
+            {
+              ...reference.value!,
+              elements: [{ kind: 'Tsquery', value: bad as TsqueryInputPayload }, cell(z)],
+            },
+            checkRuntime,
+          ),
+        ),
+      )
+      if (built === undefined) continue
+      const results = storedRows('public.owned_vectors', { ...stored(base.row), items: built })
+      expect(['Unknown', 'Unimplemented']).toContain((results['same'] as { kind: string }).kind)
     }
     const goRoot = join(root, 'public-go'),
       goBundle = renderGoSchemaCheckArtifacts(
@@ -383,6 +463,8 @@ for _,badKind:=range []int{0,1,2}{row:=ownedRows[0];bad:=row.Items.V;bad.Value.E
         throw new Error(e.stdout + e.stderr)
       },
     )
+    // Every public case decides as the server does.
+    expect(mismatches).toEqual([])
     await mkdir('artifacts/goal-checks/tsquery-containers-active', { recursive: true })
     await writeFile(
       'artifacts/goal-checks/tsquery-containers-active/owned-reference.json',

@@ -1,6 +1,5 @@
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
-import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { dirname, join } from 'node:path'
@@ -16,14 +15,23 @@ import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-tr
 import { arrayInputPlan } from '../../src/codegen/shared/check-array-types.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import { go, printGoFile } from '../../src/codegen/go/ast.js'
-import { arrayGoInput, type OwnedArrayInputPayload } from '../../tools/check-rust/array-input.js'
-import { multirangeGoInput } from '../../tools/check-rust/multirange-input.js'
+import {
+  arrayGoInput,
+  arrayTypescriptInput,
+  type OwnedArrayInputPayload,
+} from '../../tools/check-rust/array-input.js'
+import {
+  multirangeGoInput,
+  multirangeTypescriptInput,
+} from '../../tools/check-rust/multirange-input.js'
+import { differingChecks, serverCheckResults } from '../support/check-server-results.js'
 import { rangeCoreSamples } from './check-range-fixtures.js'
 import { readMultirangeFixture } from './check-multirange-fixtures.js'
 import {
   multirangeArrayText,
   readMultirangeArrayFixture,
 } from './check-multirange-array-fixtures.js'
+import { internalCheckRows } from '../support/check-entries.js'
 
 it('validates multirange array and domain-cell profiles before copying public inputs, independently of deployment OIDs', async () => {
   const pg = await PGlite.create(),
@@ -101,6 +109,9 @@ it('validates multirange array and domain-cell profiles before copying public in
       throw new Error(error.stdout + error.stderr, { cause: error })
     })
     const generated = await import(pathToFileURL(join(root, 'js/checks.js')).href)
+    const runtime = await import(pathToFileURL(join(root, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(typescript.checks, runtime)
+    const mismatches: ReturnType<typeof differingChecks> = []
     const fixtureFunctions = [],
       goCases: string[] = []
     let nativeInserts = 0,
@@ -135,32 +146,168 @@ it('validates multirange array and domain-cell profiles before copying public in
         metadata.subtype,
         String.fromCharCode(head.elementKind),
       ])
+      // A public multirange is a list of ranges, so inside a public array it reads as one more
+      // dimension, as queries send it: no public array holds a non-NULL multirange, and an array of
+      // the array domain has no public value with elements either.
+      const bound = (value: string): unknown =>
+        metadata.subtype === 'pg_catalog.int4'
+          ? Number(value)
+          : metadata.subtype === 'pg_catalog.int8'
+            ? BigInt(value)
+            : metadata.subtype === 'pg_catalog."timestamp"'
+              ? { localMicroseconds: BigInt(Date.parse(value + 'Z')) * 1000n }
+              : metadata.subtype === 'pg_catalog.timestamptz'
+                ? { epochMicroseconds: BigInt(Date.parse(value.replace('+00', 'Z'))) * 1000n }
+                : value
+      const rangeText = text.slice(1, -1)
+      const [lowerText, upperText] = rangeText.slice(1, -1).split(',') as [string, string]
+      const publicRange = {
+        empty: false,
+        lower: bound(lowerText),
+        upper: bound(upperText),
+        lowerInclusive: rangeText.startsWith('['),
+        upperInclusive: rangeText.endsWith(']'),
+      }
+      const publicHead = [publicRange]
+      const publicSpans = [null, null, null]
       const evaluate = (
         value: unknown,
-        domain: unknown = domains,
-        nested: unknown = histories,
+        domain: unknown = publicSpans,
+        nested: unknown = null,
         bypass = false,
       ) =>
         Object.fromEntries(
           generated['evaluatePublicMultirangeArrayPayload' + i + 'Checks']({
-            spans:
-              value && typeof value === 'object' && 'elementKind' in value
-                ? { kind: 'Value', value }
-                : value,
-            domains:
-              domain && typeof domain === 'object' && 'elementKind' in domain
-                ? { kind: 'Value', value: domain }
-                : domain,
-            histories:
-              nested && typeof nested === 'object' && 'elementKind' in nested
-                ? { kind: 'Value', value: nested }
-                : nested,
-            head: { kind: 'Value', value: head },
+            spans: value,
+            domains: domain,
+            histories: nested,
+            head: publicHead,
             bypass,
           }).map((c: { constraint: string; result: unknown }) => [c.constraint, c.result]),
         )
-      for (const result of Object.values(evaluate(spans))) {
-        expect(result).toEqual({ certain: true, value: true })
+      for (const [
+        spansValue,
+        spansText,
+        domainValue,
+        domainText,
+        nestedValue,
+        nestedText,
+        bypass,
+      ] of [
+        [publicSpans, '{NULL,NULL,NULL}', [null], '{NULL}', null, null, false],
+        [publicSpans, '{NULL,NULL,NULL}', publicSpans, '{NULL,NULL,NULL}', [null], '{NULL}', false],
+        [[], '{}', [], '{}', [[null]], '{{NULL}}', true],
+        [[[null], [null], [null]], '{{NULL},{NULL},{NULL}}', [[null]], '{{NULL}}', [], '{}', false],
+        // The members of these multiranges are leaves of a second dimension, which the server
+        // reads as multirange text.
+        [
+          [publicHead, null, []],
+          `{{"${rangeText}"},NULL,{}}`,
+          [publicHead],
+          `{{"${rangeText}"}}`,
+          null,
+          null,
+          false,
+        ],
+        [null, null, null, null, null, null, false],
+      ] as const) {
+        const row = {
+          spans: spansValue,
+          domains: domainValue,
+          histories: nestedValue,
+          head: publicHead,
+          bypass,
+        }
+        const shown = `${metadata.multirange} ${JSON.stringify(row, (_key, item) =>
+          typeof item === 'bigint' ? `${item}n` : item,
+        )}`
+        mismatches.push(
+          ...differingChecks(
+            shown,
+            evaluate(spansValue, domainValue, nestedValue, bypass),
+            await serverCheckResults(pg, `multirange_array_payload_${i}`, {
+              spans: spansText,
+              domains: domainText,
+              histories: nestedText,
+              head: text,
+              bypass: String(bypass),
+            }),
+          ),
+        )
+        assertions++
+      }
+      // Malformed public elements and payloads are type errors before any check runs.
+      // Inside a public array, a multirange's ranges are leaves where a multirange belongs.
+      for (const element of [
+        publicRange,
+        [{ empty: 'false' }],
+        [{ empty: false }],
+        [{ ...publicRange, lowerInclusive: 'true' }],
+        [{ ...publicRange, lower: undefined }],
+        [{ ...publicRange, lower: 1.5 }],
+        [{ ...publicRange, lower: publicRange }],
+        publicHead,
+        undefined,
+        { kind: 'Multirange', value: head },
+      ]) {
+        expect(() => evaluate([element], publicSpans, null, true), metadata.multirange).toThrow(
+          TypeError,
+        )
+        assertions++
+      }
+      for (const value of [
+        '{empty}',
+        { kind: 'Value', value: spans },
+        { kind: 'Value', value: { ...spans, elementType: 'wrong' } },
+        { kind: 'Value', value: { ...spans, elementKind: 2 } },
+        { kind: 'Unknown' },
+        { kind: 'Null' },
+        { kind: 'Error', value: { state: parseInt('22012', 36) } },
+      ])
+        expect(() => evaluate(value, publicSpans, null, true)).toThrow(TypeError)
+      expect(() => evaluate(publicSpans, { kind: 'Value', value: domains })).toThrow(TypeError)
+      expect(() => evaluate(publicSpans, publicSpans, { kind: 'Value', value: histories })).toThrow(
+        TypeError,
+      )
+      {
+        const result = evaluate(undefined, publicSpans, null, true)
+        for (const name of ['first', 'shape', 'present']) {
+          expect(result[name]).toMatchObject({ certain: false })
+          assertions++
+        }
+        expect(result.guarded).toEqual({ certain: true, value: true })
+      }
+      {
+        const result = evaluate(null)
+        expect(result.first).toEqual({ certain: true, value: false })
+        expect(result.shape).toEqual({ certain: true, value: null })
+        expect(result.present).toEqual({ certain: true, value: false })
+      }
+      // Stored values go to the evaluator entries directly: element and array identities other
+      // than the column's, unknown or failed elements and bounds, and arrays of the array domain.
+      const owner = `public.multirange_array_payload_${i}`
+      const array = (payload: OwnedArrayInputPayload): unknown =>
+        runtime.makeArrayValue(arrayTypescriptInput(payload, runtime))
+      const failure = (code: string) => ({ kind: 'Error', value: { state: parseInt(code, 36) } })
+      const undecided = (outcome: unknown, label?: string) =>
+        expect(['Unknown', 'Unimplemented'], label).toContain((outcome as { kind: string }).kind)
+      const rows = (
+        value: unknown,
+        domain: unknown = array(domains),
+        nested: unknown = array(histories),
+        bypass = false,
+      ): Record<string, unknown> => {
+        const row: Record<string, unknown> = {
+          spans: value,
+          domains: domain,
+          histories: nested,
+          head: runtime.makeCoercedMultirangeValue(multirangeTypescriptInput(head, runtime)),
+          bypass: runtime.makeBoolValue(bypass),
+        }
+        return internal(owner, row)
+      }
+      for (const [name, result] of Object.entries(rows(array(spans)))) {
+        expect(result, `${metadata.multirange} ${name}`).toEqual({ kind: 'True' })
         assertions++
       }
       const firstSpan = head.ranges[0]!
@@ -177,75 +324,58 @@ it('validates multirange array and domain-cell profiles before copying public in
         { ...head, ranges: [{ kind: 'Null' }] },
         memberChange({ bounds: [] }),
         memberChange({ empty: true }),
-        memberChange({ lowerInclusive: 'true' }),
         memberChange({ typeName: 'wrong' }),
         memberChange({ elementType: 'wrong' }),
-        memberChange({ bounds: [{ kind: 'Int4', value: 1.5 }, { kind: 'Null' }] }),
-        memberChange({ bounds: [{ kind: 'Multirange', value: head }, { kind: 'Null' }] }),
       ]) {
         const bad = structuredClone(spans)
         bad.elements[0] = { kind: 'Multirange', value: changed as typeof head }
-        expectUndecidedOrRejected(
-          () => evaluate(bad, domains, histories, true),
-          metadata.multirange,
-          ['first', 'shape', 'present'],
+        const result = rows(array(bad), array(domains), array(histories), true)
+        // The array is present whatever its first element holds, if that is decided at all.
+        expect(['True', 'Unknown', 'Unimplemented']).toContain(
+          (result['present'] as { kind: string }).kind,
         )
+        for (const name of ['first', 'shape'])
+          undecided(result[name], `${metadata.multirange} ${name}`)
+        expect(result['guarded']).toEqual({ kind: 'True' })
         assertions++
       }
-      for (const value of [
-        '{empty}',
-        { kind: 'Value', value: { ...spans, elementType: 'wrong' } },
-        { kind: 'Value', value: { ...spans, elementKind: 2 } },
-      ])
-        expect(() => evaluate(value, domains, histories, true)).toThrow(TypeError)
-      for (const value of [undefined, { kind: 'Unknown' }]) {
-        const result = evaluate(value, domains, histories, true)
-        for (const name of ['first', 'shape', 'present']) {
-          expect(result[name]).toMatchObject({ certain: false })
-          assertions++
-        }
-        expect(result.guarded).toEqual({ certain: true, value: true })
+      {
+        const result = rows(runtime.arrayUnknown(), array(domains), array(histories), true)
+        for (const name of ['first', 'shape', 'present']) undecided(result[name])
+        expect(result['guarded']).toEqual({ kind: 'True' })
       }
       const partial = structuredClone(spans)
       partial.elements[0] = { kind: 'Unknown' }
-      expect(evaluate(partial).first).toMatchObject({ certain: false })
-      expect(evaluate(partial).shape).toEqual({ certain: true, value: true })
+      undecided(rows(array(partial))['first'])
+      expect(rows(array(partial))['shape']).toEqual({ kind: 'True' })
       const partialBound = structuredClone(spans)
       const first = partialBound.elements[0]
       if (first?.kind !== 'Multirange') throw new Error('Missing range')
       const member = first.value.ranges[0]!
       if (member.kind !== 'Value') throw new Error('Missing member')
       member.value.bounds[0] = { kind: 'Unknown' }
-      expect(evaluate(partialBound).first).toMatchObject({ certain: false })
-      expect(evaluate(partialBound).shape).toEqual({ certain: true, value: true })
-      const badDomain = { ...domains, elementType: metadata.multirange }
-      expectUndecidedOrRejected(() => evaluate(spans, badDomain), metadata.identity, [
-        'domain_cell',
-        'domain_guarded',
-      ])
+      undecided(rows(array(partialBound))['first'])
+      expect(rows(array(partialBound))['shape']).toEqual({ kind: 'True' })
+      const badDomain = rows(array(spans), array({ ...domains, elementType: metadata.multirange }))
+      for (const name of ['domain_cell', 'domain_guarded'])
+        undecided(badDomain[name], `${metadata.multirange} ${name}`)
       const badNested = structuredClone(histories)
       const inner = badNested.elements[0]
       if (inner?.kind !== 'Array') throw new Error('Missing nested array')
       inner.value.elementType = metadata.multirange
-      expectUndecidedOrRejected(() => evaluate(spans, domains, badNested), metadata.identity, [
-        'nested_cell',
-        'nested_guarded',
-      ])
-      for (const value of [null, { kind: 'Null' }]) {
-        const result = evaluate(value)
-        expect(result.first).toEqual({ certain: true, value: false })
-        expect(result.shape).toEqual({ certain: true, value: null })
-        expect(result.present).toEqual({ certain: true, value: false })
+      const nestedResult = rows(array(spans), array(domains), array(badNested))
+      for (const name of ['nested_cell', 'nested_guarded'])
+        undecided(nestedResult[name], `${metadata.multirange} ${name}`)
+      {
+        const result = rows(runtime.arrayNull())
+        expect(result['first']).toEqual({ kind: 'False' })
+        expect(result['shape']).toEqual({ kind: 'Null' })
+        expect(result['present']).toEqual({ kind: 'False' })
       }
-      const error = evaluate(
-        { kind: 'Error', value: { state: parseInt('22012', 36) } },
-        domains,
-        histories,
-        true,
-      )
+      const error = rows(failure('22012'), array(domains), array(histories), true)
       for (const name of ['first', 'shape', 'present'])
-        expect(error[name]).toEqual({ certain: true, error: '22012' })
-      expect(error.guarded).toEqual({ certain: true, value: true })
+        expect(error[name]).toEqual(failure('22012'))
+      expect(error['guarded']).toEqual({ kind: 'True' })
       await pg.query(
         `INSERT INTO multirange_array_payload_${i} VALUES($1,$2,ARRAY[$4::multi_history_${i}],$3,false)`,
         [
@@ -322,6 +452,8 @@ it('validates multirange array and domain-cell profiles before copying public in
         throw new Error(error.stdout + error.stderr, { cause: error })
       },
     )
+    // Every public case decides as the server does.
+    expect(mismatches).toEqual([])
     await mkdir('artifacts/check-multirange-arrays', { recursive: true })
     await writeFile(
       'artifacts/check-multirange-arrays/payload-report.json',

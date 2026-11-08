@@ -1,6 +1,5 @@
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
-import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -14,6 +13,17 @@ import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-tr
 import { parseConfigString } from '../../src/config/loader.js'
 import { customRangeSchema } from './check-custom-range-fixtures.js'
 import { textRangeSchema } from './check-text-range-fixtures.js'
+import { rangeTypescriptInput, type RangeInputPayload } from '../../tools/check-rust/range-input.js'
+import {
+  multirangeTypescriptInput,
+  type MultirangeInputPayload,
+} from '../../tools/check-rust/multirange-input.js'
+import {
+  arrayTypescriptInput,
+  type OwnedArrayInputPayload,
+} from '../../tools/check-rust/array-input.js'
+import { differingChecks, serverCheckResults } from '../support/check-server-results.js'
+import { internalCheckRows } from '../support/check-entries.js'
 
 it('uses portable captured profiles in public custom range and multirange adapters across independent catalogs', async () => {
   const pg = await PGlite.create(),
@@ -160,280 +170,456 @@ CREATE TABLE custom_multi_array_payloads(windows integer_set[],head integer_set,
       throw new Error(error.stdout + error.stderr, { cause: error })
     })
     const generated = await import(pathToFileURL(join(root, 'js/checks.js')).href)
+    const runtime = await import(pathToFileURL(join(root, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(ts.checks, runtime)
     type Result = { certain: boolean; value?: boolean | null; error?: string }
     const resultMap = (results: { constraint: string; result: Result }[]): Record<string, Result> =>
       Object.fromEntries(results.map((result) => [result.constraint, result.result]))
-    const span = (name: string, lower: number, upper: number, elementType = 'pg_catalog.int4') => ({
-      kind: 'Value',
-      value: {
-        typeName: '"Custom.Range".' + name,
-        elementType,
-        elementKind: 2,
+    const mismatches: ReturnType<typeof differingChecks> = []
+    const show = (row: unknown) =>
+      JSON.stringify(row, (_key, item) => (typeof item === 'bigint' ? `${item}n` : item))
+    // Each public row decides every check as the server does with the same values.
+    const compare = async (
+      table: string,
+      evaluate: (row: object) => { constraint: string; result: Result }[],
+      row: object,
+      text: Record<string, string | null>,
+      skip: readonly string[] = [],
+    ) => {
+      const before = structuredClone(row)
+      const local = resultMap(evaluate(row)),
+        server = await serverCheckResults(pg, table, text)
+      for (const name of skip) {
+        delete local[name]
+        delete server[name]
+      }
+      mismatches.push(...differingChecks(`${table} ${show(row)}`, local, server))
+      expect(row).toEqual(before)
+    }
+    const span = (lower: unknown, upper: unknown) => ({
+      empty: false,
+      lower,
+      upper,
+      lowerInclusive: true,
+      upperInclusive: true,
+    })
+    const True = { kind: 'True' }
+    const undecided = (outcome: unknown, label?: string) =>
+      expect(['Unknown', 'Unimplemented'], label).toContain((outcome as { kind: string }).kind)
+    // Support other than the type's own never decides a check wrongly.
+    const trueOrUndecided = (outcomes: Record<string, unknown>, label: string) => {
+      for (const [name, outcome] of Object.entries(outcomes))
+        expect(['True', 'Unknown', 'Unimplemented'], `${label} ${name}`).toContain(
+          (outcome as { kind: string }).kind,
+        )
+    }
+    // Internal ranges and multiranges as stored, with whatever support and identity they carry.
+    const payload = (
+      name: string,
+      lower: number,
+      upper: number,
+      elementType = 'pg_catalog.int4',
+    ): RangeInputPayload => ({
+      typeName: '"Custom.Range".' + name,
+      elementType,
+      elementKind: 2,
+      empty: false,
+      lowerInclusive: true,
+      upperInclusive: true,
+      bounds: [
+        { kind: 'Int4', value: lower },
+        { kind: 'Int4', value: upper },
+      ],
+    })
+    const packPayload = (
+      type: string,
+      ...members: RangeInputPayload[]
+    ): MultirangeInputPayload => ({
+      typeName: 'public.' + type,
+      rangeType: members[0]!.typeName,
+      elementType: members[0]!.elementType,
+      elementKind: members[0]!.elementKind,
+      ranges: members.map((value) => ({ kind: 'Value', value })),
+    })
+    const range = (value: RangeInputPayload): unknown =>
+      runtime.makeCoercedRangeValue(rangeTypescriptInput(value, runtime))
+    const multirange = (value: MultirangeInputPayload): unknown =>
+      runtime.makeCoercedMultirangeValue(multirangeTypescriptInput(value, runtime))
+    const array = (value: OwnedArrayInputPayload): unknown =>
+      runtime.makeArrayValue(arrayTypescriptInput(value, runtime))
+
+    // Text ranges: bounds are text, ordered under the range's collation.
+    const textRow = {
+      v: span('a', 'z'),
+      w: span('é', '漢'),
+      m: [span('a', 'z')],
+      items: [span('a', 'z'), null, span('é', '漢')],
+      bypass: false,
+    }
+    const textText = {
+      v: '[a,z]',
+      w: '[é,漢]',
+      m: '{[a,z]}',
+      items: '{"[a,z]",NULL,"[é,漢]"}',
+      bypass: 'false',
+    }
+    await compare(
+      'custom_text_payloads',
+      generated.evaluatePublicCustomTextPayloadsChecks,
+      textRow,
+      textText,
+    )
+    await compare(
+      'custom_text_payloads',
+      generated.evaluatePublicCustomTextPayloadsChecks,
+      { ...textRow, v: textRow.w, w: textRow.v },
+      { ...textText, v: textText.w, w: textText.v },
+      // Sending non-ASCII text converts it to the client's encoding, a session setting.
+      ['sent_text'],
+    )
+    for (const bypass of [false, true])
+      expect(() =>
+        generated.evaluatePublicCustomTextPayloadsChecks({ ...textRow, v: span(1, 'z'), bypass }),
+      ).toThrow(TypeError)
+    // A stored array starting at -2, under any support, goes to the evaluator entries directly.
+    for (const support of [
+      undefined,
+      { comparison: 8, canonical: 0 },
+      { comparison: 0, canonical: 0 },
+    ]) {
+      const textSpan = (lo: string, hi: string): RangeInputPayload => ({
+        typeName: '"Text.Range".words',
+        elementType: 'pg_catalog.text',
+        elementKind: 8,
+        ...(support ? { support } : {}),
         empty: false,
         lowerInclusive: true,
         upperInclusive: true,
         bounds: [
-          { kind: 'Int4', value: lower },
-          { kind: 'Int4', value: upper },
+          { kind: 'Text', value: lo },
+          { kind: 'Text', value: hi },
         ],
-      },
-    })
-    const pack = (type: string, member: ReturnType<typeof span>) => ({
-      kind: 'Value',
-      value: {
-        typeName: 'public.' + type,
-        rangeType: member.value.typeName,
-        elementType: member.value.elementType,
-        elementKind: 2,
-        ranges: [member],
-      },
-    })
-    const v = span('integer_span', 1, 2),
-      w = span('integer_span', 3, 4)
-    const row = {
-      v,
-      w,
-      m: pack('integer_set', v),
-      n: pack('integer_set', w),
-      p: span('positive_span', 1, 2, '"Custom.Range".positive'),
-      e: 1,
-    }
-    for (const forge of [false, true]) {
-      const support = forge ? { comparison: 8, canonical: 0 } : { comparison: 0, canonical: 0 }
-      const textSpan = (lo: string, hi: string) => ({
-        kind: 'Value',
-        value: {
-          typeName: '"Text.Range".words',
-          elementType: 'pg_catalog.text',
-          elementKind: 8,
-          support,
-          empty: false,
-          lowerInclusive: true,
-          upperInclusive: true,
-          bounds: [
-            { kind: 'Text', value: lo },
-            { kind: 'Text', value: hi },
-          ],
-        },
       })
       const first = textSpan('a', 'z'),
         last = textSpan('é', '漢')
-      const textRow = {
-        v: first,
-        w: last,
-        m: {
-          kind: 'Value',
-          value: {
-            typeName: 'public.word_sets',
-            rangeType: '"Text.Range".words',
-            elementType: 'pg_catalog.text',
-            elementKind: 8,
-            support,
-            ranges: [first],
-          },
-        },
-        items: {
-          kind: 'Value',
-          value: {
-            elementType: '"Text.Range".words',
-            elementKind: 42,
-            dimensions: [{ lower: -2, length: 3 }],
-            nullBitmap: { kind: 'Value', value: true },
-            elements: [
-              { kind: 'Range', value: first.value },
-              { kind: 'Null' },
-              { kind: 'Range', value: last.value },
-            ],
-          },
-        },
-        bypass: false,
-      }
-      const saved = structuredClone(textRow)
-      for (const result of Object.values(
-        resultMap(generated.evaluatePublicCustomTextPayloadsChecks(textRow)),
-      ))
-        expect(result).toEqual({ certain: true, value: true })
-      expect(textRow).toEqual(saved)
-      textRow.v.value.bounds[0]!.kind = 'Int4'
-      expect(() => generated.evaluatePublicCustomTextPayloadsChecks(textRow)).toThrow(TypeError)
-      expect(() =>
-        generated.evaluatePublicCustomTextPayloadsChecks({ ...textRow, bypass: true }),
-      ).toThrow(TypeError)
+      const outcomes = internal('public.custom_text_payloads', {
+        v: range(first),
+        w: range(last),
+        m: multirange({
+          typeName: 'public.word_sets',
+          rangeType: '"Text.Range".words',
+          elementType: 'pg_catalog.text',
+          elementKind: 8,
+          ...(support ? { support } : {}),
+          ranges: [{ kind: 'Value', value: first }],
+        }),
+        items: array({
+          elementType: '"Text.Range".words',
+          elementKind: 42,
+          dimensions: [{ lower: -2, length: 3 }],
+          nullBitmap: { kind: 'Value', value: true },
+          elements: [
+            { kind: 'Range', value: first },
+            { kind: 'Null' },
+            { kind: 'Range', value: last },
+          ],
+        }),
+        bypass: runtime.makeBoolValue(false),
+      })
+      if (support) trueOrUndecided(outcomes, `text ${show(support)}`)
+      else
+        for (const [name, outcome] of Object.entries(outcomes))
+          expect(outcome, `text ${name}`).toEqual(True)
     }
     await pg.exec(
       `INSERT INTO custom_text_payloads VALUES('[a,z]','[é,漢]','{[a,z]}','[-2:0]={"[a,z]",NULL,"[é,漢]"}',false)`,
     )
-    const imported = { payload: '[1,2]', expected: v, bypass: false }
-    const array = {
-      kind: 'Value',
-      value: {
-        elementType: v.value.typeName,
-        elementKind: 42,
-        dimensions: [{ lower: 1, length: 3 }],
-        elements: [v, v, w].map((span) => ({ kind: 'Range', value: structuredClone(span.value) })),
-        nullBitmap: { kind: 'Value', value: false },
-      },
-    }
-    const arrayPack = pack('integer_set', v)
-    arrayPack.value.ranges.push(w)
-    const arrays = {
-      windows: array,
-      typed: {
-        kind: 'Value',
-        value: { ...structuredClone(array.value), elementType: '"public"."custom_array_cell"' },
-      },
-      histories: {
-        kind: 'Value',
-        value: {
-          elementType: '"public"."custom_windows"',
-          elementKind: 41,
-          dimensions: [{ lower: 1, length: 1 }],
-          elements: [{ kind: 'Array', value: structuredClone(array.value) }],
-          nullBitmap: { kind: 'Value', value: false },
-        },
-      },
+
+    // Arrays of custom ranges: the array domain, the element domain and an array of the array
+    // domain. Nested public lists are dimensions, so the last has no public value with elements.
+    const v = span(1, 2),
+      w = span(3, 4)
+    const arraysRow = {
+      windows: [v, v, w],
+      typed: [v, v, w],
+      histories: null as unknown,
       head: v,
-      expected_pack: arrayPack,
+      expected_pack: [v, w],
       bypass: false,
     }
-    for (const forge of [false, true]) {
-      const results = structuredClone(arrays)
-      if (forge) {
-        for (const cell of results.windows.value.elements)
-          Object.assign(cell.value, { support: { comparison: 99, canonical: 99 } })
-        for (const cell of results.typed.value.elements)
-          Object.assign(cell.value, { support: { comparison: 99, canonical: 99 } })
-        for (const cell of results.histories.value.elements[0]!.value.elements)
-          Object.assign(cell.value, { support: { comparison: 99, canonical: 99 } })
+    const arraysText = {
+      windows: '{"[1,2]","[1,2]","[3,4]"}',
+      typed: '{"[1,2]","[1,2]","[3,4]"}',
+      histories: null as string | null,
+      head: '[1,2]',
+      expected_pack: '{[1,2],[3,4]}',
+      bypass: 'false',
+    }
+    for (const [histories, text] of [
+      [null, null],
+      [[null], '{NULL}'],
+      [[[v, v, w]], '{{"[1,2]","[1,2]","[3,4]"}}'],
+    ] as const)
+      await compare(
+        'custom_array_payloads',
+        generated.evaluatePublicCustomArrayPayloadsChecks,
+        { ...arraysRow, histories },
+        { ...arraysText, histories: text },
+      )
+    await compare(
+      'custom_array_payloads',
+      generated.evaluatePublicCustomArrayPayloadsChecks,
+      { ...arraysRow, windows: [w, v], typed: [w], expected_pack: [w] },
+      { ...arraysText, windows: '{"[3,4]","[1,2]"}', typed: '{"[3,4]"}', expected_pack: '{[3,4]}' },
+    )
+    const storedWindows: OwnedArrayInputPayload = {
+      elementType: '"Custom.Range".integer_span',
+      elementKind: 42,
+      dimensions: [{ lower: 1, length: 3 }],
+      elements: [
+        payload('integer_span', 1, 2),
+        payload('integer_span', 1, 2),
+        payload('integer_span', 3, 4),
+      ].map((value) => ({ kind: 'Range' as const, value })),
+      nullBitmap: { kind: 'Value', value: false },
+    }
+    const storedArrays = (windows: OwnedArrayInputPayload) => ({
+      windows: array(windows),
+      typed: array({ ...windows, elementType: '"public"."custom_array_cell"' }),
+      histories: array({
+        elementType: '"public"."custom_windows"',
+        elementKind: 41,
+        dimensions: [{ lower: 1, length: 1 }],
+        elements: [{ kind: 'Array', value: windows }],
+        nullBitmap: { kind: 'Value', value: false },
+      }),
+      head: range(payload('integer_span', 1, 2)),
+      expected_pack: multirange(
+        packPayload('integer_set', payload('integer_span', 1, 2), payload('integer_span', 3, 4)),
+      ),
+      bypass: runtime.makeBoolValue(false),
+    })
+    for (const [name, outcome] of Object.entries(
+      internal('public.custom_array_payloads', storedArrays(storedWindows)),
+    ))
+      expect(outcome, `array ${name}`).toEqual(True)
+    const forgedWindows = structuredClone(storedWindows)
+    for (const cell of forgedWindows.elements)
+      if (cell.kind === 'Range') cell.value.support = { comparison: 99, canonical: 99 }
+    trueOrUndecided(
+      internal('public.custom_array_payloads', storedArrays(forgedWindows)),
+      'forged array',
+    )
+    undecided(
+      internal('public.custom_array_payloads', {
+        ...storedArrays(storedWindows),
+        windows: array({ ...storedWindows, elementType: 'pg_catalog.int4range' }),
+      })['counted'],
+    )
+
+    // Arrays of custom multiranges: a public multirange is a list, so inside a public array it
+    // reads as one more dimension, as queries send it, and no public array holds a non-NULL one.
+    const multiRow = { windows: [null, null, null] as unknown, head: [v], bypass: false }
+    for (const [windows, text] of [
+      [[null, null, null], '{NULL,NULL,NULL}'],
+      [[], '{}'],
+      [[[null], [null], [null]], '{{NULL},{NULL},{NULL}}'],
+    ] as const)
+      await compare(
+        'custom_multi_array_payloads',
+        generated.evaluatePublicCustomMultiArrayPayloadsChecks,
+        { ...multiRow, windows },
+        { windows: text, head: '{[1,2]}', bypass: 'false' },
+      )
+    expect(() =>
+      generated.evaluatePublicCustomMultiArrayPayloadsChecks({
+        ...multiRow,
+        windows: [[v], [v], [w]],
+      }),
+    ).toThrow(TypeError)
+    for (const support of [undefined, { comparison: 99, canonical: 99 }]) {
+      const set = (...members: RangeInputPayload[]) => {
+        const value = packPayload('integer_set', ...members)
+        if (support) {
+          value.support = support
+          for (const member of value.ranges)
+            if (member.kind === 'Value') member.value.support = support
+        }
+        return value
       }
-      const before = structuredClone(results)
-      for (const result of Object.values(
-        resultMap(generated.evaluatePublicCustomArrayPayloadsChecks(results)),
-      ))
-        expect(result).toEqual({ certain: true, value: true })
-      expect(results).toEqual(before)
-      const multiWindows = {
-        ...structuredClone(array.value),
+      const windows: OwnedArrayInputPayload = {
         elementType: 'public.integer_set',
         elementKind: 43,
-        elements: [v, v, w].map((value) => ({
-          kind: 'Multirange',
-          value: structuredClone(pack('integer_set', value).value),
-        })),
+        dimensions: [{ lower: 1, length: 3 }],
+        elements: [
+          set(payload('integer_span', 1, 2)),
+          set(payload('integer_span', 1, 2)),
+          set(payload('integer_span', 3, 4)),
+        ].map((value) => ({ kind: 'Multirange' as const, value })),
+        nullBitmap: { kind: 'Value', value: false },
       }
-      if (forge)
-        for (const cell of multiWindows.elements) {
-          Object.assign(cell.value, { support: { comparison: 99, canonical: 99 } })
-          for (const member of cell.value.ranges)
-            Object.assign(member.value, { support: { comparison: 99, canonical: 99 } })
-        }
-      const multiInput = {
-          windows: { kind: 'Value', value: multiWindows },
-          head: pack('integer_set', v),
-          bypass: false,
-        },
-        multiBefore = structuredClone(multiInput)
-      for (const result of Object.values(
-        resultMap(generated.evaluatePublicCustomMultiArrayPayloadsChecks(multiInput)),
-      ))
-        expect(result).toEqual({ certain: true, value: true })
-      expect(multiInput).toEqual(multiBefore)
-      multiInput.windows.value.elements[0]!.value.rangeType = 'pg_catalog.int4range'
-      expectUndecidedOrRejected(
-        () => resultMap(generated.evaluatePublicCustomMultiArrayPayloadsChecks(multiInput)),
-        undefined,
-        ['fetched'],
+      const stored = {
+        windows: array(windows),
+        head: multirange(packPayload('integer_set', payload('integer_span', 1, 2))),
+        bypass: runtime.makeBoolValue(false),
+      }
+      const outcomes = internal('public.custom_multi_array_payloads', stored)
+      if (support) trueOrUndecided(outcomes, 'forged multirange array')
+      else
+        for (const [name, outcome] of Object.entries(outcomes))
+          expect(outcome, `multirange array ${name}`).toEqual(True)
+      const wrong = structuredClone(windows)
+      const cell = wrong.elements[0]!
+      if (cell.kind === 'Multirange') cell.value.rangeType = 'pg_catalog.int4range'
+      undecided(
+        internal('public.custom_multi_array_payloads', { ...stored, windows: array(wrong) })[
+          'fetched'
+        ],
       )
     }
-    const wrongArrays = structuredClone(arrays)
-    wrongArrays.windows.value.elementType = 'pg_catalog.int4range'
-    expectUndecidedOrRejected(
-      () => resultMap(generated.evaluatePublicCustomArrayPayloadsChecks(wrongArrays)),
-      undefined,
-      ['counted'],
-    )
-    expect(resultMap(generated.evaluatePublicCustomImportsChecks(imported)).parsed).toEqual({
-      certain: true,
-      value: true,
-    })
-    expect(
-      resultMap(generated.evaluatePublicCustomImportsChecks({ ...imported, payload: '[1,3]' }))
-        .parsed,
-    ).toEqual({ certain: true, value: false })
-    expect(
-      resultMap(generated.evaluatePublicCustomImportsChecks({ ...imported, payload: '[bad,3]' }))
-        .parsed,
-    ).toMatchObject({ certain: true, error: '22P02' })
+
+    // Custom range input through casts and constructor calls.
+    for (const [text, bypass] of [
+      ['[1,2]', false],
+      ['[1,3]', false],
+      ['[bad,3]', false],
+      ['[bad,3]', true],
+    ] as const)
+      await compare(
+        'custom_imports',
+        generated.evaluatePublicCustomImportsChecks,
+        { payload: text, expected: v, bypass },
+        { payload: text, expected: '[1,2]', bypass: String(bypass) },
+      )
     expect(
       resultMap(
         generated.evaluatePublicCustomImportsChecks({
-          ...imported,
-          payload: '[bad,3]',
-          bypass: true,
+          payload: '[1,2]',
+          expected: v,
+          bypass: false,
         }),
       ).parsed,
     ).toEqual({ certain: true, value: true })
-    const multiImported = { payload: '{[1,2]}', expected: pack('integer_set', v), bypass: false }
-    for (const [payload, bypass, expected] of [
+    for (const [text, bypass, expected] of [
       ['{[1,2]}', false, { certain: true, value: true }],
       ['{[1,3]}', false, { certain: true, value: false }],
       ['{[bad,3]}', false, { certain: true, error: '22P02' }],
       ['{[bad,3]}', true, { certain: true, value: true }],
-    ] as const)
+    ] as const) {
       expect(
         resultMap(
-          generated.evaluatePublicCustomMultiImportsChecks({ ...multiImported, payload, bypass }),
+          generated.evaluatePublicCustomMultiImportsChecks({
+            payload: text,
+            expected: [v],
+            bypass,
+          }),
         ).parsed,
       ).toMatchObject(expected)
+      await compare(
+        'custom_multi_imports',
+        generated.evaluatePublicCustomMultiImportsChecks,
+        { payload: text, expected: [v], bypass },
+        { payload: text, expected: '{[1,2]}', bypass: String(bypass) },
+      )
+    }
+
+    // Captured support decides constructors, defaults, output and JSON of custom ranges.
+    const row = { v, w, m: [v], n: [w], p: v, e: 1 }
+    const rowText = { v: '[1,2]', w: '[3,4]', m: '{[1,2]}', n: '{[3,4]}', p: '[1,2]', e: '1' }
     for (const result of Object.values(
       resultMap(generated.evaluatePublicCustomPayloadsChecks(row)),
     ))
       expect(result).toEqual({ certain: true, value: true })
-    const forged = structuredClone(row)
-    for (const payload of [
-      forged.v.value,
-      forged.w.value,
-      forged.p.value,
-      forged.m.value,
-      forged.n.value,
-      ...forged.m.value.ranges.map((member) => member.value),
-      ...forged.n.value.ranges.map((member) => member.value),
-    ])
-      Object.assign(payload, { support: { comparison: 2, canonical: 2 } })
-    for (const result of Object.values(
-      resultMap(generated.evaluatePublicCustomPayloadsChecks(forged)),
-    ))
-      expect(result).toEqual({ certain: true, value: true })
+    await compare('custom_payloads', generated.evaluatePublicCustomPayloadsChecks, row, rowText)
     expect(resultMap(generated.evaluatePublicCustomPayloadsChecks({ ...row, e: 2 })).bound).toEqual(
       { certain: true, value: false },
     )
-    expect(
-      resultMap(
-        generated.evaluatePublicCustomPayloadsChecks({ ...row, v: span('positive_span', 1, 2) }),
-      ).bound,
-    ).toMatchObject({ certain: false })
-    const partial = structuredClone(row)
-    Object.assign(partial.v.value, { bounds: [{ kind: 'Unknown' }, { kind: 'Int4', value: 2 }] })
-    expect(resultMap(generated.evaluatePublicCustomPayloadsChecks(partial)).bound).toMatchObject({
-      certain: false,
-    })
-    const callbacks = resultMap(
-      generated.evaluatePublicCustomCallbacksChecks({
-        v: span('reverse_span', 4, 1),
-        w: span('reverse_span', 3, 1),
-        e: 4,
-        bypass: true,
-      }),
+    for (const change of [
+      [{ e: 2 }, { e: '2' }],
+      [{ v: span(2, 1) }, { v: '[2,1]' }],
+      [
+        { m: [v, w], n: [] },
+        { m: '{[1,2],[3,4]}', n: '{}' },
+      ],
+    ] as const)
+      await compare(
+        'custom_payloads',
+        generated.evaluatePublicCustomPayloadsChecks,
+        { ...row, ...change[0] },
+        { ...rowText, ...change[1] },
+      )
+    for (const value of [{ kind: 'Value', value: payload('integer_span', 1, 2) }, span(1n, 2)])
+      expect(() => generated.evaluatePublicCustomPayloadsChecks({ ...row, v: value })).toThrow(
+        TypeError,
+      )
+    // Stored values with forged support, another nominal type or an unknown bound go to the
+    // evaluator entries directly.
+    const storedRow = (support?: { comparison: number; canonical: number }) => {
+      const with_ = (value: RangeInputPayload) => (support ? { ...value, support } : value)
+      const pack = (member: RangeInputPayload) => {
+        const value = packPayload('integer_set', with_(member))
+        return support ? { ...value, support } : value
+      }
+      return {
+        v: range(with_(payload('integer_span', 1, 2))),
+        w: range(with_(payload('integer_span', 3, 4))),
+        m: multirange(pack(payload('integer_span', 1, 2))),
+        n: multirange(pack(payload('integer_span', 3, 4))),
+        p: range(with_(payload('positive_span', 1, 2, '"Custom.Range".positive'))),
+        e: runtime.makeInt4Value(1),
+      }
+    }
+    for (const [name, outcome] of Object.entries(internal('public.custom_payloads', storedRow())))
+      expect(outcome, `custom ${name}`).toEqual(True)
+    trueOrUndecided(
+      internal('public.custom_payloads', storedRow({ comparison: 2, canonical: 2 })),
+      'forged custom',
     )
-    expect(callbacks.bound).toEqual({ certain: true, value: true })
+    undecided(
+      internal('public.custom_payloads', {
+        ...storedRow(),
+        v: range(payload('positive_span', 1, 2)),
+      })['bound'],
+    )
+    undecided(
+      internal('public.custom_payloads', {
+        ...storedRow(),
+        v: range({
+          ...payload('integer_span', 1, 2),
+          bounds: [{ kind: 'Unknown' }, { kind: 'Int4', value: 2 }],
+        }),
+      })['bound'],
+    )
+
+    // A comparator written in SQL and a canonical function in PL/pgSQL are the deployment's
+    // code, so what reads them stays undecided. Range input orders public bounds with the
+    // comparator, so even reading such a range waits for it; a stored range is already ordered.
+    const callbacksRow = { v: span(4, 1), w: span(3, 1), e: 4, bypass: true }
+    const callbacks = resultMap(generated.evaluatePublicCustomCallbacksChecks(callbacksRow))
+    expect(callbacks.bound).toMatchObject({ certain: false })
     expect(callbacks.ordered).toMatchObject({ certain: false })
     expect(callbacks.guarded).toEqual({ certain: true, value: true })
-    expect(callbacks.rendered).toEqual({ certain: true, value: true })
-    const opaque = pack('opaque_set', span('opaque_span', 1, 2))
-    opaque.value.ranges.push(span('opaque_span', 5, 6))
-    expect(resultMap(generated.evaluatePublicCustomHullsChecks({ m: opaque })).hull).toMatchObject({
-      certain: false,
+    expect(callbacks.rendered).toMatchObject({ certain: false })
+    await compare(
+      'custom_callbacks',
+      generated.evaluatePublicCustomCallbacksChecks,
+      callbacksRow,
+      { v: '[4,1]', w: '[3,1]', e: '4', bypass: 'true' },
+      ['bound', 'ordered', 'rendered'],
+    )
+    const storedCallbacks = internal('public.custom_callbacks', {
+      v: range(payload('reverse_span', 4, 1)),
+      w: range(payload('reverse_span', 3, 1)),
+      e: runtime.makeInt4Value(4),
+      bypass: runtime.makeBoolValue(true),
     })
+    expect(storedCallbacks['bound']).toEqual(True)
+    undecided(storedCallbacks['ordered'])
+    expect(storedCallbacks['guarded']).toEqual(True)
+    expect(storedCallbacks['rendered']).toEqual(True)
+    expect(
+      resultMap(generated.evaluatePublicCustomHullsChecks({ m: [span(1, 2), span(5, 6)] })).hull,
+    ).toMatchObject({ certain: false })
     await pg.exec(
       `INSERT INTO custom_payloads VALUES('[1,2]','[3,4]','{[1,2]}','{[3,4]}','[1,2]',1)`,
     )
@@ -537,6 +723,8 @@ func TestCustomProfiles(t *testing.T){
         throw new Error(error.stdout + error.stderr, { cause: error })
       },
     )
+    // Every public case decides as the server does.
+    expect(mismatches).toEqual([])
   } finally {
     await pg.close()
     await rm(root, { recursive: true, force: true })

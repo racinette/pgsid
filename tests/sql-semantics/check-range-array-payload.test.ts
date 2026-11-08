@@ -1,6 +1,5 @@
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
-import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { dirname, join } from 'node:path'
@@ -16,10 +15,16 @@ import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-tr
 import { arrayInputPlan } from '../../src/codegen/shared/check-array-types.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import { go, printGoFile } from '../../src/codegen/go/ast.js'
-import { arrayGoInput, type OwnedArrayInputPayload } from '../../tools/check-rust/array-input.js'
-import { rangeGoInput } from '../../tools/check-rust/range-input.js'
+import {
+  arrayGoInput,
+  arrayTypescriptInput,
+  type OwnedArrayInputPayload,
+} from '../../tools/check-rust/array-input.js'
+import { rangeGoInput, rangeTypescriptInput } from '../../tools/check-rust/range-input.js'
+import { differingChecks, serverCheckResults } from '../support/check-server-results.js'
 import { readRangeFixture, rangeCoreSamples } from './check-range-fixtures.js'
 import { rangeArrayText, readRangeArrayFixture } from './check-range-array-fixtures.js'
+import { internalCheckRows } from '../support/check-entries.js'
 
 it('validates range array and domain-cell profiles before copying public inputs, independently of deployment OIDs', async () => {
   const pg = await PGlite.create(),
@@ -97,6 +102,9 @@ it('validates range array and domain-cell profiles before copying public inputs,
       throw new Error(error.stdout + error.stderr, { cause: error })
     })
     const generated = await import(pathToFileURL(join(root, 'js/checks.js')).href)
+    const runtime = await import(pathToFileURL(join(root, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(typescript.checks, runtime)
+    const mismatches: ReturnType<typeof differingChecks> = []
     const fixtureFunctions = [],
       goCases: string[] = []
     let nativeInserts = 0,
@@ -136,46 +144,171 @@ it('validates range array and domain-cell profiles before copying public inputs,
         metadata.subtype,
         String.fromCharCode(head.elementKind),
       ])
-      const int8Bound = (cell: (typeof head.bounds)[number]) =>
-        cell.kind === 'Int8' ? cell.value : null
+      // Public ranges hold their subtype's public values; nested lists are dimensions, so an
+      // array of the array domain has no public value with elements.
+      const bound = (value: string): unknown =>
+        metadata.subtype === 'pg_catalog.int4'
+          ? Number(value)
+          : metadata.subtype === 'pg_catalog.int8'
+            ? BigInt(value)
+            : metadata.subtype === 'pg_catalog."timestamp"'
+              ? { localMicroseconds: BigInt(Date.parse(value + 'Z')) * 1000n }
+              : metadata.subtype === 'pg_catalog.timestamptz'
+                ? { epochMicroseconds: BigInt(Date.parse(value.replace('+00', 'Z'))) * 1000n }
+                : value
+      const [lowerText, upperText] = text.slice(1, -1).split(',') as [string, string]
+      const publicHead = {
+        empty: false,
+        lower: bound(lowerText),
+        upper: bound(upperText),
+        lowerInclusive: text.startsWith('['),
+        upperInclusive: text.endsWith(']'),
+      }
+      const publicSpans = [publicHead, null, { empty: true }]
       const evaluate = (
         value: unknown,
-        domain: unknown = domains,
-        nested: unknown = histories,
+        domain: unknown = publicSpans,
+        nested: unknown = null,
         bypass = false,
       ) =>
         Object.fromEntries(
           generated['evaluatePublicRangeArrayPayload' + i + 'Checks']({
-            spans:
-              value && typeof value === 'object' && 'elementKind' in value
-                ? { kind: 'Value', value }
-                : value,
-            domains:
-              domain && typeof domain === 'object' && 'elementKind' in domain
-                ? { kind: 'Value', value: domain }
-                : domain,
-            histories:
-              nested && typeof nested === 'object' && 'elementKind' in nested
-                ? { kind: 'Value', value: nested }
-                : nested,
-            // The int8range column takes its public TypeScript value; other ranges take payloads.
-            head:
-              metadata.identity === 'pg_catalog.int8range'
-                ? head.empty
-                  ? { empty: true }
-                  : {
-                      empty: false,
-                      lower: int8Bound(head.bounds[0]!),
-                      upper: int8Bound(head.bounds[1]!),
-                      lowerInclusive: head.lowerInclusive,
-                      upperInclusive: head.upperInclusive,
-                    }
-                : { kind: 'Value', value: head },
+            spans: value,
+            domains: domain,
+            histories: nested,
+            head: publicHead,
             bypass,
           }).map((c: { constraint: string; result: unknown }) => [c.constraint, c.result]),
         )
-      for (const result of Object.values(evaluate(spans))) {
-        expect(result).toEqual({ certain: true, value: true })
+      const arrayText = rangeArrayText([text, null, 'empty'])
+      for (const [
+        spansValue,
+        spansText,
+        domainValue,
+        domainText,
+        nestedValue,
+        nestedText,
+        bypass,
+      ] of [
+        [publicSpans, arrayText, publicSpans, arrayText, null, null, false],
+        [publicSpans, arrayText, publicSpans, arrayText, [null], '{NULL}', false],
+        [publicSpans, arrayText, publicSpans, arrayText, [], '{}', true],
+        [
+          [publicSpans],
+          `{${arrayText}}`,
+          [null, publicHead],
+          rangeArrayText([null, text]),
+          null,
+          null,
+          false,
+        ],
+        [[{ empty: true }], '{empty}', [], '{}', null, null, false],
+        [null, null, null, null, null, null, false],
+        [[publicHead, [publicHead]], `{"${text}",{"${text}"}}`, null, null, null, null, true],
+        [
+          [publicSpans, null],
+          `{${arrayText},NULL}`,
+          null,
+          null,
+          [publicSpans],
+          `{${arrayText}}`,
+          true,
+        ],
+      ] as const) {
+        const row = {
+          spans: spansValue,
+          domains: domainValue,
+          histories: nestedValue,
+          head: publicHead,
+          bypass,
+        }
+        const shown = `${metadata.identity} ${JSON.stringify(row, (_key, item) =>
+          typeof item === 'bigint' ? `${item}n` : item,
+        )}`
+        mismatches.push(
+          ...differingChecks(
+            shown,
+            evaluate(spansValue, domainValue, nestedValue, bypass),
+            await serverCheckResults(pg, `range_array_payload_${i}`, {
+              spans: spansText,
+              domains: domainText,
+              histories: nestedText,
+              head: text,
+              bypass: String(bypass),
+            }),
+          ),
+        )
+        assertions++
+      }
+      // Malformed public elements and payloads are type errors before any check runs.
+      for (const element of [
+        { empty: 'false' },
+        { empty: false },
+        { ...publicHead, lowerInclusive: 'true' },
+        { ...publicHead, lower: undefined },
+        { ...publicHead, lower: metadata.subtype === 'pg_catalog.int4' ? 1.5 : 1.5 },
+        { ...publicHead, lower: publicHead },
+        undefined,
+        { kind: 'Range', value: head },
+      ]) {
+        expect(() => evaluate([element, null], publicSpans, null, true), metadata.identity).toThrow(
+          TypeError,
+        )
+        assertions++
+      }
+      for (const value of [
+        '{empty}',
+        { kind: 'Value', value: spans },
+        { kind: 'Value', value: { ...spans, elementType: 'wrong' } },
+        { kind: 'Value', value: { ...spans, elementKind: 2 } },
+        { kind: 'Unknown' },
+        { kind: 'Null' },
+        { kind: 'Error', value: { state: parseInt('22012', 36) } },
+      ])
+        expect(() => evaluate(value, publicSpans, null, true)).toThrow(TypeError)
+      expect(() => evaluate(publicSpans, { kind: 'Value', value: domains })).toThrow(TypeError)
+      expect(() => evaluate(publicSpans, publicSpans, { kind: 'Value', value: histories })).toThrow(
+        TypeError,
+      )
+      {
+        const result = evaluate(undefined, publicSpans, null, true)
+        for (const name of ['first', 'shape', 'present']) {
+          expect(result[name]).toMatchObject({ certain: false })
+          assertions++
+        }
+        expect(result.guarded).toEqual({ certain: true, value: true })
+      }
+      {
+        const result = evaluate(null)
+        expect(result.first).toEqual({ certain: true, value: false })
+        expect(result.shape).toEqual({ certain: true, value: null })
+        expect(result.present).toEqual({ certain: true, value: false })
+      }
+      // Stored values go to the evaluator entries directly: element and array identities other
+      // than the column's, unknown or failed elements and bounds, and arrays of the array domain.
+      const owner = `public.range_array_payload_${i}`
+      const array = (payload: OwnedArrayInputPayload): unknown =>
+        runtime.makeArrayValue(arrayTypescriptInput(payload, runtime))
+      const failure = (code: string) => ({ kind: 'Error', value: { state: parseInt(code, 36) } })
+      const undecided = (outcome: unknown, label?: string) =>
+        expect(['Unknown', 'Unimplemented'], label).toContain((outcome as { kind: string }).kind)
+      const rows = (
+        value: unknown,
+        domain: unknown = array(domains),
+        nested: unknown = array(histories),
+        bypass = false,
+      ): Record<string, unknown> => {
+        const row: Record<string, unknown> = {
+          spans: value,
+          domains: domain,
+          histories: nested,
+          head: runtime.makeCoercedRangeValue(rangeTypescriptInput(head, runtime)),
+          bypass: runtime.makeBoolValue(bypass),
+        }
+        return internal(owner, row)
+      }
+      for (const [name, result] of Object.entries(rows(array(spans)))) {
+        expect(result, `${metadata.identity} ${name}`).toEqual({ kind: 'True' })
         assertions++
       }
       for (const change of [
@@ -184,71 +317,54 @@ it('validates range array and domain-cell profiles before copying public inputs,
         { elementKind: 42 },
         { bounds: [] },
         { empty: true },
-        { lowerInclusive: 'true' },
-        { bounds: [{ kind: 'Int4', value: 1.5 }, { kind: 'Null' }] },
-        { bounds: [{ kind: 'Range', value: head }, { kind: 'Null' }] },
       ]) {
         const bad = structuredClone(spans)
         bad.elements[0] = { kind: 'Range', value: { ...head, ...change } as typeof head }
-        expectUndecidedOrRejected(
-          () => evaluate(bad, domains, histories, true),
-          metadata.identity,
-          ['first', 'shape', 'present'],
+        const result = rows(array(bad), array(domains), array(histories), true)
+        // The array is present whatever its first element holds, if that is decided at all.
+        expect(['True', 'Unknown', 'Unimplemented']).toContain(
+          (result['present'] as { kind: string }).kind,
         )
+        for (const name of ['first', 'shape'])
+          undecided(result[name], `${metadata.identity} ${name}`)
+        expect(result['guarded']).toEqual({ kind: 'True' })
         assertions++
       }
-      for (const value of [
-        '{empty}',
-        { kind: 'Value', value: { ...spans, elementType: 'wrong' } },
-        { kind: 'Value', value: { ...spans, elementKind: 2 } },
-      ])
-        expect(() => evaluate(value, domains, histories, true)).toThrow(TypeError)
-      for (const value of [undefined, { kind: 'Unknown' }]) {
-        const result = evaluate(value, domains, histories, true)
-        for (const name of ['first', 'shape', 'present']) {
-          expect(result[name]).toMatchObject({ certain: false })
-          assertions++
-        }
-        expect(result.guarded).toEqual({ certain: true, value: true })
+      {
+        const result = rows(runtime.arrayUnknown(), array(domains), array(histories), true)
+        for (const name of ['first', 'shape', 'present']) undecided(result[name])
+        expect(result['guarded']).toEqual({ kind: 'True' })
       }
       const partial = structuredClone(spans)
       partial.elements[0] = { kind: 'Unknown' }
-      expect(evaluate(partial).first).toMatchObject({ certain: false })
-      expect(evaluate(partial).shape).toEqual({ certain: true, value: true })
+      undecided(rows(array(partial))['first'])
+      expect(rows(array(partial))['shape']).toEqual({ kind: 'True' })
       const partialBound = structuredClone(spans)
       const first = partialBound.elements[0]
       if (first?.kind !== 'Range') throw new Error('Missing range')
       first.value.bounds[0] = { kind: 'Unknown' }
-      expect(evaluate(partialBound).first).toMatchObject({ certain: false })
-      expect(evaluate(partialBound).shape).toEqual({ certain: true, value: true })
-      const badDomain = { ...domains, elementType: metadata.identity }
-      expectUndecidedOrRejected(() => evaluate(spans, badDomain), metadata.identity, [
-        'domain_cell',
-        'domain_guarded',
-      ])
+      undecided(rows(array(partialBound))['first'])
+      expect(rows(array(partialBound))['shape']).toEqual({ kind: 'True' })
+      const badDomain = rows(array(spans), array({ ...domains, elementType: metadata.identity }))
+      for (const name of ['domain_cell', 'domain_guarded'])
+        undecided(badDomain[name], `${metadata.identity} ${name}`)
       const badNested = structuredClone(histories)
       const inner = badNested.elements[0]
       if (inner?.kind !== 'Array') throw new Error('Missing nested array')
       inner.value.elementType = metadata.identity
-      expectUndecidedOrRejected(() => evaluate(spans, domains, badNested), metadata.identity, [
-        'nested_cell',
-        'nested_guarded',
-      ])
-      for (const value of [null, { kind: 'Null' }]) {
-        const result = evaluate(value)
-        expect(result.first).toEqual({ certain: true, value: false })
-        expect(result.shape).toEqual({ certain: true, value: null })
-        expect(result.present).toEqual({ certain: true, value: false })
+      const nestedResult = rows(array(spans), array(domains), array(badNested))
+      for (const name of ['nested_cell', 'nested_guarded'])
+        undecided(nestedResult[name], `${metadata.identity} ${name}`)
+      {
+        const result = rows(runtime.arrayNull())
+        expect(result['first']).toEqual({ kind: 'False' })
+        expect(result['shape']).toEqual({ kind: 'Null' })
+        expect(result['present']).toEqual({ kind: 'False' })
       }
-      const error = evaluate(
-        { kind: 'Error', value: { state: parseInt('22012', 36) } },
-        domains,
-        histories,
-        true,
-      )
+      const error = rows(failure('22012'), array(domains), array(histories), true)
       for (const name of ['first', 'shape', 'present'])
-        expect(error[name]).toEqual({ certain: true, error: '22012' })
-      expect(error.guarded).toEqual({ certain: true, value: true })
+        expect(error[name]).toEqual(failure('22012'))
+      expect(error['guarded']).toEqual({ kind: 'True' })
       await pg.query(
         `INSERT INTO range_array_payload_${i} VALUES($1,$2,ARRAY[$4::range_history_${i}],$3,false)`,
         [
@@ -325,6 +441,8 @@ it('validates range array and domain-cell profiles before copying public inputs,
         throw new Error(error.stdout + error.stderr, { cause: error })
       },
     )
+    // Every public case decides as the server does.
+    expect(mismatches).toEqual([])
     await mkdir('artifacts/check-range-arrays', { recursive: true })
     await writeFile(
       'artifacts/check-range-arrays/payload-report.json',

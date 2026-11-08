@@ -1,4 +1,8 @@
-import { compositeGoInput } from '../../tools/check-rust/composite-input.js'
+import {
+  compositeGoInput,
+  compositeTypescriptInput,
+  type CompositeInputPayload,
+} from '../../tools/check-rust/composite-input.js'
 import { lowerTableCheck } from '../../src/sql-semantics/catalog-checks.js'
 import { prepareCheckRustGroup } from '../../src/codegen/shared/check-rust-source.js'
 import { writeCheckRustSources } from '../../tools/check-rust/sources.js'
@@ -19,6 +23,7 @@ import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-tr
 import { go, printGoFile } from '../../src/codegen/go/ast.js'
 import { rangeRustCell, type RangeInputCell } from '../../tools/check-rust/range-input.js'
 import { readRangeFixture, readRangeBoundCell } from './check-range-fixtures.js'
+import { internalCheckRows } from '../support/check-entries.js'
 
 type Cell =
   | RangeInputCell
@@ -103,9 +108,25 @@ CONSTRAINT selected CHECK((CASE WHEN choose_first THEN v ELSE w END).child.score
           await readRangeBoundCell(pg, 'pg_catalog.jsonb', doc),
         ],
       }
+      const [lower, upper] = span.slice(1, -1).split(',').map(Number)
       return {
         sql: `ROW(${score},${sql(label)},${sql(phase)}::stage,${sql(span)}::int4range,${sql(bag)}::numeric[],${sql(doc)}::jsonb)::leaf`,
         value,
+        // Public fields: a range of numbers, numerics as text and the document as JSON.
+        public: {
+          score,
+          label,
+          phase,
+          span: {
+            empty: false,
+            lower,
+            upper,
+            lowerInclusive: span.startsWith('['),
+            upperInclusive: span.endsWith(']'),
+          },
+          bag: bag === '{}' ? [] : bag.slice(1, -1).split(','),
+          doc: JSON.parse(doc) as unknown,
+        } as Record<string, unknown>,
       }
     }
     const good = await leaf(),
@@ -135,6 +156,11 @@ CONSTRAINT selected CHECK((CASE WHEN choose_first THEN v ELSE w END).child.score
             : { kind: 'Null' },
         ],
       } as Payload,
+      public: {
+        child: child?.public ?? null,
+        other: other?.public ?? null,
+        history: history ? [history.public] : null,
+      },
     })
     const present = envelope(good, null, good),
       all = envelope(good, good, good),
@@ -145,6 +171,8 @@ CONSTRAINT selected CHECK((CASE WHEN choose_first THEN v ELSE w END).child.score
         typeName: 'public.leaf',
         fields: Array.from({ length: 6 }, () => ({ kind: 'Null' }) as Cell),
       },
+      // A row of NULL fields is a value, unlike a NULL row.
+      public: {} as Record<string, unknown>,
     }
     const samples = [
       { name: 'null', v: null, w: null, choose: true, bypass: false },
@@ -315,8 +343,8 @@ CONSTRAINT selected CHECK((CASE WHEN choose_first THEN v ELSE w END).child.score
       ).rows[0]!
       for (const wrong of [false, true]) {
         const row = {
-          v: sample.v ? { kind: 'Value', value: sample.v.value } : { kind: 'Null' },
-          w: sample.w ? { kind: 'Value', value: sample.w.value } : { kind: 'Null' },
+          v: sample.v ? sample.v.public : null,
+          w: sample.w ? sample.w.public : null,
           expected_null: wrong ? !flags.a : flags.a,
           expected_not_null: flags.b,
           choose_first: sample.choose,
@@ -411,15 +439,51 @@ fn native_w_${nativeIndex}()->CompositeValue {${rustWrapper(sample.w?.value ?? n
       }
     }
     const base = {
-      v: { kind: 'Value', value: structuredClone(present.value) },
-      w: { kind: 'Value', value: structuredClone(all.value) },
+      v: structuredClone(present.public),
+      w: structuredClone(all.public),
       expected_null: false,
       expected_not_null: false,
       choose_first: false,
       bypass: false,
     }
-    const forged = structuredClone(base)
-    const rootChild = forged.v.value.fields[0]!
+    // A payload is not a public value: as an object of no known fields it is a row of NULLs.
+    expect(
+      evaluate({ ...base, v: { kind: 'Value', value: structuredClone(present.value) } }),
+    ).toEqual(evaluate({ ...base, v: {} }))
+    // A field of the wrong shape is a type error, also where the check would not read it.
+    for (const child of [
+      { ...good.public, score: '2' },
+      { ...good.public, span: '[1,3)' },
+      { ...good.public, bag: '{1,2}' },
+      { ...good.public, phase: 1 },
+      { ...good.public, span: { ...(good.public.span as object), lower: 1n } },
+    ]) {
+      const bad = { ...base, v: { ...base.v, child } }
+      expect(() => evaluate(bad)).toThrow(TypeError)
+      expect(() => evaluate({ ...bad, bypass: true })).toThrow(TypeError)
+    }
+    // A label outside the captured ones may have been added since, so it decides nothing.
+    const added = { ...base, v: { ...base.v, child: { ...good.public, phase: 'added' } } }
+    expect(evaluate(added).phase).toMatchObject({ certain: false })
+    expect(evaluate(added).json_phase).toMatchObject({ certain: false })
+    // Stored composites go to the evaluator entries directly: range hints the caller forged, an
+    // ordinal outside the type's labels and a record missing a field.
+    const runtime = await import(pathToFileURL(join(root, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(ts.checks, runtime)
+    const composite = (value: Payload): unknown =>
+      runtime.makeCompositeValue(compositeTypescriptInput(value as CompositeInputPayload, runtime))
+    const stored = (v: Payload) =>
+      internal('public.records', {
+        v: composite(v),
+        w: composite(all.value),
+        expected_null: runtime.makeBoolValue(false),
+        expected_not_null: runtime.makeBoolValue(false),
+        choose_first: runtime.makeBoolValue(false),
+        bypass: runtime.makeBoolValue(false),
+      })
+    const baseline = stored(present.value)
+    const forged = structuredClone(present.value)
+    const rootChild = forged.fields[0]!
     if (rootChild.kind !== 'Composite') throw new Error('Expected child composite')
     const range = rootChild.value.fields[3]!
     if (range.kind !== 'Range') throw new Error('Expected child range')
@@ -427,19 +491,18 @@ fn native_w_${nativeIndex}()->CompositeValue {${rustWrapper(sample.w?.value ?? n
       support: { comparison: 99, canonical: 99 },
       enumLabels: 'forged',
       enumCount: 999,
-      boundProfile: { nodes: [{ child: -1 }] },
     })
-    expect(evaluate(forged)).toEqual(evaluate(base))
-    const bad = structuredClone(base)
-    bad.v.value.fields.pop()
-    expect(() => evaluate(bad)).toThrow(TypeError)
-    expect(() => evaluate({ ...bad, bypass: true })).toThrow(TypeError)
-    const invalid = structuredClone(base)
-    const inner = invalid.v.value.fields[0]!
+    for (const [name, outcome] of Object.entries(stored(forged)))
+      if (!['Unknown', 'Unimplemented'].includes((outcome as { kind: string }).kind))
+        expect(outcome, name).toEqual(baseline[name])
+    const invalid = structuredClone(present.value)
+    const inner = invalid.fields[0]!
     if (inner.kind !== 'Composite') throw new Error('Expected child')
     inner.value.fields[2] = { kind: 'Enum', value: { ordinal: 999, labelOid: 0n } }
-    expect(evaluate(invalid).score).toMatchObject({ certain: false })
-    expect(evaluate(invalid).json_phase).toMatchObject({ certain: false })
+    for (const name of ['score', 'json_phase'])
+      expect(['Unknown', 'Unimplemented'], name).toContain(
+        (stored(invalid)[name] as { kind: string }).kind,
+      )
     await writeFile(
       join(root, 'schema/public/composite_test.go'),
       `package public

@@ -14,6 +14,12 @@ import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescri
 import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
+import {
+  arrayTypescriptInput,
+  type OwnedArrayInputPayload,
+} from '../../tools/check-rust/array-input.js'
+import { differingChecks, serverCheckResults } from '../support/check-server-results.js'
+import { internalCheckRows } from '../support/check-entries.js'
 
 const input = (value: string | number | boolean | null) =>
   value === null ? { kind: 'Null' as const } : { kind: 'Value' as const, value }
@@ -252,38 +258,59 @@ INSERT INTO bundles VALUES(ARRAY[ROW(2,'z','hi')::required],false);`)
             }[]
           ).map((c) => [c.constraint, c.result]),
         )
-    const good = {
-        kind: 'Value',
-        value: {
-          elementType: '"public"."required"',
-          elementKind: 44,
-          dimensions: [{ lower: 1, length: 1 }],
-          elements: [
-            {
-              kind: 'Composite',
-              value: {
-                typeName: 'public.leaf',
-                fields: [
-                  { kind: 'Int2', value: 2 },
-                  { kind: 'Enum', value: { ordinal: 0, labelOid: 777n } },
-                  { kind: 'Text', value: 'hi' },
-                ],
-              },
-            },
-          ],
-          nullBitmap: { kind: 'Value', value: false },
-        },
-      },
+    // Public records are objects of their fields; the server reads each element through the
+    // element domain, its NOT NULL and CHECK, and the field's typmod.
+    const publicGood = [{ n: 2, phase: 'z', label: 'hi' }],
       expected = {
         first_score: { certain: true, value: true },
         equal: { certain: true, value: true },
         count: { certain: true, value: true },
         output: { certain: true, value: true },
       },
-      before = structuredClone(good)
-    expect(evaluate({ a: good, bypass: false })).toEqual(expected)
-    expect(good).toEqual(before)
+      before = structuredClone(publicGood)
+    expect.soft(evaluate({ a: publicGood, bypass: false })).toEqual(expected)
+    expect(publicGood).toEqual(before)
+    const mismatches: ReturnType<typeof differingChecks> = []
+    for (const [a, text] of [
+      [publicGood, '{"(2,z,hi)"}'],
+      [[{ n: 1, phase: 'a', label: 'hi' }], '{"(1,a,hi)"}'],
+      [[{}], '{"(,,)"}'],
+      [[null], '{NULL}'],
+      [[{ n: 0, phase: 'z', label: 'hi' }], '{"(0,z,hi)"}'],
+      [[{ n: 2, phase: 'z', label: 'long' }], '{"(2,z,long)"}'],
+    ] as const)
+      mismatches.push(
+        ...differingChecks(
+          JSON.stringify(a),
+          evaluate({ a, bypass: false }),
+          await serverCheckResults(pg, 'bundles', { a: text, bypass: 'false' }),
+        ),
+      )
+    const good = {
+      kind: 'Value',
+      value: {
+        elementType: '"public"."required"',
+        elementKind: 44,
+        dimensions: [{ lower: 1, length: 1 }],
+        elements: [
+          {
+            kind: 'Composite',
+            value: {
+              typeName: 'public.leaf',
+              fields: [
+                { kind: 'Int2', value: 2 },
+                { kind: 'Enum', value: { ordinal: 0, labelOid: 777n } },
+                { kind: 'Text', value: 'hi' },
+              ],
+            },
+          },
+        ],
+        nullBitmap: { kind: 'Value', value: false },
+      },
+    }
+    // Payloads, whatever their headers say, are not public values.
     const mutations: ((v: typeof good) => void)[] = [
+      () => {},
       (v) => {
         v.value.elementType = 'public.leaf'
       },
@@ -305,15 +332,41 @@ INSERT INTO bundles VALUES(ARRAY[ROW(2,'z','hi')::required],false);`)
       mutate(value)
       expect(() => evaluate({ a: value, bypass: false }), String(index)).toThrow(TypeError)
     }
-    // An enum ordinal outside the captured labels is decoded, and the catalog decides it.
+    expect
+      .soft(() => evaluate({ a: [{ n: 40000, phase: 'z', label: 'hi' }], bypass: false }))
+      .toThrow(TypeError)
+    // A label outside the captured ones may have been added since: what reads it decides
+    // nothing, and a bypassed row still decides.
+    const added = [{ n: 2, phase: 'added', label: 'hi' }]
+    for (const name of ['equal', 'output'])
+      expect(evaluate({ a: added, bypass: false })[name], name).toMatchObject({ certain: false })
+    expect(evaluate({ a: added, bypass: true })).toEqual(expected)
+    // Stored arrays of the domain hold elements already coerced to it, so the entries take them
+    // without replaying the domain: a NULL element and a record of NULL fields included.
+    const runtime = await import(pathToFileURL(join(root, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(ts.checks, runtime)
+    const stored = (value: typeof good, bypass = false) =>
+      internal('public.bundles', {
+        a: runtime.makeArrayValue(
+          arrayTypescriptInput(value.value as OwnedArrayInputPayload, runtime),
+        ),
+        bypass: runtime.makeBoolValue(bypass),
+      })
+    const True = { kind: 'True' }
+    expect(stored(good)).toEqual({ first_score: True, equal: True, count: True, output: True })
     const outsideLabels = structuredClone(good)
     Object.assign(outsideLabels.value.elements[0]!.value.fields[1]!, {
       kind: 'Enum',
       value: { ordinal: 99, labelOid: 0n },
     })
-    for (const result of Object.values(evaluate({ a: outsideLabels, bypass: false })))
-      expect(result).toMatchObject({ certain: false })
-    expect(evaluate({ a: outsideLabels, bypass: true })).toEqual(expected)
+    for (const [name, result] of Object.entries(stored(outsideLabels)))
+      expect(['Unknown', 'Unimplemented'], name).toContain((result as { kind: string }).kind)
+    expect(stored(outsideLabels, true)).toEqual({
+      first_score: True,
+      equal: True,
+      count: True,
+      output: True,
+    })
     const nullCell = {
       ...good,
       value: {
@@ -321,19 +374,17 @@ INSERT INTO bundles VALUES(ARRAY[ROW(2,'z','hi')::required],false);`)
         elements: [{ kind: 'Null' }],
         nullBitmap: { kind: 'Value', value: true },
       },
-    }
-    expect(evaluate({ a: nullCell, bypass: false })).toEqual({
-      first_score: { certain: true, value: null },
-      equal: { certain: true, value: true },
-      count: { certain: true, value: true },
-      output: { certain: true, value: false },
+    } as unknown as typeof good
+    expect(stored(nullCell)).toEqual({
+      first_score: { kind: 'Null' },
+      equal: True,
+      count: True,
+      output: { kind: 'False' },
     })
     const nullFields = structuredClone(good)
     for (const field of nullFields.value.elements[0]!.value.fields)
       Object.assign(field, { kind: 'Null' })
-    expect(evaluate({ a: nullFields, bypass: false })).toEqual(
-      evaluate({ a: nullCell, bypass: false }),
-    )
+    expect(stored(nullFields)).toEqual(stored(nullCell))
     await writeFile(
       join(root, 'schema/public/domain_arrays_test.go'),
       `package public
@@ -361,6 +412,8 @@ func TestDomainArrayPayloads(t *testing.T){
         throw new Error(e.stdout + e.stderr, { cause: e })
       },
     )
+    // Every public case decides as the server does.
+    expect(mismatches).toEqual([])
     await mkdir('artifacts/composite-domain-arrays-public', { recursive: true })
     await writeFile(
       'artifacts/composite-domain-arrays-public/report.json',
