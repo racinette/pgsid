@@ -58,4 +58,14 @@ own input function in the evaluator, under the server settings the project
 declares. A value the server would reject as input, such as a timestamp outside
 the input range or malformed text, fails each check that reads it with the
 server's error; the server would refuse the statement before any check ran. A
-value of the wrong shape is a type error.
+value of the wrong shape is a type error, also where a check only tests the
+value for NULL.
+
+The column's type modifier applies as it does on input: a varchar longer than
+its length fails, trailing spaces past it are dropped, and a numeric rounds to
+its scale before any check sees it. Elements of arrays, fields of records and
+bounds of ranges convert the same way, each through its own type. Where part of
+a value cannot be converted yet, such as an element of a domain type or a
+record field with a type modifier, the checks reading the whole value are left
+to the server rather than decided around that part, since the server may reject
+it.
