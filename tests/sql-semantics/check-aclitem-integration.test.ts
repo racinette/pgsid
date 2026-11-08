@@ -19,6 +19,7 @@ import {
 import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { renderGoSchemaCheckArtifacts } from '../../src/codegen/go/sql/catalog-checks.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
+import { internalCheckRows } from '../support/check-entries.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import { buildProject } from '../../src/project-runtime.js'
 import {
@@ -407,31 +408,156 @@ it('validates nested public ACL composite payloads and domain-array fields in Go
       throw new Error(e.stdout + e.stderr)
     })
     const api = await import(pathToFileURL(join(tsRoot, 'js/checks.js')).href),
+      runtime = await import(pathToFileURL(join(tsRoot, 'js/checks-rust/checks.js')).href),
+      internal = internalCheckRows(tsBundle.checks, runtime),
       evaluate = (row: unknown): Record<string, unknown> =>
         Object.fromEntries(
           api
             .evaluatePublicAclNestedChecks(row)
             .map((c: { constraint: string; result: unknown }) => [c.constraint, c.result]),
         )
-    for (const c of cases) expect(evaluate(c.row)).toEqual(c.expected)
-    const partialLeaf = { ...leaf(), fields: [{ kind: 'Unknown' }, leaf().fields[1]!] }
-    const partial = envelope(partialLeaf as CompositeInputPayload, [leaf()])
-    const partialResult = evaluate({ ...cases[0]!.row, payload: { kind: 'Value', value: partial } })
+    // An ACL item's public value is its text, which reads without the role catalog only for a
+    // PUBLIC grantee under the default grantor; the public rows mirror the samples above with such
+    // items.
+    const spell = async (sql: string) =>
+      (await pg.query<{ item: string }>(`SELECT regexp_replace((${sql})::text,'/[^/]*$','') item`))
+        .rows[0]!.item
+    const aPublicSql = "makeaclitem(0,'10'::oid,'SELECT',false)",
+      widePublicSql = "makeaclitem(0,'10'::oid,'SELECT,INSERT',true)",
+      usagePublicSql = "makeaclitem(0,'10'::oid,'USAGE',false)",
+      aPublic = await spell(aPublicSql),
+      widePublic = await spell(widePublicSql),
+      usagePublic = await spell(usagePublicSql)
+    expect([aPublic, widePublic, usagePublic]).toEqual(['=r', '=a*r*', '=U'])
+    const leafPublic = (entry: string = aPublic, withNull = false) => ({
+        entry,
+        history: withNull ? [entry, null] : [entry],
+      }),
+      envelopePublic = (
+        primary: object | null,
+        history: (object | null)[] | null,
+        defaults: string[] | null = [usagePublic],
+      ) => ({ primary_leaf: primary, history, defaults }),
+      leafPublicSql = (value = aPublicSql, withNull = false) =>
+        `ROW(${value},ARRAY[${value}${withNull ? ',NULL::aclitem' : ''}]::nonzero_acl[])::acl_leaf`,
+      envelopePublicSql = (
+        primary = leafPublicSql(),
+        history = `ARRAY[${leafPublicSql()}]`,
+        defaults = `ARRAY[${usagePublicSql}]`,
+      ) => `ROW(${primary},${history},${defaults})::acl_envelope`,
+      goodPublic = envelopePublic(leafPublic(), [leafPublic()]),
+      goodPublicSql = envelopePublicSql(),
+      publicSamples: { sql: string; payload: object | null }[] = [
+        { sql: goodPublicSql, payload: goodPublic },
+        {
+          sql: envelopePublicSql(leafPublicSql(widePublicSql)),
+          payload: envelopePublic(leafPublic(widePublic), [leafPublic()]),
+        },
+        {
+          sql: envelopePublicSql('NULL::acl_leaf'),
+          payload: envelopePublic(null, [leafPublic()]),
+        },
+        {
+          sql: envelopePublicSql(
+            leafPublicSql(),
+            `ARRAY[NULL::acl_leaf,${leafPublicSql(widePublicSql)}]`,
+          ),
+          payload: envelopePublic(leafPublic(), [null, leafPublic(widePublic)]),
+        },
+        {
+          sql: envelopePublicSql(leafPublicSql(aPublicSql, true)),
+          payload: envelopePublic(leafPublic(aPublic, true), [leafPublic()]),
+        },
+        { sql: 'NULL::acl_envelope', payload: null },
+        {
+          sql: 'ROW(NULL,NULL,NULL)::acl_envelope',
+          payload: envelopePublic(null, null, null),
+        },
+        {
+          sql: envelopePublicSql(leafPublicSql(), 'ARRAY[]::acl_leaf[]', "'{}'::aclitem[]"),
+          payload: envelopePublic(leafPublic(), [], []),
+        },
+      ]
+    const publicCases: {
+      row: Record<string, unknown>
+      expected: Record<string, { certain: boolean; value?: boolean | null; error?: string }>
+    }[] = []
+    for (const sample of publicSamples) {
+      const expected: Record<string, { certain: boolean; value?: boolean | null; error?: string }> =
+        {}
+      for (const [name, sql] of Object.entries(forms)) {
+        try {
+          expected[name] = {
+            certain: true,
+            value: (
+              await pg.query<{ v: boolean | null }>(
+                `SELECT ${sql} v FROM(SELECT ${sample.sql} payload,${goodPublicSql} reference,${aPublicSql} probe,false bypass) q`,
+              )
+            ).rows[0]!.v,
+          }
+        } catch (error) {
+          expected[name] = { certain: true, error: (error as { code: string }).code }
+        }
+      }
+      let accepted = true
+      try {
+        await pg.exec(
+          `INSERT INTO acl_nested SELECT ${sample.sql},${goodPublicSql},${aPublicSql},false`,
+        )
+      } catch {
+        accepted = false
+      }
+      expect(accepted).toBe(!Object.values(expected).some((v) => v.error || v.value === false))
+      publicCases.push({
+        row: { payload: sample.payload, reference: goodPublic, probe: aPublic, bypass: false },
+        expected,
+      })
+    }
+    for (const c of publicCases) expect(evaluate(c.row)).toEqual(c.expected)
+    // A primary entry naming a role resolves through the role catalog, while the known history
+    // fields still decide.
+    const partialPublic = envelopePublic(leafPublic(), [leafPublic()])
+    partialPublic.primary_leaf = { ...leafPublic(), entry: '=r/postgres' }
+    const partialResult = evaluate({ ...publicCases[0]!.row, payload: partialPublic })
     expect(partialResult.entry).toEqual({ certain: false })
     expect(partialResult.covers).toEqual({ certain: true, value: true })
     expect(partialResult.history_entry).toEqual({ certain: true, value: true })
-    const malformed = envelope(leaf({ ...a, grantOptions: 4294967296n }), [leaf()])
-    const malformedRow = { ...cases[0]!.row, payload: { kind: 'Value', value: malformed } }
-    expect(() => evaluate(malformedRow)).toThrow(TypeError)
+    // A field the ACL input rejects fails every check that reads the row, as the server rejects
+    // the parameter.
+    const rejected = envelopePublic(leafPublic('=q'), [leafPublic()])
+    await expect(
+      pg.query('SELECT $1::acl_envelope', [`("(=q,{=q})","{""(=r,{=r})""}","{=U}")`]),
+    ).rejects.toMatchObject({ code: '22P02' })
+    expect(evaluate({ ...publicCases[0]!.row, payload: rejected })).toEqual(
+      Object.fromEntries(
+        Object.keys(forms).map((name) => [name, { certain: true, error: '22P02' }]),
+      ),
+    )
+    const malformedPublic = envelopePublic(
+      { ...leafPublic(), entry: { grantee: 0n, grantor: 10n, privileges: 2n, grantOptions: 0n } },
+      [leafPublic()],
+    )
+    expect(() => evaluate({ ...publicCases[0]!.row, payload: malformedPublic })).toThrow(TypeError)
+    for (const probe of [
+      { kind: 'Value', value: a },
+      { kind: 'Value', value: { ...a, grantOptions: 4294967296n } },
+    ])
+      expect(() => evaluate({ ...publicCases[0]!.row, probe })).toThrow(TypeError)
+    // A failed row handed to the evaluator directly.
     expect(
-      evaluate({
-        ...cases[0]!.row,
+      internal('public.acl_nested', {
         payload: { kind: 'Error', value: { state: parseInt('22003', 36) } },
+        reference: { kind: 'Unknown' },
+        probe: runtime.makeAclitemValue(0n, 10n, 2n, 0n),
+        bypass: runtime.makeBoolValue(false),
       }).entry,
-    ).toEqual({ certain: true, error: '22003' })
+    ).toEqual({ kind: 'Error', value: { state: parseInt('22003', 36) } })
     expect(
-      Object.values(evaluate({ ...cases[0]!.row, payload: { kind: 'Unknown' }, bypass: true })),
+      Object.values(evaluate({ ...publicCases[0]!.row, payload: undefined, bypass: true })),
     ).toEqual(Object.keys(forms).map(() => ({ certain: true, value: true })))
+    const partialLeaf = { ...leaf(), fields: [{ kind: 'Unknown' }, leaf().fields[1]!] }
+    const partial = envelope(partialLeaf as CompositeInputPayload, [leaf()])
+    const malformed = envelope(leaf({ ...a, grantOptions: 4294967296n }), [leaf()])
     const goRoot = join(root, 'go'),
       goBundle = renderGoSchemaCheckArtifacts(
         [table],
@@ -624,11 +750,25 @@ func TestPortableACLInputs(t *testing.T){v:=checkruntime.MakeAclitemValue(1,2,2,
     }
     await generated.insertEntry(db, raw)
     expect(captured).toEqual([raw.entry, raw.domain_entry, raw.reference])
-    // Generated queries send only text they produced themselves, so a driver object is rejected.
+    // Generated queries send only text they produced themselves, so a driver object, or the
+    // evaluator's own ACL value, is rejected before the server; CHECK prevalidation reads the
+    // public value first.
+    captured = []
     const opaque = { driver: 'acl', text: raw.entry }
     await expect(
       generated.insertEntry(db, { entry: opaque, domain_entry: raw.entry, reference: raw.entry }),
-    ).rejects.toThrow(new TypeError('Parameter entry holds a malformed text value'))
+    ).rejects.toThrow(new TypeError('CHECK input entry holds a malformed value'))
+    await expect(
+      generated.insertEntry(db, {
+        entry: {
+          kind: 'Value',
+          value: { grantee: 1n, grantor: 2n, privileges: 2n, grantOptions: 0n },
+        },
+        domain_entry: raw.entry,
+        reference: raw.entry,
+      }),
+    ).rejects.toThrow(new TypeError('CHECK input entry holds a malformed value'))
+    expect(captured).toEqual([])
     const failure = new Error('database ACL rejection')
     await expect(
       generated.insertEntry(

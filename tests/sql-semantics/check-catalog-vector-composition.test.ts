@@ -1,6 +1,5 @@
 import { PGlite } from '@electric-sql/pglite'
 import { expect, it } from 'vitest'
-import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
@@ -382,27 +381,125 @@ it('composes vector domains, records, arrays and catalog deferrals through nativ
         .join(',')}}}}`
     }
     for (const sample of samples) {
-      const row = Object.fromEntries(
-        Object.entries(sample.row).map(([name, value]) => [
-          name,
-          ['value', 'other', 'record_value', 'fallback'].includes(name) ? value : unwrap(value),
-        ]),
-      )
-      const snapshot = structuredClone(row)
-      const evaluations = generated.evaluatePublicVectorContextChecks(row) as {
-        constraint: string
-        result: { certain: boolean; error?: string; value?: boolean | null }
-      }[]
-      expect(row).toEqual(snapshot)
-      for (const e of evaluations)
-        expect(publicState(e.result), sample.name + '/' + e.constraint).toBe(
-          e.constraint === sample.name ? state(sample.expected) : 'True',
-        )
       const scalar = (name: string) => JSON.stringify(unwrap(sample.row[name]!))
       goCases.push(
         `{input:=PublicVectorContextCheckInput{Value:KnownCheckValue(${goArray(sample.row.value!)}),Other:KnownCheckValue(${goArray(sample.row.other!)}),RecordValue:KnownCheckValue(${goRecord(sample.row.record_value!)}),Fallback:KnownCheckValue(${goRecord(sample.row.fallback!)}),InputText:KnownCheckValue(${scalar('input_text')}),ArrayText:KnownCheckValue(${scalar('array_text')}),RecordText:KnownCheckValue(${scalar('record_text')}),Mode:KnownCheckValue(int32(${scalar('mode')})),ExpectedText:KnownCheckValue(${scalar('expected_text')}),ExpectedInt:KnownCheckValue(int32(${scalar('expected_int')})),ExpectedBool:KnownCheckValue(${scalar('expected_bool')})};before,_:=json.Marshal(input);for _,e:=range func() []CheckEvaluation {r, e := EvaluatePublicVectorContextChecks(input); if e != nil {return nil}; return r}(){want:="True";if e.Constraint==${JSON.stringify(sample.name)}{want=${JSON.stringify(state(sample.expected))}};got:="Unknown";if e.Result.Certain{if e.Result.Value.Error!=""{got=e.Result.Value.Error}else if !e.Result.Value.Valid{got="Null"}else if e.Result.Value.Value{got="True"}else{got="False"}};if got!=want{t.Fatal(${JSON.stringify(sample.name)},e.Constraint,got,want)}};after,_:=json.Marshal(input);if string(before)!=string(after){t.Fatal("mutated public inputs")}}`,
       )
     }
+    // Catalog vectors are public text read through their input functions, and a record of them is
+    // an object of that text. Stored vectors the server cannot print (empty, NULL elements, more
+    // than one dimension) have no public value.
+    const vectorText = async (sql: string) =>
+      pg.query<{ text: string | null }>(`SELECT (${sql})::text AS text`).then(
+        ({ rows }) => ({ text: rows[0]!.text }),
+        () => undefined,
+      )
+    const publicVectors: { value: string | null; other: string | null }[] = []
+    for (const i of positions.keys()) {
+      const value = await vectorText(positions[i]!),
+        other = await vectorText(types[i]!)
+      if (value && other) publicVectors[i] = { value: value.text, other: other.text }
+    }
+    expect(Object.keys(publicVectors).map(Number)).toEqual([0, 1, 2, 3])
+    const fallbackPublic = { positions: publicVectors[2]!.value, type_ids: publicVectors[2]!.other }
+    const evaluatePublic = (row: Record<string, unknown>) =>
+      Object.fromEntries(
+        (
+          generated.evaluatePublicVectorContextChecks(row) as {
+            constraint: string
+            result: { certain: boolean; error?: string; value?: boolean | null }
+          }[]
+        ).map((e) => [e.constraint, publicState(e.result)]),
+      )
+    let publicRows = 0
+    for (const [mode, [name, call]] of [...calls].entries())
+      for (const i of publicVectors.keys()) {
+        if (!publicVectors[i]) continue
+        const { value, other } = publicVectors[i]!
+        const inputText = i % 2 ? '1 2' : '4 5 6 7',
+          arrayText = i % 3 === 0 ? '{}' : i % 3 === 1 ? '{"1 2",NULL,""}' : '{"1 2 3 4"}',
+          recordText = i % 3 === 0 ? '(,)' : i % 3 === 1 ? '("1 2","0 0")' : '(1,bad_oid)'
+        let result: string | number | boolean | null = null,
+          expected: Outcome
+        try {
+          result = (
+            await pg.query<{ result: string | number | boolean | null }>(
+              `SELECT ${call.sql} result FROM (SELECT $1::int2vector value,$2::oidvector other,
+                 CASE WHEN $3::bool THEN NULL ELSE ROW($1::int2vector,$2::oidvector)::vector_record END record_value,
+                 ROW($7::int2vector,$8::oidvector)::vector_record fallback,
+                 $4::text input_text,$5::text array_text,$6::text record_text) a`,
+              [
+                value,
+                other,
+                i === 0,
+                inputText,
+                arrayText,
+                recordText,
+                fallbackPublic.positions,
+                fallbackPublic.type_ids,
+              ],
+            )
+          ).rows[0]!.result
+          expected = { kind: result === null ? 'Null' : 'True' }
+        } catch (e) {
+          expected = { kind: 'Error', value: { state: parseInt((e as { code: string }).code, 36) } }
+        }
+        // Type names resolve through the database's catalog.
+        if (call.catalog && expected.kind === 'True' && i === 3) expected = { kind: 'Unknown' }
+        const row: Record<string, unknown> = {
+          value,
+          other,
+          record_value: i === 0 ? null : { positions: value, type_ids: other },
+          fallback: fallbackPublic,
+          input_text: inputText,
+          array_text: arrayText,
+          record_text: recordText,
+          mode,
+          expected_text: call.kind === 'text' ? (result ?? '') : '',
+          expected_int: call.kind === 'int' ? (result ?? 0) : 0,
+          expected_bool: call.kind === 'bool' ? (result ?? false) : false,
+        }
+        const snapshot = structuredClone(row)
+        const results = evaluatePublic(row)
+        expect(row).toEqual(snapshot)
+        expect.soft({ name, i, results }).toEqual({
+          name,
+          i,
+          results: Object.fromEntries(
+            Object.keys(results).map((constraint) => [
+              constraint,
+              constraint === name ? state(expected) : 'True',
+            ]),
+          ),
+        })
+        publicRows++
+        if (
+          (i === 2 || (call.catalog && i === 3)) &&
+          expected.kind !== 'Error' &&
+          result !== null
+        ) {
+          const field =
+            call.kind === 'text'
+              ? 'expected_text'
+              : call.kind === 'int'
+                ? 'expected_int'
+                : 'expected_bool'
+          const wrong =
+            call.kind === 'text'
+              ? '__different__'
+              : call.kind === 'int'
+                ? Number(result) + 1
+                : !result
+          expect
+            .soft({ name, i, wrong: evaluatePublic({ ...row, [field]: wrong })[name] })
+            .toEqual({
+              name,
+              i,
+              wrong: expected.kind === 'Unknown' ? 'Unknown' : 'False',
+            })
+        }
+      }
+    expect(publicRows).toBe(calls.size * 4)
     const bad = structuredClone(
       samples.find((s) => s.name === 'text_alias' && s.row.value?.kind === 'Value')!.row,
     )
@@ -412,12 +509,14 @@ it('composes vector domains, records, arrays and catalog deferrals through nativ
         ['value', 'other', 'record_value', 'fallback'].includes(name) ? value : unwrap(value),
       ]),
     )
-    rawBad.value = '1 2'
+    expect(() => generated.evaluatePublicVectorContextChecks(rawBad)).toThrow(TypeError)
+    rawBad.value = 5
     expect(() => generated.evaluatePublicVectorContextChecks(rawBad)).toThrow(TypeError)
     const nativeVector = values[2]!
     if (nativeVector.kind !== 'Value') throw Error('Missing vector validation control')
     const vectorPayload = nativeVector.value
     const invalidVectors = [
+      vectorPayload,
       { ...vectorPayload, elementType: 'other.positions' },
       { ...vectorPayload, elementKind: 2 },
       { ...vectorPayload, dimensions: [{ lower: 0, length: 3 }] },
@@ -436,11 +535,24 @@ it('composes vector domains, records, arrays and catalog deferrals through nativ
         mode: [...calls.keys()].indexOf('text_alias'),
         expected_text: '1 2',
       }
-      expectUndecidedOrRejected(
+      expect(
         () => generated.evaluatePublicVectorContextChecks(row),
         JSON.stringify(payload, (_key, item) => (typeof item === 'bigint' ? String(item) : item)),
-        ['text_alias'],
-      )
+      ).toThrow(TypeError)
+    }
+    // Text the vector input rejects fails every check that reads it.
+    for (const [value, code] of [
+      ['1 x', '22P02'],
+      ['70000', '22003'],
+    ] as const) {
+      await expect(pg.query('SELECT $1::int2vector', [value])).rejects.toMatchObject({ code })
+      expect(
+        evaluatePublic({
+          value,
+          mode: [...calls.keys()].indexOf('text_alias'),
+          expected_text: '1 2',
+        }).text_alias,
+      ).toBe(code)
     }
     for (const mutation of [
       'value.Value.ElementType="other.positions"',
@@ -471,15 +583,16 @@ it('composes vector domains, records, arrays and catalog deferrals through nativ
       },
     ]) {
       const row = {
-        record_value: { kind: 'Value', value: payload },
+        record_value: { positions: { kind: 'Value', value: payload.fields[0] }, type_ids: '0 0' },
         mode: [...calls.keys()].indexOf('record_text'),
         expected_text: '("1 2","0 0")',
       }
-      expectUndecidedOrRejected(
-        () => generated.evaluatePublicVectorContextChecks(row),
-        JSON.stringify(payload, (_key, item) => (typeof item === 'bigint' ? String(item) : item)),
-        ['record_text'],
-      )
+      expect
+        .soft(
+          () => generated.evaluatePublicVectorContextChecks(row),
+          JSON.stringify(payload, (_key, item) => (typeof item === 'bigint' ? String(item) : item)),
+        )
+        .toThrow(TypeError)
     }
     for (const mutation of [
       'value.Value.TypeName="other.vector_record"',

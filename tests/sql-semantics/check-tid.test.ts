@@ -360,8 +360,8 @@ describe('portable heap tuple identifiers', () => {
     const results = Object.fromEntries(
       generated
         .evaluatePublicPointerContextChecks({
-          pointer: { kind: 'Value', value: packed },
-          reference: { kind: 'Value', value: packed },
+          pointer: first.pointer,
+          reference: first.pointer,
           expected: Buffer.from(first.wire, 'hex'),
         })
         .map((row: { constraint: string; result: unknown }) => [row.constraint, row.result]),

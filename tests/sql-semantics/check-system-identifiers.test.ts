@@ -461,8 +461,8 @@ describe('portable transaction and command identifiers', () => {
     const results = Object.fromEntries(
       generated
         .evaluatePublicContextualIdentifiersChecks({
-          transaction: { kind: 'Value', value: 100n },
-          full_transaction: { kind: 'Value', value: 100n },
+          transaction: 100,
+          full_transaction: 100n,
           expected: Buffer.from('00000064', 'hex'),
         })
         .map((row: { constraint: string; result: unknown }) => [row.constraint, row.result]),
