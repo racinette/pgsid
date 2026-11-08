@@ -15,10 +15,11 @@ CREATE TABLE notes (
   tags text[] CONSTRAINT tagged_x CHECK ('x' = ANY (tags)),
   days date[] CONSTRAINT modern_days CHECK (days[1] >= '2000-01-01'),
   spans int4range[] CONSTRAINT short_spans CHECK (upper(spans[1]) <= 10),
-  moods mood[] CONSTRAINT calm CHECK (NOT ('high' = ANY (moods)))
+  moods mood[] CONSTRAINT calm CHECK (NOT ('high' = ANY (moods))),
+  ratios real[] CONSTRAINT small_ratios CHECK (ratios[1] < 0.5)
 );
 `
-const columns = ['counts', 'grid', 'tags', 'days', 'spans', 'moods'] as const
+const columns = ['counts', 'grid', 'tags', 'days', 'spans', 'moods', 'ratios'] as const
 const queries = `-- name: InsertNote :exec
 INSERT INTO notes (id, ${columns.join(', ')}) VALUES (@id, ${columns.map((column) => `@${column}`).join(', ')});
 `
@@ -71,6 +72,11 @@ const cases: Partial<Record<(typeof columns)[number], unknown>>[] = [
   { spans: [span(5, 3)] },
   { moods: ['low', 'mid'] },
   { moods: ['low', 'high'] },
+  // A number that is no real is sent as its shortest text and rounded by the server.
+  { ratios: [0.25] },
+  { ratios: [0.1] },
+  { ratios: [0.4999999999] },
+  { ratios: [1e39] },
 ]
 
 let root: string
@@ -154,7 +160,7 @@ describe('CHECKs on public TypeScript arrays', () => {
       else expect({ shown, calls }).toEqual({ shown, calls: 1 })
     }
     // CHECK violations, ragged arrays and reversed range elements are decided before the server.
-    expect(decided).toBeGreaterThanOrEqual(8)
+    expect(decided).toBeGreaterThanOrEqual(10)
   })
 
   it('takes only public arrays in the schema-level CHECK API', () => {

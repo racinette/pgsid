@@ -835,6 +835,12 @@ export function checkRustTextInput(
       callable: 'xml_from_text_context',
       args: [context.xmlOption === 'document' ? 1 : context.xmlOption === 'content' ? 2 : 0, utf8],
     }
+  if (isCatalogVectorType(type))
+    return {
+      module: 'operations',
+      callable: 'catalog_vector_from_text',
+      args: [type === 'pg_catalog.oidvector'],
+    }
   if (isOidAliasType(type)) {
     const { dash, grammar } = oidAliasGrammar(type)
     return { module: 'operations', callable: 'oid_alias_from_text', args: [dash, grammar] }

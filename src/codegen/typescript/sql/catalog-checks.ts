@@ -31,7 +31,6 @@ import type { DomainInfo, EnumInfo, TableInfo, RangeTypeInfo } from '../../../ca
 import {
   enumType,
   isCatalogVectorType,
-  isSnapshotType,
   isRangeType,
   isMultirangeType,
   isArrayLikeType,
@@ -73,7 +72,6 @@ import {
   type EvalBoolExpression,
 } from '../../../sql-semantics/check-expressions.js'
 import type { EvalExpression } from '../../../sql-semantics/eval-expressions.js'
-import { isOidAliasType } from '../../../catalog/oid-alias-constant-storage.js'
 import { portableCheckAtoms } from '../../shared/check-atom-support.js'
 import { checkUnknownMessage } from '../../shared/check-diagnostics.js'
 import { prepareCheckRustGroup } from '../../shared/check-rust-source.js'
@@ -85,24 +83,10 @@ import { typescriptSqlBackend } from './registry.js'
 import { typescriptSqlRuntime } from './runtime.js'
 import { typescriptPublicCheckInput } from './codecs.js'
 
-// A type whose public value is the server's text (a JSON value as its JSON text) reaches the
-// server through its input function, so a CHECK reads such a column the same way: the column is
-// a text input and the expression parses it with that type's input.
+// A jsonpath parameter reaches the server through jsonpath's input, which needs the evaluator's
+// regular expressions, so a CHECK reads such a column as text and parses it in the expression.
 function publicTextInput(type: string, operand: EvalExpression): EvalExpression | null {
-  if (type === 'pg_catalog.tsvector') return { kind: 'text-to-tsvector', type, operand }
-  if (type === 'pg_catalog.tsquery') return { kind: 'text-to-tsquery', type, operand }
-  if (type === 'pg_catalog.aclitem') return { kind: 'text-to-aclitem', type, operand }
-  if (type === 'pg_catalog.money') return { kind: 'text-to-money', type, operand }
-  if (type === 'pg_catalog.pg_lsn') return { kind: 'text-to-pg_lsn', type, operand }
-  if (type === 'pg_catalog.tid') return { kind: 'text-to-tid', type, operand }
-  if (isSnapshotType(type)) return { kind: 'text-to-snapshot', type, operand }
-  if (isOidAliasType(type)) return { kind: 'text-to-oid', type, operand }
-  if (isCatalogVectorType(type)) return { kind: 'text-to-vector', type, operand }
-  if (type === 'pg_catalog."json"' || type === 'pg_catalog.jsonb' || type === 'pg_catalog.jsonpath')
-    return { kind: 'text-to-json', type, operand }
-  // texttoxml parses under xmloption exactly as xml_in does.
-  if (type === 'pg_catalog.xml') return { kind: 'xml-operation', type, operation: 'cast', operand }
-  return null
+  return type === 'pg_catalog.jsonpath' ? { kind: 'text-to-json', type, operand } : null
 }
 
 function readPublicText(
@@ -125,10 +109,7 @@ function readPublicText(
     ) {
       const parsed = publicTextInput(type, { kind: 'input', type: 'pg_catalog.text', name })
       if (parsed) {
-        read.set(
-          name,
-          type === 'pg_catalog."json"' || type === 'pg_catalog.jsonb' ? 'json' : 'text',
-        )
+        read.set(name, 'text')
         return parsed
       }
     }
@@ -343,16 +324,12 @@ export function renderTypescriptSchemaCheckArtifacts(
     CidValue: 'checkRustCid',
     Xid8Value: 'checkRustXid8',
   }
-  // Runtime modules other than the evaluator's public values, imported when a converter calls them.
-  const runtimeModules = new Set<string>()
-  const runtimeCall = (member: string, args: ts.Expression[], module = '_checkRust') => {
-    if (module !== '_checkRust') runtimeModules.add(module)
-    return factory.createCallExpression(
+  const runtimeCall = (member: string, args: ts.Expression[], module = '_checkRust') =>
+    factory.createCallExpression(
       factory.createPropertyAccessExpression(identifier(module), member),
       undefined,
       args,
     )
-  }
   const helperCall = (helper: string, args: ts.Expression[]) =>
     factory.createCallExpression(identifier(helper), undefined, args)
   const numberLiteral = (value: number): ts.Expression =>
@@ -426,6 +403,34 @@ export function renderTypescriptSchemaCheckArtifacts(
     })
     return name
   }
+  // A column, element or field of a type sent as text is read through that type's input
+  // function, with the server settings the project declares.
+  const textConverter = (type: string): string | null => {
+    const text = checkRustTextInput(type, options.executionContext)
+    if (!text) return null
+    inputHelpers.add('checkInputText')
+    return defineConverter(`text\0${type}`, 'checkRustTextInput', checkRustValueType(type), () =>
+      runtimeCall(
+        text.callable.replace(/_([a-z0-9])/gu, (_, letter: string) => letter.toUpperCase()),
+        [
+          helperCall(
+            type === 'pg_catalog."json"' || type === 'pg_catalog.jsonb'
+              ? 'checkRustJsonText'
+              : 'checkRustText',
+            [oneFieldRow(), identifier('name')],
+          ),
+          ...text.args.map((arg) =>
+            typeof arg === 'boolean'
+              ? arg
+                ? factory.createTrue()
+                : factory.createFalse()
+              : numberLiteral(arg),
+          ),
+        ],
+        text.module === 'runtime' ? '_checkRustRuntime' : '_checkRustOperations',
+      ),
+    )
+  }
   const scalarElement = (type: string): ts.Expression | null => {
     let valueType: string
     try {
@@ -438,29 +443,10 @@ export function renderTypescriptSchemaCheckArtifacts(
         helperCall(adapter, [oneFieldRow(), identifier('name'), ...extra]),
       ])
     // A value sent as text goes through its type's input, as array input reads each element.
-    const text = checkRustTextInput(type, options.executionContext)
-    if (text) inputHelpers.add('checkInputText')
+    const text = isCatalogVectorType(type) ? null : textConverter(type)
     if (text)
       return runtimeCall(`arrayElementFrom${valueType.slice(0, -'Value'.length)}`, [
-        runtimeCall(
-          text.callable.replace(/_([a-z0-9])/gu, (_, letter: string) => letter.toUpperCase()),
-          [
-            helperCall(
-              type === 'pg_catalog."json"' || type === 'pg_catalog.jsonb'
-                ? 'checkRustJsonText'
-                : 'checkRustText',
-              [oneFieldRow(), identifier('name')],
-            ),
-            ...text.args.map((arg) =>
-              typeof arg === 'boolean'
-                ? arg
-                  ? factory.createTrue()
-                  : factory.createFalse()
-                : numberLiteral(arg),
-            ),
-          ],
-          text.module === 'runtime' ? '_checkRustRuntime' : '_checkRustOperations',
-        ),
+        helperCall(text, [identifier('value'), identifier('name')]),
       ])
     const input = {
       Int2Value: 'checkInputInteger',
@@ -570,7 +556,6 @@ export function renderTypescriptSchemaCheckArtifacts(
       const profile = multirangeTypeProfile(type)!
       // Ranges over composites and arrays need the subtype's bound profile; they stay undecided.
       if (rangeContainerKind(profile.elementType) !== null) return 'checkRustUndecidedMultirange'
-      runtimeModules.add('_checkRustOperations')
       return helperCall('checkRustPublicMultirange', [
         identifier('value'),
         identifier('name'),
@@ -586,7 +571,6 @@ export function renderTypescriptSchemaCheckArtifacts(
     defineConverter(`range\0${type}`, 'checkRustRange', 'RangeValue', () => {
       const profile = rangeTypeProfile(type)!
       if (rangeContainerKind(profile.elementType) !== null) return 'checkRustUndecidedRange'
-      runtimeModules.add('_checkRustOperations')
       const labels = profile.subtypeEnum?.values
       return helperCall('checkRustPublicRange', [
         identifier('value'),
@@ -741,6 +725,19 @@ export function renderTypescriptSchemaCheckArtifacts(
             isArrayLikeType(item.type) &&
             compositeContainerProfile(arrayLikeElementType(item.type)!)
           const textRead = item.nullness ? undefined : publicText.get(group)?.get(item.name)
+          const textInput =
+            item.nullness ||
+            textRead ||
+            (isArrayLikeType(item.type) && !isCatalogVectorType(item.type))
+              ? null
+              : textConverter(item.type)
+          if (textInput) {
+            rustInputAdapters.add(textInput)
+            return helperCall(textInput, [
+              runtimeCall('get', [row, factory.createStringLiteral(item.name)], 'Reflect'),
+              factory.createStringLiteral(item.name),
+            ])
+          }
           if (
             !textRead &&
             [
@@ -1290,6 +1287,41 @@ export function renderTypescriptSchemaCheckArtifacts(
       undefined,
     )
   }
+  const rustStatements = rustGroup?.source
+    ? keepWithDependencies(
+        [
+          ...synthesizedStatements(typescriptRustAdapterSource),
+          ...[...converters.values()].flatMap(({ statement }) => (statement ? [statement] : [])),
+        ],
+        (statement) =>
+          (ts.isVariableStatement(statement) &&
+            statement.declarationList.declarations.every(
+              (declaration) =>
+                ts.isIdentifier(declaration.name) && rustInputAdapters.has(declaration.name.text),
+            )) ||
+          (ts.isFunctionDeclaration(statement) &&
+            statement.name &&
+            (statement.name.text === 'checkRustOutcome' ||
+              statement.name.text === 'checkRustInvalid' ||
+              rustInputAdapters.has(statement.name.text) ||
+              (['checkRustDate', 'checkRustTimestamptz', 'checkRustNumeric'].includes(
+                statement.name.text,
+              ) &&
+                rustInputAdapters.has('checkRustNullness')))),
+      )
+    : []
+  // The runtime modules beyond the evaluator's public values that the kept adapters call.
+  const runtimeModules = new Set<string>()
+  const collectModules = (node: ts.Node): void => {
+    if (
+      ts.isPropertyAccessExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      ['_checkRustOperations', '_checkRustRuntime'].includes(node.expression.text)
+    )
+      runtimeModules.add(node.expression.text)
+    ts.forEachChild(node, collectModules)
+  }
+  rustStatements.forEach(collectModules)
   const rustFiles = rustGroup?.source ? transpileCheckRustTypescriptFiles(rustGroup.source) : null
   return {
     checks: printFile([
@@ -1358,32 +1390,7 @@ export function renderTypescriptSchemaCheckArtifacts(
       ]),
       ...checkInputStatements(inputHelpers),
       ...synthesizedStatements(typescriptCheckEvaluationSource),
-      ...(rustGroup?.source
-        ? keepWithDependencies(
-            [
-              ...synthesizedStatements(typescriptRustAdapterSource),
-              ...[...converters.values()].flatMap(({ statement }) =>
-                statement ? [statement] : [],
-              ),
-            ],
-            (statement) =>
-              (ts.isVariableStatement(statement) &&
-                statement.declarationList.declarations.every(
-                  (declaration) =>
-                    ts.isIdentifier(declaration.name) &&
-                    rustInputAdapters.has(declaration.name.text),
-                )) ||
-              (ts.isFunctionDeclaration(statement) &&
-                statement.name &&
-                (statement.name.text === 'checkRustOutcome' ||
-                  statement.name.text === 'checkRustInvalid' ||
-                  rustInputAdapters.has(statement.name.text) ||
-                  (['checkRustDate', 'checkRustTimestamptz', 'checkRustNumeric'].includes(
-                    statement.name.text,
-                  ) &&
-                    rustInputAdapters.has('checkRustNullness')))),
-          )
-        : []),
+      ...rustStatements,
       ...(typedInputs
         ? groups.map((group) =>
             factory.createTypeAliasDeclaration(
@@ -2118,8 +2125,10 @@ function checkRustFloat4(row: object, name: string): _checkRust.Float4Value {
   const value = Reflect.get(row, name)
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.float4Unknown()
   if (value === null) return _checkRust.float4Null()
-  if (typeof value === 'number') return Number.isNaN(value) ? { kind: 'UnspecifiedNan' } : Math.fround(value) === value ? _checkRust.makeFloat4Value(value) : checkRustInvalid(name)
-  return checkRustInvalid(name)
+  if (typeof value !== 'number') return checkRustInvalid(name)
+  if (Number.isNaN(value)) return { kind: 'UnspecifiedNan' }
+  // Any other number is sent as its shortest text, which the server rounds to a real.
+  return Math.fround(value) === value ? _checkRust.makeFloat4Value(value) : _checkRustOperations.float4FromText(_checkRust.makeTextValue(String(value)))
 }
 function checkRustFloat8(row: object, name: string): _checkRust.Float8Value {
   const value = Reflect.get(row, name)
