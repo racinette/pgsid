@@ -1,7 +1,10 @@
 import { parseRust } from '../../../tools/check-transpiler/typescript/rust-wasm.js'
 import { transpileGo } from '../../../tools/check-transpiler/typescript/go-wasm.js'
 import { transpile } from '../../../tools/check-transpiler/typescript/transpile.js'
-export { checkTypescriptArtifacts } from '../../../tools/check-transpiler/typescript/split.js'
+export {
+  checkTypescriptArtifacts,
+  typescriptRuntimeName,
+} from '../../../tools/check-transpiler/typescript/split.js'
 import {
   splitCheckTypescript,
   splitCheckTypescriptChecks,

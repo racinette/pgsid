@@ -8214,6 +8214,7 @@ export function bindCatalogCheck(
         )
       ) {
         inputs.add(column.name)
+        const definition = enums.find((item) => item.oid === column.typeOid)
         return {
           type: 'pg_catalog.bool',
           value: {
@@ -8221,6 +8222,7 @@ export function bindCatalogCheck(
             type: 'pg_catalog.bool',
             name: column.name,
             negated: nullTest['nulltesttype'] === 'IS_NOT_NULL',
+            ...(definition ? { enum: definition } : {}),
           },
         }
       }

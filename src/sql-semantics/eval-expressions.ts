@@ -149,7 +149,14 @@ export type EvalExpression =
       operands: readonly [EvalExpression, EvalExpression]
       comparison: SqlCallableExpression
     }
-  | { kind: 'input-null-test'; type: 'pg_catalog.bool'; negated: boolean; name: string }
+  | {
+      kind: 'input-null-test'
+      type: 'pg_catalog.bool'
+      negated: boolean
+      name: string
+      // The column's enum, whose labels a reader of the value checks it against.
+      enum?: EnumDefinition
+    }
   | {
       kind: 'nullif'
       type: ScalarType
