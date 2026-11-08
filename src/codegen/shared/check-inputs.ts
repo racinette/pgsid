@@ -148,15 +148,35 @@ const updateRow = (
   },
 })
 
+// The server names a user-defined type without its schema where the search path finds it. Such a
+// name is qualified when it is no built-in type's and exactly one user-defined type has it.
+const qualifiedParameterType = (name: string, catalog: CatalogSnapshot): string => {
+  const base = name.replace(/(?:\[\])+$/u, '')
+  if (base.includes('.') || catalogScalarType(base) !== null) return name
+  const matches = [
+    ...[
+      ...catalog.enums,
+      ...catalog.domains,
+      ...catalog.compositeTypes,
+      ...catalog.rangeTypes,
+      ...catalog.tables,
+      ...catalog.views,
+      ...catalog.materializedViews,
+    ].map((item) => `${item.schema}.${item.name}`),
+    ...catalog.rangeTypes.map((item) => item.multirange),
+  ].filter((qualified) => qualified.slice(qualified.indexOf('.') + 1) === base)
+  return new Set(matches).size === 1 ? matches[0]! + name.slice(base.length) : name
+}
+
 const parameterSource = (
   number: number,
   column: ColumnInfo,
   parameterTypes: readonly string[] | undefined,
   catalog: CatalogSnapshot,
 ): CheckColumnSource => {
-  const parameterType = parameterTypes?.[number - 1] ?? ''
+  const parameterType = qualifiedParameterType(parameterTypes?.[number - 1] ?? '', catalog)
   const type = catalogScalarType(column.typeName)
-  // Parameter types are named as the server describes them, composites without their schema.
+  // Composites are the same type when their definitions are.
   const composite = (name: string) =>
     catalogCompositeType(name, catalog.compositeTypeGraph, catalog.rangeTypes) ??
     catalogCompositeArrayType(name, catalog.compositeTypeGraph, catalog.rangeTypes)

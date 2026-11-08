@@ -22,6 +22,7 @@ import {
   arrayInputPlan,
 } from '../../shared/check-array-types.js'
 import {
+  checkRustTextInput,
   checkRustValueType,
   type CheckExecutionContext,
 } from '../../shared/check-rust-evaluator.js'
@@ -342,12 +343,16 @@ export function renderTypescriptSchemaCheckArtifacts(
     CidValue: 'checkRustCid',
     Xid8Value: 'checkRustXid8',
   }
-  const runtimeCall = (member: string, args: ts.Expression[], module = '_checkRust') =>
-    factory.createCallExpression(
+  // Runtime modules other than the evaluator's public values, imported when a converter calls them.
+  const runtimeModules = new Set<string>()
+  const runtimeCall = (member: string, args: ts.Expression[], module = '_checkRust') => {
+    if (module !== '_checkRust') runtimeModules.add(module)
+    return factory.createCallExpression(
       factory.createPropertyAccessExpression(identifier(module), member),
       undefined,
       args,
     )
+  }
   const helperCall = (helper: string, args: ts.Expression[]) =>
     factory.createCallExpression(identifier(helper), undefined, args)
   const numberLiteral = (value: number): ts.Expression =>
@@ -431,6 +436,31 @@ export function renderTypescriptSchemaCheckArtifacts(
     const element = (prefix: string, adapter: string, extra: ts.Expression[] = []) =>
       runtimeCall(`arrayElementFrom${prefix}`, [
         helperCall(adapter, [oneFieldRow(), identifier('name'), ...extra]),
+      ])
+    // A value sent as text goes through its type's input, as array input reads each element.
+    const text = checkRustTextInput(type, options.executionContext)
+    if (text) inputHelpers.add('checkInputText')
+    if (text)
+      return runtimeCall(`arrayElementFrom${valueType.slice(0, -'Value'.length)}`, [
+        runtimeCall(
+          text.callable.replace(/_([a-z0-9])/gu, (_, letter: string) => letter.toUpperCase()),
+          [
+            helperCall(
+              type === 'pg_catalog."json"' || type === 'pg_catalog.jsonb'
+                ? 'checkRustJsonText'
+                : 'checkRustText',
+              [oneFieldRow(), identifier('name')],
+            ),
+            ...text.args.map((arg) =>
+              typeof arg === 'boolean'
+                ? arg
+                  ? factory.createTrue()
+                  : factory.createFalse()
+                : numberLiteral(arg),
+            ),
+          ],
+          text.module === 'runtime' ? '_checkRustRuntime' : '_checkRustOperations',
+        ),
       ])
     const input = {
       Int2Value: 'checkInputInteger',
@@ -540,6 +570,7 @@ export function renderTypescriptSchemaCheckArtifacts(
       const profile = multirangeTypeProfile(type)!
       // Ranges over composites and arrays need the subtype's bound profile; they stay undecided.
       if (rangeContainerKind(profile.elementType) !== null) return 'checkRustUndecidedMultirange'
+      runtimeModules.add('_checkRustOperations')
       return helperCall('checkRustPublicMultirange', [
         identifier('value'),
         identifier('name'),
@@ -555,6 +586,7 @@ export function renderTypescriptSchemaCheckArtifacts(
     defineConverter(`range\0${type}`, 'checkRustRange', 'RangeValue', () => {
       const profile = rangeTypeProfile(type)!
       if (rangeContainerKind(profile.elementType) !== null) return 'checkRustUndecidedRange'
+      runtimeModules.add('_checkRustOperations')
       const labels = profile.subtypeEnum?.values
       return helperCall('checkRustPublicRange', [
         identifier('value'),
@@ -1272,25 +1304,31 @@ export function renderTypescriptSchemaCheckArtifacts(
               ),
               factory.createStringLiteral(options.rustModuleSpecifier ?? './checks-rust/checks.js'),
             ),
-            // The evaluator's constructors, which build public ranges as PostgreSQL's input does.
-            ...([...converters.keys()].some((key) => /^(?:multi)?range\0/u.test(key))
-              ? [
-                  factory.createImportDeclaration(
+            // The evaluator's constructors and input functions, which converters call as
+            // PostgreSQL's input does.
+            ...(
+              [
+                ['_checkRustOperations', 'pg_catalog/operations.js'],
+                ['_checkRustRuntime', 'checkruntime/runtime.js'],
+              ] as const
+            )
+              .filter(([module]) => runtimeModules.has(module))
+              .map(([module, path]) =>
+                factory.createImportDeclaration(
+                  undefined,
+                  factory.createImportClause(
+                    false,
                     undefined,
-                    factory.createImportClause(
-                      false,
-                      undefined,
-                      factory.createNamespaceImport(identifier('_checkRustOperations')),
-                    ),
-                    factory.createStringLiteral(
-                      (options.rustModuleSpecifier ?? './checks-rust/checks.js').replace(
-                        /checks\.js$/u,
-                        'pg_catalog/operations.js',
-                      ),
+                    factory.createNamespaceImport(identifier(module)),
+                  ),
+                  factory.createStringLiteral(
+                    (options.rustModuleSpecifier ?? './checks-rust/checks.js').replace(
+                      /checks\.js$/u,
+                      path,
                     ),
                   ),
-                ]
-              : []),
+                ),
+              ),
           ]
         : []),
       ...(typedInputs && groups.some((group) => group.kind === 'table')
