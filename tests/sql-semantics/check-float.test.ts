@@ -16,6 +16,7 @@ import { lowerTableCheck } from '../../src/sql-semantics/catalog-checks.js'
 import { prepareCheckRustGroup } from '../../src/codegen/shared/check-rust-source.js'
 import { hasUncertain } from '../../scripts/check-measurements/probes.js'
 import { internalCheckRows } from '../support/check-entries.js'
+import { serverCheckResults } from '../support/check-server-results.js'
 import {
   runCheckParity,
   type Input,
@@ -485,10 +486,19 @@ describe('portable SQL floating-point values', () => {
       expect(result(a)).toEqual({ certain: true, value: true })
     expect(result(null)).toEqual({ certain: true, value: null })
     expect(result(undefined)).toEqual({ certain: false })
+    // A number that is not an exact real is read as the server reads its text: rounded, or out of range.
+    for (const a of [1.1, 1e100, 1e-100])
+      expect(result(a)).toEqual(
+        (
+          await serverCheckResults(pg, 'public_float_values', {
+            a: String(a),
+            d: '1',
+            skip: 'true',
+          })
+        ).positive4,
+      )
+    expect(result(1e100)).toEqual({ certain: true, error: '22003' })
     for (const a of [
-      1.1,
-      1e100,
-      1e-100,
       '1',
       {},
       { kind: 'Value', value: 2147483648 },
