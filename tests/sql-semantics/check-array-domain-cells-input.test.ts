@@ -1,5 +1,7 @@
 import { expect, it } from 'vitest'
 import { expectUndecidedOrRejected } from './check-public-inputs.js'
+import { internalCheckRows, storedOrRejected } from '../support/check-entries.js'
+import { differingChecks, serverCheckResults } from '../support/check-server-results.js'
 import { PGlite } from '@electric-sql/pglite'
 import { execFile } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
@@ -85,36 +87,38 @@ it('validates nested domain array identities and owned payloads in public Go and
       throw new Error(error.stdout + error.stderr)
     })
     const generated = await import(pathToFileURL(join(root, 'js/checks.js')).href)
+    const runtime = await import(pathToFileURL(join(root, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(typescript.checks, runtime)
     const sample = () => ({
-      kind: 'Value',
-      value: {
-        elementType,
-        elementKind: 41,
-        dimensions: [{ lower: 1, length: 2 }],
-        elements: [
-          {
-            kind: 'Array',
-            value: {
-              elementType: 'pg_catalog.int4',
-              elementKind: 2,
-              dimensions: [{ lower: 5, length: 2 }],
-              elements: [
-                { kind: 'Int4', value: 10 },
-                { kind: 'Int4', value: 20 },
-              ],
-            },
+      elementType,
+      elementKind: 41,
+      dimensions: [{ lower: 1, length: 2 }],
+      elements: [
+        {
+          kind: 'Array',
+          value: {
+            elementType: 'pg_catalog.int4',
+            elementKind: 2,
+            dimensions: [{ lower: 5, length: 2 }],
+            elements: [
+              { kind: 'Int4', value: 10 },
+              { kind: 'Int4', value: 20 },
+            ],
+            nullBitmap: { kind: 'Value', value: false },
           },
-          {
-            kind: 'Array',
-            value: {
-              elementType: 'pg_catalog.int4',
-              elementKind: 2,
-              dimensions: [{ lower: -3, length: 1 }],
-              elements: [{ kind: 'Int4', value: 30 }],
-            },
+        },
+        {
+          kind: 'Array',
+          value: {
+            elementType: 'pg_catalog.int4',
+            elementKind: 2,
+            dimensions: [{ lower: -3, length: 1 }],
+            elements: [{ kind: 'Int4', value: 30 }],
+            nullBitmap: { kind: 'Value', value: false },
           },
-        ],
-      },
+        },
+      ],
+      nullBitmap: { kind: 'Value', value: false },
     })
     const row = {
       expected_outer: 2,
@@ -123,16 +127,12 @@ it('validates nested domain array identities and owned payloads in public Go and
       expected_first: 10,
       bypass: false,
     }
+    type Result = { certain: boolean; value?: boolean | null; error?: string }
     const evaluate = (groups: unknown, extra: Record<string, unknown> = {}) =>
       generated.evaluatePublicNestedPlansChecks({ ...row, groups, ...extra }) as {
         constraint: string
-        result: { certain: boolean; value?: boolean; error?: string }
+        result: Result
       }[]
-    for (const result of evaluate(sample()))
-      expect(result.result, result.constraint + ': ' + JSON.stringify(result)).toMatchObject({
-        certain: true,
-        value: true,
-      })
     for (const result of evaluate(null, {
       expected_outer: null,
       expected_inner: null,
@@ -140,49 +140,191 @@ it('validates nested domain array identities and owned payloads in public Go and
       expected_first: null,
     }))
       expect(result.result).toMatchObject({ certain: true, value: true })
-    for (const result of evaluate({ kind: 'Unknown' })) expect(result.result.certain).toBe(false)
-    for (const result of evaluate({ kind: 'Unknown' }, { bypass: true }))
+    for (const result of evaluate(undefined)) expect(result.result.certain).toBe(false)
+    for (const result of evaluate(undefined, { bypass: true }))
+      expect(result.result).toMatchObject({ certain: true, value: true })
+    // Nested lists are dimensions of the outer array, so no public value holds an element of the
+    // array domain; such values fail as the server reads them, and others decide as it does.
+    const mismatches: ReturnType<typeof differingChecks> = []
+    for (const [groups, text, extra] of [
+      [
+        [],
+        '{}',
+        { expected_outer: 0, expected_inner: null, expected_lower: null, expected_first: null },
+      ],
+      [
+        [null, null],
+        '{NULL,NULL}',
+        { expected_inner: null, expected_lower: null, expected_first: null },
+      ],
+      [[null, null], '{NULL,NULL}', {}],
+      [
+        [
+          [10, 20],
+          [30, 40],
+        ],
+        '{{10,20},{30,40}}',
+        {},
+      ],
+      [
+        [
+          [10, 20],
+          [30, 40],
+        ],
+        '{{10,20},{30,40}}',
+        { bypass: true },
+      ],
+      [[[10]], '{{10}}', { bypass: true }],
+    ] as const) {
+      const local = Object.fromEntries(
+        evaluate(groups, extra).map((item) => [item.constraint, item.result]),
+      )
+      const values: Record<string, unknown> = { ...row, ...extra }
+      mismatches.push(
+        ...differingChecks(
+          JSON.stringify({ groups, extra }),
+          local,
+          await serverCheckResults(pg, 'nested_plans', {
+            groups: text,
+            ...Object.fromEntries(
+              Object.entries(values).map(([name, value]) => [
+                name,
+                value === null ? null : String(value),
+              ]),
+            ),
+          }),
+        ),
+      )
+    }
+    // Soft, so the cases below still run while elements of the array domain stay undecided.
+    expect.soft(mismatches).toEqual([])
+    // The former payloads are not public values.
+    for (const value of [
+      { kind: 'Value', value: sample() },
+      { kind: 'Unknown' },
+      { kind: 'Null' },
+      { kind: 'Error', value: { state: parseInt('22012', 36) } },
+      sample(),
+    ])
+      expect(() => evaluate(value), JSON.stringify(value)).toThrow(TypeError)
+    // Former cells inside a list are malformed elements, which never decide a check.
+    for (const value of [
+      [{ kind: 'Array', value: sample().elements[0]!.value }],
+      [{ kind: 'Int4', value: 10 }],
+    ])
+      expectUndecidedOrRejected(() => evaluate(value), JSON.stringify(value))
+    // Inner arrays not starting at 1, unknown or failed cells and stored values of other types go
+    // to the evaluator entries directly.
+    const outcome = (result: unknown): Result => {
+      const kind = (result as { kind: string }).kind
+      return kind === 'True' || kind === 'False' || kind === 'Null'
+        ? { certain: true, value: kind === 'Null' ? null : kind === 'True' }
+        : kind === 'Error'
+          ? {
+              certain: true,
+              error: (result as { value: { state: number } }).value.state
+                .toString(36)
+                .toUpperCase()
+                .padStart(5, '0'),
+            }
+          : { certain: false }
+    }
+    const stored = (groups: unknown, extra: Record<string, unknown> = {}) => {
+      const values: Record<string, unknown> = { ...row, ...extra }
+      return Object.entries(
+        internal('public.nested_plans', {
+          groups:
+            groups && typeof groups === 'object' && 'elementType' in groups
+              ? runtime.makeArrayValue(groups)
+              : groups,
+          ...Object.fromEntries(
+            Object.entries(values).map(([name, value]) => [
+              name,
+              value === null
+                ? name === 'bypass'
+                  ? runtime.boolNull()
+                  : runtime.int4Null()
+                : name === 'bypass'
+                  ? runtime.makeBoolValue(value)
+                  : runtime.makeInt4Value(value),
+            ]),
+          ),
+        }),
+      ).map(([constraint, result]) => ({ constraint, result: outcome(result) }))
+    }
+    for (const result of stored(sample()))
+      expect(result.result, result.constraint + ': ' + JSON.stringify(result)).toMatchObject({
+        certain: true,
+        value: true,
+      })
+    for (const result of stored(runtime.arrayNull(), {
+      expected_outer: null,
+      expected_inner: null,
+      expected_lower: null,
+      expected_first: null,
+    }))
+      expect(result.result).toMatchObject({ certain: true, value: true })
+    for (const result of stored(runtime.arrayUnknown())) expect(result.result.certain).toBe(false)
+    for (const result of stored(runtime.arrayUnknown(), { bypass: true }))
       expect(result.result).toMatchObject({ certain: true, value: true })
     const withNull = sample()
-    withNull.value.elements[0] = {
-      kind: 'Null',
-    } as unknown as (typeof withNull.value.elements)[number]
-    for (const result of evaluate(withNull, {
+    withNull.elements[0] = { kind: 'Null' } as unknown as (typeof withNull.elements)[number]
+    withNull.nullBitmap.value = true
+    for (const result of stored(withNull, {
       expected_inner: null,
       expected_lower: null,
       expected_first: null,
     }))
       expect(result.result).toMatchObject({ certain: true, value: true })
     const partial = sample()
-    partial.value.elements[0]!.value.elements[0] = {
+    partial.elements[0]!.value.elements[0] = {
       kind: 'Unknown',
-    } as unknown as (typeof partial.value.elements)[number]['value']['elements'][number]
-    for (const result of evaluate(partial))
+    } as unknown as (typeof partial.elements)[number]['value']['elements'][number]
+    for (const result of stored(partial))
       expect(result.result.certain, result.constraint).toBe(result.constraint !== 'inner_first')
     const error = sample()
-    error.value.elements[0]!.value.elements[0] = {
+    error.elements[0]!.value.elements[0] = {
       kind: 'Error',
       value: { state: parseInt('22012', 36) },
-    } as unknown as (typeof error.value.elements)[number]['value']['elements'][number]
-    for (const result of evaluate(error))
+    } as unknown as (typeof error.elements)[number]['value']['elements'][number]
+    for (const result of stored(error))
       expect(result.result).toMatchObject({ certain: true, error: '22012' })
-    for (const result of evaluate(error, { bypass: true }))
+    for (const result of stored(error, { bypass: true }))
       expect(result.result).toMatchObject({ certain: true, value: true })
     const wrongIdentity = sample()
-    wrongIdentity.value.elements[0]!.value.elementType = 'pg_catalog.text'
+    wrongIdentity.elements[0]!.value.elementType = 'pg_catalog.text'
     const wrongFamily = sample()
-    wrongFamily.value.elements[0]!.value.elementKind = 8
+    wrongFamily.elements[0]!.value.elementKind = 8
     const wrongShape = sample()
-    wrongShape.value.elements[0]!.value.dimensions[0]!.length = 3
+    wrongShape.elements[0]!.value.dimensions[0]!.length = 3
     const wrongPrimitive = sample()
-    wrongPrimitive.value.elements[0]!.value.elements[0]!.value = 2 ** 40
+    wrongPrimitive.elements[0]!.value.elements[0]!.value = 2 ** 40
+    // A stored value no column could hold is rejected as it is built or decides nothing.
+    for (const value of [wrongFamily, wrongShape, wrongPrimitive]) {
+      const results = storedOrRejected(() => stored(value))
+      if (results)
+        for (const result of results)
+          expect(result.result, JSON.stringify(value) + ' ' + result.constraint).toEqual({
+            certain: false,
+          })
+    }
+    // The stored inner array's type name is not read, so it decides only what the well-formed
+    // value decides.
+    const wellFormed = stored(sample())
+    const renamed = storedOrRejected(() => stored(wrongIdentity))
+    if (renamed)
+      for (const [index, result] of renamed.entries())
+        if (result.result.certain)
+          expect(result.result, result.constraint).toEqual(wellFormed[index]!.result)
+    // A cyclic payload is no value at all: it never reaches a check.
     const cycle = sample()
-    cycle.value.elements[0] = {
+    cycle.elements[0] = {
       kind: 'Array',
-      value: cycle.value,
-    } as unknown as (typeof cycle.value.elements)[number]
-    for (const value of [wrongIdentity, wrongFamily, wrongShape, wrongPrimitive, cycle])
-      expectUndecidedOrRejected(() => evaluate(value))
+      value: cycle,
+    } as unknown as (typeof cycle.elements)[number]
+    expect(() => evaluate(cycle)).toThrow(TypeError)
+    expect(() => evaluate({ kind: 'Value', value: cycle })).toThrow(TypeError)
+    expect(storedOrRejected(() => stored(cycle))).toBeUndefined()
     await writeFile(
       join(root, 'go.mod'),
       'module nestedinput\n\ngo 1.25\n\nrequire (\n github.com/jackc/pgx/v5 v5.10.0\n github.com/shopspring/decimal v1.4.0\n)\n',

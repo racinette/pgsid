@@ -1,6 +1,11 @@
 import { PGlite } from '@electric-sql/pglite'
 import { expect, it } from 'vitest'
-import { expectUndecidedOrRejected } from './check-public-inputs.js'
+import { internalCheckRows, storedOrRejected } from '../support/check-entries.js'
+import {
+  differingChecks,
+  serverCheckResults,
+  type ServerCheckResult,
+} from '../support/check-server-results.js'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -114,13 +119,26 @@ it('validates owned tsvector arrays and record fields through native INSERTs and
       ).toBe(payload.nativeBytes)
     const cell = (value: TsvectorInputPayload): OwnedArrayInputCell => ({ kind: 'Tsvector', value })
     const samples = [
-      { sql: "ARRAY['a'::tsvector,'z:1A'::tsvector]", value: array([cell(a), cell(z)]) },
-      { sql: "ARRAY['z:1A'::tsvector,'a'::tsvector]", value: array([cell(z), cell(a)]) },
-      { sql: "ARRAY['a'::tsvector,NULL::tsvector]", value: array([cell(a), { kind: 'Null' }]) },
-      { sql: 'ARRAY[]::tsvector[]', value: array([]) },
-      { sql: 'NULL::tsvector[]', value: null },
+      {
+        sql: "ARRAY['a'::tsvector,'z:1A'::tsvector]",
+        value: array([cell(a), cell(z)]),
+        public: ['a', 'z:1A'],
+      },
+      {
+        sql: "ARRAY['z:1A'::tsvector,'a'::tsvector]",
+        value: array([cell(z), cell(a)]),
+        public: ['z:1A', 'a'],
+      },
+      {
+        sql: "ARRAY['a'::tsvector,NULL::tsvector]",
+        value: array([cell(a), { kind: 'Null' }]),
+        public: ['a', null],
+      },
+      { sql: 'ARRAY[]::tsvector[]', value: array([]), public: [] },
+      { sql: 'NULL::tsvector[]', value: null, public: null },
       {
         sql: "ARRAY[['a'::tsvector,'z:1A'::tsvector]]",
+        public: [['a', 'z:1A']],
         value: array(
           [cell(a), cell(z)],
           [
@@ -129,20 +147,22 @@ it('validates owned tsvector arrays and record fields through native INSERTs and
           ],
         ),
       },
+      // An array starting at -3 has no public value.
       {
         sql: "array_fill('a'::tsvector,ARRAY[2],ARRAY[-3])",
         value: array([cell(a), cell(a)], [{ lower: -3, length: 2 }]),
+        public: undefined,
       },
     ]
     const reference = samples[0]!,
       fixtures: { name: string; row: Row; expected: Outcome }[] = [],
-      cases: { row: Row; expected: Record<string, Outcome> }[] = []
+      cases: { row: Row; expected: Record<string, Outcome>; public?: object }[] = []
     let inserts = 0,
       rejections = 0
     for (const s of samples)
       for (const needle of [
-        { sql: "'a'::tsvector", value: a },
-        { sql: 'NULL::tsvector', value: null },
+        { sql: "'a'::tsvector", value: a, public: 'a' },
+        { sql: 'NULL::tsvector', value: null, public: null },
       ]) {
         const row: Row = {
             items: known(s.value),
@@ -176,7 +196,20 @@ it('validates owned tsvector arrays and record fields through native INSERTs and
           for (const origin of ['source', 'stored'])
             fixtures.push({ name: name + '_' + origin, row, expected: expected[name]! })
         }
-        cases.push({ row, expected })
+        cases.push({
+          row,
+          expected,
+          ...(s.public === undefined
+            ? {}
+            : {
+                public: {
+                  items: s.public,
+                  reference: reference.public,
+                  needle: needle.public,
+                  bypass: false,
+                },
+              }),
+        })
       }
     const base = cases[0]!,
       missing = array([cell({ ...a, nativeBytes: -1 }), cell(z)])
@@ -250,14 +283,57 @@ it('validates owned tsvector arrays and record fields through native INSERTs and
           .evaluatePublicOwnedVectorsChecks(row)
           .map((c: { constraint: string; result: unknown }) => [c.constraint, c.result]),
       )
-    const publicRow = (row: Row) => ({
-      ...row,
-      bypass: row.bypass?.kind === 'Value' ? row.bypass.value : undefined,
-    })
+    // Public tsvectors are the server's text, so each public row decides what PostgreSQL decides.
+    let publicRows = 0
     for (const c of cases)
-      expect(evaluate(publicRow(c.row))).toEqual(
-        Object.fromEntries(Object.entries(c.expected).map(([n, o]) => [n, result(o)])),
+      if (c.public) {
+        const before = structuredClone(c.public)
+        expect(evaluate(c.public), JSON.stringify(c.public)).toEqual(
+          Object.fromEntries(Object.entries(c.expected).map(([n, o]) => [n, result(o)])),
+        )
+        expect(c.public).toEqual(before)
+        publicRows++
+      }
+    expect(publicRows).toBe(12)
+    const quoted = (value: string) => `"${value.replace(/["\\]/gu, (c) => '\\' + c)}"`
+    const mismatches: ReturnType<typeof differingChecks> = []
+    for (const items of [["'a", 'z:1A'], ['a:0'], ['a:1E'], ['z a'], ['a:16384'], ["'a\\'"]]) {
+      const row = { items, reference: ['a', 'z:1A'], needle: 'a', bypass: false }
+      mismatches.push(
+        ...differingChecks(
+          JSON.stringify(items),
+          evaluate(row) as Record<string, ServerCheckResult>,
+          await serverCheckResults(pg, 'owned_vectors', {
+            items: `{${items.map(quoted).join(',')}}`,
+            reference: '{a,z:1A}',
+            needle: 'a',
+            bypass: 'false',
+          }),
+        ),
       )
+    }
+    expect(mismatches).toEqual([])
+    // Arrays not starting at 1, a stored value whose size the caller did not supply and rows that
+    // skip it are no public values; every row also goes to the evaluator entries directly.
+    const checksRuntime = await import(pathToFileURL(join(tsRoot, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(tsBundle.checks, checksRuntime)
+    const stored = (row: Row) =>
+      internal(
+        'public.owned_vectors',
+        Object.fromEntries(
+          Object.entries(row).map(([name, input]) => [
+            name,
+            input.kind !== 'Value'
+              ? input
+              : name === 'bypass'
+                ? checksRuntime.makeBoolValue(input.value)
+                : name === 'needle'
+                  ? checksRuntime.makeTsvectorValue(input.value)
+                  : checksRuntime.makeArrayValue(input.value),
+          ]),
+        ),
+      )
+    for (const c of cases) expect(stored(c.row), JSON.stringify(c.expected)).toEqual(c.expected)
     const badPayloads: unknown[] = [
       { ...a, nativeBytes: -2 },
       { ...a, lexemes: [{ text: '\ud800', positions: [] }] },
@@ -273,19 +349,31 @@ it('validates owned tsvector arrays and record fields through native INSERTs and
       },
     ]
     for (const bad of badPayloads) {
-      const input = {
-        ...publicRow(base.row),
-        items: {
-          kind: 'Value',
-          value: { ...reference.value, elements: [{ kind: 'Tsvector', value: bad }, cell(z)] },
-        },
-      }
-      expectUndecidedOrRejected(
-        () => evaluate(input),
-        JSON.stringify(bad, (_key, item) => (typeof item === 'bigint' ? String(item) : item)),
-        ['same', 'presence'],
+      const shown = JSON.stringify(bad, (_key, item) =>
+        typeof item === 'bigint' ? String(item) : item,
       )
+      const items: OwnedArrayInputPayload = {
+        ...array([cell(a), cell(z)]),
+        elements: [cell(bad as TsvectorInputPayload), cell(z)],
+      }
+      // The former payloads are not public values.
+      expect(
+        () => evaluate({ ...cases[0]!.public, items: { kind: 'Value', value: items } }),
+        shown,
+      ).toThrow(TypeError)
+      expect(() => evaluate({ ...cases[0]!.public, items: [bad] }), shown).toThrow(TypeError)
+      // A stored cell no tsvector has never decides what reads it.
+      const outcomes = storedOrRejected(() =>
+        stored({ ...base.row, items: { kind: 'Value', value: items } }),
+      )
+      if (outcomes)
+        for (const name of ['same', 'presence'])
+          expect(['Unknown', 'Unimplemented'], `${shown} ${name}`).toContain(
+            (outcomes[name] as { kind: string }).kind,
+          )
     }
+    for (const bad of ['\ud800', 'a\0', 1, a])
+      expect(() => evaluate({ ...cases[0]!.public, items: [bad] }), String(bad)).toThrow(TypeError)
     const goRoot = join(root, 'public-go'),
       goBundle = renderGoSchemaCheckArtifacts(
         [table],

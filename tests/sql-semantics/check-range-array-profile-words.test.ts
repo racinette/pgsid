@@ -12,9 +12,19 @@ import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import { go, printGoFile, type GoDeclaration } from '../../src/codegen/go/ast.js'
-import { rangeGoInput } from '../../tools/check-rust/range-input.js'
-import { multirangeGoInput } from '../../tools/check-rust/multirange-input.js'
-import { arrayGoInput, type OwnedArrayInputPayload } from '../../tools/check-rust/array-input.js'
+import { rangeGoInput, rangeTypescriptInput } from '../../tools/check-rust/range-input.js'
+import {
+  multirangeGoInput,
+  multirangeTypescriptInput,
+} from '../../tools/check-rust/multirange-input.js'
+import {
+  arrayGoInput,
+  arrayTypescriptInput,
+  type OwnedArrayInputPayload,
+} from '../../tools/check-rust/array-input.js'
+import { internalCheckRows, storedOrRejected } from '../support/check-entries.js'
+import { expectUndecidedOrRejected } from './check-public-inputs.js'
+import { differingChecks, serverCheckResults } from '../support/check-server-results.js'
 import { customRangeProfiles } from './check-custom-range-fixtures.js'
 import { readRangeFixture } from './check-range-fixtures.js'
 import { readMultirangeFixture } from './check-multirange-fixtures.js'
@@ -94,8 +104,12 @@ it('decodes complete profile words before validating caller hints in public rang
       throw new Error(e.stdout + e.stderr, { cause: e })
     })
     const generated = await import(pathToFileURL(join(root, 'js/checks.js')).href),
+      runtime = await import(pathToFileURL(join(root, 'js/checks-rust/checks.js')).href),
+      internal = internalCheckRows(ts.checks, runtime),
       declarations: GoDeclaration[] = [],
-      assertions: string[] = []
+      assertions: string[] = [],
+      mismatches: ReturnType<typeof differingChecks> = []
+    const quoted = (value: string) => `"${value.replace(/["\\]/gu, (c) => '\\' + c)}"`
     for (const [i, [, text]] of profiles.entries()) {
       const p = captured.find((p) => p.name === `word_span_${i}`)!,
         multi = `{${text}}`,
@@ -117,29 +131,120 @@ it('decodes complete profile words before validating caller hints in public rang
         elements: [{ kind: 'Array', value: structuredClone(items) }, { kind: 'Null' }],
         nullBitmap: { kind: 'Value', value: true },
       }
-      const row = {
-        items: { kind: 'Value', value: items },
-        chosen: { kind: 'Value', value: v },
-        packs: { kind: 'Value', value: packs },
-        chosen_pack: { kind: 'Value', value: m },
-        histories: { kind: 'Value', value: histories },
-        bypass: false,
+      // Public bounds are the subtype's text. Arrays start at 1, and a multirange inside a public
+      // array reads as one more dimension, as does an array of the array domain, so those hold
+      // only NULLs; each row decides what PostgreSQL decides.
+      const [lowerText, upperText] = text.slice(1, -1).split(',') as [string, string]
+      const chosen = {
+        empty: false,
+        lower: lowerText,
+        upper: upperText,
+        lowerInclusive: true,
+        upperInclusive: true,
       }
-      const forge = (value: unknown): void => {
-        if (!value || typeof value !== 'object') return
-        if ('bounds' in value) Object.assign(value, { support: { comparison: 99, canonical: 99 } })
-        for (const child of Object.values(value)) {
-          if (Array.isArray(child)) child.forEach(forge)
-          else forge(child)
+      for (const bypass of [false, true]) {
+        const row = {
+          items: [chosen, null],
+          chosen,
+          packs: [null, null],
+          chosen_pack: [chosen],
+          histories: [null, null],
+          bypass,
         }
+        const before = structuredClone(row)
+        mismatches.push(
+          ...differingChecks(
+            `${p.name} ${JSON.stringify(row)}`,
+            Object.fromEntries(
+              (
+                generated[`evaluatePublicWordBatches${i}Checks`](row) as {
+                  constraint: string
+                  result: unknown
+                }[]
+              ).map((c) => [c.constraint, c.result]),
+            ),
+            await serverCheckResults(pg, `word_batches_${i}`, {
+              items: `{${quoted(text)},NULL}`,
+              chosen: text,
+              packs: '{NULL,NULL}',
+              chosen_pack: multi,
+              histories: '{NULL,NULL}',
+              bypass: String(bypass),
+            }),
+          ),
+        )
+        expect(row).toEqual(before)
       }
-      forge(row)
-      const before = structuredClone(row)
-      for (const c of generated[`evaluatePublicWordBatches${i}Checks`](row) as {
-        result: { certain: boolean; value?: boolean }
-      }[])
-        expect(c.result).toEqual({ certain: true, value: true })
-      expect(row).toEqual(before)
+      // The former payloads are not public values.
+      for (const [column, value] of [
+        ['items', { kind: 'Value', value: items }],
+        ['packs', { kind: 'Value', value: packs }],
+        ['chosen_pack', { kind: 'Value', value: m }],
+        ['histories', { kind: 'Value', value: histories }],
+      ] as const)
+        expect(
+          () =>
+            generated[`evaluatePublicWordBatches${i}Checks`]({
+              items: null,
+              chosen: null,
+              packs: null,
+              chosen_pack: null,
+              histories: null,
+              bypass: true,
+              [column]: value,
+            }),
+          `${p.name} ${column}`,
+        ).toThrow(TypeError)
+      // A multirange is a list, so one inside a public array is a further dimension holding a
+      // range where a multirange belongs; it never decides a check.
+      expectUndecidedOrRejected(
+        () =>
+          generated[`evaluatePublicWordBatches${i}Checks`]({
+            items: null,
+            chosen: null,
+            packs: [[chosen]],
+            chosen_pack: null,
+            histories: null,
+            bypass: false,
+          }),
+        p.name,
+        ['packed'],
+      )
+      // Arrays starting at -2 and arrays of the array domain with elements are no public values;
+      // the evaluator entries take them as stored, with the support each range carries.
+      const stored = (forged: boolean) => {
+        const value = structuredClone({ items, v, packs, m, histories })
+        const forge = (item: unknown): void => {
+          if (!item || typeof item !== 'object') return
+          if ('bounds' in item) Object.assign(item, { support: { comparison: 99, canonical: 99 } })
+          for (const child of Object.values(item)) {
+            if (Array.isArray(child)) child.forEach(forge)
+            else forge(child)
+          }
+        }
+        if (forged) forge(value)
+        return storedOrRejected(() =>
+          internal(`public.word_batches_${i}`, {
+            items: runtime.makeArrayValue(arrayTypescriptInput(value.items, runtime)),
+            chosen: runtime.makeCoercedRangeValue(rangeTypescriptInput(value.v, runtime)),
+            packs: runtime.makeArrayValue(arrayTypescriptInput(value.packs, runtime)),
+            chosen_pack: runtime.makeCoercedMultirangeValue(
+              multirangeTypescriptInput(value.m, runtime),
+            ),
+            histories: runtime.makeArrayValue(arrayTypescriptInput(value.histories, runtime)),
+            bypass: runtime.makeBoolValue(false),
+          }),
+        )
+      }
+      const own = stored(false)
+      expect(own, p.name).toBeDefined()
+      for (const [name, outcome] of Object.entries(own!))
+        expect(outcome, `${p.name} ${name}`).toEqual({ kind: 'True' })
+      // Support other than the type's own never decides a check wrongly.
+      for (const [name, outcome] of Object.entries(stored(true) ?? {}))
+        expect(['True', 'Unknown', 'Unimplemented'], `${p.name} ${name}`).toContain(
+          (outcome as { kind: string }).kind,
+        )
       await pg.query(
         `INSERT INTO word_batches_${i}(items,chosen,packs,chosen_pack,histories,bypass) VALUES($1::word_span_${i}[],$2,$3,$4,ARRAY[($1::word_span_${i}[])::word_history_${i},NULL::word_history_${i}],false)`,
         [array, text, packText, multi],
@@ -270,6 +375,9 @@ for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicWordBatches${i}Ch
 if !reflect.DeepEqual(beforeItems,row.Items.V)||!reflect.DeepEqual(beforePacks,row.Packs.V)||!reflect.DeepEqual(beforeHistory,row.Histories.V){t.Fatal("caller mutated")}
 }`)
     }
+    // Soft, so the Go cases still run while ranges over vectors and arrays of the array domain
+    // stay undecided.
+    expect.soft(mismatches).toEqual([])
     await writeFile(
       join(root, 'schema/public/profile_words_fixture_test.go'),
       printGoFile({

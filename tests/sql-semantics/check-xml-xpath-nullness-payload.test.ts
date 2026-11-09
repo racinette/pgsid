@@ -11,6 +11,8 @@ import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescri
 import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
+import { internalCheckRows } from '../support/check-entries.js'
+import { differingChecks, serverCheckResults } from '../support/check-server-results.js'
 
 it('preserves validated partial XML knowledge through public scalars, arrays and records', async () => {
   const pg = await PGlite.create(),
@@ -74,29 +76,8 @@ it('preserves validated partial XML knowledge through public scalars, arrays and
       throw Error(e.stdout + e.stderr)
     })
     const generated = await import(pathToFileURL(join(root, 'js/checks.js')).href)
-    const array = (cell: unknown) => ({
-      kind: 'Value',
-      value: {
-        elementType: 'pg_catalog.xml',
-        elementKind: 45,
-        dimensions: [{ lower: 1, length: 1 }],
-        elements: [cell],
-        nullBitmap: { kind: 'Value', value: false },
-      },
-    })
-    const row = (x: unknown, cell: unknown) => ({
-      x,
-      xs: array(cell),
-      r: {
-        kind: 'Value',
-        value: {
-          typeName: 'public.xml_null_packet',
-          fields: [cell, { kind: 'Array', value: array(cell).value }],
-        },
-      },
-      expected: '0.3333333333333333',
-      bad: '<broken',
-    })
+    const runtime = await import(pathToFileURL(join(root, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(ts.checks, runtime)
     type Result = {
       constraint: string
       message?: string
@@ -104,31 +85,107 @@ it('preserves validated partial XML knowledge through public scalars, arrays and
     }
     const evaluate = (input: unknown): Result[] =>
       generated.evaluatePublicXmlNullPayloadsChecks(input)
+    const quoted = (value: string) => `"${value.replace(/["\\]/gu, (c) => '\\' + c)}"`
+    const arrayText = (value: string | null) => `{${value === null ? 'NULL' : quoted(value)}}`
+    // Public XML is the server's text, so each value decides what PostgreSQL decides for it.
+    const mismatches: ReturnType<typeof differingChecks> = []
+    for (const [x, expected] of [
+      ['<a/>', '<a/>'],
+      ['plain text', 'plain text'],
+      ['<a/><b/>', '0.3333333333333333'],
+      [null, '0.3333333333333333'],
+    ] as const) {
+      const results = evaluate({
+        x,
+        xs: [x],
+        r: { x, xs: [x] },
+        expected,
+        bad: '<broken',
+      })
+      expect(results).toHaveLength(10)
+      for (const check of results)
+        if (!check.result.certain || 'error' in check.result) expect(check.message).toBeTruthy()
+        else expect(check.message).toBeUndefined()
+      mismatches.push(
+        ...differingChecks(
+          JSON.stringify(x),
+          Object.fromEntries(results.map((check) => [check.constraint, check.result])),
+          await serverCheckResults(pg, 'xml_null_payloads', {
+            x,
+            xs: arrayText(x),
+            r: `(${x === null ? '' : quoted(x)},${quoted(arrayText(x))})`,
+            expected,
+            bad: '<broken',
+          }),
+        ),
+      )
+    }
+    expect(mismatches).toEqual([])
+    // A value known only to be present, and possibly whether it is a document, is no public value;
+    // the evaluator entries take it directly.
     const reference: unknown[] = []
+    const outcome = (result: { kind: string }) =>
+      result.kind === 'True' || result.kind === 'False'
+        ? { certain: true, value: result.kind === 'True' }
+        : ['Unknown', 'Unimplemented'].includes(result.kind)
+          ? { certain: false }
+          : result
+    const stored = (x: unknown) => {
+      const cell = runtime.arrayElementFromXml(x)
+      const xs = runtime.makeArrayValue({
+        elementType: 'pg_catalog.xml',
+        elementKind: 45,
+        dimensions: [{ lower: 1, length: 1 }],
+        elements: [cell],
+        nullBitmap: { kind: 'Value', value: false },
+      })
+      return internal('public.xml_null_payloads', {
+        x,
+        xs,
+        r: runtime.makeCompositeValue({
+          typeName: 'public.xml_null_packet',
+          fields: [cell, runtime.arrayElementFromArray(xs)],
+        }),
+        expected: runtime.makeTextValue('0.3333333333333333'),
+        bad: runtime.makeTextValue('<broken'),
+      })
+    }
     for (const document of [
       { kind: 'Value', value: false },
       { kind: 'Value', value: true },
       { kind: 'Unknown' },
     ]) {
-      const knowledge = { document },
-        results = evaluate(
-          row({ kind: 'NonNull', value: knowledge }, { kind: 'XmlNonNull', value: knowledge }),
-        )
+      const results = Object.entries(stored(runtime.makeXmlNonNull(document)))
       expect(results).toHaveLength(10)
-      for (const check of results) {
+      for (const [constraint, result] of results) {
         const unknown =
-          check.constraint.endsWith('_bytes') ||
-          (check.constraint === 'document' && document.kind === 'Unknown')
-        expect(check.result, check.constraint).toEqual(
+          constraint.endsWith('_bytes') ||
+          (constraint === 'document' && document.kind === 'Unknown')
+        expect(outcome(result as { kind: string }), constraint).toEqual(
           unknown
             ? { certain: false }
-            : { certain: true, value: check.constraint === 'document' ? document.value : false },
+            : { certain: true, value: constraint === 'document' ? document.value : false },
         )
-        if (unknown) expect(check.message).toBeTruthy()
-        else expect(check.message).toBeUndefined()
       }
-      reference.push({ document, results })
+      reference.push({ document, results: Object.fromEntries(results) })
     }
+    // Knowledge that is no boolean, or a present value that is a document but not content, is not
+    // XML the server could hold, so what reads it decides nothing.
+    for (const [document, content] of [
+      [{ kind: 'Null' }, { kind: 'Unknown' }],
+      [{ kind: 'Error', value: { state: 1 } }, { kind: 'Unknown' }],
+      [
+        { kind: 'Value', value: true },
+        { kind: 'Value', value: false },
+      ],
+      [{ kind: 'Unknown' }, { kind: 'Null' }],
+      [{ kind: 'Unknown' }, { kind: 'Error', value: { state: 1 } }],
+    ])
+      for (const [constraint, result] of Object.entries(
+        stored(runtime.makeXmlKnowledge(document, content)),
+      ))
+        expect(outcome(result as { kind: string }), constraint).toEqual({ certain: false })
+    // The former payload shapes are not public values.
     const invalid: unknown[] = [
       {},
       null,
@@ -137,6 +194,9 @@ it('preserves validated partial XML knowledge through public scalars, arrays and
       { document: { kind: 'Error', value: { state: 1 } } },
       { document: { kind: 'Value', value: 'false' } },
       { document: { kind: 'alien' } },
+      { document: { kind: 'Value', value: false } },
+      { document: { kind: 'Value', value: true } },
+      { document: { kind: 'Unknown' } },
     ]
     invalid.push(
       { document: { kind: 'Value', value: true }, content: { kind: 'Value', value: false } },
@@ -145,8 +205,27 @@ it('preserves validated partial XML knowledge through public scalars, arrays and
       { document: { kind: 'Unknown' }, content: { kind: 'Value', value: 'true' } },
     )
     for (const value of invalid) {
-      const input = row({ kind: 'NonNull', value }, { kind: 'XmlNonNull', value })
-      expect(() => evaluate(input), JSON.stringify(value)).toThrow(TypeError)
+      for (const input of [
+        { x: { kind: 'NonNull', value } },
+        { xs: [{ kind: 'XmlNonNull', value }] },
+        { r: { x: { kind: 'XmlNonNull', value } } },
+        {
+          xs: {
+            kind: 'Value',
+            value: {
+              elementType: 'pg_catalog.xml',
+              elementKind: 45,
+              dimensions: [{ lower: 1, length: 1 }],
+              elements: [{ kind: 'XmlNonNull', value }],
+              nullBitmap: { kind: 'Value', value: false },
+            },
+          },
+        },
+      ])
+        expect(
+          () => evaluate({ x: null, xs: null, r: null, expected: null, bad: null, ...input }),
+          JSON.stringify({ value, input }),
+        ).toThrow(TypeError)
     }
     for (const file of ['go.mod', 'go.sum'])
       await writeFile(

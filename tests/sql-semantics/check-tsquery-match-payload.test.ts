@@ -1,6 +1,5 @@
 import { readTsqueryFixture } from './check-tsquery-fixtures.js'
 import { PGlite } from '@electric-sql/pglite'
-import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { expect, it } from 'vitest'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -15,6 +14,7 @@ import { prepareCheckRustGroup } from '../../src/codegen/shared/check-rust-sourc
 import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { renderGoSchemaCheckArtifacts } from '../../src/codegen/go/sql/catalog-checks.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
+import { internalCheckRows } from '../support/check-entries.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import {
   runCheckParity,
@@ -215,7 +215,13 @@ it('matches owned vectors and binary-origin queries through Rust and public Go a
       ),
     )
     const fixtures: { name: string; row: Row; expected: Outcome }[] = [],
-      publicCases: { row: Row; expected: Record<string, Outcome> }[] = []
+      publicCases: { row: Row; expected: Record<string, Outcome> }[] = [],
+      nativeRows: {
+        source: string | null
+        reference: string | null
+        choose: boolean
+        bypass: boolean
+      }[] = []
     const payloads = new Map<string, Input>()
     const capture = async (text: string | null): Promise<Input> => {
       if (text === null) return known(null)
@@ -321,6 +327,7 @@ it('matches owned vectors and binary-origin queries through Rust and public Go a
             fixtures.push({ name: name + '_' + origin, row, expected: expected[name]! })
         }
         publicCases.push({ row, expected })
+        nativeRows.push({ source, reference, choose, bypass })
       }
     const base = publicCases[12]!.row
     for (const item of [
@@ -413,84 +420,163 @@ it('matches owned vectors and binary-origin queries through Rust and public Go a
       checks.map((c) => c.identity.constraint),
       fixtures,
     )
-    const tsBundle = renderTypescriptSchemaCheckArtifacts(
-        [table],
-        catalog.domains,
-        catalog.domains,
-        { executionContext: context },
-      ),
-      tsRoot = join(root, 'public-ts')
-    await mkdir(tsRoot)
-    await writeFile(join(tsRoot, 'package.json'), '{"type":"module"}')
-    await writeFile(join(tsRoot, 'checks.ts'), tsBundle.checks)
-    for (const artifact of checkTypescriptArtifacts(tsBundle.rustFiles!)) {
-      const path = join(tsRoot, 'checks-rust', artifact.path)
-      await mkdir(dirname(path), { recursive: true })
-      await writeFile(path, artifact.content)
+    const compile = async (directory: string, executionContext: object) => {
+      const bundle = renderTypescriptSchemaCheckArtifacts(
+          [table],
+          catalog.domains,
+          catalog.domains,
+          { executionContext },
+        ),
+        tsRoot = join(root, directory)
+      await mkdir(tsRoot)
+      await writeFile(join(tsRoot, 'package.json'), '{"type":"module"}')
+      await writeFile(join(tsRoot, 'checks.ts'), bundle.checks)
+      for (const artifact of checkTypescriptArtifacts(bundle.rustFiles!)) {
+        const path = join(tsRoot, 'checks-rust', artifact.path)
+        await mkdir(dirname(path), { recursive: true })
+        await writeFile(path, artifact.content)
+      }
+      await run('node', [
+        'node_modules/typescript/bin/tsc',
+        '--strict',
+        '--skipLibCheck',
+        '--target',
+        'es2022',
+        '--module',
+        'nodenext',
+        '--moduleResolution',
+        'nodenext',
+        '--outDir',
+        join(tsRoot, 'js'),
+        join(tsRoot, 'checks.ts'),
+      ]).catch((e: { stdout: string; stderr: string }) => {
+        throw new Error(e.stdout + e.stderr)
+      })
+      return {
+        bundle,
+        api: await import(pathToFileURL(join(tsRoot, 'js/checks.js')).href),
+        runtime: await import(pathToFileURL(join(tsRoot, 'js/checks-rust/checks.js')).href),
+      }
     }
-    await run('node', [
-      'node_modules/typescript/bin/tsc',
-      '--strict',
-      '--skipLibCheck',
-      '--target',
-      'es2022',
-      '--module',
-      'nodenext',
-      '--moduleResolution',
-      'nodenext',
-      '--outDir',
-      join(tsRoot, 'js'),
-      join(tsRoot, 'checks.ts'),
-    ]).catch((e: { stdout: string; stderr: string }) => {
-      throw new Error(e.stdout + e.stderr)
-    })
-    const api = await import(pathToFileURL(join(tsRoot, 'js/checks.js')).href)
-    const result = (outcome: Outcome) =>
-      outcome.kind === 'Unknown'
-        ? { certain: false }
-        : outcome.kind === 'Error'
-          ? { certain: true, error: outcome.value.state.toString(36).toUpperCase() }
-          : { certain: true, value: outcome.kind === 'Null' ? null : outcome.kind === 'True' }
-    const evaluate = (row: Record<string, unknown>): Record<string, unknown> =>
+    const { bundle: tsBundle, api, runtime } = await compile('public-ts', context)
+    // Reading non-ASCII text depends on the server encoding, which the bundle above leaves
+    // undeclared; one declaring it reads such text as the server does.
+    const encoded = (
+      await compile('public-ts-utf8', {
+        ...context,
+        serverEncoding: 'UTF8',
+        clientEncoding: 'UTF8',
+      })
+    ).api
+    const internal = internalCheckRows(tsBundle.checks, runtime)
+    type Result = { certain: boolean; value?: boolean | null; error?: string }
+    const results = (bundle: typeof api, row: Record<string, unknown>): Record<string, Result> =>
       Object.fromEntries(
-        api
-          .evaluatePublicVectorRowsChecks(
-            Object.fromEntries(
-              Object.entries(row).map(([name, value]) => [
-                name,
-                name === 'item' || name === 'reference'
-                  ? value
-                  : value && typeof value === 'object' && 'kind' in value
-                    ? value.kind === 'Null'
-                      ? null
-                      : value.kind === 'Value' && 'value' in value
-                        ? value.value
-                        : undefined
-                    : value,
-              ]),
+        bundle
+          .evaluatePublicVectorRowsChecks(row)
+          .map((c: { constraint: string; result: Result }) => [c.constraint, c.result]),
+      )
+    const evaluate = (row: Record<string, unknown>) => results(api, row)
+    // Each constraint evaluated by the server over the same parameters; a parameter a check does
+    // not read cannot fail it.
+    const server = async (row: Record<string, unknown>) => {
+      const expected: Record<string, Result> = {}
+      for (const [name, sql] of Object.entries(definitions)) {
+        const reads = (column: string) => new RegExp(`\\b${column}\\b`, 'u').test(sql)
+        try {
+          const { rows } = await pg.query<{ value: boolean | null }>(
+            `SELECT (${sql}) AS value FROM (SELECT $1::nested_vector item,$2::tsquery reference,$3::bool choose_first,$4::bool bypass) input`,
+            ['item', 'reference', 'choose_first', 'bypass'].map((column) =>
+              reads(column) ? row[column] : null,
             ),
           )
-          .map((c: { constraint: string; result: unknown }) => [c.constraint, c.result]),
-      )
-    for (const c of publicCases)
-      expect(evaluate(c.row)).toEqual(
-        Object.fromEntries(
-          Object.entries(c.expected).map(([name, outcome]) => [name, result(outcome)]),
-        ),
-      )
-
-    for (const bad of ['a', {}, { kind: 'Value', value: { ...pattern.value, root: 999 } }])
-      expectUndecidedOrRejected(() => evaluate({ ...base, reference: bad }), undefined, ['same'])
-    const saved = structuredClone(base)
-    evaluate(base)
-    expect(base).toEqual(saved)
+          expected[name] = { certain: true, value: rows[0]!.value }
+        } catch (error) {
+          expected[name] = { certain: true, error: (error as { code: string }).code }
+        }
+      }
+      return expected
+    }
+    const matchesServer = async (row: Record<string, unknown>) => {
+      const expected = await server(row)
+      expect({ row, results: results(encoded, row) }).toEqual({ row, results: expected })
+      if (![row.item, row.reference].some((text) => /[^\0-\x7f]/u.test(String(text))))
+        expect({ row, results: evaluate(row) }).toEqual({ row, results: expected })
+      else
+        for (const [name, result] of Object.entries(evaluate(row)))
+          expect([expected[name], { certain: false }], name).toContainEqual(result)
+    }
+    // Text search values are public text, read through their input functions. Values only binary
+    // input can store reach the public API as the text the server prints for them, and those whose
+    // printed text the input rejects reach it only as that text.
+    const spelled = async (sample: string | null, kind: 'tsvector' | 'tsquery') =>
+      sample === null || !sample.startsWith('__')
+        ? sample
+        : (
+            await pg.query<{ text: string }>(
+              kind === 'tsvector'
+                ? 'SELECT value::text AS text FROM vector_binary_inputs WHERE key=$1'
+                : 'SELECT value::text AS text FROM binary_queries WHERE key=$1',
+              [sample],
+            )
+          ).rows[0]!.text
+    const readable = async (text: string | null, kind: 'tsvector' | 'tsquery') =>
+      text === null ||
+      (await pg.query(`SELECT $1::${kind}`, [text]).then(
+        () => true,
+        () => false,
+      ))
+    const storedOnly = new Set<string>()
+    let publicChecked = 0
+    for (const native of nativeRows) {
+      const item = await spelled(native.source, 'tsvector'),
+        reference = await spelled(native.reference, 'tsquery')
+      if (!(await readable(item, 'tsvector'))) storedOnly.add(item!)
+      if (!(await readable(reference, 'tsquery'))) storedOnly.add(reference!)
+      if (!(await readable(item, 'tsvector')) || !(await readable(reference, 'tsquery'))) continue
+      await matchesServer({
+        item,
+        reference,
+        choose_first: native.choose,
+        bypass: native.bypass,
+      })
+      publicChecked++
+    }
+    expect({ publicChecked, storedOnly: storedOnly.size }).toEqual({
+      publicChecked: 86,
+      storedOnly: 8,
+    })
+    const publicBase = { item: 'a:1 b:2', reference: 'a <-> b', choose_first: true, bypass: false }
+    expect(nativeRows[12]).toEqual({
+      source: publicBase.item,
+      reference: publicBase.reference,
+      choose: true,
+      bypass: false,
+    })
+    // Text the input functions reject fails every check that reads it.
+    for (const text of storedOnly)
+      for (const column of ['item', 'reference'])
+        await matchesServer({ ...publicBase, [column]: text })
+    for (const reference of ['a', 'a &', 'a <0> b'])
+      await matchesServer({ ...publicBase, reference })
+    for (const item of ['a:1', 'a:0', "'unterminated"]) await matchesServer({ ...publicBase, item })
+    expect(evaluate({ ...publicBase, item: undefined }).same).toEqual({ certain: false })
+    expect(evaluate({ ...publicBase, item: undefined }).presence).toEqual({ certain: false })
+    const saved = structuredClone(publicBase)
+    evaluate(publicBase)
+    expect(publicBase).toEqual(saved)
     const good = complete.value
-    expect(evaluate({ ...base, item: undefined }).same).toEqual({ certain: false })
-    expect(evaluate({ ...base, item: undefined }).presence).toEqual({ certain: false })
+    for (const bad of [{}, 3, pattern, { kind: 'Value', value: { ...pattern.value, root: 999 } }])
+      expect(
+        () => evaluate({ ...publicBase, reference: bad }),
+        JSON.stringify(bad, (_key, item) => (typeof item === 'bigint' ? String(item) : item)),
+      ).toThrow(TypeError)
     for (const bad of [
-      'a:1',
       3,
       {},
+      complete,
+      { kind: 'Unknown' },
+      { kind: 'Null' },
       { kind: 'Value', value: null },
       ...[NaN, 1.5, '8', -2, 1073741824].map((nativeBytes) => ({
         kind: 'Value',
@@ -520,14 +606,35 @@ it('matches owned vectors and binary-origin queries through Rust and public Go a
           ],
         },
       },
+      { kind: 'Error', value: { state: parseInt('22003', 36) } },
       { kind: 'Error', value: { state: -1 } },
       { kind: 'Error', value: { state: 1.5 } },
+      '\ud800',
+      'a\0',
     ])
-      expectUndecidedOrRejected(
-        () => evaluate({ ...base, item: bad }),
+      expect(
+        () => evaluate({ ...publicBase, item: bad }),
         JSON.stringify(bad, (_key, item) => (typeof item === 'bigint' ? String(item) : item)),
-        ['same', 'presence'],
-      )
+      ).toThrow(TypeError)
+    // Every stored value of the matrix, including those only binary input stores, those whose
+    // stored size the caller did not supply and unknown or failed operands, decides through the
+    // entries as the server did.
+    const stored = (input: Input) => {
+      if (input.kind !== 'Value' || typeof input.value !== 'object') return input
+      const value = input.value as object
+      return 'lexemes' in value
+        ? runtime.makeTsvectorValue(value)
+        : 'nodes' in value
+          ? runtime.makeTsqueryValue(value)
+          : input
+    }
+    for (const c of publicCases)
+      expect(
+        internal(
+          'public.vector_rows',
+          Object.fromEntries(Object.entries(c.row).map(([name, input]) => [name, stored(input)])),
+        ),
+      ).toEqual(c.expected)
     const goRoot = join(root, 'public-go'),
       goBundle = renderGoSchemaCheckArtifacts(
         [table],

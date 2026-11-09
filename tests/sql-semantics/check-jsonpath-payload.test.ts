@@ -1,6 +1,5 @@
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
-import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { execFile } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -12,6 +11,8 @@ import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescri
 import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
 import { parseConfigString } from '../../src/config/loader.js'
+import { internalCheckRows } from '../support/check-entries.js'
+import { serverCheckResults } from '../support/check-server-results.js'
 
 it('checks public JSONPath graph boundaries and preserves valid coerced values in Go and TypeScript', async () => {
   const pg = await PGlite.create()
@@ -24,10 +25,14 @@ it('checks public JSONPath graph boundaries and preserves valid coerced values i
       CONSTRAINT guarded CHECK(CASE WHEN bypass THEN true ELSE path::text COLLATE "C" IS NOT DISTINCT FROM expected COLLATE "C" END),
       CONSTRAINT present CHECK(path IS NOT NULL))`)
     const catalog = await snapshotCatalog(pg)
+    // Reading non-ASCII text and regular expressions depends on the server encoding.
     const ts = renderTypescriptSchemaCheckArtifacts(
       catalog.tables,
       catalog.domains,
       catalog.domains,
+      {
+        executionContext: { defaultCollation: 'C', serverEncoding: 'UTF8' },
+      },
     )
     const go = renderGoSchemaArtifacts(
       catalog,
@@ -67,19 +72,32 @@ it('checks public JSONPath graph boundaries and preserves valid coerced values i
       throw new Error(failure.stdout + failure.stderr, { cause: failure })
     })
     const generated = await import(pathToFileURL(join(root, 'js/checks.js')).href)
-    const runtime = await import(
-      pathToFileURL(join(root, 'js/checks-rust/checkruntime/runtime.js')).href
-    )
+    const runtime = await import(pathToFileURL(join(root, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(ts.checks, runtime)
     const operations = await import(
       pathToFileURL(join(root, 'js/checks-rust/pg_catalog/operations.js')).href
     )
     const build = (source: string) =>
       operations.jsonpathFromCoercedSourceUtf8(runtime.makeTextValue(source))
+    type Result = { certain: boolean; value?: boolean | null; error?: string }
+    // A public jsonpath value is the server's text, read through its input function.
     const evaluate = (path: unknown, expected: string | null = '$."a"', bypass = false) =>
       generated.evaluatePublicPathPayloadsChecks({ path, expected, bypass }) as {
         constraint: string
-        result: { certain: boolean; value?: boolean | null; error?: string }
+        result: Result
       }[]
+    const results = (path: unknown, expected: string | null = '$."a"', bypass = false) =>
+      Object.fromEntries(evaluate(path, expected, bypass).map((c) => [c.constraint, c.result]))
+    const server = (path: string | null, expected: string | null = '$."a"', bypass = false) =>
+      serverCheckResults(pg, 'path_payloads', { path, expected, bypass: String(bypass) })
+    // The evaluator entries read the path as text, so a failed read is the one state they take
+    // that no public value expresses.
+    const stored = (path: unknown, expected: string | null = '$."a"', bypass = false) =>
+      internal('public.path_payloads', {
+        path,
+        expected: expected === null ? runtime.textNull() : runtime.makeTextValue(expected),
+        bypass: runtime.makeBoolValue(bypass),
+      }) as Record<string, { kind: string }>
     for (const source of [
       '$.a',
       '$[1 to last, -2]',
@@ -91,14 +109,19 @@ it('checks public JSONPath graph boundaries and preserves valid coerced values i
       const expected = (
         await pg.query<{ output: string }>('SELECT $1::jsonpath::text output', [source])
       ).rows[0]!.output
+      for (const check of evaluate(source, expected))
+        expect(check.result).toEqual({ certain: true, value: true })
+      for (const text of [expected, 'wrong'])
+        expect(results(source, text), source).toEqual(await server(source, text))
       const path = build(source)
       expect(path.kind).toBe('Value')
-      for (const check of evaluate(path, expected))
-        expect(check.result).toEqual({ certain: true, value: true })
-      const stored = operations.jsonpathFromStoredText(runtime.makeTextValue(expected))
-      expect(stored.kind).toBe('StoredText')
-      for (const check of evaluate(stored, expected))
-        expect(check.result).toEqual({ certain: true, value: true })
+      expect(() => evaluate(path, expected)).toThrow(TypeError)
+      // A stored path reaches a query as the text it prints, read back through the input
+      // function, which need not accept it.
+      const storedText = operations.jsonpathFromStoredText(runtime.makeTextValue(expected))
+      expect(storedText.kind).toBe('StoredText')
+      expect(() => evaluate(storedText, expected)).toThrow(TypeError)
+      expect(results(expected, expected)).toEqual(await server(expected, expected))
       await pg.query('INSERT INTO path_payloads VALUES($1::jsonpath,$2,false)', [source, expected])
       await expect(
         pg.query('INSERT INTO path_payloads VALUES($1::jsonpath,$2,false)', [source, 'wrong']),
@@ -108,11 +131,13 @@ it('checks public JSONPath graph boundaries and preserves valid coerced values i
       const expected = (
         await pg.query<{ output: string }>('SELECT $1::jsonpath::text output', [source])
       ).rows[0]!.output
-      for (const check of evaluate(
-        operations.jsonpathFromStoredText(runtime.makeTextValue(expected)),
-        expected,
-      ))
+      expect(() =>
+        evaluate(operations.jsonpathFromStoredText(runtime.makeTextValue(expected)), expected),
+      ).toThrow(TypeError)
+      for (const check of evaluate(source, expected))
         expect(check.result).toEqual({ certain: true, value: true })
+      for (const path of [source, expected])
+        expect(results(path, expected), path).toEqual(await server(path, expected))
     }
     const invalid: unknown[] = [
       undefined,
@@ -202,13 +227,45 @@ it('checks public JSONPath graph boundaries and preserves valid coerced values i
         p.nodes[p.root]!.textStart = 0
         p.nodes[p.root]!.textEnd = p.characters.length
       }, '1')
-    for (const path of invalid) expectUndecidedOrRejected(() => evaluate(path))
-    for (const check of evaluate({ kind: 'Error', value: { state: parseInt('22012', 36) } }))
-      expect(check.result).toMatchObject({ certain: true, error: '22012' })
+    // Only text is a public jsonpath value: a graph, well formed or not, is malformed, as is
+    // text no query can send.
+    for (const path of invalid) {
+      if (path === undefined) {
+        for (const check of evaluate(path)) expect(check.result).toEqual({ certain: false })
+      } else if (typeof path === 'string') {
+        expect(results(path), path).toEqual(await server(path))
+      } else expect(() => evaluate(path), JSON.stringify(path)).toThrow(TypeError)
+    }
+    for (const path of [
+      build('$.a'),
+      operations.jsonpathFromStoredText(runtime.makeTextValue('$."a"')),
+      { kind: 'Error', value: { state: parseInt('22012', 36) } },
+      '\0',
+      '\ud800',
+      1,
+    ])
+      expect(() => evaluate(path), JSON.stringify(path)).toThrow(TypeError)
+    // Malformed text fails each check reading it with the server's own input error.
+    for (const [path, error] of [
+      ['', '22P02'],
+      ['$.', '42601'],
+      ['$ ? (', '42601'],
+      ['exists ($).type()', '42601'],
+    ]) {
+      for (const check of evaluate(path!))
+        expect(check.result, path).toEqual({ certain: true, error })
+      expect(results(path), path).toEqual(await server(path!))
+    }
+    for (const outcome of Object.values(
+      stored({ kind: 'Error', value: runtime.makeSqlError(parseInt('22012', 36)) }),
+    ))
+      expect(outcome).toMatchObject({ kind: 'Error', value: { state: parseInt('22012', 36) } })
+    expect(stored(runtime.textNull(), null).present).toEqual({ kind: 'False' })
     expect(evaluate(null, null).find((check) => check.constraint === 'present')!.result).toEqual({
       certain: true,
       value: false,
     })
+    expect(results(null, null)).toEqual(await server(null, null))
     await writeFile(
       join(root, 'go.mod'),
       (await readFile('tests/fixtures/codegen/project/go.mod', 'utf8')).replace(

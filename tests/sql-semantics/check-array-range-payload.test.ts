@@ -12,9 +12,24 @@ import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import { go, printGoFile } from '../../src/codegen/go/ast.js'
-import { rangeGoInput } from '../../tools/check-rust/range-input.js'
-import { multirangeGoInput } from '../../tools/check-rust/multirange-input.js'
-import { arrayGoInput, type OwnedArrayInputPayload } from '../../tools/check-rust/array-input.js'
+import {
+  rangeGoInput,
+  rangeTypescriptInput,
+  type RangeInputPayload,
+} from '../../tools/check-rust/range-input.js'
+import {
+  multirangeGoInput,
+  multirangeTypescriptInput,
+  type MultirangeInputPayload,
+} from '../../tools/check-rust/multirange-input.js'
+import {
+  arrayGoInput,
+  arrayTypescriptInput,
+  type OwnedArrayInputPayload,
+} from '../../tools/check-rust/array-input.js'
+import { internalCheckRows, storedOrRejected } from '../support/check-entries.js'
+import { differingChecks, serverCheckResults } from '../support/check-server-results.js'
+import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { customRangeProfiles } from './check-custom-range-fixtures.js'
 import { readRangeFixture } from './check-range-fixtures.js'
 import { readMultirangeFixture } from './check-multirange-fixtures.js'
@@ -132,62 +147,151 @@ it('injects compiled array-bound contexts before public range, multirange and re
       elements: [{ kind: 'Array', value: structuredClone(items) }, { kind: 'Null' }],
       nullBitmap: { kind: 'Value', value: true },
     }
-    const row = {
-      v: { kind: 'Value', value: v },
-      w: { kind: 'Value', value: w },
-      m: { kind: 'Value', value: m },
-      items: { kind: 'Value', value: items },
-      nested: { kind: 'Value', value: nested },
-      bypass: false,
-    }
+    const runtime = await import(pathToFileURL(join(root, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(ts.checks, runtime)
+    type Result = { certain: boolean; value?: boolean | null; error?: string }
     const map = (row: unknown) =>
       Object.fromEntries(
         (
           generated.evaluatePublicArrayPayloadsChecks(row) as {
             constraint: string
-            result: { certain: boolean; value?: boolean | null }
+            result: Result
           }[]
         ).map((c) => [c.constraint, c.result]),
       )
+    // Public bounds are arrays of enum labels, and every check decides what PostgreSQL decides,
+    // except that hashing an enum reads its OIDs, which only the database holds.
+    const span = (lower: string[], upper: string[]) => ({
+      empty: false,
+      lower,
+      upper,
+      lowerInclusive: true,
+      upperInclusive: true,
+    })
+    const quoted = (value: string) => `"${value.replace(/["\\]/gu, (c) => '\\' + c)}"`
+    const publicFirst = span(['z'], ['mid']),
+      publicLast = span(['mid'], ['a'])
+    const mismatches: ReturnType<typeof differingChecks> = []
+    for (const [first, last, bypass] of [
+      [publicFirst, publicLast, false],
+      [publicLast, publicFirst, false],
+      [publicFirst, publicLast, true],
+    ] as const) {
+      const row = {
+        v: first,
+        w: last,
+        m: [first, last],
+        items: [first, null, last],
+        nested: [null, null],
+        bypass,
+      }
+      const before = structuredClone(row)
+      const local = map(row)
+      expect(row).toEqual(before)
+      const firstText = first === publicFirst ? '[{z},{mid}]' : '[{mid},{a}]',
+        lastText = first === publicFirst ? '[{mid},{a}]' : '[{z},{mid}]'
+      const server = await serverCheckResults(pg, 'array_payloads', {
+        v: firstText,
+        w: lastText,
+        m: multi,
+        items: `{${quoted(firstText)},NULL,${quoted(lastText)}}`,
+        nested: '{NULL,NULL}',
+        bypass: String(bypass),
+      })
+      if (!bypass)
+        for (const name of Object.keys(server).filter((name) => name.startsWith('hash_'))) {
+          expect(local[name], name).toMatchObject({ certain: false })
+          delete local[name]
+          delete server[name]
+        }
+      mismatches.push(...differingChecks(JSON.stringify(row), local, server))
+    }
+    // Soft, so the stored cases below still run while ranges over arrays stay undecided.
+    expect.soft(mismatches).toEqual([])
+    // Stored values go to the evaluator entries directly: arrays starting at -2, arrays of the array
+    // domain with elements, contexts the values carry, ordinals outside the labels and other
+    // element types.
+    const stored = (
+      values: { v: RangeInputPayload; w: RangeInputPayload; m: MultirangeInputPayload },
+      arrays: { items: OwnedArrayInputPayload; nested: OwnedArrayInputPayload },
+      bypass = false,
+    ) =>
+      internal('public.array_payloads', {
+        v: runtime.makeCoercedRangeValue(rangeTypescriptInput(values.v, runtime)),
+        w: runtime.makeCoercedRangeValue(rangeTypescriptInput(values.w, runtime)),
+        m: runtime.makeCoercedMultirangeValue(multirangeTypescriptInput(values.m, runtime)),
+        items: runtime.makeArrayValue(arrayTypescriptInput(arrays.items, runtime)),
+        nested: runtime.makeArrayValue(arrayTypescriptInput(arrays.nested, runtime)),
+        bypass: runtime.makeBoolValue(bypass),
+      })
+    const undecided = (outcome: unknown, label: string) =>
+      expect(['Unknown', 'Unimplemented'], label).toContain((outcome as { kind: string }).kind)
     for (const forge of [false, true]) {
-      const candidate = structuredClone(row)
+      const candidate = structuredClone({ values: { v, w, m }, arrays: { items, nested } })
       const edit = (value: unknown): void => {
         if (!value || typeof value !== 'object') return
-        if ('bounds' in value && 'elementKind' in value) {
-          if (forge) {
-            Object.assign(value, {
-              enumLabels: 'forged',
-              enumCount: 999,
-              support: { comparison: 99, canonical: 99 },
-              boundProfile: { nodes: [{ child: -1 }] },
-            })
-          } else {
-            Reflect.deleteProperty(value, 'boundProfile')
-            Reflect.deleteProperty(value, 'enumLabels')
-            Reflect.deleteProperty(value, 'enumCount')
-          }
-        }
+        if ('bounds' in value && 'elementKind' in value && forge)
+          Object.assign(value, {
+            enumLabels: 'forged',
+            enumCount: 999,
+            support: { comparison: 99, canonical: 99 },
+            boundProfile: { nodes: [{ child: -1 }] },
+          })
         for (const child of Object.values(value))
           if (Array.isArray(child)) child.forEach(edit)
           else edit(child)
       }
       edit(candidate)
-      const before = structuredClone(candidate)
-      for (const [constraint, result] of Object.entries(map(candidate)))
-        if (constraint.startsWith('hash_')) expect(result).toMatchObject({ certain: false })
-        else expect(result).toEqual({ certain: true, value: true })
-      expect(candidate).toEqual(before)
+      const results = storedOrRejected(() => stored(candidate.values, candidate.arrays))
+      // The values' own contexts decide; forged ones never decide wrongly.
+      if (!forge) expect(results).toBeDefined()
+      for (const [constraint, result] of Object.entries(results ?? {}))
+        if (constraint.startsWith('hash_')) undecided(result, `${forge} ${constraint}`)
+        else if (!forge) expect(result, constraint).toEqual({ kind: 'True' })
+        else
+          expect(['True', 'Unknown', 'Unimplemented'], constraint).toContain(
+            (result as { kind: string }).kind,
+          )
       const bad = structuredClone(candidate)
-      const lower = bad.v.value.bounds[0]!
+      const lower = bad.values.v.bounds[0]!
       if (lower.kind !== 'Array') throw new Error('expected array bound')
       lower.value.elements[0] = { kind: 'Enum', value: { ordinal: 999, labelOid: 0n } }
-      expect(map(bad).ordered).toMatchObject({ certain: false })
-      for (const result of Object.values(map({ ...bad, bypass: true })))
-        expect(result).toEqual({ certain: true, value: true })
+      const badResults = storedOrRejected(() => stored(bad.values, bad.arrays))
+      if (badResults) undecided(badResults['ordered'], `${forge} ordered`)
+      const skipped = storedOrRejected(() => stored(bad.values, bad.arrays, true))
+      if (!forge) expect(skipped).toBeDefined()
+      for (const [constraint, result] of Object.entries(skipped ?? {}))
+        expect(result, constraint).toEqual({ kind: 'True' })
       const wrong = structuredClone(candidate)
-      wrong.v.value.elementType = 'public.other_label'
-      expect(map(wrong).ordered).toMatchObject({ certain: false })
+      wrong.values.v.elementType = 'public.other_label'
+      const wrongResults = storedOrRejected(() => stored(wrong.values, wrong.arrays))
+      if (wrongResults) undecided(wrongResults['ordered'], `${forge} wrong ordered`)
     }
+    // The former payloads are not public values. A range over arrays is left undecided whole, so
+    // its shape is not checked yet; a malformed one there is at least never decided.
+    const publicRow = {
+      v: publicFirst,
+      w: publicLast,
+      m: [publicFirst, publicLast],
+      items: [publicFirst, null, publicLast],
+      nested: [null, null],
+      bypass: false,
+    }
+    for (const value of [
+      { ...publicRow, m: { kind: 'Value', value: m } },
+      { ...publicRow, items: { kind: 'Value', value: items } },
+      { ...publicRow, nested: { kind: 'Value', value: nested } },
+      { ...publicRow, m: { kind: 'Unknown' } },
+      { ...publicRow, items: { kind: 'Null' } },
+      { ...publicRow, v: 'empty' },
+    ])
+      expect(() => map(value)).toThrow(TypeError)
+    for (const value of [{ kind: 'Value', value: v }, [publicFirst]])
+      expectUndecidedOrRejected(
+        () => map({ ...publicRow, v: value }),
+        Array.isArray(value) ? 'list' : 'payload',
+        ['ordered', 'contained', 'position', 'output'],
+      )
     await pg.query(
       'INSERT INTO array_payloads VALUES($1,$2,$3,$4::stage_span[],ARRAY[($4::stage_span[])::stage_history,NULL::stage_history],false)',
       [first, last, multi, array],

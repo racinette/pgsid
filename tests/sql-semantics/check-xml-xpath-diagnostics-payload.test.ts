@@ -11,6 +11,7 @@ import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescri
 import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
+import { internalCheckRows } from '../support/check-entries.js'
 
 it('exposes precise reached XPath requirements through the stable public Go and TypeScript result shape', async () => {
   const pg = await PGlite.create(),
@@ -31,7 +32,12 @@ it('exposes precise reached XPath requirements through the stable public Go and 
         defaultCollation: 'C' as const,
         serverEncoding: 'UTF8' as const,
         xpathRecursionLimit: 5000,
+        // Public XML is text the server reads under the session's xmloption.
+        xmlOption: 'content' as const,
       }
+    expect((await pg.query<{ xmloption: string }>('SHOW xmloption')).rows[0]!.xmloption).toBe(
+      'content',
+    )
     const ts = renderTypescriptSchemaCheckArtifacts(
       catalog.tables,
       catalog.domains,
@@ -93,14 +99,24 @@ it('exposes precise reached XPath requirements through the stable public Go and 
     }
     const evaluate = (row: unknown): Result[] =>
       generated.evaluatePublicXpathReasonPayloadsChecks(row)
+    const runtime = await import(pathToFileURL(join(root, 'js/checks-rust/checks.js')).href)
+    // Each check here returns its outcome with the reason it gives when undecided.
+    const internal = internalCheckRows(
+      ts.checks.replace(
+        /checkRustEvaluation\(("[^"]+", "[^"]+"), \(\) => _checkRust\.(\w+)\((.*)\), ("[^"]*")\)(,?)$/gmu,
+        'checkEvaluation($1, () => checkRustOutcome(_checkRust.$2($3)), $4)$5',
+      ),
+      runtime,
+    )
     const base = {
-      v: { kind: 'Value', value: '<r/>' },
+      v: '<r/>',
       path: '1 div 3',
       expected: '0.3333333333333333',
       flag: true,
       bypass: false,
     }
     type Sample = { name: string; row: Record<string, unknown>; unknown: Record<string, string> }
+    const reference: unknown[] = []
     const samples: Sample[] = [
       { name: 'formatting', row: base, unknown: { matches: 'extraFloatDigits' } },
       {
@@ -124,23 +140,31 @@ it('exposes precise reached XPath requirements through the stable public Go and 
           present: 'xpathPowerOfTenBits',
         },
       },
-      {
-        name: 'rendered_storage',
-        row: {
-          ...base,
-          v: { kind: 'RenderedText', value: '<?xml version="a"b"?><r/>' },
-          path: '/',
-        },
-        unknown: {
-          matches: 'original XML storage',
-          shape: 'original XML storage',
-          shape_flag: 'original XML storage',
-          present: 'original XML storage',
-        },
-      },
       { name: 'bypass', row: { ...base, bypass: true }, unknown: {} },
     ]
-    const reference: unknown[] = []
+    // Stored XML known only by its rendering is no public value; its checks name the storage
+    // they need.
+    const rendered = internal('public.xpath_reason_payloads', {
+      v: { kind: 'RenderedText', value: '<?xml version="a"b"?><r/>' },
+      path: runtime.makeTextValue('/'),
+      expected: runtime.makeTextValue(base.expected),
+      flag: runtime.makeBoolValue(true),
+      bypass: runtime.makeBoolValue(false),
+    }) as Record<string, { outcome: unknown; reason: unknown }>
+    expect(Object.keys(rendered).sort()).toEqual(['matches', 'present', 'shape', 'shape_flag'])
+    for (const [constraint, { outcome, reason }] of Object.entries(rendered)) {
+      expect(outcome, constraint).toEqual({ kind: 'Unknown' })
+      expect(runtime.checkRequirementMessage(reason), constraint).toMatchObject({
+        kind: 'Value',
+        value: expect.stringContaining('original XML storage'),
+      })
+    }
+    reference.push({ name: 'rendered_storage', results: rendered })
+    for (const v of [
+      { kind: 'RenderedText', value: '<?xml version="a"b"?><r/>' },
+      { kind: 'Value', value: '<r/>' },
+    ])
+      expect(() => evaluate({ ...base, v })).toThrow(TypeError)
     for (const sample of samples) {
       const results = evaluate(sample.row)
       for (const check of results) {
@@ -169,12 +193,12 @@ it('exposes precise reached XPath requirements through the stable public Go and 
       { name: 'bypass', row: { gate: true }, runtime: { certain: true, value: true } },
       {
         name: 'reached',
-        row: { gate: false, source: { kind: 'Value', value: '<r/>' } },
+        row: { gate: false, source: '<r/>' },
         runtime: { certain: true, error: '10608' },
       },
       {
         name: 'document',
-        row: { gate: false, source: { kind: 'Value', value: 'plain' } },
+        row: { gate: false, source: 'plain' },
         runtime: { certain: true, error: '2200M' },
       },
       { name: 'null', row: { gate: null, source: null }, runtime: { certain: true, value: null } },
@@ -188,6 +212,15 @@ it('exposes precise reached XPath requirements through the stable public Go and 
       expect(results.find((c) => c.constraint === 'runtime_path')!.result, sample.name).toEqual(
         sample.runtime,
       )
+      // The constant path fails as the server prepares the constraint, before any row.
+      if (sample.name !== 'missing')
+        await expect(
+          pg.query('INSERT INTO xpath_prepared_payloads VALUES($1::xml,$2::bool)', [
+            sample.row.source,
+            sample.row.gate,
+          ]),
+          sample.name,
+        ).rejects.toMatchObject({ code: '10608' })
       reference.push({ name: 'prepared_' + sample.name, results })
     }
     for (const file of ['go.mod', 'go.sum'])

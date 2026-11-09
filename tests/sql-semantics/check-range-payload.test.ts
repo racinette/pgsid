@@ -111,13 +111,37 @@ it('validates public int8range values in TypeScript, range payloads in Go, and l
         JSON.stringify(input, (_key, item) => (typeof item === 'bigint' ? String(item) : item)),
         ['bound', 'shape', 'present'],
       )
+    // The former payloads are not public values.
+    for (const input of [
+      { kind: 'Value', value: {} },
+      { kind: 'Null' },
+      { kind: 'Unknown' },
+      { kind: 'Error', value: { state: parseInt('22000', 36) } },
+      {
+        kind: 'Value',
+        value: {
+          typeName: 'pg_catalog.int8range',
+          elementType: 'pg_catalog.int8',
+          elementKind: 3,
+          empty: false,
+          lowerInclusive: true,
+          upperInclusive: false,
+          bounds: [
+            { kind: 'Int8', value: 1n },
+            { kind: 'Int8', value: 9n },
+          ],
+        },
+      },
+    ])
+      for (const bypass of [false, true])
+        expect(() => evaluate(input, null, bypass)).toThrow(TypeError)
     const result = evaluate(null, null, true)
     expect(result.bound).toEqual({ certain: true, value: true })
     expect(result.shape).toEqual({ certain: true, value: null })
     expect(result.present).toEqual({ certain: true, value: false })
     // The server rejects a reversed range while reading the value, before any CHECK can skip it.
     for (const result of Object.values(evaluate({ ...value, lower: 9n, upper: 1n }, null, true)))
-      expect(result).toEqual({ certain: true, error: '22000' })
+      expect.soft(result).toEqual({ certain: true, error: '22000' })
     await pg.query(
       "INSERT INTO range_payloads VALUES('[9007199254740993,9007199254740999)'::int8range,$1,false)",
       [9007199254740993n],

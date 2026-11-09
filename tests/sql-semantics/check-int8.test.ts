@@ -137,21 +137,28 @@ it.each([true, false])(
           value === undefined ? { certain: false } : { certain: true, value },
         )
       }
-      for (const row of rows.slice(0, -1)) {
-        const stringRow = {
-          ...row,
-          amount: row.amount?.toString() ?? null,
-          other: row.other?.toString() ?? null,
-        }
-        expect(generated.evaluatePublicInt8ChecksChecks(stringRow)).toEqual(
-          generated.evaluatePublicInt8ChecksChecks(row),
-        )
-        expect(
-          generated.evaluatePublicPositiveBigintDomainChecks({ value: stringRow.amount }),
-        ).toEqual(generated.evaluatePublicPositiveBigintDomainChecks({ value: row.amount }))
-      }
       if (rust) {
+        // int8 values are bigints, as queries send them: neither their decimal text nor a
+        // number, even a safe one, is an int8 value.
+        for (const row of rows.slice(0, -1))
+          for (const column of ['amount', 'other'] as const) {
+            if (row[column] === null || row[column] === undefined) continue
+            expect(() =>
+              generated.evaluatePublicInt8ChecksChecks({
+                ...row,
+                [column]: row[column]!.toString(),
+              }),
+            ).toThrow(TypeError)
+            if (column === 'amount')
+              expect(() =>
+                generated.evaluatePublicPositiveBigintDomainChecks({
+                  value: row.amount!.toString(),
+                }),
+              ).toThrow(TypeError)
+          }
         for (const value of [
+          42,
+          '42',
           9007199254740992,
           NaN,
           Infinity,
@@ -161,13 +168,19 @@ it.each([true, false])(
           '-9223372036854775809',
           9223372036854775808n,
           -9223372036854775809n,
+          { kind: 'Value', value: 42n },
+          { kind: 'Null' },
+          { kind: 'Unknown' },
         ]) {
           expect(() => generated.evaluatePublicInt8ChecksChecks({ amount: value })).toThrow(
             TypeError,
           )
+          expect(() => generated.evaluatePublicPositiveBigintDomainChecks({ value })).toThrow(
+            TypeError,
+          )
         }
         const positive = generated
-          .evaluatePublicInt8ChecksChecks({ amount: 42 })
+          .evaluatePublicInt8ChecksChecks({ amount: 42n })
           .find((check: { constraint: string }) => check.constraint === 'positive')
         expect(positive.result).toEqual({ certain: true, value: true })
       }

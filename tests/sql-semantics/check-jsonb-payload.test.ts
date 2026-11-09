@@ -1,6 +1,5 @@
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
-import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { execFile } from 'node:child_process'
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
@@ -21,6 +20,8 @@ import {
   invalidJsonbInputForms,
   deferredJsonbEncodingForms,
 } from './check-jsonb-input-forms.js'
+import { internalCheckRows } from '../support/check-entries.js'
+import { serverCheckResults } from '../support/check-server-results.js'
 
 it('validates public JSONB logical payloads, rejects malformed graphs and preserves SQL-coerced semantics through real INSERTs', async () => {
   const pg = await PGlite.create(),
@@ -189,9 +190,92 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       certain: true,
       value: true,
     })
-    const runtime = await import(
-      pathToFileURL(join(root, 'js/checks-rust/checkruntime/runtime.js')).href
-    )
+    const runtime = await import(pathToFileURL(join(root, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(bundle.checks, runtime)
+    type Outcome = { kind: string; value?: { state: number } }
+    const resultOf = (outcome: Outcome) =>
+      outcome.kind === 'True' || outcome.kind === 'False'
+        ? { certain: true, value: outcome.kind === 'True' }
+        : outcome.kind === 'Null'
+          ? { certain: true, value: null }
+          : outcome.kind === 'Error'
+            ? {
+                certain: true,
+                error: outcome.value!.state.toString(36).toUpperCase().padStart(5, '0'),
+              }
+            : { certain: false }
+    // A stored JSONB value keeps what no public JSON value carries (a number's exact digits, a
+    // top-level JSON null, its node layout), so rows holding one go to each check's evaluator
+    // entry. Other columns convert by their JavaScript type; a missing one is undecided.
+    const stored = (
+      table: string,
+      row: Record<string, unknown>,
+      typed: Record<string, (value: never) => unknown> = {},
+    ): { constraint: string; result: ReturnType<typeof resultOf> }[] => {
+      const values: Record<string, unknown> = {}
+      for (const { name } of catalog.tables.find((t) => t.name === table)!.columns) {
+        const value = row[name]
+        values[name] =
+          value === undefined
+            ? { kind: 'Unknown' }
+            : value === null
+              ? { kind: 'Null' }
+              : typeof value === 'object'
+                ? value
+                : typed[name]
+                  ? typed[name]!(value as never)
+                  : typeof value === 'string'
+                    ? runtime.makeTextValue(value)
+                    : typeof value === 'boolean'
+                      ? runtime.makeBoolValue(value)
+                      : typeof value === 'number'
+                        ? runtime.makeInt4Value(value)
+                        : typeof value === 'bigint'
+                          ? runtime.makeInt8Value(value)
+                          : value
+      }
+      return Object.entries(internal('public.' + table, values)).map(([constraint, outcome]) => ({
+        constraint,
+        result: resultOf(outcome as Outcome),
+      }))
+    }
+    // Marks a column's JSON text: its public value is the parsed JSON, which a query sends as
+    // its JSON text (a JSON null parses to null, which is SQL NULL on both sides).
+    const jsonText = Symbol('json text')
+    const json = (text: string | null) => ({ [jsonText]: text })
+    // The public checks of a row decide as the server does on the same values sent as text; a
+    // column the row leaves out is NULL on both sides.
+    const publicMatchesServer = async (table: string, row: Record<string, unknown>) => {
+      const local: Record<string, unknown> = {},
+        sent: Record<string, string | null> = {}
+      for (const { name } of catalog.tables.find((t) => t.name === table)!.columns) {
+        const value = row[name] ?? null
+        const parsed =
+          value !== null && typeof value === 'object' && jsonText in value
+            ? value[jsonText] === null
+              ? null
+              : JSON.parse(value[jsonText] as string)
+            : undefined
+        local[name] = parsed === undefined ? value : parsed
+        sent[name] =
+          parsed !== undefined
+            ? parsed === null
+              ? null
+              : JSON.stringify(parsed)
+            : value === null
+              ? null
+              : String(value)
+      }
+      const evaluateRow = generated[
+        'evaluatePublic' +
+          table.replace(/(?:^|_)(\w)/gu, (_: string, c: string) => c.toUpperCase()) +
+          'Checks'
+      ] as (row: object) => { constraint: string; result: unknown }[]
+      expect(
+        Object.fromEntries(evaluateRow(local).map((c) => [c.constraint, c.result])),
+        JSON.stringify(sent),
+      ).toEqual(await serverCheckResults(pg, table, sent))
+    }
     expect(
       (await pg.query<{ value: string }>(`SELECT to_jsonb('plain'::conversion_label)::text value`))
         .rows[0]!.value,
@@ -199,7 +283,7 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
     for (const bypass of [false, true]) {
       const result = generated.evaluatePublicJsonbConversionBoundariesChecks({
         label: 'plain',
-        expected: runtime.makeJsonbValue('"custom"'),
+        expected: 'custom',
         bypass,
       })[0].result
       expect(result).toEqual(bypass ? { certain: true, value: true } : { certain: false })
@@ -212,6 +296,11 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       })[0].result,
     ).toEqual({ certain: true, value: true })
     await pg.exec(`INSERT INTO jsonb_conversion_boundaries VALUES('plain','"custom"',false)`)
+    const conversions = (input: Record<string, unknown>) =>
+      stored('jsonb_conversion_inputs', input, {
+        source_number: runtime.makeNumericValue,
+        source_uuid: runtime.makeUuidValue,
+      })
     for (const sample of [
       {
         text: '[1,null]',
@@ -260,9 +349,31 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
         args.push(value, output)
       }
       const before = structuredClone(input)
-      for (const result of generated.evaluatePublicJsonbConversionInputsChecks(input))
+      for (const result of conversions(input))
         expect(result.result, result.constraint).toEqual({ certain: true, value: true })
       expect(input).toEqual(before)
+      await publicMatchesServer(
+        'jsonb_conversion_inputs',
+        Object.fromEntries([
+          ['bypass', false],
+          ...Object.keys(conversionTypes).flatMap((name, i) => {
+            const value = args[i * 2] as string | boolean | null
+            return [
+              [
+                'source_' + name,
+                name === 'json' || name === 'jsonb'
+                  ? json(value as string | null)
+                  : name === 'oid' && value !== null
+                    ? Number(value)
+                    : name === 'integer' && value !== null
+                      ? BigInt(value as string)
+                      : value,
+              ],
+              ['expected_' + name, json(args[i * 2 + 1] as string | null)],
+            ]
+          }),
+        ]),
+      )
       await pg.query(
         `INSERT INTO jsonb_conversion_inputs VALUES(${Object.entries(conversionTypes)
           .flatMap(([_, type], i) => [`$${i * 2 + 1}::${type}`, `$${i * 2 + 2}::jsonb`])
@@ -271,12 +382,11 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       )
       input.expected_text = runtime.makeJsonbValue('false')
       expect(
-        generated
-          .evaluatePublicJsonbConversionInputsChecks(input)
-          .find((c: { constraint: string }) => c.constraint === 'converted_text').result,
+        conversions(input).find((c: { constraint: string }) => c.constraint === 'converted_text')!
+          .result,
       ).toEqual({ certain: true, value: false })
       input.bypass = true
-      for (const result of generated.evaluatePublicJsonbConversionInputsChecks(input))
+      for (const result of conversions(input))
         expect(result.result).toEqual({ certain: true, value: true })
     }
     const conversionInput = {
@@ -285,21 +395,37 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       bypass: false,
     }
     expect(
+      conversions(conversionInput).find(
+        (c: { constraint: string }) => c.constraint === 'converted_json',
+      )!.result,
+    ).toEqual({ certain: true, error: '22P05' })
+    // A JSON string holding NUL is sent escaped, so the public value fails the same way.
+    expect(
       generated
-        .evaluatePublicJsonbConversionInputsChecks(conversionInput)
+        .evaluatePublicJsonbConversionInputsChecks({
+          source_json: '\0',
+          expected_json: null,
+          bypass: false,
+        })
         .find((c: { constraint: string }) => c.constraint === 'converted_json').result,
     ).toEqual({ certain: true, error: '22P05' })
+    await publicMatchesServer('jsonb_conversion_inputs', {
+      source_json: json('"\\u0000"'),
+      expected_json: json('null'),
+      bypass: false,
+    })
     await expect(
       pg.query(
         'INSERT INTO jsonb_conversion_inputs(source_json,expected_json,bypass) VALUES($1::json,$2::jsonb,false)',
         ['"\\u0000"', 'null'],
       ),
     ).rejects.toMatchObject({ code: '22P05' })
+    // An escape survives only in stored JSON text, until the conversion decodes it.
     conversionInput.source_json = runtime.makeJsonValue('"\\u96ea"')
     expect(
-      generated
-        .evaluatePublicJsonbConversionInputsChecks(conversionInput)
-        .find((c: { constraint: string }) => c.constraint === 'converted_json').result,
+      conversions(conversionInput).find(
+        (c: { constraint: string }) => c.constraint === 'converted_json',
+      )!.result,
     ).toEqual({ certain: true, value: false })
     await expect(
       pg.query(
@@ -309,10 +435,16 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
     ).rejects.toMatchObject({ code: '23514' })
     conversionInput.expected_json = runtime.makeJsonbValue('"雪"')
     expect(
-      generated
-        .evaluatePublicJsonbConversionInputsChecks(conversionInput)
-        .find((c: { constraint: string }) => c.constraint === 'converted_json').result,
+      conversions(conversionInput).find(
+        (c: { constraint: string }) => c.constraint === 'converted_json',
+      )!.result,
     ).toEqual({ certain: true, value: true })
+    for (const expected of ['雪', 'null'])
+      await publicMatchesServer('jsonb_conversion_inputs', {
+        source_json: json('"雪"'),
+        expected_json: json(JSON.stringify(expected)),
+        bypass: false,
+      })
     await pg.query(
       'INSERT INTO jsonb_conversion_inputs(source_json,expected_json,bypass) VALUES($1::json,$2::jsonb,false)',
       ['"\\u96ea"', '"雪"'],
@@ -320,7 +452,7 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
     const conversion = (source: unknown) =>
       generated.evaluatePublicJsonbConversionInputsChecks({
         source_text: source,
-        expected_text: runtime.makeJsonbValue('null'),
+        expected_text: null,
         bypass: false,
       })
     expect(
@@ -334,14 +466,23 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
     ])
       expect(() => conversion(source)).toThrow(TypeError)
     expect(
-      generated
-        .evaluatePublicJsonbConversionInputsChecks({
-          source_number: { kind: 'Error', value: { state: parseInt('22003', 36) } },
-          expected_number: runtime.makeJsonbValue('null'),
-          bypass: false,
-        })
-        .find((c: { constraint: string }) => c.constraint === 'converted_number').result,
+      conversions({
+        source_number: { kind: 'Error', value: { state: parseInt('22003', 36) } },
+        expected_number: runtime.makeJsonbValue('null'),
+        bypass: false,
+      }).find((c: { constraint: string }) => c.constraint === 'converted_number')!.result,
     ).toEqual({ certain: true, error: '22003' })
+    for (const source of [
+      { kind: 'Error', value: { state: parseInt('22003', 36) } },
+      { kind: 'Value', value: '1' },
+    ])
+      expect(() =>
+        generated.evaluatePublicJsonbConversionInputsChecks({
+          source_number: source,
+          expected_number: null,
+          bypass: false,
+        }),
+      ).toThrow(TypeError)
     for (const source of [
       null,
       'null',
@@ -375,9 +516,17 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
           bypass: false,
         }
         const before = JSON.stringify(input)
-        for (const c of generated.evaluatePublicJsonbFormatInputsChecks(input))
+        for (const c of stored('jsonb_format_inputs', input))
           expect(c.result).toEqual({ certain: true, value: true })
         expect(JSON.stringify(input)).toBe(before)
+        await publicMatchesServer('jsonb_format_inputs', {
+          document: json(row.source),
+          strip_arrays: arrays,
+          expected_default: json(row.default_strip),
+          expected_strip: json(row.stripped),
+          expected_pretty: row.pretty,
+          bypass: false,
+        })
         await pg.query(
           'INSERT INTO jsonb_format_inputs VALUES($1::jsonb,$2,$3::jsonb,$4::jsonb,$5,false)',
           [source, arrays, row.default_strip, row.stripped, row.pretty],
@@ -392,21 +541,48 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       bypass: false,
     }
     expect(
+      stored('jsonb_format_inputs', formatInput).find(
+        (c: { constraint: string }) => c.constraint === 'pretty_layout',
+      )!.result,
+    ).toEqual({ certain: true, value: false })
+    const publicFormat = {
+      document: { a: null, b: [null, 1] },
+      strip_arrays: true,
+      expected_default: { b: [null, 1] },
+      expected_strip: { b: [1] },
+      expected_pretty: 'wrong',
+      bypass: false,
+    }
+    expect(
       generated
-        .evaluatePublicJsonbFormatInputsChecks(formatInput)
+        .evaluatePublicJsonbFormatInputsChecks(publicFormat)
         .find((c: { constraint: string }) => c.constraint === 'pretty_layout').result,
     ).toEqual({ certain: true, value: false })
+    for (const c of generated.evaluatePublicJsonbFormatInputsChecks({
+      ...publicFormat,
+      document: undefined,
+    }))
+      expect(c.result).toEqual({ certain: false })
+    for (const c of stored('jsonb_format_inputs', {
+      ...formatInput,
+      document: { kind: 'Unknown' },
+    }))
+      expect(c.result).toEqual({ certain: false })
+    // Any JSON value is a document, even one shaped like an internal value.
     for (const document of [
-      undefined,
       '{}',
       { kind: 'Unknown' },
       { kind: 'Value', value: { root: 0, nodes: [], characters: [] } },
-    ]) {
-      expectUndecidedOrRejected(() =>
-        generated.evaluatePublicJsonbFormatInputsChecks({ ...formatInput, document }),
-      )
-    }
-    for (const c of generated.evaluatePublicJsonbFormatInputsChecks({
+    ])
+      await publicMatchesServer('jsonb_format_inputs', {
+        document: json(JSON.stringify(document)),
+        strip_arrays: true,
+        expected_default: json('{"b":[null,1]}'),
+        expected_strip: json('{"b":[1]}'),
+        expected_pretty: 'wrong',
+        bypass: false,
+      })
+    for (const c of stored('jsonb_format_inputs', {
       ...formatInput,
       document: { kind: 'Error', value: { state: parseInt('22003', 36) } },
     }))
@@ -448,14 +624,24 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       }
       const before = JSON.stringify(input)
       expect(
-        generated
-          .evaluatePublicJsonbEditInputsChecks(input)
-          .every(
-            (c: { result: { certain: boolean; value?: boolean } }) =>
-              c.result.certain && c.result.value === true,
-          ),
+        stored('jsonb_edit_inputs', input).every(
+          (c: { result: { certain: boolean; value?: boolean | null } }) =>
+            c.result.certain && c.result.value === true,
+        ),
       ).toBe(true)
       expect(JSON.stringify(input)).toBe(before)
+      await publicMatchesServer('jsonb_edit_inputs', {
+        lhs: json(row.lhs),
+        rhs: json(row.rhs),
+        key_name: key,
+        element_index: index,
+        expected_concat: json(row.combined),
+        expected_key: json(row.removed_key),
+        expected_index: json(row.removed_index),
+        delete_members: members,
+        delete_positions: positions,
+        bypass: false,
+      })
       await pg.query(
         'INSERT INTO jsonb_edit_inputs VALUES($1::jsonb,$2::jsonb,$3,$4,$5::jsonb,$6::jsonb,$7::jsonb,$8,$9,false)',
         [
@@ -470,32 +656,43 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
           positions,
         ],
       )
-      const wrong = generated
-        .evaluatePublicJsonbEditInputsChecks({
-          ...input,
-          expected_concat: runtime.makeJsonbValue('"wrong"'),
-        })
-        .find((c: { constraint: string }) => c.constraint === 'merged_document')
+      const wrong = stored('jsonb_edit_inputs', {
+        ...input,
+        expected_concat: runtime.makeJsonbValue('"wrong"'),
+      }).find((c: { constraint: string }) => c.constraint === 'merged_document')!
       expect(wrong.result).toEqual({ certain: true, value: false })
     }
-    for (const value of [
-      undefined,
+    const editInput = {
+      rhs: {},
+      key_name: 'a',
+      element_index: 0,
+      delete_members: true,
+      delete_positions: true,
+      bypass: false,
+    }
+    for (const c of generated.evaluatePublicJsonbEditInputsChecks({ ...editInput, lhs: undefined }))
+      expect(c.result).toEqual({ certain: false })
+    for (const c of stored('jsonb_edit_inputs', {
+      ...editInput,
+      rhs: runtime.makeJsonbValue('{}'),
+      lhs: { kind: 'Unknown' },
+    }))
+      expect(c.result).toEqual({ certain: false })
+    // Any JSON value is a document, even one shaped like an internal value.
+    for (const lhs of [
       '{}',
       { kind: 'Unknown' },
       { kind: 'Value', value: { root: 0, nodes: [], characters: [] } },
-    ]) {
-      const input = {
-        lhs: value,
-        rhs: runtime.makeJsonbValue('{}'),
-        key_name: 'a',
-        element_index: 0,
-        delete_members: true,
-        delete_positions: true,
-        bypass: false,
-      }
-      expectUndecidedOrRejected(() => generated.evaluatePublicJsonbEditInputsChecks(input))
-    }
-    for (const c of generated.evaluatePublicJsonbEditInputsChecks({
+    ])
+      await publicMatchesServer('jsonb_edit_inputs', {
+        ...editInput,
+        lhs: json(JSON.stringify(lhs)),
+        rhs: json('{}'),
+        expected_concat: null,
+        expected_key: null,
+        expected_index: null,
+      })
+    for (const c of stored('jsonb_edit_inputs', {
       lhs: { kind: 'Error', value: { state: parseInt('22003', 36) } },
       rhs: { kind: 'Error', value: { state: parseInt('22012', 36) } },
       key_name: 'a',
@@ -551,12 +748,15 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       }
       const before = JSON.stringify(input)
       const actual = Object.fromEntries(
-        generated
-          .evaluatePublicJsonbScalarInputsChecks(input)
-          .map((c: { constraint: string; result: ScalarResult }) => [c.constraint, c.result]),
+        stored('jsonb_scalar_inputs', input).map((c) => [c.constraint, c.result]),
       )
       expect(actual).toEqual(expected)
       expect(JSON.stringify(input)).toBe(before)
+      await publicMatchesServer('jsonb_scalar_inputs', {
+        ...input,
+        numeric_document: json(numericSource),
+        boolean_document: json(booleanSource),
+      })
       const args = [
         numericSource,
         booleanSource,
@@ -576,9 +776,9 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
           code: expect.stringMatching(/^(22003|22023)$/),
         })
       expect(
-        generated
-          .evaluatePublicJsonbScalarInputsChecks({ ...input, bypass: true })
-          .every((c: { result: ScalarResult }) => c.result.certain && c.result.value === true),
+        stored('jsonb_scalar_inputs', { ...input, bypass: true }).every(
+          (c) => c.result.certain && c.result.value === true,
+        ),
       ).toBe(true)
     }
     const scalarInputs = (document: unknown) =>
@@ -587,11 +787,23 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
         boolean_document: document,
         bypass: false,
       })
-    for (const document of [undefined, { kind: 'Unknown' }])
-      for (const c of scalarInputs(document)) expect(c.result.certain).toBe(false)
+    for (const c of scalarInputs(undefined)) expect(c.result.certain).toBe(false)
+    for (const c of stored('jsonb_scalar_inputs', {
+      numeric_document: { kind: 'Unknown' },
+      boolean_document: { kind: 'Unknown' },
+      bypass: false,
+    }))
+      expect(c.result.certain).toBe(false)
+    // Any JSON value is a document, even one shaped like an internal value.
     for (const document of ['1', { kind: 'Value', value: { root: 0, nodes: [], characters: [] } }])
-      expectUndecidedOrRejected(() => scalarInputs(document))
-    for (const c of generated.evaluatePublicJsonbScalarInputsChecks({
+      await publicMatchesServer('jsonb_scalar_inputs', {
+        numeric_document: json(JSON.stringify(document)),
+        boolean_document: json(JSON.stringify(document)),
+        expected_bool: null,
+        ...Object.fromEntries(Object.keys(scalarTargets).map((name) => ['expected_' + name, null])),
+        bypass: false,
+      })
+    for (const c of stored('jsonb_scalar_inputs', {
       numeric_document: { kind: 'Error', value: { state: parseInt('22012', 36) } },
       boolean_document: { kind: 'Error', value: { state: parseInt('22012', 36) } },
       bypass: false,
@@ -599,8 +811,8 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       expect(c.result).toEqual({ certain: true, error: '22012' })
     const deferredGenerated = await import(pathToFileURL(join(root, 'js/deferred-checks.js')).href)
     for (const c of deferredGenerated.evaluatePublicJsonbRelationInputsChecks({
-      lhs: runtime.makeJsonbValue('1'),
-      rhs: runtime.makeJsonbValue('2'),
+      lhs: 1,
+      rhs: 2,
       expected_lower: true,
       expected_order: -1,
       bypass: false,
@@ -612,26 +824,31 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
         )
       }
     type Result = { certain: boolean; value?: boolean | null; error?: string }
-    const evaluateRelations = (
+    const relationRow = (
       lhs: unknown,
       rhs: unknown,
       expected: Record<string, unknown> = {},
       bypass = false,
-    ): Record<string, Result> =>
+    ) => ({
+      lhs,
+      rhs,
+      expected_equal: true,
+      expected_unequal: false,
+      expected_contains: true,
+      expected_contained: true,
+      expected_lower: false,
+      expected_order: 0,
+      ...expected,
+      bypass,
+    })
+    const evaluateRelations = (...row: Parameters<typeof relationRow>): Record<string, Result> =>
+      Object.fromEntries(
+        stored('jsonb_relation_inputs', relationRow(...row)).map((c) => [c.constraint, c.result]),
+      )
+    const publicRelations = (...row: Parameters<typeof relationRow>): Record<string, Result> =>
       Object.fromEntries(
         generated
-          .evaluatePublicJsonbRelationInputsChecks({
-            lhs,
-            rhs,
-            expected_equal: true,
-            expected_unequal: false,
-            expected_contains: true,
-            expected_contained: true,
-            expected_lower: false,
-            expected_order: 0,
-            ...expected,
-            bypass,
-          })
+          .evaluatePublicJsonbRelationInputsChecks(relationRow(...row))
           .map((c: { constraint: string; result: Result }) => [c.constraint, c.result]),
       )
     for (const [lhs, rhs] of [
@@ -675,6 +892,10 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
         ),
       ).toBe(true)
       expect(JSON.stringify([first, second])).toBe(before)
+      await publicMatchesServer(
+        'jsonb_relation_inputs',
+        relationRow(json(lhs), json(rhs), expected),
+      )
       await pg.query(
         'INSERT INTO jsonb_relation_inputs VALUES($1::jsonb,$2::jsonb,$3,$4,$5,$6,$7,$8,false)',
         [
@@ -693,18 +914,26 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
     expect(
       evaluateRelations(relationValue, relationValue, { expected_equal: false }).same_value,
     ).toEqual({ certain: true, value: false })
+    expect(publicRelations({ a: 1 }, { a: 1 }, { expected_equal: false }).same_value).toEqual({
+      certain: true,
+      value: false,
+    })
+    // Any JSON value is a document, even one shaped like an internal value.
     for (const lhs of ['{}', { kind: 'Value', value: { root: 0, nodes: [], characters: [] } }])
-      expectUndecidedOrRejected(() => evaluateRelations(lhs, relationValue))
-    for (const lhs of [undefined, { kind: 'Unknown' }]) {
-      expect(
-        Object.values(evaluateRelations(lhs, relationValue)).every((r) => r.certain === false),
-      ).toBe(true)
-      expect(
-        Object.values(evaluateRelations(lhs, relationValue, {}, true)).every(
-          (r) => r.certain && r.value === true,
-        ),
-      ).toBe(true)
-    }
+      await publicMatchesServer(
+        'jsonb_relation_inputs',
+        relationRow(json(JSON.stringify(lhs)), json('{"a":1}')),
+      )
+    for (const relations of [
+      publicRelations(undefined, { a: 1 }),
+      evaluateRelations({ kind: 'Unknown' }, relationValue),
+    ])
+      expect(Object.values(relations).every((r) => r.certain === false)).toBe(true)
+    for (const relations of [
+      publicRelations(undefined, { a: 1 }, {}, true),
+      evaluateRelations({ kind: 'Unknown' }, relationValue, {}, true),
+    ])
+      expect(Object.values(relations).every((r) => r.certain && r.value === true)).toBe(true)
     for (const result of Object.values(
       evaluateRelations(
         { kind: 'Error', value: { state: parseInt('22003', 36) } },
@@ -712,27 +941,32 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       ),
     ))
       expect(result).toEqual({ certain: true, error: '22003' })
-    const evaluateReads = (
+    const readRow = (
       document: unknown,
       expected: Record<string, unknown> = {},
       bypass = false,
-    ): Record<string, Result> =>
+    ) => ({
+      document,
+      field_name: 'a',
+      element_index: 0,
+      expected_json: null,
+      expected_text: null,
+      expected_element_json: null,
+      expected_element_text: null,
+      expected_count: 0,
+      expected_exists: false,
+      check_count: true,
+      ...expected,
+      bypass,
+    })
+    const evaluateReads = (...row: Parameters<typeof readRow>): Record<string, Result> =>
+      Object.fromEntries(
+        stored('jsonb_read_inputs', readRow(...row)).map((c) => [c.constraint, c.result]),
+      )
+    const publicReads = (...row: Parameters<typeof readRow>): Record<string, Result> =>
       Object.fromEntries(
         generated
-          .evaluatePublicJsonbReadInputsChecks({
-            document,
-            field_name: 'a',
-            element_index: 0,
-            expected_json: null,
-            expected_text: null,
-            expected_element_json: null,
-            expected_element_text: null,
-            expected_count: 0,
-            expected_exists: false,
-            check_count: true,
-            ...expected,
-            bypass,
-          })
+          .evaluatePublicJsonbReadInputsChecks(readRow(...row))
           .map((c: { constraint: string; result: Result }) => [c.constraint, c.result]),
       )
     for (const [source, key, index] of [
@@ -770,6 +1004,11 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
         source,
       ).toBe(true)
       expect(JSON.stringify(value)).toBe(before)
+      await publicMatchesServer('jsonb_read_inputs', readRow(json(source), inputs))
+      await publicMatchesServer(
+        'jsonb_read_inputs',
+        readRow(json(source), { ...inputs, expected_text: 'wrong' }),
+      )
       await pg.query(
         'INSERT INTO jsonb_read_inputs VALUES($1::jsonb,$2,$3,$4,$5,$6,$7,$8,$9,$10,false)',
         [
@@ -797,6 +1036,7 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       certain: true,
       error: '22023',
     })
+    expect(publicReads({}).array_length).toEqual({ certain: true, error: '22023' })
     const unicodeSource = '{"a":{"aa":1,"é":2},"plain":"known"}',
       unicodeSubtree = runtime.makeJsonbValue(unicodeSource),
       subtreeSource = (
@@ -815,6 +1055,18 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
     expect(
       evaluateReads(unicodeSubtree, { field_name: 'plain', expected_text: 'known' }).field_text,
     ).toEqual({ certain: true, value: true })
+    const unicodeDocument = JSON.parse(unicodeSource)
+    expect(publicReads(unicodeDocument).field_source).toEqual({ certain: true, value: false })
+    expect(publicReads(unicodeDocument, { expected_json: subtreeSource }).field_source).toEqual({
+      certain: true,
+      value: true,
+    })
+    expect(publicReads(unicodeDocument, { expected_text: subtreeSource }).field_text).toEqual({
+      certain: true,
+      value: true,
+    })
+    for (const expected of [{}, { expected_json: subtreeSource, expected_text: subtreeSource }])
+      await publicMatchesServer('jsonb_read_inputs', readRow(json(unicodeSource), expected))
     const evaluateText = (
       source_text: unknown,
       expected_source: unknown = '{}',
@@ -864,6 +1116,18 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       bypass = false,
     ): Record<string, Result> =>
       Object.fromEntries(
+        stored('jsonb_payloads', { document, expected_kind, expected_source, bypass }).map((c) => [
+          c.constraint,
+          c.result,
+        ]),
+      )
+    const publicEvaluate = (
+      document: unknown,
+      expected_kind = 'object',
+      expected_source = '{"a": 2}',
+      bypass = false,
+    ): Record<string, Result> =>
+      Object.fromEntries(
         generated
           .evaluatePublicJsonbPayloadsChecks({ document, expected_kind, expected_source, bypass })
           .map((c: { constraint: string; result: Result }) => [c.constraint, c.result]),
@@ -903,6 +1167,13 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
         certain: true,
         value: false,
       })
+      for (const kind of [row.kind, 'wrong'])
+        await publicMatchesServer('jsonb_payloads', {
+          document: json(input),
+          expected_kind: kind,
+          expected_source: row.source,
+          bypass: false,
+        })
       await expect(
         pg.query('INSERT INTO jsonb_payloads VALUES($1::jsonb,$2,$3,false)', [
           input,
@@ -922,6 +1193,11 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       value: true,
     })
     expect(evaluate(ambiguity).present).toEqual({ certain: true, value: true })
+    expect(publicEvaluate({ aa: 1, é: 2 }).source).toEqual({ certain: true, value: false })
+    expect(publicEvaluate({ aa: 1, é: 2 }, 'object', unicodeObjectSource).source).toEqual({
+      certain: true,
+      value: true,
+    })
     const bad: unknown[] = [
       undefined,
       '{"a":2}',
@@ -995,19 +1271,38 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       value.value.nodes[1].textEnd = Array.from(text).length
       bad.push(value)
     }
+    // The public API takes no node graph: each of these is a JSON value like any other, malformed
+    // graphs included, and decides as the server does on its JSON text.
     for (const value of bad) {
-      expectUndecidedOrRejected(() => evaluate(value), JSON.stringify(value), [
-        'shape',
-        'source',
-        'present',
-        'guarded',
-      ])
-      expectUndecidedOrRejected(() => evaluateReads(value), JSON.stringify(value))
+      if (value === undefined) continue
+      await publicMatchesServer('jsonb_payloads', {
+        document: json(JSON.stringify(value)),
+        expected_kind: 'object',
+        expected_source: '{"a": 2}',
+        bypass: false,
+      })
+      await publicMatchesServer('jsonb_read_inputs', readRow(json(JSON.stringify(value))))
     }
+    for (const result of Object.values(publicEvaluate(undefined)))
+      expect(result.certain).toBe(false)
+    for (const result of Object.values(publicReads(undefined))) expect(result.certain).toBe(false)
+    expect(Object.values(evaluate({ kind: 'Unknown' }))).toEqual(
+      Array.from({ length: 4 }, () => ({ certain: false })),
+    )
+    // A value no JSON value can express: a document with a JavaScript value JSON has no text for.
+    for (const value of [1n, Symbol('jsonb'), () => 1])
+      expect(() => publicEvaluate(value)).toThrow(TypeError)
     expect(evaluate(null).present).toEqual({ certain: true, value: false })
+    expect(publicEvaluate(null).present).toEqual({ certain: true, value: false })
     expect(evaluate(runtime.makeJsonbValue('null'), 'null', 'null').present).toEqual({
       certain: true,
       value: true,
+    })
+    expect(publicEvaluate('null', 'string', '"null"')).toEqual({
+      shape: { certain: true, value: true },
+      source: { certain: true, value: true },
+      present: { certain: true, value: true },
+      guarded: { certain: true, value: true },
     })
     for (const result of Object.values(
       evaluate({ kind: 'Error', value: { state: parseInt('22003', 36) } }),
@@ -1017,6 +1312,10 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       before = JSON.stringify(first)
     expect(evaluate(first).source).toEqual({ certain: true, value: true })
     expect(JSON.stringify(first)).toBe(before)
+    expect(publicEvaluate(JSON.parse('{"a":1,"a":2}')).source).toEqual({
+      certain: true,
+      value: true,
+    })
     const reordered = structuredClone(runtime.makeJsonbValue('{"a":2,"b":3}'))
     const firstNode = reordered.value.nodes[1].child,
       secondNode = reordered.value.nodes[firstNode].next
