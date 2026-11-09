@@ -181,6 +181,8 @@ it('validates range array and domain-cell profiles before copying public inputs,
           }).map((c: { constraint: string; result: unknown }) => [c.constraint, c.result]),
         )
       const arrayText = rangeArrayText([text, null, 'empty'])
+      // Each column declares one dimension, so a history's element is one quoted array of spans.
+      const quotedElement = (value: string) => `"${value.replace(/[\\"]/gu, '\\$&')}"`
       for (const [
         spansValue,
         spansText,
@@ -194,8 +196,8 @@ it('validates range array and domain-cell profiles before copying public inputs,
         [publicSpans, arrayText, publicSpans, arrayText, [null], '{NULL}', false],
         [publicSpans, arrayText, publicSpans, arrayText, [], '{}', true],
         [
-          [publicSpans],
-          `{${arrayText}}`,
+          publicSpans,
+          arrayText,
           [null, publicHead],
           rangeArrayText([null, text]),
           null,
@@ -204,16 +206,17 @@ it('validates range array and domain-cell profiles before copying public inputs,
         ],
         [[{ empty: true }], '{empty}', [], '{}', null, null, false],
         [null, null, null, null, null, null, false],
-        [[publicHead, [publicHead]], `{"${text}",{"${text}"}}`, null, null, null, null, true],
+        [[publicHead], rangeArrayText([text]), null, null, null, null, true],
         [
+          publicSpans,
+          arrayText,
+          null,
+          null,
           [publicSpans, null],
-          `{${arrayText},NULL}`,
-          null,
-          null,
-          [publicSpans],
-          `{${arrayText}}`,
-          true,
+          `{${quotedElement(arrayText)},NULL}`,
+          false,
         ],
+        [publicSpans, arrayText, null, null, [publicSpans], `{${quotedElement(arrayText)}}`, true],
       ] as const) {
         const row = {
           spans: spansValue,
@@ -256,7 +259,11 @@ it('validates range array and domain-cell profiles before copying public inputs,
         )
         assertions++
       }
+      // A list where a span belongs is no span: nesting never adds a dimension.
       for (const value of [
+        [publicSpans],
+        [publicHead, [publicHead]],
+        [publicSpans, null],
         '{empty}',
         { kind: 'Value', value: spans },
         { kind: 'Value', value: { ...spans, elementType: 'wrong' } },

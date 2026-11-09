@@ -55,7 +55,10 @@ describe('array dimensions', () => {
       undefined,
       [1, 2],
     ).type
-    expect(printNode(type)).toBe('(number | null)[] | (number | null)[][]')
+    // Several counts are told apart by the count, since nesting cannot tell a dimension from a list.
+    expect(printNode(type).replace(/\s+/gu, ' ')).toBe(
+      '{ readonly dimensions: 1; readonly elements: (number | null)[]; } | { readonly dimensions: 2; readonly elements: (number | null)[][]; }',
+    )
     expect(
       printNode(
         resolveTypescriptPgType('integer[]', config, undefined, undefined, undefined, undefined, 2)

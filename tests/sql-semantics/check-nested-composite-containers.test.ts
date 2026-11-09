@@ -355,14 +355,17 @@ CONSTRAINT output CHECK(CASE WHEN bypass THEN true ELSE length(a::text)>2 END));
         ],
       },
     }
-    // An array of the array domain has no public value with elements: nested public lists are
-    // dimensions, as queries send them, so its records are leaves where a batch belongs.
+    // The column declares one dimension, so each element of the outer list is one batch, itself a
+    // list of records; nesting never adds a dimension.
     const mismatches: ReturnType<typeof differingChecks> = []
     for (const [a, text] of [
-      [[[{ n: 2, label: 'abc' }]], '{{"(2,abc)"}}'],
+      [[[{ n: 2, label: 'abc' }]], '{"{\\"(2,abc)\\"}"}'],
+      [[[{ n: 1, label: 'abc' }], [{ n: 3, label: 'xy' }]], '{"{\\"(1,abc)\\"}","{\\"(3,xy)\\"}"}'],
+      [[[{ n: 0, label: 'abc' }]], '{"{\\"(0,abc)\\"}"}'],
+      [[[]], '{"{}"}'],
       [[null], '{NULL}'],
       [[], '{}'],
-      [[[null]], '{{NULL}}'],
+      [[[null]], '{"{NULL}"}'],
     ] as const)
       mismatches.push(
         ...differingChecks(
@@ -371,7 +374,13 @@ CONSTRAINT output CHECK(CASE WHEN bypass THEN true ELSE length(a::text)>2 END));
           await serverCheckResults(pg, 'bundles', { a: text, bypass: 'false' }),
         ),
       )
-    for (const value of [good, { n: 2, label: 'abc' }, '{}'])
+    for (const value of [
+      good,
+      { n: 2, label: 'abc' },
+      '{}',
+      [{ n: 2, label: 'abc' }],
+      [[[{ n: 2 }]]],
+    ])
       expect(() => evaluate(value), JSON.stringify(value)).toThrow(TypeError)
     // Stored arrays hold batches already coerced to their domains, which the entries take
     // without replaying the domains' checks.

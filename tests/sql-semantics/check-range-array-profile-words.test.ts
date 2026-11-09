@@ -131,9 +131,9 @@ it('decodes complete profile words before validating caller hints in public rang
         elements: [{ kind: 'Array', value: structuredClone(items) }, { kind: 'Null' }],
         nullBitmap: { kind: 'Value', value: true },
       }
-      // Public bounds are the subtype's text. Arrays start at 1, and a multirange inside a public
-      // array reads as one more dimension, as does an array of the array domain, so those hold
-      // only NULLs; each row decides what PostgreSQL decides.
+      // Public bounds are the subtype's text. Arrays start at 1 and declare one dimension, so an
+      // element of a multirange array is a whole multirange and one of the array domain's array a
+      // whole history, each a list; each row decides what PostgreSQL decides.
       const [lowerText, upperText] = text.slice(1, -1).split(',') as [string, string]
       const chosen = {
         empty: false,
@@ -146,9 +146,9 @@ it('decodes complete profile words before validating caller hints in public rang
         const row = {
           items: [chosen, null],
           chosen,
-          packs: [null, null],
+          packs: [[chosen], null],
           chosen_pack: [chosen],
-          histories: [null, null],
+          histories: [[chosen, null], null],
           bypass,
         }
         const before = structuredClone(row)
@@ -166,9 +166,9 @@ it('decodes complete profile words before validating caller hints in public rang
             await serverCheckResults(pg, `word_batches_${i}`, {
               items: `{${quoted(text)},NULL}`,
               chosen: text,
-              packs: '{NULL,NULL}',
+              packs: `{${quoted(multi)},NULL}`,
               chosen_pack: multi,
-              histories: '{NULL,NULL}',
+              histories: `{${quoted(`{${quoted(text)},NULL}`)},NULL}`,
               bypass: String(bypass),
             }),
           ),
@@ -195,14 +195,14 @@ it('decodes complete profile words before validating caller hints in public rang
             }),
           `${p.name} ${column}`,
         ).toThrow(TypeError)
-      // A multirange is a list, so one inside a public array is a further dimension holding a
-      // range where a multirange belongs; it never decides a check.
+      // A range where a multirange belongs is no multirange; a multirange over a subtype not
+      // converted yet leaves the whole array undecided instead.
       expectUndecidedOrRejected(
         () =>
           generated[`evaluatePublicWordBatches${i}Checks`]({
             items: null,
             chosen: null,
-            packs: [[chosen]],
+            packs: [chosen],
             chosen_pack: null,
             histories: null,
             bypass: false,

@@ -14,10 +14,20 @@ function encodeBigint(value: unknown, name: string): string | null {
 function decodeText(value: string | null): string | null {
     return value;
 }
-function decodeArray(value: string | null, element: (item: string | null) => unknown, delimiter: string): unknown {
+function arrayDimensionError(depth: number, dimensions: readonly number[], setting: string): never {
+    throw new Error("The server returned an array of " + depth + " dimensions where " + setting + " allows " + dimensions.join(" or "));
+}
+function decodeArray(value: string | null, element: (item: string | null) => unknown, delimiter: string, dimensions: readonly number[], setting: string): unknown {
     if (value === null)
         return null;
     let index = value.startsWith("[") ? value.indexOf("=") + 1 : 0;
+    let depth = 0;
+    while (value[index + depth] === "{")
+        depth++;
+    if (value[index + depth] === "}" && depth === 1)
+        depth = 0;
+    if (depth && !dimensions.includes(depth))
+        arrayDimensionError(depth, dimensions, setting);
     const list = (): unknown[] => {
         index++;
         const items: unknown[] = [];
@@ -46,7 +56,8 @@ function decodeArray(value: string | null, element: (item: string | null) => unk
                 return items;
         }
     };
-    return list();
+    const elements = list();
+    return dimensions.length === 1 ? elements : { dimensions: depth || dimensions[0], elements };
 }
 export const getEventStatesSql = "SELECT states FROM public.events WHERE id = $1;";
 export async function getEventStates(db: pgsid.Queryable, params: GetEventStatesParams): Promise<GetEventStatesRow | undefined> {
@@ -54,6 +65,6 @@ export async function getEventStates(db: pgsid.Queryable, params: GetEventStates
     const values = result.rows[0];
     if (values === undefined)
         return undefined;
-    const row = { "states": decodeArray(values[0], decodeText, ",") };
+    const row = { "states": decodeArray(values[0], decodeText, ",", [1], "the default of one array dimension") };
     return row as GetEventStatesRow;
 }

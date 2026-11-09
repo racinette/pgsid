@@ -1,6 +1,18 @@
 export type UpdateFlexibleParams = {
-    "flexible": (number | null)[] | (number | null)[][];
-    "optional": (number | null)[] | (number | null)[][] | null;
+    "flexible": {
+        readonly dimensions: 1;
+        readonly elements: (number | null)[];
+    } | {
+        readonly dimensions: 2;
+        readonly elements: (number | null)[][];
+    };
+    "optional": {
+        readonly dimensions: 1;
+        readonly elements: (number | null)[];
+    } | {
+        readonly dimensions: 2;
+        readonly elements: (number | null)[][];
+    } | null;
     "id": number | null;
 };
 export type UpdateFlexibleRow = {};

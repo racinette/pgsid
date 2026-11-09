@@ -136,9 +136,10 @@ it('validates owned tsvector arrays and record fields through native INSERTs and
       },
       { sql: 'ARRAY[]::tsvector[]', value: array([]), public: [] },
       { sql: 'NULL::tsvector[]', value: null, public: null },
+      // The column declares one dimension, so a two-dimensional array has no public value here.
       {
         sql: "ARRAY[['a'::tsvector,'z:1A'::tsvector]]",
-        public: [['a', 'z:1A']],
+        public: undefined,
         value: array(
           [cell(a), cell(z)],
           [
@@ -294,7 +295,8 @@ it('validates owned tsvector arrays and record fields through native INSERTs and
         expect(c.public).toEqual(before)
         publicRows++
       }
-    expect(publicRows).toBe(12)
+    // Two samples have no public value: one starts at -3, one has two dimensions.
+    expect(publicRows).toBe(10)
     const quoted = (value: string) => `"${value.replace(/["\\]/gu, (c) => '\\' + c)}"`
     const mismatches: ReturnType<typeof differingChecks> = []
     for (const items of [["'a", 'z:1A'], ['a:0'], ['a:1E'], ['z a'], ['a:16384'], ["'a\\'"]]) {
@@ -362,6 +364,7 @@ it('validates owned tsvector arrays and record fields through native INSERTs and
         shown,
       ).toThrow(TypeError)
       expect(() => evaluate({ ...cases[0]!.public, items: [bad] }), shown).toThrow(TypeError)
+      expect(() => evaluate({ ...cases[0]!.public, items: [['a', 'z:1A']] })).toThrow(TypeError)
       // A stored cell no tsvector has never decides what reads it.
       const outcomes = storedOrRejected(() =>
         stored({ ...base.row, items: { kind: 'Value', value: items } }),

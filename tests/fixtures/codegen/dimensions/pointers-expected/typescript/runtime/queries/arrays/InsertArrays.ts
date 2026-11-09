@@ -11,22 +11,29 @@ function encodeInt(value: unknown, name: string): string | null {
         return encodeInvalid(name, "integer");
     return String(value);
 }
-function encodeArray(value: unknown, element: (item: unknown, name: string) => string | null, delimiter: string, name: string): string | null {
+function encodeArray(value: unknown, element: (item: unknown, name: string) => string | null, delimiter: string, dimensions: readonly number[], name: string): string | null {
     if (value === null || value === undefined)
         return null;
-    const list = (items: unknown): string => {
+    let depth = dimensions[0]!;
+    if (dimensions.length > 1) {
+        if (!value || typeof value !== "object" || !("dimensions" in value) || !("elements" in value) || typeof value.dimensions !== "number" || !dimensions.includes(value.dimensions))
+            return encodeInvalid(name, "array");
+        depth = value.dimensions;
+        value = value.elements;
+    }
+    const list = (items: unknown, level: number): string => {
         if (!Array.isArray(items))
             return encodeInvalid(name, "array");
         return "{" + items.map(item => {
-            if (Array.isArray(item))
-                return list(item);
-            const text = element(item, name);
+            if (level > 1)
+                return list(item, level - 1);
+            const text = item === null ? null : element(item, name);
             return text === null ? "NULL" : "\"" + text.replace(/[\\"]/gu, "\\$&") + "\"";
         }).join(delimiter) + "}";
     };
-    return list(value);
+    return list(value, depth);
 }
 export const insertArraysSql = "INSERT INTO arrays (id, ordinary, matrix, flexible, owners)\nVALUES ($1, $2, $3, $4, $5);";
 export async function insertArrays(db: pgsid.Queryable, params: InsertArraysParams): Promise<void> {
-    await db.queryText(insertArraysSql, [encodeInt(params["id"], "id"), encodeArray(params["ordinary"], encodeInt, ",", "ordinary"), encodeArray(params["matrix"], encodeInt, ",", "matrix"), encodeArray(params["flexible"], encodeInt, ",", "flexible"), encodeArray(params["owners"], encodeInt, ",", "owners")]);
+    await db.queryText(insertArraysSql, [encodeInt(params["id"], "id"), encodeArray(params["ordinary"], encodeInt, ",", [1], "ordinary"), encodeArray(params["matrix"], encodeInt, ",", [2], "matrix"), encodeArray(params["flexible"], encodeInt, ",", [1, 2], "flexible"), encodeArray(params["owners"], encodeInt, ",", [2], "owners")]);
 }

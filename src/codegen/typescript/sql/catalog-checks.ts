@@ -7,6 +7,7 @@ import {
   compositeProfile,
 } from '../../../sql-semantics/composite-profiles.js'
 import { compositeNodes } from '../../shared/check-composite-types.js'
+import { arrayDimensionsMapping } from '../../shared/array-dimensions.js'
 import {
   multirangeTypeProfile,
   rangeContainerKind,
@@ -222,6 +223,8 @@ export function renderTypescriptSchemaCheckArtifacts(
     compositeTypeGraph?: CompositeTypeGraph
     rangeTypes?: readonly RangeTypeInfo[]
     enums?: readonly EnumInfo[]
+    // The project's column mappings, which declare array dimensions.
+    columnMappings?: Readonly<Record<string, unknown>>
   } = {},
   rust = true,
 ): {
@@ -339,6 +342,19 @@ export function renderTypescriptSchemaCheckArtifacts(
             ?.columns.map((column) => column.name) ?? [])
         : ['value'],
     )
+  // The dimension counts a group's array input has: a table column's declared ones, else one.
+  const columnDimensions = (group: (typeof groups)[number], name: string): readonly number[] => {
+    const mapping =
+      group.kind === 'table'
+        ? arrayDimensionsMapping(
+            options.columnMappings?.[`${group.source.schema}.${group.source.name}.${name}`],
+          )
+        : null
+    const dimensions = mapping?.dimensions ?? 1
+    return [...new Set(typeof dimensions === 'number' ? [dimensions] : dimensions)].sort(
+      (left, right) => left - right,
+    )
+  }
   // The type modifier the server applies as it reads a group's input: the column's own or the one
   // its domain chain declares for the base type.
   const inputTypeMod = (group: (typeof groups)[number], name: string): number => {
@@ -397,6 +413,7 @@ export function renderTypescriptSchemaCheckArtifacts(
   // its adapter, a range through the evaluator's range constructor, so PostgreSQL's rules
   // (canonical bounds, empty and reversed ranges) apply as they do on input.
   const converters = new Map<string, { name: string; statement?: ts.FunctionDeclaration }>()
+  const reachedDomains = new Set<DomainInfo>()
   const scalarAdapters: Readonly<Record<string, string>> = {
     Int2Value: 'checkRustInt2',
     Int4Value: 'checkRustInt4',
@@ -649,6 +666,9 @@ export function renderTypescriptSchemaCheckArtifacts(
           item.source.schema === domain.schema &&
           item.source.name === domain.name,
       )
+      // A domain reached only inside a value gets its checks generated too, on a second pass.
+      if (!group && chain.some((layer) => layer.checks.length) && !selectedDomains.includes(domain))
+        reachedDomains.add(domain)
       const layers = (group?.checks ?? []).map((check) =>
         chain.findIndex((layer) => `${layer.schema}.${layer.name}` === check.owner),
       )
@@ -742,31 +762,32 @@ export function renderTypescriptSchemaCheckArtifacts(
         return call('arrayElementFromArray', arrayConverter(type))
       return cell(scalarElement(type, typeMod) ?? 'checkRustUndecidedElement')
     })
-  const arrayConverter = (type: string): string =>
-    defineConverter(`array\0${type}`, 'checkRustArray', 'ArrayValue', () => {
-      const element = arrayLikeElementType(type)!
-      // Arrays whose elements are arrays (domains over arrays) stay undecided.
-      if (
-        isArrayLikeType(domainElementDefinition(element)?.base ?? element) ||
-        undecided(elementConverter(element))
-      )
-        return 'checkRustUndecidedArray'
-      const array = helperCall('checkRustPublicArray', [
-        identifier('value'),
-        identifier('name'),
-        factory.createStringLiteral(arrayElementIdentity(element)),
-        numberLiteral(arrayElementFamily(element)!),
-        identifier(elementConverter(element)),
-      ])
-      // Composite elements are checked against their type plan, as stored composites are.
-      return compositeProfile(element)
-        ? runtimeCall('arrayFromCoercedCompositePlan', [
-            array,
-            factory.createStringLiteral(arrayElementIdentity(element)),
-            compositeContext(element),
-          ])
-        : array
-    })
+  const arrayConverter = (type: string, dimensions: readonly number[] = [1]): string =>
+    defineConverter(
+      `array\0${dimensions.join(',')}\0${type}`,
+      'checkRustArray',
+      'ArrayValue',
+      () => {
+        const element = arrayLikeElementType(type)!
+        if (undecided(elementConverter(element))) return 'checkRustUndecidedArray'
+        const array = helperCall('checkRustPublicArray', [
+          identifier('value'),
+          identifier('name'),
+          factory.createStringLiteral(arrayElementIdentity(element)),
+          numberLiteral(arrayElementFamily(element)!),
+          identifier(elementConverter(element)),
+          factory.createArrayLiteralExpression(dimensions.map(numberLiteral)),
+        ])
+        // Composite elements are checked against their type plan, as stored composites are.
+        return compositeProfile(element)
+          ? runtimeCall('arrayFromCoercedCompositePlan', [
+              array,
+              factory.createStringLiteral(arrayElementIdentity(element)),
+              compositeContext(element),
+            ])
+          : array
+      },
+    )
   const compositeConverter = (type: string): string =>
     defineConverter(`composite\0${type}`, 'checkRustComposite', 'CompositeValue', () => {
       const profile = compositeProfile(type)
@@ -1167,7 +1188,9 @@ export function renderTypescriptSchemaCheckArtifacts(
               ])
             }
             const composite = !isArrayLikeType(item.type)
-            const convert = composite ? compositeConverter(item.type) : arrayConverter(item.type)
+            const convert = composite
+              ? compositeConverter(item.type)
+              : arrayConverter(item.type, columnDimensions(group, item.name))
             const column = composite ? 'checkRustCompositeColumn' : 'checkRustArrayColumn'
             rustInputAdapters.add(column)
             rustInputAdapters.add(convert)
@@ -1599,6 +1622,14 @@ export function renderTypescriptSchemaCheckArtifacts(
         'expression' in result.value
       )
         collectModules(result.value.expression as ts.Node)
+  if (reachedDomains.size)
+    return renderTypescriptSchemaCheckArtifacts(
+      tables,
+      domains,
+      [...selectedDomains, ...reachedDomains],
+      options,
+      rust,
+    )
   const rustFiles = rustGroup?.source ? transpileCheckRustTypescriptFiles(rustGroup.source) : null
   return {
     checks: printFile([
@@ -2185,26 +2216,30 @@ function checkRustArrayColumn(row: object, name: string, convert: (value: unknow
   if (value === null) return _checkRust.arrayNull()
   return convert(value, name)
 }
-// Queries send nested lists as array dimensions, so array_in's rules apply: sub-arrays must match,
-// at most six dimensions, and an empty list has none.
-function checkRustPublicArray(value: unknown, name: string, elementType: string, kind: number, element: (value: unknown, name: string) => _checkRust.ArrayElement): _checkRust.ArrayValue {
-  if (!Array.isArray(value)) return checkRustInvalid(name)
+// An array has the dimension counts its column declares, each level a list, and array_in's rules
+// apply: sub-arrays must match and an array without elements has no dimensions. Below the declared
+// levels a list is one element, as when the element type is itself a list.
+function checkRustPublicArray(value: unknown, name: string, elementType: string, kind: number, element: (value: unknown, name: string) => _checkRust.ArrayElement, dimensions: readonly number[]): _checkRust.ArrayValue {
+  let depth = dimensions[0]!
+  if (dimensions.length > 1) {
+    if (!value || typeof value !== 'object' || !('dimensions' in value) || !('elements' in value) || typeof value.dimensions !== 'number' || !dimensions.includes(value.dimensions)) return checkRustInvalid(name)
+    depth = value.dimensions
+    value = value.elements
+  }
   const lengths: number[] = []
-  for (let level: unknown = value; Array.isArray(level) && level.length; level = level[0]) lengths.push(level.length)
-  const malformed = () => { throw Object.assign(new Error('malformed array literal'), { code: '22P02' }) }
   const cells: unknown[] = []
-  const walk = (items: unknown, depth: number): void => {
-    if (!Array.isArray(items) || items.length !== lengths[depth]) return malformed()
+  const walk = (items: unknown, level: number): void => {
+    if (!Array.isArray(items)) return checkRustInvalid(name)
+    if (lengths.length === level) lengths.push(items.length)
+    else if (lengths[level] !== items.length) throw Object.assign(new Error('malformed array literal'), { code: '22P02' })
     for (const item of items) {
-      if (depth + 1 < lengths.length) walk(item, depth + 1)
-      else if (Array.isArray(item)) malformed()
+      if (level + 1 < depth) walk(item, level + 1)
       else cells.push(item)
     }
   }
-  if (lengths.length) walk(value, 0)
-  if (lengths.length > 6) throw Object.assign(new Error('number of array dimensions exceeds the maximum allowed (6)'), { code: '54000' })
+  walk(value, 0)
   let args = _checkRust.makeArrayArguments(elementType, kind)
-  for (const length of lengths) args = _checkRust.appendArrayDimension(args, 1, length)
+  if (cells.length) for (const length of lengths) args = _checkRust.appendArrayDimension(args, 1, length)
   for (const cell of cells) {
     if (cell === undefined) return checkRustInvalid(name)
     args = _checkRust.appendArrayArgument(args, element(cell, name))

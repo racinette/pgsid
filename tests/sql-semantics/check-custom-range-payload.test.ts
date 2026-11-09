@@ -336,7 +336,7 @@ CREATE TABLE custom_multi_array_payloads(windows integer_set[],head integer_set,
     )
 
     // Arrays of custom ranges: the array domain, the element domain and an array of the array
-    // domain. Nested public lists are dimensions, so the last has no public value with elements.
+    // domain, whose one declared dimension holds whole windows, each a list of ranges.
     const v = span(1, 2),
       w = span(3, 4)
     const arraysRow = {
@@ -358,7 +358,8 @@ CREATE TABLE custom_multi_array_payloads(windows integer_set[],head integer_set,
     for (const [histories, text] of [
       [null, null],
       [[null], '{NULL}'],
-      [[[v, v, w]], '{{"[1,2]","[1,2]","[3,4]"}}'],
+      [[[v, v, w]], '{"{\\"[1,2]\\",\\"[1,2]\\",\\"[3,4]\\"}"}'],
+      [[[v, v, w], null], '{"{\\"[1,2]\\",\\"[1,2]\\",\\"[3,4]\\"}",NULL}'],
     ] as const)
       await compare(
         'custom_array_payloads',
@@ -417,13 +418,14 @@ CREATE TABLE custom_multi_array_payloads(windows integer_set[],head integer_set,
       })['counted'],
     )
 
-    // Arrays of custom multiranges: a public multirange is a list, so inside a public array it
-    // reads as one more dimension, as queries send it, and no public array holds a non-NULL one.
+    // Arrays of custom multiranges: the column declares one dimension, so each element is a whole
+    // multirange, itself a list of ranges, read by the server as quoted multirange text.
     const multiRow = { windows: [null, null, null] as unknown, head: [v], bypass: false }
     for (const [windows, text] of [
       [[null, null, null], '{NULL,NULL,NULL}'],
       [[], '{}'],
-      [[[null], [null], [null]], '{{NULL},{NULL},{NULL}}'],
+      [[[v], [v], [w]], '{"{[1,2]}","{[1,2]}","{[3,4]}"}'],
+      [[[v, w], [], null], '{"{[1,2],[3,4]}","{}",NULL}'],
     ] as const)
       await compare(
         'custom_multi_array_payloads',
@@ -431,12 +433,14 @@ CREATE TABLE custom_multi_array_payloads(windows integer_set[],head integer_set,
         { ...multiRow, windows },
         { windows: text, head: '{[1,2]}', bypass: 'false' },
       )
-    expect(() =>
-      generated.evaluatePublicCustomMultiArrayPayloadsChecks({
-        ...multiRow,
-        windows: [[v], [v], [w]],
-      }),
-    ).toThrow(TypeError)
+    // A range where a multirange belongs, or a NULL member inside one, is no multirange.
+    for (const windows of [
+      [v, v, w],
+      [[null], [null], [null]],
+    ])
+      expect(() =>
+        generated.evaluatePublicCustomMultiArrayPayloadsChecks({ ...multiRow, windows }),
+      ).toThrow(TypeError)
     for (const support of [undefined, { comparison: 99, canonical: 99 }]) {
       const set = (...members: RangeInputPayload[]) => {
         const value = packPayload('integer_set', ...members)
@@ -606,7 +610,7 @@ CREATE TABLE custom_multi_array_payloads(windows integer_set[],head integer_set,
       generated.evaluatePublicCustomCallbacksChecks,
       callbacksRow,
       { v: '[4,1]', w: '[3,1]', e: '4', bypass: 'true' },
-      ['bound', 'ordered', 'rendered'],
+      ['bound', 'ordered', 'guarded', 'rendered'],
     )
     const storedCallbacks = internal('public.custom_callbacks', {
       v: range(payload('reverse_span', 4, 1)),

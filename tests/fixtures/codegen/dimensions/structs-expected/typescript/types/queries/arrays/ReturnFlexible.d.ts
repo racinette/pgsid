@@ -1,7 +1,19 @@
 export type ReturnFlexibleParams = {
-    "flexible": (number | null)[] | (number | null)[][];
+    "flexible": {
+        readonly dimensions: 1;
+        readonly elements: (number | null)[];
+    } | {
+        readonly dimensions: 2;
+        readonly elements: (number | null)[][];
+    };
     "id": number | null;
 };
 export type ReturnFlexibleRow = {
-    "flexible": (number | null)[] | (number | null)[][];
+    "flexible": {
+        readonly dimensions: 1;
+        readonly elements: (number | null)[];
+    } | {
+        readonly dimensions: 2;
+        readonly elements: (number | null)[][];
+    };
 };

@@ -133,6 +133,9 @@ sql:
   typecheck: { plpgsql: false }
   codegen:
     typescript:
+      mappings:
+        column:
+          public.wire.grid: { dimensions: 2 }
       schema: { outDir: generated/schema }
       queries:
         out:

@@ -143,8 +143,8 @@ it('validates nested domain array identities and owned payloads in public Go and
     for (const result of evaluate(undefined)) expect(result.result.certain).toBe(false)
     for (const result of evaluate(undefined, { bypass: true }))
       expect(result.result).toMatchObject({ certain: true, value: true })
-    // Nested lists are dimensions of the outer array, so no public value holds an element of the
-    // array domain; such values fail as the server reads them, and others decide as it does.
+    // The column declares one dimension, so each element of the outer list is one group, itself a
+    // list, and the server reads each as quoted array text with the domain's check applied.
     const mismatches: ReturnType<typeof differingChecks> = []
     for (const [groups, text, extra] of [
       [
@@ -163,7 +163,7 @@ it('validates nested domain array identities and owned payloads in public Go and
           [10, 20],
           [30, 40],
         ],
-        '{{10,20},{30,40}}',
+        '{"{10,20}","{30,40}"}',
         {},
       ],
       [
@@ -171,10 +171,12 @@ it('validates nested domain array identities and owned payloads in public Go and
           [10, 20],
           [30, 40],
         ],
-        '{{10,20},{30,40}}',
+        '{"{10,20}","{30,40}"}',
         { bypass: true },
       ],
-      [[[10]], '{{10}}', { bypass: true }],
+      [[[10]], '{"{10}"}', { bypass: true }],
+      [[[10], []], '{"{10}","{}"}', {}],
+      [[[10], null], '{"{10}",NULL}', { expected_outer: 2, expected_inner: 1, expected_lower: 1 }],
     ] as const) {
       const local = Object.fromEntries(
         evaluate(groups, extra).map((item) => [item.constraint, item.result]),
@@ -196,7 +198,6 @@ it('validates nested domain array identities and owned payloads in public Go and
         ),
       )
     }
-    // Soft, so the cases below still run while elements of the array domain stay undecided.
     expect.soft(mismatches).toEqual([])
     // The former payloads are not public values.
     for (const value of [

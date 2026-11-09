@@ -5,7 +5,11 @@ import { createTypescriptJsonSchemaGraphs } from './jsonschemas.js'
 import type { Config, JsonSchemaDocument, TypeImport } from '../../config/schema.js'
 import type { QueryAnalysisItem } from '../../query-analysis.js'
 import { interpretValueLineage } from '../../query/value-lineage.js'
-import { planArrayDimensionInputs } from '../shared/array-dimensions.js'
+import {
+  arrayDimensionsSetting,
+  planArrayDimensionInputs,
+  resolveArrayDimensions,
+} from '../shared/array-dimensions.js'
 import { planJsonSchemaInputs } from '../shared/json-schema-inputs.js'
 import { planCheckInputs, type CheckInputPlan } from '../shared/check-inputs.js'
 import { checkTriggerWarning } from '../shared/check-trigger-warning.js'
@@ -13,6 +17,7 @@ import { renderTypescriptSchemaCheckArtifacts } from './sql/catalog-checks.js'
 import {
   typescriptDomainBase,
   typescriptPublicCheckInput,
+  typescriptArrayDimensions,
   typescriptCodec,
   typescriptCodecNames,
   typescriptCodecSource,
@@ -231,6 +236,7 @@ export function renderTypescriptQueryArtifacts(
       enums: options.catalog?.enums,
       rangeTypes: options.catalog?.rangeTypes,
       compositeTypeGraph: options.catalog?.compositeTypeGraph,
+      columnMappings: config.sql.codegen?.typescript?.mappings.column,
     },
     Boolean(options.checkRustModuleSpecifier),
   )
@@ -378,12 +384,29 @@ const renderQuery = (
           ? 'skip'
           : undefined,
   )
-  const parameterCodecs = analysis.contract.params.map((_, index) =>
-    typescriptCodec(parameterTypes?.[index] ?? 'text', options.catalog),
+  // An array keeps the dimensions its column declares, both on the way in and on the way out.
+  const dimensionMappings = config.sql.codegen?.typescript?.mappings.column ?? {}
+  const parameterDestinations = planArrayDimensionInputs(
+    analysis.writeLineage ?? [],
+    dimensionMappings,
+    options.catalog,
   )
+  const parameterCodecs = analysis.contract.params.map((_, index) => {
+    const destination = parameterDestinations.get(index + 1)?.[0]
+    return typescriptArrayDimensions(
+      typescriptCodec(parameterTypes?.[index] ?? 'text', options.catalog),
+      resolveArrayDimensions(destination, dimensionMappings)?.dimensions,
+      arrayDimensionsSetting(destination, 'typescript'),
+    )
+  })
+  const outputLineage = analysis.rawLineage?.map((output) => interpretValueLineage(output.value))
   const outputCodecs = outputNames.map((name, index) => ({
     name,
-    codec: typescriptCodec(outputTypes?.[index] ?? 'text', options.catalog),
+    codec: typescriptArrayDimensions(
+      typescriptCodec(outputTypes?.[index] ?? 'text', options.catalog),
+      resolveArrayDimensions(outputLineage?.[index], dimensionMappings)?.dimensions,
+      arrayDimensionsSetting(outputLineage?.[index], 'typescript'),
+    ),
   }))
   if (options.emitRuntime !== false)
     for (const message of new Set(
@@ -397,7 +420,7 @@ const renderQuery = (
           message,
         })
     }
-  const semanticLineage = analysis.rawLineage?.map((output) => interpretValueLineage(output.value))
+  const semanticLineage = outputLineage
   const imports: TypeImport[] = []
   const validators: RenderedValidator[] = []
   let usesJsonSchemaRuntime = false
@@ -1314,7 +1337,15 @@ const codecArguments = (codec: TypescriptCodec, direction: 'decode' | 'encode') 
         ]
       : [
           codecFunction(codec.element, direction),
-          ...(codec.kind === 'array' ? [factory.createStringLiteral(codec.delimiter)] : []),
+          ...(codec.kind === 'array'
+            ? [
+                factory.createStringLiteral(codec.delimiter),
+                factory.createArrayLiteralExpression(
+                  codec.dimensions.map((depth) => factory.createNumericLiteral(depth)),
+                ),
+                ...(direction === 'decode' ? [factory.createStringLiteral(codec.setting)] : []),
+              ]
+            : []),
         ]
 
 const decodeExpression = (codec: TypescriptCodec, value: ts.Expression): ts.Expression =>

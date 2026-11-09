@@ -1,5 +1,11 @@
 export type GetChoiceParams = readonly [
 ];
 export type GetChoiceRow = {
-    "mixed": (number | null)[] | (number | null)[][];
+    "mixed": {
+        readonly dimensions: 1;
+        readonly elements: (number | null)[];
+    } | {
+        readonly dimensions: 2;
+        readonly elements: (number | null)[][];
+    };
 };

@@ -187,6 +187,7 @@ export function renderTypescriptSchemaArtifacts(
         enums: catalog.enums,
         rangeTypes: catalog.rangeTypes,
         compositeTypeGraph: catalog.compositeTypeGraph,
+        columnMappings: config.sql.codegen?.typescript?.mappings.column,
       })
       const files: [string, string][] = [
         ['tables.d.ts', withTypescriptJsonValue(tableFile)],
