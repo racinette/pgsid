@@ -114,7 +114,7 @@ describe('renderTypescriptSchemaArtifacts', () => {
     )
     const checks = artifacts['/generated/public/checks.ts']!
     expect(checks).toContain('evaluatePublicEventIdDomainChecks')
-    expect(checks).toContain('function checkInputInteger(')
+    expect(checks).toContain('function checkInputInt8(')
     expect(checks).not.toContain('function checkInputText(')
     expect(checks).not.toContain('function checkInputBoolean(')
     expect(checks).not.toContain('function checkInputFloat(')

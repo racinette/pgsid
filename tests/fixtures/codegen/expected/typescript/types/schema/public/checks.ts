@@ -14,26 +14,11 @@ function evalBoolUnimplemented(): EvalBool { return { certain: false, unimplemen
 function checkRawInput(row: object, name: string): unknown {
     return Object.hasOwn(row, name) ? Reflect.get(row, name) : undefined;
 }
-function checkInputInteger(row: object, name: string): EvalValue<bigint> {
+function checkInputInt8(row: object, name: string): EvalValue<bigint> {
     const value = checkRawInput(row, name);
     if (value === null)
         return { certain: true, value: null };
-    if (typeof value === "bigint")
-        return { certain: true, value };
-    if (typeof value === "number" && Number.isSafeInteger(value))
-        return { certain: true, value: BigInt(value) };
-    return { certain: false };
-}
-function checkInputInt8(row: object, name: string): EvalValue<bigint> {
-    const value = checkRawInput(row, name);
-    if (typeof value !== "string")
-        return checkInputInteger(row, name);
-    if (!/^-?(?:0|[1-9][0-9]{0,18})$/.test(value))
-        return { certain: false };
-    const integer = BigInt(value);
-    if (integer < -9223372036854775808n || integer > 9223372036854775807n)
-        return { certain: false };
-    return { certain: true, value: integer };
+    return typeof value === "bigint" ? { certain: true, value } : { certain: false };
 }
 type CheckResult = EvalBool | {
     readonly certain: true;

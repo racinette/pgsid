@@ -45,7 +45,7 @@ describe('array dimensions', () => {
     },
   )
 
-  it('wraps only the nullable SQL element, and keeps custom element mappings', () => {
+  it('wraps only the nullable SQL element, and has no TypeScript element type mappings', () => {
     const type = resolveTypescriptPgType(
       'integer[]',
       config,
@@ -56,15 +56,18 @@ describe('array dimensions', () => {
       [1, 2],
     ).type
     expect(printNode(type)).toBe('(number | null)[] | (number | null)[][]')
-    const mapped = parseConfigString(
-      'schema: schema.sql\nsql:\n  codegen:\n    typescript:\n      mappings:\n        pgType:\n          pg_catalog.int4: bigint',
-    )
     expect(
       printNode(
-        resolveTypescriptPgType('integer[]', mapped, undefined, undefined, undefined, undefined, 2)
+        resolveTypescriptPgType('integer[]', config, undefined, undefined, undefined, undefined, 2)
           .type,
       ),
-    ).toBe('(bigint | null)[][]')
+    ).toBe('(number | null)[][]')
+    // TypeScript owns every value representation, so an element can no longer be remapped.
+    expect(() =>
+      parseConfigString(
+        'schema: schema.sql\nsql:\n  codegen:\n    typescript:\n      mappings:\n        pgType:\n          pg_catalog.int4: bigint',
+      ),
+    ).toThrow("Unrecognized key(s) in object: 'pgType'")
   })
 
   it('uses nested Go slices for fixed depths and pgtype.Array for an explicit union', () => {
@@ -97,15 +100,17 @@ describe('array dimensions', () => {
   })
 
   it('rejects dimension annotations combined with complete PostgreSQL array type overrides', () => {
-    for (const target of ['typescript', 'go']) {
-      const overridden = parseConfigString(
-        `schema: schema.sql\nsql:\n  codegen:\n    ${target}:\n      mappings:\n        pgType:\n          integer[]: CustomArray`,
-      )
-      const resolve = target === 'go' ? resolveGoPgType : resolveTypescriptPgType
-      expect(() =>
-        resolve('integer[]', overridden, undefined, undefined, undefined, undefined, 2),
-      ).toThrow('map the element type instead')
-    }
+    const overridden = parseConfigString(
+      `schema: schema.sql\nsql:\n  codegen:\n    go:\n      mappings:\n        pgType:\n          integer[]: CustomArray`,
+    )
+    expect(() =>
+      resolveGoPgType('integer[]', overridden, undefined, undefined, undefined, undefined, 2),
+    ).toThrow('map the element type instead')
+    expect(() =>
+      parseConfigString(
+        `schema: schema.sql\nsql:\n  codegen:\n    typescript:\n      mappings:\n        pgType:\n          integer[]: CustomArray`,
+      ),
+    ).toThrow("Unrecognized key(s) in object: 'pgType'")
   })
 
   it('keeps slices dimensioned and scalar subscripts independent of their source dimensions', () => {
