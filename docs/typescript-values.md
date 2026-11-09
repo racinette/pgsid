@@ -57,15 +57,20 @@ text search value, money or a JSON value's JSON text, goes through that type's
 own input function in the evaluator, under the server settings the project
 declares. A value the server would reject as input, such as a timestamp outside
 the input range or malformed text, fails each check that reads it with the
-server's error; the server would refuse the statement before any check ran. A
-value of the wrong shape is a type error, also where a check only tests the
-value for NULL.
+server's error, even a check whose CASE would not reach it: the server would
+refuse the statement before any check ran. A supplied value whose reading
+cannot be decided, such as an enum label the captured catalog does not list,
+leaves each check that reads it undecided for the same reason. A column left
+out stays undecided only where a check actually reaches it. A value of the
+wrong shape is a type error, also where a check only tests the value for NULL.
 
 The column's type modifier applies as it does on input: a varchar longer than
 its length fails, trailing spaces past it are dropped, and a numeric rounds to
 its scale before any check sees it. Elements of arrays, fields of records and
-bounds of ranges convert the same way, each through its own type. Where part of
-a value cannot be converted yet, such as an element of a domain type or a
-record field with a type modifier, the checks reading the whole value are left
-to the server rather than decided around that part, since the server may reject
-it.
+bounds of ranges convert the same way, each through its own type and modifier.
+A part of a domain type then meets the domain's constraints as domain input
+applies them, NOT NULL first and base domains before derived ones, failing with
+23502 or 23514. Where part of a value cannot be converted yet, such as a bound
+of a range over records or arrays, or an element that is itself a list, the
+checks reading the whole value are left to the server rather than decided
+around that part, since the server may reject it.
