@@ -1,7 +1,6 @@
 import { readTsqueryFixture } from './check-tsquery-fixtures.js'
 import { PGlite } from '@electric-sql/pglite'
 import { expect, it } from 'vitest'
-import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -15,6 +14,7 @@ import { prepareCheckRustGroup } from '../../src/codegen/shared/check-rust-sourc
 import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { renderGoSchemaCheckArtifacts } from '../../src/codegen/go/sql/catalog-checks.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
+import { internalCheckRows } from '../support/check-entries.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import {
   runCheckParity,
@@ -214,7 +214,16 @@ it('ranks owned vectors and binary-origin queries with public weight arrays, met
       ),
     )
     const fixtures: { name: string; row: Row; expected: Outcome }[] = [],
-      publicCases: { row: Row; expected: Record<string, Outcome> }[] = []
+      publicCases: { row: Row; expected: Record<string, Outcome> }[] = [],
+      nativeRows: {
+        source: string | null
+        reference: string | null
+        choose: boolean
+        bypass: boolean
+        weight: string | null
+        expectedHex: string | null
+        weights: Input
+      }[] = []
     const payloads = new Map<string, Input>()
     const capture = async (text: string | null): Promise<Input> => {
       if (text === null) return known(null)
@@ -393,6 +402,15 @@ it('ranks owned vectors and binary-origin queries with public weight arrays, met
             fixtures.push({ name: name + '_' + origin, row, expected: expected[name]! })
         }
         publicCases.push({ row, expected })
+        nativeRows.push({
+          source,
+          reference,
+          choose,
+          bypass,
+          weight,
+          expectedHex,
+          weights: row.weights!,
+        })
       }
     const base = publicCases[12]!.row
     for (const item of [
@@ -563,11 +581,15 @@ it('ranks owned vectors and binary-origin queries with public weight arrays, met
       checks.map((c) => c.identity.constraint),
       fixtures,
     )
+    // Public text search values are read by their input functions, whose handling of non-ASCII
+    // text follows the server encoding the project declares.
     const tsBundle = renderTypescriptSchemaCheckArtifacts(
         [table],
         catalog.domains,
         catalog.domains,
-        { executionContext: context },
+        {
+          executionContext: { ...context, serverEncoding: 'UTF8', clientEncoding: 'UTF8' },
+        },
       ),
       tsRoot = join(root, 'public-ts')
     await mkdir(tsRoot)
@@ -595,55 +617,225 @@ it('ranks owned vectors and binary-origin queries with public weight arrays, met
       throw new Error(e.stdout + e.stderr)
     })
     const api = await import(pathToFileURL(join(tsRoot, 'js/checks.js')).href)
-    const result = (outcome: Outcome) =>
+    const runtime = await import(pathToFileURL(join(tsRoot, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(tsBundle.checks, runtime)
+    type Result = { certain: boolean; value?: boolean | null; error?: string }
+    const result = (outcome: Outcome): Result =>
       outcome.kind === 'Unknown'
         ? { certain: false }
         : outcome.kind === 'Error'
           ? { certain: true, error: outcome.value.state.toString(36).toUpperCase() }
           : { certain: true, value: outcome.kind === 'Null' ? null : outcome.kind === 'True' }
-    const evaluate = (row: Record<string, unknown>): Record<string, unknown> =>
+    const outcome = (result: Result): Outcome =>
+      !result.certain
+        ? { kind: 'Unknown' }
+        : result.error
+          ? { kind: 'Error', value: { state: parseInt(result.error, 36) } }
+          : { kind: result.value === null ? 'Null' : result.value ? 'True' : 'False' }
+    const evaluate = (row: Record<string, unknown>): Record<string, Result> =>
       Object.fromEntries(
         api
-          .evaluatePublicVectorRowsChecks(
-            Object.fromEntries(
-              Object.entries(row).map(([name, value]) => [
-                name,
-                name === 'item' || name === 'reference' || name === 'weights'
-                  ? value
-                  : value && typeof value === 'object' && 'kind' in value
-                    ? value.kind === 'Null'
-                      ? null
-                      : value.kind === 'Value' && 'value' in value
-                        ? value.value
-                        : undefined
-                    : value,
-              ]),
+          .evaluatePublicVectorRowsChecks(row)
+          .map((c: { constraint: string; result: Result }) => [c.constraint, c.result]),
+      )
+    const columnTypes: Record<string, string> = {
+      item: 'nested_vector',
+      reference: 'tsquery',
+      choose_first: 'bool',
+      bypass: 'bool',
+      weights: 'real[]',
+      expected: 'text',
+    }
+    // Each constraint evaluated by the server over the same parameters; a parameter a check does
+    // not read cannot fail it.
+    const server = async (row: Record<string, unknown>) => {
+      const results: Record<string, Result> = {}
+      const source = Object.entries(columnTypes)
+        .map(([name, type], index) => `$${index + 1}::${type} AS ${name}`)
+        .join(',')
+      for (const [name, sql] of Object.entries(definitions))
+        try {
+          const { rows } = await pg.query<{ value: boolean | null }>(
+            `SELECT (${sql}) AS value FROM (SELECT ${source}) input`,
+            Object.keys(columnTypes).map((column) =>
+              new RegExp(`\\b${column}\\b`, 'u').test(sql) ? row[column] : null,
             ),
           )
-          .map((c: { constraint: string; result: unknown }) => [c.constraint, c.result]),
-      )
-    for (const c of publicCases)
-      expect(evaluate(c.row)).toEqual(
-        Object.fromEntries(
-          Object.entries(c.expected).map(([name, outcome]) => [name, result(outcome)]),
-        ),
-      )
-
-    for (const bad of ['a', {}, { kind: 'Value', value: { ...pattern.value, root: 999 } }])
-      expectUndecidedOrRejected(
-        () => evaluate({ ...base, reference: bad }),
+          results[name] = { certain: true, value: rows[0]!.value }
+        } catch (error) {
+          results[name] = { certain: true, error: (error as { code: string }).code }
+        }
+      return results
+    }
+    // Text search values are public text, read through their input functions. Values only binary
+    // input can store reach the public API as the text the server prints for them, and those whose
+    // printed text the input rejects reach it only as that text.
+    const spelled = async (sample: string | null, kind: 'tsvector' | 'tsquery') =>
+      sample === null || !sample.startsWith('__')
+        ? sample
+        : (
+            await pg.query<{ text: string }>(
+              kind === 'tsvector'
+                ? 'SELECT value::text AS text FROM vector_binary_inputs WHERE key=$1'
+                : 'SELECT value::text AS text FROM binary_queries WHERE key=$1',
+              [sample],
+            )
+          ).rows[0]!.text
+    const readable = async (text: string | null, kind: 'tsvector' | 'tsquery') =>
+      text === null ||
+      (await pg.query(`SELECT $1::${kind}`, [text]).then(
+        () => true,
+        () => false,
+      ))
+    // A real array's public value is nested numbers indexed from one; weights with other lower
+    // bounds go to the evaluator directly.
+    const publicWeights = (payload: Input) => {
+      if (payload.kind === 'Null') return null
+      const value = (
+        payload as {
+          value: { dimensions: { lower: number; length: number }[]; elements: unknown[] }
+        }
+      ).value
+      if (value.dimensions.some((dimension) => dimension.lower !== 1)) return undefined
+      const cells = value.elements.map((element) => {
+        const cell = element as { kind: string; value?: number }
+        if (cell.kind === 'Null') return null
+        if (cell.kind === 'Float4UnspecifiedNan') return NaN
+        const bytes = Buffer.alloc(4)
+        bytes.writeInt32BE(cell.value!)
+        return bytes.readFloatBE(0)
+      })
+      const lengths = value.dimensions.map((dimension) => dimension.length)
+      const nest = (depth: number, offset: number): unknown[] =>
+        depth === lengths.length - 1
+          ? cells.slice(offset, offset + lengths[depth]!)
+          : Array.from({ length: lengths[depth]! }, (_, index) =>
+              nest(
+                depth + 1,
+                offset + index * lengths.slice(depth + 1).reduce((left, right) => left * right, 1),
+              ),
+            )
+      return lengths.length ? nest(0, 0) : []
+    }
+    const operations = await import(
+      pathToFileURL(join(tsRoot, 'js/checks-rust/pg_catalog/operations.js')).href
+    )
+    const internalRow = (row: Record<string, unknown>, weights: Input) => ({
+      item:
+        row.item === null
+          ? { kind: 'Null' }
+          : operations.tsvectorFromTextContext(runtime.makeTextValue(row.item), true),
+      reference:
+        row.reference === null
+          ? { kind: 'Null' }
+          : operations.tsqueryFromTextContext(runtime.makeTextValue(row.reference), true),
+      choose_first: runtime.makeBoolValue(row.choose_first),
+      bypass: runtime.makeBoolValue(row.bypass),
+      weights:
+        weights.kind === 'Value'
+          ? runtime.makeArrayValue(weights.value)
+          : (weights as { kind: string }),
+      expected: row.expected === null ? { kind: 'Null' } : runtime.makeTextValue(row.expected),
+    })
+    const storedOnly = new Set<string>()
+    let publicChecked = 0,
+      internalChecked = 0
+    for (const native of nativeRows) {
+      const item = await spelled(native.source, 'tsvector'),
+        reference = await spelled(native.reference, 'tsquery')
+      if (!(await readable(item, 'tsvector'))) storedOnly.add(item!)
+      if (!(await readable(reference, 'tsquery'))) storedOnly.add(reference!)
+      if (!(await readable(item, 'tsvector')) || !(await readable(reference, 'tsquery'))) continue
+      const row = {
+        item,
+        reference,
+        choose_first: native.choose,
+        bypass: native.bypass,
+        weights: native.weight,
+        expected: native.expectedHex,
+      }
+      const expected = await server(row)
+      const weights = publicWeights(native.weights)
+      if (weights === undefined) {
+        expect({
+          row,
+          results: internal('public.vector_rows', internalRow(row, native.weights)),
+        }).toEqual({
+          row,
+          results: Object.fromEntries(
+            Object.entries(expected).map(([name, value]) => [name, outcome(value)]),
+          ),
+        })
+        internalChecked++
+      } else {
+        expect({ row, results: evaluate({ ...row, weights }) }).toEqual({ row, results: expected })
+        publicChecked++
+      }
+    }
+    expect({ publicChecked, internalChecked, storedOnly: storedOnly.size }).toEqual({
+      publicChecked: 85,
+      internalChecked: 1,
+      storedOnly: 8,
+    })
+    // Text the input functions reject fails every check that reads it.
+    const publicBase = {
+      item: 'a:1 b:2',
+      reference: 'a <-> b',
+      choose_first: true,
+      bypass: false,
+      weights: [0.1, 0.2, 0.4, 1].map((weight) => Math.fround(weight)),
+      expected: nativeRows[12]!.expectedHex,
+    }
+    expect(nativeRows[12]).toMatchObject({
+      source: publicBase.item,
+      reference: publicBase.reference,
+      weight: '{0.1,0.2,0.4,1}',
+    })
+    expect(evaluate(publicBase)).toEqual(
+      Object.fromEntries(
+        Object.entries(publicCases[12]!.expected).map(([name, value]) => [name, result(value)]),
+      ),
+    )
+    for (const text of storedOnly)
+      for (const column of ['item', 'reference'])
+        expect({ column, text, results: evaluate({ ...publicBase, [column]: text }) }).toEqual({
+          column,
+          text,
+          results: await server({ ...publicBase, [column]: text, weights: '{0.1,0.2,0.4,1}' }),
+        })
+    for (const reference of ['a', 'a &', 'a <0> b'])
+      expect({ reference, results: evaluate({ ...publicBase, reference }) }).toEqual({
+        reference,
+        results: await server({ ...publicBase, reference, weights: '{0.1,0.2,0.4,1}' }),
+      })
+    for (const item of ['a:1', 'a:0', "'unterminated"])
+      expect({ item, results: evaluate({ ...publicBase, item }) }).toEqual({
+        item,
+        results: await server({ ...publicBase, item, weights: '{0.1,0.2,0.4,1}' }),
+      })
+    expect(evaluate({ ...publicBase, item: undefined })).toEqual(
+      Object.fromEntries(
+        Object.keys(definitions).map((name) => [
+          name,
+          name === 'null_literal' ? { certain: true, value: true } : { certain: false },
+        ]),
+      ),
+    )
+    for (const bad of [{}, 3, pattern, { kind: 'Value', value: { ...pattern.value, root: 999 } }])
+      expect(
+        () => evaluate({ ...publicBase, reference: bad }),
         JSON.stringify(bad, (_key, item) => (typeof item === 'bigint' ? String(item) : item)),
-        ['same'],
-      )
-    const saved = structuredClone(base)
-    evaluate(base)
-    expect(base).toEqual(saved)
+      ).toThrow(TypeError)
+    const saved = structuredClone(publicBase)
+    evaluate(publicBase)
+    expect(publicBase).toEqual(saved)
     const good = complete.value
     for (const bad of [
-      undefined,
-      'a:1',
       3,
       {},
+      complete,
+      { kind: 'Unknown' },
+      { kind: 'Null' },
       { kind: 'Value', value: null },
       ...[NaN, 1.5, '8', -2, 1073741824].map((nativeBytes) => ({
         kind: 'Value',
@@ -673,14 +865,103 @@ it('ranks owned vectors and binary-origin queries with public weight arrays, met
           ],
         },
       },
+      { kind: 'Error', value: { state: parseInt('22003', 36) } },
       { kind: 'Error', value: { state: -1 } },
       { kind: 'Error', value: { state: 1.5 } },
+      '\ud800',
     ])
-      expectUndecidedOrRejected(
-        () => evaluate({ ...base, item: bad }),
+      expect(
+        () => evaluate({ ...publicBase, item: bad }),
         JSON.stringify(bad, (_key, item) => (typeof item === 'bigint' ? String(item) : item)),
-        ['same', 'presence'],
+      ).toThrow(TypeError)
+    for (const weights of [fullWeights, { kind: 'Unknown' }, [0.1, '0.2', 0.4, 1], [1n, 1, 1, 1]])
+      expect(
+        () => evaluate({ ...publicBase, weights }),
+        JSON.stringify(weights, (_key, item) => (typeof item === 'bigint' ? String(item) : item)),
+      ).toThrow(TypeError)
+    // Unknown and failed operands, and weights with unknown elements, handed to the evaluator
+    // directly.
+    const internalBase = internalRow(publicBase, fullWeights)
+    expect(internal('public.vector_rows', internalBase)).toEqual(publicCases[12]!.expected)
+    for (const item of [
+      { kind: 'Unknown' },
+      { kind: 'Error', value: { state: parseInt('22003', 36) } },
+    ])
+      expect(internal('public.vector_rows', { ...internalBase, item })).toEqual(
+        Object.fromEntries(
+          Object.keys(definitions).map((name) => [
+            name,
+            name === 'null_literal' ? { kind: 'True' } : item,
+          ]),
+        ),
       )
+    for (const [item, reference] of [
+      [docError, queryError],
+      [{ kind: 'Unknown' }, queryError],
+      [docError, { kind: 'Null' }],
+    ] as [Input, Input][])
+      expect(internal('public.vector_rows', { ...internalBase, item, reference })).toEqual(
+        Object.fromEntries(
+          Object.keys(definitions).map((name) => [
+            name,
+            name === 'null_literal'
+              ? { kind: 'True' }
+              : name === 'presence' && item.kind === 'Unknown'
+                ? { kind: 'Unknown' }
+                : item.kind === 'Error'
+                  ? docError
+                  : queryError,
+          ]),
+        ),
+      )
+    // A query the input rejects fails every check that reads it, whatever the document holds.
+    const rejectedQuery = await server({
+      ...publicBase,
+      item: null,
+      reference: 'a &',
+      weights: '{0.1,0.2,0.4,1}',
+    })
+    expect(evaluate({ ...publicBase, item: undefined, reference: 'a &' })).toEqual({
+      ...rejectedQuery,
+      presence: { certain: false },
+    })
+    for (const sample of partialCases) {
+      const expected = { ...publicCases[12]!.expected }
+      if (sample.outcome)
+        for (const name of ['weighted', 'weighted_normalized', 'lazy'])
+          expected[name] = sample.outcome
+      expect({
+        weights: sample.weights,
+        results: internal('public.vector_rows', {
+          ...internalBase,
+          weights:
+            sample.weights.kind === 'Value'
+              ? runtime.makeArrayValue(sample.weights.value)
+              : sample.weights,
+        }),
+      }).toEqual({ weights: sample.weights, results: expected })
+    }
+    // Every stored value of the matrix, including those only binary input stores, those whose
+    // stored size the caller did not supply and weights with unknown elements, decides through the
+    // entries as the server did.
+    const stored = (input: Input) => {
+      if (input.kind !== 'Value' || typeof input.value !== 'object') return input
+      const value = input.value as object
+      return 'lexemes' in value
+        ? runtime.makeTsvectorValue(value)
+        : 'nodes' in value
+          ? runtime.makeTsqueryValue(value)
+          : 'elements' in value
+            ? runtime.makeArrayValue(value)
+            : input
+    }
+    for (const c of publicCases)
+      expect(
+        internal(
+          'public.vector_rows',
+          Object.fromEntries(Object.entries(c.row).map(([name, input]) => [name, stored(input)])),
+        ),
+      ).toEqual(c.expected)
     const goRoot = join(root, 'public-go'),
       goBundle = renderGoSchemaCheckArtifacts(
         [table],

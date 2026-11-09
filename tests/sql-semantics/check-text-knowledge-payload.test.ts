@@ -11,6 +11,8 @@ import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescri
 import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
+import { internalCheckRows } from '../support/check-entries.js'
+import { differingChecks, serverCheckResults } from '../support/check-server-results.js'
 
 it('validates partial text cells in public arrays and nested records', async () => {
   const pg = await PGlite.create(),
@@ -71,20 +73,67 @@ it('validates partial text cells in public arrays and nested records', async () 
       throw Error(e.stdout + e.stderr)
     })
     const generated = await import(pathToFileURL(join(root, 'js/checks.js')).href)
-    const array = (cell: { kind: string }) => ({
-      kind: 'Value',
-      value: {
+    const runtime = await import(pathToFileURL(join(root, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(ts.checks, runtime)
+    type Result = {
+      constraint: string
+      message?: string
+      result: { certain: boolean; value?: boolean | null; error?: string }
+    }
+    const evaluate = (row: object) => generated.evaluatePublicTextKnowledgeChecks(row) as Result[]
+    const quoted = (value: string) => `"${value.replace(/["\\]/gu, (c) => '\\' + c)}"`
+    // Public text is the whole value, so each cell decides what PostgreSQL decides for it.
+    const mismatches: ReturnType<typeof differingChecks> = []
+    for (const [cell, expected] of [
+      ['present', 'present'],
+      ['other', 'present'],
+      [null, 'present'],
+      ['', null],
+    ] as const) {
+      const results = evaluate({ xs: [cell], r: { v: cell, a: [cell] }, expected })
+      expect(results).toHaveLength(5)
+      for (const check of results)
+        if (!check.result.certain || 'error' in check.result) expect(check.message).toBeTruthy()
+        else expect(check.message).toBeUndefined()
+      const element = cell === null ? 'NULL' : quoted(cell)
+      mismatches.push(
+        ...differingChecks(
+          JSON.stringify(cell),
+          Object.fromEntries(results.map((check) => [check.constraint, check.result])),
+          await serverCheckResults(pg, 'text_knowledge', {
+            xs: `{${element}}`,
+            r: `(${cell === null ? '' : element},${quoted(`{${element}}`)})`,
+            expected,
+          }),
+        ),
+      )
+    }
+    expect(mismatches).toEqual([])
+    // A cell known only to be present, an unknown cell and a failed cell are no public values; the
+    // evaluator entries take them directly.
+    const array = (cell: { kind: string }) =>
+      runtime.makeArrayValue({
         elementType: 'pg_catalog.text',
         elementKind: 8,
         dimensions: [{ lower: 1, length: 1 }],
         elements: [cell],
         nullBitmap: { kind: 'Value', value: cell.kind === 'Null' },
-      },
-    })
-    type Result = {
-      constraint: string
-      message?: string
-      result: { certain: boolean; value?: boolean | null; error?: string }
+      })
+    const outcome = (result: unknown) => {
+      const kind = (result as { kind: string }).kind
+      return kind === 'True' || kind === 'False' || kind === 'Null'
+        ? { certain: true, value: kind === 'Null' ? null : kind === 'True' }
+        : kind === 'Error'
+          ? {
+              certain: true,
+              error: (result as { value: { state: number } }).value.state
+                .toString(36)
+                .toUpperCase()
+                .padStart(5, '0'),
+            }
+          : ['Unknown', 'Unimplemented'].includes(kind)
+            ? { certain: false }
+            : result
     }
     const fixtures = [
       {
@@ -107,43 +156,49 @@ it('validates partial text cells in public arrays and nested records', async () 
     const reference: unknown[] = []
     for (const fixture of fixtures) {
       const xs = array(fixture.cell),
-        r = {
-          kind: 'Value',
-          value: {
-            typeName: 'public.text_knowledge_packet',
-            fields: [fixture.cell, { kind: 'Array', value: xs.value }],
-          },
-        },
-        results = generated.evaluatePublicTextKnowledgeChecks({
-          xs,
-          r,
-          expected: 'present',
-        }) as Result[]
+        results = Object.entries(
+          internal('public.text_knowledge', {
+            xs,
+            r: runtime.makeCompositeValue({
+              typeName: 'public.text_knowledge_packet',
+              fields: [fixture.cell, runtime.arrayElementFromArray(xs)],
+            }),
+            expected: runtime.makeTextValue('present'),
+          }),
+        )
       expect(results).toHaveLength(5)
-      for (const check of results) {
-        const wanted = check.constraint.endsWith('_bytes') ? fixture.bytes : fixture.nullness
-        expect(check.result, JSON.stringify(fixture.cell) + '_' + check.constraint).toEqual(wanted)
-        if (!wanted.certain) expect(check.message).toBeTruthy()
-        else if ('error' in wanted) expect(check.message).toBeTruthy()
-        else expect(check.message).toBeUndefined()
+      for (const [constraint, result] of results) {
+        const wanted = constraint.endsWith('_bytes') ? fixture.bytes : fixture.nullness
+        expect(outcome(result), JSON.stringify(fixture.cell) + '_' + constraint).toEqual(wanted)
       }
-      reference.push({ cell: fixture.cell, results })
+      reference.push({ cell: fixture.cell, results: Object.fromEntries(results) })
     }
-    // A cell of another family is not a text value.
-    const foreign = { kind: 'Xml', value: 'plain' }
-    expect(() =>
-      generated.evaluatePublicTextKnowledgeChecks({
-        xs: array(foreign),
-        r: {
-          kind: 'Value',
-          value: {
-            typeName: 'public.text_knowledge_packet',
-            fields: [foreign, { kind: 'Array', value: array(foreign).value }],
-          },
-        },
-        expected: 'present',
-      }),
-    ).toThrow(TypeError)
+    // A value of another shape, and the former payloads, are not public text.
+    const payload = (cell: unknown) => ({
+      kind: 'Value',
+      value: {
+        elementType: 'pg_catalog.text',
+        elementKind: 8,
+        dimensions: [{ lower: 1, length: 1 }],
+        elements: [cell],
+        nullBitmap: { kind: 'Value', value: false },
+      },
+    })
+    for (const cell of [
+      { kind: 'Xml', value: 'plain' },
+      { kind: 'Text', value: 'present' },
+      ...fixtures.map((fixture) => fixture.cell),
+      1,
+    ]) {
+      expect(() => evaluate({ xs: [cell], r: null, expected: 'present' })).toThrow(TypeError)
+      expect(() => evaluate({ xs: payload(cell), r: null, expected: 'present' })).toThrow(TypeError)
+      expect(() => evaluate({ xs: null, r: { v: cell, a: null }, expected: 'present' })).toThrow(
+        TypeError,
+      )
+      expect(() => evaluate({ xs: null, r: { v: null, a: [cell] }, expected: 'present' })).toThrow(
+        TypeError,
+      )
+    }
     for (const file of ['go.mod', 'go.sum'])
       await writeFile(
         join(root, file),

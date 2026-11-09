@@ -11,6 +11,14 @@ import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescri
 import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
+import { rangeTypescriptInput, type RangeInputPayload } from '../../tools/check-rust/range-input.js'
+import { multirangeTypescriptInput } from '../../tools/check-rust/multirange-input.js'
+import { arrayTypescriptInput } from '../../tools/check-rust/array-input.js'
+import { internalCheckRows, storedOrRejected } from '../support/check-entries.js'
+import { differingChecks, serverCheckResults } from '../support/check-server-results.js'
+import { expectUndecidedOrRejected } from './check-public-inputs.js'
+import { customRangeProfiles } from './check-custom-range-fixtures.js'
+import { readRangeFixture } from './check-range-fixtures.js'
 
 it('copies custom range fields in public composite bounds through compiled child contexts and independent snapshots', async () => {
   const pg = await PGlite.create(),
@@ -77,140 +85,236 @@ INSERT INTO gate SELECT a,span_multirange(a),ARRAY[a],false FROM(SELECT span(ROW
       throw new Error(e.stdout + e.stderr, { cause: e })
     })
     const generated = await import(pathToFileURL(join(root, 'js/checks.js')).href)
+    const runtime = await import(pathToFileURL(join(root, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(ts.checks, runtime)
+    type Result = { certain: boolean; value?: boolean | null; error?: string }
     const evaluate = (row: unknown) =>
       Object.fromEntries(
-        (
-          generated.evaluatePublicGateChecks(row) as {
-            constraint: string
-            result: { certain: boolean; value?: boolean | null }
-          }[]
-        ).map((c) => [c.constraint, c.result]),
+        (generated.evaluatePublicGateChecks(row) as { constraint: string; result: Result }[]).map(
+          (c) => [c.constraint, c.result],
+        ),
       )
-    const p = {
-      kind: 'Value',
-      value: {
-        typeName: 'public.span',
-        elementType: 'public.leaf',
-        elementKind: 44,
-        empty: false,
-        lowerInclusive: true,
-        upperInclusive: false,
-        bounds: [2, 5].map((n, i) => ({
-          kind: 'Composite',
-          value: {
-            typeName: 'public.leaf',
-            fields: [
-              { kind: 'Int2', value: n },
-              { kind: 'Enum', value: { ordinal: i, labelOid: 987654321n } },
-              {
-                kind: 'Range',
-                value: {
-                  typeName: 'public.inner_span',
-                  elementType: 'pg_catalog.int2',
-                  elementKind: 1,
-                  empty: false,
-                  lowerInclusive: true,
-                  upperInclusive: false,
-                  bounds: [
-                    { kind: 'Int2', value: 1 },
-                    { kind: 'Int2', value: 3 },
-                  ],
-                  support: { comparison: 0, canonical: 0 },
-                  boundProfile: { nodes: [] },
-                  enumLabels: 'caller',
-                  enumCount: 99,
+    const names = ['lower_n', 'equal', 'output', 'multi_output', 'array_output']
+    const expected = Object.fromEntries(names.map((name) => [name, { certain: true, value: true }]))
+    // Public bounds are records of their fields, so each row decides what PostgreSQL decides.
+    type Leaf = { n?: unknown; phase?: unknown; period?: Record<string, unknown> } | null
+    const span = (lower: Leaf, upper: Leaf) => ({
+      empty: false,
+      lower,
+      upper,
+      lowerInclusive: lower !== null,
+      upperInclusive: false,
+    })
+    const quoted = (value: string) => `"${value.replace(/["\\]/gu, (c) => '\\' + c)}"`
+    const periodText = (period: Record<string, unknown> | undefined) =>
+      period === undefined
+        ? ''
+        : quoted(
+            `${period.lowerInclusive ? '[' : '('}${String(period.lower)},${String(period.upper)}${period.upperInclusive ? ']' : ')'}`,
+          )
+    const leafText = (leaf: Leaf) =>
+      leaf === null
+        ? ''
+        : quoted(`(${leaf.n ?? ''},${leaf.phase ?? ''},${periodText(leaf.period)})`)
+    const spanText = (value: ReturnType<typeof span>) =>
+      `${value.lowerInclusive ? '[' : '('}${leafText(value.lower)},${leafText(value.upper)})`
+    const period = (lower: number, upper: number) => ({
+      empty: false,
+      lower,
+      upper,
+      lowerInclusive: true,
+      upperInclusive: false,
+    })
+    const leaf = (n: unknown, phase: unknown, inner = period(1, 3)) => ({ n, phase, period: inner })
+    const good = span(leaf(2, 'z'), leaf(5, 'a'))
+    const row = { a: good, m: [good], bag: [good], bypass: false }
+    const before = structuredClone(row)
+    expect.soft(evaluate(row)).toEqual(expected)
+    expect(row).toEqual(before)
+    const mismatches: ReturnType<typeof differingChecks> = []
+    for (const [a, bypass] of [
+      [good, false],
+      [good, true],
+      [span(leaf(40000, 'z'), leaf(5, 'a')), false],
+      [span(leaf(40000, 'z'), leaf(5, 'a')), true],
+      [span({ n: 2 }, leaf(5, 'a')), false],
+      [span(leaf(2, 'added'), leaf(5, 'a')), false],
+      [span(leaf(2, 'added'), leaf(5, 'a')), true],
+      [span(null, leaf(5, 'a')), false],
+      [span(leaf(5, 'a'), leaf(2, 'z')), false],
+      [span(leaf(2, 'z', period(1, 40000)), leaf(5, 'a')), false],
+      [span(leaf(2, 'z', period(3, 1)), leaf(5, 'a')), true],
+      [span(leaf(2, 'z', period(1, 2)), leaf(2, 'z')), false],
+    ] as const) {
+      const text = spanText(a)
+      mismatches.push(
+        ...differingChecks(
+          JSON.stringify({ a, bypass }),
+          evaluate({ a, m: [a], bag: [a], bypass }),
+          await serverCheckResults(pg, 'gate', {
+            a: text,
+            m: `{${text}}`,
+            bag: `{${quoted(text)}}`,
+            bypass: String(bypass),
+          }),
+        ),
+      )
+    }
+    // Soft, so the stored cases below still run while ranges over records stay undecided.
+    expect.soft(mismatches).toEqual([])
+    // Stored ranges go to the evaluator entries directly: whatever support, bound profile, enum
+    // labels and label OIDs they carry, identities other than the column's, unknown fields and
+    // ordinals outside the labels.
+    const profile = customRangeProfiles(catalog).find((item) => item.name === 'span')!
+    const fixture = (await readRangeFixture(
+      pg,
+      `SELECT span(ROW(2,'z','[1,3)'::inner_span)::leaf,ROW(5,'a','[1,3)'::inner_span)::leaf) span`,
+      'span',
+      profile.rangeType,
+    ))!
+    const outcome = (result: unknown): Result => {
+      const kind = (result as { kind: string }).kind
+      return kind === 'True' || kind === 'False' || kind === 'Null'
+        ? { certain: true, value: kind === 'Null' ? null : kind === 'True' }
+        : kind === 'Error'
+          ? {
+              certain: true,
+              error: (result as { value: { state: number } }).value.state
+                .toString(36)
+                .toUpperCase()
+                .padStart(5, '0'),
+            }
+          : { certain: false }
+    }
+    // The multirange and array hold the same range, as the row read from the table does.
+    const stored = (value: RangeInputPayload, bypass = false) =>
+      Object.fromEntries(
+        Object.entries(
+          internal('public.gate', {
+            a: runtime.makeCoercedRangeValue(rangeTypescriptInput(value, runtime)),
+            m: runtime.makeCoercedMultirangeValue(
+              multirangeTypescriptInput(
+                {
+                  typeName: 'public.span_multirange',
+                  rangeType: value.typeName,
+                  elementType: value.elementType,
+                  elementKind: value.elementKind,
+                  ranges: [{ kind: 'Value', value }],
                 },
-              },
-            ],
-          },
-        })),
+                runtime,
+              ),
+            ),
+            bag: runtime.makeArrayValue(
+              arrayTypescriptInput(
+                {
+                  elementType: value.typeName,
+                  elementKind: 42,
+                  dimensions: [{ lower: 1, length: 1 }],
+                  elements: [{ kind: 'Range', value }],
+                  nullBitmap: { kind: 'Value', value: false },
+                },
+                runtime,
+              ),
+            ),
+            bypass: runtime.makeBoolValue(bypass),
+          }),
+        ).map(([name, result]) => [name, outcome(result)]),
+      )
+    expect(stored(fixture)).toEqual(expected)
+    const field = (value: RangeInputPayload, bound: number, index: number) => {
+      const cell = value.bounds[bound]!
+      if (cell.kind !== 'Composite') throw new Error('expected a record bound')
+      return cell.value.fields[index]!
+    }
+    const forged = structuredClone(fixture)
+    Object.assign(forged, {
+      support: { comparison: 0, canonical: 0 },
+      boundProfile: { nodes: [] },
+      enumLabels: 'caller',
+      enumCount: 99,
+    })
+    for (const bound of [0, 1])
+      Object.assign(field(forged, bound, 1), {
+        kind: 'Enum',
+        value: { ordinal: bound, labelOid: 987654321n },
+      })
+    for (const bound of [0, 1]) {
+      const child = field(forged, bound, 2)
+      if (child.kind !== 'Range') throw new Error('Missing child range fixture')
+      Object.assign(child.value, {
         support: { comparison: 0, canonical: 0 },
         boundProfile: { nodes: [] },
         enumLabels: 'caller',
         enumCount: 99,
-      },
+      })
     }
-    const row = {
-      a: p,
-      m: {
-        kind: 'Value',
-        value: {
-          typeName: 'public.span_multirange',
-          rangeType: 'public.span',
-          elementType: 'public.leaf',
-          elementKind: 44,
-          support: { comparison: 0, canonical: 0 },
-          ranges: [p],
-        },
-      },
-      bag: {
-        kind: 'Value',
-        value: {
-          elementType: 'public.span',
-          elementKind: 42,
-          dimensions: [{ lower: 1, length: 1 }],
-          elements: [{ kind: 'Range', value: p.value }],
-          nullBitmap: { kind: 'Value', value: false },
-        },
-      },
-      bypass: false,
-    }
-    const expected = Object.fromEntries(
-      ['lower_n', 'equal', 'output', 'multi_output', 'array_output'].map((name) => [
-        name,
-        { certain: true, value: true },
-      ]),
-    )
-    const before = structuredClone(row)
-    expect(evaluate(row)).toEqual(expected)
-    expect(row).toEqual(before)
-    const mutations: ((v: typeof row) => void)[] = [
+    for (const [name, result] of Object.entries(stored(forged)))
+      if (result.certain) expect(result, name).toEqual(expected[name])
+    const mutations: ((v: RangeInputPayload) => void)[] = [
       (v) => {
-        v.a.value.elementType = 'public.other'
+        v.elementType = 'public.other'
       },
       (v) => {
-        v.a.value.bounds[0]!.value.typeName = 'public.other'
+        const cell = v.bounds[0]!
+        if (cell.kind !== 'Composite') throw new Error('expected a record bound')
+        cell.value.typeName = 'public.other'
       },
       (v) => {
-        v.a.value.bounds[0]!.value.fields.pop()
+        const cell = v.bounds[0]!
+        if (cell.kind !== 'Composite') throw new Error('expected a record bound')
+        cell.value.fields.pop()
       },
       (v) => {
-        Object.assign(v.a.value.bounds[0]!.value.fields[0]!, { kind: 'Int2', value: 40000 })
+        Object.assign(field(v, 0, 0), { kind: 'Int2', value: 40000 })
+      },
+      (v) => {
+        Object.assign(field(v, 0, 1), { kind: 'Enum', value: { ordinal: 99, labelOid: 0n } })
+      },
+      (v) => {
+        const child = field(v, 0, 2)
+        if (child.kind !== 'Range') throw new Error('Missing child range fixture')
+        child.value.typeName = 'public.other'
+      },
+      (v) => {
+        const child = field(v, 0, 2)
+        if (child.kind !== 'Range') throw new Error('Missing child range fixture')
+        Object.assign(child.value.bounds[0]!, { kind: 'Int2', value: 40000 })
       },
     ]
-    mutations.push(
-      (v) => {
-        const p = v.a.value.bounds[0]!.value.fields[2]!.value
-        if (typeof p !== 'object' || !p.bounds) throw new Error('Missing child range fixture')
-        p.typeName = 'public.other'
-      },
-      (v) => {
-        const p = v.a.value.bounds[0]!.value.fields[2]!.value
-        if (typeof p !== 'object' || !p.bounds) throw new Error('Missing child range fixture')
-        p.bounds[0]!.value = 40000
-      },
-    )
     for (const [index, mutate] of mutations.entries()) {
-      const invalid = structuredClone(row)
+      const invalid = structuredClone(fixture)
       mutate(invalid)
-      expect(() => evaluate(invalid), String(index)).toThrow(TypeError)
+      const results = storedOrRejected(() => stored(invalid))
+      if (results)
+        for (const [name, result] of Object.entries(results))
+          expect(result, `${index} ${name}`).toEqual({ certain: false })
+      const skipped = storedOrRejected(() => stored(invalid, true))
+      if (skipped) expect(skipped, String(index)).toEqual(expected)
     }
-    // An enum ordinal outside the captured labels is decoded, and the catalog decides it.
-    const outsideLabels = structuredClone(row)
-    Object.assign(outsideLabels.a.value.bounds[0]!.value.fields[1]!, {
-      kind: 'Enum',
-      value: { ordinal: 99, labelOid: 0n },
-    })
-    for (const result of Object.values(evaluate(outsideLabels)))
-      expect(result).toMatchObject({ certain: false })
-    expect(evaluate({ ...outsideLabels, bypass: true })).toEqual(expected)
-    const partial = structuredClone(row)
-    Object.assign(partial.a.value.bounds[0]!.value.fields[0]!, { kind: 'Unknown' })
-    expect(evaluate(partial).lower_n).toMatchObject({ certain: false })
-    const nullBound = structuredClone(row)
-    Object.assign(nullBound.a.value.bounds[0]!, { kind: 'Null' })
-    nullBound.a.value.lowerInclusive = false
-    expect(evaluate(nullBound).lower_n).toEqual({ certain: true, value: null })
+    const partial = structuredClone(fixture)
+    Object.assign(field(partial, 0, 0), { kind: 'Unknown' })
+    expect(stored(partial).lower_n).toEqual({ certain: false })
+    const nullBound = structuredClone(fixture)
+    Object.assign(nullBound.bounds[0]!, { kind: 'Null' })
+    nullBound.lowerInclusive = false
+    expect(stored(nullBound).lower_n).toEqual({ certain: true, value: null })
+    // The former payloads are not public values. A range of records is left undecided whole, so
+    // its shape is not checked yet; a malformed one there is at least never decided.
+    const payload = { kind: 'Value', value: fixture }
+    for (const value of [
+      { ...row, m: { kind: 'Value', value: { ranges: [payload] } } },
+      { ...row, bag: { kind: 'Value', value: { elements: [payload] } } },
+      { ...row, m: payload },
+      { ...row, bag: payload },
+      { ...row, a: 'empty' },
+    ])
+      expect(() => evaluate(value)).toThrow(TypeError)
+    for (const a of [payload, [good]])
+      expectUndecidedOrRejected(
+        () => evaluate({ ...row, a }),
+        Array.isArray(a) ? 'list' : 'payload',
+        ['lower_n', 'equal', 'output'],
+      )
     await writeFile(
       join(root, 'schema/public/composite_range_test.go'),
       `package public

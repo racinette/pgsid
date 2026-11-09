@@ -11,6 +11,7 @@ import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescri
 import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
+import { internalCheckRows } from '../support/check-entries.js'
 
 it('evaluates public XPath XML payloads and recovers query-invariant rendered storage in Go and TypeScript', async () => {
   const pg = await PGlite.create(),
@@ -37,6 +38,8 @@ it('evaluates public XPath XML payloads and recovers query-invariant rendered st
         extraFloatDigits: 1,
         xpathRecursionLimit: 5000,
         xpathPowerOfTenBits,
+        // Public XML is text the server reads under the session's xmloption.
+        xmlOption: 'content' as const,
       }
     const ts = renderTypescriptSchemaCheckArtifacts(
       catalog.tables,
@@ -90,6 +93,44 @@ it('evaluates public XPath XML payloads and recovers query-invariant rendered st
       result: { certain: boolean; value?: boolean; error?: string }
     }
     const evaluate = (row: unknown): Result[] => generated.evaluatePublicXpathPayloadsChecks(row)
+    const runtime = await import(pathToFileURL(join(root, 'js/checks-rust/checks.js')).href)
+    // A check that reports a reason returns it beside its outcome; only the outcome is compared.
+    const internal = internalCheckRows(
+      ts.checks.replace(
+        /checkRustEvaluation\(("[^"]+", "[^"]+"), \(\) => _checkRust\.(\w+)\((.*)\), ("[^"]*")\)(,?)$/gmu,
+        'checkEvaluation($1, () => checkRustOutcome(_checkRust.$2($3)), $4)$5',
+      ),
+      Object.fromEntries(
+        Object.entries(runtime).map(([name, entry]) => [
+          name,
+          name.includes('Diagnostic')
+            ? (...inputs: unknown[]) =>
+                (entry as (...inputs: unknown[]) => { outcome: unknown })(...inputs).outcome
+            : entry,
+        ]),
+      ),
+    )
+    // Stored XML known only by its rendering is no public value; the evaluator entry takes it
+    // directly.
+    const stored = (row: {
+      v: unknown
+      path: string
+      expected: string | null
+      found: boolean | null
+      amount: number | null
+      bypass: boolean
+    }) =>
+      Object.values(
+        internal('public.xpath_payloads', {
+          v: row.v,
+          path: runtime.makeTextValue(row.path),
+          expected:
+            row.expected === null ? runtime.textNull() : runtime.makeTextValue(row.expected),
+          found: row.found === null ? runtime.boolNull() : runtime.makeBoolValue(row.found),
+          amount: row.amount === null ? runtime.int4Null() : runtime.makeInt4Value(row.amount),
+          bypass: runtime.makeBoolValue(row.bypass),
+        }),
+      ) as { kind: string; value?: { state: number } }[]
     const cases: {
       storage: string
       rendered: string
@@ -164,32 +205,36 @@ it('evaluates public XPath XML payloads and recovers query-invariant rendered st
         if (error) await expect(native).rejects.toMatchObject({ code: error })
         else await native
         inserts++
-        for (const kind of ['Value', 'RenderedText']) {
-          const row = {
-            v: { kind, value: kind === 'Value' ? input.storage : input.rendered },
-            path,
-            expected,
-            found,
-            amount,
-            bypass: false,
-          }
-          const result = evaluate(row)
-          for (const check of result) {
-            if (kind === 'RenderedText' && record.renderedUnknown)
-              expect(check.result).toEqual({ certain: false })
-            else if (error) expect(check.result).toMatchObject({ certain: true, error })
-            else expect(check.result).toEqual({ certain: true, value: true })
-          }
-          for (const check of evaluate({ ...row, bypass: true }))
-            expect(check.result).toEqual({ certain: true, value: true })
+        // The public value is the stored value's text, read through the input function.
+        const row = { v: input.storage, path, expected, found, amount, bypass: false }
+        for (const check of evaluate(row)) {
+          const shown = JSON.stringify([row, check.constraint])
+          if (error) expect(check.result, shown).toMatchObject({ certain: true, error })
+          else expect(check.result, shown).toEqual({ certain: true, value: true })
         }
+        for (const check of evaluate({ ...row, bypass: true }))
+          expect(check.result).toEqual({ certain: true, value: true })
+        const renderedRow = { ...row, v: { kind: 'RenderedText', value: input.rendered } }
+        for (const outcome of stored(renderedRow)) {
+          if (record.renderedUnknown) expect(outcome).toEqual({ kind: 'Unknown' })
+          else if (error)
+            expect(outcome).toMatchObject({ kind: 'Error', value: { state: parseInt(error, 36) } })
+          else expect(outcome).toEqual({ kind: 'True' })
+        }
+        for (const outcome of stored({ ...renderedRow, bypass: true }))
+          expect(outcome).toEqual({ kind: 'True' })
       }
     const unsupplied = { path: '/*', expected: '<r/>', found: true, amount: 1, bypass: false }
     for (const check of evaluate(unsupplied)) expect(check.result).toEqual({ certain: false })
     for (const check of evaluate({ ...unsupplied, bypass: true }))
       expect(check.result).toEqual({ certain: true, value: true })
+    for (const check of evaluate({ ...unsupplied, v: '<r/>' }))
+      expect(check.result).toEqual({ certain: true, value: true })
     for (const v of [
-      '<r/>',
+      { kind: 'Value', value: '<r/>' },
+      { kind: 'RenderedText', value: '<r/>' },
+      '\0',
+      '\ud800',
       { kind: 'Value', value: '\0' },
       { kind: 'RenderedText', value: '\ud800' },
     ]) {

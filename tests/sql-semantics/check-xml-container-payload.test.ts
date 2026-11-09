@@ -11,6 +11,8 @@ import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescri
 import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
+import { internalCheckRows, storedOrRejected } from '../support/check-entries.js'
+import { differingChecks, serverCheckResults } from '../support/check-server-results.js'
 
 it('validates public XML arrays and record fields while preserving storage, output, partial states and owned snapshots', async () => {
   const pg = await PGlite.create(),
@@ -84,6 +86,54 @@ CREATE TABLE xml_container_payloads(xs xml[],r xml_packet,expected text,bypass b
       )
     const raw = '<?xml version="1.0"?><r/>',
       rendered = '<r/>'
+    const known = { certain: true, value: true },
+      unknown = { certain: false }
+    const names = [
+      'array_storage',
+      'record_storage',
+      'array_output',
+      'record_output',
+      'nested_output',
+    ]
+    // Public XML is the server's text: the cast to text keeps it as stored, output drops the
+    // default declaration, and each check decides what PostgreSQL decides.
+    const quoted = (value: string) => `"${value.replace(/["\\]/gu, (c) => '\\' + c)}"`
+    const mismatches: ReturnType<typeof differingChecks> = []
+    for (const [value, expected, bypass] of [
+      [raw, raw, false],
+      [raw, rendered, false],
+      [rendered, rendered, false],
+      ['text <b/>', 'text <b/>', false],
+      [raw, null, true],
+      [null, null, false],
+      [null, '', false],
+    ] as const) {
+      const xs = [value],
+        r = { x: value, xs: [value] },
+        element = value === null ? 'NULL' : quoted(value)
+      const before = structuredClone({ xs, r })
+      const local = evaluate(xs, r, expected, bypass)
+      expect({ xs, r }).toEqual(before)
+      mismatches.push(
+        ...differingChecks(
+          JSON.stringify({ value, expected, bypass }),
+          local,
+          await serverCheckResults(pg, 'xml_container_payloads', {
+            xs: `{${element}}`,
+            r: `(${value === null ? '' : element},${quoted(`{${element}}`)})`,
+            expected,
+            bypass: String(bypass),
+          }),
+        ),
+      )
+    }
+    expect(mismatches).toEqual([])
+    for (const name of ['array_storage', 'record_storage'])
+      expect(evaluate([raw], { x: raw, xs: [raw] }, raw)[name]).toEqual(known)
+    for (const name of ['array_output', 'record_output', 'nested_output'])
+      expect(evaluate([raw], { x: raw, xs: [raw] }, rendered)[name]).toEqual(known)
+    expect(Object.values(evaluate(null, null, null))).toEqual(Array(5).fill(known))
+    // Text a parameter cannot carry, values of other shapes and the former payloads are type errors.
     const array = (cell: unknown) => ({
       kind: 'Value',
       value: {
@@ -101,43 +151,110 @@ CREATE TABLE xml_container_payloads(xs xml[],r xml_packet,expected text,bypass b
         fields: [cell, { kind: 'Array', value: array(cell).value }],
       },
     })
-    const cell = { kind: 'Xml', value: raw },
-      xs = array(cell),
-      r = record(cell)
-    const known = { certain: true, value: true },
-      unknown = { certain: false }
+    for (const bad of ['\0', '\ud800', 1, { kind: 'Text', value: rendered }]) {
+      expect(() => evaluate([bad], { x: bad, xs: [bad] }, rendered)).toThrow(TypeError)
+      expect(() => evaluate([bad], { x: bad, xs: [bad] }, rendered, true)).toThrow(TypeError)
+    }
+    for (const bad of [
+      { kind: 'Xml', value: raw },
+      { kind: 'Xml', value: '\0' },
+      { kind: 'Xml', value: '\ud800' },
+      { kind: 'XmlRenderedText', value: rendered },
+      { kind: 'XmlRenderedText', value: '\udc00' },
+      { kind: 'Xml', value: 1 },
+      { kind: 'Text', value: rendered },
+      { kind: 'Unknown' },
+      { kind: 'Error', value: { state: parseInt('22003', 36) } },
+    ]) {
+      expect(() => evaluate(array(bad), null, rendered)).toThrow(TypeError)
+      // A record ignores keys that name none of its fields, so a former payload is a record
+      // whose fields are all NULL.
+      for (const bypass of [false, true])
+        expect(evaluate(null, record(bad), rendered, bypass)).toEqual(
+          evaluate(null, { x: null, xs: null }, rendered, bypass),
+        )
+      expect(() => evaluate([bad], { x: bad, xs: [bad] }, rendered)).toThrow(TypeError)
+    }
+    // Values known only by their output, unknown or failed cells and failed columns are no public
+    // values; the evaluator entries take them directly.
+    const runtimeChecks = await import(pathToFileURL(join(root, 'js/checks-rust/checks.js')).href)
+    const internal = internalCheckRows(ts.checks, runtimeChecks)
+    const outcome = (result: unknown) => {
+      const kind = (result as { kind: string }).kind
+      return kind === 'True' || kind === 'False'
+        ? { certain: true, value: kind === 'True' }
+        : kind === 'Error'
+          ? {
+              certain: true,
+              error: (result as { value: { state: number } }).value.state
+                .toString(36)
+                .toUpperCase()
+                .padStart(5, '0'),
+            }
+          : ['Unknown', 'Unimplemented'].includes(kind)
+            ? unknown
+            : result
+    }
+    const storedArray = (cell: unknown) =>
+      runtimeChecks.makeArrayValue({
+        elementType: 'pg_catalog.xml',
+        elementKind: 45,
+        dimensions: [{ lower: 1, length: 1 }],
+        elements: [cell],
+        nullBitmap: { kind: 'Value', value: (cell as { kind: string }).kind === 'Null' },
+      })
+    const stored = (xs: unknown, r: unknown, expected: string, bypass = false) =>
+      Object.fromEntries(
+        Object.entries(
+          internal('public.xml_container_payloads', {
+            xs,
+            r,
+            expected: runtimeChecks.makeTextValue(expected),
+            bypass: runtimeChecks.makeBoolValue(bypass),
+          }),
+        ).map(([name, result]) => [name, outcome(result)]),
+      )
+    const storedCells = (cell: unknown, expected: string, bypass = false) => {
+      const xs = storedArray(cell)
+      return stored(
+        xs,
+        runtimeChecks.makeCompositeValue({
+          typeName: 'public.xml_packet',
+          fields: [cell, runtimeChecks.arrayElementFromArray(xs)],
+        }),
+        expected,
+        bypass,
+      )
+    }
+    const storedCell = { kind: 'Xml', value: raw }
     for (const name of ['array_storage', 'record_storage'])
-      expect(evaluate(xs, r, raw)[name]).toEqual(known)
+      expect(storedCells(storedCell, raw)[name]).toEqual(known)
     for (const name of ['array_output', 'record_output', 'nested_output'])
-      expect(evaluate(xs, r, rendered)[name]).toEqual(known)
-    const renderedCell = { kind: 'XmlRenderedText', value: rendered }
-    const partial = evaluate(array(renderedCell), record(renderedCell), rendered)
+      expect(storedCells(storedCell, rendered)[name]).toEqual(known)
+    const partial = storedCells({ kind: 'XmlRenderedText', value: rendered }, rendered)
     expect(partial.array_storage).toEqual(unknown)
     expect(partial.record_storage).toEqual(unknown)
     for (const name of ['array_output', 'record_output', 'nested_output'])
       expect(partial[name]).toEqual(known)
+    expect(storedCells({ kind: 'Unknown' }, rendered)).toEqual(
+      Object.fromEntries(names.map((n) => [n, unknown])),
+    )
+    const failure = { kind: 'Error', value: { state: parseInt('22003', 36) } }
+    expect(Object.values(stored(failure, failure, rendered))).toEqual(
+      Array(5).fill({ certain: true, error: '22003' }),
+    )
+    // Cells whose text no value holds never decide a check that reads them.
     for (const bad of [
       { kind: 'Xml', value: '\0' },
       { kind: 'Xml', value: '\ud800' },
       { kind: 'XmlRenderedText', value: '\udc00' },
-      { kind: 'Xml', value: 1 },
-      { kind: 'Text', value: rendered },
     ]) {
-      expect(() => evaluate(array(bad), record(bad), rendered)).toThrow(TypeError)
-      expect(() => evaluate(array(bad), record(bad), rendered, true)).toThrow(TypeError)
+      const results = storedOrRejected(() => storedCells(bad, rendered))
+      if (results) for (const name of names) expect(results[name], name).toEqual(unknown)
     }
-    expect(evaluate(array({ kind: 'Unknown' }), record({ kind: 'Unknown' }), rendered)).toEqual(
-      Object.fromEntries(
-        ['array_storage', 'record_storage', 'array_output', 'record_output', 'nested_output'].map(
-          (n) => [n, unknown],
-        ),
-      ),
-    )
-    expect(Object.values(evaluate(null, null, null))).toEqual(Array(5).fill(known))
-    const error = { kind: 'Error', value: { state: parseInt('22003', 36) } }
-    expect(Object.values(evaluate(error, error, rendered))).toEqual(
-      Array(5).fill({ certain: true, error: '22003' }),
-    )
+    const cell = { kind: 'Xml', value: raw },
+      xs = array(cell),
+      r = record(cell)
     const runtime = await import(
       pathToFileURL(join(root, 'js/checks-rust/checkruntime/runtime.js')).href
     )
