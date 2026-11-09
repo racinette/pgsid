@@ -14,10 +14,20 @@ function encodeInt(value: unknown, name: string): string | null {
         return encodeInvalid(name, "integer");
     return String(value);
 }
-function decodeArray(value: string | null, element: (item: string | null) => unknown, delimiter: string): unknown {
+function arrayDimensionError(depth: number, dimensions: readonly number[], setting: string): never {
+    throw new Error("The server returned an array of " + depth + " dimensions where " + setting + " allows " + dimensions.join(" or "));
+}
+function decodeArray(value: string | null, element: (item: string | null) => unknown, delimiter: string, dimensions: readonly number[], setting: string): unknown {
     if (value === null)
         return null;
     let index = value.startsWith("[") ? value.indexOf("=") + 1 : 0;
+    let depth = 0;
+    while (value[index + depth] === "{")
+        depth++;
+    if (value[index + depth] === "}" && depth === 1)
+        depth = 0;
+    if (depth && !dimensions.includes(depth))
+        arrayDimensionError(depth, dimensions, setting);
     const list = (): unknown[] => {
         index++;
         const items: unknown[] = [];
@@ -46,29 +56,37 @@ function decodeArray(value: string | null, element: (item: string | null) => unk
                 return items;
         }
     };
-    return list();
+    const elements = list();
+    return dimensions.length === 1 ? elements : { dimensions: depth || dimensions[0], elements };
 }
-function encodeArray(value: unknown, element: (item: unknown, name: string) => string | null, delimiter: string, name: string): string | null {
+function encodeArray(value: unknown, element: (item: unknown, name: string) => string | null, delimiter: string, dimensions: readonly number[], name: string): string | null {
     if (value === null || value === undefined)
         return null;
-    const list = (items: unknown): string => {
+    let depth = dimensions[0]!;
+    if (dimensions.length > 1) {
+        if (!value || typeof value !== "object" || !("dimensions" in value) || !("elements" in value) || typeof value.dimensions !== "number" || !dimensions.includes(value.dimensions))
+            return encodeInvalid(name, "array");
+        depth = value.dimensions;
+        value = value.elements;
+    }
+    const list = (items: unknown, level: number): string => {
         if (!Array.isArray(items))
             return encodeInvalid(name, "array");
         return "{" + items.map(item => {
-            if (Array.isArray(item))
-                return list(item);
-            const text = element(item, name);
+            if (level > 1)
+                return list(item, level - 1);
+            const text = item === null ? null : element(item, name);
             return text === null ? "NULL" : "\"" + text.replace(/[\\"]/gu, "\\$&") + "\"";
         }).join(delimiter) + "}";
     };
-    return list(value);
+    return list(value, depth);
 }
 export const returnFlexibleSql = "UPDATE arrays SET flexible = $1 WHERE id = $2 RETURNING flexible;";
 export async function returnFlexible(db: pgsid.Queryable, params: ReturnFlexibleParams): Promise<ReturnFlexibleRow | undefined> {
-    const result = await db.queryText(returnFlexibleSql, [encodeArray(params["flexible"], encodeInt, ",", "flexible"), encodeInt(params["id"], "id")]);
+    const result = await db.queryText(returnFlexibleSql, [encodeArray(params["flexible"], encodeInt, ",", [1, 2], "flexible"), encodeInt(params["id"], "id")]);
     const values = result.rows[0];
     if (values === undefined)
         return undefined;
-    const row = { "flexible": decodeArray(values[0], decodeInt, ",") };
+    const row = { "flexible": decodeArray(values[0], decodeInt, ",", [1, 2], "sql.codegen.typescript.mappings.column[\"public.arrays.flexible\"].dimensions") };
     return row as ReturnFlexibleRow;
 }

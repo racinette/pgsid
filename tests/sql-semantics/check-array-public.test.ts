@@ -5,8 +5,9 @@ import { join } from 'node:path'
 import { PGlite } from '@electric-sql/pglite'
 import { buildProject } from '../../src/project-runtime.js'
 
-// Public arrays are nested lists, sent as array text, so array_in's rules decide their shape;
-// each element converts as its own type does and the evaluator's array builder assembles them.
+// Public arrays are nested lists, one level per declared dimension (grid declares two), sent as
+// array text, so array_in's rules decide their shape; each element converts as its own type does
+// and the evaluator's array builder assembles them.
 const schema = `CREATE TYPE mood AS ENUM ('low', 'mid', 'high');
 CREATE TABLE notes (
   id integer PRIMARY KEY,
@@ -49,15 +50,11 @@ const cases: Partial<Record<(typeof columns)[number], unknown>>[] = [
   { counts: [1, 2, 3, 4] },
   { counts: [] },
   { counts: [1, null, 3, null] },
-  {
-    counts: [
-      [1, 2],
-      [3, 4],
-    ],
-  },
-  { counts: [[1, 2], [3]] },
-  { counts: [[1, 2], 3] },
-  { counts: deep(7) },
+  // Below its declared dimension a list is an element, which an integer cannot be.
+  { counts: [[1, 2]] },
+  { grid: [[1, 2], [3]] },
+  { grid: [[1, 2], 3] },
+  { grid: deep(7) },
   {
     grid: [
       [1, 2],
@@ -91,6 +88,7 @@ const cases: Partial<Record<(typeof columns)[number], unknown>>[] = [
   { ratios: [1e39] },
   { labels: ['a'] },
   { labels: [['a'], ['b', 'c']] },
+  { grid: [[], []] },
 ]
 
 let root: string
@@ -116,6 +114,9 @@ sql:
   typecheck: { plpgsql: false }
   codegen:
     typescript:
+      mappings:
+        column:
+          public.notes.grid: { dimensions: 2 }
       schema: { outDir: generated/schema }
       queries:
         out:
@@ -181,27 +182,24 @@ describe('CHECKs on public TypeScript arrays', () => {
     const result = (row: object, constraint: string) =>
       checks.evaluatePublicNotesChecks(row).find((check) => check.constraint === constraint)!.result
     expect(result({ counts: [1, 2, 3, 4] }, 'few_counts')).toEqual({ certain: true, value: false })
-    expect(result({ counts: [[1, 2], [3]] }, 'few_counts')).toMatchObject({
+    expect(result({ grid: [[1, 2], [3]] }, 'corner_one')).toMatchObject({
       certain: true,
       error: '22P02',
     })
     // A NULL test reads the value as any other read does.
     expect(result({ labels: null }, 'unlabeled')).toEqual({ certain: true, value: true })
     expect(result({ labels: ['a'] }, 'unlabeled')).toEqual({ certain: true, value: false })
-    expect(result({ labels: [['a'], ['b', 'c']] }, 'unlabeled')).toMatchObject({
-      certain: true,
-      error: '22P02',
-    })
     expect(result({ mood: 'low' }, 'moodless')).toEqual({ certain: true, value: false })
     // A label outside the captured ones may have been added to the type since.
     expect(result({ mood: 'nope' }, 'moodless')).toMatchObject({ certain: false })
     for (const mood of [5, { kind: 'Null' }])
       expect(() => result({ mood }, 'moodless'), String(mood)).toThrow(TypeError)
-    for (const labels of ['a', [1], { kind: 'Null' }])
+    for (const labels of ['a', [1], { kind: 'Null' }, [['a'], ['b', 'c']]])
       expect(() => result({ labels }, 'unlabeled'), String(labels)).toThrow(TypeError)
     for (const counts of [
       1,
       '{1,2}',
+      [[1, 2], [3]],
       [1n],
       [1.5],
       [undefined],

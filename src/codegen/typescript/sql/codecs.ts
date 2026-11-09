@@ -5,7 +5,14 @@ import { PG18_RANGE_TYPES } from '../../../postgres/builtins/type-ranges.generat
 // each PostgreSQL type has one public TypeScript shape and native conversions to and from it.
 export type TypescriptCodec =
   | { kind: 'scalar'; name: TypescriptScalarCodec }
-  | { kind: 'array'; element: TypescriptCodec; delimiter: string }
+  | {
+      kind: 'array'
+      element: TypescriptCodec
+      delimiter: string
+      // The dimension counts the value may have, ascending, and where they were declared.
+      dimensions: readonly number[]
+      setting: string
+    }
   | { kind: 'range'; element: TypescriptCodec }
   | { kind: 'multirange'; element: TypescriptCodec }
   | { kind: 'composite'; fields: readonly { name: string; codec: TypescriptCodec }[] }
@@ -229,6 +236,8 @@ export function typescriptCodec(
       kind: 'array',
       element: typescriptCodec(element, catalog, seen),
       delimiter: typescriptBuiltinName(element) === 'box' ? ';' : ',',
+      dimensions: [1],
+      setting: 'the default of one array dimension',
     }
   }
   const unmodified = type.replace(/\([^)]*\)$/u, '')
@@ -297,8 +306,38 @@ const rangeSubtype = (
   return null
 }
 
+// A column's declared array dimensions replace the default of one; a value is never read for them.
+export function typescriptArrayDimensions(
+  codec: TypescriptCodec,
+  dimensions: number | readonly number[] | undefined,
+  setting: string,
+): TypescriptCodec {
+  if (codec.kind !== 'array' || dimensions === undefined) return codec
+  return {
+    ...codec,
+    dimensions: [...new Set(typeof dimensions === 'number' ? [dimensions] : dimensions)].sort(
+      (left, right) => left - right,
+    ),
+    setting,
+  }
+}
+
 // An empty range is a value without points, unlike SQL NULL, and a null bound is unbounded.
 const grouped = (type: string): string => (/[|&]/u.test(type) ? `(${type})` : type)
+
+// One declared dimension count is a plain nested list; several are told apart by their count.
+export function typescriptArrayType(element: string, dimensions: readonly number[]): string {
+  const nested = (depth: number) => {
+    let type = `${grouped(element)} | null`
+    for (let index = 0; index < depth; index++) type = `(${type})[]`
+    return type
+  }
+  return dimensions.length === 1
+    ? nested(dimensions[0]!)
+    : dimensions
+        .map((depth) => `{ readonly dimensions: ${depth}; readonly elements: ${nested(depth)} }`)
+        .join(' | ')
+}
 
 export function typescriptCodecType(codec: TypescriptCodec): string {
   if (codec.kind === 'scalar') return typescriptScalarTypes[codec.name]
@@ -310,7 +349,7 @@ export function typescriptCodecType(codec: TypescriptCodec): string {
       )
       .join('; ')} }`
   const element = typescriptCodecType(codec.element)
-  if (codec.kind === 'array') return `(${element} | null)[]`
+  if (codec.kind === 'array') return typescriptArrayType(element, codec.dimensions)
   const range = `{ readonly empty: true } | { readonly empty: false; readonly lower: ${grouped(element)} | null; readonly upper: ${grouped(element)} | null; readonly lowerInclusive: boolean; readonly upperInclusive: boolean }`
   return codec.kind === 'range' ? range : `(${range})[]`
 }
@@ -765,9 +804,18 @@ function encodeCircle(value: unknown, name: string): string | null {
   if (!value || typeof value !== 'object' || !('center' in value) || !('radius' in value) || !geometryNumber(value.radius)) return encodeInvalid(name, 'circle')
   return '<' + geometryPoint(value.center, name, 'circle') + ',' + geometryText(value.radius) + '>'
 }
-function decodeArray(value: string | null, element: (item: string | null) => unknown, delimiter: string): unknown {
+// An array has the dimension counts its type declares, never ones inferred from nesting: each
+// declared level is a list, and an element that is itself a list stays one element.
+function arrayDimensionError(depth: number, dimensions: readonly number[], setting: string): never {
+  throw new Error('The server returned an array of ' + depth + ' dimensions where ' + setting + ' allows ' + dimensions.join(' or '))
+}
+function decodeArray(value: string | null, element: (item: string | null) => unknown, delimiter: string, dimensions: readonly number[], setting: string): unknown {
   if (value === null) return null
   let index = value.startsWith('[') ? value.indexOf('=') + 1 : 0
+  let depth = 0
+  while (value[index + depth] === '{') depth++
+  if (value[index + depth] === '}' && depth === 1) depth = 0
+  if (depth && !dimensions.includes(depth)) arrayDimensionError(depth, dimensions, setting)
   const list = (): unknown[] => {
     index++
     const items: unknown[] = []
@@ -791,19 +839,26 @@ function decodeArray(value: string | null, element: (item: string | null) => unk
       if (value[index++] === '}') return items
     }
   }
-  return list()
+  const elements = list()
+  return dimensions.length === 1 ? elements : { dimensions: depth || dimensions[0], elements }
 }
-function encodeArray(value: unknown, element: (item: unknown, name: string) => string | null, delimiter: string, name: string): string | null {
+function encodeArray(value: unknown, element: (item: unknown, name: string) => string | null, delimiter: string, dimensions: readonly number[], name: string): string | null {
   if (value === null || value === undefined) return null
-  const list = (items: unknown): string => {
+  let depth = dimensions[0]!
+  if (dimensions.length > 1) {
+    if (!value || typeof value !== 'object' || !('dimensions' in value) || !('elements' in value) || typeof value.dimensions !== 'number' || !dimensions.includes(value.dimensions)) return encodeInvalid(name, 'array')
+    depth = value.dimensions
+    value = value.elements
+  }
+  const list = (items: unknown, level: number): string => {
     if (!Array.isArray(items)) return encodeInvalid(name, 'array')
     return '{' + items.map((item) => {
-      if (Array.isArray(item)) return list(item)
-      const text = element(item, name)
+      if (level > 1) return list(item, level - 1)
+      const text = item === null ? null : element(item, name)
       return text === null ? 'NULL' : '"' + text.replace(/[\\\\"]/gu, '\\\\$&') + '"'
     }).join(delimiter) + '}'
   }
-  return list(value)
+  return list(value, depth)
 }`
 
 // Each driver is asked for the server's text unchanged; built-in type identifiers are fixed by

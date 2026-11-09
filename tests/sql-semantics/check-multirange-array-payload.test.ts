@@ -185,6 +185,10 @@ it('validates multirange array and domain-cell profiles before copying public in
             bypass,
           }).map((c: { constraint: string; result: unknown }) => [c.constraint, c.result]),
         )
+      // Each column declares one dimension, so every element is a whole multirange, itself a list
+      // of ranges, and the server reads each one as quoted multirange text.
+      const quotedElement = (value: string) => `"${value.replace(/[\\"]/gu, '\\$&')}"`
+      const headText = quotedElement(`{${rangeText}}`)
       for (const [
         spansValue,
         spansText,
@@ -196,17 +200,15 @@ it('validates multirange array and domain-cell profiles before copying public in
       ] of [
         [publicSpans, '{NULL,NULL,NULL}', [null], '{NULL}', null, null, false],
         [publicSpans, '{NULL,NULL,NULL}', publicSpans, '{NULL,NULL,NULL}', [null], '{NULL}', false],
-        [[], '{}', [], '{}', [[null]], '{{NULL}}', true],
-        [[[null], [null], [null]], '{{NULL},{NULL},{NULL}}', [[null]], '{{NULL}}', [], '{}', false],
-        // The members of these multiranges are leaves of a second dimension, which the server
-        // reads as multirange text.
+        [[], '{}', [], '{}', [[null]], '{"{NULL}"}', true],
+        [[[], [], []], '{"{}","{}","{}"}', [[]], '{"{}"}', [], '{}', false],
         [
           [publicHead, null, []],
-          `{{"${rangeText}"},NULL,{}}`,
+          `{${headText},NULL,"{}"}`,
           [publicHead],
-          `{{"${rangeText}"}}`,
-          null,
-          null,
+          `{${headText}}`,
+          [[publicHead, null]],
+          `{${quotedElement(`{${headText},NULL}`)}}`,
           false,
         ],
         [null, null, null, null, null, null, false],
@@ -237,7 +239,7 @@ it('validates multirange array and domain-cell profiles before copying public in
         assertions++
       }
       // Malformed public elements and payloads are type errors before any check runs.
-      // Inside a public array, a multirange's ranges are leaves where a multirange belongs.
+      // Inside a public array a range, or a list of multiranges, is not a multirange.
       for (const element of [
         publicRange,
         [{ empty: 'false' }],
@@ -246,7 +248,7 @@ it('validates multirange array and domain-cell profiles before copying public in
         [{ ...publicRange, lower: undefined }],
         [{ ...publicRange, lower: 1.5 }],
         [{ ...publicRange, lower: publicRange }],
-        publicHead,
+        [publicHead],
         undefined,
         { kind: 'Multirange', value: head },
       ]) {

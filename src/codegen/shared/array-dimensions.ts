@@ -27,6 +27,24 @@ export function arrayColumnType(column: DatabaseColumn, catalog?: CatalogSnapsho
   return relation?.columns.find((item) => item.name === column.column)?.typeName ?? null
 }
 
+// Where a value's array dimensions are declared, for messages naming the setting to change.
+export function arrayDimensionsSetting(
+  value: ValueLineage | undefined,
+  target: 'typescript' | 'go',
+): string {
+  const column =
+    value?.kind === 'column'
+      ? value.column
+      : value?.kind === 'row-absence' && value.origin.kind === 'column'
+        ? value.origin.column
+        : value?.kind === 'transform' && value.operation.kind === 'assignment'
+          ? value.operation.target
+          : undefined
+  return column
+    ? `sql.codegen.${target}.mappings.column[${JSON.stringify(columnKey(column))}].dimensions`
+    : 'the array dimensions declared for its source columns'
+}
+
 export function resolveArrayDimensions(
   value: ValueLineage | undefined,
   mappings: Readonly<Record<string, unknown>>,

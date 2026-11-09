@@ -226,14 +226,39 @@ const arrayReference = (
   array
     ? {
         ...resolved,
-        type: unionType(
-          (typeof dimensions === 'number' ? [dimensions] : dimensions).map((depth) => {
+        type: (() => {
+          // One declared dimension count is a plain nested list; several are told apart by their
+          // count, since nesting alone cannot tell a dimension from an element that is a list.
+          const counts = [
+            ...new Set(typeof dimensions === 'number' ? [dimensions] : dimensions),
+          ].sort((left, right) => left - right)
+          const nested = (depth: number) => {
             let type = nullableType(resolved.type, false)
             for (let index = 0; index < depth; index++)
               type = factory.createArrayTypeNode(parenthesized(type))
             return type
-          }),
-        ),
+          }
+          return counts.length === 1
+            ? nested(counts[0]!)
+            : unionType(
+                counts.map((depth) =>
+                  factory.createTypeLiteralNode([
+                    factory.createPropertySignature(
+                      [factory.createModifier(ts.SyntaxKind.ReadonlyKeyword)],
+                      'dimensions',
+                      undefined,
+                      factory.createLiteralTypeNode(factory.createNumericLiteral(depth)),
+                    ),
+                    factory.createPropertySignature(
+                      [factory.createModifier(ts.SyntaxKind.ReadonlyKeyword)],
+                      'elements',
+                      undefined,
+                      nested(depth),
+                    ),
+                  ]),
+                ),
+              )
+        })(),
       }
     : resolved
 

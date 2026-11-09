@@ -11,22 +11,29 @@ function encodeInt(value: unknown, name: string): string | null {
         return encodeInvalid(name, "integer");
     return String(value);
 }
-function encodeArray(value: unknown, element: (item: unknown, name: string) => string | null, delimiter: string, name: string): string | null {
+function encodeArray(value: unknown, element: (item: unknown, name: string) => string | null, delimiter: string, dimensions: readonly number[], name: string): string | null {
     if (value === null || value === undefined)
         return null;
-    const list = (items: unknown): string => {
+    let depth = dimensions[0]!;
+    if (dimensions.length > 1) {
+        if (!value || typeof value !== "object" || !("dimensions" in value) || !("elements" in value) || typeof value.dimensions !== "number" || !dimensions.includes(value.dimensions))
+            return encodeInvalid(name, "array");
+        depth = value.dimensions;
+        value = value.elements;
+    }
+    const list = (items: unknown, level: number): string => {
         if (!Array.isArray(items))
             return encodeInvalid(name, "array");
         return "{" + items.map(item => {
-            if (Array.isArray(item))
-                return list(item);
-            const text = element(item, name);
+            if (level > 1)
+                return list(item, level - 1);
+            const text = item === null ? null : element(item, name);
             return text === null ? "NULL" : "\"" + text.replace(/[\\"]/gu, "\\$&") + "\"";
         }).join(delimiter) + "}";
     };
-    return list(value);
+    return list(value, depth);
 }
 export const insertFromCteSql = "WITH input AS (SELECT $1::integer[] AS matrix, $2::integer[] AS flexible)\nINSERT INTO arrays (id, ordinary, matrix, flexible, owners)\nSELECT 1, ARRAY[1], matrix, flexible, ARRAY[1]::user_id[] FROM input;";
 export async function insertFromCte(db: pgsid.Queryable, params: InsertFromCteParams): Promise<void> {
-    await db.queryText(insertFromCteSql, [encodeArray(params["matrix"], encodeInt, ",", "matrix"), encodeArray(params["flexible"], encodeInt, ",", "flexible")]);
+    await db.queryText(insertFromCteSql, [encodeArray(params["matrix"], encodeInt, ",", [2], "matrix"), encodeArray(params["flexible"], encodeInt, ",", [1, 2], "flexible")]);
 }
