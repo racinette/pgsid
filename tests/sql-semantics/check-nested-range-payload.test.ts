@@ -223,12 +223,18 @@ it('injects compiled nested range contexts before public ownership validation wi
     }
     for (const name of hashes)
       if (name !== 'hash_nested') expect(map(publicRow)[name]).toMatchObject({ certain: false })
-    // A label outside the captured ones may have been added since, so it decides nothing, and a
-    // bypassed row still decides without reading it.
+    // A label outside the captured ones may have been added since, or the server may reject it as
+    // it reads the row, so it decides no check that reads it, bypassed or not; the others still
+    // decide.
     const added = { ...publicRow, v: span(span('z', 'added'), span('mid', 'a')) }
     expect(map(added).ordered).toMatchObject({ certain: false })
-    for (const result of Object.values(map({ ...added, bypass: true })))
-      expect(result).toEqual({ certain: true, value: true })
+    const bypassed = map({ ...publicRow, bypass: true })
+    for (const [name, result] of Object.entries(map({ ...added, bypass: true })))
+      expect(result).toEqual(
+        internal.reads('public.array_payloads', name).includes('v')
+          ? { certain: false }
+          : bypassed[name],
+      )
     // Payloads, forged contexts included, are not public values.
     for (const payload of [
       v,

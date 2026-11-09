@@ -29,6 +29,7 @@ import {
 import ts from 'typescript'
 import type { DomainInfo, EnumInfo, TableInfo, RangeTypeInfo } from '../../../catalog/types.js'
 import {
+  domainElementDefinition,
   enumType,
   isCatalogVectorType,
   isRangeType,
@@ -535,23 +536,47 @@ export function renderTypescriptSchemaCheckArtifacts(
     )
   }
   const undecided = (name: string): boolean => name.startsWith('checkRustUndecided')
-  const scalarElement = (type: string): ts.Expression | null => {
+  // A field's type modifier applies as the server applies it reading the field: through the type's
+  // length coercion.
+  const typeModified = (
+    type: string,
+    typeMod: number,
+    value: ts.Expression,
+  ): ts.Expression | null => {
+    if (typeMod < 0) return value
+    const coercion = typeModifierCoercion(type)
+    return coercion
+      ? runtimeCall(
+          coercion.callable,
+          [
+            value,
+            runtimeCall('makeInt4Value', [numberLiteral(typeMod)]),
+            ...(coercion.explicit ? [runtimeCall('makeBoolValue', [factory.createFalse()])] : []),
+          ],
+          '_checkRustOperations',
+        )
+      : null
+  }
+  const scalarElement = (type: string, typeMod: number): ts.Expression | null => {
     let valueType: string
     try {
       valueType = checkRustValueType(type)
     } catch {
       return null
     }
+    const wrap = (prefix: string, value: ts.Expression) => {
+      const modified = typeModified(type, typeMod, value)
+      return modified && runtimeCall(`arrayElementFrom${prefix}`, [modified])
+    }
     const element = (prefix: string, adapter: string, extra: ts.Expression[] = []) =>
-      runtimeCall(`arrayElementFrom${prefix}`, [
-        helperCall(adapter, [oneFieldRow(), identifier('name'), ...extra]),
-      ])
+      wrap(prefix, helperCall(adapter, [oneFieldRow(), identifier('name'), ...extra]))
     // A value sent as text goes through its type's input, as array input reads each element.
-    const text = isCatalogVectorType(type) ? null : textConverter(type)
+    const text = textConverter(type)
     if (text)
-      return runtimeCall(`arrayElementFrom${valueType.slice(0, -'Value'.length)}`, [
+      return wrap(
+        valueType.slice(0, -'Value'.length),
         helperCall(text, [identifier('value'), identifier('name')]),
-      ])
+      )
     const input = {
       Int2Value: 'checkInputInteger',
       Int4Value: 'checkInputInteger',
@@ -594,14 +619,120 @@ export function renderTypescriptSchemaCheckArtifacts(
     }
     return null
   }
-  const elementConverter = (type: string): string =>
-    defineConverter(`element\0${type}`, 'checkRustElement', 'ArrayElement', () => {
+  // The server reads an element, field or bound of a domain type through the domain's input: the
+  // base type's input, then the domain's NOT NULL and CHECK constraints, base domains first.
+  const quoteIdent = (name: string): string =>
+    /^[a-z_][a-z0-9_$]*$/u.test(name) ? name : `"${name.replaceAll('"', '""')}"`
+  const domainNamed = (type: string): DomainInfo | undefined => {
+    const definition = domainElementDefinition(type)
+    return definition
+      ? domains.find((item) => item.schema === definition.schema && item.name === definition.name)
+      : domains.find((item) =>
+          [
+            `${item.schema}.${item.name}`,
+            `${quoteIdent(item.schema)}.${quoteIdent(item.name)}`,
+          ].includes(type),
+        )
+  }
+  const domainConverter = (domain: DomainInfo, base: string): string =>
+    defineConverter(`domain\0${domain.oid}\0${base}`, 'checkRustDomain', 'ArrayElement', () => {
+      const chain: DomainInfo[] = []
+      for (
+        let layer: DomainInfo | undefined = domain;
+        layer && !chain.includes(layer);
+        layer = domains.find((item) => item.oid === layer!.baseTypeOid)
+      )
+        chain.push(layer)
+      const group = groups.find(
+        (item) =>
+          item.kind === 'domain' &&
+          item.source.schema === domain.schema &&
+          item.source.name === domain.name,
+      )
+      const layers = (group?.checks ?? []).map((check) =>
+        chain.findIndex((layer) => `${layer.schema}.${layer.name}` === check.owner),
+      )
+      // A modifier the chain applies, or a constraint without a generated check, is not decided here.
+      if (
+        undecided(base) ||
+        chain.some((layer) => (layer.baseTypeMod ?? -1) >= 0) ||
+        layers.includes(-1) ||
+        layers.length !== chain.reduce((count, layer) => count + layer.checks.length, 0)
+      )
+        return 'checkRustUndecidedElement'
+      const order = layers
+        .map((layer, index) => ({ layer, index }))
+        .sort((left, right) => right.layer - left.layer || left.index - right.index)
+        .map(({ index }) => numberLiteral(index))
+      return helperCall('checkRustDomainCell', [
+        identifier('value'),
+        identifier('name'),
+        factory.createStringLiteral(`${domain.schema}.${domain.name}`),
+        chain.some((layer) => layer.notNull) ? factory.createTrue() : factory.createFalse(),
+        identifier(base),
+        group
+          ? factory.createArrowFunction(
+              undefined,
+              undefined,
+              [],
+              undefined,
+              undefined,
+              helperCall(`evaluate${typeName(group.name)}DomainChecks`, [
+                factory.createAsExpression(
+                  factory.createObjectLiteralExpression([
+                    factory.createShorthandPropertyAssignment('value'),
+                  ]),
+                  factory.createKeywordTypeNode(ts.SyntaxKind.NeverKeyword),
+                ),
+              ]),
+            )
+          : factory.createNull(),
+        factory.createArrayLiteralExpression(order),
+      ])
+    })
+  const elementConverter = (type: string, typeMod = -1): string => {
+    const definition = domainElementDefinition(type)
+    if (!definition) return plainElementConverter(type, typeMod)
+    if (typeMod >= 0) return 'checkRustUndecidedElement'
+    const domain = domainNamed(type)
+    return domain
+      ? domainConverter(domain, elementConverter(definition.base))
+      : 'checkRustUndecidedElement'
+  }
+  // Containers hand every cell to its converter, NULL included, as array and record input do.
+  const plainElementConverter = (type: string, typeMod: number): string =>
+    defineConverter(`element\0${typeMod}\0${type}`, 'checkRustElement', 'ArrayElement', () => {
+      const cell = (body: ts.Expression | string) =>
+        typeof body === 'string'
+          ? body
+          : factory.createConditionalExpression(
+              factory.createStrictEquality(identifier('value'), factory.createNull()),
+              undefined,
+              factory.createObjectLiteralExpression([
+                factory.createPropertyAssignment('kind', factory.createStringLiteral('Null')),
+              ]),
+              undefined,
+              body,
+            )
       // A part the conversion cannot decide may be one the server rejects, so the whole value is
       // undecided rather than read around it.
       const call = (member: string, convert: string) =>
-        undecided(convert)
+        undecided(convert) || (typeMod >= 0 && member !== 'arrayElementFromArray')
           ? 'checkRustUndecidedElement'
-          : runtimeCall(member, [helperCall(convert, [identifier('value'), identifier('name')])])
+          : cell(
+              runtimeCall(member, [
+                typeMod >= 0
+                  ? runtimeCall(
+                      'arrayWithTypmod',
+                      [
+                        helperCall(convert, [identifier('value'), identifier('name')]),
+                        numberLiteral(typeMod),
+                      ],
+                      '_checkRustOperations',
+                    )
+                  : helperCall(convert, [identifier('value'), identifier('name')]),
+              ]),
+            )
       if (compositeProfile(type)) return call('arrayElementFromComposite', compositeConverter(type))
       if (multirangeTypeProfile(type) && !isArrayLikeType(type))
         return call('arrayElementFromMultirange', multirangeConverter(type))
@@ -609,13 +740,16 @@ export function renderTypescriptSchemaCheckArtifacts(
         return call('arrayElementFromRange', rangeConverter(type))
       if (arrayLikeElementType(type) && !isCatalogVectorType(type))
         return call('arrayElementFromArray', arrayConverter(type))
-      return scalarElement(type) ?? 'checkRustUndecidedElement'
+      return cell(scalarElement(type, typeMod) ?? 'checkRustUndecidedElement')
     })
   const arrayConverter = (type: string): string =>
     defineConverter(`array\0${type}`, 'checkRustArray', 'ArrayValue', () => {
       const element = arrayLikeElementType(type)!
       // Arrays whose elements are arrays (domains over arrays) stay undecided.
-      if (isArrayLikeType(element) || undecided(elementConverter(element)))
+      if (
+        isArrayLikeType(domainElementDefinition(element)?.base ?? element) ||
+        undecided(elementConverter(element))
+      )
         return 'checkRustUndecidedArray'
       const array = helperCall('checkRustPublicArray', [
         identifier('value'),
@@ -640,15 +774,9 @@ export function renderTypescriptSchemaCheckArtifacts(
       const root = compositeNodes(type, options.executionContext)?.[0]
       if (!profile || !definition || !root) return 'checkRustUndecidedComposite'
       const fields = [...definition.fields].sort((left, right) => left.position - right.position)
-      // The server applies a field's type modifier and domain as it reads the field; neither is
-      // applied here yet, so such a field leaves the record undecided.
       const converters = fields.map((field) => {
-        const fieldType = compositeFieldType(profile, field.type)
-        const domain =
-          profile.graph.definitions.find((item) => item.identity === field.type)?.kind === 'd'
-        return fieldType && field.typeMod < 0 && !domain
-          ? elementConverter(fieldType)
-          : 'checkRustUndecidedElement'
+        const fieldType = compositeFieldType(profile, field.type, true)
+        return fieldType ? elementConverter(fieldType, field.typeMod) : 'checkRustUndecidedElement'
       })
       if (converters.some(undecided)) return 'checkRustUndecidedComposite'
       return runtimeCall('compositeFromCoercedPlan', [
@@ -693,6 +821,11 @@ export function renderTypescriptSchemaCheckArtifacts(
       )
         return 'checkRustUndecidedRange'
       const labels = profile.subtypeEnum?.values
+      const subtypeDomain = domainNamed(profile.subtype)
+      const bound = subtypeDomain
+        ? domainConverter(subtypeDomain, elementConverter(profile.elementType))
+        : elementConverter(profile.elementType)
+      if (undecided(bound)) return 'checkRustUndecidedRange'
       return helperCall('checkRustPublicRange', [
         identifier('value'),
         identifier('name'),
@@ -702,7 +835,7 @@ export function renderTypescriptSchemaCheckArtifacts(
         rangeSupport(profile),
         factory.createStringLiteral(labels?.join('\0') ?? ''),
         numberLiteral(labels?.length ?? -1),
-        identifier(elementConverter(profile.elementType)),
+        identifier(bound),
       ])
     })
   const callInput = (helper: string, name: string): ts.Expression => {
@@ -1171,8 +1304,15 @@ export function renderTypescriptSchemaCheckArtifacts(
             ),
           ])
         }
-        const args = prepared.inputs.map(
-          (item) => (item.nullness ? nullnessRead(item) : null) ?? typedRead(item),
+        rustInputAdapters.add('checkRustRead')
+        const args = prepared.inputs.map((item) =>
+          item.nullness
+            ? (nullnessRead(item) ?? typedRead(item))
+            : helperCall('checkRustRead', [
+                row,
+                factory.createStringLiteral(item.name),
+                typedRead(item),
+              ]),
         )
         const diagnosticEvaluation = prepared.diagnosticEntryName
           ? factory.createCallExpression(
@@ -1449,6 +1589,16 @@ export function renderTypescriptSchemaCheckArtifacts(
     ts.forEachChild(node, collectModules)
   }
   rustStatements.forEach(collectModules)
+  // A check's own reads call the runtime too, e.g. to apply a column's type modifier.
+  for (const group of emitted)
+    for (const result of group.results)
+      if (
+        'value' in result &&
+        result.value &&
+        typeof result.value === 'object' &&
+        'expression' in result.value
+      )
+        collectModules(result.value.expression as ts.Node)
   const rustFiles = rustGroup?.source ? transpileCheckRustTypescriptFiles(rustGroup.source) : null
   return {
     checks: printFile([
@@ -1599,10 +1749,16 @@ const keepWithDependencies = (
   keep: (statement: ts.Statement) => boolean | undefined,
 ): ts.Statement[] => {
   const functions = new Map(
-    statements.flatMap((statement) =>
+    statements.flatMap((statement): (readonly [string, ts.Statement])[] =>
       ts.isFunctionDeclaration(statement) && statement.name
         ? [[statement.name.text, statement] as const]
-        : [],
+        : ts.isVariableStatement(statement)
+          ? statement.declarationList.declarations.flatMap((declaration) =>
+              ts.isIdentifier(declaration.name)
+                ? [[declaration.name.text, statement] as const]
+                : [],
+            )
+          : [],
     ),
   )
   const kept = new Set(statements.filter(keep))
@@ -1969,6 +2125,28 @@ function checkRustPublicMultirange(value: unknown, name: string, typeName: strin
   }
   return _checkRustOperations.multirangeConstructArrayWithSupport(_checkRust.finishArrayConstructor(members), typeName, rangeType, elementType, kind, support)
 }
+// The server reads a supplied value before any check runs: a value its input rejects fails every
+// check that reads it, and one whose reading is undecided leaves each of them undecided.
+function checkRustRead<T extends { kind: string }>(row: object, name: string, value: T): T {
+  if (value.kind === 'Error') throw checkRustSqlError((value as unknown as { value: _checkRust.SqlError }).value)
+  if ((value.kind === 'Unknown' || value.kind === 'Unimplemented') && Object.hasOwn(row, name) && Reflect.get(row, name) !== undefined) throw checkUndecidedInput
+  return value
+}
+function checkRustSqlError(error: _checkRust.SqlError): Error {
+  return Object.assign(new Error(_checkRust.sqlErrorMessage(error).message), { code: error.state.toString(36).toUpperCase().padStart(5, '0') })
+}
+function checkRustDomainCell(value: unknown, name: string, domain: string, notNull: boolean, base: (value: unknown, name: string) => _checkRust.ArrayElement, evaluate: (() => readonly CheckEvaluation[]) | null, order: readonly number[]): _checkRust.ArrayElement {
+  const element = base(value, name)
+  if (value === null && notNull) throw Object.assign(new Error('domain ' + domain + ' does not allow null values'), { code: '23502' })
+  const results = evaluate?.() ?? []
+  for (const index of order) {
+    const { constraint, result, message } = results[index]!
+    if (!result.certain) throw checkUndecidedInput
+    if ('error' in result) throw Object.assign(new Error(message ?? 'SQL evaluation failed'), { code: result.error })
+    if (result.value === false) throw Object.assign(new Error('value for domain ' + domain + ' violates check constraint "' + constraint + '"'), { code: '23514' })
+  }
+  return element
+}
 // Values of types whose conversion is not decided yet: well-formed values stay Unknown.
 function checkRustUndecidedElement(): _checkRust.ArrayElement {
   return { kind: 'Unknown' }
@@ -1997,7 +2175,7 @@ function checkRustPublicComposite(value: unknown, name: string, typeName: string
   let composite = _checkRust.makeCompositeFields(typeName)
   fields.forEach((field, index) => {
     const item = Reflect.get(value, field)
-    composite = _checkRust.appendCompositeField(composite, item === null || item === undefined ? { kind: 'Null' } : convert[index]!(item, name))
+    composite = _checkRust.appendCompositeField(composite, convert[index]!(item === undefined ? null : item, name))
   })
   return composite
 }
@@ -2029,7 +2207,7 @@ function checkRustPublicArray(value: unknown, name: string, elementType: string,
   for (const length of lengths) args = _checkRust.appendArrayDimension(args, 1, length)
   for (const cell of cells) {
     if (cell === undefined) return checkRustInvalid(name)
-    args = _checkRust.appendArrayArgument(args, cell === null ? { kind: 'Null' } : element(cell, name))
+    args = _checkRust.appendArrayArgument(args, element(cell, name))
   }
   return _checkRust.finishArrayArguments(args)
 }
@@ -2387,9 +2565,8 @@ function checkRustNullnessOf(row: object, name: string, read: () => { kind: stri
   const input = checkInputNullness(row, name)
   if (!input.certain) return _checkRust.boolUnknown()
   if (input.value) return _checkRust.makeBoolValue(true)
-  const value = read()
-  if (value.kind === 'Error') return value as _checkRust.BoolValue
-  return value.kind === 'Unknown' || value.kind === 'Unimplemented' ? _checkRust.boolUnknown() : _checkRust.makeBoolValue(false)
+  checkRustRead(row, name, read())
+  return _checkRust.makeBoolValue(false)
 }
 function checkRustEnum(row: object, name: string, labels: readonly string[]): _checkRust.EnumValue {
   const input = checkInputText(row, name)
@@ -2434,12 +2611,15 @@ type CheckEvaluation = {
   readonly result: CheckResult
   readonly message?: string
 }
+// A supplied input whose reading is undecided may be one the server rejects.
+const checkUndecidedInput = new Error('undecided CHECK input')
 function checkEvaluation(owner: string, constraint: string, evaluate: () => CheckResult, unknownMessage: string): CheckEvaluation {
   let result: CheckResult
   try { result = evaluate() }
   catch (error) {
-    if (!(error instanceof Error) || !('code' in error) || typeof error.code !== 'string' || !/^[A-Z0-9]{5}$/.test(error.code)) throw error
-    result = { certain: true, error: error.code, message: error.message }
+    if (error === checkUndecidedInput) result = { certain: false }
+    else if (!(error instanceof Error) || !('code' in error) || typeof error.code !== 'string' || !/^[A-Z0-9]{5}$/.test(error.code)) throw error
+    else result = { certain: true, error: error.code, message: error.message }
   }
   if (!result.certain) return { owner, constraint, result, message: unknownMessage }
   if ('error' in result) return {
