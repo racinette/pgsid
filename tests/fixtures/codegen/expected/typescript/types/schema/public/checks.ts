@@ -32,15 +32,19 @@ type CheckEvaluation = {
     readonly result: CheckResult;
     readonly message?: string;
 };
+const checkUndecidedInput = new Error("undecided CHECK input");
 function checkEvaluation(owner: string, constraint: string, evaluate: () => CheckResult, unknownMessage: string): CheckEvaluation {
     let result: CheckResult;
     try {
         result = evaluate();
     }
     catch (error) {
-        if (!(error instanceof Error) || !("code" in error) || typeof error.code !== "string" || !/^[A-Z0-9]{5}$/.test(error.code))
+        if (error === checkUndecidedInput)
+            result = { certain: false };
+        else if (!(error instanceof Error) || !("code" in error) || typeof error.code !== "string" || !/^[A-Z0-9]{5}$/.test(error.code))
             throw error;
-        result = { certain: true, error: error.code, message: error.message };
+        else
+            result = { certain: true, error: error.code, message: error.message };
     }
     if (!result.certain)
         return { owner, constraint, result, message: unknownMessage };
@@ -54,6 +58,20 @@ function checkEvaluation(owner: string, constraint: string, evaluate: () => Chec
     return { owner, constraint, result };
 }
 function checkRustInvalid(name?: string): never { throw new TypeError(name === undefined ? "CHECK input holds a malformed value" : "CHECK input " + name + " holds a malformed value"); }
+function checkRustRead<T extends {
+    kind: string;
+}>(row: object, name: string, value: T): T {
+    if (value.kind === "Error")
+        throw checkRustSqlError((value as unknown as {
+            value: _checkRust.SqlError;
+        }).value);
+    if ((value.kind === "Unknown" || value.kind === "Unimplemented") && Object.hasOwn(row, name) && Reflect.get(row, name) !== undefined)
+        throw checkUndecidedInput;
+    return value;
+}
+function checkRustSqlError(error: _checkRust.SqlError): Error {
+    return Object.assign(new Error(_checkRust.sqlErrorMessage(error).message), { code: error.state.toString(36).toUpperCase().padStart(5, "0") });
+}
 function checkRustInt8(row: object, name: string): _checkRust.Int8Value {
     const input = checkInputInt8(row, name);
     if (!input.certain)
@@ -87,11 +105,11 @@ export type PublicEventIdCheckInput = {
 };
 export function evaluatePublicDefaultEventIdDomainChecks(row: PublicDefaultEventIdCheckInput) {
     return [
-        checkEvaluation("public.event_id", "event_id_check", () => checkRustOutcome(_checkRust.evaluateCheckPublicDomainDefaultEventIdFromPublicEventIdEventIdCheckH7azw(checkRustInt8(row, "value"))), "A required input is unavailable, or its value or an evaluated expression is not supported.")
+        checkEvaluation("public.event_id", "event_id_check", () => checkRustOutcome(_checkRust.evaluateCheckPublicDomainDefaultEventIdFromPublicEventIdEventIdCheckH7azw(checkRustRead(row, "value", checkRustInt8(row, "value")))), "A required input is unavailable, or its value or an evaluated expression is not supported.")
     ];
 }
 export function evaluatePublicEventIdDomainChecks(row: PublicEventIdCheckInput) {
     return [
-        checkEvaluation("public.event_id", "event_id_check", () => checkRustOutcome(_checkRust.evaluateCheckPublicDomainEventIdEventIdCheckHcydw(checkRustInt8(row, "value"))), "A required input is unavailable, or its value or an evaluated expression is not supported.")
+        checkEvaluation("public.event_id", "event_id_check", () => checkRustOutcome(_checkRust.evaluateCheckPublicDomainEventIdEventIdCheckHcydw(checkRustRead(row, "value", checkRustInt8(row, "value")))), "A required input is unavailable, or its value or an evaluated expression is not supported.")
     ];
 }

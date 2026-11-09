@@ -34,7 +34,7 @@ export function internalCheckRows(
     entry: runtime[entry!] as (...inputs: unknown[]) => unknown,
     inputs: [
       ...inputs!.matchAll(
-        /checkRustNullness(?:Of)?\(row, "([^"]+)"(?:, \(\) => [^()]*\([^()]*\))?\)|checkRust\w+\(row, "([^"]+)"|Reflect\.get\(row, "([^"]+)"\)/gu,
+        /checkRustNullness(?:Of)?\(row, "([^"]+)"(?:, \(\) => [^()]*\([^()]*\))?\)|checkRust(?!Read\()\w+\(row, "([^"]+)"|Reflect\.get\(row, "([^"]+)"\)/gu,
       ),
     ].map((match) => ({
       nullness: match[1] !== undefined,

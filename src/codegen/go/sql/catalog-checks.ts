@@ -718,7 +718,7 @@ export function renderGoSchemaCheckArtifacts(
                   ...arrayInputPlan(item.type).map((value) => go.string(value)),
                 ]
               : []),
-            ...(item.enum
+            ...(item.enum && !item.nullness
               ? [
                   go.composite(
                     go.slice(go.ident('string')),

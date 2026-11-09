@@ -593,12 +593,13 @@ CREATE TABLE custom_multi_array_payloads(windows integer_set[],head integer_set,
 
     // A comparator written in SQL and a canonical function in PL/pgSQL are the deployment's
     // code, so what reads them stays undecided. Range input orders public bounds with the
-    // comparator, so even reading such a range waits for it; a stored range is already ordered.
+    // comparator, so even reading such a range waits for it, bypassed or not, since the server may
+    // reject it as it reads the row; a stored range is already ordered.
     const callbacksRow = { v: span(4, 1), w: span(3, 1), e: 4, bypass: true }
     const callbacks = resultMap(generated.evaluatePublicCustomCallbacksChecks(callbacksRow))
     expect(callbacks.bound).toMatchObject({ certain: false })
     expect(callbacks.ordered).toMatchObject({ certain: false })
-    expect(callbacks.guarded).toEqual({ certain: true, value: true })
+    expect(callbacks.guarded).toMatchObject({ certain: false })
     expect(callbacks.rendered).toMatchObject({ certain: false })
     await compare(
       'custom_callbacks',

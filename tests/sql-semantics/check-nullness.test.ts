@@ -190,7 +190,10 @@ describe('CHECK input nullness', () => {
       cases.push({ name, table, row, nullViaValue, results })
     }
 
-    const ts = renderTypescriptSchemaCheckArtifacts([table], catalog.domains)
+    // Generated as project builds generate it, with the catalog's enum labels.
+    const ts = renderTypescriptSchemaCheckArtifacts([table], catalog.domains, catalog.domains, {
+      enums: catalog.enums,
+    })
     await writeFile(join(directory, 'package.json'), '{"type":"module"}\n')
     await writeFile(join(directory, 'checks.ts'), ts.checks)
     await writeFile(
