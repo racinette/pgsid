@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { parseRust } from '../../../tools/check-transpiler/typescript/rust-wasm.js'
 import { transpileGo } from '../../../tools/check-transpiler/typescript/go-wasm.js'
 import { transpile } from '../../../tools/check-transpiler/typescript/transpile.js'
@@ -216,21 +217,20 @@ const goFiles = ({ ast, options }: ParsedCheckRust) =>
     transpileGo(Buffer.from(ast, 'utf8'), checkRustAsset('check-go-transpiler.wasm'), options),
   ) as CheckRustFileParts
 
+// The runtime is translated once per runtime variant and kept for later groups, whose checks
+// alone are translated against it; translating the runtime dominates a group's cost.
 export function transpileCheckRustTypescriptFiles(
   source: CheckRustSource,
   schemaImportPath = 'checkrust/pg_catalog',
 ): CheckRustFileParts {
-  return withSourceNotices(
-    source,
-    typescriptFiles(parseCheckRustDocument(source, schemaImportPath)),
-  )
+  return typescriptChecks(source, typescriptRuntime(source, schemaImportPath), schemaImportPath)
 }
 
 export function transpileCheckRustGoFiles(
   source: CheckRustSource,
   schemaImportPath = 'checkrust/pg_catalog',
 ): CheckRustFileParts {
-  return withSourceNotices(source, goFiles(parseCheckRustDocument(source, schemaImportPath)))
+  return goChecks(source, goRuntime(source, schemaImportPath), schemaImportPath)
 }
 
 export function transpileCheckRustFiles(
@@ -273,10 +273,7 @@ function declarationsOnly(items: DocumentItem[]): unknown[] {
   )
 }
 
-export function translateCheckRustRuntime(
-  source: CheckRustSource,
-  schemaImportPath = 'checkrust/pg_catalog',
-): CheckRustRuntimeTranslation {
+function parseCheckRustRuntime(source: CheckRustSource, schemaImportPath: string) {
   const modules = source.modules.filter((module) => module.name !== 'checks')
   const ast = parseRust(
     JSON.stringify({ schemaVersion: 1, modules, emitFacts: true }),
@@ -286,38 +283,75 @@ export function translateCheckRustRuntime(
     facts: unknown
   }
   const options = { ...checkValueOptions(document.items), split: true, schemaImportPath }
-  const runtime = { schemaVersion: 1 as const, modules }
+  return { modules, document, parserFacts, options }
+}
+
+function translateTypescriptRuntime({
+  modules,
+  document,
+  parserFacts,
+  options,
+}: ReturnType<typeof parseCheckRustRuntime>): TypescriptRuntimeTranslation {
   const typescript = splitCheckTypescriptRuntime(
     transpile(document, options, checkRustAsset('check-ts-prelude.ts').toString('utf8')),
     document.items,
   )
-  const { facts: goFacts, ...go } = JSON.parse(
-    transpileGo(
-      Buffer.from(JSON.stringify(document), 'utf8'),
-      checkRustAsset('check-go-transpiler.wasm'),
-      {
-        ...options,
-        emitFacts: true,
-      },
-    ),
-  ) as CheckRustFileParts & { facts: string }
   return {
     modules: document.modules!,
     items: document.items,
-    declarations: JSON.stringify(declarationsOnly(document.items)),
     parserFacts,
     typescriptFacts: typescript.facts,
-    goFacts: JSON.parse(goFacts) as unknown,
-    typescript: withSourceNotices(runtime, typescript.files),
-    go: withSourceNotices(runtime, go),
+    typescript: withSourceNotices({ schemaVersion: 1, modules }, typescript.files),
   }
 }
 
-export function translateCheckRustChecks(
+type TypescriptRuntimeTranslation = Pick<
+  CheckRustRuntimeTranslation,
+  'modules' | 'items' | 'parserFacts' | 'typescriptFacts' | 'typescript'
+>
+
+// Runtime variants differ only by the optional modules and files a group needs, so a run sees
+// few of them; the most recent of each target are kept.
+const keptRuntimes = 2
+const typescriptRuntimes = new Map<string, TypescriptRuntimeTranslation>()
+
+function keptRuntime<T>(
+  kept: Map<string, T>,
   source: CheckRustSource,
-  runtime: CheckRustRuntimeTranslation,
-  schemaImportPath = 'checkrust/pg_catalog',
-): { typescript: CheckRustFileParts; go: CheckRustFileParts } {
+  schemaImportPath: string,
+  translate: (parsed: ReturnType<typeof parseCheckRustRuntime>) => T,
+): T {
+  const key = createHash('sha256')
+    .update(schemaImportPath)
+    .update('\0')
+    .update(JSON.stringify(source.modules.filter((module) => module.name !== 'checks')))
+    .digest('hex')
+  const found = kept.get(key)
+  if (found) {
+    kept.delete(key)
+    kept.set(key, found)
+    return found
+  }
+  const translated = translate(parseCheckRustRuntime(source, schemaImportPath))
+  kept.set(key, translated)
+  while (kept.size > keptRuntimes) kept.delete(kept.keys().next().value!)
+  return translated
+}
+
+function typescriptRuntime(
+  source: CheckRustSource,
+  schemaImportPath: string,
+): TypescriptRuntimeTranslation {
+  return keptRuntime(typescriptRuntimes, source, schemaImportPath, (parsed) =>
+    translateTypescriptRuntime(parsed),
+  )
+}
+
+function typescriptChecks(
+  source: CheckRustSource,
+  runtime: TypescriptRuntimeTranslation,
+  schemaImportPath: string,
+): CheckRustFileParts {
   const modules = source.modules.filter((module) => module.name === 'checks')
   const checks = JSON.parse(
     parseRust(
@@ -332,6 +366,63 @@ export function translateCheckRustChecks(
     checks.items,
     runtime.typescriptFacts,
   )
+  return {
+    ...runtime.typescript,
+    checks: sourceNotices({ schemaVersion: 1, modules }, 'checks') + typescript,
+  }
+}
+
+function translateGoRuntime({
+  modules,
+  document,
+  parserFacts,
+  options,
+}: ReturnType<typeof parseCheckRustRuntime>): GoRuntimeTranslation {
+  const { facts: goFacts, ...go } = JSON.parse(
+    transpileGo(
+      Buffer.from(JSON.stringify(document), 'utf8'),
+      checkRustAsset('check-go-transpiler.wasm'),
+      { ...options, emitFacts: true },
+    ),
+  ) as CheckRustFileParts & { facts: string }
+  return {
+    modules: document.modules!,
+    items: document.items,
+    declarations: JSON.stringify(declarationsOnly(document.items)),
+    parserFacts,
+    goFacts: JSON.parse(goFacts) as unknown,
+    go: withSourceNotices({ schemaVersion: 1, modules }, go),
+  }
+}
+
+type GoRuntimeTranslation = Pick<
+  CheckRustRuntimeTranslation,
+  'modules' | 'items' | 'declarations' | 'parserFacts' | 'goFacts' | 'go'
+>
+
+const goRuntimes = new Map<string, GoRuntimeTranslation>()
+
+function goRuntime(source: CheckRustSource, schemaImportPath: string): GoRuntimeTranslation {
+  return keptRuntime(goRuntimes, source, schemaImportPath, (parsed) => translateGoRuntime(parsed))
+}
+
+function goChecks(
+  source: CheckRustSource,
+  runtime: GoRuntimeTranslation,
+  schemaImportPath: string,
+): CheckRustFileParts {
+  const modules = source.modules.filter((module) => module.name === 'checks')
+  const checks = JSON.parse(
+    parseRust(
+      JSON.stringify({ schemaVersion: 1, modules, runtimeFacts: runtime.parserFacts }),
+      checkRustAsset('check-rust-parser.wasm'),
+    ),
+  ) as Parameters<typeof transpile>[0]
+  const options = {
+    ...checkValueOptions([...runtime.items, ...checks.items]),
+    split: true,
+    schemaImportPath,
+  }
   const ast =
     `{"schemaVersion":1,"modules":${JSON.stringify([...runtime.modules, ...checks.modules!])},` +
     `"items":${runtime.declarations.slice(0, -1)}${checks.items.length ? ',' : ''}` +
@@ -342,9 +433,27 @@ export function translateCheckRustChecks(
       runtimeFacts: runtime.goFacts,
     }),
   ) as { checks: string }
-  const notices = sourceNotices({ schemaVersion: 1, modules }, 'checks')
   return {
-    typescript: { ...runtime.typescript, checks: notices + typescript },
-    go: { ...runtime.go, checks: notices + go.checks },
+    ...runtime.go,
+    checks: sourceNotices({ schemaVersion: 1, modules }, 'checks') + go.checks,
+  }
+}
+
+export function translateCheckRustRuntime(
+  source: CheckRustSource,
+  schemaImportPath = 'checkrust/pg_catalog',
+): CheckRustRuntimeTranslation {
+  const parsed = parseCheckRustRuntime(source, schemaImportPath)
+  return { ...translateTypescriptRuntime(parsed), ...translateGoRuntime(parsed) }
+}
+
+export function translateCheckRustChecks(
+  source: CheckRustSource,
+  runtime: CheckRustRuntimeTranslation,
+  schemaImportPath = 'checkrust/pg_catalog',
+): { typescript: CheckRustFileParts; go: CheckRustFileParts } {
+  return {
+    typescript: typescriptChecks(source, runtime, schemaImportPath),
+    go: goChecks(source, runtime, schemaImportPath),
   }
 }
