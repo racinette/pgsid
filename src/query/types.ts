@@ -371,6 +371,36 @@ export const EVALUATION_CATALOG_ONLY = [
 ] as const satisfies readonly (keyof SubtreeEvaluationCatalog)[]
 
 /**
+ * What CHECK case derivation (`check-cases.ts`) reads: a table's CHECKs as
+ * stored rows and as writes see them, and enough about each column to read
+ * its literals. Only the enum labels are its own; the rest is shared with
+ * the walk and the evaluation channel.
+ */
+export interface CheckCaseCatalog
+  extends
+    Pick<
+      NullabilityCatalog,
+      | 'resolveCheckConstraintsTree'
+      | 'resolveColumnTypeName'
+      | 'resolveLiteralDistinctnessSound'
+      | 'resolveColumnNotNull'
+      | 'resolveColumnNotNullTree'
+    >,
+    Pick<SubtreeEvaluationCatalog, 'resolveEnforcedCheckConstraints'> {
+  /**
+   * The labels of `schema.table.column`'s enum type, in sort order, or null
+   * when the column is not of an enum type: derivation enumerates an enum
+   * column's values instead of an open "other".
+   */
+  resolveColumnEnumLabels(schema: string, table: string, column: string): readonly string[] | null
+}
+
+/** Members only CHECK case derivation asks, reached through query contracts. */
+export const CHECK_CASE_CATALOG_ONLY = [
+  'resolveColumnEnumLabels',
+] as const satisfies readonly (keyof CheckCaseCatalog)[]
+
+/**
  * The richer catalog the nullability walk needs, and ONLY what it needs: name
  * resolution (`resolveTable`, shared with `DepCatalog`) plus intrinsic column
  * nullability, function metadata for FuncCall dispatch, and domain metadata

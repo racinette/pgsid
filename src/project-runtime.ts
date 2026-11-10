@@ -20,6 +20,7 @@ import {
 import { ProjectBuildWatcher, type ProjectBuildWatcherOptions } from './project-watcher.js'
 import { buildNullabilityCatalog } from './query/catalog-adapter.js'
 import type { QueryAnalysisCatalog } from './query-analysis.js'
+import type { CheckCaseCatalog } from './query/types.js'
 import { loadQuerySources } from './query-source-loader.js'
 import { analyzeSchemaRelations, type SchemaRelationAnalyses } from './schema-analysis.js'
 import { SchemaBuilder } from './schema-builder.js'
@@ -62,7 +63,7 @@ interface SchemaGeneration {
   snapshot: CatalogSnapshot
   diagnostics: readonly ProjectSchemaDiagnostic[]
   catalogKey?: string
-  catalog?: QueryAnalysisCatalog
+  catalog?: QueryAnalysisCatalog & CheckCaseCatalog
   relationAnalysisKey?: string
   relationAnalyses?: SchemaRelationAnalyses
   typeNames: Map<number, string>
@@ -178,6 +179,7 @@ export class ProjectRuntime {
     const targets = createCodegenTargets(config, schemas, {
       baseDirectory: this.baseDirectory,
       catalog: generation.snapshot,
+      checkCases: generation.catalog!,
     })
     this.#ignoredRoots = targets.flatMap((target) => target.outputRoots)
     const walkOptions = {
@@ -222,7 +224,7 @@ export class ProjectRuntime {
           : undefined,
         analysis: {
           schemaKey,
-          analysisKey: 'query-analysis-v4',
+          analysisKey: 'query-analysis-v5',
           catalog: generation.catalog!,
           searchPath: config.sql.searchPath,
           describe: (sql) => describe(generation, sql),

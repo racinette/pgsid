@@ -43,7 +43,9 @@ import {
   groundEnforcedChecks,
   groundedCheckClaims,
 } from './check-grounder.js'
+import { outputCheckCases, type OutputCheckCases } from './check-cases.js'
 import type {
+  CheckCaseCatalog,
   ColumnOrigin,
   NullabilityCatalog,
   OutputNullability,
@@ -474,6 +476,13 @@ export interface QueryContract {
    * flag is what explains a contract that would otherwise just be blank.
    */
   alwaysRaises: boolean
+  /**
+   * What the validated CHECKs of the rows the statement reads say about its
+   * bare pass-through columns: literal sets and case unions (see
+   * `check-cases.ts`). Absent when they say nothing, or when the catalog has
+   * no CHECK case face.
+   */
+  outputCases?: OutputCheckCases
 }
 
 /**
@@ -529,12 +538,18 @@ export async function inferQueryContract(
     truths,
     options?.materializedViews,
   )
+  const outputs = engine.run(stmt)
+  const outputCases =
+    'resolveColumnEnumLabels' in catalog
+      ? outputCheckCases(outputs, catalog as NullabilityCatalog & CheckCaseCatalog)
+      : undefined
   return {
-    outputs: engine.run(stmt),
+    outputs,
     params: facts.params,
     paramRejectionSets: facts.rejectionSets,
     outputPresenceGroups: engine.presenceGroups(),
     alwaysRaises: mechanismE?.alwaysRaises ?? false,
+    ...(outputCases ? { outputCases } : {}),
   }
 }
 

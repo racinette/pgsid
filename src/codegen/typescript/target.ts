@@ -4,6 +4,7 @@ import ts from 'typescript'
 import { dirname, isAbsolute, posix, resolve, sep, join } from 'node:path'
 import type { CatalogSnapshot } from '../../catalog/types.js'
 import type { Config, JsonSchemaDocument } from '../../config/schema.js'
+import type { CheckCaseCatalog } from '../../query/types.js'
 import type { CodegenOutput, CodegenRenderResult, CodegenTarget } from '../target.js'
 import type { JsonSchemaAlternative } from '../shared/json-schema-lineage.js'
 import { renderTypescriptQueryArtifacts, renderTypescriptQueryHelpers } from './query.js'
@@ -20,6 +21,7 @@ export interface CreateTypescriptCodegenTargetOptions {
   baseDirectory: string
   key: string
   catalog?: CatalogSnapshot
+  checkCases?: CheckCaseCatalog
 }
 interface OutputRoute {
   source: string
@@ -185,6 +187,7 @@ export function createTypescriptCodegenTarget(
           const rendered = renderTypescriptQueryArtifacts([analysis], config, schemas, {
             emitRuntime: !!runtime,
             catalog: options.catalog,
+            ...(options.checkCases ? { checkCases: options.checkCases } : {}),
             nativeModuleSpecifier: schemaOutDir
               ? (schema, kind) =>
                   typescriptModuleSpecifier(

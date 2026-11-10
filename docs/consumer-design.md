@@ -123,6 +123,9 @@ queries become positional arguments. A parameter proven null-rejecting is
 non-nullable; otherwise it admits null. Joint rejection sets add one local
 union per set, intersected with the flat object type.
 
+**CHECK-derived types.** Parameters and rows also take what the tables' CHECKs
+say; see `check-unions.md`.
+
 **Rows.** Column names come from the database's own description of the result,
 verbatim. The engine's best-effort names stay diagnostic-only. **Duplicate
 output names are a dialect error** with an alias hint — an object type cannot
