@@ -47,6 +47,25 @@ flat row type the way outer-join presence groups are, so testing `kind` narrows
   parameter and row of the domain is. A `NOT VALID` domain constraint narrows
   nothing, since stored values may predate it.
 
+## Members
+
+A group's members follow its discriminant: a column whose value fixes the
+other columns' shapes, preferring an enum, then a boolean, then a literal set,
+then fewer members. Each value the CHECKs mention is a member, values they
+never mention behave alike and share one, NULL is one more, and a value no row
+can hold is none:
+
+```ts
+| { kind: 'paid'; since: string }
+| { kind: 'pending'; since: null }
+| { kind: 'refunded'; since: string | null }   // matched by no CASE branch
+```
+
+Without such a column, which columns are NULL may tell the members apart, as
+for `num_nonnulls(a, b, c) = 1`. Without either, members are merged
+combinations of values, which may overlap. A query that selects a group's
+columns but not its discriminant gets merged members over what it selected.
+
 ## What is read
 
 Each CHECK is evaluated over a small set of abstract states per column: NULL,

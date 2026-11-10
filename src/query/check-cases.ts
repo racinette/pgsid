@@ -41,7 +41,24 @@ export interface CheckCaseGroup {
   columns: readonly string[]
   /** Each case is one member of the union, aligned with `columns`. */
   cases: readonly (readonly CheckColumnCase[])[]
+  /**
+   * What tells the members apart: a column whose value fixes the other columns' shapes, or which
+   * columns are NULL. Without one the members are merged combinations, which may overlap.
+   */
+  discriminant?: { column: string } | { nullness: true }
+  /** With a discriminant, each member's label, aligned with `cases`. */
+  labels?: readonly CheckCaseLabel[]
 }
+
+/**
+ * A member's label: one value of the discriminant, the values the CHECKs never mention (which
+ * behave alike; null for any value of an open type), NULL, or the columns that are set.
+ */
+export type CheckCaseLabel =
+  | { kind: 'value'; value: string }
+  | { kind: 'other'; values: readonly string[] | null }
+  | { kind: 'null' }
+  | { kind: 'set'; columns: readonly string[] }
 
 export interface CheckCaseColumn {
   kind: CheckCaseLiteralKind | null
@@ -82,6 +99,8 @@ interface ColumnSpace {
   /** Enumerated non-NULL values (enum labels, booleans), or the mentioned literals. */
   literals: string[]
   closed: boolean
+  /** The values the CHECKs compare the column with. */
+  mentioned: Set<string>
 }
 
 const cache = new WeakMap<CheckCaseCatalog, Map<string, TableCheckCases>>()
@@ -199,6 +218,7 @@ function deriveFrom(
       notNull: found.notNull,
       literals: labels ? [...labels] : kind === 'boolean' ? ['true', 'false'] : [],
       closed: labels !== null || kind === 'boolean',
+      mentioned: new Set(),
     }
     spaces.set(column, created)
     return created
@@ -261,12 +281,135 @@ function deriveFrom(
         summary: whole(joinCases(cases.map((member) => member[index]!)), domains[index]!),
       })
     })
-    const merged = mergeCases(cases, domains)
-    // A single member says nothing the per-column summaries do not.
-    if (names.length > 1 && merged.length > 1) groups.push({ columns: names, cases: merged })
+    const split = discriminate(
+      names,
+      names.map((name) => spaces.get(name)!),
+      surviving,
+    )
+    if (names.length > 1 && split && split.cases.length > 1)
+      groups.push({ columns: names, ...split })
+    else {
+      const merged = mergeCases(cases, domains)
+      // A single member says nothing the per-column summaries do not.
+      if (names.length > 1 && merged.length > 1) groups.push({ columns: names, cases: merged })
+    }
   }
   return { columns, groups }
 }
+
+/**
+ * Members told apart by one column's value, or else by which columns are NULL: within each
+ * member the other columns must vary independently, so the member says exactly what its rows
+ * hold. Values the CHECKs mention get a member each; unmentioned values of a closed type behave
+ * alike and share one, and an open type's other values are one more.
+ */
+function discriminate(
+  names: readonly string[],
+  spaces: readonly ColumnSpace[],
+  surviving: readonly (readonly number[])[],
+): Pick<CheckCaseGroup, 'cases' | 'discriminant' | 'labels'> | null {
+  const exact = (tuples: readonly (readonly number[])[], skip: (index: number) => boolean) =>
+    tuples.length ===
+    names.reduce(
+      (product, _, index) =>
+        skip(index) ? product : product * new Set(tuples.map((tuple) => tuple[index])).size,
+      1,
+    )
+  const memberOf = (tuples: readonly (readonly number[])[]): CheckColumnCase[] =>
+    names.map((_, index) =>
+      joinCases(tuples.map((tuple) => stateCase(spaces[index]!, tuple[index]!))),
+    )
+  const rank = (space: ColumnSpace) =>
+    space.closed && space.kind === 'string' ? 0 : space.kind === 'boolean' ? 1 : 2
+  const candidates = names
+    .map((name, index) => ({ name, index, space: spaces[index]! }))
+    .filter(({ space }) => space.distinct && space.literals.length > 0)
+    .flatMap(({ name, index, space }) => {
+      const byState = new Map<number, (readonly number[])[]>()
+      for (const tuple of surviving) {
+        const list = byState.get(tuple[index]!) ?? []
+        list.push(tuple)
+        byState.set(tuple[index]!, list)
+      }
+      if (![...byState.values()].every((tuples) => exact(tuples, (other) => other === index)))
+        return []
+      const labels: CheckCaseLabel[] = []
+      const cases: CheckColumnCase[][] = []
+      const unmentioned: (readonly number[])[] = []
+      let nulls: (readonly number[])[] | undefined
+      for (const [state, tuples] of [...byState].sort(([left], [right]) => order(left, right))) {
+        if (state === NULL_STATE) {
+          nulls = tuples
+          continue
+        }
+        const label: CheckCaseLabel | null =
+          state === OTHER_STATE
+            ? { kind: 'other', values: null }
+            : space.kind === 'boolean' ||
+                !space.closed ||
+                space.mentioned.has(space.literals[state]!)
+              ? { kind: 'value', value: space.literals[state]! }
+              : null
+        if (label === null) {
+          unmentioned.push(...tuples)
+          continue
+        }
+        labels.push(label)
+        cases.push(memberOf(tuples))
+      }
+      if (unmentioned.length) {
+        labels.push({
+          kind: 'other',
+          values: [...new Set(unmentioned.map((tuple) => space.literals[tuple[index]!]!))].sort(),
+        })
+        cases.push(memberOf(unmentioned))
+      }
+      if (nulls) {
+        labels.push({ kind: 'null' })
+        cases.push(memberOf(nulls))
+      }
+      return [{ name, rank: rank(space), labels, cases }]
+    })
+    .sort(
+      (left, right) =>
+        left.rank - right.rank ||
+        left.labels.length - right.labels.length ||
+        compare(left.name, right.name),
+    )
+  const chosen = candidates[0]
+  if (chosen && chosen.labels.length > 1)
+    return { cases: chosen.cases, discriminant: { column: chosen.name }, labels: chosen.labels }
+  // Which columns are NULL.
+  const byPattern = new Map<string, (readonly number[])[]>()
+  for (const tuple of surviving) {
+    const key = tuple.map((state) => (state === NULL_STATE ? '0' : '1')).join('')
+    const list = byPattern.get(key) ?? []
+    list.push(tuple)
+    byPattern.set(key, list)
+  }
+  if (byPattern.size < 2 || ![...byPattern.values()].every((tuples) => exact(tuples, () => false)))
+    return null
+  const patterns = [...byPattern].sort(([left], [right]) => compare(right, left))
+  return {
+    cases: patterns.map(([, tuples]) => memberOf(tuples)),
+    discriminant: { nullness: true },
+    labels: patterns.map(([key]) => ({
+      kind: 'set' as const,
+      columns: names.filter((_, index) => key[index] === '1'),
+    })),
+  }
+}
+
+// Literals in the order the CHECKs mention them, then any other value, then NULL.
+const order = (left: number, right: number): number => position(left) - position(right)
+const position = (state: number): number =>
+  state === OTHER_STATE
+    ? Number.MAX_SAFE_INTEGER - 1
+    : state === NULL_STATE
+      ? Number.MAX_SAFE_INTEGER
+      : state
+
+const compare = (left: string, right: string): number => (left < right ? -1 : left > right ? 1 : 0)
 
 function literalKind(
   typeName: string,
@@ -302,6 +445,31 @@ function joinCases(cases: readonly CheckColumnCase[]): CheckColumnCase {
     else if (values) for (const value of item.values) values.add(value)
   }
   return { null: nullable, values: values ? [...values].sort() : null }
+}
+
+/**
+ * A group's members over some of its columns, plus an all-NULL member for a row that may be
+ * absent. While the discriminant stays visible each member keeps its own value; otherwise the
+ * projected members merge.
+ */
+export function projectCases(
+  group: CheckCaseGroup,
+  positions: readonly number[],
+  table: TableCheckCases,
+  absent = false,
+): (readonly CheckColumnCase[])[] {
+  const projected = group.cases.map((member) => positions.map((position) => member[position]!))
+  if (absent) projected.push(positions.map(() => ({ null: true, values: [] })))
+  const visible =
+    group.discriminant &&
+    ('column' in group.discriminant
+      ? positions.includes(group.columns.indexOf(group.discriminant.column))
+      : positions.length === group.columns.length)
+  if (visible) return dedupe(projected)
+  return mergeCases(
+    projected,
+    positions.map((position) => table.columns.get(group.columns[position]!)?.domain ?? null),
+  )
 }
 
 /**
@@ -475,10 +643,12 @@ function collect(node: Node, reader: Reader, columns: Set<string>): void {
     const column = operand ? reader.column(operand) : null
     if (!column) return false
     columns.add(column.name)
-    if (!column.space.closed && column.space.distinct)
+    if (column.space.distinct)
       for (const literal of literals) {
         const value = literal ? literalValue(column.space, literal) : null
-        if (value !== null && !column.space.literals.includes(value))
+        if (value === null) continue
+        column.space.mentioned.add(value)
+        if (!column.space.closed && !column.space.literals.includes(value))
           column.space.literals.push(value)
       }
     return true
@@ -872,13 +1042,11 @@ export function outputCheckCases(
         return position < 0 ? [] : [{ index, position }]
       })
       if (selected.length < 2) continue
-      const projected = group.cases.map((member) =>
-        selected.map(({ position }) => member[position]!),
-      )
-      if (origin.optional) projected.push(selected.map(() => ({ null: true, values: [] })))
-      const merged = mergeCases(
-        projected,
-        selected.map(({ position }) => cases.columns.get(group.columns[position]!)?.domain ?? null),
+      const merged = projectCases(
+        group,
+        selected.map(({ position }) => position),
+        cases,
+        origin.optional,
       )
       if (merged.length < 2) continue
       groups.push({

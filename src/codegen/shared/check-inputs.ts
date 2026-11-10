@@ -1,5 +1,5 @@
 import {
-  mergeCases,
+  projectCases,
   tableCheckCases,
   type OutputCaseGroup,
   type OutputCheckCases,
@@ -534,9 +534,10 @@ export function checkInputCases(
       const indices = new Set(selected.map(({ index }) => index))
       if (selected.length < 2 || indices.size < selected.length) continue
       selected.sort((left, right) => left.index - right.index)
-      const merged = mergeCases(
-        group.cases.map((member) => selected.map(({ position }) => member[position]!)),
-        selected.map(({ position }) => cases.columns.get(group.columns[position]!)?.domain ?? null),
+      const merged = projectCases(
+        group,
+        selected.map(({ position }) => position),
+        cases,
       )
       if (merged.length < 2) continue
       groups.push({
