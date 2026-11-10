@@ -97,8 +97,6 @@ it('validates public int8range values in TypeScript, range payloads in Go, and l
       { kind: 'Value', value: {} },
       { kind: 'Null' },
       { ...value, lower: 9007199254740993 },
-      { ...value, lower: 9223372036854775808n },
-      { ...value, upper: -9223372036854775809n },
       { ...value, lowerInclusive: 'true' },
       { lower: 1n, upper: 9n, lowerInclusive: true, upperInclusive: false },
       { empty: false, lower: 1n, upper: 9n, lowerInclusive: true },
@@ -111,6 +109,18 @@ it('validates public int8range values in TypeScript, range payloads in Go, and l
         JSON.stringify(input, (_key, item) => (typeof item === 'bigint' ? String(item) : item)),
         ['bound', 'shape', 'present'],
       )
+    // A bound outside int8 is sent as is, and int8range input rejects it with 22003 while
+    // reading the value, before any CHECK can skip it.
+    for (const input of [
+      { ...value, lower: 9223372036854775808n },
+      { ...value, upper: -9223372036854775809n },
+    ]) {
+      await expect(
+        pg.query('SELECT $1::int8range', [`[${String(input.lower)},${String(input.upper)})`]),
+      ).rejects.toMatchObject({ code: '22003' })
+      for (const result of Object.values(evaluate(input, null, true)))
+        expect(result).toEqual({ certain: true, error: '22003' })
+    }
     // The former payloads are not public values.
     for (const input of [
       { kind: 'Value', value: {} },

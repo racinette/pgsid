@@ -477,7 +477,8 @@ CONSTRAINT output CHECK(CASE WHEN bypass THEN true ELSE a::text='{"(2,z,hi)"}' E
       [publicGood, '{"(2,z,hi)"}'],
       [[{ n: 1, phase: 'a', label: 'hi' }], '{"(1,a,hi)"}'],
       [[{ n: 2 }, null, { label: 'x' }, {}], '{"(2,,)",NULL,"(,,x)","(,,)"}'],
-      [[[{ n: 2, phase: 'z', label: 'hi' }]], '{{"(2,z,hi)"}}'],
+      // A field outside its integer type fails as the server's input does.
+      [[{ n: 40000, phase: 'z', label: 'hi' }], '{"(40000,z,hi)"}'],
     ] as const)
       expect(evaluate({ a, bypass: false }), text).toEqual(
         await serverCheckResults(pg, 'bundles', { a: text, bypass: 'false' }),
@@ -536,7 +537,6 @@ CONSTRAINT output CHECK(CASE WHEN bypass THEN true ELSE a::text='{"(2,z,hi)"}' E
     }
     // A field of the wrong shape or outside its type is a type error.
     for (const leaf of [
-      { n: 40000, phase: 'z', label: 'hi' },
       { n: '2', phase: 'z', label: 'hi' },
       { n: 2.5, phase: 'z', label: 'hi' },
       { n: 2, phase: 0, label: 'hi' },
@@ -544,13 +544,16 @@ CONSTRAINT output CHECK(CASE WHEN bypass THEN true ELSE a::text='{"(2,z,hi)"}' E
       { n: 2, phase: 'z', label: 'bad\0label' },
     ])
       expect(() => evaluate({ a: [leaf], bypass: false }), JSON.stringify(leaf)).toThrow(TypeError)
-    // A label outside the captured ones may have been added since, so what reads it decides
-    // nothing, and a bypassed row still decides.
+    // A label outside the captured ones may have been added since, or the server may reject it;
+    // it reads the array before any check runs, so every check reading it decides nothing, also
+    // where the row bypasses the comparison.
     const added = [{ n: 2, phase: 'added', label: 'hi' }]
-    for (const name of ['equal', 'output'])
-      expect(evaluate({ a: added, bypass: false })[name], name).toMatchObject({ certain: false })
-    expect(evaluate({ a: added, bypass: true })).toEqual(expected)
+    for (const bypass of [false, true])
+      for (const [name, result] of Object.entries(evaluate({ a: added, bypass })))
+        expect(result, `${bypass} ${name}`).toMatchObject({ certain: false })
     expect(() => evaluate({ a: '{"(2,z,hi)"}', bypass: false })).toThrow(TypeError)
+    // The column declares one dimension, so a nested list is one record element: a type error.
+    expect(() => evaluate({ a: [publicGood], bypass: false })).toThrow(TypeError)
     // Stored records go to the evaluator entries directly: a field whose value is unknown and an
     // ordinal outside the captured labels.
     const runtime = await import(pathToFileURL(join(root, 'js/checks-rust/checks.js')).href)
@@ -579,6 +582,24 @@ CONSTRAINT output CHECK(CASE WHEN bypass THEN true ELSE a::text='{"(2,z,hi)"}' E
       expect(undecided, name).toContain((result as { kind: string }).kind)
     for (const result of Object.values(stored(outsideLabels, true)))
       expect(result).toEqual({ kind: 'True' })
+    // A two-dimensional array has no public value under the declared dimension; stored, it
+    // decides as the server does.
+    const grid = structuredClone(good)
+    grid.value.dimensions.push({ lower: 1, length: 1 })
+    const gridServer = await serverCheckResults(pg, 'bundles', {
+      a: '{{"(2,z,hi)"}}',
+      bypass: 'false',
+    })
+    expect(stored(grid)).toEqual(
+      Object.fromEntries(
+        Object.entries(gridServer).map(([name, result]) => [
+          name,
+          'error' in result
+            ? { kind: 'Error', value: { state: parseInt(result.error, 36) } }
+            : { kind: result.value === null ? 'Null' : result.value ? 'True' : 'False' },
+        ]),
+      ),
+    )
     await writeFile(
       join(root, 'schema/public/composite_arrays_test.go'),
       `package public
