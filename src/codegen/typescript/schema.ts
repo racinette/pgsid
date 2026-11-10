@@ -21,6 +21,7 @@ import {
 import type { OutputCheckCases } from '../../query/check-cases.js'
 import { checkCaseRefinements, checkLiteralType } from './check-case-types.js'
 import { typescriptJsonSchemaBindings } from './json-schema-bindings.js'
+import { renderTypescriptZodSchemas } from './zod.js'
 import {
   resolveTypescriptColumnType,
   resolveTypescriptDomainBase,
@@ -193,11 +194,24 @@ export function renderTypescriptSchemaArtifacts(
         compositeTypeGraph: catalog.compositeTypeGraph,
         columnMappings: config.sql.codegen?.typescript?.mappings.column,
       })
+      const zodFile = config.sql.codegen?.typescript?.schema?.zod
+        ? renderTypescriptZodSchemas({
+            schema,
+            tables,
+            catalog,
+            config,
+            relations: options.relations ?? {},
+            evaluated: checks.evaluated ?? [],
+            domains: options.domains ?? {},
+            storedSemantics: (column) => storedColumnSemantics(column, catalog),
+          })
+        : ''
       const files: [string, string][] = [
         ['tables.d.ts', withTypescriptJsonValue(tableFile)],
         ['enums.d.ts', enumFile],
         ['domains.d.ts', withTypescriptJsonValue(domainFile)],
         ['checks.ts', checks.checks],
+        ['zod.ts', zodFile],
       ]
       const exported = files.filter(([, content]) => content.length > 0)
       for (const [name, content] of exported) {
@@ -220,7 +234,7 @@ export function renderTypescriptSchemaArtifacts(
           exported.map(([name]) =>
             factory.createExportDeclaration(
               undefined,
-              name !== 'checks.ts',
+              name !== 'checks.ts' && name !== 'zod.ts',
               undefined,
               factory.createStringLiteral(`./${name.replace(/(?:\.d)?\.ts$/u, '.js')}`),
             ),
