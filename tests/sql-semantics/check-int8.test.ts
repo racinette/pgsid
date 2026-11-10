@@ -166,8 +166,6 @@ it.each([true, false])(
           'invalid',
           '9223372036854775808',
           '-9223372036854775809',
-          9223372036854775808n,
-          -9223372036854775809n,
           { kind: 'Value', value: 42n },
           { kind: 'Null' },
           { kind: 'Unknown' },
@@ -178,6 +176,13 @@ it.each([true, false])(
           expect(() => generated.evaluatePublicPositiveBigintDomainChecks({ value })).toThrow(
             TypeError,
           )
+        }
+        // A bigint outside int8 is sent as is, and int8 input rejects it with 22003.
+        for (const value of [9223372036854775808n, -9223372036854775809n]) {
+          for (const check of generated.evaluatePublicInt8ChecksChecks({ amount: value }))
+            expect(check.result).toMatchObject({ certain: true, error: '22003' })
+          for (const check of generated.evaluatePublicPositiveBigintDomainChecks({ value }))
+            expect(check.result).toMatchObject({ certain: true, error: '22003' })
         }
         const positive = generated
           .evaluatePublicInt8ChecksChecks({ amount: 42n })
