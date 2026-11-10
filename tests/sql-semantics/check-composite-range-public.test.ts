@@ -113,7 +113,7 @@ INSERT INTO gate SELECT a,span_multirange(a),ARRAY[a],false FROM(SELECT span(ROW
     const good = span({ n: 2, phase: 'z' }, { n: 5, phase: 'a' })
     const row = { a: good, m: [good], bag: [good], bypass: false }
     const before = structuredClone(row)
-    expect.soft(evaluate(row)).toEqual(expected)
+    expect(evaluate(row)).toEqual(expected)
     expect(row).toEqual(before)
     const mismatches: ReturnType<typeof differingChecks> = []
     for (const [a, bypass] of [
@@ -127,6 +127,14 @@ INSERT INTO gate SELECT a,span_multirange(a),ARRAY[a],false FROM(SELECT span(ROW
       [span(null, { n: 5, phase: 'a' }), false],
       [span({ n: 5, phase: 'a' }, { n: 2, phase: 'z' }), false],
     ] as const) {
+      // A label the captured catalog lacks may have been added since, so the row stays undecided.
+      if (JSON.stringify(a).includes('"added"')) {
+        expectUndecidedOrRejected(
+          () => evaluate({ a, m: [a], bag: [a], bypass }),
+          JSON.stringify(a),
+        )
+        continue
+      }
       const text = spanText(a)
       mismatches.push(
         ...differingChecks(
@@ -141,8 +149,7 @@ INSERT INTO gate SELECT a,span_multirange(a),ARRAY[a],false FROM(SELECT span(ROW
         ),
       )
     }
-    // Soft, so the stored cases below still run while ranges over records stay undecided.
-    expect.soft(mismatches).toEqual([])
+    expect(mismatches).toEqual([])
     // Stored ranges go to the evaluator entries directly: whatever support, bound profile, enum
     // labels and label OIDs they carry, identities other than the column's, unknown fields and
     // ordinals outside the labels.

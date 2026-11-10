@@ -227,6 +227,8 @@ export function renderTypescriptSchemaCheckArtifacts(
     columnMappings?: Readonly<Record<string, unknown>>
   } = {},
   rust = true,
+  // Set on a second pass when a value holds jsonpath parts, whose input needs the regex engine.
+  regexInputs = false,
 ): {
   checks: string
   rust: string | null
@@ -403,8 +405,10 @@ export function renderTypescriptSchemaCheckArtifacts(
           })),
         ),
         options.executionContext,
+        regexInputs,
       )
     : null
+  let jsonpathReached = false
   let rustIndex = 0
   const row = identifier('row')
   const inputHelpers = new Set<string>()
@@ -552,6 +556,24 @@ export function renderTypescriptSchemaCheckArtifacts(
       ),
     )
   }
+  const jsonpathConverter = (): string => {
+    inputHelpers.add('checkInputText')
+    return defineConverter('jsonpath', 'checkRustTextInput', 'JsonpathValue', () =>
+      runtimeCall(
+        typescriptRuntimeName('jsonpath_from_text'),
+        [
+          helperCall('checkRustText', [oneFieldRow(), identifier('name')]),
+          options.executionContext?.defaultCollation === 'C'
+            ? factory.createTrue()
+            : factory.createFalse(),
+          options.executionContext?.serverEncoding === 'UTF8'
+            ? factory.createTrue()
+            : factory.createFalse(),
+        ],
+        '_checkRustOperations',
+      ),
+    )
+  }
   const undecided = (name: string): boolean => name.startsWith('checkRustUndecided')
   // A field's type modifier applies as the server applies it reading the field: through the type's
   // length coercion.
@@ -587,6 +609,17 @@ export function renderTypescriptSchemaCheckArtifacts(
     }
     const element = (prefix: string, adapter: string, extra: ts.Expression[] = []) =>
       wrap(prefix, helperCall(adapter, [oneFieldRow(), identifier('name'), ...extra]))
+    // jsonpath's input compiles like_regex patterns, so it needs the regex engine in the evaluator.
+    if (type === 'pg_catalog.jsonpath') {
+      if (!rustGroup?.requiresRegex) {
+        jsonpathReached = true
+        return null
+      }
+      return wrap(
+        'Jsonpath',
+        helperCall(jsonpathConverter(), [identifier('value'), identifier('name')]),
+      )
+    }
     // A value sent as text goes through its type's input, as array input reads each element.
     const text = textConverter(type)
     if (text)
@@ -816,12 +849,7 @@ export function renderTypescriptSchemaCheckArtifacts(
   const multirangeConverter = (type: string): string =>
     defineConverter(`multirange\0${type}`, 'checkRustMultirange', 'MultirangeValue', () => {
       const profile = multirangeTypeProfile(type)!
-      // Ranges over composites and arrays need the subtype's bound profile; they stay undecided.
-      if (
-        rangeContainerKind(profile.elementType) !== null ||
-        undecided(rangeConverter(profile.rangeType))
-      )
-        return 'checkRustUndecidedMultirange'
+      if (undecided(rangeConverter(profile.rangeType))) return 'checkRustUndecidedMultirange'
       return helperCall('checkRustPublicMultirange', [
         identifier('value'),
         identifier('name'),
@@ -836,10 +864,12 @@ export function renderTypescriptSchemaCheckArtifacts(
   const rangeConverter = (type: string): string =>
     defineConverter(`range\0${type}`, 'checkRustRange', 'RangeValue', () => {
       const profile = rangeTypeProfile(type)!
-      if (
-        rangeContainerKind(profile.elementType) !== null ||
-        undecided(elementConverter(profile.elementType))
-      )
+      // Bounds that are records, arrays or ranges are compared through the subtype's profile.
+      const nodes =
+        rangeContainerKind(profile.elementType) === null
+          ? []
+          : rangeBoundProfiles(profile, options.executionContext)
+      if (!nodes || undecided(elementConverter(profile.elementType)))
         return 'checkRustUndecidedRange'
       const labels = profile.subtypeEnum?.values
       const subtypeDomain = domainNamed(profile.subtype)
@@ -857,6 +887,9 @@ export function renderTypescriptSchemaCheckArtifacts(
         factory.createStringLiteral(labels?.join('\0') ?? ''),
         numberLiteral(labels?.length ?? -1),
         identifier(bound),
+        ...(nodes.length
+          ? [literal({ nodes: nodes.map((node) => ({ ...node, fields: node.fields ?? [] })) })]
+          : []),
       ])
     })
   const callInput = (helper: string, name: string): ts.Expression => {
@@ -1622,13 +1655,14 @@ export function renderTypescriptSchemaCheckArtifacts(
         'expression' in result.value
       )
         collectModules(result.value.expression as ts.Node)
-  if (reachedDomains.size)
+  if (reachedDomains.size || (jsonpathReached && !regexInputs))
     return renderTypescriptSchemaCheckArtifacts(
       tables,
       domains,
       [...selectedDomains, ...reachedDomains],
       options,
       rust,
+      regexInputs || jsonpathReached,
     )
   const rustFiles = rustGroup?.source ? transpileCheckRustTypescriptFiles(rustGroup.source) : null
   return {
@@ -2129,15 +2163,17 @@ function checkRustRangeColumn(row: object, name: string, convert: (value: unknow
   return convert(value, name)
 }
 // The evaluator's range constructor orders and canonicalizes the bounds as range_in does.
-function checkRustPublicRange(value: unknown, name: string, typeName: string, elementType: string, kind: number, support: _checkRust.RangeSupport, labels: string, count: number, bound: (value: unknown, name: string) => _checkRust.ArrayElement): _checkRust.RangeValue {
+function checkRustPublicRange(value: unknown, name: string, typeName: string, elementType: string, kind: number, support: _checkRust.RangeSupport, labels: string, count: number, bound: (value: unknown, name: string) => _checkRust.ArrayElement, profile?: _checkRust.RangeBoundContext): _checkRust.RangeValue {
   if (!value || typeof value !== 'object' || !('empty' in value) || typeof value.empty !== 'boolean') return checkRustInvalid(name)
   if (value.empty) {
     const none: _checkRust.ArrayElement = { kind: 'Null' }
+    if (profile) return _checkRust.rangeFromTypedBounds(typeName, elementType, kind, true, false, false, none, none, support, '', -1, profile)
     return labels ? _checkRust.rangeFromDefinedBounds(typeName, elementType, kind, true, false, false, none, none, support, labels, count) : _checkRust.rangeFromProfiledBounds(typeName, elementType, kind, true, false, false, none, none, support)
   }
   if (!('lower' in value) || !('upper' in value) || !('lowerInclusive' in value) || !('upperInclusive' in value) || value.lower === undefined || value.upper === undefined || typeof value.lowerInclusive !== 'boolean' || typeof value.upperInclusive !== 'boolean') return checkRustInvalid(name)
-  const cell = (item: unknown): _checkRust.ArrayElement => (item === null ? { kind: 'Null' } : bound(item, name))
+  const cell = (item: unknown): _checkRust.ArrayElement => (item === null ? { kind: 'Null' } : checkRustPart(bound(item, name)))
   const flags = _checkRust.makeTextValue((value.lowerInclusive ? '[' : '(') + (value.upperInclusive ? ']' : ')'))
+  if (profile) return _checkRustOperations.rangeConstructTyped(typeName, elementType, kind, cell(value.lower), cell(value.upper), flags, support, '', -1, profile)
   return labels ? _checkRustOperations.rangeConstructDefined(typeName, elementType, kind, cell(value.lower), cell(value.upper), flags, support, labels, count) : _checkRustOperations.rangeConstructWithSupport(typeName, elementType, kind, cell(value.lower), cell(value.upper), flags, support)
 }
 function checkRustMultirangeColumn(row: object, name: string, convert: (value: unknown, name: string) => _checkRust.MultirangeValue): _checkRust.MultirangeValue {
@@ -2152,7 +2188,7 @@ function checkRustPublicMultirange(value: unknown, name: string, typeName: strin
   let members = _checkRust.makeArrayArguments(rangeType, 42)
   for (const item of value) {
     if (item === null || item === undefined) return checkRustInvalid(name)
-    members = _checkRust.appendArrayArgument(members, _checkRust.arrayElementFromRange(range(item, name)))
+    members = _checkRust.appendArrayArgument(members, checkRustPart(_checkRust.arrayElementFromRange(range(item, name))))
   }
   return _checkRustOperations.multirangeConstructArrayWithSupport(_checkRust.finishArrayConstructor(members), typeName, rangeType, elementType, kind, support)
 }
@@ -2162,6 +2198,13 @@ function checkRustRead<T extends { kind: string }>(row: object, name: string, va
   if (value.kind === 'Error') throw checkRustSqlError((value as unknown as { value: _checkRust.SqlError }).value)
   if ((value.kind === 'Unknown' || value.kind === 'Unimplemented') && Object.hasOwn(row, name) && Reflect.get(row, name) !== undefined) throw checkUndecidedInput
   return value
+}
+// The server reads a container's parts in order: the first part its input rejects fails the whole
+// value, and an undecided part leaves it undecided, since that part may be the one rejected.
+function checkRustPart(part: _checkRust.ArrayElement): _checkRust.ArrayElement {
+  if (part.kind === 'Error') throw checkRustSqlError(part.value)
+  if (part.kind === 'Unknown' || part.kind === 'Unimplemented') throw checkUndecidedInput
+  return part
 }
 function checkRustSqlError(error: _checkRust.SqlError): Error {
   return Object.assign(new Error(_checkRust.sqlErrorMessage(error).message), { code: error.state.toString(36).toUpperCase().padStart(5, '0') })
@@ -2206,7 +2249,7 @@ function checkRustPublicComposite(value: unknown, name: string, typeName: string
   let composite = _checkRust.makeCompositeFields(typeName)
   fields.forEach((field, index) => {
     const item = Reflect.get(value, field)
-    composite = _checkRust.appendCompositeField(composite, convert[index]!(item === undefined ? null : item, name))
+    composite = _checkRust.appendCompositeField(composite, checkRustPart(convert[index]!(item === undefined ? null : item, name)))
   })
   return composite
 }
@@ -2242,7 +2285,7 @@ function checkRustPublicArray(value: unknown, name: string, elementType: string,
   if (cells.length) for (const length of lengths) args = _checkRust.appendArrayDimension(args, 1, length)
   for (const cell of cells) {
     if (cell === undefined) return checkRustInvalid(name)
-    args = _checkRust.appendArrayArgument(args, element(cell, name))
+    args = _checkRust.appendArrayArgument(args, checkRustPart(element(cell, name)))
   }
   return _checkRust.finishArrayArguments(args)
 }
@@ -2535,25 +2578,27 @@ function checkRustDate(row: object, name: string): _checkRust.DateValue {
   if (typeof value === 'string') return checkRustPublicDate(value, name)
   return checkRustInvalid(name)
 }
+// Integer input rejects a value outside its type's range with 22003, as the server does.
+const checkRustOutOfRange = { kind: 'Error', value: _checkRust.makeSqlError(3452547) } as const
 function checkRustInt2(row: object, name: string): _checkRust.Int2Value {
   const input = checkInputInteger(row, name)
   if (!input.certain) return Object.hasOwn(row, name) && Reflect.get(row, name) !== undefined ? checkRustInvalid(name) : _checkRust.int2Unknown()
   if (input.value === null) return _checkRust.int2Null()
-  if (input.value < -32768n || input.value > 32767n) return checkRustInvalid(name)
+  if (input.value < -32768n || input.value > 32767n) return checkRustOutOfRange
   return _checkRust.makeInt2Value(Number(input.value))
 }
 function checkRustInt4(row: object, name: string): _checkRust.Int4Value {
   const input = checkInputInteger(row, name)
   if (!input.certain) return Object.hasOwn(row, name) && Reflect.get(row, name) !== undefined ? checkRustInvalid(name) : _checkRust.int4Unknown()
   if (input.value === null) return _checkRust.int4Null()
-  if (input.value < -2147483648n || input.value > 2147483647n) return checkRustInvalid(name)
+  if (input.value < -2147483648n || input.value > 2147483647n) return checkRustOutOfRange
   return _checkRust.makeInt4Value(Number(input.value))
 }
 function checkRustInt8(row: object, name: string): _checkRust.Int8Value {
   const input = checkInputInt8(row, name)
   if (!input.certain) return Object.hasOwn(row, name) && Reflect.get(row, name) !== undefined ? checkRustInvalid(name) : _checkRust.int8Unknown()
   if (input.value === null) return _checkRust.int8Null()
-  if (input.value < -9223372036854775808n || input.value > 9223372036854775807n) return checkRustInvalid(name)
+  if (input.value < -9223372036854775808n || input.value > 9223372036854775807n) return checkRustOutOfRange
   return _checkRust.makeInt8Value(input.value)
 }
 function checkRustName(row: object, name: string): _checkRust.TextValue {

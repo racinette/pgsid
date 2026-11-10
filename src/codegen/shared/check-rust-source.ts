@@ -182,6 +182,8 @@ export function prepareCheckRust(
 export function prepareCheckRustGroup(
   constraints: readonly { expression: EvalBoolExpression; identity: CheckConstraintIdentity }[],
   executionContext: CheckExecutionContext = {},
+  // Inputs may parse values whose input needs the regular expression engine, e.g. jsonpath.
+  inputsRequireRegex = false,
 ): {
   checks: readonly (
     | {
@@ -221,13 +223,13 @@ export function prepareCheckRustGroup(
     ),
     evaluatorSource,
     sharedDeclarations: [...declarations.values()],
-    requiresRegex: supported.some((item) => item.requiresRegex),
+    requiresRegex: inputsRequireRegex || supported.some((item) => item.requiresRegex),
     source: evaluatorSource
       ? assembleCheckRust({
           source: evaluatorSource,
           sharedDeclarations: [...declarations.values()],
           callables: [...new Set(supported.flatMap((item) => item.callables))],
-          requiresRegex: supported.some((item) => item.requiresRegex),
+          requiresRegex: inputsRequireRegex || supported.some((item) => item.requiresRegex),
         })
       : null,
   }

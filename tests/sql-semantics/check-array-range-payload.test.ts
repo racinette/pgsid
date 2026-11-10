@@ -160,7 +160,8 @@ it('injects compiled array-bound contexts before public range, multirange and re
         ).map((c) => [c.constraint, c.result]),
       )
     // Public bounds are arrays of enum labels, and every check decides what PostgreSQL decides,
-    // except that hashing an enum reads its OIDs, which only the database holds.
+    // except that hashing an enum reads its OIDs, which only the database holds. nested holds only
+    // NULLs, so its hash reads none.
     const span = (lower: string[], upper: string[]) => ({
       empty: false,
       lower,
@@ -199,15 +200,16 @@ it('injects compiled array-bound contexts before public range, multirange and re
         bypass: String(bypass),
       })
       if (!bypass)
-        for (const name of Object.keys(server).filter((name) => name.startsWith('hash_'))) {
+        for (const name of Object.keys(server).filter(
+          (name) => name.startsWith('hash_') && name !== 'hash_nested',
+        )) {
           expect(local[name], name).toMatchObject({ certain: false })
           delete local[name]
           delete server[name]
         }
       mismatches.push(...differingChecks(JSON.stringify(row), local, server))
     }
-    // Soft, so the stored cases below still run while ranges over arrays stay undecided.
-    expect.soft(mismatches).toEqual([])
+    expect(mismatches).toEqual([])
     // Stored values go to the evaluator entries directly: arrays starting at -2, arrays of the array
     // domain with elements, contexts the values carry, ordinals outside the labels and other
     // element types.

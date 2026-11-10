@@ -97,11 +97,12 @@ const cases: Partial<Record<(typeof columns)[number], unknown>>[] = [
   { span: span('0/10', '2/0') },
   { span: span('0/20', '0/10') },
   { span: span('0/10', 'x') },
-  // Elements whose input is not converted leave the whole array to the server, which may reject
-  // one of them before the check is reached.
   { paths: ['$'] },
   { paths: [''] },
   { paths: ['$', '$', '$'] },
+  // The project declares no collation, which like_regex patterns depend on.
+  { paths: ['$.a ? (@ like_regex "(")'] },
+  { paths: ['strict $.a ? (@ like_regex "^b" flag "i")', null] },
 ]
 
 let root: string
@@ -185,7 +186,8 @@ describe('CHECKs on text-valued elements in public containers', () => {
       else expect({ shown, calls }).toEqual({ shown, calls: 1 })
     }
     // CHECK violations and malformed element text are decided before the server; money and XML
-    // input read session settings the project does not declare, and ACL input reads roles.
+    // input read session settings the project does not declare, and ACL input reads roles. A
+    // record with a money field is undecided as a whole, since the server reads every field.
     expect(decided).toBeGreaterThanOrEqual(19)
   })
 
@@ -198,8 +200,8 @@ describe('CHECKs on text-valued elements in public containers', () => {
       certain: true,
       value: true,
     })
-    // The server rejects an empty JSON path before the check, so the check cannot be decided.
-    expect(result({ paths: [''] }, 'few_paths')).toMatchObject({ certain: false })
+    // The server rejects an empty JSON path before the check is reached.
+    expect(result({ paths: [''] }, 'few_paths')).toMatchObject({ certain: true, error: '22P02' })
     for (const [row, constraint] of [
       [{ docs: [1] }, 'short_docs'],
       [{ docs: [{ kind: 'Value', value: { lexemes: [] } }] }, 'short_docs'],
