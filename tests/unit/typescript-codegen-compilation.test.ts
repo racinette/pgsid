@@ -92,6 +92,7 @@ describe('generated TypeScript project', () => {
         import type { InferSelect } from './schema/helpers.js'
         import type { EventActors, Events } from './schema/public/tables.js'
         import { getEvent, isGetEventPayload } from './runtime/events/GetEvent.js'
+        import { json, type PgsidJson } from './runtime/events/pgsid/queryable.js'
         import {
           type GetEventParams,
           type GetEventRow,
@@ -103,8 +104,9 @@ describe('generated TypeScript project', () => {
 
         const params = { id: 1 } satisfies GetEventParams
         void getEvent(db, params)
-        expectType<{ actor: number }>(row.payload)
-        expectType<boolean>(isGetEventPayload(row.payload))
+        expectType<PgsidJson<{ actor: number }>>(row.payload)
+        expectType<{ actor: number }>(row.payload.value())
+        expectType<boolean>(isGetEventPayload(row.payload.value()))
 
         if (row.actor_id !== null) {
           expectType<string>(row.actor_name)
@@ -114,18 +116,21 @@ describe('generated TypeScript project', () => {
 
         declare const view: InferSelect<EventActors>
         expectType<number>(view.id)
-        expectType<number | null>(view.actor)
+        expectType<PgsidJson<number> | null>(view.actor)
         if (view.actor_id !== null) {
           expectType<string>(view.actor_name)
         } else {
           expectType<null>(view.actor_name)
         }
 
-        const event: InferSelect<Events> = { id: 1, payload: { actor: 2 } }
+        const event: InferSelect<Events> = { id: 1, payload: json({ actor: 2 }) }
         void event
         // @ts-expect-error JSON Schema types reject the wrong property type.
-        const invalidEvent: InferSelect<Events> = { id: 1, payload: { actor: 'two' } }
+        const invalidEvent: InferSelect<Events> = { id: 1, payload: json({ actor: 'two' }) }
         void invalidEvent
+        // @ts-expect-error A JSON column holds a container, not a plain value.
+        const plainEvent: InferSelect<Events> = { id: 1, payload: { actor: 2 } }
+        void plainEvent
       `,
     )
 
@@ -205,7 +210,10 @@ describe('generated TypeScript project', () => {
       const child: (bigint & {readonly __brand: 'public.child_id'}) | null = row.child;
       const state: 'ready' | 'done' = row.state;
       const numbers: GetEventRow['numbers'] = [1, null];
-      const payload: Document = row.payload;
+      const container: {readonly text: string; value(): Document} = row.payload;
+      const payload: Document = row.payload.value();
+      // @ts-expect-error A JSON column holds a container, not a plain value.
+      const plainPayload: GetEventRow['payload'] = {id: 1};
       const valid: Document = {id: 1, next: {id: 2, next: {id: 3}}};
       // @ts-expect-error Native domains remain branded in query-only output.
       const invalidId: GetEventRow['id'] = 1n;
@@ -365,24 +373,38 @@ describe('generated TypeScript project', () => {
           assert.deepEqual(validateDocument(invalid).issues.map(({path, keyword, expected, received}) => ({path, keyword, expected, received})), [{path: ['next', 'next', 'actor', 'id'], keyword: 'type', expected: 'integer', received: 'string'}]);
           assert.equal(validateDocumentActor({id: 'bad'}).valid, false);
           const check = async (payload, audit, rejectedColumn) => {
+            const values = {payload, audit};
             const db = {queryText: async () => ({rows: [['1', JSON.stringify(payload), JSON.stringify(audit)]], rowCount: 1})};
-            if (rejectedColumn) {
-              for (const [execute, name] of [[getEvent, 'GetEvent'], [listEvents, 'ListEvents'], [reports.getReport, 'GetReport']]) await assert.rejects(execute(db), error => {
-                assert.ok(error instanceof QueryValidationError);
-                assert.ok(error instanceof TypeError);
-                assert.equal(error.name, 'QueryValidationError');
-                assert.equal(error.query, name);
-                assert.equal(error.column, rejectedColumn);
-                assert.deepEqual(error.issues[0].path, ['next', 'next', 'actor', 'id']);
-                assert.equal(error.issues[0].keyword, 'type');
-                assert.equal(error.issues[0].expected, 'integer');
-                assert.equal(error.issues[0].received, 'string');
-                assert.match(error.message, /next.next.actor.id/);
-                return true;
-              });
-            } else {
-              assert.equal((await getEvent(db)).id, 1);
-              assert.equal((await listEvents(db))[0].id, 1);
+            for (const [execute, name, many] of [[getEvent, 'GetEvent', false], [listEvents, 'ListEvents', true], [reports.getReport, 'GetReport', false]]) {
+              // Reading the row never fails on a schema; reading the rejected column's value does.
+              const result = await execute(db);
+              const row = many ? result[0] : result;
+              assert.equal(row.id, 1);
+              for (const column of ['payload', 'audit']) {
+                assert.equal(row[column].text, JSON.stringify(values[column]));
+                if (column !== rejectedColumn) {
+                  assert.deepEqual(row[column].value(), values[column]);
+                  assert.deepEqual(row[column].safeValue(), {ok: true, value: values[column]});
+                  continue;
+                }
+                const expectRejection = error => {
+                  assert.ok(error instanceof QueryValidationError);
+                  assert.ok(error instanceof TypeError);
+                  assert.equal(error.name, 'QueryValidationError');
+                  assert.equal(error.query, name);
+                  assert.equal(error.column, rejectedColumn);
+                  assert.deepEqual(error.issues[0].path, ['next', 'next', 'actor', 'id']);
+                  assert.equal(error.issues[0].keyword, 'type');
+                  assert.equal(error.issues[0].expected, 'integer');
+                  assert.equal(error.issues[0].received, 'string');
+                  assert.match(error.message, /next.next.actor.id/);
+                  return true;
+                };
+                assert.throws(() => row[column].value(), expectRejection);
+                const safe = row[column].safeValue();
+                assert.equal(safe.ok, false);
+                expectRejection(safe.error);
+              }
             }
           };
           await check(valid, valid, false);

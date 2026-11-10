@@ -1,3 +1,5 @@
+type PgsidJsonValue = null | boolean | number | string | PgsidJsonValue[] | { [key: string]: PgsidJsonValue };
+interface PgsidJson<T = PgsidJsonValue> { readonly text: string; value(): T; safeValue(): { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: Error } }
 import type { GetEventParams, GetEventRow } from "../../../types/queries/events/GetEvent.js";
 export type { GetEventParams, GetEventRow } from "../../../types/queries/events/GetEvent.js";
 import * as pgsid from "./pgsid/queryable.js";
@@ -19,8 +21,49 @@ function encodeBigint(value: unknown, name: string): string | null {
 function decodeText(value: string | null): string | null {
     return value;
 }
+function jsonContainer(text: string, validate?: (value: unknown) => Error | null): PgsidJson<unknown> {
+    let read: {
+        value: unknown;
+    } | {
+        error: Error;
+    } | undefined;
+    const parsed = () => {
+        if (!read)
+            try {
+                const value: unknown = JSON.parse(text);
+                const error = validate?.(value) ?? null;
+                read = error ? { error } : { value };
+            }
+            catch (error) {
+                read = { error: error instanceof Error ? error : new Error(String(error)) };
+            }
+        return read;
+    };
+    return Object.assign(Object.create(null), {
+        [Symbol.for("pgsid.json")]: true,
+        text,
+        value() {
+            const result = parsed();
+            if ("error" in result)
+                throw result.error;
+            return result.value;
+        },
+        safeValue() {
+            const result = parsed();
+            return "error" in result ? { ok: false, error: result.error } : { ok: true, value: result.value };
+        },
+    }) as PgsidJson<unknown>;
+}
+function isJson(value: unknown): value is PgsidJson<unknown> {
+    return typeof value === "object" && value !== null && (value as Record<symbol, unknown>)[Symbol.for("pgsid.json")] === true && typeof (value as {
+        text?: unknown;
+    }).text === "string";
+}
 function decodeJson(value: string | null): unknown {
-    return value === null ? null : JSON.parse(value);
+    return value === null ? null : jsonContainer(value);
+}
+function checkedJson(value: unknown, validate: (value: unknown) => Error | null): unknown {
+    return isJson(value) ? jsonContainer(value.text, validate) : value;
 }
 function temporalOutput(type: string, value: string): never {
     throw new TypeError("Unexpected " + type + " output " + JSON.stringify(value) + "; generated code reads the ISO DateStyle and the postgres or iso_8601 IntervalStyle");
@@ -54,7 +97,7 @@ function decodeTimestamptz(value: string | null): unknown {
     return typeof read === "bigint" ? { epochMicroseconds: read } : read;
 }
 export const getEventSql = "WITH selected AS (\n  SELECT id, account_id, payload, state, created_at\n  FROM public.events\n  WHERE id = $1\n)\nSELECT\n  selected.id,\n  selected.payload,\n  selected.payload -> 'actor' AS actor,\n  selected.state,\n  selected.created_at,\n  accounts.id AS joined_account_id,\n  accounts.display_name\nFROM selected\nLEFT JOIN public.accounts AS accounts ON accounts.id = selected.account_id;";
-export function isGetEventPayload(value: unknown): value is GetEventRow["payload"] {
+export function isGetEventPayload(value: unknown): value is NonNullable<GetEventRow["payload"]> extends PgsidJson<infer T> ? T : never {
     return _jsonSchemas.isEventPayload(value);
 }
 export function validateGetEventPayload(value: unknown): {
@@ -69,8 +112,8 @@ export function validateGetEventPayload(value: unknown): {
 } {
     return _jsonSchemas.validateEventPayload(value);
 }
-export function isGetEventActor(value: unknown): value is GetEventRow["actor"] {
-    return value === null || _jsonSchemas.isEventPayloadActor(value);
+export function isGetEventActor(value: unknown): value is NonNullable<GetEventRow["actor"]> extends PgsidJson<infer T> ? T : never {
+    return _jsonSchemas.isEventPayloadActor(value);
 }
 export function validateGetEventActor(value: unknown): {
     valid: boolean;
@@ -82,7 +125,7 @@ export function validateGetEventActor(value: unknown): {
         message: string;
     }[];
 } {
-    return value === null ? { valid: true, issues: [] } : _jsonSchemas.validateEventPayloadActor(value);
+    return _jsonSchemas.validateEventPayloadActor(value);
 }
 export async function getEvent(db: pgsid.Queryable, params: GetEventParams): Promise<GetEventRow | undefined> {
     const result = await db.queryText(getEventSql, [encodeBigint(params["id"], "id")]);
@@ -90,9 +133,7 @@ export async function getEvent(db: pgsid.Queryable, params: GetEventParams): Pro
     if (values === undefined)
         return undefined;
     const row = { "id": decodeBigint(values[0]), "payload": decodeJson(values[1]), "actor": decodeJson(values[2]), "state": decodeText(values[3]), "created_at": decodeTimestamptz(values[4]), "joined_account_id": decodeBigint(values[5]), "display_name": decodeText(values[6]) };
-    if (!isGetEventPayload(row["payload"]))
-        throw new pgsid.QueryValidationError("GetEvent", "payload", validateGetEventPayload(row["payload"]).issues);
-    if (!isGetEventActor(row["actor"]))
-        throw new pgsid.QueryValidationError("GetEvent", "actor", validateGetEventActor(row["actor"]).issues);
+    row["payload"] = checkedJson(row["payload"], (value: unknown) => isGetEventPayload(value) ? null : new pgsid.QueryValidationError("GetEvent", "payload", validateGetEventPayload(value).issues));
+    row["actor"] = checkedJson(row["actor"], (value: unknown) => isGetEventActor(value) ? null : new pgsid.QueryValidationError("GetEvent", "actor", validateGetEventActor(value).issues));
     return row as GetEventRow;
 }

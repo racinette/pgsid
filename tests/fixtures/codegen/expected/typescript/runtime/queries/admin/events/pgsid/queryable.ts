@@ -1,3 +1,56 @@
+export type PgsidJsonValue = null | boolean | number | string | PgsidJsonValue[] | {
+    [key: string]: PgsidJsonValue;
+};
+export interface PgsidJson<T = PgsidJsonValue> {
+    readonly text: string;
+    value(): T;
+    safeValue(): {
+        readonly ok: true;
+        readonly value: T;
+    } | {
+        readonly ok: false;
+        readonly error: Error;
+    };
+}
+export function json<T = PgsidJsonValue>(value: T): PgsidJson<T> {
+    const text = JSON.stringify(value);
+    if (typeof text !== "string")
+        throw new TypeError("A JSON value cannot be undefined, a function or a symbol");
+    return jsonText<T>(text);
+}
+export function jsonText<T = PgsidJsonValue>(text: string): PgsidJson<T> {
+    if (typeof text !== "string")
+        throw new TypeError("JSON text must be a string");
+    let read: {
+        value: T;
+    } | {
+        error: Error;
+    } | undefined;
+    const parsed = () => {
+        if (!read)
+            try {
+                read = { value: JSON.parse(text) as T };
+            }
+            catch (error) {
+                read = { error: error instanceof Error ? error : new Error(String(error)) };
+            }
+        return read;
+    };
+    return Object.assign(Object.create(null), {
+        [Symbol.for("pgsid.json")]: true,
+        text,
+        value(): T {
+            const result = parsed();
+            if ("error" in result)
+                throw result.error;
+            return result.value;
+        },
+        safeValue() {
+            const result = parsed();
+            return "error" in result ? { ok: false as const, error: result.error } : { ok: true as const, value: result.value };
+        },
+    }) as PgsidJson<T>;
+}
 export interface Queryable {
     queryText(sql: string, values: readonly (string | null)[]): Promise<{
         rows: readonly (readonly (string | null)[])[];

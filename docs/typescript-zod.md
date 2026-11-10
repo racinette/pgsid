@@ -23,8 +23,9 @@ admit only some literals is a `z.enum` or literal union. Every other shape
 (dates, timestamps, numerics, arrays, ranges, records, geometry) is a
 `z.custom` checked by the query codec's own encoder and typed as the table
 type's field. A field of a domain also takes the domain's literals and meets
-the domain's CHECKs. A JSON column mapped to a JSON Schema is `z.json()`; its
-schema is not checked here.
+the domain's CHECKs. A JSON field is a JSON container (`json(value)` or `jsonText(text)`); its
+JSON Schema, if the column has one, is checked when the container's value is
+read, as for rows.
 
 `with<Table>Checks(schema)` adds the table's CHECKs as a refinement to any
 shape picked from these schemas, so `.partial()`, `.pick()` and `.omit()`

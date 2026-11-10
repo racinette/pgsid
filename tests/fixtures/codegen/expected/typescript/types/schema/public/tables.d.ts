@@ -1,3 +1,5 @@
+type PgsidJsonValue = null | boolean | number | string | PgsidJsonValue[] | { [key: string]: PgsidJsonValue };
+interface PgsidJson<T = PgsidJsonValue> { readonly text: string; value(): T; safeValue(): { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: Error } }
 import type { TableTypes } from "../helpers.js";
 export type Accounts = TableTypes<{
     "id": bigint;
@@ -13,8 +15,8 @@ export type Events = TableTypes<{
     "account_id": bigint | null;
     "state": import("./enums.js").EventState;
     "states": (import("./enums.js").EventState | null)[] | null;
-    "payload": import("../../jsonschemas/index.js").EventPayload;
-    "audit": import("../../jsonschemas/index.js").EventAudit | null;
+    "payload": PgsidJson<import("../../jsonschemas/index.js").EventPayload>;
+    "audit": PgsidJson<import("../../jsonschemas/index.js").EventAudit> | null;
     "metadata": {
         readonly "source": string | null;
         readonly "confidence": string | null;
@@ -31,8 +33,8 @@ export type Events = TableTypes<{
     "account_id"?: bigint | null;
     "state"?: import("./enums.js").EventState;
     "states"?: (import("./enums.js").EventState | null)[] | null;
-    "payload": import("../../jsonschemas/index.js").EventPayload;
-    "audit"?: import("../../jsonschemas/index.js").EventAudit | null;
+    "payload": PgsidJson<import("../../jsonschemas/index.js").EventPayload>;
+    "audit"?: PgsidJson<import("../../jsonschemas/index.js").EventAudit> | null;
     "metadata"?: {
         readonly "source": string | null;
         readonly "confidence": string | null;
@@ -49,8 +51,8 @@ export type Events = TableTypes<{
     "account_id"?: bigint | null;
     "state"?: import("./enums.js").EventState;
     "states"?: (import("./enums.js").EventState | null)[] | null;
-    "payload"?: import("../../jsonschemas/index.js").EventPayload;
-    "audit"?: import("../../jsonschemas/index.js").EventAudit | null;
+    "payload"?: PgsidJson<import("../../jsonschemas/index.js").EventPayload>;
+    "audit"?: PgsidJson<import("../../jsonschemas/index.js").EventAudit> | null;
     "metadata"?: {
         readonly "source": string | null;
         readonly "confidence": string | null;
@@ -64,7 +66,7 @@ export type Events = TableTypes<{
 }>;
 export type EventDetails = TableTypes<{
     "id": import("./domains.js").EventId;
-    "actor": import("../../jsonschemas/index.js").EventPayloadActor | null;
+    "actor": PgsidJson<import("../../jsonschemas/index.js").EventPayloadActor> | null;
     "account_id": bigint | null;
     "display_name": string | null;
 } & ({

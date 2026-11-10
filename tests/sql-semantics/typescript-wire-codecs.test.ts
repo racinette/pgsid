@@ -32,7 +32,11 @@ UPDATE wire SET flag = NOT flag WHERE id >= @id;
 `
 
 const tricky = 'quote " backslash \\ comma , brace { } NULL ü 𝄞'
-const values = [
+type Json = { text: string; value(): unknown }
+let json: (value: unknown) => Json
+let jsonText: (text: string) => Json
+// JSON values are containers, built once the generated support module is loaded.
+const values = () => [
   {
     id: 1,
     flag: true,
@@ -44,8 +48,8 @@ const values = [
     exact: '-12345678901234567890.000000000000000001',
     label: tricky,
     bytes: Uint8Array.from([0, 1, 92, 127, 128, 255]),
-    document: { text: tricky, list: [1, null, true], nested: { empty: {} } },
-    binary_document: [{ a: 1 }, 'two', 3.5],
+    document: json({ text: tricky, list: [1, null, true], nested: { empty: {} } }),
+    binary_document: json([{ a: 1 }, 'two', 3.5]),
     seats: { empty: false, lower: { value: -5n, inclusive: true }, upper: null },
     counts: [1, null, 3],
     labels: [tricky, 'NULL', '', null, ' padded '],
@@ -72,7 +76,7 @@ const values = [
     exact: 'NaN',
     label: '',
     bytes: new Uint8Array(),
-    document: 'a JSON string',
+    document: json('a JSON string'),
     binary_document: null,
     seats: { empty: true },
     counts: [],
@@ -95,7 +99,7 @@ const values = [
     label: null,
     bytes: null,
     document: null,
-    binary_document: { deep: [[[]]] },
+    binary_document: json({ deep: [[[]]] }),
     seats: null,
     counts: null,
     labels: [],
@@ -105,9 +109,33 @@ const values = [
     amount: 1,
     ident: null,
   },
+  {
+    id: 4,
+    flag: true,
+    small: 1,
+    regular: 1,
+    wide: 1n,
+    single: 1,
+    double: 1,
+    exact: '1',
+    label: 'json text',
+    bytes: null,
+    // json keeps its text as written, a repeated key and all; jsonb stores its own text. A JSON
+    // null document is a container whose value is null, apart from SQL NULL.
+    document: jsonText(' {"a":1,  "a":[2, "\\u00e9"]}\n'),
+    binary_document: json(null),
+    seats: null,
+    counts: null,
+    labels: null,
+    grid: null,
+    boxes: null,
+    feeling: null,
+    amount: null,
+    ident: null,
+  },
 ]
 // The server normalizes values it stores: a real keeps float4 precision.
-const stored = (value: (typeof values)[number]) => ({
+const stored = (value: ReturnType<typeof values>[number]) => ({
   ...value,
   single: value.single === 0.1 ? Math.fround(0.1) : value.single,
 })
@@ -117,7 +145,12 @@ let db: PGlite
 let server: Awaited<ReturnType<typeof servePglite>>
 let client: pg.Client
 let runtime: Record<string, (...args: unknown[]) => Promise<unknown>>
-let helpers: { fromPg(client: unknown): unknown; fromPglite(db: unknown): unknown }
+let helpers: {
+  fromPg(client: unknown): unknown
+  fromPglite(db: unknown): unknown
+  json: typeof json
+  jsonText: typeof jsonText
+}
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'pgsid-wire-codecs-'))
@@ -154,6 +187,7 @@ sql:
   helpers = (await import(
     join(root, 'generated/runtime/wire/pgsid/queryable.ts')
   )) as typeof helpers
+  ;({ json, jsonText } = helpers)
   db = new PGlite()
   await db.exec(schema)
   server = await servePglite(db)
@@ -184,7 +218,7 @@ describe('TypeScript wire codecs', () => {
       join(root, 'usage.ts'),
       `import pg from 'pg'
 import { PGlite } from '@electric-sql/pglite'
-import { fromPg, fromPglite } from './generated/runtime/wire/pgsid/queryable.js'
+import { fromPg, fromPglite, json, type PgsidJson, type PgsidJsonValue } from './generated/runtime/wire/pgsid/queryable.js'
 import { getWire } from './generated/runtime/wire/GetWire.js'
 export async function usage(pool: pg.Pool, client: pg.PoolClient, db: PGlite) {
   const row = await getWire(fromPg(pool), { id: 1 })
@@ -194,7 +228,10 @@ export async function usage(pool: pg.Pool, client: pg.PoolClient, db: PGlite) {
   await getWire(pool, { id: 1 })
   const wide: bigint | null | undefined = row?.wide
   const bytes: Uint8Array | null | undefined = (await getWire(fromPglite(db), { id: 1 }))?.bytes
-  return [wide, bytes]
+  const document: PgsidJson<PgsidJsonValue> | null | undefined = row?.document
+  const value: PgsidJsonValue | undefined = row?.binary_document?.value()
+  const sent: PgsidJson<PgsidJsonValue> = json({ a: [1, null] })
+  return [wide, bytes, document, value, sent]
 }
 `,
     )
@@ -223,19 +260,45 @@ export async function usage(pool: pg.Pool, client: pg.PoolClient, db: PGlite) {
 
   it.each(drivers())('round-trips every codec through %s', async (_name, connect) => {
     const queryable = connect()
+    const sent = values()
     await db.exec('BEGIN')
     try {
-      for (const value of values) await runtime['insertWire']!(queryable, value)
-      for (const value of values)
-        expect(await runtime['getWire']!(queryable, { id: value.id })).toEqual(stored(value))
+      for (const value of sent) await runtime['insertWire']!(queryable, value)
+      const texts: (string | null)[][] = []
+      for (const value of sent) {
+        const { document, binary_document, ...rest } = stored(value)
+        const read = (await runtime['getWire']!(queryable, { id: value.id })) as {
+          document: Json | null
+          binary_document: Json | null
+        }
+        const { document: readDocument, binary_document: readBinary, ...readRest } = read
+        expect(readRest).toEqual(rest)
+        // A JSON value reads back as the server's text, parsed to the value sent.
+        const server = (
+          await db.query<{ document: string | null; binary_document: string | null }>(
+            'SELECT document::text, binary_document::text FROM wire WHERE id = $1',
+            [value.id],
+          )
+        ).rows[0]!
+        texts.push([server.document, server.binary_document])
+        expect(readDocument && readDocument.text).toBe(server.document)
+        expect(readBinary && readBinary.text).toBe(server.binary_document)
+        expect(readDocument && readDocument.value()).toEqual(document && document.value())
+        expect(readBinary && readBinary.value()).toEqual(binary_document && binary_document.value())
+        // json keeps the text sent exactly.
+        expect(readDocument && readDocument.text).toBe(document && document.text)
+      }
+      expect(texts.at(-1)).toEqual([' {"a":1,  "a":[2, "\\u00e9"]}\n', 'null'])
+      expect(sent.at(-1)!.document!.value()).toEqual({ a: [2, 'é'] })
+      expect(texts[0]![1]).toBe('[{"a": 1}, "two", 3.5]')
       expect(await runtime['getWire']!(queryable, { id: 99 })).toBeUndefined()
       expect(await runtime['listWire']!(queryable)).toEqual(
-        values.map(({ id, wide }) => ({ id, wide })),
+        sent.map(({ id, wide }) => ({ id, wide })),
       )
-      expect(await runtime['countWire']!(queryable, { id: 2 })).toBe(2)
+      expect(await runtime['countWire']!(queryable, { id: 2 })).toBe(sent.length - 1)
       await db.exec("SET bytea_output = 'escape'")
       expect(await runtime['getWire']!(queryable, { id: 1 })).toMatchObject({
-        bytes: values[0]!.bytes,
+        bytes: sent[0]!.bytes,
       })
     } finally {
       await db.exec('ROLLBACK')
@@ -265,9 +328,14 @@ export async function usage(pool: pg.Pool, client: pg.PoolClient, db: PGlite) {
       ],
       ['seats', { empty: false, lower: { value: -5n }, upper: null }],
       ['document', () => 0],
+      // A JSON value is sent only as a container.
+      ['document', { text: tricky }],
+      ['document', 'a JSON string'],
+      ['binary_document', [{ a: 1 }]],
+      ['binary_document', { text: '[]' }],
     ] as const)
       await expect(
-        runtime['insertWire']!(queryable, { ...values[1], id: 10, [column]: value }),
+        runtime['insertWire']!(queryable, { ...values()[1], id: 10, [column]: value }),
       ).rejects.toThrow(new RegExp(`Parameter ${column} holds a malformed`))
   })
 })

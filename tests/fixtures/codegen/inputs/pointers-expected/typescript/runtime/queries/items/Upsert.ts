@@ -1,3 +1,5 @@
+type PgsidJsonValue = null | boolean | number | string | PgsidJsonValue[] | { [key: string]: PgsidJsonValue };
+interface PgsidJson<T = PgsidJsonValue> { readonly text: string; value(): T; safeValue(): { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: Error } }
 import type { UpsertParams } from "../../../types/queries/items/Upsert.js";
 export type { UpsertParams } from "../../../types/queries/items/Upsert.js";
 import * as pgsid from "./pgsid/queryable.js";
@@ -13,16 +15,20 @@ function encodeInt(value: unknown, name: string): string | null {
         return encodeInvalid(name, "integer");
     return String(value);
 }
+function isJson(value: unknown): value is PgsidJson<unknown> {
+    return typeof value === "object" && value !== null && (value as Record<symbol, unknown>)[Symbol.for("pgsid.json")] === true && typeof (value as {
+        text?: unknown;
+    }).text === "string";
+}
 function encodeJson(value: unknown, name: string): string | null {
     if (value === null || value === undefined)
         return null;
-    const text = JSON.stringify(value);
-    if (text === undefined)
+    if (!isJson(value))
         return encodeInvalid(name, "JSON");
-    return text;
+    return value.text;
 }
 export const upsertSql = "INSERT INTO items (id, payload) VALUES ($1, $2)\nON CONFLICT (id) DO UPDATE SET payload = $3;";
-export function isUpsertParamsFirstPublicItemsPayload(value: unknown): value is UpsertParams["first"] {
+export function isUpsertParamsFirstPublicItemsPayload(value: unknown): value is NonNullable<UpsertParams["first"]> extends PgsidJson<infer T> ? T : never {
     return _jsonSchemas.isEvent(value);
 }
 export function validateUpsertParamsFirstPublicItemsPayload(value: unknown): {
@@ -37,7 +43,7 @@ export function validateUpsertParamsFirstPublicItemsPayload(value: unknown): {
 } {
     return _jsonSchemas.validateEvent(value);
 }
-export function isUpsertParamsSecondPublicItemsPayload(value: unknown): value is UpsertParams["second"] {
+export function isUpsertParamsSecondPublicItemsPayload(value: unknown): value is NonNullable<UpsertParams["second"]> extends PgsidJson<infer T> ? T : never {
     return _jsonSchemas.isEvent(value);
 }
 export function validateUpsertParamsSecondPublicItemsPayload(value: unknown): {
@@ -53,13 +59,9 @@ export function validateUpsertParamsSecondPublicItemsPayload(value: unknown): {
     return _jsonSchemas.validateEvent(value);
 }
 export async function upsert(db: pgsid.Queryable, params: UpsertParams): Promise<void> {
-    const jsonInput2 = JSON.stringify(params["first"]);
-    if (jsonInput2 === undefined)
-        throw new pgsid.QueryValidationError("Upsert", "first", [{ path: [], keyword: "json", expected: "JSON value", received: "undefined", message: "Value has no JSON representation" }]);
+    const jsonInput2 = encodeJson(params["first"], "first");
     const jsonInput2Value = jsonInput2 === null ? null : JSON.parse(jsonInput2);
-    const jsonInput3 = JSON.stringify(params["second"]);
-    if (jsonInput3 === undefined)
-        throw new pgsid.QueryValidationError("Upsert", "second", [{ path: [], keyword: "json", expected: "JSON value", received: "undefined", message: "Value has no JSON representation" }]);
+    const jsonInput3 = encodeJson(params["second"], "second");
     const jsonInput3Value = jsonInput3 === null ? null : JSON.parse(jsonInput3);
     if (jsonInput2 !== null) {
         if (!isUpsertParamsFirstPublicItemsPayload(jsonInput2Value))

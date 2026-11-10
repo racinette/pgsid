@@ -2684,12 +2684,12 @@ function checkRustText(row: object, name: string): _checkRust.TextValue {
   if (input.value.includes(String.fromCharCode(0)) || /[\\uD800-\\uDBFF](?![\\uDC00-\\uDFFF])|(?<![\\uD800-\\uDBFF])[\\uDC00-\\uDFFF]/u.test(input.value)) return checkRustInvalid(name)
   return _checkRust.makeTextValue(input.value)
 }
-// A JSON value reaches the server as the JSON text the query sends, and null as SQL NULL.
+// A JSON value reaches the server as its container's text, exactly, and null as SQL NULL.
 function checkRustJsonText(row: object, name: string): _checkRust.TextValue {
   const value = Reflect.get(row, name)
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.textUnknown()
   if (value === null) return _checkRust.textNull()
-  const text = JSON.stringify(value)
+  const text = typeof value === 'object' && (value as Record<symbol, unknown>)[Symbol.for('pgsid.json')] === true ? (value as { text?: unknown }).text : undefined
   if (typeof text !== 'string' || text.includes(String.fromCharCode(0)) || /[\\uD800-\\uDBFF](?![\\uDC00-\\uDFFF])|(?<![\\uD800-\\uDBFF])[\\uDC00-\\uDFFF]/u.test(text)) return checkRustInvalid(name)
   return _checkRust.makeTextValue(text)
 }

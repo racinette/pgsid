@@ -120,7 +120,28 @@ interface RenderedValidator {
   column: string
   value?: ts.Expression
   parameter?: number
+  // A JSON container: the validator checks its value when the value is read.
+  container?: boolean
 }
+
+// Whether a type is a JSON container.
+const isJsonContainer = (type: ts.TypeNode): boolean =>
+  ts.isTypeReferenceNode(type) &&
+  ts.isIdentifier(type.typeName) &&
+  type.typeName.text === 'PgsidJson' &&
+  type.typeArguments?.length === 1
+
+// The value a field's JSON container holds, read off the field's own type: `Row["payload"]`
+// unwrapped, so the validator names no type the runtime module does not export.
+const containedJson = (field: ts.TypeNode): ts.TypeNode =>
+  factory.createConditionalTypeNode(
+    factory.createTypeReferenceNode('NonNullable', [field]),
+    factory.createTypeReferenceNode('PgsidJson', [
+      factory.createInferTypeNode(factory.createTypeParameterDeclaration(undefined, 'T')),
+    ]),
+    factory.createTypeReferenceNode('T'),
+    factory.createKeywordTypeNode(ts.SyntaxKind.NeverKeyword),
+  )
 
 // Containers convert their public value for the CHECK evaluator as scalars do.
 const publicContainer = (codec: TypescriptCodec): boolean => codec.kind !== 'scalar'
@@ -466,15 +487,17 @@ const renderQuery = (
           suffix = String(++attempt)
         const validatorName = `is${stem}${suffix}`
         const validationName = `validate${stem}${suffix}`
+        const field = factory.createIndexedAccessTypeNode(
+          factory.createTypeReferenceNode(`${queryName}Row`),
+          factory.createLiteralTypeNode(factory.createStringLiteral(name)),
+        )
+        const contained = isJsonContainer(resolved.type) ? containedJson(field) : null
         const statement = typescriptJsonSchemaLineageValidatorDeclaration(
           validatorName,
-          factory.createIndexedAccessTypeNode(
-            factory.createTypeReferenceNode(`${queryName}Row`),
-            factory.createLiteralTypeNode(factory.createStringLiteral(name)),
-          ),
+          contained ?? field,
           resolved.lineage,
           {
-            nullable: !(claim?.notNull ?? false),
+            nullable: !contained && !(claim?.notNull ?? false),
             helpers: options.jsonSchemaRuntimeModuleSpecifier
               ? factory.createPropertyAccessExpression(
                   factory.createIdentifier('_jsonSchemas'),
@@ -509,10 +532,10 @@ const renderQuery = (
         if (statement) {
           const validation = typescriptJsonSchemaLineageValidatorDeclaration(
             validationName,
-            type,
+            contained ?? type,
             resolved.lineage,
             {
-              nullable: !(claim?.notNull ?? false),
+              nullable: !contained && !(claim?.notNull ?? false),
               diagnostic: true,
               helpers: options.jsonSchemaRuntimeModuleSpecifier
                 ? factory.createPropertyAccessExpression(
@@ -552,6 +575,7 @@ const renderQuery = (
             name: validatorName,
             validationName,
             column: name,
+            ...(contained ? { container: true } : {}),
           })
           if (options.jsonSchemaRuntimeModuleSpecifier) usesJsonSchemaRuntime = true
         }
@@ -704,16 +728,18 @@ const renderQuery = (
               : factory.createNumericLiteral(number - 1),
           ),
         )
+        // A JSON container's schema checks the value it sends.
+        const contained = isJsonContainer(resolved.type) ? containedJson(parameterType) : null
         const statement = typescriptJsonSchemaLineageValidatorDeclaration(
           name,
-          parameterType,
+          contained ?? parameterType,
           resolved.lineage!,
           validatorOptions,
         )
         if (!statement) continue
         const validation = typescriptJsonSchemaLineageValidatorDeclaration(
           validationName,
-          parameterType,
+          contained ?? parameterType,
           resolved.lineage!,
           { ...validatorOptions, diagnostic: true },
         )!
@@ -764,6 +790,7 @@ const renderQuery = (
     codecNames: new Set([
       ...parameterCodecs.flatMap((codec) => [...typescriptCodecNames(codec, 'encode')]),
       ...outputCodecs.flatMap(({ codec }) => [...typescriptCodecNames(codec, 'decode')]),
+      ...(validators.some((validator) => validator.container) ? ['checkedJson'] : []),
     ]),
     wrapper: renderWrapper(
       analysis,
@@ -957,10 +984,11 @@ const renderWrapper = (
         ? factory.createStringLiteral(parameterName)
         : factory.createNumericLiteral(number - 1),
     )
+    // The container's text, exactly; a plain value is a type error.
     const encoded = factory.createCallExpression(
-      factory.createPropertyAccessExpression(factory.createIdentifier('JSON'), 'stringify'),
+      factory.createIdentifier('encodeJson'),
       undefined,
-      [value],
+      [value, factory.createStringLiteral(parameterName ?? `$${number}`)],
     )
     inputStatements.push(
       constant(
@@ -981,39 +1009,6 @@ const renderWrapper = (
       ),
     )
     if (!inputValidators.some((validator) => validator.parameter === number)) continue
-    inputStatements.push(
-      factory.createIfStatement(
-        factory.createBinaryExpression(
-          jsonEncoded(number),
-          factory.createToken(ts.SyntaxKind.EqualsEqualsEqualsToken),
-          factory.createIdentifier('undefined'),
-        ),
-        factory.createThrowStatement(
-          factory.createNewExpression(validationError, undefined, [
-            factory.createStringLiteral(analysis.query.name),
-            factory.createStringLiteral(parameterName ?? `$${number}`),
-            factory.createArrayLiteralExpression([
-              factory.createObjectLiteralExpression([
-                factory.createPropertyAssignment('path', factory.createArrayLiteralExpression()),
-                factory.createPropertyAssignment('keyword', factory.createStringLiteral('json')),
-                factory.createPropertyAssignment(
-                  'expected',
-                  factory.createStringLiteral('JSON value'),
-                ),
-                factory.createPropertyAssignment(
-                  'received',
-                  factory.createStringLiteral('undefined'),
-                ),
-                factory.createPropertyAssignment(
-                  'message',
-                  factory.createStringLiteral('Value has no JSON representation'),
-                ),
-              ]),
-            ]),
-          ]),
-        ),
-      ),
-    )
     inputStatements.push(
       constant(
         jsonValue(number),
@@ -1416,39 +1411,98 @@ const validatorStatements = (
   validationError: ts.Expression,
 ): ts.Statement[] =>
   validators.map((validator) =>
-    factory.createIfStatement(
-      factory.createPrefixUnaryExpression(
-        ts.SyntaxKind.ExclamationToken,
-        factory.createCallExpression(factory.createIdentifier(validator.name), undefined, [
-          validator.value ??
-            factory.createElementAccessExpression(
-              factory.createIdentifier('row'),
-              factory.createStringLiteral(validator.column),
-            ),
-        ]),
-      ),
-      factory.createThrowStatement(
-        factory.createNewExpression(validationError, undefined, [
-          factory.createStringLiteral(queryName),
-          factory.createStringLiteral(validator.column),
-          factory.createPropertyAccessExpression(
-            factory.createCallExpression(
-              factory.createIdentifier(validator.validationName),
-              undefined,
-              [
-                validator.value ??
-                  factory.createElementAccessExpression(
-                    factory.createIdentifier('row'),
-                    factory.createStringLiteral(validator.column),
-                  ),
-              ],
-            ),
-            'issues',
+    validator.container
+      ? lazyValidatorStatement(validator, queryName, validationError)
+      : factory.createIfStatement(
+          factory.createPrefixUnaryExpression(
+            ts.SyntaxKind.ExclamationToken,
+            factory.createCallExpression(factory.createIdentifier(validator.name), undefined, [
+              validator.value ??
+                factory.createElementAccessExpression(
+                  factory.createIdentifier('row'),
+                  factory.createStringLiteral(validator.column),
+                ),
+            ]),
           ),
-        ]),
-      ),
+          factory.createThrowStatement(
+            factory.createNewExpression(validationError, undefined, [
+              factory.createStringLiteral(queryName),
+              factory.createStringLiteral(validator.column),
+              factory.createPropertyAccessExpression(
+                factory.createCallExpression(
+                  factory.createIdentifier(validator.validationName),
+                  undefined,
+                  [
+                    validator.value ??
+                      factory.createElementAccessExpression(
+                        factory.createIdentifier('row'),
+                        factory.createStringLiteral(validator.column),
+                      ),
+                  ],
+                ),
+                'issues',
+              ),
+            ]),
+          ),
+        ),
+  )
+
+// A JSON column's schema is checked when its value is read: the container is replaced by one that
+// checks it then.
+const lazyValidatorStatement = (
+  validator: RenderedValidator,
+  queryName: string,
+  validationError: ts.Expression,
+): ts.Statement => {
+  const column = factory.createElementAccessExpression(
+    factory.createIdentifier('row'),
+    factory.createStringLiteral(validator.column),
+  )
+  const value = factory.createIdentifier('value')
+  return factory.createExpressionStatement(
+    factory.createAssignment(
+      column,
+      factory.createCallExpression(factory.createIdentifier('checkedJson'), undefined, [
+        column,
+        factory.createArrowFunction(
+          undefined,
+          undefined,
+          [
+            factory.createParameterDeclaration(
+              undefined,
+              undefined,
+              value,
+              undefined,
+              factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword),
+            ),
+          ],
+          undefined,
+          factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
+          factory.createConditionalExpression(
+            factory.createCallExpression(factory.createIdentifier(validator.name), undefined, [
+              value,
+            ]),
+            undefined,
+            factory.createNull(),
+            undefined,
+            factory.createNewExpression(validationError, undefined, [
+              factory.createStringLiteral(queryName),
+              factory.createStringLiteral(validator.column),
+              factory.createPropertyAccessExpression(
+                factory.createCallExpression(
+                  factory.createIdentifier(validator.validationName),
+                  undefined,
+                  [value],
+                ),
+                'issues',
+              ),
+            ]),
+          ),
+        ),
+      ]),
     ),
   )
+}
 
 const resultDeclaration = (query: ts.Expression): ts.VariableStatement =>
   factory.createVariableStatement(

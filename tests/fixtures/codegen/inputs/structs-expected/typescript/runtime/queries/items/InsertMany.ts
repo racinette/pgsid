@@ -1,3 +1,5 @@
+type PgsidJsonValue = null | boolean | number | string | PgsidJsonValue[] | { [key: string]: PgsidJsonValue };
+interface PgsidJson<T = PgsidJsonValue> { readonly text: string; value(): T; safeValue(): { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: Error } }
 import type { InsertManyParams } from "../../../types/queries/items/InsertMany.js";
 export type { InsertManyParams } from "../../../types/queries/items/InsertMany.js";
 import * as pgsid from "./pgsid/queryable.js";
@@ -6,16 +8,20 @@ import * as _jsonSchemas from "../../jsonschemas/index.js";
 function encodeInvalid(name: string, type: string): never {
     throw new TypeError("Parameter " + name + " holds a malformed " + type + " value");
 }
+function isJson(value: unknown): value is PgsidJson<unknown> {
+    return typeof value === "object" && value !== null && (value as Record<symbol, unknown>)[Symbol.for("pgsid.json")] === true && typeof (value as {
+        text?: unknown;
+    }).text === "string";
+}
 function encodeJson(value: unknown, name: string): string | null {
     if (value === null || value === undefined)
         return null;
-    const text = JSON.stringify(value);
-    if (text === undefined)
+    if (!isJson(value))
         return encodeInvalid(name, "JSON");
-    return text;
+    return value.text;
 }
 export const insertManySql = "INSERT INTO items (payload) VALUES ($1), ($2);";
-export function isInsertManyParamsFirstPublicItemsPayload(value: unknown): value is InsertManyParams["first"] {
+export function isInsertManyParamsFirstPublicItemsPayload(value: unknown): value is NonNullable<InsertManyParams["first"]> extends PgsidJson<infer T> ? T : never {
     return _jsonSchemas.isEvent(value);
 }
 export function validateInsertManyParamsFirstPublicItemsPayload(value: unknown): {
@@ -30,7 +36,7 @@ export function validateInsertManyParamsFirstPublicItemsPayload(value: unknown):
 } {
     return _jsonSchemas.validateEvent(value);
 }
-export function isInsertManyParamsSecondPublicItemsPayload(value: unknown): value is InsertManyParams["second"] {
+export function isInsertManyParamsSecondPublicItemsPayload(value: unknown): value is NonNullable<InsertManyParams["second"]> extends PgsidJson<infer T> ? T : never {
     return _jsonSchemas.isEvent(value);
 }
 export function validateInsertManyParamsSecondPublicItemsPayload(value: unknown): {
@@ -46,13 +52,9 @@ export function validateInsertManyParamsSecondPublicItemsPayload(value: unknown)
     return _jsonSchemas.validateEvent(value);
 }
 export async function insertMany(db: pgsid.Queryable, params: InsertManyParams): Promise<void> {
-    const jsonInput1 = JSON.stringify(params["first"]);
-    if (jsonInput1 === undefined)
-        throw new pgsid.QueryValidationError("InsertMany", "first", [{ path: [], keyword: "json", expected: "JSON value", received: "undefined", message: "Value has no JSON representation" }]);
+    const jsonInput1 = encodeJson(params["first"], "first");
     const jsonInput1Value = jsonInput1 === null ? null : JSON.parse(jsonInput1);
-    const jsonInput2 = JSON.stringify(params["second"]);
-    if (jsonInput2 === undefined)
-        throw new pgsid.QueryValidationError("InsertMany", "second", [{ path: [], keyword: "json", expected: "JSON value", received: "undefined", message: "Value has no JSON representation" }]);
+    const jsonInput2 = encodeJson(params["second"], "second");
     const jsonInput2Value = jsonInput2 === null ? null : JSON.parse(jsonInput2);
     if (jsonInput1 !== null) {
         if (!isInsertManyParamsFirstPublicItemsPayload(jsonInput1Value))

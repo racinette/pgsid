@@ -17,6 +17,7 @@ import {
 import { typescriptTypeFromJsonSchema } from './json-schema.js'
 import ts from 'typescript'
 import { resolveArrayDimensions } from '../shared/array-dimensions.js'
+import { typescriptCodec } from './sql/codecs.js'
 
 export interface ResolvedTypescriptValueType extends ResolvedTypescriptType {
   lineage?: JsonSchemaLineage
@@ -62,7 +63,14 @@ export function resolveTypescriptValueType(
             ...(!lineage.complete ? [parseType('unknown')] : []),
           ])
         : typescriptTypeFromJsonSchemaLineage(lineage)
-    return { type, imports: [], lineage }
+    // A json or jsonb value is a container of its schema's type, read when asked for.
+    const codec = value.resolvedType ? typescriptCodec(value.resolvedType, catalog) : null
+    const container = codec?.kind === 'scalar' && codec.name === 'Json'
+    return {
+      type: container ? factory.createTypeReferenceNode('PgsidJson', [type]) : type,
+      imports: [],
+      lineage,
+    }
   }
   const column = directColumn(value)
   if (!column)

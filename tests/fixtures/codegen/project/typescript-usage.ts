@@ -17,8 +17,10 @@ declare function expectType<T>(value: T): void
 declare const event: GetEventRow
 expectType<EventId>(event.id)
 expectType<EventState>(event.state)
-expectType<EventPayload>(event.payload)
-expectType<EventPayloadActor | null>(event.actor)
+// JSON values are containers of the server's text, read as their schema's type.
+expectType<EventPayload>(event.payload.value())
+expectType<EventPayloadActor | undefined>(event.actor?.value() ?? undefined)
+expectType<string>(event.payload.text)
 
 declare const types: GetEventTypesRow
 expectType<DefaultEventId | null>(types.default_id)

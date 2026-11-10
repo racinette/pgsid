@@ -138,7 +138,6 @@ export function renderTypescriptZodSchemas(input: {
     ): ts.Expression => {
       const key = `${table.schema}.${table.name}.${column.name}`
       const mapping = mappings[key]
-      if (mapping && typeof mapping === 'object' && 'jsonSchema' in mapping) return z('json')
       const domain = input.catalog.domains.find((item) => item.oid === column.typeOid)
       const literals =
         cases?.literals[index] ??

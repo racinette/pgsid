@@ -32,9 +32,11 @@ const span = (lower: number, upper: number) => ({
   lower: { value: lower, inclusive: true },
   upper: { value: upper, inclusive: false },
 })
-// Below its declared levels an array's element may itself be a list: a domain over an array, a
-// multirange, or a JSON array. Nesting never adds a dimension.
-const full = {
+type Json = { text: string; value(): unknown }
+let json: (value: unknown) => Json
+// Below its declared levels an array's element may itself be a list: a domain over an array or a
+// multirange. A JSON element is a container, even of a JSON array. Nesting never adds a dimension.
+const full = () => ({
   id: 1,
   plain: [1, null],
   matrix: [
@@ -44,8 +46,9 @@ const full = {
   flexible: { dimensions: 2, elements: [[1], [2]] },
   nested: [[1, 2], null],
   spans: [[span(1, 3), span(5, 7)], []],
-  docs: [[1, 2], { a: [3] }, 'text', null],
-}
+  // A JSON null element is a container, apart from a NULL element.
+  docs: [json([1, 2]), json({ a: [3] }), json('text'), json(null), null],
+})
 const empty = {
   id: 2,
   plain: [],
@@ -94,7 +97,9 @@ sql:
     Object.assign(runtime, await import(join(root, `generated/runtime/grids/${name}.ts`)))
   const helpers = (await import(join(root, 'generated/runtime/grids/pgsid/queryable.ts'))) as {
     fromPglite(db: unknown): unknown
+    json: typeof json
   }
+  json = helpers.json
   checks = (await import(join(root, 'generated/schema/public/checks.ts'))) as typeof checks
   db = new PGlite()
   await db.exec(schema)
@@ -111,6 +116,7 @@ describe('TypeScript array dimensions', () => {
       join(root, 'usage.ts'),
       `import type { GetGridRow } from './generated/types/grids/GetGrid.js'
 import type { GetMixedRow } from './generated/types/grids/GetMixed.js'
+import type { PgsidJson, PgsidJsonValue } from './generated/runtime/grids/pgsid/queryable.js'
 declare function expectType<T>(value: T): void
 declare const row: GetGridRow
 expectType<(number | null)[] | null>(row.plain)
@@ -120,9 +126,13 @@ type Flexible =
   | { readonly dimensions: 2; readonly elements: (number | null)[][] }
 expectType<Flexible | null>(row.flexible)
 expectType<Flexible | null>(({} as GetMixedRow).mixed)
+expectType<(PgsidJson<PgsidJsonValue> | null)[] | null>(row.docs)
 // @ts-expect-error A declared matrix is not a vector.
 const vector: GetGridRow['matrix'] = [1, 2]
 void vector
+// @ts-expect-error A JSON element is a container, not a plain value.
+const docs: GetGridRow['docs'] = [[1, 2]]
+void docs
 `,
     )
     await promisify(execFile)(
@@ -147,10 +157,33 @@ void vector
   }, 120_000)
 
   it('round-trips declared dimensions with list elements and empty arrays', async () => {
+    const sent = full()
     await db.exec('BEGIN')
     try {
-      for (const row of [full, empty]) await runtime['insertGrid']!(queryable, row)
-      expect(await runtime['getGrid']!(queryable, { id: 1 })).toEqual(full)
+      for (const row of [sent, empty]) await runtime['insertGrid']!(queryable, row)
+      const { docs, ...read } = (await runtime['getGrid']!(queryable, { id: 1 })) as {
+        docs: (Json | null)[]
+      }
+      const { docs: _docs, ...expected } = sent
+      expect(read).toEqual(expected)
+      // JSON elements read back as the server's text of each element, parsed on demand.
+      const texts = (
+        await db.query<{ texts: (string | null)[] }>(
+          `SELECT array(SELECT element::text FROM unnest(docs) WITH ORDINALITY AS u(element, n)
+           ORDER BY n) AS texts FROM grids WHERE id = 1`,
+        )
+      ).rows[0]!.texts
+      expect(texts).toEqual(['[1, 2]', '{"a": [3]}', '"text"', 'null', null])
+      expect(docs.map((element) => element && element.text)).toEqual(texts)
+      expect(docs.map((element) => element && element.value())).toEqual([
+        [1, 2],
+        { a: [3] },
+        'text',
+        null,
+        null,
+      ])
+      expect(docs[3]).not.toBeNull()
+      expect(docs[4]).toBeNull()
       // An empty array has no dimensions; a union reads it back as its lowest count.
       expect(await runtime['getGrid']!(queryable, { id: 2 })).toEqual({
         ...empty,
@@ -161,10 +194,10 @@ void vector
           .rows[0]!.text,
       ).toBe('{"{1,2}",NULL}')
       expect(await runtime['getMixed']!(queryable, { id: 1, two: true })).toEqual({
-        mixed: { dimensions: 2, elements: full.matrix },
+        mixed: { dimensions: 2, elements: sent.matrix },
       })
       expect(await runtime['getMixed']!(queryable, { id: 1, two: false })).toEqual({
-        mixed: { dimensions: 1, elements: full.plain },
+        mixed: { dimensions: 1, elements: sent.plain },
       })
     } finally {
       await db.exec('ROLLBACK')
@@ -178,6 +211,10 @@ void vector
       ['flexible', { dimensions: '1', elements: [1] }],
       ['matrix', [1, 2]],
       ['plain', [[1]]],
+      // A JSON element is sent only as a container.
+      ['docs', [[1, 2]]],
+      ['docs', [{ a: 1 }]],
+      ['docs', ['text']],
     ] as const)
       await expect(
         runtime['insertGrid']!(queryable, { ...empty, id: 9, [column]: value }),
