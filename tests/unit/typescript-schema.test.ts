@@ -121,7 +121,10 @@ describe('renderTypescriptSchemaArtifacts', () => {
     const tables = artifacts['/generated/public/tables.d.ts']!
     expect(tables).toContain('export type Events = TableTypes<')
     expect(tables).toContain(
-      '"payload"?: import("../../jsonschemas/index.js").EventPayload | null;',
+      'interface PgsidJson<T = PgsidJsonValue> { readonly text: string; value(): T; safeValue(): { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: Error } }',
+    )
+    expect(tables).toContain(
+      '"payload"?: PgsidJson<import("../../jsonschemas/index.js").EventPayload> | null;',
     )
     expect(tables).toContain('"label": string;')
     expect(tables.match(/"external_id": import\("\.\/domains\.js"\)\.EventId;/gu)).toHaveLength(2)
@@ -137,7 +140,7 @@ describe('renderTypescriptSchemaArtifacts', () => {
       'export type EventLabels = TableTypes<{ "id": bigint; "label": string; }, never, never>;',
     )
     expect(tables.replace(/\s+/gu, ' ')).toContain(
-      'export type EventKinds = TableTypes<{ "kind": string | null; }, never, never>;',
+      'export type EventKinds = TableTypes<{ "kind": PgsidJson<string> | null; }, never, never>;',
     )
     expect(tables.replace(/\s+/gu, ' ')).toContain(
       'export type EventSnapshot = TableTypes<{ "label": string | null; }, never, never>;',

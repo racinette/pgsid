@@ -1,3 +1,5 @@
+type PgsidJsonValue = null | boolean | number | string | PgsidJsonValue[] | { [key: string]: PgsidJsonValue };
+interface PgsidJson<T = PgsidJsonValue> { readonly text: string; value(): T; safeValue(): { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: Error } }
 import type { WriteInCteParams, WriteInCteRow } from "../../../types/queries/items/WriteInCte.js";
 export type { WriteInCteParams, WriteInCteRow } from "../../../types/queries/items/WriteInCte.js";
 import * as pgsid from "./pgsid/queryable.js";
@@ -6,19 +8,59 @@ import * as _jsonSchemas from "../../jsonschemas/index.js";
 function encodeInvalid(name: string, type: string): never {
     throw new TypeError("Parameter " + name + " holds a malformed " + type + " value");
 }
+function jsonContainer(text: string, validate?: (value: unknown) => Error | null): PgsidJson<unknown> {
+    let read: {
+        value: unknown;
+    } | {
+        error: Error;
+    } | undefined;
+    const parsed = () => {
+        if (!read)
+            try {
+                const value: unknown = JSON.parse(text);
+                const error = validate?.(value) ?? null;
+                read = error ? { error } : { value };
+            }
+            catch (error) {
+                read = { error: error instanceof Error ? error : new Error(String(error)) };
+            }
+        return read;
+    };
+    return Object.assign(Object.create(null), {
+        [Symbol.for("pgsid.json")]: true,
+        text,
+        value() {
+            const result = parsed();
+            if ("error" in result)
+                throw result.error;
+            return result.value;
+        },
+        safeValue() {
+            const result = parsed();
+            return "error" in result ? { ok: false, error: result.error } : { ok: true, value: result.value };
+        },
+    }) as PgsidJson<unknown>;
+}
+function isJson(value: unknown): value is PgsidJson<unknown> {
+    return typeof value === "object" && value !== null && (value as Record<symbol, unknown>)[Symbol.for("pgsid.json")] === true && typeof (value as {
+        text?: unknown;
+    }).text === "string";
+}
 function decodeJson(value: string | null): unknown {
-    return value === null ? null : JSON.parse(value);
+    return value === null ? null : jsonContainer(value);
 }
 function encodeJson(value: unknown, name: string): string | null {
     if (value === null || value === undefined)
         return null;
-    const text = JSON.stringify(value);
-    if (text === undefined)
+    if (!isJson(value))
         return encodeInvalid(name, "JSON");
-    return text;
+    return value.text;
+}
+function checkedJson(value: unknown, validate: (value: unknown) => Error | null): unknown {
+    return isJson(value) ? jsonContainer(value.text, validate) : value;
 }
 export const writeInCteSql = "WITH written AS (INSERT INTO items (payload) VALUES ($1) RETURNING payload)\nSELECT payload FROM written;";
-export function isWriteInCtePayload(value: unknown): value is WriteInCteRow["payload"] {
+export function isWriteInCtePayload(value: unknown): value is NonNullable<WriteInCteRow["payload"]> extends PgsidJson<infer T> ? T : never {
     return _jsonSchemas.isEvent(value);
 }
 export function validateWriteInCtePayload(value: unknown): {
@@ -33,7 +75,7 @@ export function validateWriteInCtePayload(value: unknown): {
 } {
     return _jsonSchemas.validateEvent(value);
 }
-export function isWriteInCteParamsPayloadPublicItemsPayload(value: unknown): value is WriteInCteParams["payload"] {
+export function isWriteInCteParamsPayloadPublicItemsPayload(value: unknown): value is NonNullable<WriteInCteParams["payload"]> extends PgsidJson<infer T> ? T : never {
     return _jsonSchemas.isEvent(value);
 }
 export function validateWriteInCteParamsPayloadPublicItemsPayload(value: unknown): {
@@ -49,9 +91,7 @@ export function validateWriteInCteParamsPayloadPublicItemsPayload(value: unknown
     return _jsonSchemas.validateEvent(value);
 }
 export async function writeInCte(db: pgsid.Queryable, params: WriteInCteParams): Promise<WriteInCteRow | undefined> {
-    const jsonInput1 = JSON.stringify(params["payload"]);
-    if (jsonInput1 === undefined)
-        throw new pgsid.QueryValidationError("WriteInCte", "payload", [{ path: [], keyword: "json", expected: "JSON value", received: "undefined", message: "Value has no JSON representation" }]);
+    const jsonInput1 = encodeJson(params["payload"], "payload");
     const jsonInput1Value = jsonInput1 === null ? null : JSON.parse(jsonInput1);
     if (jsonInput1 !== null) {
         if (!isWriteInCteParamsPayloadPublicItemsPayload(jsonInput1Value))
@@ -62,7 +102,6 @@ export async function writeInCte(db: pgsid.Queryable, params: WriteInCteParams):
     if (values === undefined)
         return undefined;
     const row = { "payload": decodeJson(values[0]) };
-    if (!isWriteInCtePayload(row["payload"]))
-        throw new pgsid.QueryValidationError("WriteInCte", "payload", validateWriteInCtePayload(row["payload"]).issues);
+    row["payload"] = checkedJson(row["payload"], (value: unknown) => isWriteInCtePayload(value) ? null : new pgsid.QueryValidationError("WriteInCte", "payload", validateWriteInCtePayload(value).issues));
     return row as WriteInCteRow;
 }

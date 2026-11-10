@@ -162,9 +162,14 @@ describe('renderTypescriptQueryArtifacts', () => {
     const types = compact(rendered.types!)
     const runtime = compact(rendered.runtime!)
     expect(types).toContain('export type GetEventParams = { "id": bigint; };')
-    expect(types).toContain('export type GetEventRow = { "id": bigint; "actor": number | null; };')
-    expect(runtime).toContain('export function isGetEventActor(')
-    expect(runtime).toContain('export function validateGetEventActor(')
+    expect(types).toContain(
+      'interface PgsidJson<T = PgsidJsonValue> { readonly text: string; value(): T; safeValue(): { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: Error } }',
+    )
+    expect(types).toContain(
+      'export type GetEventRow = { "id": bigint; "actor": PgsidJson<number> | null; };',
+    )
+    expect(runtime).toContain('export function isGetEventActor(value: unknown): value is ')
+    expect(runtime).toContain('export function validateGetEventActor(value: unknown)')
     expect(types).not.toContain('SELECT')
     expect(types).not.toContain('export function')
     expect(types).not.toContain('export const')
@@ -175,10 +180,12 @@ describe('renderTypescriptQueryArtifacts', () => {
     expect(runtime).toContain(
       'const row = { "id": decodeBigint(values[0]), "actor": decodeJson(values[1]) };',
     )
-    expect(runtime).toContain('if (!isGetEventActor(row["actor"]))')
+    // The schema is checked when the column's value is read, not when the row is.
     expect(runtime).toContain(
-      'new QueryValidationError("GetEvent", "actor", validateGetEventActor(row["actor"]).issues)',
+      'row["actor"] = checkedJson(row["actor"], (value: unknown) => isGetEventActor(value) ? null : new QueryValidationError("GetEvent", "actor", validateGetEventActor(value).issues));',
     )
+    expect(runtime).not.toContain('if (!isGetEventActor(')
+    expect(runtime).toContain('function checkedJson(')
 
     for (const source of [rendered.types!, rendered.runtime!]) {
       expect(

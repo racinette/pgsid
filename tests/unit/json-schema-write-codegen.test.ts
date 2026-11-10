@@ -12,6 +12,15 @@ type Executor = (
   db: { queryText: (...args: unknown[]) => Promise<unknown> },
   params: unknown,
 ) => Promise<unknown>
+type Container = {
+  text: string
+  value(): unknown
+  safeValue(): { ok: boolean; value?: unknown; error?: unknown }
+}
+type Support = {
+  json(value: unknown): Container
+  jsonText(text: string): Container
+}
 
 async function files(root: string): Promise<string[]> {
   const entries = await readdir(root, { withFileTypes: true })
@@ -26,6 +35,9 @@ async function files(root: string): Promise<string[]> {
 
 describe('generated TypeScript JSON write validation', () => {
   let root: string
+  // json(value) and jsonText(text) from the generated runtime support module.
+  let json: Support['json']
+  let jsonText: Support['jsonText']
   beforeAll(async () => {
     root = await mkdtemp(join(tmpdir(), 'pgsid-json-inputs-'))
     await cp(fixture, root, { recursive: true, filter: (path) => !path.includes('/generated') })
@@ -38,6 +50,10 @@ describe('generated TypeScript JSON write validation', () => {
       })
       await writeFile(path.replace(/\.ts$/u, '.js'), output.outputText)
     }
+    ;({ json, jsonText } = (await load(
+      pathToFileURL(join(root, 'generated/typescript/runtime/queries/items/pgsid/queryable.js'))
+        .href,
+    )) as unknown as Support)
   }, 20_000)
   afterAll(async () => {
     if (root) await rm(root, { recursive: true, force: true })
@@ -65,7 +81,7 @@ describe('generated TypeScript JSON write validation', () => {
   ])('rejects invalid %s inputs before execution', async (name) => {
     let calls = 0
     await expect(
-      execute(name, { payload: { actor: 0 }, id: 1 }, async () => {
+      execute(name, { payload: json({ actor: 0 }), id: 1 }, async () => {
         calls++
         return { rows: [], rowCount: 0 }
       }),
@@ -82,8 +98,8 @@ describe('generated TypeScript JSON write validation', () => {
     let calls = 0
     const invalid =
       name === 'TupleUpdate'
-        ? { first: { actor: 0 }, second: { actor: 1 } }
-        : { first: { actor: 1 }, second: { actor: 0 } }
+        ? { first: json({ actor: 0 }), second: json({ actor: 1 }) }
+        : { first: json({ actor: 1 }), second: json({ actor: 0 }) }
     await expect(
       execute(name, { ...invalid, id: 1 }, async () => {
         calls++
@@ -93,16 +109,34 @@ describe('generated TypeScript JSON write validation', () => {
     expect(calls).toBe(0)
   })
   it('serializes valid recursive input, preserves parameter order, and leaves the input untouched', async () => {
-    const params = { payload: { actor: 2, next: { actor: 3 } }, id: 7 }
-    const before = structuredClone(params)
+    const payload = { actor: 2, next: { actor: 3 } }
+    const before = structuredClone(payload)
+    const params = { payload: json(payload), id: 7 }
     const calls: unknown[][] = []
     const result = await execute('UpdatePayload', params, async (...args) => {
       calls.push(args)
       return { rows: [], rowCount: 4 }
     })
     expect(result).toBe(4)
-    expect(calls[0]?.[1]).toEqual([JSON.stringify(params.payload), '7'])
-    expect(params).toEqual(before)
+    expect(calls[0]?.[1]).toEqual([JSON.stringify(payload), '7'])
+    expect(payload).toEqual(before)
+    // Text written by hand is sent exactly as written, after its parsed value is checked.
+    const spaced = ' { "actor" : 2 , "next" : { "actor": 3 } } '
+    await execute('UpdatePayload', { payload: jsonText(spaced), id: 8 }, async (...args) => {
+      calls.push(args)
+      return { rows: [], rowCount: 1 }
+    })
+    expect(calls[1]?.[1]).toEqual([spaced, '8'])
+    await expect(
+      execute('UpdatePayload', { payload: jsonText(' { "actor" : 0 } '), id: 8 }, async () => {
+        calls.push([])
+        return { rows: [], rowCount: 1 }
+      }),
+    ).rejects.toMatchObject({
+      column: 'payload',
+      issues: expect.arrayContaining([expect.objectContaining({ keyword: 'minimum' })]),
+    })
+    expect(calls).toHaveLength(2)
   })
   it('distinguishes SQL null and JSON null and serializes JSON arrays', async () => {
     const values: unknown[] = []
@@ -110,13 +144,16 @@ describe('generated TypeScript JSON write validation', () => {
       values.push(args)
       return { rows: [] }
     }
+    // A plain null is SQL NULL; json(null) is a JSON null document.
     await execute('InsertMaybe', { payload: null }, query)
-    await execute('InsertJSONNull', { payload: null }, query)
-    await execute('InsertArray', { payload: [1, 2] }, query)
+    await execute('InsertJSONNull', { payload: json(null) }, query)
+    await execute('InsertArray', { payload: json([1, 2]) }, query)
     expect(values).toEqual([[null], ['null'], ['[1,2]']])
-    await expect(execute('InsertArray', { payload: [0] }, query)).rejects.toHaveProperty('issues')
+    await expect(execute('InsertArray', { payload: json([0]) }, query)).rejects.toHaveProperty(
+      'issues',
+    )
     await expect(
-      execute('InsertArray', { payload: { toJSON: () => null } }, query),
+      execute('InsertArray', { payload: json({ toJSON: () => null }) }, query),
     ).rejects.toMatchObject({
       column: 'payload',
       issues: expect.arrayContaining([expect.objectContaining({ keyword: 'type' })]),
@@ -136,16 +173,25 @@ describe('generated TypeScript JSON write validation', () => {
         return { actor: 0 }
       },
     }
-    await expect(execute('InsertPayload', { payload }, query)).rejects.toMatchObject({
+    // json(value) serializes once; the query checks the text it sends.
+    const container = json(payload)
+    expect(encodings).toBe(1)
+    expect(container.text).toBe('{"actor":0}')
+    await expect(execute('InsertPayload', { payload: container }, query)).rejects.toMatchObject({
       column: 'payload',
       issues: expect.arrayContaining([expect.objectContaining({ keyword: 'minimum' })]),
     })
     expect(calls).toBe(0)
     expect(encodings).toBe(1)
-    await expect(execute('InsertPayload', { payload: undefined }, query)).rejects.toMatchObject({
-      column: 'payload',
-      issues: expect.arrayContaining([expect.objectContaining({ keyword: 'json' })]),
-    })
+    // A value with no JSON representation is no JSON value at all.
+    expect(() => json(undefined)).toThrow(TypeError)
+    expect(() => json(() => 1)).toThrow(TypeError)
+    expect(() => json(Symbol('payload'))).toThrow(TypeError)
+    // A plain value, even a serializable one, is not a JSON parameter.
+    await expect(execute('InsertPayload', { payload: { actor: 2 } }, query)).rejects.toThrow(
+      new TypeError('Parameter payload holds a malformed JSON value'),
+    )
+    expect(calls).toBe(0)
   })
   it('keeps column opt-out and checks every schema bound to a shared parameter', async () => {
     let calls = 0
@@ -153,11 +199,13 @@ describe('generated TypeScript JSON write validation', () => {
       calls++
       return { rows: [] }
     }
-    await execute('InsertUnchecked', { payload: { actor: 0 } }, query)
+    await execute('InsertUnchecked', { payload: json({ actor: 0 }) }, query)
     for (const payload of [{ actor: 0, label: 'ok' }, { actor: 11, label: 'ok' }, { actor: 2 }])
-      await expect(execute('MultipleSchemas', { payload }, query)).rejects.toHaveProperty('issues')
+      await expect(
+        execute('MultipleSchemas', { payload: json(payload) }, query),
+      ).rejects.toHaveProperty('issues')
     expect(calls).toBe(1)
-    await execute('MultipleSchemas', { payload: { actor: 2, label: 'ok' } }, query)
+    await execute('MultipleSchemas', { payload: json({ actor: 2, label: 'ok' }) }, query)
     expect(calls).toBe(2)
   })
   it('exposes standalone predicates and detailed validators without a database client', async () => {
@@ -184,32 +232,53 @@ describe('generated TypeScript JSON write validation', () => {
       Record<string, { is(value: unknown): boolean }>
     >
     const actor = registry['Event']!['/properties/actor']!
+    const actorOf = async (name: string, text: string) =>
+      ((await execute(name, { id: 1 }, async () => ({ rows: [[text]] }))) as { actor: Container })
+        .actor
     const guard = vi.spyOn(actor, 'is')
     try {
-      for (const name of ['SelectActor', 'SelectActorFromCte', 'SelectActorChoice'])
-        await expect(execute(name, { id: 1 }, async () => ({ rows: [['2']] }))).resolves.toEqual({
-          actor: 2,
-        })
+      for (const name of ['SelectActor', 'SelectActorFromCte', 'SelectActorChoice']) {
+        const value = await actorOf(name, '2')
+        expect(value.text).toBe('2')
+        expect(value.value()).toBe(2)
+        expect(value.safeValue()).toEqual({ ok: true, value: 2 })
+      }
       expect(guard).toHaveBeenCalledTimes(3)
-      for (const name of ['SelectActor', 'SelectActorFromCte'])
-        await expect(
-          execute(name, { id: 1 }, async () => ({ rows: [['0']] })),
-        ).rejects.toMatchObject({
+      for (const name of ['SelectActor', 'SelectActorFromCte']) {
+        // Reading the row succeeds; the schema is checked when the value is read.
+        const before = guard.mock.calls.length
+        const value = await actorOf(name, '0')
+        expect(guard).toHaveBeenCalledTimes(before)
+        expect(value.text).toBe('0')
+        const expected = {
           query: name,
           column: 'actor',
           issues: [expect.objectContaining({ path: [], keyword: 'minimum' })],
-        })
+        }
+        let thrown: unknown
+        try {
+          value.value()
+        } catch (error) {
+          thrown = error
+        }
+        expect(thrown).toMatchObject(expected)
+        expect(value.safeValue()).toEqual({ ok: false, error: thrown })
+        expect(guard).toHaveBeenCalledTimes(before + 1)
+      }
     } finally {
       guard.mockRestore()
     }
-    await expect(
-      execute('SelectActorChoice', { id: 1 }, async () => ({ rows: [['false']] })),
-    ).rejects.toMatchObject({
-      issues: expect.arrayContaining([expect.objectContaining({ keyword: 'anyOf' })]),
+    const anyOf = await actorOf('SelectActorChoice', 'false')
+    expect(anyOf.safeValue()).toMatchObject({
+      ok: false,
+      error: {
+        query: 'SelectActorChoice',
+        column: 'actor',
+        issues: expect.arrayContaining([expect.objectContaining({ keyword: 'anyOf' })]),
+      },
     })
-    await expect(
-      execute('SelectActorChoice', { id: 1 }, async () => ({ rows: [['0']] })),
-    ).resolves.toEqual({ actor: 0 })
+    expect(() => anyOf.value()).toThrow(anyOf.safeValue().error as Error)
+    expect((await actorOf('SelectActorChoice', '0')).value()).toBe(0)
     const choice = await load(
       pathToFileURL(join(root, 'generated/typescript/runtime/queries/items/SelectActorChoice.js'))
         .href,
@@ -227,14 +296,30 @@ describe('generated TypeScript JSON write validation', () => {
 import type {InsertPayloadParams} from './generated/typescript/types/queries/items/InsertPayload.js';
 import type {MultipleSchemasParams} from './generated/typescript/types/queries/items/MultipleSchemas.js';
 import type {Event} from './generated/typescript/types/jsonschemas/Event.js';
-const good: InsertPayloadParams = {payload: {actor: 2, next: {actor: 3}}};
-const value: Event = good.payload;
+import {json} from './generated/typescript/runtime/queries/items/pgsid/queryable.js';
+import {isInsertPayloadParamsPayloadPublicItemsPayload} from './generated/typescript/runtime/queries/items/InsertPayload.js';
+import {isSelectActorActor} from './generated/typescript/runtime/queries/items/SelectActor.js';
+type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+declare const unknownValue: unknown;
+// Validators narrow to the value a container holds, for nullable and non-null fields alike.
+if (isInsertPayloadParamsPayloadPublicItemsPayload(unknownValue)) {
+  const exact: Exact<typeof unknownValue, Event> = true;
+  void exact;
+}
+if (isSelectActorActor(unknownValue)) {
+  const exact: Exact<typeof unknownValue, number> = true;
+  void exact;
+}
+const good: InsertPayloadParams = {payload: json({actor: 2, next: {actor: 3}})};
+const value: Event = good.payload.value();
 // @ts-expect-error Invalid JSON field types are rejected.
-const wrong: InsertPayloadParams = {payload: {actor: 'bad'}};
+const wrong: InsertPayloadParams = {payload: json({actor: 'bad'})};
+// @ts-expect-error A JSON parameter is a container, not a plain value.
+const plain: InsertPayloadParams = {payload: {actor: 2}};
 // @ts-expect-error Shared parameters must satisfy all destination schemas.
-const missing: MultipleSchemasParams = {payload: {actor: 2}};
-const both: MultipleSchemasParams = {payload: {actor: 2, label: 'ok'}};
-void [value, wrong, missing, both];
+const missing: MultipleSchemasParams = {payload: json({actor: 2})};
+const both: MultipleSchemasParams = {payload: json({actor: 2, label: 'ok'})};
+void [value, wrong, plain, missing, both];
 `,
     )
     const sources = (await files(join(root, 'generated/typescript'))).filter((path) =>

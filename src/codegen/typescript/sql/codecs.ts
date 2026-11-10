@@ -52,7 +52,7 @@ export const typescriptScalarTypes: Readonly<Record<TypescriptScalarCodec, strin
   Numeric: 'string',
   Text: 'string',
   Bytea: 'Uint8Array',
-  Json: 'PgsidJsonValue',
+  Json: 'PgsidJson<PgsidJsonValue>',
   Date: 'string',
   Timestamp: '{ readonly localMicroseconds: bigint } | { readonly infinity: 1 | -1 }',
   Timestamptz: '{ readonly epochMicroseconds: bigint } | { readonly infinity: 1 | -1 }',
@@ -73,8 +73,19 @@ export const typescriptScalarTypes: Readonly<Record<TypescriptScalarCodec, strin
 export const typescriptJsonValueDeclaration =
   'type PgsidJsonValue = null | boolean | number | string | PgsidJsonValue[] | { [key: string]: PgsidJsonValue }'
 
-export const withTypescriptJsonValue = (source: string): string =>
-  /\bPgsidJsonValue\b/u.test(source) ? `${typescriptJsonValueDeclaration};\n${source}` : source
+// A JSON value is kept as the server's text and parsed on demand, so a JSON null document is a
+// container whose value is null, apart from SQL NULL, and a column's JSON Schema is checked when
+// its value is read.
+export const typescriptJsonDeclaration =
+  'interface PgsidJson<T = PgsidJsonValue> { readonly text: string; value(): T; safeValue(): { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: Error } }'
+
+export const withTypescriptJsonValue = (source: string): string => {
+  // A source that exports them, as the inlined runtime support does, declares them already.
+  if (/\bexport (?:type PgsidJsonValue|interface PgsidJson)\b/u.test(source)) return source
+  const container = /\bPgsidJson\b/u.test(source)
+  const value = container || /\bPgsidJsonValue\b/u.test(source)
+  return `${value ? `${typescriptJsonValueDeclaration};\n` : ''}${container ? `${typescriptJsonDeclaration}\n` : ''}${source}`
+}
 
 const builtinCodecs: Readonly<Record<string, TypescriptScalarCodec>> = {
   bool: 'Bool',
@@ -472,15 +483,50 @@ function encodeBytea(value: unknown, name: string): string | null {
   for (const byte of value) text += byte.toString(16).padStart(2, '0')
   return text
 }
-function decodeJson(value: string | null): unknown {
-  return value === null ? null : JSON.parse(value)
+function jsonContainer(text: string, validate?: (value: unknown) => Error | null): PgsidJson<unknown> {
+  let read: { value: unknown } | { error: Error } | undefined
+  const parsed = () => {
+    if (!read)
+      try {
+        const value: unknown = JSON.parse(text)
+        const error = validate?.(value) ?? null
+        read = error ? { error } : { value }
+      } catch (error) {
+        read = { error: error instanceof Error ? error : new Error(String(error)) }
+      }
+    return read
+  }
+  return Object.assign(Object.create(null), {
+    [Symbol.for('pgsid.json')]: true,
+    text,
+    value() {
+      const result = parsed()
+      if ('error' in result) throw result.error
+      return result.value
+    },
+    safeValue() {
+      const result = parsed()
+      return 'error' in result ? { ok: false, error: result.error } : { ok: true, value: result.value }
+    },
+  }) as PgsidJson<unknown>
 }
+function isJson(value: unknown): value is PgsidJson<unknown> {
+  return typeof value === 'object' && value !== null && (value as Record<symbol, unknown>)[Symbol.for('pgsid.json')] === true && typeof (value as { text?: unknown }).text === 'string'
+}
+function decodeJson(value: string | null): unknown {
+  return value === null ? null : jsonContainer(value)
+}
+// A JSON value is sent as its container's text; a plain null is SQL NULL.
 function encodeJson(value: unknown, name: string): string | null {
   if (value === null || value === undefined) return null
-  const text = JSON.stringify(value)
-  if (text === undefined) return encodeInvalid(name, 'JSON')
-  return text
+  if (!isJson(value)) return encodeInvalid(name, 'JSON')
+  return value.text
 }
+// A column's JSON Schema checks its value when it is read, not when the row is.
+function checkedJson(value: unknown, validate: (value: unknown) => Error | null): unknown {
+  return isJson(value) ? jsonContainer(value.text, validate) : value
+}
+
 function readRange(value: string, start: number, element: (item: string | null) => unknown): [unknown, number] {
   if (value.startsWith('empty', start)) return [{ empty: true }, start + 5]
   const lowerInclusive = value[start] === '['
@@ -879,7 +925,46 @@ function encodeArray(value: unknown, element: (item: unknown, name: string) => s
 
 // Each driver is asked for the server's text unchanged; built-in type identifiers are fixed by
 // PostgreSQL, and every user-defined type is already left as text.
-export const typescriptQueryableSource = `export interface Queryable {
+export const typescriptQueryableSource = `export type PgsidJsonValue = null | boolean | number | string | PgsidJsonValue[] | { [key: string]: PgsidJsonValue }
+export interface PgsidJson<T = PgsidJsonValue> {
+  readonly text: string
+  value(): T
+  safeValue(): { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: Error }
+}
+// A JSON value to send: json(value) serializes it, jsonText(text) sends the text as written. A
+// JSON null document is json(null); a plain null is SQL NULL.
+export function json<T = PgsidJsonValue>(value: T): PgsidJson<T> {
+  const text = JSON.stringify(value)
+  if (typeof text !== 'string') throw new TypeError('A JSON value cannot be undefined, a function or a symbol')
+  return jsonText<T>(text)
+}
+export function jsonText<T = PgsidJsonValue>(text: string): PgsidJson<T> {
+  if (typeof text !== 'string') throw new TypeError('JSON text must be a string')
+  let read: { value: T } | { error: Error } | undefined
+  const parsed = () => {
+    if (!read)
+      try {
+        read = { value: JSON.parse(text) as T }
+      } catch (error) {
+        read = { error: error instanceof Error ? error : new Error(String(error)) }
+      }
+    return read
+  }
+  return Object.assign(Object.create(null), {
+    [Symbol.for('pgsid.json')]: true,
+    text,
+    value(): T {
+      const result = parsed()
+      if ('error' in result) throw result.error
+      return result.value
+    },
+    safeValue() {
+      const result = parsed()
+      return 'error' in result ? { ok: false as const, error: result.error } : { ok: true as const, value: result.value }
+    },
+  }) as PgsidJson<T>
+}
+export interface Queryable {
   queryText(sql: string, values: readonly (string | null)[]): Promise<{ rows: readonly (readonly (string | null)[])[]; rowCount?: number | null }>
 }
 const textParser = (value: string): string => value

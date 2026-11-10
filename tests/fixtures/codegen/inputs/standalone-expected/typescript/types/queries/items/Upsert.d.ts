@@ -1,6 +1,8 @@
+type PgsidJsonValue = null | boolean | number | string | PgsidJsonValue[] | { [key: string]: PgsidJsonValue };
+interface PgsidJson<T = PgsidJsonValue> { readonly text: string; value(): T; safeValue(): { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: Error } }
 export type UpsertParams = {
     "id": number;
-    "first": import("../../jsonschemas/index.js").Event;
-    "second": import("../../jsonschemas/index.js").Event;
+    "first": PgsidJson<import("../../jsonschemas/index.js").Event>;
+    "second": PgsidJson<import("../../jsonschemas/index.js").Event>;
 };
 export type UpsertRow = {};

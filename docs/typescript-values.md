@@ -32,8 +32,17 @@ epoch for a zoned timestamp and a wall-clock reading for an unzoned one, and an
 interval keeps its months, days and microseconds apart as the server does.
 Infinite timestamps and intervals are values of their own, and dates are ISO
 text whose years extend past four digits and below zero as astronomical years.
-Geometric values are objects of exact float coordinates, and a JSON value is
-typed as JSON unless a JSON Schema describes it. Money, bit strings, network
+Geometric values are objects of exact float coordinates. A JSON value is a
+container of the server's JSON text, `PgsidJson<T>`: `text` is that text,
+exactly, and `value()` parses it with `JSON.parse` on first use, so numbers
+become JavaScript numbers. `value()` throws when the text does not parse or,
+for a column with a JSON Schema, when the value does not match it, as a
+`QueryValidationError` naming the query and column; `safeValue()` returns
+`{ ok, value }` or `{ ok, error }` instead. A JSON null document is a container
+whose value is null, while SQL NULL is `null`. Values to send are built with
+`json(value)`, which serializes, or `jsonText(text)`, which sends the text as
+written, both exported from the runtime's `pgsid` module; a parameter's JSON
+Schema is checked before it is sent. Money, bit strings, network
 addresses, UUIDs, XML and text search values are the server's canonical text,
 as client libraries already return them; money's text depends on the server's
 monetary locale, so it is not reinterpreted.

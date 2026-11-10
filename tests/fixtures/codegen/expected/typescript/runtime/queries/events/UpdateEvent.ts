@@ -1,3 +1,5 @@
+type PgsidJsonValue = null | boolean | number | string | PgsidJsonValue[] | { [key: string]: PgsidJsonValue };
+interface PgsidJson<T = PgsidJsonValue> { readonly text: string; value(): T; safeValue(): { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: Error } }
 import type { UpdateEventParams, UpdateEventRow } from "../../../types/queries/events/UpdateEvent.js";
 export type { UpdateEventParams, UpdateEventRow } from "../../../types/queries/events/UpdateEvent.js";
 import * as pgsid from "./pgsid/queryable.js";
@@ -26,19 +28,59 @@ function encodeText(value: unknown, name: string): string | null {
         return encodeInvalid(name, "text");
     return value;
 }
+function jsonContainer(text: string, validate?: (value: unknown) => Error | null): PgsidJson<unknown> {
+    let read: {
+        value: unknown;
+    } | {
+        error: Error;
+    } | undefined;
+    const parsed = () => {
+        if (!read)
+            try {
+                const value: unknown = JSON.parse(text);
+                const error = validate?.(value) ?? null;
+                read = error ? { error } : { value };
+            }
+            catch (error) {
+                read = { error: error instanceof Error ? error : new Error(String(error)) };
+            }
+        return read;
+    };
+    return Object.assign(Object.create(null), {
+        [Symbol.for("pgsid.json")]: true,
+        text,
+        value() {
+            const result = parsed();
+            if ("error" in result)
+                throw result.error;
+            return result.value;
+        },
+        safeValue() {
+            const result = parsed();
+            return "error" in result ? { ok: false, error: result.error } : { ok: true, value: result.value };
+        },
+    }) as PgsidJson<unknown>;
+}
+function isJson(value: unknown): value is PgsidJson<unknown> {
+    return typeof value === "object" && value !== null && (value as Record<symbol, unknown>)[Symbol.for("pgsid.json")] === true && typeof (value as {
+        text?: unknown;
+    }).text === "string";
+}
 function decodeJson(value: string | null): unknown {
-    return value === null ? null : JSON.parse(value);
+    return value === null ? null : jsonContainer(value);
 }
 function encodeJson(value: unknown, name: string): string | null {
     if (value === null || value === undefined)
         return null;
-    const text = JSON.stringify(value);
-    if (text === undefined)
+    if (!isJson(value))
         return encodeInvalid(name, "JSON");
-    return text;
+    return value.text;
+}
+function checkedJson(value: unknown, validate: (value: unknown) => Error | null): unknown {
+    return isJson(value) ? jsonContainer(value.text, validate) : value;
 }
 export const updateEventSql = "UPDATE public.events\nSET payload = $1, note = $2\nWHERE id = $3\nRETURNING id, payload, payload ->> 'score' AS score, note;";
-export function isUpdateEventPayload(value: unknown): value is UpdateEventRow["payload"] {
+export function isUpdateEventPayload(value: unknown): value is NonNullable<UpdateEventRow["payload"]> extends PgsidJson<infer T> ? T : never {
     return _jsonSchemas.isEventPayload(value);
 }
 export function validateUpdateEventPayload(value: unknown): {
@@ -76,7 +118,7 @@ export function validateUpdateEventScore(value: unknown): {
     const valid = value === null || _jsonSchemas.jsonSchemaHelpers._check(typeof value === "string", value, [], "type", "string", _issues);
     return { valid, issues: _issues };
 }
-export function isUpdateEventParamsPayloadPublicEventsPayload(value: unknown): value is UpdateEventParams["payload"] {
+export function isUpdateEventParamsPayloadPublicEventsPayload(value: unknown): value is NonNullable<UpdateEventParams["payload"]> extends PgsidJson<infer T> ? T : never {
     return _jsonSchemas.isEventPayload(value);
 }
 export function validateUpdateEventParamsPayloadPublicEventsPayload(value: unknown): {
@@ -92,9 +134,7 @@ export function validateUpdateEventParamsPayloadPublicEventsPayload(value: unkno
     return _jsonSchemas.validateEventPayload(value);
 }
 export async function updateEvent(db: pgsid.Queryable, params: UpdateEventParams): Promise<UpdateEventRow | undefined> {
-    const jsonInput1 = JSON.stringify(params["payload"]);
-    if (jsonInput1 === undefined)
-        throw new pgsid.QueryValidationError("UpdateEvent", "payload", [{ path: [], keyword: "json", expected: "JSON value", received: "undefined", message: "Value has no JSON representation" }]);
+    const jsonInput1 = encodeJson(params["payload"], "payload");
     const jsonInput1Value = jsonInput1 === null ? null : JSON.parse(jsonInput1);
     if (jsonInput1 !== null) {
         if (!isUpdateEventParamsPayloadPublicEventsPayload(jsonInput1Value))
@@ -105,8 +145,7 @@ export async function updateEvent(db: pgsid.Queryable, params: UpdateEventParams
     if (values === undefined)
         return undefined;
     const row = { "id": decodeBigint(values[0]), "payload": decodeJson(values[1]), "score": decodeText(values[2]), "note": decodeText(values[3]) };
-    if (!isUpdateEventPayload(row["payload"]))
-        throw new pgsid.QueryValidationError("UpdateEvent", "payload", validateUpdateEventPayload(row["payload"]).issues);
+    row["payload"] = checkedJson(row["payload"], (value: unknown) => isUpdateEventPayload(value) ? null : new pgsid.QueryValidationError("UpdateEvent", "payload", validateUpdateEventPayload(value).issues));
     if (!isUpdateEventScore(row["score"]))
         throw new pgsid.QueryValidationError("UpdateEvent", "score", validateUpdateEventScore(row["score"]).issues);
     return row as UpdateEventRow;

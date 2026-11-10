@@ -54,13 +54,20 @@ export function resolveTypescriptColumnType(
         arrayMapping.dimensions,
       )
     }
-    if ('jsonSchema' in mapping)
+    if ('jsonSchema' in mapping) {
+      const type =
+        context?.jsonSchemaReference?.(typeName(mapping.jsonSchema)) ??
+        typescriptTypeFromJsonSchema(schemas[mapping.jsonSchema]!)
+      // A json or jsonb column is a container of its schema's type.
+      const codec = typescriptCodec(column.typeName, catalog)
       return {
         type:
-          context?.jsonSchemaReference?.(typeName(mapping.jsonSchema)) ??
-          typescriptTypeFromJsonSchema(schemas[mapping.jsonSchema]!),
+          codec.kind === 'scalar' && codec.name === 'Json'
+            ? factory.createTypeReferenceNode('PgsidJson', [type])
+            : type,
         imports: [],
       }
+    }
   }
   return resolveTypescriptPgType(column.typeName, config, catalog, schema, column.typeOid, context)
 }

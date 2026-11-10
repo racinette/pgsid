@@ -24,59 +24,80 @@ SELECT ${columns} FROM shapes WHERE id = @id;
 `
 
 const point = (x: number, y: number) => ({ x, y })
+type Json = { text: string; value(): unknown }
+let json: (value: unknown) => Json
+let jsonText: (text: string) => Json
 // Coordinates include values a decimal rendering could lose: signed zero, the smallest subnormal,
-// NaN and infinities. Text types read back as the server's canonical text.
-const rows = [
-  {
-    id: 1,
-    spot: point(0.1, -0),
-    edge: { a: 1, b: -1, c: 5e-324 },
-    piece: { start: point(1, 2), end: point(Number.NaN, 4) },
-    frame: { high: point(3, 4), low: point(1, 2) },
-    route: { closed: false, points: [point(0, 0), point(1, 1), point(2.5, -1e300)] },
-    area: { points: [point(0, 0), point(0, 1), point(1, 0)] },
-    ring: { center: point(Number.POSITIVE_INFINITY, 1), radius: 2 },
-    spots: [point(1, 2), null],
-    document: { nested: [1, 'two', null, { deep: true }], text: 'quote " backslash \\' },
-    price: '$1,234.56',
-    mask: '0101',
-    host: '192.168.0.1/24',
-    net: '10.0.0.0/8',
-    mac: '08:00:2b:01:02:03',
-    ident: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
-    markup: '<a href="x">text</a>',
-    words: "'cat':1 'sat':2",
-    search: "'cat' & 'sat'",
-  },
-  {
-    id: 2,
-    spot: null,
-    edge: null,
-    piece: null,
-    frame: null,
-    route: { closed: true, points: [point(1, 1)] },
-    area: null,
-    ring: null,
-    spots: [],
-    document: 'a JSON string',
-    price: '-$0.01',
-    mask: '',
-    host: '::1',
-    net: null,
-    mac: null,
-    ident: null,
-    markup: null,
-    words: '',
-    search: null,
-  },
-]
+// NaN and infinities. Text types read back as the server's canonical text; a JSON value is a
+// container of it, built once the generated support module is loaded.
+const rows = () =>
+  [
+    {
+      id: 1,
+      spot: point(0.1, -0),
+      edge: { a: 1, b: -1, c: 5e-324 },
+      piece: { start: point(1, 2), end: point(Number.NaN, 4) },
+      frame: { high: point(3, 4), low: point(1, 2) },
+      route: { closed: false, points: [point(0, 0), point(1, 1), point(2.5, -1e300)] },
+      area: { points: [point(0, 0), point(0, 1), point(1, 0)] },
+      ring: { center: point(Number.POSITIVE_INFINITY, 1), radius: 2 },
+      spots: [point(1, 2), null],
+      document: json({ nested: [1, 'two', null, { deep: true }], text: 'quote " backslash \\' }),
+      price: '$1,234.56',
+      mask: '0101',
+      host: '192.168.0.1/24',
+      net: '10.0.0.0/8',
+      mac: '08:00:2b:01:02:03',
+      ident: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+      markup: '<a href="x">text</a>',
+      words: "'cat':1 'sat':2",
+      search: "'cat' & 'sat'",
+    },
+    {
+      id: 2,
+      spot: null,
+      edge: null,
+      piece: null,
+      frame: null,
+      route: { closed: true, points: [point(1, 1)] },
+      area: null,
+      ring: null,
+      spots: [],
+      document: json('a JSON string'),
+      price: '-$0.01',
+      mask: '',
+      host: '::1',
+      net: null,
+      mac: null,
+      ident: null,
+      markup: null,
+      words: '',
+      search: null,
+    },
+  ].flatMap((row) =>
+    row.id === 2
+      ? [
+          row,
+          // jsonb stores its own text: keys sorted, spacing its own, the last of a repeated key.
+          { ...row, id: 3, document: jsonText(' {"b":1, "a" : [1,2], "b":"x"} ') },
+          // A JSON null document is a container whose value is null, apart from SQL NULL.
+          { ...row, id: 4, document: json(null) },
+          { ...row, id: 5, document: null },
+        ]
+      : [row],
+  )
 
 let root: string
 let db: PGlite
 let server: Awaited<ReturnType<typeof servePglite>>
 let client: pg.Client
 let runtime: Record<string, (...args: unknown[]) => Promise<unknown>>
-let helpers: { fromPg(client: unknown): unknown; fromPglite(db: unknown): unknown }
+let helpers: {
+  fromPg(client: unknown): unknown
+  fromPglite(db: unknown): unknown
+  json: typeof json
+  jsonText: typeof jsonText
+}
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'pgsid-scalar-codecs-'))
@@ -107,6 +128,7 @@ sql:
   helpers = (await import(
     join(root, 'generated/runtime/shapes/pgsid/queryable.ts')
   )) as typeof helpers
+  ;({ json, jsonText } = helpers)
   db = new PGlite()
   await db.exec(schema)
   server = await servePglite(db)
@@ -126,20 +148,26 @@ afterAll(async () => {
 })
 
 describe('TypeScript scalar codecs', () => {
-  it('types JSON as a JSON value and compiles under strict settings', async () => {
+  it('types JSON as a container of a JSON value and compiles under strict settings', async () => {
     await writeFile(
       join(root, 'usage.ts'),
       `import { getShape } from './generated/runtime/shapes/GetShape.js'
 import type { Shapes } from './generated/schema/public/tables.js'
+import { json, jsonText, type PgsidJson, type PgsidJsonValue } from './generated/runtime/shapes/pgsid/queryable.js'
 declare const db: Parameters<typeof getShape>[0]
 export async function usage() {
   const row = await getShape(db, { id: 1 })
-  const document: string | number | boolean | null | undefined | object = row?.document
-  const stored: Shapes['select']['document'] = { list: [1, 'two', null, { deep: true }] }
+  const document: PgsidJson<PgsidJsonValue> | null | undefined = row?.document
+  const text: string | undefined = row?.document?.text
+  const value: string | number | boolean | null | undefined | object = row?.document?.value()
+  const stored: Shapes['select']['document'] = json({ list: [1, 'two', null, { deep: true }] })
+  const written: Shapes['select']['document'] = jsonText('{"list": [1]}')
+  // @ts-expect-error a JSON value is a container, not a plain value
+  const plain: Shapes['select']['document'] = { list: [1, 'two', null, { deep: true }] }
   // @ts-expect-error a function is not a JSON value
   const invalid: Shapes['select']['document'] = () => 0
   const spot: number | undefined = row?.spot?.x
-  return [document, stored, invalid, spot]
+  return [document, text, value, stored, written, plain, invalid, spot]
 }
 `,
     )
@@ -169,11 +197,28 @@ export async function usage() {
     ['node-postgres', () => helpers.fromPg(client)],
   ] as const)('round-trips geometry, JSON and text types through %s', async (_name, connect) => {
     const queryable = connect()
+    const sent = rows()
     await db.exec('BEGIN')
     try {
-      for (const row of rows) await runtime['insertShape']!(queryable, row)
-      for (const row of rows)
-        expect(await runtime['getShape']!(queryable, { id: row.id })).toEqual(row)
+      for (const row of sent) await runtime['insertShape']!(queryable, row)
+      const texts: (string | null)[] = []
+      for (const { document, ...row } of sent) {
+        const { document: read, ...rest } = (await runtime['getShape']!(queryable, {
+          id: row.id,
+        })) as { document: Json | null }
+        expect(rest).toEqual(row)
+        // A JSON value reads back as the server's text, parsed to the value sent.
+        const server = (
+          await db.query<{ text: string | null }>(
+            'SELECT document::text AS text FROM shapes WHERE id = $1',
+            [row.id],
+          )
+        ).rows[0]!.text
+        texts.push(server)
+        expect(read && read.text).toBe(server)
+        expect(read && read.value()).toEqual(document && document.value())
+      }
+      expect(texts.slice(2)).toEqual(['{"a": [1, 2], "b": "x"}', 'null', null])
     } finally {
       await db.exec('ROLLBACK')
     }
@@ -190,9 +235,13 @@ export async function usage() {
       ['area', { points: point(1, 1) }],
       ['ring', { center: point(1, 1), radius: '2' }],
       ['document', () => 0],
+      // A JSON value is sent only as a container.
+      ['document', { nested: [1] }],
+      ['document', 'a JSON string'],
+      ['document', { text: '{}' }],
     ] as const)
       await expect(
-        runtime['insertShape']!(queryable, { ...rows[1], id: 9, [column]: value }),
+        runtime['insertShape']!(queryable, { ...rows()[1], id: 9, [column]: value }),
       ).rejects.toThrow(new RegExp(`Parameter ${column} holds a malformed`, 'u'))
   })
 })
