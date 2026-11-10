@@ -841,7 +841,8 @@ export interface OutputCheckCases {
  * Only bare pass-throughs of one base row count: columns whose origin is the
  * same row instance (`rowPath`) of one table. A row reached through an outer
  * join may be absent, which adds the all-NULL member to its groups. Columns
- * of a set operation have one origin per branch and are left out.
+ * of a set operation have one origin per branch: they take the union of the
+ * branches' literals, and no case groups.
  */
 export function outputCheckCases(
   outputs: readonly OutputNullability[],
@@ -889,6 +890,26 @@ export function outputCheckCases(
       })
     }
   }
+  // A set operation's column holds a row from one of its branches: it takes
+  // the union of the branches' literals when each branch passes a column with
+  // literals through.
+  outputs.forEach((output, index) => {
+    if (!output.origins || output.origins.length < 2) return
+    const sets = output.origins.map((origin) => {
+      if (!origin) return null
+      const column = tableCheckCases(catalog, origin.schema, origin.table, 'stored').columns.get(
+        origin.column,
+      )
+      return column?.kind && column.summary.values !== null
+        ? { kind: column.kind, values: column.summary.values }
+        : null
+    })
+    if (sets.some((set) => set === null || set.kind !== sets[0]!.kind)) return
+    literals[index] = {
+      kind: sets[0]!.kind,
+      values: [...new Set(sets.flatMap((set) => set!.values))].sort(),
+    }
+  })
   if (groups.length === 0 && literals.every((item) => item === null)) return undefined
   return { literals, groups }
 }
