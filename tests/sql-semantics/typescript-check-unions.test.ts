@@ -35,7 +35,9 @@ SELECT id, status, kind, paid_at, level, delta, settled, note FROM payments WHER
 -- name: OwnerPayments :many
 SELECT o.id, p.kind, p.paid_at FROM owners o LEFT JOIN payments p ON p.id = o.payment;
 -- name: Either :many
-SELECT kind, paid_at FROM payments UNION ALL SELECT kind, paid_at FROM payments;
+SELECT kind, paid_at, status FROM payments UNION ALL SELECT kind, paid_at, status FROM payments;
+-- name: Mixed :many
+SELECT status FROM payments UNION SELECT 'other';
 -- name: AddPayment :exec
 INSERT INTO payments (id, status, kind, paid_at, level, delta, settled, note)
 VALUES (@id, @status, @kind, @paid_at, @level, @delta, @settled, @note);
@@ -54,6 +56,7 @@ INSERT INTO drafts (id, state) VALUES (@id, @state);
 const usage = `import type { GetPaymentRow } from './generated/types/q/GetPayment.js'
 import type { OwnerPaymentsRow } from './generated/types/q/OwnerPayments.js'
 import type { EitherRow } from './generated/types/q/Either.js'
+import type { MixedRow } from './generated/types/q/Mixed.js'
 import type { AddPaymentParams } from './generated/types/q/AddPayment.js'
 import type { SetPaidParams } from './generated/types/q/SetPaid.js'
 import type { GetDraftRow } from './generated/types/q/GetDraft.js'
@@ -78,9 +81,14 @@ declare const owned: OwnerPaymentsRow
 if (owned.kind === 'paid') expectType<string>(owned.paid_at)
 if (owned.kind === null) expectType<null>(owned.paid_at)
 
-// A set operation's rows come from either branch and are not narrowed.
+// A set operation's rows come from either branch: literals join, and cases are not read.
 declare const either: EitherRow
 expectType<string | null>(either.paid_at)
+expectType<'open' | 'closed'>(either.status)
+declare const mixed: MixedRow
+expectType<string>(mixed.status)
+// @ts-expect-error A branch writes another value.
+expectType<'open' | 'closed'>(mixed.status)
 
 const add: AddPaymentParams = {
   id: 1, status: 'open', kind: 'paid', paid_at: '2024-01-01', level: 1, delta: -5n, settled: false, note: null,

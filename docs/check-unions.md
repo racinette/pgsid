@@ -29,7 +29,9 @@ flat row type the way outer-join presence groups are, so testing `kind` narrows
 - **Rows read**, in query results, views and table select types: columns that
   pass a base table's column through unchanged, from one row of it. A row
   reached through an outer join may be absent, which adds the all-NULL member.
-  Columns of a set operation, expressions and casts are not narrowed. Stored
+  A column of a set operation takes the union of its branches' literals when
+  every branch passes such a column through, and no cases. Expressions and
+  casts are not narrowed. Stored
   rows meet the table's validated CHECKs, including its inheritance tree's, so
   a `NOT VALID` CHECK narrows nothing here: older rows may break it.
 - **Values written**: query parameters written straight to a column, and
