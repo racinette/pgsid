@@ -2179,10 +2179,14 @@ function checkRustPublicRange(value: unknown, name: string, typeName: string, el
     return labels ? _checkRust.rangeFromDefinedBounds(typeName, elementType, kind, true, false, false, none, none, support, labels, count) : _checkRust.rangeFromProfiledBounds(typeName, elementType, kind, true, false, false, none, none, support)
   }
   if (!('lower' in value) || !('upper' in value) || !('lowerInclusive' in value) || !('upperInclusive' in value) || value.lower === undefined || value.upper === undefined || typeof value.lowerInclusive !== 'boolean' || typeof value.upperInclusive !== 'boolean') return checkRustInvalid(name)
-  const cell = (item: unknown): _checkRust.ArrayElement => (item === null ? { kind: 'Null' } : checkRustPart(bound(item, name)))
+  const parts = checkRustParts()
+  const cell = (item: unknown): _checkRust.ArrayElement => (item === null ? { kind: 'Null' } : parts.read(() => bound(item, name)))
+  const lower = cell(value.lower)
+  const upper = cell(value.upper)
+  parts.done()
   const flags = _checkRust.makeTextValue((value.lowerInclusive ? '[' : '(') + (value.upperInclusive ? ']' : ')'))
-  if (profile) return _checkRustOperations.rangeConstructTyped(typeName, elementType, kind, cell(value.lower), cell(value.upper), flags, support, '', -1, profile)
-  return labels ? _checkRustOperations.rangeConstructDefined(typeName, elementType, kind, cell(value.lower), cell(value.upper), flags, support, labels, count) : _checkRustOperations.rangeConstructWithSupport(typeName, elementType, kind, cell(value.lower), cell(value.upper), flags, support)
+  if (profile) return _checkRustOperations.rangeConstructTyped(typeName, elementType, kind, lower, upper, flags, support, '', -1, profile)
+  return labels ? _checkRustOperations.rangeConstructDefined(typeName, elementType, kind, lower, upper, flags, support, labels, count) : _checkRustOperations.rangeConstructWithSupport(typeName, elementType, kind, lower, upper, flags, support)
 }
 function checkRustMultirangeColumn(row: object, name: string, convert: (value: unknown, name: string) => _checkRust.MultirangeValue): _checkRust.MultirangeValue {
   const value = Reflect.get(row, name)
@@ -2194,10 +2198,12 @@ function checkRustMultirangeColumn(row: object, name: string, convert: (value: u
 function checkRustPublicMultirange(value: unknown, name: string, typeName: string, rangeType: string, elementType: string, kind: number, support: _checkRust.RangeSupport, range: (value: unknown, name: string) => _checkRust.RangeValue): _checkRust.MultirangeValue {
   if (!Array.isArray(value)) return checkRustInvalid(name)
   let members = _checkRust.makeArrayArguments(rangeType, 42)
+  const parts = checkRustParts()
   for (const item of value) {
     if (item === null || item === undefined) return checkRustInvalid(name)
-    members = _checkRust.appendArrayArgument(members, checkRustPart(_checkRust.arrayElementFromRange(range(item, name))))
+    members = _checkRust.appendArrayArgument(members, parts.read(() => _checkRust.arrayElementFromRange(range(item, name))))
   }
+  parts.done()
   return _checkRustOperations.multirangeConstructArrayWithSupport(_checkRust.finishArrayConstructor(members), typeName, rangeType, elementType, kind, support)
 }
 // The server reads a supplied value before any check runs: a value its input rejects fails every
@@ -2207,12 +2213,38 @@ function checkRustRead<T extends { kind: string }>(row: object, name: string, va
   if ((value.kind === 'Unknown' || value.kind === 'Unimplemented') && Object.hasOwn(row, name) && Reflect.get(row, name) !== undefined) throw checkUndecidedInput
   return value
 }
-// The server reads a container's parts in order: the first part its input rejects fails the whole
-// value, and an undecided part leaves it undecided, since that part may be the one rejected.
-function checkRustPart(part: _checkRust.ArrayElement): _checkRust.ArrayElement {
-  if (part.kind === 'Error') throw checkRustSqlError(part.value)
-  if (part.kind === 'Unknown' || part.kind === 'Unimplemented') throw checkUndecidedInput
-  return part
+// A part of the wrong shape is a type error before anything is sent, so every part's shape is
+// checked first. The server then reads the parts in order: the first part its input rejects fails
+// the whole value, and an undecided part leaves it undecided, since that part may be the one
+// rejected.
+function checkRustParts() {
+  let failed = false
+  let failure: unknown
+  const fail = (error: unknown) => {
+    if (!failed) {
+      failed = true
+      failure = error
+    }
+  }
+  return {
+    fail,
+    read(convert: () => _checkRust.ArrayElement): _checkRust.ArrayElement {
+      let part: _checkRust.ArrayElement
+      try {
+        part = convert()
+      } catch (error) {
+        if (error instanceof TypeError) throw error
+        fail(error)
+        return { kind: 'Unknown' }
+      }
+      if (part.kind === 'Error') fail(checkRustSqlError(part.value))
+      else if (part.kind === 'Unknown' || part.kind === 'Unimplemented') fail(checkUndecidedInput)
+      return part
+    },
+    done(): void {
+      if (failed) throw failure
+    },
+  }
 }
 function checkRustSqlError(error: _checkRust.SqlError): Error {
   return Object.assign(new Error(_checkRust.sqlErrorMessage(error).message), { code: error.state.toString(36).toUpperCase().padStart(5, '0') })
@@ -2255,10 +2287,12 @@ function checkRustCompositeColumn(row: object, name: string, convert: (value: un
 function checkRustPublicComposite(value: unknown, name: string, typeName: string, fields: readonly string[], convert: readonly ((value: unknown, name: string) => _checkRust.ArrayElement)[]): _checkRust.CompositeValue {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return checkRustInvalid(name)
   let composite = _checkRust.makeCompositeFields(typeName)
+  const parts = checkRustParts()
   fields.forEach((field, index) => {
     const item = Reflect.get(value, field)
-    composite = _checkRust.appendCompositeField(composite, checkRustPart(convert[index]!(item === undefined ? null : item, name)))
+    composite = _checkRust.appendCompositeField(composite, parts.read(() => convert[index]!(item === undefined ? null : item, name)))
   })
+  parts.done()
   return composite
 }
 function checkRustArrayColumn(row: object, name: string, convert: (value: unknown, name: string) => _checkRust.ArrayValue): _checkRust.ArrayValue {
@@ -2279,10 +2313,11 @@ function checkRustPublicArray(value: unknown, name: string, elementType: string,
   }
   const lengths: number[] = []
   const cells: unknown[] = []
+  const parts = checkRustParts()
   const walk = (items: unknown, level: number): void => {
     if (!Array.isArray(items)) return checkRustInvalid(name)
     if (lengths.length === level) lengths.push(items.length)
-    else if (lengths[level] !== items.length) throw Object.assign(new Error('malformed array literal'), { code: '22P02' })
+    else if (lengths[level] !== items.length) parts.fail(Object.assign(new Error('malformed array literal'), { code: '22P02' }))
     for (const item of items) {
       if (level + 1 < depth) walk(item, level + 1)
       else cells.push(item)
@@ -2293,8 +2328,9 @@ function checkRustPublicArray(value: unknown, name: string, elementType: string,
   if (cells.length) for (const length of lengths) args = _checkRust.appendArrayDimension(args, 1, length)
   for (const cell of cells) {
     if (cell === undefined) return checkRustInvalid(name)
-    args = _checkRust.appendArrayArgument(args, checkRustPart(element(cell, name)))
+    args = _checkRust.appendArrayArgument(args, parts.read(() => element(cell, name)))
   }
+  parts.done()
   return _checkRust.finishArrayArguments(args)
 }
 // Public temporal values count from the Unix epoch; the server counts from 2000-01-01 and keeps
@@ -2480,7 +2516,11 @@ function checkRustTime(row: object, name: string): _checkRust.TimeValue {
   const value = Reflect.get(row, name)
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.timeUnknown()
   if (value === null) return _checkRust.timeNull()
-  if (value && typeof value === 'object' && 'microseconds' in value && typeof value.microseconds === 'number' && Number.isSafeInteger(value.microseconds) && value.microseconds >= 0 && value.microseconds <= 86400000000) return _checkRust.makeTimeValue(BigInt(value.microseconds))
+  if (value && typeof value === 'object' && 'microseconds' in value && typeof value.microseconds === 'number' && Number.isSafeInteger(value.microseconds) && value.microseconds >= 0) {
+    // A clock past 24:00:00 is sent as is, and time input rejects it with 22008.
+    if (value.microseconds > 86400000000) return { kind: 'Error', value: _checkRust.makeSqlError(3452552) }
+    return _checkRust.makeTimeValue(BigInt(value.microseconds))
+  }
   return checkRustInvalid(name)
 }
 function checkRustTimetz(row: object, name: string): _checkRust.TimetzValue {
@@ -2488,7 +2528,13 @@ function checkRustTimetz(row: object, name: string): _checkRust.TimetzValue {
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.timetzUnknown()
   if (value === null) return _checkRust.timetzNull()
   // The server keeps a time zone as seconds west of UTC, the negated offset.
-  if (value && typeof value === 'object' && 'microseconds' in value && 'offsetSeconds' in value && typeof value.microseconds === 'number' && Number.isSafeInteger(value.microseconds) && value.microseconds >= 0 && value.microseconds <= 86400000000 && typeof value.offsetSeconds === 'number' && Number.isSafeInteger(value.offsetSeconds) && Math.abs(value.offsetSeconds) <= 57599) return _checkRust.makeTimetzValue(BigInt(value.microseconds), -value.offsetSeconds)
+  if (value && typeof value === 'object' && 'microseconds' in value && 'offsetSeconds' in value && typeof value.microseconds === 'number' && Number.isSafeInteger(value.microseconds) && value.microseconds >= 0 && typeof value.offsetSeconds === 'number' && Number.isSafeInteger(value.offsetSeconds)) {
+    // Both are sent as is: timetz input rejects a zone beyond 15:59:59 with 22009, then a clock
+    // past 24:00:00 with 22008.
+    if (Math.abs(value.offsetSeconds) > 57599) return { kind: 'Error', value: _checkRust.makeSqlError(3452553) }
+    if (value.microseconds > 86400000000) return { kind: 'Error', value: _checkRust.makeSqlError(3452552) }
+    return _checkRust.makeTimetzValue(BigInt(value.microseconds), -value.offsetSeconds)
+  }
   return checkRustInvalid(name)
 }
 function checkRustInterval(row: object, name: string): _checkRust.IntervalValue {

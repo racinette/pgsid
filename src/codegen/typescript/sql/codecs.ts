@@ -300,8 +300,16 @@ const rangeSubtype = (
     return item === name && (schema === undefined ? true : owner === schema)
   }
   for (const range of [...(catalog?.rangeTypes ?? []), ...builtinRanges]) {
-    if (matches(range.identity)) return { kind: 'range', subtype: range.subtype }
-    if (matches(range.multirange)) return { kind: 'multirange', subtype: range.subtype }
+    // The catalog names an array subtype by its internal name (pg_catalog._int4); its element
+    // makes it a list of that element.
+    const node =
+      'subtypeDefinitions' in range
+        ? range.subtypeDefinitions?.find((item) => item.identity === range.subtype)
+        : undefined
+    const subtype =
+      node && node.kind !== 'd' && node.element !== null ? `${node.element}[]` : range.subtype
+    if (matches(range.identity)) return { kind: 'range', subtype }
+    if (matches(range.multirange)) return { kind: 'multirange', subtype }
   }
   return null
 }

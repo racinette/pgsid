@@ -457,7 +457,6 @@ it('validates public owned ACL arrays and preserves bitmap metadata in both targ
       [null, null, null, [], '{}'],
       [[], '{}', null, [], '{}'],
       [[null], '{NULL}', null, [null], '{NULL}'],
-      [[[null]], '{{NULL}}', null, [], '{}'],
       [[null, null], '{NULL,NULL}', null, null, null],
     ] as const) {
       const row = { items, probe, reference }
@@ -479,8 +478,11 @@ it('validates public owned ACL arrays and preserves bitmap metadata in both targ
     for (const name of Object.keys(forms))
       if ((named[name] as { certain: boolean }).certain)
         expect(named[name], name).toEqual(namedServer[name])
+    // The column declares one dimension, so a nested list is one aclitem element, and no aclitem's
+    // public value is a list.
     for (const items of [
       [1],
+      [[null]],
       ['=r/postgres', 2n],
       [undefined],
       '{}',
@@ -517,6 +519,27 @@ it('validates public owned ACL arrays and preserves bitmap metadata in both targ
       for (const [name, result] of Object.entries(cases[index]!.expected))
         expect(results[name], `${index} ${name}`).toEqual(outcome(result))
     }
+    // A two-dimensional array of NULLs has no public value under the declared dimension.
+    const nullGrid = internal('public.owned_acls', {
+        items: items(
+          array(
+            ['null'],
+            [
+              { lower: 1, length: 1 },
+              { lower: 1, length: 1 },
+            ],
+          ),
+        ),
+        probe: acl(null),
+        reference: items(array([])),
+      }),
+      nullGridServer = await serverCheckResults(pg, 'owned_acls', {
+        items: '{{NULL}}',
+        probe: null,
+        reference: '{}',
+      })
+    for (const [name, result] of Object.entries(nullGridServer))
+      expect(nullGrid[name], `null grid ${name}`).toEqual(outcome(result))
     const unknownBitmap = { ...array(['wide']), nullBitmap: { kind: 'Unknown' as const } }
     expect(['Unknown', 'Unimplemented']).toContain(
       (stored(unknownBitmap as OwnedArrayInputPayload, a)['covers'] as { kind: string }).kind,
