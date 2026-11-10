@@ -236,7 +236,12 @@ export function createTypescriptCodegenTarget(
                 : []),
               ...(runtime && rendered.checkRust !== null
                 ? (rendered.checkRustFiles
-                    ? checkTypescriptArtifacts(rendered.checkRustFiles)
+                    ? checkTypescriptArtifacts(rendered.checkRustFiles, [
+                        {
+                          source: rendered.runtime ?? '',
+                          prefix: `./${analysis.query.name}.check-rust/`,
+                        },
+                      ])
                     : [{ path: 'checks.ts', content: rendered.checkRust }]
                   ).map((artifact) => ({
                     kind: 'runtime' as const,
