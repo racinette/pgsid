@@ -72,6 +72,7 @@ function checkRustRead<T extends {
 function checkRustSqlError(error: _checkRust.SqlError): Error {
     return Object.assign(new Error(_checkRust.sqlErrorMessage(error).message), { code: error.state.toString(36).toUpperCase().padStart(5, "0") });
 }
+const checkRustOutOfRange = { kind: "Error", value: _checkRust.makeSqlError(3452547) } as const;
 function checkRustInt8(row: object, name: string): _checkRust.Int8Value {
     const input = checkInputInt8(row, name);
     if (!input.certain)
@@ -79,7 +80,7 @@ function checkRustInt8(row: object, name: string): _checkRust.Int8Value {
     if (input.value === null)
         return _checkRust.int8Null();
     if (input.value < -9223372036854775808n || input.value > 9223372036854775807n)
-        return checkRustInvalid(name);
+        return checkRustOutOfRange;
     return _checkRust.makeInt8Value(input.value);
 }
 function checkRustOutcome(value: _checkRust.CheckOutcome): CheckResult {

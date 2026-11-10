@@ -197,7 +197,11 @@ it('injects compiled nested range contexts before public ownership validation wi
       ],
       [
         { ...publicRow, nested: [publicRow.items, null] },
-        { ...publicText, nested: `{${publicText.items},NULL}` },
+        // An element of the array domain is one quoted array, never a dimension.
+        {
+          ...publicText,
+          nested: `{"${publicText.items.replace(/["\\]/gu, (c) => '\\' + c)}",NULL}`,
+        },
       ],
       [
         { ...publicRow, bypass: true },
@@ -216,9 +220,10 @@ it('injects compiled nested range contexts before public ownership validation wi
           delete local[name]
           delete server[name]
         }
-      expect
-        .soft({ row: JSON.stringify(row), results: local })
-        .toEqual({ row: JSON.stringify(row), results: server })
+      expect({ row: JSON.stringify(row), results: local }).toEqual({
+        row: JSON.stringify(row),
+        results: server,
+      })
       expect(row).toEqual(before)
     }
     for (const name of hashes)

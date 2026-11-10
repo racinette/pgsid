@@ -70,7 +70,8 @@ its scale before any check sees it. Elements of arrays, fields of records and
 bounds of ranges convert the same way, each through its own type and modifier.
 A part of a domain type then meets the domain's constraints as domain input
 applies them, NOT NULL first and base domains before derived ones, failing with
-23502 or 23514. Where part of a value cannot be converted yet, such as a bound
-of a range over records or arrays, or an element that is itself a list, the
-checks reading the whole value are left to the server rather than decided
-around that part, since the server may reject it.
+23502 or 23514. The server reads a container's parts in order, so the first
+part it rejects fails the whole value, an integer outside its type's range with
+22003, and a part that cannot be decided, such as an enum label the captured
+catalog does not list, leaves the checks reading the whole value to the server
+rather than decided around that part, since the server may reject it.

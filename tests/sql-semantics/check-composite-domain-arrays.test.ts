@@ -268,7 +268,7 @@ INSERT INTO bundles VALUES(ARRAY[ROW(2,'z','hi')::required],false);`)
         output: { certain: true, value: true },
       },
       before = structuredClone(publicGood)
-    expect.soft(evaluate({ a: publicGood, bypass: false })).toEqual(expected)
+    expect(evaluate({ a: publicGood, bypass: false })).toEqual(expected)
     expect(publicGood).toEqual(before)
     const mismatches: ReturnType<typeof differingChecks> = []
     for (const [a, text] of [
@@ -332,15 +332,19 @@ INSERT INTO bundles VALUES(ARRAY[ROW(2,'z','hi')::required],false);`)
       mutate(value)
       expect(() => evaluate({ a: value, bypass: false }), String(index)).toThrow(TypeError)
     }
-    expect
-      .soft(() => evaluate({ a: [{ n: 40000, phase: 'z', label: 'hi' }], bypass: false }))
-      .toThrow(TypeError)
-    // A label outside the captured ones may have been added since: what reads it decides
-    // nothing, and a bypassed row still decides.
+    // A smallint out of range fails input with 22003, so every check reading the array fails,
+    // a bypassed one too.
+    for (const bypass of [false, true])
+      for (const [name, result] of Object.entries(
+        evaluate({ a: [{ n: 40000, phase: 'z', label: 'hi' }], bypass }),
+      ))
+        expect(result, name).toMatchObject({ certain: true, error: '22003' })
+    // A label outside the captured ones may have been added since, or the server may reject it
+    // before any check runs, so no check reading the array decides, a bypassed one included.
     const added = [{ n: 2, phase: 'added', label: 'hi' }]
-    for (const name of ['equal', 'output'])
-      expect(evaluate({ a: added, bypass: false })[name], name).toMatchObject({ certain: false })
-    expect(evaluate({ a: added, bypass: true })).toEqual(expected)
+    for (const bypass of [false, true])
+      for (const [name, result] of Object.entries(evaluate({ a: added, bypass })))
+        expect(result, name).toEqual({ certain: false })
     // Stored arrays of the domain hold elements already coerced to it, so the entries take them
     // without replaying the domain: a NULL element and a record of NULL fields included.
     const runtime = await import(pathToFileURL(join(root, 'js/checks-rust/checks.js')).href)
