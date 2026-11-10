@@ -136,6 +136,8 @@ export const typescriptJsonSchemasSchema = z
 export const schemaCodegenSchema = z
   .object({
     outDir: z.string(),
+    // zod v4 schemas of each table's select, insert and update shapes, beside its CHECK validators.
+    zod: z.boolean().default(false),
   })
   .strict()
 

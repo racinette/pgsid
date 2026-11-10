@@ -1376,7 +1376,7 @@ const decodeExpression = (codec: TypescriptCodec, value: ts.Expression): ts.Expr
     ...codecArguments(codec, 'decode'),
   ])
 
-const encodeExpression = (
+export const encodeExpression = (
   codec: TypescriptCodec,
   value: ts.Expression,
   name: ts.Expression,
@@ -1388,7 +1388,7 @@ const encodeExpression = (
   ])
 
 // A codec can rely on shared helpers, so every function an emitted one names is emitted with it.
-const codecStatements = (names: ReadonlySet<string>): ts.Statement[] => {
+export const codecStatements = (names: ReadonlySet<string>): ts.Statement[] => {
   if (!names.size) return []
   const functions = synthesizedStatements(typescriptCodecSource).filter(
     (statement): statement is ts.FunctionDeclaration =>

@@ -232,6 +232,9 @@ export function renderTypescriptSchemaCheckArtifacts(
 ): {
   checks: string
   rust: string | null
+  // The tables and domains whose checks evaluate, as `evaluate<Schema_Name>Checks` and
+  // `evaluate<Schema_Name>DomainChecks`.
+  evaluated?: readonly { kind: 'table' | 'domain'; schema: string; name: string }[]
   rustFiles: {
     regex: string
     operations: string
@@ -1804,6 +1807,11 @@ export function renderTypescriptSchemaCheckArtifacts(
       ),
     ]),
     rust: rustFiles?.checks ?? null,
+    evaluated: emitted.map((group) => ({
+      kind: group.kind === 'domain' ? ('domain' as const) : ('table' as const),
+      schema: group.source.schema,
+      name: group.source.name,
+    })),
     rustFiles,
   }
 }
