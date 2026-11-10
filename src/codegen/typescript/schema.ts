@@ -218,7 +218,9 @@ export function renderTypescriptSchemaArtifacts(
         artifacts.push({ path: join(outDir, schemaDirectory(schema), name), content })
       }
       if (checks.rustFiles)
-        for (const artifact of checkTypescriptArtifacts(checks.rustFiles))
+        for (const artifact of checkTypescriptArtifacts(checks.rustFiles, [
+          { source: checks.checks, prefix: './checks-rust/' },
+        ]))
           artifacts.push({
             ...artifact,
             path: join(outDir, schemaDirectory(schema), 'checks-rust', artifact.path),

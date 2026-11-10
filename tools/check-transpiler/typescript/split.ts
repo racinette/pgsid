@@ -1,5 +1,6 @@
 import { posix } from 'node:path'
 import ts from 'typescript'
+import { pruneCheckTypescript, type CheckTypescriptConsumer } from './prune.js'
 
 type Item = { kind: string; name: string; visibility: string; module?: string; sourceFile?: string }
 type Group = 'regex' | 'operations' | 'runtime' | 'language' | 'checks'
@@ -12,12 +13,16 @@ const filePaths: Record<Group, string> = {
   regex: 'regexengine/regex.ts',
 }
 
+// The runtime files of a check group. Given the modules importing them, they are pruned to what
+// those modules use; without, they are whole, for callers that drive the evaluator directly.
 export function checkTypescriptArtifacts(
   files: Record<Group, string>,
+  consumers?: readonly CheckTypescriptConsumer[],
 ): { path: string; content: string }[] {
-  return (Object.keys(filePaths) as Group[]).flatMap((group) =>
+  const artifacts = (Object.keys(filePaths) as Group[]).flatMap((group) =>
     files[group] ? [{ path: filePaths[group], content: files[group] }] : [],
   )
+  return consumers ? pruneCheckTypescript(artifacts, consumers) : artifacts
 }
 
 function moduleSpecifier(from: Group, to: Group): string {
