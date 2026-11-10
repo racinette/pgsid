@@ -119,12 +119,6 @@ function expectSound(cases: TableCheckCases, rows: readonly Record<string, unkno
 
 const summary = (cases: TableCheckCases) =>
   Object.fromEntries([...cases.columns].map(([name, column]) => [name, column.summary]))
-const members = (cases: TableCheckCases) =>
-  cases.groups.map((group) =>
-    group.cases.map((member) =>
-      Object.fromEntries(group.columns.map((name, index) => [name, member[index]])),
-    ),
-  )
 
 const domainCandidates: Record<string, readonly (string | number | null)[]> = {
   tier: ['gold', 'silver', 'bronze', null],
@@ -191,44 +185,93 @@ describe('CHECK case derivation', () => {
     })
   })
 
-  it('splits rows into cases a discriminant selects', () => {
+  it('splits rows into one member per discriminant value', () => {
     const paid = { null: false, values: ['paid'] }
     const date = { null: false, values: null }
     const none = { null: true, values: [] }
-    expect(members(tableCheckCases(catalog, 'public', 'payments', 'stored'))).toEqual([
-      [
-        { kind: paid, paid_at: date },
-        { kind: { null: false, values: ['pending', 'refunded'] }, paid_at: none },
-      ],
+    const either = { null: true, values: null }
+    const split = (table: string) =>
+      tableCheckCases(catalog, 'public', table, 'stored').groups.map((group) => ({
+        discriminant: group.discriminant,
+        labels: group.labels,
+        members: group.cases.map((member) =>
+          Object.fromEntries(group.columns.map((name, index) => [name, member[index]])),
+        ),
+      }))
+    // Values the CHECKs never mention behave alike and share one member.
+    expect(split('payments')).toEqual([
+      {
+        discriminant: { column: 'kind' },
+        labels: [
+          { kind: 'value', value: 'paid' },
+          { kind: 'other', values: ['pending', 'refunded'] },
+        ],
+        members: [
+          { kind: paid, paid_at: date },
+          { kind: { null: false, values: ['pending', 'refunded'] }, paid_at: none },
+        ],
+      },
     ])
     // A CASE without a matching branch is NULL, which a CHECK accepts.
-    expect(members(tableCheckCases(catalog, 'public', 'members', 'stored'))).toEqual([
-      [
-        { kind: { null: false, values: ['paid', 'refunded'] }, since: date },
-        { kind: { null: false, values: ['pending', 'refunded'] }, since: none },
-      ],
+    expect(split('members')).toEqual([
+      {
+        discriminant: { column: 'kind' },
+        labels: [
+          { kind: 'value', value: 'paid' },
+          { kind: 'value', value: 'pending' },
+          { kind: 'other', values: ['refunded'] },
+        ],
+        members: [
+          { kind: paid, since: date },
+          { kind: { null: false, values: ['pending'] }, since: none },
+          { kind: { null: false, values: ['refunded'] }, since: either },
+        ],
+      },
     ])
-    expect(members(tableCheckCases(catalog, 'public', 'implied', 'stored'))).toEqual([
-      [
-        // Every label is any value of the enum.
-        { kind: { null: true, values: null }, paid_at: date },
-        { kind: { null: true, values: ['pending', 'refunded'] }, paid_at: none },
-      ],
+    expect(split('implied')[0]!.labels).toEqual([
+      { kind: 'value', value: 'paid' },
+      { kind: 'other', values: ['pending', 'refunded'] },
+      { kind: 'null' },
     ])
-    expect(members(tableCheckCases(catalog, 'public', 'exactly_one', 'stored'))).toHaveLength(1)
-    expect(members(tableCheckCases(catalog, 'public', 'exactly_one', 'stored'))[0]).toHaveLength(3)
-    expect(members(tableCheckCases(catalog, 'public', 'flags', 'stored'))).toEqual([
-      [
-        { flag: { null: false, values: ['true'] }, note: { null: true, values: null } },
-        { flag: { null: false, values: ['false'] }, note: none },
-      ],
+    expect(split('implied')[0]!.members[2]).toEqual({ kind: none, paid_at: either })
+    // Which column is set tells num_nonnulls cases apart.
+    expect(split('exactly_one')).toEqual([
+      {
+        discriminant: { nullness: true },
+        labels: ['a', 'b', 'c'].map((column) => ({ kind: 'set', columns: [column] })),
+        members: [
+          { a: date, b: none, c: none },
+          { a: none, b: date, c: none },
+          { a: none, b: none, c: date },
+        ],
+      },
+    ])
+    expect(split('flags')).toEqual([
+      {
+        discriminant: { column: 'flag' },
+        labels: [
+          { kind: 'value', value: 'true' },
+          { kind: 'value', value: 'false' },
+        ],
+        members: [
+          { flag: { null: false, values: ['true'] }, note: either },
+          { flag: { null: false, values: ['false'] }, note: none },
+        ],
+      },
     ])
     // An open text discriminant keeps its other values, which the card case excludes.
-    expect(members(tableCheckCases(catalog, 'public', 'opened', 'stored'))).toEqual([
-      [
-        { kind: { null: false, values: ['card'] }, amount: date },
-        { kind: { null: false, values: null }, amount: none },
-      ],
+    expect(split('opened')).toEqual([
+      {
+        discriminant: { column: 'kind' },
+        labels: [
+          { kind: 'value', value: 'card' },
+          { kind: 'other', values: null },
+        ],
+        members: [
+          { kind: { null: false, values: ['card'] }, amount: date },
+          { kind: date, amount: none },
+        ],
+      },
     ])
   })
 
