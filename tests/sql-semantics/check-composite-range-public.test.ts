@@ -100,16 +100,14 @@ INSERT INTO gate SELECT a,span_multirange(a),ARRAY[a],false FROM(SELECT span(ROW
     type Leaf = { n?: unknown; phase?: unknown } | null
     const span = (lower: Leaf, upper: Leaf) => ({
       empty: false,
-      lower,
-      upper,
-      lowerInclusive: lower !== null,
-      upperInclusive: false,
+      lower: lower === null ? null : { value: lower, inclusive: true },
+      upper: upper === null ? null : { value: upper, inclusive: false },
     })
     const quoted = (value: string) => `"${value.replace(/["\\]/gu, (c) => '\\' + c)}"`
     const leafText = (leaf: Leaf) =>
       leaf === null ? '' : quoted(`(${leaf.n ?? ''},${leaf.phase ?? ''})`)
     const spanText = (value: ReturnType<typeof span>) =>
-      `${value.lowerInclusive ? '[' : '('}${leafText(value.lower)},${leafText(value.upper)})`
+      `${value.lower?.inclusive ? '[' : '('}${leafText(value.lower?.value ?? null)},${leafText(value.upper?.value ?? null)}${value.upper?.inclusive ? ']' : ')'}`
     const good = span({ n: 2, phase: 'z' }, { n: 5, phase: 'a' })
     const row = { a: good, m: [good], bag: [good], bypass: false }
     const before = structuredClone(row)
@@ -150,6 +148,28 @@ INSERT INTO gate SELECT a,span_multirange(a),ARRAY[a],false FROM(SELECT span(ROW
       )
     }
     expect(mismatches).toEqual([])
+    // A bound is null or its record with an inclusivity; the former flat bounds with flags, a
+    // missing or null bound value and a bound without its inclusivity are malformed wherever the
+    // range sits.
+    for (const a of [
+      {
+        empty: false,
+        lower: { n: 2, phase: 'z' },
+        upper: { n: 5, phase: 'a' },
+        lowerInclusive: true,
+        upperInclusive: false,
+      },
+      { empty: false, lower: { value: null, inclusive: true }, upper: good.upper },
+      { empty: false, lower: { inclusive: true }, upper: good.upper },
+      { empty: false, lower: { value: { n: 2, phase: 'z' } }, upper: good.upper },
+      { empty: false, lower: good.lower, upper: { value: { n: 5, phase: 'a' }, inclusive: 0 } },
+    ])
+      for (const value of [
+        { ...row, a },
+        { ...row, m: [a] },
+        { ...row, bag: [a] },
+      ])
+        expect(() => evaluate(value), JSON.stringify(value)).toThrow(TypeError)
     // Stored ranges go to the evaluator entries directly: whatever support, bound profile, enum
     // labels and label OIDs they carry, identities other than the column's, unknown fields and
     // ordinals outside the labels.

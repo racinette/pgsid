@@ -203,10 +203,8 @@ it('validates public scalar range payloads, compiled support and snapshots indep
       expect(['Unknown', 'Unimplemented'], label).toContain((outcome as { kind: string }).kind)
     const span = (lower: unknown, upper: unknown) => ({
       empty: false,
-      lower,
-      upper,
-      lowerInclusive: true,
-      upperInclusive: true,
+      lower: { value: lower, inclusive: true },
+      upper: { value: upper, inclusive: true },
     })
     // Money is the server's text under its monetary locale.
     const moneyBounds = async (first: string, last: string) => {

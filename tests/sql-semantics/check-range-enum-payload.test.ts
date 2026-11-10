@@ -152,10 +152,8 @@ it('attaches compiled enum definitions before public range, multirange and recur
     // which the server text quotes.
     const span = (lower: string, upper: string) => ({
       empty: false,
-      lower,
-      upper,
-      lowerInclusive: true,
-      upperInclusive: true,
+      lower: { value: lower, inclusive: true },
+      upper: { value: upper, inclusive: true },
     })
     const publicRow = {
       v: span('z', 'mid'),

@@ -106,10 +106,8 @@ it('validates public multirange payloads, nominal subtype guards, partial finite
       upperInclusive = false,
     ) => ({
       empty: false,
-      lower,
-      upper,
-      lowerInclusive,
-      upperInclusive,
+      lower: lower === null ? null : { value: lower, inclusive: lowerInclusive },
+      upper: upper === null ? null : { value: upper, inclusive: upperInclusive },
     })
     const value = [range(9007199254740993n, 9007199254740999n)]
     // Public multiranges are compared against what the server makes of the same value.
@@ -136,6 +134,7 @@ it('validates public multirange payloads, nominal subtype guards, partial finite
       [[{ empty: true }], '{empty}', null, false],
       [[], '{}', null, false],
       [[range(9n, 1n)], '{[9,1)}', null, false],
+      // An unbounded side has no inclusivity: '[,9]' is '(,9]'.
       [[range(null, 9n, true, true)], '{[,9]}', null, false],
       [null, null, null, true],
     ] as const) {
@@ -199,8 +198,16 @@ it('validates public multirange payloads, nominal subtype guards, partial finite
       [[range(1n, 9n)]],
       [{ empty: 'false' }],
       [{ empty: false }],
-      [{ ...range(1n, 9n), lowerInclusive: 'true' }],
+      [{ ...range(1n, 9n), lower: { value: 1n, inclusive: 'true' } }],
       [{ ...range(1n, 9n), lower: undefined }],
+      // A bound is null or its value with an inclusivity: a null or missing bound value, a bound
+      // without its inclusivity and the former flat bounds with flags are malformed.
+      [{ ...range(1n, 9n), lower: { value: null, inclusive: true } }],
+      [{ ...range(1n, 9n), lower: { value: undefined, inclusive: true } }],
+      [{ ...range(1n, 9n), lower: { inclusive: true } }],
+      [{ ...range(1n, 9n), upper: { value: 9n } }],
+      [{ empty: false, lower: 1n, upper: 9n, lowerInclusive: true, upperInclusive: false }],
+      [{ empty: false, lower: null, upper: 9n, lowerInclusive: true, upperInclusive: true }],
       [range(1, 9n)],
       [range(9007199254740993, 9n)],
       [range('1', 9n)],

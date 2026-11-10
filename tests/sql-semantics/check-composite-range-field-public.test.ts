@@ -97,33 +97,33 @@ INSERT INTO gate SELECT a,span_multirange(a),ARRAY[a],false FROM(SELECT span(ROW
     const names = ['lower_n', 'equal', 'output', 'multi_output', 'array_output']
     const expected = Object.fromEntries(names.map((name) => [name, { certain: true, value: true }]))
     // Public bounds are records of their fields, so each row decides what PostgreSQL decides.
-    type Leaf = { n?: unknown; phase?: unknown; period?: Record<string, unknown> } | null
+    type Bound = { value: unknown; inclusive: boolean } | null
+    type Period = { empty: boolean; lower?: Bound; upper?: Bound }
+    type Leaf = { n?: unknown; phase?: unknown; period?: Period } | null
     const span = (lower: Leaf, upper: Leaf) => ({
       empty: false,
-      lower,
-      upper,
-      lowerInclusive: lower !== null,
-      upperInclusive: false,
+      lower: lower === null ? null : { value: lower, inclusive: true },
+      upper: upper === null ? null : { value: upper, inclusive: false },
     })
     const quoted = (value: string) => `"${value.replace(/["\\]/gu, (c) => '\\' + c)}"`
-    const periodText = (period: Record<string, unknown> | undefined) =>
+    const periodText = (period: Period | undefined) =>
       period === undefined
         ? ''
         : quoted(
-            `${period.lowerInclusive ? '[' : '('}${String(period.lower)},${String(period.upper)}${period.upperInclusive ? ']' : ')'}`,
+            period.empty
+              ? 'empty'
+              : `${period.lower?.inclusive ? '[' : '('}${String(period.lower?.value ?? '')},${String(period.upper?.value ?? '')}${period.upper?.inclusive ? ']' : ')'}`,
           )
     const leafText = (leaf: Leaf) =>
       leaf === null
         ? ''
         : quoted(`(${leaf.n ?? ''},${leaf.phase ?? ''},${periodText(leaf.period)})`)
     const spanText = (value: ReturnType<typeof span>) =>
-      `${value.lowerInclusive ? '[' : '('}${leafText(value.lower)},${leafText(value.upper)})`
-    const period = (lower: number, upper: number) => ({
+      `${value.lower?.inclusive ? '[' : '('}${leafText(value.lower?.value ?? null)},${leafText(value.upper?.value ?? null)}${value.upper?.inclusive ? ']' : ')'}`
+    const period = (lower: number, upper: number): Period => ({
       empty: false,
-      lower,
-      upper,
-      lowerInclusive: true,
-      upperInclusive: false,
+      lower: { value: lower, inclusive: true },
+      upper: { value: upper, inclusive: false },
     })
     const leaf = (n: unknown, phase: unknown, inner = period(1, 3)) => ({ n, phase, period: inner })
     const good = span(leaf(2, 'z'), leaf(5, 'a'))
@@ -169,6 +169,30 @@ INSERT INTO gate SELECT a,span_multirange(a),ARRAY[a],false FROM(SELECT span(ROW
       )
     }
     expect(mismatches).toEqual([])
+    // A bound is null or its value with an inclusivity, in the outer range and in the range field
+    // of its records alike; the former flat bounds with flags, a missing or null bound value and a
+    // bound without its inclusivity are malformed wherever the range sits.
+    const flat = { lowerInclusive: true, upperInclusive: false }
+    // A range field of a shape its type rules out.
+    const malformed = (period: unknown) => leaf(2, 'z', period as Period)
+    for (const a of [
+      { empty: false, lower: leaf(2, 'z'), upper: leaf(5, 'a'), ...flat },
+      { empty: false, lower: { value: null, inclusive: true }, upper: good.upper },
+      { empty: false, lower: { inclusive: true }, upper: good.upper },
+      { empty: false, lower: { value: leaf(2, 'z') }, upper: good.upper },
+      span(malformed({ empty: false, lower: 1, upper: 3, ...flat }), leaf(5, 'a')),
+      span(
+        malformed({ empty: false, lower: { value: 1, inclusive: true }, upper: { value: null } }),
+        leaf(5, 'a'),
+      ),
+      span(malformed({ empty: false, lower: { value: 1 }, upper: null }), leaf(5, 'a')),
+    ])
+      for (const value of [
+        { ...row, a },
+        { ...row, m: [a] },
+        { ...row, bag: [a] },
+      ])
+        expect(() => evaluate(value), JSON.stringify(value)).toThrow(TypeError)
     // Stored ranges go to the evaluator entries directly: whatever support, bound profile, enum
     // labels and label OIDs they carry, identities other than the column's, unknown fields and
     // ordinals outside the labels.

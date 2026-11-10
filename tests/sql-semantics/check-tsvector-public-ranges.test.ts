@@ -407,7 +407,7 @@ it('validates public tsvector range, array, record and nested range inputs with 
     const mismatches: ReturnType<typeof differingChecks> = [],
       typeErrors: string[] = []
     const publicRange = (expression: string, bound: (value: string) => string) =>
-      `CASE WHEN (${expression}) IS NULL THEN NULL WHEN isempty(${expression}) THEN json_build_object('empty',true) ELSE json_build_object('empty',false,'lower',${bound(`lower(${expression})`)},'upper',${bound(`upper(${expression})`)},'lowerInclusive',lower_inc(${expression}),'upperInclusive',upper_inc(${expression})) END`
+      `CASE WHEN (${expression}) IS NULL THEN NULL WHEN isempty(${expression}) THEN json_build_object('empty',true) ELSE json_build_object('empty',false,'lower',CASE WHEN lower_inf(${expression}) THEN NULL ELSE json_build_object('value',${bound(`lower(${expression})`)},'inclusive',lower_inc(${expression})) END,'upper',CASE WHEN upper_inf(${expression}) THEN NULL ELSE json_build_object('value',${bound(`upper(${expression})`)},'inclusive',upper_inc(${expression})) END) END`
     for (const [family, p] of profiles.entries()) {
       const text = (value: string) => `to_json((${value})::text)`
       const bound =

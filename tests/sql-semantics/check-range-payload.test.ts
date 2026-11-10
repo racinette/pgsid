@@ -76,18 +76,26 @@ it('validates public int8range values in TypeScript, range payloads in Go, and l
       )
     const value = {
       empty: false,
-      lower: 9007199254740993n,
-      upper: 9007199254740999n,
-      lowerInclusive: true,
-      upperInclusive: false,
+      lower: { value: 9007199254740993n, inclusive: true },
+      upper: { value: 9007199254740999n, inclusive: false },
     }
     for (const result of Object.values(evaluate(value)))
       expect(result).toEqual({ certain: true, value: true })
     expect(evaluate(value, 9007199254740994n).bound).toEqual({ certain: true, value: false })
     expect(evaluate(value, 9007199254740994n, true).guarded).toEqual({ certain: true, value: true })
-    const exclusive = { ...value, lower: 9007199254740992n, lowerInclusive: false }
+    const exclusive = { ...value, lower: { value: 9007199254740992n, inclusive: false } }
     for (const result of Object.values(evaluate(exclusive)))
       expect(result).toEqual({ certain: true, value: true })
+    // An unbounded side has no inclusivity: the lower bound is NULL and not inclusive.
+    const [unbounded] = (
+      await pg.query<{ bound: boolean; shape: boolean }>(
+        "SELECT lower(r) IS NOT DISTINCT FROM NULL AS bound,lower_inc(r) AND NOT upper_inc(r) AND NOT isempty(r) AS shape FROM (SELECT '(,9007199254740999)'::int8range AS r) s",
+      )
+    ).rows
+    const open = evaluate({ ...value, lower: null }, null)
+    expect(open.bound).toEqual({ certain: true, value: unbounded!.bound })
+    expect(open.shape).toEqual({ certain: true, value: unbounded!.shape })
+    expect(open.present).toEqual({ certain: true, value: true })
     expect(evaluate({ empty: true }, null).shape).toEqual({ certain: true, value: false })
     const invalid: unknown[] = [
       undefined,
@@ -96,11 +104,24 @@ it('validates public int8range values in TypeScript, range payloads in Go, and l
       {},
       { kind: 'Value', value: {} },
       { kind: 'Null' },
-      { ...value, lower: 9007199254740993 },
-      { ...value, lowerInclusive: 'true' },
-      { lower: 1n, upper: 9n, lowerInclusive: true, upperInclusive: false },
-      { empty: false, lower: 1n, upper: 9n, lowerInclusive: true },
-      { empty: 'false', lower: 1n, upper: 9n, lowerInclusive: true, upperInclusive: false },
+      { ...value, lower: { value: 9007199254740993, inclusive: true } },
+      { ...value, lower: { value: 9007199254740993n, inclusive: 'true' } },
+      { lower: { value: 1n, inclusive: true }, upper: { value: 9n, inclusive: false } },
+      { empty: false, lower: { value: 1n, inclusive: true }, upper: { value: 9n } },
+      {
+        empty: 'false',
+        lower: { value: 1n, inclusive: true },
+        upper: { value: 9n, inclusive: false },
+      },
+      // A bound is an object with a value and its inclusivity, never a bare value or a null one.
+      { ...value, lower: 9007199254740993n },
+      { ...value, lower: { value: null, inclusive: true } },
+      { ...value, lower: { inclusive: true } },
+      { ...value, lower: undefined },
+      { empty: false, upper: { value: 9n, inclusive: false } },
+      // The former flat shape is not a public value.
+      { empty: false, lower: 1n, upper: 9n, lowerInclusive: true, upperInclusive: false },
+      { empty: false, lower: null, upper: 9n, lowerInclusive: true, upperInclusive: false },
       'empty',
     ]
     for (const input of invalid)
@@ -112,11 +133,13 @@ it('validates public int8range values in TypeScript, range payloads in Go, and l
     // A bound outside int8 is sent as is, and int8range input rejects it with 22003 while
     // reading the value, before any CHECK can skip it.
     for (const input of [
-      { ...value, lower: 9223372036854775808n },
-      { ...value, upper: -9223372036854775809n },
+      { ...value, lower: { value: 9223372036854775808n, inclusive: true } },
+      { ...value, upper: { value: -9223372036854775809n, inclusive: false } },
     ]) {
       await expect(
-        pg.query('SELECT $1::int8range', [`[${String(input.lower)},${String(input.upper)})`]),
+        pg.query('SELECT $1::int8range', [
+          `[${String(input.lower.value)},${String(input.upper.value)})`,
+        ]),
       ).rejects.toMatchObject({ code: '22003' })
       for (const result of Object.values(evaluate(input, null, true)))
         expect(result).toEqual({ certain: true, error: '22003' })
@@ -150,7 +173,17 @@ it('validates public int8range values in TypeScript, range payloads in Go, and l
     expect(result.shape).toEqual({ certain: true, value: null })
     expect(result.present).toEqual({ certain: true, value: false })
     // The server rejects a reversed range while reading the value, before any CHECK can skip it.
-    for (const result of Object.values(evaluate({ ...value, lower: 9n, upper: 1n }, null, true)))
+    for (const result of Object.values(
+      evaluate(
+        {
+          ...value,
+          lower: { value: 9n, inclusive: true },
+          upper: { value: 1n, inclusive: false },
+        },
+        null,
+        true,
+      ),
+    ))
       expect.soft(result).toEqual({ certain: true, error: '22000' })
     await pg.query(
       "INSERT INTO range_payloads VALUES('[9007199254740993,9007199254740999)'::int8range,$1,false)",

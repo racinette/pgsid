@@ -164,10 +164,8 @@ it('injects compiled array-bound contexts before public range, multirange and re
     // NULLs, so its hash reads none.
     const span = (lower: string[], upper: string[]) => ({
       empty: false,
-      lower,
-      upper,
-      lowerInclusive: true,
-      upperInclusive: true,
+      lower: { value: lower, inclusive: true },
+      upper: { value: upper, inclusive: true },
     })
     const quoted = (value: string) => `"${value.replace(/["\\]/gu, (c) => '\\' + c)}"`
     const publicFirst = span(['z'], ['mid']),
@@ -294,6 +292,17 @@ it('injects compiled array-bound contexts before public range, multirange and re
         Array.isArray(value) ? 'list' : 'payload',
         ['ordered', 'contained', 'position', 'output'],
       )
+    // A bound is null or its value with an inclusivity: the former flat bounds with flags, a null
+    // or missing bound value and a bound without a boolean inclusivity are malformed.
+    for (const value of [
+      { empty: false, lower: ['z'], upper: ['mid'], lowerInclusive: true, upperInclusive: true },
+      { empty: false, lower: { value: null, inclusive: true }, upper: publicFirst.upper },
+      { empty: false, lower: { inclusive: true }, upper: publicFirst.upper },
+      { empty: false, lower: publicFirst.lower, upper: { value: ['mid'] } },
+      { empty: false, lower: publicFirst.lower, upper: { value: ['mid'], inclusive: null } },
+    ])
+      for (const change of [{ v: value }, { m: [value] }, { items: [value] }])
+        expect(() => map({ ...publicRow, ...change }), JSON.stringify(change)).toThrow(TypeError)
     await pg.query(
       'INSERT INTO array_payloads VALUES($1,$2,$3,$4::stage_span[],ARRAY[($4::stage_span[])::stage_history,NULL::stage_history],false)',
       [first, last, multi, array],

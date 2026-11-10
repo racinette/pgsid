@@ -137,10 +137,8 @@ it('decodes complete profile words before validating caller hints in public rang
       const [lowerText, upperText] = text.slice(1, -1).split(',') as [string, string]
       const chosen = {
         empty: false,
-        lower: lowerText,
-        upper: upperText,
-        lowerInclusive: true,
-        upperInclusive: true,
+        lower: { value: lowerText, inclusive: true },
+        upper: { value: upperText, inclusive: true },
       }
       for (const bypass of [false, true]) {
         const row = {
@@ -195,6 +193,38 @@ it('decodes complete profile words before validating caller hints in public rang
             }),
           `${p.name} ${column}`,
         ).toThrow(TypeError)
+      // A bound is null or its value with an inclusivity: the former flat bounds with flags, a
+      // null bound value and a bound without its inclusivity are malformed wherever the range sits.
+      for (const malformed of [
+        {
+          empty: false,
+          lower: lowerText,
+          upper: upperText,
+          lowerInclusive: true,
+          upperInclusive: true,
+        },
+        { empty: false, lower: { value: null, inclusive: true }, upper: chosen.upper },
+        { empty: false, lower: chosen.lower, upper: { value: upperText } },
+      ])
+        for (const [column, value] of [
+          ['chosen', malformed],
+          ['items', [malformed, null]],
+          ['chosen_pack', [malformed]],
+          ['histories', [[malformed]]],
+        ] as const)
+          expect(
+            () =>
+              generated[`evaluatePublicWordBatches${i}Checks`]({
+                items: null,
+                chosen: null,
+                packs: null,
+                chosen_pack: null,
+                histories: null,
+                bypass: true,
+                [column]: value,
+              }),
+            `${p.name} ${column} ${JSON.stringify(malformed)}`,
+          ).toThrow(TypeError)
       // A range where a multirange belongs is no multirange; a multirange over a subtype not
       // converted yet leaves the whole array undecided instead.
       expectUndecidedOrRejected(

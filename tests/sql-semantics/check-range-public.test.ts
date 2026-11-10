@@ -39,12 +39,11 @@ const columns = [
 const queries = `-- name: InsertNote :exec
 INSERT INTO notes (id, ${columns.join(', ')}) VALUES (@id, ${columns.map((column) => `@${column}`).join(', ')});
 `
+// A null bound is unbounded and has no inclusivity; the flags apply only to present bounds.
 const span = (lower: unknown, upper: unknown, lowerInclusive = true, upperInclusive = false) => ({
   empty: false,
-  lower,
-  upper,
-  lowerInclusive,
-  upperInclusive,
+  lower: lower === null ? null : { value: lower, inclusive: lowerInclusive },
+  upper: upper === null ? null : { value: upper, inclusive: upperInclusive },
 })
 const day = (date: string) => date
 const micros = (iso: string, field: 'localMicroseconds' | 'epochMicroseconds') => ({
@@ -161,6 +160,20 @@ const outcome = (work: () => Promise<unknown>): Promise<string> =>
       error.code === '23514' ? `23514 ${error.constraint}` : String(error.code),
   )
 
+// Each bound is null or an object with a present value and a boolean inclusivity: an unbounded
+// side cannot be inclusive, and the former flat shape is not a public value.
+const malformedBounds: unknown[] = [
+  { empty: false, lower: { value: null, inclusive: true }, upper: { value: 11, inclusive: false } },
+  { empty: false, lower: { inclusive: true }, upper: { value: 11, inclusive: false } },
+  { empty: false, lower: { value: 1 }, upper: { value: 11, inclusive: false } },
+  { empty: false, lower: { value: 1, inclusive: 'yes' }, upper: null },
+  { empty: false, lower: null, upper: { value: undefined, inclusive: false } },
+  { empty: false, lower: 1, upper: null },
+  { empty: false, lower: null },
+  { empty: false, lower: 1, upper: 2, lowerInclusive: true, upperInclusive: false },
+  { empty: false, lower: null, upper: 11, lowerInclusive: true, upperInclusive: false },
+]
+
 describe('CHECKs on public TypeScript ranges', () => {
   it('decides each CHECK locally exactly as PostgreSQL does', async () => {
     const text = fromPglite(db)
@@ -192,7 +205,7 @@ describe('CHECKs on public TypeScript ranges', () => {
     expect(decided).toBeGreaterThanOrEqual(10)
   })
 
-  it('takes only public ranges in the schema-level CHECK API', () => {
+  it('takes only public ranges in the schema-level CHECK API', async () => {
     const result = (row: object, constraint: string) =>
       checks.evaluatePublicNotesChecks(row).find((check) => check.constraint === constraint)!.result
     // [1,10] is stored as [1,11), so its upper bound is 11.
@@ -211,10 +224,38 @@ describe('CHECKs on public TypeScript ranges', () => {
       span(1n, 2),
       span(1.5, 2),
       [1, 2],
+      ...malformedBounds,
     ])
       expect(
         () => result({ seats }, 'ten_seats'),
         JSON.stringify(seats, (_, v) => String(v)),
+      ).toThrow(TypeError)
+    // The query rejects the same malformed bounds, at its CHECK inputs or its encoder, before
+    // anything reaches the server.
+    const empty = Object.fromEntries(columns.map((column) => [column, null]))
+    for (const seats of malformedBounds) {
+      let calls = 0
+      const counted = {
+        queryText: () => {
+          calls++
+          return Promise.reject(new Error('reached the server'))
+        },
+      }
+      const error: unknown = await insertNote(counted, { id: 1, ...empty, seats }).then(
+        () => undefined,
+        (reason: unknown) => reason,
+      )
+      const shown = JSON.stringify(seats, (_, v) => String(v))
+      expect(error, shown).toBeInstanceOf(TypeError)
+      expect((error as Error).message, shown).toMatch(
+        /^(?:Parameter|CHECK input) seats holds a malformed/u,
+      )
+      expect(calls, shown).toBe(0)
+    }
+    for (const slots of malformedBounds.map((range) => [span(1, 2), range]))
+      expect(
+        () => result({ slots }, 'short_slots'),
+        JSON.stringify(slots, (_, v) => String(v)),
       ).toThrow(TypeError)
     for (const slots of [span(1, 2), [null], [span(1, 2), undefined], [{ kind: 'Value' }]])
       expect(
