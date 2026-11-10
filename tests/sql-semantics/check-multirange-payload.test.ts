@@ -162,6 +162,13 @@ it('validates public multirange payloads, nominal subtype guards, partial finite
       'present',
     ])
     expect(evaluate(undefined, null, true).guarded).toEqual({ certain: true, value: true })
+    // A bound outside int8 is sent as is, and int8multirange input rejects it with 22003 while
+    // reading the value, before any CHECK can skip it.
+    await expect(
+      pg.query('SELECT $1::int8multirange', ['{[9223372036854775808,9)}']),
+    ).rejects.toMatchObject({ code: '22003' })
+    for (const result of Object.values(evaluate([range(9223372036854775808n, 9n)], null, true)))
+      expect(result).toEqual({ certain: true, error: '22003' })
     // Payloads and malformed public values are type errors before any check runs.
     const member = {
       typeName: 'pg_catalog.int8range',
@@ -197,7 +204,6 @@ it('validates public multirange payloads, nominal subtype guards, partial finite
       [range(1, 9n)],
       [range(9007199254740993, 9n)],
       [range('1', 9n)],
-      [range(9223372036854775808n, 9n)],
       [{ kind: 'Value', value: member }],
       { kind: 'Value', value: {} },
       { kind: 'Value', value: null },

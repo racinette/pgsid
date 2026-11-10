@@ -691,8 +691,9 @@ it('ranks owned minimal covers and binary-origin queries with public weight arra
         () => true,
         () => false,
       ))
-    // A real array's public value is nested numbers indexed from one; weights with other lower
-    // bounds go to the evaluator directly.
+    // A real array's public value is a list of numbers indexed from one, as the column declares
+    // one dimension; weights with other lower bounds or more dimensions go to the evaluator
+    // directly.
     const publicWeights = (payload: Input) => {
       if (payload.kind === 'Null') return null
       const value = (
@@ -701,6 +702,7 @@ it('ranks owned minimal covers and binary-origin queries with public weight arra
         }
       ).value
       if (value.dimensions.some((dimension) => dimension.lower !== 1)) return undefined
+      if (value.dimensions.length > 1) return undefined
       const cells = value.elements.map((element) => {
         const cell = element as { kind: string; value?: number }
         if (cell.kind === 'Null') return null
@@ -777,8 +779,8 @@ it('ranks owned minimal covers and binary-origin queries with public weight arra
       }
     }
     expect({ publicChecked, internalChecked, storedOnly: storedOnly.size }).toEqual({
-      publicChecked: 89,
-      internalChecked: 1,
+      publicChecked: 87,
+      internalChecked: 3,
       storedOnly: 8,
     })
     // Text the input functions reject fails every check that reads it.

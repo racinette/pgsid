@@ -173,11 +173,17 @@ it('binds public arrays, metadata and owned composition through Rust, Go and Typ
       await mkdir(dirname(artifact.path), { recursive: true })
       await writeFile(artifact.path, artifact.content)
     }
+    // The typed bundle declares two dimensions for family_2's array, as a column mapping does.
     const typed = renderTypescriptSchemaCheckArtifacts(
       catalog.tables.filter((table) => table.name === 'family_2'),
       [],
       catalog.domains,
-      { enums: catalog.enums, typedInputs: true, rustModuleSpecifier: '../checks-rust/checks.js' },
+      {
+        enums: catalog.enums,
+        typedInputs: true,
+        rustModuleSpecifier: '../checks-rust/checks.js',
+        columnMappings: { 'public.family_2.value': { dimensions: 2 } },
+      },
     )
     await mkdir(join(root, 'typed'), { recursive: true })
     await writeFile(join(root, 'helpers.ts'), 'export type InferSelect<T> = T\n')
@@ -189,9 +195,9 @@ it('binds public arrays, metadata and owned composition through Rust, Go and Typ
     await writeFile(
       join(root, 'typed/usage.ts'),
       `import { evaluatePublicFamily2Checks, type PublicFamily2CheckInput } from './checks.js'
-const flat: PublicFamily2CheckInput = {value:[1],expected_count:1}
+const single: PublicFamily2CheckInput = {value:[[1]],expected_count:1}
 const nested: PublicFamily2CheckInput = {value:[[1,null]],expected_count:2}
-evaluatePublicFamily2Checks(flat)
+evaluatePublicFamily2Checks(single)
 evaluatePublicFamily2Checks(nested)
 `,
     )
@@ -636,13 +642,34 @@ evaluatePublicFamily2Checks(nested)
           expected_count: 1,
         }),
       ).toThrow(TypeError)
-    for (const value of [
-      [[1, 2], [3]],
-      [[1], 2],
-    ])
-      expect(generated.evaluatePublicFamily2Checks({ value, expected_count: 1 })[0].result).toEqual(
-        { certain: true, error: '22P02' },
+    // The column declares one dimension, so a nested list is one int4 element: a type error.
+    for (const value of [[[1, 2], [3]], [[1], 2], [[1, null]]])
+      expect(
+        () => generated.evaluatePublicFamily2Checks({ value, expected_count: 1 }),
+        JSON.stringify(value),
+      ).toThrow(TypeError)
+    // Under two declared dimensions, sub-arrays that do not match are malformed array input as
+    // the server reads them, and a level that is not a list is a type error.
+    const twoDimensional = await import(pathToFileURL(join(root, 'js/typed/checks.js')).href)
+    for (const [value, text] of [
+      [[[1, 2], [3]], '{{1,2},{3}}'],
+      [[[1, null]], '{{1,NULL}}'],
+      [[[1], [2]], '{{1},{2}}'],
+      [[], '{}'],
+    ] as const)
+      expect(
+        twoDimensional.evaluatePublicFamily2Checks({ value, expected_count: 2 })[0].result,
+        text,
+      ).toEqual(
+        await serverCheckResults(pg, 'family_2', { value: text, expected_count: '2' }).then(
+          (results) => results['count'],
+        ),
       )
+    for (const value of [[[1], 2], [1], [[[1]]]])
+      expect(
+        () => twoDimensional.evaluatePublicFamily2Checks({ value, expected_count: 1 }),
+        JSON.stringify(value),
+      ).toThrow(TypeError)
     goCases.push(
       `{for _,dimension:=range []checkruntime.ArrayDimension{{Lower:2147483647,Length:2},{Lower:1,Length:3}} {value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"pg_catalog.int4",ElementKind:2,Dimensions:[]checkruntime.ArrayDimension{dimension},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementInt4,Int4:1},{Kind:checkruntime.ArrayElementInt4,Int4:2}}}};_,e:=EvaluatePublicFamily2Checks(PublicFamily2CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(1))});if e==nil {t.Fatal("malformed array shape",dimension)}}}`,
     )

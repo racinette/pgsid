@@ -425,7 +425,14 @@ describe('portable smallint CHECK values', () => {
     expect(evaluate(32767)).toEqual({ certain: true, value: true })
     expect(evaluate(null)).toEqual({ certain: true, value: null })
     expect(evaluate(undefined)).toEqual({ certain: false })
-    for (const a of [-32769, 32768, 1.5, '1', {}]) expect(() => evaluate(a)).toThrow(TypeError)
+    // An integer outside smallint is sent as is, and smallint input rejects it with 22003.
+    for (const a of [-32769, 32768]) {
+      await expect(
+        pg.query('INSERT INTO smallint_checks(a) VALUES ($1)', [a]),
+      ).rejects.toMatchObject({ code: '22003' })
+      expect(evaluate(a)).toEqual({ certain: true, error: '22003' })
+    }
+    for (const a of [1.5, '1', {}]) expect(() => evaluate(a)).toThrow(TypeError)
     for (const sql of ['a::smallint > 0', '(a % big) > 0']) {
       const probe = lowerTableCheck(
         table,

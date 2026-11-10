@@ -514,14 +514,14 @@ it('validates nested public ACL composite payloads and domain-array fields in Go
       })
     }
     for (const c of publicCases) expect(evaluate(c.row)).toEqual(c.expected)
-    // A primary entry naming a role resolves through the role catalog, while the known history
-    // fields still decide.
+    // A primary entry naming a role resolves through the role catalog, so the record's value is
+    // undecided: every check reading the payload, including those reading only its known history
+    // fields, stays undecided, as the server could still reject the row while reading the entry.
     const partialPublic = envelopePublic(leafPublic(), [leafPublic()])
     partialPublic.primary_leaf = { ...leafPublic(), entry: '=r/postgres' }
-    const partialResult = evaluate({ ...publicCases[0]!.row, payload: partialPublic })
-    expect(partialResult.entry).toEqual({ certain: false })
-    expect(partialResult.covers).toEqual({ certain: true, value: true })
-    expect(partialResult.history_entry).toEqual({ certain: true, value: true })
+    expect(evaluate({ ...publicCases[0]!.row, payload: partialPublic })).toEqual(
+      Object.fromEntries(Object.keys(forms).map((name) => [name, { certain: false }])),
+    )
     // A field the ACL input rejects fails every check that reads the row, as the server rejects
     // the parameter.
     const rejected = envelopePublic(leafPublic('=q'), [leafPublic()])

@@ -147,8 +147,9 @@ it('attaches compiled enum definitions before public range, multirange and recur
         ).map((c) => [c.constraint, c.result]),
       )
     // Public bounds are labels, so the compiled label order decides every comparison and nothing
-    // in the value can name another order. A public array always starts at 1, and an array of the
-    // array domain cannot nest its elements in a public value: nested lists are dimensions.
+    // in the value can name another order. A public array always starts at 1, and the array of the
+    // array domain declares one dimension, so a nested list in it is one stage_history element,
+    // which the server text quotes.
     const span = (lower: string, upper: string) => ({
       empty: false,
       lower,
@@ -180,7 +181,7 @@ it('attaches compiled enum definitions before public range, multirange and recur
       ],
       [
         { ...publicRow, nested: [publicRow.items, null] },
-        { ...publicText, nested: `{${publicText.items},NULL}` },
+        { ...publicText, nested: rangeArrayText([publicText.items, null]) },
       ],
       [
         { ...publicRow, nested: [] },
@@ -198,12 +199,21 @@ it('attaches compiled enum definitions before public range, multirange and recur
       })
       expect(row).toEqual(before)
     }
-    // A label outside the captured ones may have been added since, so it decides nothing, and a
-    // bypassed row still decides without reading it.
-    const added = { ...publicRow, v: span('z', 'added') }
-    expect(map(added).ordered).toMatchObject({ certain: false })
-    for (const result of Object.values(map({ ...added, bypass: true })))
-      expect(result).toEqual({ certain: true, value: true })
+    // A label outside the captured ones may have been added since, so the range holding it is
+    // undecided. The server reads the value before any CHECK can skip it, and rejects the label
+    // unless it was added, so a bypassed row leaves every check reading v undecided too; the
+    // check that does not read v still decides.
+    await expect(pg.query('SELECT $1::stage_span', ['[z,added]'])).rejects.toMatchObject({
+      code: '22P02',
+    })
+    for (const bypass of [false, true])
+      expect(map({ ...publicRow, v: span('z', 'added'), bypass })).toEqual({
+        contained: { certain: false },
+        nested_order: { certain: true, value: true },
+        ordered: { certain: false },
+        output: { certain: false },
+        position: { certain: false },
+      })
     // Payloads, forged label lists included, are not public values.
     for (const payload of [v, { ...v, enumLabels: 'forged', enumCount: 999 }])
       expect(() => map({ ...publicRow, v: { kind: 'Value', value: payload } })).toThrow(TypeError)
