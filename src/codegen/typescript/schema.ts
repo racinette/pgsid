@@ -18,6 +18,8 @@ import {
   propertyName,
   unionType,
 } from './ast.js'
+import type { OutputCheckCases } from '../../query/check-cases.js'
+import { checkCaseRefinements, checkLiteralType } from './check-case-types.js'
 import { typescriptJsonSchemaBindings } from './json-schema-bindings.js'
 import {
   resolveTypescriptColumnType,
@@ -279,9 +281,9 @@ const renderRelations = (
         typeName(relation.name),
         undefined,
         factory.createTypeReferenceNode('TableTypes', [
-          rowType(columns, 'select'),
-          rowType(columns, 'insert'),
-          rowType(columns, 'update'),
+          rowType(columns, 'select', analyses[`${schema}.${relation.name}`]?.outputCases),
+          rowType(columns, 'insert', analyses[`${schema}.${relation.name}`]?.writeCases),
+          rowType(columns, 'update', analyses[`${schema}.${relation.name}`]?.writeCases),
         ]),
       ),
     )
@@ -332,7 +334,7 @@ const renderRelations = (
         typeName(relation.name),
         undefined,
         factory.createTypeReferenceNode('TableTypes', [
-          viewRowType(columns, analysis?.outputPresenceGroups ?? []),
+          viewRowType(columns, analysis?.outputPresenceGroups ?? [], analysis?.outputCases),
           factory.createKeywordTypeNode(ts.SyntaxKind.NeverKeyword),
           factory.createKeywordTypeNode(ts.SyntaxKind.NeverKeyword),
         ]),
@@ -368,25 +370,48 @@ const rowType = (
     hasDefault: boolean
   }[],
   operation: 'select' | 'insert' | 'update',
+  // What CHECKs say about the rows read, or the rows a write stores.
+  cases?: OutputCheckCases,
 ): ts.TypeNode => {
   const members: ts.TypeElement[] = []
-  for (const { column, resolved, notNull, alwaysNull, hasDefault } of columns) {
-    const excluded =
-      operation !== 'select' && (column.generated !== 'none' || column.identity === 'always')
-    if (excluded) continue
+  const excluded = columns.map(
+    ({ column }) =>
+      operation !== 'select' && (column.generated !== 'none' || column.identity === 'always'),
+  )
+  const defaulted = columns.map(
+    ({ column, hasDefault }) => hasDefault || column.identity === 'byDefault',
+  )
+  const types = columns.map(({ resolved }, index) =>
+    checkLiteralType(resolved.type, cases?.literals[index]),
+  )
+  columns.forEach(({ column, resolved, notNull, alwaysNull }, index) => {
+    if (excluded[index]) return
     const optional =
-      operation === 'update' ||
-      (operation === 'insert' && (hasDefault || column.identity === 'byDefault' || !notNull))
+      operation === 'update' || (operation === 'insert' && (defaulted[index] || !notNull))
     members.push(
       factory.createPropertySignature(
         undefined,
         propertyName(column.name),
         optional ? factory.createToken(ts.SyntaxKind.QuestionToken) : undefined,
-        selectedColumnType({ resolved, notNull, alwaysNull }),
+        selectedColumnType({ resolved: { ...resolved, type: types[index]! }, notNull, alwaysNull }),
       ),
     )
-  }
-  return factory.createTypeLiteralNode(members)
+  })
+  const flat = factory.createTypeLiteralNode(members)
+  // An update writes some columns only, so the rest come from the stored row.
+  if (!cases || operation === 'update') return flat
+  const groups = cases.groups.filter((group) => group.columns.every((index) => !excluded[index]))
+  return intersectionType([
+    flat,
+    ...checkCaseRefinements(
+      columns.map(({ column }) => column.name),
+      types,
+      groups,
+      // A column left out of an insert takes its default, or NULL without one.
+      (index, item) =>
+        operation === 'insert' && (defaulted[index]! || (item.null && !columns[index]!.notNull)),
+    ),
+  ])
 }
 
 const viewRowType = (
@@ -398,8 +423,9 @@ const viewRowType = (
     hasDefault: boolean
   }[],
   groups: readonly { columns: number[]; discriminants: number[] }[],
+  cases?: OutputCheckCases,
 ): ts.TypeNode => {
-  const flat = rowType(columns, 'select')
+  const flat = rowType(columns, 'select', cases)
   const refinements = groups.map((group) => {
     const present = factory.createTypeLiteralNode(
       group.columns.map((index) => {

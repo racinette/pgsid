@@ -12,6 +12,7 @@ import type {
   NullabilityCatalog,
   OverloadCatalog,
   SubtreeEvaluationCatalog,
+  CheckCaseCatalog,
   OutputNullability,
   ResolvedTable,
   ResolvedFunction,
@@ -59,7 +60,12 @@ export async function buildNullabilityCatalog(
   snapshot: CatalogSnapshot,
   options?: { searchPath?: readonly string[] },
 ): Promise<
-  NullabilityCatalog & DepCatalog & OverloadCatalog & SubtreeEvaluationCatalog & ValueLineageCatalog
+  NullabilityCatalog &
+    DepCatalog &
+    OverloadCatalog &
+    SubtreeEvaluationCatalog &
+    ValueLineageCatalog &
+    CheckCaseCatalog
 > {
   // The search path an UNQUALIFIED name resolves under — the contract the
   // interface has documented all along, now actually true (adversarial-2
@@ -665,6 +671,18 @@ export async function buildNullabilityCatalog(
   const resolveColumnTypeName = (schema: string, table: string, column: string): string | null => {
     const t = tableMap.get(`${schema}.${table}`)
     return t?.colTypeNames.get(column) ?? null
+  }
+
+  const enumLabels = new Map(snapshot.enums.map((e) => [`${e.schema}\0${e.name}`, e.values]))
+  const resolveColumnEnumLabels = (
+    schema: string,
+    table: string,
+    column: string,
+  ): readonly string[] | null => {
+    const rendered = resolveColumnTypeName(schema, table, column)
+    if (!rendered) return null
+    const type = splitQualifiedName(rendered)
+    return enumLabels.get(`${type.schema ?? schema}\0${type.name}`) ?? null
   }
 
   const resolveLiteralDistinctnessSound = (
@@ -2813,6 +2831,7 @@ export async function buildNullabilityCatalog(
     resolveColumnTypeOid,
     resolveColumnTypeName,
     resolveLiteralDistinctnessSound,
+    resolveColumnEnumLabels,
     resolveCompositeType,
     resolveFunctionMetadata,
     resolveFunctionCandidates,

@@ -10,6 +10,7 @@ import { inferNullability, inferQueryContract } from '../../../src/query/nullabi
 import { parseSql } from '../../../src/ast.js'
 import { spyOnCatalog, catalogMembers } from './catalog-spy.js'
 import {
+  CHECK_CASE_CATALOG_ONLY,
   DEP_CATALOG_ONLY,
   EVALUATION_CATALOG_ONLY,
   OVERLOAD_CATALOG_ONLY,
@@ -384,6 +385,9 @@ describe('catalog-feature census', () => {
     const overloadOnly = new Set<string>(OVERLOAD_CATALOG_ONLY)
     const evaluationOnly = new Set<string>(EVALUATION_CATALOG_ONLY)
     const valueLineageOnly = new Set<string>(VALUE_LINEAGE_CATALOG_ONLY)
+    // CHECK case derivation runs on the contract path, which the evaluator-on
+    // pass takes, so it is held to the same promise below.
+    const checkCaseOnly = new Set<string>(CHECK_CASE_CATALOG_ONLY)
     const cold = catalogMemberNames
       .filter(
         (m) =>
@@ -391,7 +395,8 @@ describe('catalog-feature census', () => {
           !depOnly.has(m) &&
           !overloadOnly.has(m) &&
           !evaluationOnly.has(m) &&
-          !valueLineageOnly.has(m),
+          !valueLineageOnly.has(m) &&
+          !checkCaseOnly.has(m),
       )
       .sort()
     expect(
@@ -401,7 +406,13 @@ describe('catalog-feature census', () => {
         `at all — move it off NullabilityCatalog:\n  ${cold.join('\n  ')}`,
     ).toEqual([])
 
-    const askedAnyway = [...depOnly, ...overloadOnly, ...evaluationOnly, ...valueLineageOnly]
+    const askedAnyway = [
+      ...depOnly,
+      ...overloadOnly,
+      ...evaluationOnly,
+      ...valueLineageOnly,
+      ...checkCaseOnly,
+    ]
       .filter((m) => touched.has(m))
       .sort()
     expect(
@@ -415,7 +426,7 @@ describe('catalog-feature census', () => {
     // ... and the exemption is a PROMISE, not a pass. Every member excused
     // above must be reached by the evaluator-on pass, or it is dead code
     // hiding behind the excuse — which is exactly what two of them were.
-    const deadBehindTheExemption = [...evaluationOnly]
+    const deadBehindTheExemption = [...evaluationOnly, ...checkCaseOnly]
       .filter((m) => !evaluationTouched.has(m))
       .sort()
     expect(

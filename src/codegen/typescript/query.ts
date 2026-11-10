@@ -11,7 +11,8 @@ import {
   resolveArrayDimensions,
 } from '../shared/array-dimensions.js'
 import { planJsonSchemaInputs } from '../shared/json-schema-inputs.js'
-import { planCheckInputs, type CheckInputPlan } from '../shared/check-inputs.js'
+import { checkInputCases, planCheckInputs, type CheckInputPlan } from '../shared/check-inputs.js'
+import type { CheckCaseCatalog } from '../../query/types.js'
 import { checkTriggerWarning } from '../shared/check-trigger-warning.js'
 import { renderTypescriptSchemaCheckArtifacts } from './sql/catalog-checks.js'
 import {
@@ -37,6 +38,7 @@ import {
   propertyName,
   unionType,
 } from './ast.js'
+import { checkCaseRefinements, checkLiteralType } from './check-case-types.js'
 import { typescriptJsonSchemaBindings } from './json-schema-bindings.js'
 import {
   typescriptJsonSchemaLineageValidatorDeclaration,
@@ -72,6 +74,8 @@ export interface RenderTypescriptQueryArtifactsOptions {
   emitRuntime?: boolean
   typesModuleSpecifier?: string
   catalog?: CatalogSnapshot
+  // Reads the CHECK cases parameter types narrow to.
+  checkCases?: CheckCaseCatalog
   nativeModuleSpecifier?: TypescriptTypeContext['nativeModuleSpecifier']
   jsonSchemasModuleSpecifier?: string
   queryableModuleSpecifier?: string
@@ -424,6 +428,8 @@ const renderQuery = (
   const imports: TypeImport[] = []
   const validators: RenderedValidator[] = []
   let usesJsonSchemaRuntime = false
+  // Each column's non-NULL type, narrowed to its CHECK literals.
+  const baseTypes: ts.TypeNode[] = []
   const rowTypes = outputNames.map((name, index) => {
     const resolved: ResolvedTypescriptValueType =
       resolveTypescriptValueType(
@@ -443,9 +449,11 @@ const renderQuery = (
       )
     imports.push(...resolved.imports)
     const claim = analysis.contract.outputs[index]
+    const base = checkLiteralType(resolved.type, analysis.contract.outputCases?.literals[index])
+    baseTypes.push(base)
     const type = claim?.alwaysNull
       ? factory.createLiteralTypeNode(factory.createNull())
-      : nullableType(resolved.type, claim?.notNull ?? false)
+      : nullableType(base, claim?.notNull ?? false)
     if (resolved.lineage && options.emitRuntime !== false) {
       try {
         const stem = `${queryName}${pascalCase(name)}`
@@ -564,6 +572,11 @@ const renderQuery = (
     config.sql.codegen?.typescript?.mappings.column ?? {},
     options.catalog,
   )
+  // Parameters written to CHECKed columns take the values those CHECKs admit.
+  const parameterCases = options.checkCases
+    ? checkInputCases(checkInputs, options.checkCases, analysis.contract.params.length)
+    : undefined
+  const parameterBases: ts.TypeNode[] = []
   const paramTypes = analysis.contract.params.map((param, index) => {
     const destinations = inputPlan.parameters.get(index + 1) ?? arrayInputs.get(index + 1) ?? []
     const destinationTypes = destinations.map((destination) =>
@@ -583,7 +596,9 @@ const renderQuery = (
           context,
         )
     imports.push(...resolved.imports)
-    return nullableType(resolved.type, param.notNull)
+    const base = checkLiteralType(resolved.type, parameterCases?.literals[index])
+    parameterBases.push(base)
+    return nullableType(base, param.notNull)
   })
   const inputValidators: RenderedValidator[] = []
   for (const unsupported of inputPlan.unsupported)
@@ -717,8 +732,10 @@ const renderQuery = (
     }
   const sqlName = `${functionName}Sql`
   const typeDeclarations: ts.Statement[] = [
-    renderParams(queryName, analysis, paramTypes),
-    renderRow(queryName, outputNames, rowTypes, analysis.contract.outputPresenceGroups),
+    renderParams(queryName, analysis, paramTypes, parameterBases, parameterCases?.groups ?? []),
+    renderRow(queryName, outputNames, rowTypes, analysis.contract.outputPresenceGroups, [
+      ...checkCaseRefinements(outputNames, baseTypes, analysis.contract.outputCases?.groups ?? []),
+    ]),
   ]
   const runtimeDeclarations: ts.Statement[] = [
     factory.createVariableStatement(
@@ -804,6 +821,8 @@ const renderParams = (
   queryName: string,
   analysis: QueryAnalysisItem,
   types: readonly ts.TypeNode[],
+  bases: readonly ts.TypeNode[],
+  caseGroups: NonNullable<QueryAnalysisItem['contract']['outputCases']>['groups'],
 ): ts.TypeAliasDeclaration => {
   const named = analysis.query.definition.parameters
   let flat: ts.TypeNode
@@ -811,6 +830,7 @@ const renderParams = (
   if (named.length) {
     const names = new Map(named.map((parameter) => [parameter.index, parameter.name]))
     flat = objectType(types.map((type, index) => [names.get(index + 1) ?? `$${index + 1}`, type]))
+    const keys = types.map((_, index) => names.get(index + 1) ?? `$${index + 1}`)
     groups = analysis.contract.paramRejectionSets.map((group) =>
       unionType(
         group.map((required) =>
@@ -823,6 +843,7 @@ const renderParams = (
         ),
       ),
     )
+    groups.push(...checkCaseRefinements(keys, bases, caseGroups))
   } else {
     const tuple = (members: readonly ts.TypeNode[]): ts.TypeNode =>
       factory.createTypeOperatorNode(
@@ -851,6 +872,7 @@ const renderRow = (
   names: readonly string[],
   types: readonly ts.TypeNode[],
   groups: QueryAnalysisItem['contract']['outputPresenceGroups'],
+  caseRefinements: readonly ts.TypeNode[],
 ): ts.TypeAliasDeclaration => {
   const flat = objectType(names.map((name, index) => [name, types[index]!]))
   const refinements = groups.map((group) => {
@@ -872,7 +894,7 @@ const renderRow = (
     [exportModifier],
     `${queryName}Row`,
     undefined,
-    intersectionType([flat, ...refinements]),
+    intersectionType([flat, ...refinements, ...caseRefinements]),
   )
 }
 

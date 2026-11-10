@@ -1,5 +1,7 @@
 import { parseSql } from './ast.js'
-import type { CatalogSnapshot, ViewInfo } from './catalog/types.js'
+import type { CatalogSnapshot, TableInfo, ViewInfo } from './catalog/types.js'
+import { tableColumnCases, type OutputCheckCases } from './query/check-cases.js'
+import type { CheckCaseCatalog } from './query/types.js'
 import type { QueryAnalysisCatalog } from './query-analysis.js'
 import {
   inferQueryContract,
@@ -22,9 +24,13 @@ export interface SchemaColumnAnalysis {
 export interface SchemaRelationAnalysis {
   schema: string
   name: string
-  kind: 'view' | 'materialized-view'
+  kind: 'view' | 'materialized-view' | 'table'
   columns: readonly SchemaColumnAnalysis[]
   outputPresenceGroups: QueryContract['outputPresenceGroups']
+  /** What CHECKs say about the rows read, by column position. */
+  outputCases?: OutputCheckCases
+  /** What a table's enforced CHECKs say about the rows a write may store. */
+  writeCases?: OutputCheckCases
 }
 
 export type SchemaRelationAnalyses = Readonly<Record<string, SchemaRelationAnalysis>>
@@ -45,7 +51,37 @@ export async function analyzeSchemaRelations(
   for (const { relation, kind } of relations) {
     analyses[relationKey(relation)] = await analyzeRelation(relation, kind, catalog, options)
   }
+  if ('resolveColumnEnumLabels' in catalog)
+    for (const table of [...snapshot.tables].sort((left, right) =>
+      compareText(relationKey(left), relationKey(right)),
+    ))
+      analyses[relationKey(table)] = analyzeTable(
+        table,
+        catalog as QueryAnalysisCatalog & CheckCaseCatalog,
+      )
   return analyses
+}
+
+// A table's rows need no walk: its stored rows satisfy its validated CHECKs
+// (and those of its inheritance tree), and the rows a write stores its
+// enforced ones.
+const analyzeTable = (table: TableInfo, catalog: CheckCaseCatalog): SchemaRelationAnalysis => {
+  const names = table.columns.map((column) => column.name)
+  const outputCases = tableColumnCases(catalog, table.schema, table.name, names, 'stored')
+  const writeCases = tableColumnCases(catalog, table.schema, table.name, names, 'written')
+  return {
+    schema: table.schema,
+    name: table.name,
+    kind: 'table',
+    columns: table.columns.map((column) => ({
+      name: column.name,
+      notNull: column.notNull,
+      value: null,
+    })),
+    outputPresenceGroups: [],
+    ...(outputCases ? { outputCases } : {}),
+    ...(writeCases ? { writeCases } : {}),
+  }
 }
 
 const analyzeRelation = async (
@@ -87,6 +123,7 @@ const analyzeRelation = async (
       value: lineage?.[index]?.value ?? null,
     })),
     outputPresenceGroups: contract?.outputPresenceGroups ?? [],
+    ...(contract?.outputCases ? { outputCases: contract.outputCases } : {}),
   }
 }
 

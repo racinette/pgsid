@@ -1,3 +1,11 @@
+import {
+  mergeCases,
+  tableCheckCases,
+  type OutputCaseGroup,
+  type OutputCheckCases,
+  type OutputLiterals,
+} from '../../query/check-cases.js'
+import type { CheckCaseCatalog } from '../../query/types.js'
 import type { Node } from 'libpg-query'
 import type { CatalogSnapshot, ColumnInfo, TableInfo } from '../../catalog/types.js'
 import type { WriteValueLineage } from '../../query/value-lineage.js'
@@ -493,3 +501,63 @@ const parameterColumns = (
     if (catalog && inputNeedsCoercion(column, catalog)) return []
     return [{ name, parameter: source.number }]
   })
+
+/**
+ * What the enforced CHECKs of the written tables say about a statement's
+ * parameters, by parameter index: a parameter written to a column takes the
+ * literals the column admits, and parameters written to one row together
+ * take the cases of that row, projected onto the columns they supply. The
+ * columns they leave to defaults or to the stored row may hold anything, so
+ * dropping them only widens the cases.
+ */
+export function checkInputCases(
+  plans: readonly CheckInputPlan[],
+  catalog: CheckCaseCatalog,
+  parameterCount: number,
+): OutputCheckCases | undefined {
+  const restrictions = new Map<number, OutputLiterals[]>()
+  const groups: OutputCaseGroup[] = []
+  for (const plan of plans) {
+    const cases = tableCheckCases(catalog, plan.table.schema, plan.table.name, 'written')
+    for (const { name, parameter } of plan.columns) {
+      const column = cases.columns.get(name)
+      if (!column?.kind || column.summary.values === null) continue
+      const list = restrictions.get(parameter - 1) ?? []
+      list.push({ kind: column.kind, values: column.summary.values })
+      restrictions.set(parameter - 1, list)
+    }
+    for (const group of cases.groups) {
+      const selected = plan.columns.flatMap(({ name, parameter }) => {
+        const position = group.columns.indexOf(name)
+        return position < 0 ? [] : [{ index: parameter - 1, position }]
+      })
+      const indices = new Set(selected.map(({ index }) => index))
+      if (selected.length < 2 || indices.size < selected.length) continue
+      selected.sort((left, right) => left.index - right.index)
+      const merged = mergeCases(
+        group.cases.map((member) => selected.map(({ position }) => member[position]!)),
+        selected.map(({ position }) => cases.columns.get(group.columns[position]!)?.domain ?? null),
+      )
+      if (merged.length < 2) continue
+      groups.push({
+        columns: selected.map(({ index }) => index),
+        kinds: selected.map(({ position }) => cases.columns.get(group.columns[position]!)!.kind),
+        cases: merged,
+      })
+    }
+  }
+  // A parameter written to several columns must pass each one's CHECKs.
+  const literals = Array.from({ length: parameterCount }, (_, index): OutputLiterals | null => {
+    const list = restrictions.get(index)
+    if (!list?.length || list.some((item) => item.kind !== list[0]!.kind)) return null
+    const values = list
+      .slice(1)
+      .reduce<readonly string[]>(
+        (kept, item) => kept.filter((value) => item.values.includes(value)),
+        list[0]!.values,
+      )
+    return { kind: list[0]!.kind, values }
+  })
+  if (groups.length === 0 && literals.every((item) => item === null)) return undefined
+  return { literals, groups }
+}

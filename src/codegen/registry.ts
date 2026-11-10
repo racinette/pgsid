@@ -2,12 +2,15 @@ import { createHash } from 'node:crypto'
 import type { Config, JsonSchemaDocument } from '../config/schema.js'
 import type { CatalogSnapshot } from '../catalog/types.js'
 import type { CodegenTarget } from './target.js'
+import type { CheckCaseCatalog } from '../query/types.js'
 import { createGoCodegenTarget } from './go/target.js'
 import { createTypescriptCodegenTarget } from './typescript/target.js'
 
 export interface CreateCodegenTargetsOptions {
   baseDirectory?: string
   catalog?: CatalogSnapshot
+  // The analysis catalog, which reads CHECK cases for parameter types.
+  checkCases?: CheckCaseCatalog
 }
 
 export function createCodegenTargets(
@@ -47,6 +50,7 @@ export function createCodegenTargets(
         ]),
       ),
       catalog: options.catalog,
+      ...(options.checkCases ? { checkCases: options.checkCases } : {}),
     }),
     createGoCodegenTarget(config, schemas, {
       baseDirectory: options.baseDirectory ?? process.cwd(),
