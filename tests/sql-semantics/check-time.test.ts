@@ -457,7 +457,6 @@ describe('time, timetz and interval CHECK values', () => {
       { kind: 'Value', value: -1n },
       { kind: 'Value', value: 86400000001n },
       { microseconds: -1 },
-      { microseconds: 86400000001 },
       { microseconds: 0n },
       { microseconds: 0.5 },
     ])
@@ -470,8 +469,6 @@ describe('time, timetz and interval CHECK values', () => {
       { kind: 'Value', value: { time: 0n, zone: 2147483648 } },
       { kind: 'Value', value: { time: 0n, zone: -2147483649 } },
       { kind: 'Value', value: { time: 0, zone: 0 } },
-      { microseconds: 0, offsetSeconds: 57600 },
-      { microseconds: 0, offsetSeconds: -57600 },
       { microseconds: 0, offsetSeconds: 0.5 },
       { microseconds: 0n, offsetSeconds: 0 },
       { microseconds: 0 },
@@ -481,6 +478,33 @@ describe('time, timetz and interval CHECK values', () => {
         undefined,
         ['local_equal'],
       )
+    // Well-formed values are sent as is, and the server's input rejects a clock past 24:00:00
+    // with 22008 and a zone beyond 15:59:59 with 22009, before any check runs.
+    const localEqual = (row: object) =>
+      evaluate(row).find(
+        (item: GoCheckCase['results'][number]) => item.constraint === 'local_equal',
+      ).result
+    expect(
+      localEqual({
+        local_time: { microseconds: 86400000001 },
+        zoned_time: zonedMidnight,
+        span: zeroSpan,
+      }),
+    ).toMatchObject({ certain: true, error: '22008' })
+    for (const offsetSeconds of [57600, -57600])
+      expect(
+        localEqual({
+          local_time: midnight,
+          zoned_time: { microseconds: 0, offsetSeconds },
+          span: zeroSpan,
+        }),
+      ).toMatchObject({ certain: true, error: '22009' })
+    for (const [text, code] of [
+      ['24:00:00.000001', '22008'],
+      ['00:00:00+16', '22009'],
+      ['00:00:00-16', '22009'],
+    ])
+      await expect(pg.query(`SELECT $1::timetz`, [text]), text).rejects.toMatchObject({ code })
     // The internal payload format is no longer a public value, even when well formed.
     for (const row of [
       { local_time: runtime.makeTimeValue(0n), zoned_time: zonedMidnight, span: zeroSpan },
