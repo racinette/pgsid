@@ -159,10 +159,8 @@ it('validates range array and domain-cell profiles before copying public inputs,
       const [lowerText, upperText] = text.slice(1, -1).split(',') as [string, string]
       const publicHead = {
         empty: false,
-        lower: bound(lowerText),
-        upper: bound(upperText),
-        lowerInclusive: text.startsWith('['),
-        upperInclusive: text.endsWith(']'),
+        lower: { value: bound(lowerText), inclusive: text.startsWith('[') },
+        upper: { value: bound(upperText), inclusive: text.endsWith(']') },
       }
       const publicSpans = [publicHead, null, { empty: true }]
       const evaluate = (
@@ -247,10 +245,22 @@ it('validates range array and domain-cell profiles before copying public inputs,
       for (const element of [
         { empty: 'false' },
         { empty: false },
-        { ...publicHead, lowerInclusive: 'true' },
+        { ...publicHead, lower: { ...publicHead.lower, inclusive: 'true' } },
+        { ...publicHead, lower: { value: publicHead.lower.value } },
+        { ...publicHead, lower: { inclusive: true } },
+        { ...publicHead, lower: { value: null, inclusive: true } },
+        { ...publicHead, lower: { value: undefined, inclusive: true } },
         { ...publicHead, lower: undefined },
-        { ...publicHead, lower: metadata.subtype === 'pg_catalog.int4' ? 1.5 : 1.5 },
-        { ...publicHead, lower: publicHead },
+        // The former flat bounds with flags beside them.
+        {
+          empty: false,
+          lower: publicHead.lower.value,
+          upper: publicHead.upper.value,
+          lowerInclusive: publicHead.lower.inclusive,
+          upperInclusive: publicHead.upper.inclusive,
+        },
+        { ...publicHead, lower: { value: 1.5, inclusive: true } },
+        { ...publicHead, lower: { value: publicHead, inclusive: true } },
         undefined,
         { kind: 'Range', value: head },
       ]) {

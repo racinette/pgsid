@@ -21,9 +21,11 @@ value.
 Shapes keep the server's value exactly. Integers that do not fit a JavaScript
 number are bigints, numeric values are decimal text, bytea is a byte array, and
 a real is the single-precision value the server stored, not the nearest double
-of its printed text. A range is either empty or has bounds and inclusivity; an
-empty range is a value without points, distinct from SQL NULL, and a null bound
-is unbounded, unlike an infinite one. Bounds take the shape of the range's
+of its printed text. A range is either `{ empty: true }` or has a lower and
+an upper bound, each `{ value, inclusive }` or `null` when unbounded, so an
+unbounded side has no inclusivity to state. An empty range is a value without
+points, distinct from SQL NULL, and a null bound is unbounded, unlike an
+infinite one. Bounds take the shape of the range's
 subtype, and a multirange is the list of its ranges. A composite value, and a
 relation's row, is an object of its fields, each in its own type's shape. Timestamps are exact microsecond counts, an instant from the Unix
 epoch for a zoned timestamp and a wall-clock reading for an unzoned one, and an

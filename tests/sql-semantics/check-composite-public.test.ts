@@ -27,10 +27,8 @@ INSERT INTO notes (id, ${columns.join(', ')}) VALUES (@id, ${columns.map((column
 `
 const span = (lower: unknown, upper: unknown, lowerInclusive = true, upperInclusive = false) => ({
   empty: false,
-  lower,
-  upper,
-  lowerInclusive,
-  upperInclusive,
+  lower: lower === null ? null : { value: lower, inclusive: lowerInclusive },
+  upper: upper === null ? null : { value: upper, inclusive: upperInclusive },
 })
 // Each case sets one column; the others stay NULL, so only that column's CHECK can decide.
 const cases: Partial<Record<(typeof columns)[number], unknown>>[] = [

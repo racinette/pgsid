@@ -358,7 +358,9 @@ export function typescriptCodecType(codec: TypescriptCodec): string {
       .join('; ')} }`
   const element = typescriptCodecType(codec.element)
   if (codec.kind === 'array') return typescriptArrayType(element, codec.dimensions)
-  const range = `{ readonly empty: true } | { readonly empty: false; readonly lower: ${grouped(element)} | null; readonly upper: ${grouped(element)} | null; readonly lowerInclusive: boolean; readonly upperInclusive: boolean }`
+  // A bound is absent when unbounded; only a present bound is inclusive or not.
+  const bound = `{ readonly value: ${element}; readonly inclusive: boolean } | null`
+  const range = `{ readonly empty: true } | { readonly empty: false; readonly lower: ${bound}; readonly upper: ${bound} }`
   return codec.kind === 'range' ? range : `(${range})[]`
 }
 
@@ -483,8 +485,8 @@ function readRange(value: string, start: number, element: (item: string | null) 
   if (value.startsWith('empty', start)) return [{ empty: true }, start + 5]
   const lowerInclusive = value[start] === '['
   let index = start + 1
-  const bound = (): unknown => {
-    if (value[index] === ',' || value[index] === ']' || value[index] === ')') return null
+  const bound = (): unknown | undefined => {
+    if (value[index] === ',' || value[index] === ']' || value[index] === ')') return undefined
     let text = ''
     let quoted = false
     while (index < value.length) {
@@ -511,7 +513,8 @@ function readRange(value: string, start: number, element: (item: string | null) 
   const lower = bound()
   index++
   const upper = bound()
-  return [{ empty: false, lower, upper, lowerInclusive, upperInclusive: value[index] === ']' }, index + 1]
+  const upperInclusive = value[index] === ']'
+  return [{ empty: false, lower: lower === undefined ? null : { value: lower, inclusive: lowerInclusive }, upper: upper === undefined ? null : { value: upper, inclusive: upperInclusive } }, index + 1]
 }
 function decodeRange(value: string | null, element: (item: string | null) => unknown): unknown {
   return value === null ? null : readRange(value, 0, element)[0]
@@ -519,13 +522,18 @@ function decodeRange(value: string | null, element: (item: string | null) => unk
 function writeRange(value: unknown, element: (item: unknown, name: string) => string | null, name: string): string {
   if (!value || typeof value !== 'object' || !('empty' in value) || typeof value.empty !== 'boolean') return encodeInvalid(name, 'range')
   if (value.empty) return 'empty'
-  if (!('lower' in value) || !('upper' in value) || !('lowerInclusive' in value) || !('upperInclusive' in value) || typeof value.lowerInclusive !== 'boolean' || typeof value.upperInclusive !== 'boolean') return encodeInvalid(name, 'range')
-  const bound = (item: unknown) => {
-    if (item === null) return ''
-    const text = element(item, name)
-    return text === null ? encodeInvalid(name, 'range') : '"' + text.replace(/["\\\\]/gu, '\\\\$&') + '"'
+  if (!('lower' in value) || !('upper' in value)) return encodeInvalid(name, 'range')
+  // An unbounded side is open and empty; a bound is quoted after or before its bracket.
+  const bound = (item: unknown, open: string, closed: string): [string, string] => {
+    if (item === null) return [open, '']
+    if (!item || typeof item !== 'object' || !('value' in item) || !('inclusive' in item) || typeof item.inclusive !== 'boolean' || item.value === null || item.value === undefined) return encodeInvalid(name, 'range')
+    const text = element(item.value, name)
+    if (text === null) return encodeInvalid(name, 'range')
+    return [item.inclusive ? closed : open, '"' + text.replace(/["\\\\]/gu, '\\\\$&') + '"']
   }
-  return (value.lowerInclusive ? '[' : '(') + bound(value.lower) + ',' + bound(value.upper) + (value.upperInclusive ? ']' : ')')
+  const [lowerBracket, lower] = bound(value.lower, '(', '[')
+  const [upperBracket, upper] = bound(value.upper, ')', ']')
+  return lowerBracket + lower + ',' + upper + upperBracket
 }
 function encodeRange(value: unknown, element: (item: unknown, name: string) => string | null, name: string): string | null {
   return value === null || value === undefined ? null : writeRange(value, element, name)

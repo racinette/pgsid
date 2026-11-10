@@ -46,7 +46,7 @@ const values = [
     bytes: Uint8Array.from([0, 1, 92, 127, 128, 255]),
     document: { text: tricky, list: [1, null, true], nested: { empty: {} } },
     binary_document: [{ a: 1 }, 'two', 3.5],
-    seats: { empty: false, lower: -5n, upper: null, lowerInclusive: true, upperInclusive: false },
+    seats: { empty: false, lower: { value: -5n, inclusive: true }, upper: null },
     counts: [1, null, 3],
     labels: [tricky, 'NULL', '', null, ' padded '],
     grid: [
@@ -255,6 +255,15 @@ export async function usage(pool: pg.Pool, client: pg.PoolClient, db: PGlite) {
       ['flag', 'true'],
       ['counts', 1],
       ['seats', '[1,2)'],
+      [
+        'seats',
+        { empty: false, lower: -5n, upper: null, lowerInclusive: true, upperInclusive: false },
+      ],
+      [
+        'seats',
+        { empty: false, lower: { value: -5n, inclusive: true }, upper: { inclusive: false } },
+      ],
+      ['seats', { empty: false, lower: { value: -5n }, upper: null }],
       ['document', () => 0],
     ] as const)
       await expect(

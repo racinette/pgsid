@@ -164,10 +164,8 @@ it('injects compiled nested range contexts before public ownership validation wi
     // the array domain cannot nest its elements in a public value: nested lists are dimensions.
     const span = (lower: unknown, upper: unknown, upperInclusive = true) => ({
       empty: false,
-      lower,
-      upper,
-      lowerInclusive: true,
-      upperInclusive,
+      lower: lower === null ? null : { value: lower, inclusive: true },
+      upper: upper === null ? null : { value: upper, inclusive: upperInclusive },
     })
     const publicV = span(span('z', 'mid'), span('mid', 'a')),
       publicW = span(span('mid', 'a'), null, false)
@@ -251,6 +249,28 @@ it('injects compiled nested range contexts before public ownership validation wi
     expect
       .soft(() => map({ ...publicRow, items: { kind: 'Value', value: items } }))
       .toThrow(TypeError)
+    // A bound is null or its value with an inclusivity, in the outer range and in its range
+    // bounds alike: the former flat bounds with flags, a null bound value and a bound without its
+    // inclusivity are malformed.
+    const flat = (lower: unknown, upper: unknown) => ({
+      empty: false,
+      lower,
+      upper,
+      lowerInclusive: true,
+      upperInclusive: true,
+    })
+    for (const malformed of [
+      flat(span('z', 'mid'), span('mid', 'a')),
+      span(flat('z', 'mid'), span('mid', 'a')),
+      { empty: false, lower: { value: null, inclusive: true }, upper: null },
+      { empty: false, lower: { value: span('z', 'mid') }, upper: null },
+      span({ empty: false, lower: { value: 'z', inclusive: 1 }, upper: null }, null),
+      span({ empty: false, lower: null, upper: { inclusive: false } }, null),
+    ])
+      for (const change of [{ v: malformed }, { m: [malformed] }, { items: [malformed] }])
+        expect
+          .soft(() => map({ ...publicRow, ...change }), JSON.stringify(change))
+          .toThrow(TypeError)
     // Stored values reach the evaluator entries directly: an array starting at -2 and an array of
     // the array domain, whose value no public input expresses.
     const range = (payload: RangeInputPayload): unknown =>

@@ -25,19 +25,16 @@ type Range =
   | { empty: true }
   | {
       empty: false
-      lower: bigint | null
-      upper: bigint | null
-      lowerInclusive: boolean
-      upperInclusive: boolean
+      lower: { value: bigint; inclusive: boolean } | null
+      upper: { value: bigint; inclusive: boolean } | null
     }
 const range = (text: string): Range => {
   const match = /^([[(])(-?[0-9]*),(-?[0-9]*)([\])])$/u.exec(text)!
+  // An unbounded side has no inclusivity: '[,5]' and '(,5]' are the same range.
   return {
     empty: false,
-    lower: match[2] ? BigInt(match[2]) : null,
-    upper: match[3] ? BigInt(match[3]) : null,
-    lowerInclusive: match[1] === '[',
-    upperInclusive: match[4] === ']',
+    lower: match[2] ? { value: BigInt(match[2]), inclusive: match[1] === '[' } : null,
+    upper: match[3] ? { value: BigInt(match[3]), inclusive: match[4] === ']' } : null,
   }
 }
 const max = '9223372036854775807'
@@ -61,6 +58,18 @@ const values: { value: Range; text: string }[] = [
   `[0,${max})`,
 ].map((text) => ({ value: range(text), text }))
 values.push({ value: { empty: true }, text: 'empty' })
+// Shapes the public range type rules out, such as an unbounded side with an inclusivity or the
+// former flat bounds with flags beside them.
+const malformed: unknown[] = [
+  { empty: false, lower: { value: null, inclusive: true }, upper: { value: 5n, inclusive: true } },
+  { empty: false, lower: { inclusive: true }, upper: null },
+  { empty: false, lower: { value: 1n }, upper: null },
+  { empty: false, lower: { value: 1n, inclusive: 'true' }, upper: null },
+  { empty: false, lower: null, upper: { value: undefined, inclusive: false } },
+  { empty: false, lower: 1n, upper: 5n, lowerInclusive: true, upperInclusive: false },
+  { empty: false, lower: null },
+  { empty: false },
+]
 
 let root: string
 let db: PGlite
@@ -139,7 +148,12 @@ import { evaluatePublicBookingChecks } from './generated/schema/public/checks.js
 import type { Booking } from './generated/schema/public/tables.js'
 declare const db: Parameters<typeof insertBooking>[0]
 export async function usage(): Promise<bigint | null | undefined> {
-  await insertBooking(db, { id: 1, seats: { empty: false, lower: 1n, upper: 5n, lowerInclusive: true, upperInclusive: false } })
+  await insertBooking(db, { id: 1, seats: { empty: false, lower: { value: 1n, inclusive: true }, upper: { value: 5n, inclusive: false } } })
+  await insertBooking(db, { id: 5, seats: { empty: false, lower: null, upper: { value: 5n, inclusive: true } } })
+  // @ts-expect-error bounds are { value, inclusive } objects, not bare values with flags
+  await insertBooking(db, { id: 6, seats: { empty: false, lower: 1n, upper: 5n, lowerInclusive: true, upperInclusive: false } })
+  // @ts-expect-error a present bound states its inclusivity
+  await insertBooking(db, { id: 7, seats: { empty: false, lower: { value: 1n }, upper: null } })
   await insertBooking(db, { id: 2, seats: { empty: true } })
   // @ts-expect-error range text is not the public value
   await insertBooking(db, { id: 3, seats: '[1,5)' })
@@ -149,7 +163,7 @@ export async function usage(): Promise<bigint | null | undefined> {
   const stored: Booking['select']['seats'] = { empty: true }
   void stored
   const row = await getBooking(db, { id: 1 })
-  return row && !row.seats.empty ? row.seats.lower : undefined
+  return row && !row.seats.empty ? (row.seats.lower?.value ?? null) : undefined
 }
 `,
     )
@@ -194,6 +208,28 @@ export async function usage(): Promise<bigint | null | undefined> {
     ).resolves.toBe(server)
   })
 
+  it('rejects malformed public ranges before any query', async () => {
+    // The insert's local CHECK input and the update's parameter encoder each reject the shape.
+    for (const [name, exported] of [
+      ['InsertBooking', 'insertBooking'],
+      ['MoveBooking', 'moveBooking'],
+    ] as const) {
+      const query = (await load(name))[exported]!
+      for (const seats of malformed) {
+        const calls = { count: 0 }
+        const error = await rolledBack(async () =>
+          query(await queryable(calls), { id: 1, seats }),
+        ).then(
+          () => undefined,
+          (caught: unknown) => caught,
+        )
+        expect(error, `${name} ${String(error)}`).toBeInstanceOf(TypeError)
+        expect(String(error)).toMatch(/malformed/u)
+        expect(calls.count).toBe(0)
+      }
+    }
+  })
+
   it('reads stored ranges back as canonical public values', async () => {
     const { insertBooking } = await load('InsertBooking')
     const { getBooking } = await load('GetBooking')
@@ -229,6 +265,12 @@ export async function usage(): Promise<bigint | null | undefined> {
       { constraint: 'bounded_seats', result: { certain: false } },
     ])
     expect(() => checks.evaluatePublicBookingChecks({ seats: '[0,100)' })).toThrow(TypeError)
+    // A bound is null when unbounded or a value with its inclusivity; anything else is malformed.
+    for (const seats of malformed)
+      expect(
+        () => checks.evaluatePublicBookingChecks({ seats }),
+        JSON.stringify(seats, (_, item: unknown) => (typeof item === 'bigint' ? `${item}n` : item)),
+      ).toThrow(TypeError)
     expect(
       await readFile(join(root, 'generated/types/booking/InsertBooking.d.ts'), 'utf8'),
     ).not.toContain('unknown')

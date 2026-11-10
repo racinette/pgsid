@@ -36,7 +36,11 @@ const rows = [
       home: address('', 7, [tricky, null, 'NULL', '']),
       balance: '-12.50',
       seen: { epochMicroseconds: 1n },
-      stay: { empty: false, lower: 1, upper: 5, lowerInclusive: true, upperInclusive: false },
+      stay: {
+        empty: false,
+        lower: { value: 1, inclusive: true },
+        upper: { value: 5, inclusive: false },
+      },
     },
     everyone: [
       { name: 'NULL', home: null, balance: null, seen: { infinity: 1 }, stay: { empty: true } },
@@ -167,6 +171,21 @@ describe('TypeScript composite codecs', () => {
       ['who', [1]],
       ['mail', address('Main', 1.5, null)],
       ['everyone', { name: 'x' }],
+      // A range field takes bounds with their inclusivity, not the former flat shape.
+      [
+        'who',
+        {
+          ...rows[2]!.who,
+          stay: { empty: false, lower: 1, upper: 5, lowerInclusive: true, upperInclusive: false },
+        },
+      ],
+      [
+        'who',
+        {
+          ...rows[2]!.who,
+          stay: { empty: false, lower: { value: null, inclusive: true }, upper: null },
+        },
+      ],
     ] as const)
       await expect(
         runtime['insertPerson']!(queryable, { ...rows[1], id: 9, [column]: value }),

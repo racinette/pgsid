@@ -2178,13 +2178,21 @@ function checkRustPublicRange(value: unknown, name: string, typeName: string, el
     if (profile) return _checkRust.rangeFromTypedBounds(typeName, elementType, kind, true, false, false, none, none, support, '', -1, profile)
     return labels ? _checkRust.rangeFromDefinedBounds(typeName, elementType, kind, true, false, false, none, none, support, labels, count) : _checkRust.rangeFromProfiledBounds(typeName, elementType, kind, true, false, false, none, none, support)
   }
-  if (!('lower' in value) || !('upper' in value) || !('lowerInclusive' in value) || !('upperInclusive' in value) || value.lower === undefined || value.upper === undefined || typeof value.lowerInclusive !== 'boolean' || typeof value.upperInclusive !== 'boolean') return checkRustInvalid(name)
+  if (!('lower' in value) || !('upper' in value)) return checkRustInvalid(name)
+  // A bound is null when unbounded, else its value and whether it is inclusive.
+  const side = (item: unknown): { value: unknown; inclusive: boolean } | null => {
+    if (item === null) return null
+    if (!item || typeof item !== 'object' || !('value' in item) || !('inclusive' in item) || typeof item.inclusive !== 'boolean' || item.value === null || item.value === undefined) return checkRustInvalid(name)
+    return { value: item.value, inclusive: item.inclusive }
+  }
+  const lowerSide = side(value.lower)
+  const upperSide = side(value.upper)
   const parts = checkRustParts()
-  const cell = (item: unknown): _checkRust.ArrayElement => (item === null ? { kind: 'Null' } : parts.read(() => bound(item, name)))
-  const lower = cell(value.lower)
-  const upper = cell(value.upper)
+  const cell = (item: { value: unknown } | null): _checkRust.ArrayElement => (item === null ? { kind: 'Null' } : parts.read(() => bound(item.value, name)))
+  const lower = cell(lowerSide)
+  const upper = cell(upperSide)
   parts.done()
-  const flags = _checkRust.makeTextValue((value.lowerInclusive ? '[' : '(') + (value.upperInclusive ? ']' : ')'))
+  const flags = _checkRust.makeTextValue((lowerSide?.inclusive ? '[' : '(') + (upperSide?.inclusive ? ']' : ')'))
   if (profile) return _checkRustOperations.rangeConstructTyped(typeName, elementType, kind, lower, upper, flags, support, '', -1, profile)
   return labels ? _checkRustOperations.rangeConstructDefined(typeName, elementType, kind, lower, upper, flags, support, labels, count) : _checkRustOperations.rangeConstructWithSupport(typeName, elementType, kind, lower, upper, flags, support)
 }

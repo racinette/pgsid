@@ -29,10 +29,8 @@ SELECT CASE WHEN @two::boolean THEN matrix ELSE plain END AS mixed FROM grids WH
 
 const span = (lower: number, upper: number) => ({
   empty: false,
-  lower,
-  upper,
-  lowerInclusive: true,
-  upperInclusive: false,
+  lower: { value: lower, inclusive: true },
+  upper: { value: upper, inclusive: false },
 })
 // Below its declared levels an array's element may itself be a list: a domain over an array, a
 // multirange, or a JSON array. Nesting never adds a dimension.
@@ -243,7 +241,7 @@ void vector
           ? `{${row.spans
               .map(
                 (ranges) =>
-                  `"{${ranges.map((range) => `[${range.lower},${range.upper})`).join(',')}}"`,
+                  `"{${ranges.map((range) => `[${range.lower.value},${range.upper.value})`).join(',')}}"`,
               )
               .join(',')}}`
           : null,

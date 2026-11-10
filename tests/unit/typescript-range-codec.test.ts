@@ -28,6 +28,6 @@ it('reads the bounds of a range over an array as lists', () => {
     )
   }
   expect(typescriptCodecType(typescriptCodec('public.int_span', catalog))).toContain(
-    'lower: ((number | null)[]) | null',
+    'lower: { readonly value: (number | null)[]; readonly inclusive: boolean } | null',
   )
 })

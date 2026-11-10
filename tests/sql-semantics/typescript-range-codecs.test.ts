@@ -28,6 +28,7 @@ SELECT ${columns} FROM spans WHERE id = @id;
 SELECT int4range(1, 5, '[]') AS small, daterange('2026-01-01', '2026-01-31', '[]') AS days, '{[1,3),[2,6),[8,9)}'::int4multirange AS smalls;
 `
 
+// A null bound is unbounded and has no inclusivity; the flags apply only to present bounds.
 const span = <T>(
   lower: T | null,
   upper: T | null,
@@ -35,10 +36,8 @@ const span = <T>(
   upperInclusive = false,
 ) => ({
   empty: false as const,
-  lower,
-  upper,
-  lowerInclusive,
-  upperInclusive,
+  lower: lower === null ? null : { value: lower, inclusive: lowerInclusive },
+  upper: upper === null ? null : { value: upper, inclusive: upperInclusive },
 })
 const empty = { empty: true as const }
 const tricky = 'a "quoted", \\ value (with) [brackets]'
@@ -149,6 +148,30 @@ afterAll(async () => {
 
 describe('TypeScript range codecs', () => {
   it('compiles the generated range runtime under strict settings', async () => {
+    await writeFile(
+      join(root, 'usage.ts'),
+      `import type { GetSpanRow } from './generated/types/spans/GetSpan.js'
+declare function expectType<T>(value: T): void
+declare const row: GetSpanRow
+type Bound<T> = { readonly value: T; readonly inclusive: boolean } | null
+type Range<T> =
+  | { readonly empty: true }
+  | { readonly empty: false; readonly lower: Bound<T>; readonly upper: Bound<T> }
+expectType<Range<number> | null>(row.small)
+expectType<Range<bigint> | null>(row.wide)
+expectType<Range<number>[] | null>(row.smalls)
+expectType<(Range<number> | null)[] | null>(row.list)
+const small: GetSpanRow['small'] = {} as Range<number> | null
+const open: GetSpanRow['small'] = { empty: false, lower: null, upper: { value: 2, inclusive: false } }
+// @ts-expect-error An unbounded side has no inclusivity.
+const inclusive: GetSpanRow['small'] = { empty: false, lower: { value: null, inclusive: true }, upper: null }
+// @ts-expect-error A present bound states its inclusivity.
+const bare: GetSpanRow['small'] = { empty: false, lower: { value: 1 }, upper: null }
+// @ts-expect-error The former flat shape is not a range.
+const flat: GetSpanRow['small'] = { empty: false, lower: 1, upper: 2, lowerInclusive: true, upperInclusive: false }
+void [small, open, inclusive, bare, flat]
+`,
+    )
     await promisify(execFile)(
       process.execPath,
       [
@@ -165,6 +188,7 @@ describe('TypeScript range codecs', () => {
         ...['InsertSpan', 'GetSpan', 'Canonical'].map((name) =>
           join(root, `generated/runtime/spans/${name}.ts`),
         ),
+        join(root, 'usage.ts'),
       ],
       { cwd: process.cwd() },
     ).catch((error: { stdout: string; stderr: string }) => {
@@ -208,6 +232,20 @@ describe('TypeScript range codecs', () => {
       ['small', '[1,2)'],
       ['small', { empty: false, lower: 1, upper: 2 }],
       ['small', { lower: 1, upper: 2, lowerInclusive: true, upperInclusive: false }],
+      // The former flat shape, and bounds that are not a present value with its inclusivity.
+      ['small', { empty: false, lower: 1, upper: 2, lowerInclusive: true, upperInclusive: false }],
+      [
+        'small',
+        { empty: false, lower: null, upper: 2, lowerInclusive: false, upperInclusive: false },
+      ],
+      ['small', { lower: { value: 1, inclusive: true }, upper: { value: 2, inclusive: false } }],
+      ['small', { empty: false, lower: { value: 1, inclusive: true } }],
+      ['small', { empty: false, lower: { value: null, inclusive: true }, upper: null }],
+      ['small', { empty: false, lower: null, upper: { inclusive: false } }],
+      ['small', { empty: false, lower: { value: 1 }, upper: null }],
+      ['small', { empty: false, lower: { value: 1, inclusive: 'true' }, upper: null }],
+      ['smalls', [span(1, 2), { empty: false, lower: { value: 3, inclusive: true }, upper: 4 }]],
+      ['list', [span(1, 2), { empty: false, lower: 1, upper: null }]],
       ['small', span(1.5, 2)],
       ['wide', span(1, 2)],
       ['smalls', span(1, 2)],

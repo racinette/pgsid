@@ -198,10 +198,8 @@ CREATE TABLE custom_multi_array_payloads(windows integer_set[],head integer_set,
     }
     const span = (lower: unknown, upper: unknown) => ({
       empty: false,
-      lower,
-      upper,
-      lowerInclusive: true,
-      upperInclusive: true,
+      lower: lower === null ? null : { value: lower, inclusive: true },
+      upper: upper === null ? null : { value: upper, inclusive: true },
     })
     const True = { kind: 'True' }
     const undecided = (outcome: unknown, label?: string) =>
@@ -552,10 +550,30 @@ CREATE TABLE custom_multi_array_payloads(windows integer_set[],head integer_set,
         { ...row, ...change[0] },
         { ...rowText, ...change[1] },
       )
-    for (const value of [{ kind: 'Value', value: payload('integer_span', 1, 2) }, span(1n, 2)])
-      expect(() => generated.evaluatePublicCustomPayloadsChecks({ ...row, v: value })).toThrow(
-        TypeError,
-      )
+    // A bound is null or its value with an inclusivity: the former flat bounds with flags, a null
+    // or missing bound value and a bound without a boolean inclusivity are malformed.
+    for (const value of [
+      { kind: 'Value', value: payload('integer_span', 1, 2) },
+      span(1n, 2),
+      { empty: false, lower: 1, upper: 2, lowerInclusive: true, upperInclusive: true },
+      {
+        empty: false,
+        lower: { value: null, inclusive: true },
+        upper: { value: 2, inclusive: true },
+      },
+      { empty: false, lower: { inclusive: true }, upper: null },
+      { empty: false, lower: { value: 1 }, upper: { value: 2, inclusive: true } },
+      {
+        empty: false,
+        lower: { value: 1, inclusive: true },
+        upper: { value: 2, inclusive: 'true' },
+      },
+    ])
+      for (const change of [{ v: value }, { m: [value] }])
+        expect(
+          () => generated.evaluatePublicCustomPayloadsChecks({ ...row, ...change }),
+          show(change),
+        ).toThrow(TypeError)
     // Stored values with forged support, another nominal type or an unknown bound go to the
     // evaluator entries directly.
     const storedRow = (support?: { comparison: number; canonical: number }) => {

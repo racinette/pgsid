@@ -163,10 +163,8 @@ it('validates multirange array and domain-cell profiles before copying public in
       const [lowerText, upperText] = rangeText.slice(1, -1).split(',') as [string, string]
       const publicRange = {
         empty: false,
-        lower: bound(lowerText),
-        upper: bound(upperText),
-        lowerInclusive: rangeText.startsWith('['),
-        upperInclusive: rangeText.endsWith(']'),
+        lower: { value: bound(lowerText), inclusive: rangeText.startsWith('[') },
+        upper: { value: bound(upperText), inclusive: rangeText.endsWith(']') },
       }
       const publicHead = [publicRange]
       const publicSpans = [null, null, null]
@@ -244,10 +242,24 @@ it('validates multirange array and domain-cell profiles before copying public in
         publicRange,
         [{ empty: 'false' }],
         [{ empty: false }],
-        [{ ...publicRange, lowerInclusive: 'true' }],
+        [{ ...publicRange, lower: { ...publicRange.lower, inclusive: 'true' } }],
+        [{ ...publicRange, lower: { value: publicRange.lower.value } }],
+        [{ ...publicRange, lower: { inclusive: true } }],
+        [{ ...publicRange, lower: { value: null, inclusive: true } }],
+        [{ ...publicRange, lower: { value: undefined, inclusive: true } }],
         [{ ...publicRange, lower: undefined }],
-        [{ ...publicRange, lower: 1.5 }],
-        [{ ...publicRange, lower: publicRange }],
+        // The former flat bounds with flags beside them.
+        [
+          {
+            empty: false,
+            lower: publicRange.lower.value,
+            upper: publicRange.upper.value,
+            lowerInclusive: publicRange.lower.inclusive,
+            upperInclusive: publicRange.upper.inclusive,
+          },
+        ],
+        [{ ...publicRange, lower: { value: 1.5, inclusive: true } }],
+        [{ ...publicRange, lower: { value: publicRange, inclusive: true } }],
         [publicHead],
         undefined,
         { kind: 'Multirange', value: head },

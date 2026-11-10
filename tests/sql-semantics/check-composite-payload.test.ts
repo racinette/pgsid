@@ -119,10 +119,8 @@ CONSTRAINT selected CHECK((CASE WHEN choose_first THEN v ELSE w END).child.score
           phase,
           span: {
             empty: false,
-            lower,
-            upper,
-            lowerInclusive: span.startsWith('['),
-            upperInclusive: span.endsWith(']'),
+            lower: { value: lower, inclusive: span.startsWith('[') },
+            upper: { value: upper, inclusive: span.endsWith(']') },
           },
           bag: bag === '{}' ? [] : bag.slice(1, -1).split(','),
           doc: JSON.parse(doc) as unknown,
@@ -456,7 +454,21 @@ fn native_w_${nativeIndex}()->CompositeValue {${rustWrapper(sample.w?.value ?? n
       { ...good.public, span: '[1,3)' },
       { ...good.public, bag: '{1,2}' },
       { ...good.public, phase: 1 },
-      { ...good.public, span: { ...(good.public.span as object), lower: 1n } },
+      {
+        ...good.public,
+        span: { ...(good.public.span as object), lower: { value: 1n, inclusive: true } },
+      },
+      // A bound is null or its value with an inclusivity: the former flat bounds with flags, a
+      // null bound value and a bound without its inclusivity are malformed.
+      {
+        ...good.public,
+        span: { empty: false, lower: 1, upper: 3, lowerInclusive: true, upperInclusive: false },
+      },
+      {
+        ...good.public,
+        span: { ...(good.public.span as object), lower: { value: null, inclusive: true } },
+      },
+      { ...good.public, span: { ...(good.public.span as object), upper: { value: 3 } } },
     ]) {
       const bad = { ...base, v: { ...base.v, child } }
       expect(() => evaluate(bad)).toThrow(TypeError)
