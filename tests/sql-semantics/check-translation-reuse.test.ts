@@ -8,6 +8,8 @@ import {
 } from '../../src/codegen/shared/check-rust-source.js'
 import {
   transpileCheckRustFiles,
+  transpileCheckRustGoFiles,
+  transpileCheckRustTypescriptFiles,
   translateCheckRustChecks,
   translateCheckRustRuntime,
 } from '../../src/codegen/shared/check-rust-transpile.js'
@@ -71,6 +73,22 @@ it('reuses one translated runtime for checks with qualified and shadowed runtime
     expect(translateCheckRustChecks(source, runtime, 'reuse/pg_catalog'), evaluator).toEqual(
       transpileCheckRustFiles(source, 'reuse/pg_catalog'),
     )
+  }
+})
+
+// Code generation keeps each target's translated runtime across groups; a group translated
+// against a kept runtime is the group translated whole.
+it('translates groups against a kept runtime as it translates them whole', () => {
+  for (const evaluator of [
+    'pub fn evaluate_check_open(input:PathValue)->bool { let opened=sql__pg_catalog__path_open(input); path_npoints(opened)==2 }',
+    'pub fn evaluate_check_count(input:PathValue)->bool { let make_path:usize=path_npoints(input); make_path>1 }',
+    'pub fn evaluate_check_open(input:PathValue)->bool { let opened=sql__pg_catalog__path_open(input); path_npoints(opened)==2 }',
+  ]) {
+    const whole = transpileCheckRustFiles(graph(evaluator), 'kept/pg_catalog')
+    expect(transpileCheckRustTypescriptFiles(graph(evaluator), 'kept/pg_catalog')).toEqual(
+      whole.typescript,
+    )
+    expect(transpileCheckRustGoFiles(graph(evaluator), 'kept/pg_catalog')).toEqual(whole.go)
   }
 })
 
