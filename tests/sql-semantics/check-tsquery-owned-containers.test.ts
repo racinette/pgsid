@@ -257,8 +257,9 @@ it('validates owned tsquery arrays and record fields through native INSERTs and 
           .evaluatePublicOwnedVectorsChecks(row)
           .map((c: { constraint: string; result: unknown }) => [c.constraint, c.result]),
       )
-    // Public tsqueries are the server's text, in lists that start at 1; each row decides as the
-    // server does with the same values.
+    // Public tsqueries are the server's text, in lists that start at 1 with the one dimension the
+    // columns declare; each row decides as the server does with the same values. A sample with
+    // more dimensions goes to the evaluator entries below.
     const mismatches: ReturnType<typeof differingChecks> = []
     for (const s of samples)
       for (const needle of ["'a'", null]) {
@@ -267,6 +268,7 @@ it('validates owned tsquery arrays and record fields through native INSERTs and 
             `SELECT array_to_json(x::text[]) items, regexp_replace(x::text, '^[^{]*', '') text FROM (SELECT ${s.sql} x) q`,
           )
         ).rows[0]!
+        if (Array.isArray(items) && items.some((item) => Array.isArray(item))) continue
         const bundle = (
           await pg.query<{ text: string }>(
             'SELECT ROW($1::tsquery,$2::tsquery[])::owned_vector_bundle::text text',
