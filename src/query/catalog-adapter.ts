@@ -106,6 +106,7 @@ export async function buildNullabilityCatalog(
   // PostgreSQL makes them unique within their non-collatable type. Numerics do
   // not qualify because 75 and 75.0 are different tokens for one value.
   const TEXT_FAMILY_OIDS = new Set([25, 1043])
+  const enumLabels = new Map(snapshot.enums.map((e) => [`${e.schema}\0${e.name}`, e.values]))
   const enumTypes = new Set(snapshot.enums.map((e) => `${e.schema}\0${e.name}`))
   const isEnumType = (rendered: string, relationSchema: string): boolean => {
     const type = splitQualifiedName(rendered)
@@ -385,6 +386,69 @@ export async function buildNullabilityCatalog(
     if (treeExprs.length > 0) checkExprTreeAsts.set(`${t.schema}.${t.name}`, treeExprs)
     if (enforcedExprs.length > 0) enforcedCheckAsts.set(`${t.schema}.${t.name}`, enforcedExprs)
   }
+  // Domain CHECK facts for case derivation: a domain's values meet the
+  // validated CHECKs of its whole chain. A NOT VALID constraint (rendered
+  // with that suffix, parsed as skip_validation) binds new values only, so
+  // stored ones may break it.
+  const domainsByOid = new Map(snapshot.domains.map((d) => [d.oid, d]))
+  const domainCheckFacts = new Map<
+    string,
+    {
+      checks: Node[]
+      baseTypeName: string
+      labels: readonly string[] | null
+      distinctText: boolean
+      notNull: boolean
+    }
+  >()
+  for (const d of snapshot.domains) {
+    const checks: Node[] = []
+    let notNull = false
+    let cur: (typeof snapshot.domains)[number] | undefined = d
+    let last = d
+    for (let hops = 0; hops < 32 && cur !== undefined; hops++) {
+      notNull ||= cur.notNull
+      for (const check of cur.checks) {
+        try {
+          const parsed = await parseSql(
+            `ALTER DOMAIN _pgsid_dom ADD CONSTRAINT _pgsid_c ${check.definition}`,
+          )
+          const constraint = (
+            (parsed.stmts?.[0]?.stmt as Record<string, unknown> | undefined)?.[
+              'AlterDomainStmt'
+            ] as
+              | {
+                  def?: {
+                    Constraint?: { contype?: string; raw_expr?: Node; skip_validation?: boolean }
+                  }
+                }
+              | undefined
+          )?.def?.Constraint
+          if (
+            constraint?.contype === 'CONSTR_CHECK' &&
+            constraint.raw_expr &&
+            !constraint.skip_validation
+          )
+            checks.push(constraint.raw_expr)
+        } catch {
+          // An unparsed CHECK is no fact.
+        }
+      }
+      last = cur
+      cur = domainsByOid.get(cur.baseTypeOid)
+    }
+    const base = splitQualifiedName(last.baseTypeName)
+    domainCheckFacts.set(`${d.schema}.${d.name}`, {
+      checks,
+      baseTypeName: last.baseTypeName,
+      labels: enumLabels.get(`${base.schema ?? last.schema}\0${base.name}`) ?? null,
+      distinctText: TEXT_FAMILY_OIDS.has(last.baseTypeOid) && d.collationDeterministic === true,
+      notNull,
+    })
+  }
+  const resolveDomainCheckFacts = (schema: string, name: string) =>
+    domainCheckFacts.get(`${schema}.${name}`) ?? null
+
   const resolveCheckConstraints = (schema: string, table: string): Node[] =>
     checkExprAsts.get(`${schema}.${table}`) ?? []
   const resolveCheckConstraintsTree = (schema: string, table: string): Node[] =>
@@ -673,7 +737,6 @@ export async function buildNullabilityCatalog(
     return t?.colTypeNames.get(column) ?? null
   }
 
-  const enumLabels = new Map(snapshot.enums.map((e) => [`${e.schema}\0${e.name}`, e.values]))
   const resolveColumnEnumLabels = (
     schema: string,
     table: string,
@@ -2832,6 +2895,7 @@ export async function buildNullabilityCatalog(
     resolveColumnTypeName,
     resolveLiteralDistinctnessSound,
     resolveColumnEnumLabels,
+    resolveDomainCheckFacts,
     resolveCompositeType,
     resolveFunctionMetadata,
     resolveFunctionCandidates,

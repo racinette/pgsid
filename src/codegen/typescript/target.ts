@@ -299,6 +299,7 @@ export function createTypescriptCodegenTarget(
               schemaOutDir,
               {
                 relations: input.relations,
+                ...(input.domains ? { domains: input.domains } : {}),
                 jsonSchemasDirectory: jsonTypes,
                 emitJsonSchemaTypes: !sharedJsonOutput,
               },

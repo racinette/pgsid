@@ -100,23 +100,94 @@ export function tableCheckCases(
   return result
 }
 
+/** What derivation reads of one column. */
+interface CaseColumnFacts {
+  typeName: string
+  labels: readonly string[] | null
+  /** Unequal text literals are unequal values. */
+  distinctText: boolean
+  notNull: boolean
+}
+
 function deriveCases(
   catalog: CheckCaseCatalog,
   schema: string,
   table: string,
   reading: CheckCaseReading,
 ): TableCheckCases {
-  const checks =
+  return deriveFrom(
     reading === 'stored'
       ? catalog.resolveCheckConstraintsTree(schema, table)
-      : catalog.resolveEnforcedCheckConstraints(schema, table)
+      : catalog.resolveEnforcedCheckConstraints(schema, table),
+    (column) => {
+      const typeName = catalog.resolveColumnTypeName(schema, table, column)
+      if (typeName === null) return null
+      // A column of a domain compares its literals at the domain's base type.
+      const dot = typeName.lastIndexOf('.')
+      const domain =
+        catalog.resolveDomainCheckFacts(
+          dot < 0 ? schema : typeName.slice(0, dot),
+          dot < 0 ? typeName : typeName.slice(dot + 1),
+        ) ?? null
+      if (domain)
+        return {
+          typeName: domain.baseTypeName,
+          labels: domain.labels,
+          distinctText: domain.distinctText,
+          notNull:
+            reading === 'stored'
+              ? catalog.resolveColumnNotNullTree(schema, table, column)
+              : catalog.resolveColumnNotNull(schema, table, column),
+        }
+      return {
+        typeName,
+        labels: catalog.resolveColumnEnumLabels(schema, table, column),
+        distinctText: catalog.resolveLiteralDistinctnessSound(schema, table, column),
+        notNull:
+          reading === 'stored'
+            ? catalog.resolveColumnNotNullTree(schema, table, column)
+            : catalog.resolveColumnNotNull(schema, table, column),
+      }
+    },
+  )
+}
+
+/**
+ * The literals a domain's values hold: its validated CHECKs and its base
+ * domains', with VALUE read as a column of the base type.
+ */
+export function domainCheckLiterals(
+  catalog: CheckCaseCatalog,
+  schema: string,
+  name: string,
+): OutputLiterals | null {
+  const domain = catalog.resolveDomainCheckFacts(schema, name)
+  if (!domain) return null
+  const facts: CaseColumnFacts = {
+    typeName: domain.baseTypeName,
+    labels: domain.labels,
+    distinctText: domain.distinctText,
+    notNull: domain.notNull,
+  }
+  const column = deriveFrom(domain.checks, (column) =>
+    column === 'value' ? facts : null,
+  ).columns.get('value')
+  return column?.kind && column.summary.values !== null
+    ? { kind: column.kind, values: column.summary.values }
+    : null
+}
+
+function deriveFrom(
+  checks: readonly Node[],
+  facts: (column: string) => CaseColumnFacts | null,
+): TableCheckCases {
   const spaces = new Map<string, ColumnSpace>()
   const space = (column: string): ColumnSpace | null => {
     const existing = spaces.get(column)
     if (existing) return existing
-    const typeName = catalog.resolveColumnTypeName(schema, table, column)
-    if (typeName === null) return null
-    const labels = catalog.resolveColumnEnumLabels(schema, table, column)
+    const found = facts(column)
+    if (found === null) return null
+    const { typeName, labels } = found
     const kind = literalKind(typeName, labels)
     const created: ColumnSpace = {
       kind,
@@ -124,11 +195,8 @@ function deriveCases(
         kind === 'number' ||
         kind === 'bigint' ||
         kind === 'boolean' ||
-        (kind === 'string' && catalog.resolveLiteralDistinctnessSound(schema, table, column)),
-      notNull:
-        reading === 'stored'
-          ? catalog.resolveColumnNotNullTree(schema, table, column)
-          : catalog.resolveColumnNotNull(schema, table, column),
+        (kind === 'string' && (labels !== null || found.distinctText)),
+      notNull: found.notNull,
       literals: labels ? [...labels] : kind === 'boolean' ? ['true', 'false'] : [],
       closed: labels !== null || kind === 'boolean',
     }

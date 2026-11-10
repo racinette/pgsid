@@ -3,6 +3,7 @@ import { PGlite } from '@electric-sql/pglite'
 import { snapshotCatalog } from '../../../src/catalog/snapshot.js'
 import { buildNullabilityCatalog } from '../../../src/query/catalog-adapter.js'
 import {
+  domainCheckLiterals,
   tableCheckCases,
   type CheckColumnCase,
   type TableCheckCases,
@@ -23,6 +24,15 @@ const DDL = `
   CREATE TABLE padded (code char(2) CHECK (code IN ('a')));
   CREATE TABLE later (status text);
   CREATE TABLE distinct_from (status text CHECK (status IS DISTINCT FROM 'z'), other text CHECK (other NOT IN ('q')));
+  CREATE DOMAIN tier AS text CHECK (VALUE IN ('gold', 'silver'));
+  CREATE DOMAIN gold_tier AS tier CHECK (VALUE <> 'silver');
+  CREATE DOMAIN unpaid AS pay_kind CHECK (VALUE <> 'paid');
+  CREATE DOMAIN step AS smallint NOT NULL CHECK (VALUE IN (-1, 1));
+  CREATE TABLE tiered (level tier CHECK (level IN ('gold')));
+  CREATE DOMAIN coded AS text;
+  CREATE TABLE coded_values (value coded);
+  INSERT INTO coded_values VALUES ('y');
+  ALTER DOMAIN coded ADD CONSTRAINT one_code CHECK (VALUE IN ('x')) NOT VALID;
   CREATE TABLE opened (kind text NOT NULL, amount int,
     CHECK (CASE WHEN kind = 'card' THEN amount IS NOT NULL ELSE amount IS NULL END));
 `
@@ -45,6 +55,7 @@ const candidates: Record<string, Record<string, readonly (string | number | bool
   later: { status: ['a', 'b', null] },
   distinct_from: { status: ['z', 'y', null], other: ['q', 'r', null] },
   opened: { kind: ['card', 'cash', 'x'], amount: [5, null] },
+  tiered: { level: ['gold', 'silver', null] },
 }
 
 let pg: PGlite
@@ -115,7 +126,44 @@ const members = (cases: TableCheckCases) =>
     ),
   )
 
+const domainCandidates: Record<string, readonly (string | number | null)[]> = {
+  tier: ['gold', 'silver', 'bronze', null],
+  gold_tier: ['gold', 'silver', null],
+  unpaid: ['paid', 'pending', 'refunded', null],
+  step: [-1, 0, 1, null],
+}
+
 describe('CHECK case derivation', () => {
+  it('reads the literals a domain chain admits, covering every value the server accepts', async () => {
+    for (const [domain, values] of Object.entries(domainCandidates)) {
+      const literals = domainCheckLiterals(catalog, 'public', domain)
+      expect(literals, domain).not.toBeNull()
+      for (const value of values) {
+        const accepted = await pg.query(`SELECT $1::${domain}`, [value]).then(
+          () => true,
+          () => false,
+        )
+        if (accepted && value !== null)
+          expect(literals!.values, `${domain} ${value}`).toContain(String(value))
+      }
+    }
+    expect(domainCheckLiterals(catalog, 'public', 'tier')).toEqual({
+      kind: 'string',
+      values: ['gold', 'silver'],
+    })
+    expect(domainCheckLiterals(catalog, 'public', 'gold_tier')!.values).toEqual(['gold'])
+    expect(domainCheckLiterals(catalog, 'public', 'unpaid')!.values).toEqual([
+      'pending',
+      'refunded',
+    ])
+    expect(domainCheckLiterals(catalog, 'public', 'step')).toEqual({
+      kind: 'number',
+      values: ['-1', '1'],
+    })
+    // Stored values may predate a NOT VALID constraint: coded_values holds 'y'.
+    expect(domainCheckLiterals(catalog, 'public', 'coded')).toBeNull()
+  })
+
   it('covers every row the server accepts, for stored and written readings', async () => {
     for (const table of Object.keys(candidates)) {
       const rows = await accepted(table)
@@ -136,6 +184,10 @@ describe('CHECK case derivation', () => {
       // Stored as ('-5'::integer)::bigint.
       wide: { null: true, values: ['-5', '7'] },
       signed: { null: false, values: ['-1', '1'] },
+    })
+    // A domain column compares at its base type.
+    expect(summary(tableCheckCases(catalog, 'public', 'tiered', 'stored'))).toEqual({
+      level: { null: true, values: ['gold'] },
     })
   })
 

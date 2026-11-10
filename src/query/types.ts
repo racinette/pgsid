@@ -393,11 +393,32 @@ export interface CheckCaseCatalog
    * column's values instead of an open "other".
    */
   resolveColumnEnumLabels(schema: string, table: string, column: string): readonly string[] | null
+  /**
+   * What a domain's values meet: the validated CHECKs of the domain and of
+   * the domains it is based on (VALUE reads as a column named `value`), the
+   * final base type, its enum labels, whether unequal text literals are
+   * unequal values under the domain's collation, and NOT NULL. Null for a
+   * name that is no domain.
+   */
+  resolveDomainCheckFacts(
+    schema: string,
+    name: string,
+  ): {
+    checks: readonly Node[]
+    baseTypeName: string
+    labels: readonly string[] | null
+    distinctText: boolean
+    notNull: boolean
+  } | null
 }
 
-/** Members only CHECK case derivation asks, reached through query contracts. */
+/**
+ * Members only CHECK case derivation asks: table cases are reached through
+ * query contracts, domain literals through schema rendering.
+ */
 export const CHECK_CASE_CATALOG_ONLY = [
   'resolveColumnEnumLabels',
+  'resolveDomainCheckFacts',
 ] as const satisfies readonly (keyof CheckCaseCatalog)[]
 
 /**

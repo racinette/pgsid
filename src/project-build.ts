@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import type { SqlDiagnostic } from './errors.js'
 import type { CatalogSnapshot } from './catalog/types.js'
-import type { SchemaRelationAnalyses } from './schema-analysis.js'
+import type { SchemaDomainLiterals, SchemaRelationAnalyses } from './schema-analysis.js'
 import {
   type CodegenArtifact,
   type CodegenDiagnostic,
@@ -94,6 +94,7 @@ export interface ReconcileProjectBuildOptions {
   schema?: {
     catalog: CatalogSnapshot
     relations: SchemaRelationAnalyses
+    domains?: SchemaDomainLiterals
     key: string
     sourcePath: string
   }
@@ -172,6 +173,7 @@ export async function reconcileProjectBuild(
           ...target.renderSchema({
             catalog: options.schema.catalog,
             relations: options.schema.relations,
+            ...(options.schema.domains ? { domains: options.schema.domains } : {}),
           }),
         }
         renderCacheMisses++

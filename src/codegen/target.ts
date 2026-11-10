@@ -1,10 +1,11 @@
 import type { CatalogSnapshot } from '../catalog/types.js'
 import type { QueryAnalysisItem } from '../query-analysis.js'
-import type { SchemaRelationAnalyses } from '../schema-analysis.js'
+import type { SchemaDomainLiterals, SchemaRelationAnalyses } from '../schema-analysis.js'
 
 export interface CodegenSchemaInput {
   catalog: CatalogSnapshot
   relations: SchemaRelationAnalyses
+  domains?: SchemaDomainLiterals
 }
 
 export interface CodegenOutput {
