@@ -274,6 +274,7 @@ it('constructs XML elements, attributes and forests through native value mapping
           expected: { kind: 'Unknown' },
         })
       totalFixtures += fixtures.length
+      await mkdir('artifacts/goal-checks/xml-elements-active', { recursive: true })
       await writeFile(
         'artifacts/goal-checks/xml-elements-active/reference-' + xmlBinary + '.json',
         JSON.stringify(

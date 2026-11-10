@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { readFileSync } from 'node:fs'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { promisify } from 'node:util'
@@ -576,6 +576,7 @@ ${queryRows.map((row) => `assert_eq!(evaluate_check_markup_query(${rustString(ro
       await run('rustc', ['--test', join(directory, 'markup.rs'), '-o', join(directory, 'markup')])
       await run(join(directory, 'markup'), [])
       await run('go', ['test', './...'], { cwd: directory })
+      await mkdir('artifacts/goal-checks/xml-query-policy-active', { recursive: true })
       await writeFile(
         'artifacts/goal-checks/xml-query-policy-active/markup-query-reference.json',
         JSON.stringify(

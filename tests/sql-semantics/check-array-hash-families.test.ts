@@ -159,6 +159,7 @@ it('dispatches both default array hashes across every represented scalar and enu
             }
           }
         }
+    await mkdir('artifacts/goal-checks/array-hash-dispatch', { recursive: true })
     await writeFile(
       'artifacts/goal-checks/array-hash-dispatch/family-references.json',
       JSON.stringify(references, null, 2) + '\n',
