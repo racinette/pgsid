@@ -65,9 +65,23 @@ export function checkLiteralType(
   type: ts.TypeNode,
   literals: OutputCheckCases['literals'][number] | undefined,
 ): ts.TypeNode {
-  if (!literals || !narrowable(type, literals.kind)) return type
+  if (!literals) return type
+  // A branded domain keeps its brand around the narrowed base.
+  if (ts.isIntersectionTypeNode(type)) {
+    const index = type.types.findIndex((member) => narrowable(member, literals.kind))
+    if (index < 0) return type
+    return factory.createIntersectionTypeNode(
+      type.types.map((member, position) =>
+        position === index ? parenthesized(checkLiteralType(member, literals)) : member,
+      ),
+    )
+  }
+  if (!narrowable(type, literals.kind)) return type
   return unionType(literals.values.map((value) => literalType(literals.kind, value)))
 }
+
+const parenthesized = (type: ts.TypeNode): ts.TypeNode =>
+  ts.isUnionTypeNode(type) ? factory.createParenthesizedType(type) : type
 
 const caseType = (
   type: ts.TypeNode,

@@ -25,6 +25,8 @@ CREATE TABLE payments (
 );
 CREATE TABLE owners (id integer PRIMARY KEY, payment integer);
 CREATE VIEW paid_view AS SELECT id, kind, paid_at FROM payments;
+CREATE DOMAIN tier AS text CHECK (VALUE IN ('gold', 'silver'));
+CREATE TABLE members (id integer PRIMARY KEY, tier tier NOT NULL);
 CREATE TABLE drafts (id integer PRIMARY KEY, state text);
 ALTER TABLE drafts ADD CHECK (state IN ('new')) NOT VALID;
 `
@@ -39,6 +41,10 @@ INSERT INTO payments (id, status, kind, paid_at, level, delta, settled, note)
 VALUES (@id, @status, @kind, @paid_at, @level, @delta, @settled, @note);
 -- name: SetPaid :exec
 UPDATE payments SET kind = @kind, paid_at = @paid_at WHERE id = @id;
+-- name: GetMember :one
+SELECT tier FROM members WHERE id = @id;
+-- name: AddMember :exec
+INSERT INTO members (id, tier) VALUES (@id, @tier);
 -- name: GetDraft :one
 SELECT state FROM drafts WHERE id = @id;
 -- name: AddDraft :exec
@@ -51,6 +57,8 @@ import type { EitherRow } from './generated/types/q/Either.js'
 import type { AddPaymentParams } from './generated/types/q/AddPayment.js'
 import type { SetPaidParams } from './generated/types/q/SetPaid.js'
 import type { GetDraftRow } from './generated/types/q/GetDraft.js'
+import type { GetMemberRow } from './generated/types/q/GetMember.js'
+import type { AddMemberParams } from './generated/types/q/AddMember.js'
 import type { AddDraftParams } from './generated/types/q/AddDraft.js'
 import type { Payments, PaidView } from './generated/schema/public/tables.js'
 import type { InferInsert, InferSelect, InferUpdate } from './generated/schema/helpers.js'
@@ -106,6 +114,16 @@ void badUpdate
 
 declare const viewed: InferSelect<PaidView>
 if (viewed.kind === 'paid') expectType<string>(viewed.paid_at)
+
+// A domain's CHECKs narrow its alias, and so every value of the domain.
+declare const member: GetMemberRow
+expectType<'gold' | 'silver'>(member.tier)
+type Branded<T> = T & { readonly __brand: 'public.tier' }
+const addMember: AddMemberParams = { id: 1, tier: 'gold' as Branded<'gold'> }
+void addMember
+// @ts-expect-error The tier domain admits gold and silver only.
+const badMember: AddMemberParams = { id: 1, tier: 'bronze' as Branded<'bronze'> }
+void badMember
 
 // A NOT VALID CHECK binds writes, while stored rows may predate it.
 declare const draft: GetDraftRow
@@ -195,5 +213,6 @@ describe('CHECK-derived TypeScript unions', () => {
     ])
       expect(await insert(values), values).toBe('23514')
     await expect(db.exec(`INSERT INTO drafts VALUES (1, 'old')`)).rejects.toThrow(/check/)
+    await expect(db.exec(`INSERT INTO members VALUES (1, 'bronze')`)).rejects.toThrow(/check/)
   })
 })

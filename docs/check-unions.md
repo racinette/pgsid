@@ -40,6 +40,11 @@ flat row type the way outer-join presence groups are, so testing `kind` narrows
   column only in cases where its default or NULL fits. An update type takes
   literals only, since the rest of the row is the stored one.
 
+- **Domains**: a domain whose CHECKs, with its base domains', admit only
+  some literals has its alias narrowed to them, brand kept, so every column,
+  parameter and row of the domain is. A `NOT VALID` domain constraint narrows
+  nothing, since stored values may predate it.
+
 ## What is read
 
 Each CHECK is evaluated over a small set of abstract states per column: NULL,

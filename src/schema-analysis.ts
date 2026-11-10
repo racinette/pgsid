@@ -1,6 +1,11 @@
 import { parseSql } from './ast.js'
 import type { CatalogSnapshot, TableInfo, ViewInfo } from './catalog/types.js'
-import { tableColumnCases, type OutputCheckCases } from './query/check-cases.js'
+import {
+  domainCheckLiterals,
+  tableColumnCases,
+  type OutputCheckCases,
+  type OutputLiterals,
+} from './query/check-cases.js'
 import type { CheckCaseCatalog } from './query/types.js'
 import type { QueryAnalysisCatalog } from './query-analysis.js'
 import {
@@ -60,6 +65,26 @@ export async function analyzeSchemaRelations(
         catalog as QueryAnalysisCatalog & CheckCaseCatalog,
       )
   return analyses
+}
+
+/** The literals each domain's CHECKs admit, keyed `schema.name`, where they narrow it. */
+export type SchemaDomainLiterals = Readonly<Record<string, OutputLiterals>>
+
+export function analyzeSchemaDomains(
+  snapshot: CatalogSnapshot,
+  catalog: QueryAnalysisCatalog,
+): SchemaDomainLiterals {
+  if (!('resolveDomainCheckFacts' in catalog)) return {}
+  const literals: Record<string, OutputLiterals> = {}
+  for (const domain of snapshot.domains) {
+    const found = domainCheckLiterals(
+      catalog as QueryAnalysisCatalog & CheckCaseCatalog,
+      domain.schema,
+      domain.name,
+    )
+    if (found) literals[relationKey(domain)] = found
+  }
+  return literals
 }
 
 // A table's rows need no walk: its stored rows satisfy its validated CHECKs

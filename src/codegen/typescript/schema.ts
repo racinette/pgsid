@@ -5,7 +5,7 @@ import type { CatalogSnapshot, ColumnInfo, TableInfo, ViewInfo } from '../../cat
 import type { Config, JsonSchemaDocument, TypeImport } from '../../config/schema.js'
 import { interpretValueLineage } from '../../query/value-lineage.js'
 import { checkTriggerWarning } from '../shared/check-trigger-warning.js'
-import type { SchemaRelationAnalyses } from '../../schema-analysis.js'
+import type { SchemaDomainLiterals, SchemaRelationAnalyses } from '../../schema-analysis.js'
 import { renderTypescriptSchemaCheckArtifacts } from './sql/catalog-checks.js'
 import { withTypescriptJsonValue } from './sql/codecs.js'
 import {
@@ -53,6 +53,8 @@ export interface TypescriptSchemaArtifacts {
 
 export interface RenderTypescriptSchemaArtifactsOptions {
   relations?: SchemaRelationAnalyses
+  // The literals domains' CHECKs admit, which their aliases narrow to.
+  domains?: SchemaDomainLiterals
   jsonSchemasDirectory?: string
   emitJsonSchemaTypes?: boolean
 }
@@ -175,7 +177,7 @@ export function renderTypescriptSchemaArtifacts(
           [exportModifier],
           typeName(item.name),
           undefined,
-          resolved.type,
+          checkLiteralType(resolved.type, options.domains?.[`${item.schema}.${item.name}`]),
         )
       })
       const domainFile = printFile([

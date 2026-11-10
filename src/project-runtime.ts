@@ -22,7 +22,12 @@ import { buildNullabilityCatalog } from './query/catalog-adapter.js'
 import type { QueryAnalysisCatalog } from './query-analysis.js'
 import type { CheckCaseCatalog } from './query/types.js'
 import { loadQuerySources } from './query-source-loader.js'
-import { analyzeSchemaRelations, type SchemaRelationAnalyses } from './schema-analysis.js'
+import {
+  analyzeSchemaDomains,
+  analyzeSchemaRelations,
+  type SchemaDomainLiterals,
+  type SchemaRelationAnalyses,
+} from './schema-analysis.js'
 import { SchemaBuilder } from './schema-builder.js'
 
 export interface ProjectRuntimeOptions {
@@ -66,6 +71,7 @@ interface SchemaGeneration {
   catalog?: QueryAnalysisCatalog & CheckCaseCatalog
   relationAnalysisKey?: string
   relationAnalyses?: SchemaRelationAnalyses
+  domainLiterals?: SchemaDomainLiterals
   typeNames: Map<number, string>
   delegateCounter: number
 }
@@ -202,6 +208,7 @@ export class ProjectRuntime {
         generation.catalog!,
         walkOptions,
       )
+      generation.domainLiterals = analyzeSchemaDomains(generation.snapshot, generation.catalog!)
       generation.relationAnalysisKey = relationAnalysisKey
     }
     const sources = await loadQuerySources(config, {
@@ -218,6 +225,7 @@ export class ProjectRuntime {
           ? {
               catalog: generation.snapshot,
               relations: generation.relationAnalyses!,
+              domains: generation.domainLiterals!,
               key: relationAnalysisKey,
               sourcePath: this.configPath,
             }
