@@ -176,6 +176,7 @@ it('quantifies concrete scalar and enum operators selected from the catalog acro
         fixtures.filter((f) => included.has(f.name)),
       )
     }
+    await mkdir('artifacts/goal-checks/array-quantifier', { recursive: true })
     await writeFile(
       'artifacts/goal-checks/array-quantifier/family-observations.json',
       JSON.stringify(observations, null, 2) + '\n',

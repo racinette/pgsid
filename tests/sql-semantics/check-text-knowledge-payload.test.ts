@@ -241,6 +241,7 @@ func TestPartialText(t *testing.T){
     }).catch((e: { stdout: string; stderr: string }) => {
       throw Error(e.stdout + e.stderr)
     })
+    await mkdir('artifacts/goal-checks/xml-text-knowledge-active', { recursive: true })
     await writeFile(
       'artifacts/goal-checks/xml-text-knowledge-active/text-payload-reference.json',
       JSON.stringify(reference, null, 2) + '\n',

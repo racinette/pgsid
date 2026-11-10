@@ -264,6 +264,7 @@ func TestXmlKnowledge(t *testing.T){
     }).catch((e: { stdout: string; stderr: string }) => {
       throw Error(e.stdout + e.stderr)
     })
+    await mkdir('artifacts/goal-checks/xml-xpath-nullness-active', { recursive: true })
     await writeFile(
       'artifacts/goal-checks/xml-xpath-nullness-active/payload-reference.json',
       JSON.stringify(reference, null, 2) + '\n',

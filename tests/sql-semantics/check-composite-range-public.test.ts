@@ -311,6 +311,7 @@ func TestCompositeRangeInputs(t *testing.T){
         throw new Error(e.stdout + e.stderr, { cause: e })
       },
     )
+    await mkdir('artifacts/goal-checks/composite-range-sql-active', { recursive: true })
     await writeFile(
       'artifacts/goal-checks/composite-range-sql-active/public-report.json',
       JSON.stringify({
