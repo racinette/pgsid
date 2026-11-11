@@ -312,13 +312,19 @@ const rangeSubtype = (
   }
   for (const range of [...(catalog?.rangeTypes ?? []), ...builtinRanges]) {
     // The catalog names an array subtype by its internal name (pg_catalog._int4); its element
-    // makes it a list of that element.
+    // makes it a list of that element. int2vector and oidvector record their element too, for
+    // the evaluator, but their text is not array text and they keep their own codec.
     const node =
       'subtypeDefinitions' in range
         ? range.subtypeDefinitions?.find((item) => item.identity === range.subtype)
         : undefined
     const subtype =
-      node && node.kind !== 'd' && node.element !== null ? `${node.element}[]` : range.subtype
+      node &&
+      node.kind !== 'd' &&
+      node.element !== null &&
+      !['pg_catalog.int2vector', 'pg_catalog.oidvector'].includes(node.identity)
+        ? `${node.element}[]`
+        : range.subtype
     if (matches(range.identity)) return { kind: 'range', subtype }
     if (matches(range.multirange)) return { kind: 'multirange', subtype }
   }
@@ -873,7 +879,12 @@ function arrayDimensionError(depth: number, dimensions: readonly number[], setti
 }
 function decodeArray(value: string | null, element: (item: string | null) => unknown, delimiter: string, dimensions: readonly number[], setting: string): unknown {
   if (value === null) return null
+  // The server's array output; anything else means the codec does not fit the column.
+  const malformed = (): never => {
+    throw new TypeError('Malformed array text: ' + JSON.stringify(value))
+  }
   let index = value.startsWith('[') ? value.indexOf('=') + 1 : 0
+  if (value[index] !== '{') malformed()
   let depth = 0
   while (value[index + depth] === '{') depth++
   if (value[index + depth] === '}' && depth === 1) depth = 0
@@ -889,15 +900,19 @@ function decodeArray(value: string | null, element: (item: string | null) => unk
       if (value[index] === '{') items.push(list())
       else if (value[index] === '"') {
         let text = ''
-        for (index++; value[index] !== '"'; index++) text += value[index] === '\\\\' ? value[++index] : value[index]
+        for (index++; value[index] !== '"'; index++) {
+          if (index >= value.length) malformed()
+          text += value[index] === '\\\\' ? value[++index] : value[index]
+        }
         index++
         items.push(element(text))
       } else {
         const start = index
-        while (value[index] !== delimiter && value[index] !== '}') index++
+        while (value[index] !== delimiter && value[index] !== '}') if (++index > value.length) malformed()
         const text = value.slice(start, index)
         items.push(element(text === 'NULL' ? null : text))
       }
+      if (value[index] !== delimiter && value[index] !== '}') malformed()
       if (value[index++] === '}') return items
     }
   }
