@@ -1,3 +1,4 @@
+import { typescriptNumericDeclaration } from '../numeric-module.js'
 import type { CatalogSnapshot } from '../../../catalog/types.js'
 import { PG18_RANGE_TYPES } from '../../../postgres/builtins/type-ranges.generated.js'
 
@@ -49,7 +50,7 @@ export const typescriptScalarTypes: Readonly<Record<TypescriptScalarCodec, strin
   Bigint: 'bigint',
   Float: 'number',
   Float4: 'number',
-  Numeric: 'string',
+  Numeric: 'PgsidNumeric',
   Text: 'string',
   Bytea: 'Uint8Array',
   Json: 'PgsidJson<PgsidJsonValue>',
@@ -80,11 +81,17 @@ export const typescriptJsonDeclaration =
   'interface PgsidJson<T = PgsidJsonValue> { readonly text: string; value(): T; safeValue(): { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: Error } }'
 
 export const withTypescriptJsonValue = (source: string): string => {
+  // A numeric is declared where it is used, as a JSON value is; the numeric module exports it.
+  const numeric =
+    /\bPgsidNumeric\b/u.test(source) && !/\bexport interface PgsidNumeric\b/u.test(source)
+      ? `${typescriptNumericDeclaration}\n`
+      : ''
   // A source that exports them, as the inlined runtime support does, declares them already.
-  if (/\bexport (?:type PgsidJsonValue|interface PgsidJson)\b/u.test(source)) return source
+  if (/\bexport (?:type PgsidJsonValue|interface PgsidJson)\b/u.test(source))
+    return numeric + source
   const container = /\bPgsidJson\b/u.test(source)
   const value = container || /\bPgsidJsonValue\b/u.test(source)
-  return `${value ? `${typescriptJsonValueDeclaration};\n` : ''}${container ? `${typescriptJsonDeclaration}\n` : ''}${source}`
+  return `${value ? `${typescriptJsonValueDeclaration};\n` : ''}${container ? `${typescriptJsonDeclaration}\n` : ''}${numeric}${source}`
 }
 
 const builtinCodecs: Readonly<Record<string, TypescriptScalarCodec>> = {
@@ -445,14 +452,16 @@ function encodeFloat4(value: unknown, name: string): string | null {
   if (typeof value !== 'number') return encodeInvalid(name, 'floating-point')
   return Object.is(value, -0) ? '-0' : String(value)
 }
-function decodeNumeric(value: string | null): string | null {
-  return value
+// A numeric is read into the numeric module's value, whose arithmetic is PostgreSQL's.
+function decodeNumeric(value: string | null): PgsidNumeric | null {
+  return value === null ? null : _numeric.numericFromServer(value)
 }
+// Any copy of the numeric module makes a value this recognises; it is sent as its exact text.
 function encodeNumeric(value: unknown, name: string): string | null {
   if (value === null || value === undefined) return null
-  if (typeof value !== 'string' || !/^(?:[+-]?(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?|NaN|[+-]?Infinity)$/u.test(value))
+  if (typeof value !== 'object' || (value as Record<symbol, unknown>)[Symbol.for('pgsid.numeric')] !== true)
     return encodeInvalid(name, 'numeric')
-  return value
+  return String(value)
 }
 function decodeText(value: string | null): string | null {
   return value

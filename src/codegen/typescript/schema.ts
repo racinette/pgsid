@@ -8,6 +8,7 @@ import { checkTriggerWarning } from '../shared/check-trigger-warning.js'
 import type { SchemaDomainLiterals, SchemaRelationAnalyses } from '../../schema-analysis.js'
 import { renderTypescriptSchemaCheckArtifacts } from './sql/catalog-checks.js'
 import { withTypescriptJsonValue } from './sql/codecs.js'
+import { typescriptNumericArtifacts } from './numeric-module.js'
 import {
   exportModifier,
   factory,
@@ -254,6 +255,10 @@ export function renderTypescriptSchemaArtifacts(
       })
     }
   }
+  // Numerics are made and computed with the numeric module, written once beside the schemas.
+  if (artifacts.some((artifact) => /\bPgsidNumeric\b/u.test(artifact.content)))
+    for (const artifact of typescriptNumericArtifacts())
+      artifacts.push({ path: join(outDir, 'pgsid', artifact.path), content: artifact.content })
   return diagnostics.some((item) => item.severity === 'error')
     ? { artifacts: [], diagnostics }
     : { artifacts, diagnostics }

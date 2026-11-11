@@ -35,7 +35,9 @@ const tricky = 'quote " backslash \\ comma , brace { } NULL ü 𝄞'
 type Json = { text: string; value(): unknown }
 let json: (value: unknown) => Json
 let jsonText: (text: string) => Json
-// JSON values are containers, built once the generated support module is loaded.
+let numeric: (value: string | bigint) => { toString(): string }
+// JSON values are containers and numerics numeric values, built once the generated support
+// modules are loaded.
 const values = () => [
   {
     id: 1,
@@ -45,7 +47,7 @@ const values = () => [
     wide: 9223372036854775807n,
     single: 0.1,
     double: 0.1,
-    exact: '-12345678901234567890.000000000000000001',
+    exact: numeric('-12345678901234567890.000000000000000001'),
     label: tricky,
     bytes: Uint8Array.from([0, 1, 92, 127, 128, 255]),
     document: json({ text: tricky, list: [1, null, true], nested: { empty: {} } }),
@@ -73,7 +75,7 @@ const values = () => [
     wide: -9223372036854775808n,
     single: Number.POSITIVE_INFINITY,
     double: -0,
-    exact: 'NaN',
+    exact: numeric('NaN'),
     label: '',
     bytes: new Uint8Array(),
     document: json('a JSON string'),
@@ -95,7 +97,7 @@ const values = () => [
     wide: 0n,
     single: Number.NaN,
     double: 5e-324,
-    exact: 'Infinity',
+    exact: numeric('Infinity'),
     label: null,
     bytes: null,
     document: null,
@@ -117,7 +119,7 @@ const values = () => [
     wide: 1n,
     single: 1,
     double: 1,
-    exact: '1',
+    exact: numeric('1'),
     label: 'json text',
     bytes: null,
     // json keeps its text as written, a repeated key and all; jsonb stores its own text. A JSON
@@ -135,8 +137,10 @@ const values = () => [
   },
 ]
 // The server normalizes values it stores: a real keeps float4 precision.
+// A numeric has no fields of its own to compare, so it is compared by its exact text.
 const stored = (value: ReturnType<typeof values>[number]) => ({
   ...value,
+  exact: String(value.exact),
   single: value.single === 0.1 ? Math.fround(0.1) : value.single,
 })
 
@@ -188,6 +192,9 @@ sql:
     join(root, 'generated/runtime/wire/pgsid/queryable.ts')
   )) as typeof helpers
   ;({ json, jsonText } = helpers)
+  ;({ numeric } = (await import(join(root, 'generated/runtime/wire/pgsid/numeric.ts'))) as {
+    numeric: typeof numeric
+  })
   db = new PGlite()
   await db.exec(schema)
   server = await servePglite(db)
@@ -219,7 +226,9 @@ describe('TypeScript wire codecs', () => {
       `import pg from 'pg'
 import { PGlite } from '@electric-sql/pglite'
 import { fromPg, fromPglite, json, type PgsidJson, type PgsidJsonValue } from './generated/runtime/wire/pgsid/queryable.js'
+import { numeric, type PgsidNumeric } from './generated/runtime/wire/pgsid/numeric.js'
 import { getWire } from './generated/runtime/wire/GetWire.js'
+import type { InsertWireParams } from './generated/types/wire/InsertWire.js'
 export async function usage(pool: pg.Pool, client: pg.PoolClient, db: PGlite) {
   const row = await getWire(fromPg(pool), { id: 1 })
   await getWire(fromPg(client), { id: 1 })
@@ -231,7 +240,12 @@ export async function usage(pool: pg.Pool, client: pg.PoolClient, db: PGlite) {
   const document: PgsidJson<PgsidJsonValue> | null | undefined = row?.document
   const value: PgsidJsonValue | undefined = row?.binary_document?.value()
   const sent: PgsidJson<PgsidJsonValue> = json({ a: [1, null] })
-  return [wide, bytes, document, value, sent]
+  const exact: PgsidNumeric | null | undefined = row?.exact
+  const doubled: PgsidNumeric | undefined = row?.exact?.mul(numeric(2n))
+  const sentExact: InsertWireParams['exact'] = numeric('1.50')
+  // @ts-expect-error a numeric is sent as a numeric value, not its text
+  const textExact: InsertWireParams['exact'] = '1'
+  return [wide, bytes, document, value, sent, exact, doubled, sentExact, textExact]
 }
 `,
     )
@@ -270,9 +284,10 @@ export async function usage(pool: pg.Pool, client: pg.PoolClient, db: PGlite) {
         const read = (await runtime['getWire']!(queryable, { id: value.id })) as {
           document: Json | null
           binary_document: Json | null
+          exact: { toString(): string }
         }
         const { document: readDocument, binary_document: readBinary, ...readRest } = read
-        expect(readRest).toEqual(rest)
+        expect({ ...readRest, exact: String(readRest.exact) }).toEqual(rest)
         // A JSON value reads back as the server's text, parsed to the value sent.
         const server = (
           await db.query<{ document: string | null; binary_document: string | null }>(
@@ -314,6 +329,9 @@ export async function usage(pool: pg.Pool, client: pg.PoolClient, db: PGlite) {
       ['regular', 2n],
       ['exact', 1.5],
       ['exact', '1e'],
+      // A numeric is sent only as a numeric value, not as its text or a lookalike.
+      ['exact', '1.5'],
+      ['exact', { toString: () => '1.5' }],
       ['bytes', [1, 2]],
       ['flag', 'true'],
       ['counts', 1],

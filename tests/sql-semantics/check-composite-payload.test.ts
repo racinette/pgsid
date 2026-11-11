@@ -1,3 +1,4 @@
+import { publicValueConstructors } from './public-value-constructors.js'
 import {
   compositeGoInput,
   compositeTypescriptInput,
@@ -65,6 +66,31 @@ CONSTRAINT json_score CHECK(CASE WHEN bypass THEN true ELSE (to_jsonb(v)#>>'{chi
 CONSTRAINT json_phase CHECK(CASE WHEN bypass THEN true ELSE (to_json(v)::jsonb#>>'{child,phase}')<>'a' END),
 CONSTRAINT json_row CHECK(CASE WHEN bypass THEN true ELSE (row_to_json(v,true)::jsonb#>'{child,doc}') ? 'ok' END),
 CONSTRAINT selected CHECK((CASE WHEN choose_first THEN v ELSE w END).child.score>=2));`)
+    const constructors = await publicValueConstructors()
+    // Numerics and JSON containers hold their text privately and carry methods, so a row is
+    // compared by a snapshot that records them by that text.
+    const snapshot = (value: unknown): unknown =>
+      Array.isArray(value)
+        ? value.map(snapshot)
+        : value && typeof value === 'object'
+          ? (value as Record<symbol, unknown>)[Symbol.for('pgsid.numeric')] === true
+            ? { numeric: String(value) }
+            : (value as Record<symbol, unknown>)[Symbol.for('pgsid.json')] === true
+              ? { json: (value as { text: string }).text }
+              : Object.fromEntries(
+                  Object.entries(value).map(([key, item]) => [key, snapshot(item)]),
+                )
+          : value
+    // A copy of a public row; numerics and containers are immutable and stay shared.
+    const copy = <T>(value: T): T =>
+      (Array.isArray(value)
+        ? value.map(copy)
+        : value &&
+            typeof value === 'object' &&
+            Object.getPrototypeOf(value) === Object.prototype &&
+            (value as Record<symbol, unknown>)[Symbol.for('pgsid.json')] !== true
+          ? Object.fromEntries(Object.entries(value).map(([key, item]) => [key, copy(item)]))
+          : value) as T
     const leaf = async (
       score = 2,
       label = 'hi',
@@ -112,7 +138,7 @@ CONSTRAINT selected CHECK((CASE WHEN choose_first THEN v ELSE w END).child.score
       return {
         sql: `ROW(${score},${sql(label)},${sql(phase)}::stage,${sql(span)}::int4range,${sql(bag)}::numeric[],${sql(doc)}::jsonb)::leaf`,
         value,
-        // Public fields: a range of numbers, numerics as text and the document as JSON.
+        // Public fields: a range of numbers, numeric values and the document as a container.
         public: {
           score,
           label,
@@ -122,8 +148,8 @@ CONSTRAINT selected CHECK((CASE WHEN choose_first THEN v ELSE w END).child.score
             lower: { value: lower, inclusive: span.startsWith('[') },
             upper: { value: upper, inclusive: span.endsWith(']') },
           },
-          bag: bag === '{}' ? [] : bag.slice(1, -1).split(','),
-          doc: JSON.parse(doc) as unknown,
+          bag: bag === '{}' ? [] : bag.slice(1, -1).split(',').map(constructors.numeric),
+          doc: constructors.jsonText(doc),
         } as Record<string, unknown>,
       }
     }
@@ -360,9 +386,9 @@ CONSTRAINT selected CHECK((CASE WHEN choose_first THEN v ELSE w END).child.score
           ).rows[0]!.value
           expected[c.name] = { certain: true, value }
         }
-        const saved = structuredClone(row)
+        const saved = snapshot(row)
         expect(evaluate(row), sample.name + ' ' + wrong).toEqual(expected)
-        expect(row).toEqual(saved)
+        expect(snapshot(row)).toEqual(saved)
         const insert = pg.query(`INSERT INTO records VALUES(${v},${w},$1,$2,$3,$4)`, [
           row.expected_null,
           row.expected_not_null,
@@ -437,8 +463,8 @@ fn native_w_${nativeIndex}()->CompositeValue {${rustWrapper(sample.w?.value ?? n
       }
     }
     const base = {
-      v: structuredClone(present.public),
-      w: structuredClone(all.public),
+      v: copy(present.public),
+      w: copy(all.public),
       expected_null: false,
       expected_not_null: false,
       choose_first: false,

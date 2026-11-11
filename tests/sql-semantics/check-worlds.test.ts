@@ -23,6 +23,7 @@ import { getStatements, parseSql } from '../../src/ast.js'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import type { CatalogSnapshot, ColumnInfo } from '../../src/catalog/types.js'
 import { catalogCheckGroups } from '../../src/sql-semantics/catalog-checks.js'
+import { typescriptNumericArtifacts } from '../../src/codegen/typescript/numeric-module.js'
 import {
   type TypescriptCodec,
   typescriptCodec,
@@ -351,7 +352,8 @@ for (let oid = 1; oid < 16384; oid++) serverText[oid] = (value) => value
 // The generated CHECK API takes public values, the shapes generated queries read from the server's
 // output text. The runner reads each input as a query would, through the generated codecs, and
 // writes the value back the way a query sends it, to tell whether the value is exactly the input.
-const publicValueSource = withTypescriptJsonValue(`${typescriptCodecSource}
+const publicValueSource = withTypescriptJsonValue(`import * as _numeric from './pgsid/numeric.js'
+${typescriptCodecSource}
 type Codec =
   | { kind: 'scalar'; name: string }
   | { kind: 'array'; element: Codec; delimiter: string; dimensions: readonly number[]; setting: string }
@@ -656,6 +658,12 @@ describe('world CHECK INSERT parity', () => {
     )
     await writeFile(join(directory, 'checks.ts'), ts.checks)
     await writeFile(join(directory, 'public-values.ts'), publicValueSource)
+    // Numerics decode into the numeric module's value, as a generated query reads them.
+    for (const artifact of typescriptNumericArtifacts()) {
+      const path = join(directory, 'pgsid', artifact.path)
+      await mkdir(dirname(path), { recursive: true })
+      await writeFile(path, artifact.content)
+    }
     await writeFile(join(directory, 'checks-substitutable.ts'), substitutableChecks(ts.checks))
     for (const artifact of checkTypescriptArtifacts(ts.rustFiles!)) {
       const path = join(directory, 'checks-rust', artifact.path)

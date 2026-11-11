@@ -149,3 +149,11 @@ export function typescriptNumericFiles(): TypescriptNumericFile[] {
     }
   ).files
 }
+
+// The numeric module and its evaluator files, at paths relative to the directory that holds it.
+export function typescriptNumericArtifacts(): TypescriptNumericFile[] {
+  return [
+    { path: 'numeric.ts', content: typescriptNumericModule },
+    ...typescriptNumericFiles().map((file) => ({ ...file, path: `numeric/${file.path}` })),
+  ]
+}

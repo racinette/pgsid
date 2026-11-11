@@ -45,6 +45,7 @@ expectType<'open' | 'closed'>(insert.status)
 expectType<'paid' | 'pending' | 'refunded'>(insert.kind)
 expectType<InferInsert<Payments>['tags']>(insert.tags)
 expectType<InferInsert<Payments>['tier']>(insert.tier)
+expectType<InferInsert<Payments>['amount']>(insert.amount)
 declare const selected: z.infer<typeof paymentsSelectSchema>
 expectType<InferSelect<Payments>['created']>(selected.created)
 // A checked shape keeps its type, so partial and picked shapes check too.
@@ -96,6 +97,19 @@ sql:
   const built = await buildProject({ baseDirectory: root })
   expect(built.state.diagnostics).toEqual([])
   zod = (await import(join(root, 'generated/schema/public/zod.ts'))) as typeof zod
+  ;({ numeric } = (await import(join(root, 'generated/schema/pgsid/numeric.ts'))) as {
+    numeric: typeof numeric
+  })
+  paid = {
+    id: 1,
+    status: 'open',
+    kind: 'paid',
+    paid_at: '2024-01-01',
+    amount: numeric('12.50'),
+    tags: ['a', null],
+    tier: 'gold',
+    score: 3,
+  }
   db = new PGlite()
   await db.exec(schema)
 }, 300_000)
@@ -104,16 +118,9 @@ afterAll(async () => {
   await rm(root, { recursive: true, force: true })
 })
 
-const paid = {
-  id: 1,
-  status: 'open',
-  kind: 'paid',
-  paid_at: '2024-01-01',
-  amount: '12.50',
-  tags: ['a', null],
-  tier: 'gold',
-  score: 3,
-}
+// A numeric is the numeric module's value, made once the generated module is loaded.
+let numeric: (value: string) => { toString(): string }
+let paid: Record<string, unknown>
 
 describe('zod v4 table schemas', () => {
   it('types fields as the table types do', async () => {
@@ -149,6 +156,8 @@ describe('zod v4 table schemas', () => {
       ['id', 1.5],
       ['amount', 'abc'],
       ['amount', 12.5],
+      // A numeric is taken only as the numeric module's value, not as its text.
+      ['amount', '12.50'],
       ['paid_at', '2024/01/01'],
       ['tags', [['nested']]],
       ['tier', 'bronze'],
@@ -168,7 +177,7 @@ describe('zod v4 table schemas', () => {
     for (const row of [
       { ...paid, paid_at: null },
       { ...paid, kind: 'pending' },
-      { ...paid, amount: '-1' },
+      { ...paid, amount: numeric('-1') },
     ]) {
       const result = checked.safeParse(row)
       expect(result.success, JSON.stringify(row)).toBe(false)
@@ -182,7 +191,9 @@ describe('zod v4 table schemas', () => {
             const value = (row as Record<string, unknown>)[key]
             return Array.isArray(value)
               ? `{${value.map((item) => item ?? 'NULL').join(',')}}`
-              : value
+              : key === 'amount'
+                ? String(value)
+                : value
           }),
         ),
       ).rejects.toThrow(

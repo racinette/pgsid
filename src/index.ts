@@ -197,6 +197,10 @@ export {
   type TypescriptQueryDiagnosticCode,
 } from './codegen/typescript/query.js'
 export {
+  typescriptNumericArtifacts,
+  type TypescriptNumericFile,
+} from './codegen/typescript/numeric-module.js'
+export {
   EMPTY_PROJECT_BUILD_STATE,
   reconcileProjectBuild,
   type ProjectArtifact,

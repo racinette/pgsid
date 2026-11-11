@@ -1,3 +1,4 @@
+import { publicValueConstructors } from './public-value-constructors.js'
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { execFile } from 'node:child_process'
@@ -239,9 +240,13 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
         result: resultOf(outcome as Outcome),
       }))
     }
-    // Marks a column's JSON text: its public value is the parsed JSON, which a query sends as
-    // its JSON text (a JSON null parses to null, which is SQL NULL on both sides).
+    // Marks a column's JSON text: its public value is the JSON container of that text, which a
+    // query sends as written; a JSON null document is a container, apart from SQL NULL.
+    const constructors = await publicValueConstructors()
     const jsonText = Symbol('json text')
+    // A JSON value to send, as a container; undefined and SQL NULL pass as themselves.
+    const publicJson = (value: unknown) =>
+      value === undefined || value === null ? value : constructors.json(value)
     const json = (text: string | null) => ({ [jsonText]: text })
     // The public checks of a row decide as the server does on the same values sent as text; a
     // column the row leaves out is NULL on both sides.
@@ -250,21 +255,14 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
         sent: Record<string, string | null> = {}
       for (const { name } of catalog.tables.find((t) => t.name === table)!.columns) {
         const value = row[name] ?? null
-        const parsed =
+        const marked =
           value !== null && typeof value === 'object' && jsonText in value
-            ? value[jsonText] === null
-              ? null
-              : JSON.parse(value[jsonText] as string)
+            ? ((value as Record<symbol, string | null>)[jsonText] ?? null)
             : undefined
-        local[name] = parsed === undefined ? value : parsed
-        sent[name] =
-          parsed !== undefined
-            ? parsed === null
-              ? null
-              : JSON.stringify(parsed)
-            : value === null
-              ? null
-              : String(value)
+        // A marked column is SQL NULL for a null text, else a container sent as written.
+        local[name] =
+          marked === undefined ? value : marked === null ? null : constructors.jsonText(marked)
+        sent[name] = marked !== undefined ? marked : value === null ? null : String(value)
       }
       const evaluateRow = generated[
         'evaluatePublic' +
@@ -283,7 +281,7 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
     for (const bypass of [false, true]) {
       const result = generated.evaluatePublicJsonbConversionBoundariesChecks({
         label: 'plain',
-        expected: 'custom',
+        expected: constructors.json('custom'),
         bypass,
       })[0].result
       expect(result).toEqual(bypass ? { certain: true, value: true } : { certain: false })
@@ -367,7 +365,9 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
                     ? Number(value)
                     : name === 'integer' && value !== null
                       ? BigInt(value as string)
-                      : value,
+                      : name === 'number' && value !== null
+                        ? constructors.numeric(value as string)
+                        : value,
               ],
               ['expected_' + name, json(args[i * 2 + 1] as string | null)],
             ]
@@ -403,7 +403,7 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
     expect(
       generated
         .evaluatePublicJsonbConversionInputsChecks({
-          source_json: '\0',
+          source_json: constructors.json('\0'),
           expected_json: null,
           bypass: false,
         })
@@ -546,10 +546,10 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       )!.result,
     ).toEqual({ certain: true, value: false })
     const publicFormat = {
-      document: { a: null, b: [null, 1] },
+      document: constructors.json({ a: null, b: [null, 1] }),
       strip_arrays: true,
-      expected_default: { b: [null, 1] },
-      expected_strip: { b: [1] },
+      expected_default: constructors.json({ b: [null, 1] }),
+      expected_strip: constructors.json({ b: [1] }),
       expected_pretty: 'wrong',
       bypass: false,
     }
@@ -663,7 +663,7 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       expect(wrong.result).toEqual({ certain: true, value: false })
     }
     const editInput = {
-      rhs: {},
+      rhs: constructors.json({}),
       key_name: 'a',
       element_index: 0,
       delete_members: true,
@@ -811,8 +811,8 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       expect(c.result).toEqual({ certain: true, error: '22012' })
     const deferredGenerated = await import(pathToFileURL(join(root, 'js/deferred-checks.js')).href)
     for (const c of deferredGenerated.evaluatePublicJsonbRelationInputsChecks({
-      lhs: 1,
-      rhs: 2,
+      lhs: constructors.json(1),
+      rhs: constructors.json(2),
       expected_lower: true,
       expected_order: -1,
       bypass: false,
@@ -848,7 +848,13 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
     const publicRelations = (...row: Parameters<typeof relationRow>): Record<string, Result> =>
       Object.fromEntries(
         generated
-          .evaluatePublicJsonbRelationInputsChecks(relationRow(...row))
+          .evaluatePublicJsonbRelationInputsChecks(
+            relationRow(
+              ...([publicJson(row[0]), publicJson(row[1]), ...row.slice(2)] as Parameters<
+                typeof relationRow
+              >),
+            ),
+          )
           .map((c: { constraint: string; result: Result }) => [c.constraint, c.result]),
       )
     for (const [lhs, rhs] of [
@@ -966,7 +972,9 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
     const publicReads = (...row: Parameters<typeof readRow>): Record<string, Result> =>
       Object.fromEntries(
         generated
-          .evaluatePublicJsonbReadInputsChecks(readRow(...row))
+          .evaluatePublicJsonbReadInputsChecks(
+            readRow(...([publicJson(row[0]), ...row.slice(1)] as Parameters<typeof readRow>)),
+          )
           .map((c: { constraint: string; result: Result }) => [c.constraint, c.result]),
       )
     for (const [source, key, index] of [
@@ -1129,7 +1137,12 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
     ): Record<string, Result> =>
       Object.fromEntries(
         generated
-          .evaluatePublicJsonbPayloadsChecks({ document, expected_kind, expected_source, bypass })
+          .evaluatePublicJsonbPayloadsChecks({
+            document: publicJson(document),
+            expected_kind,
+            expected_source,
+            bypass,
+          })
           .map((c: { constraint: string; result: Result }) => [c.constraint, c.result]),
       )
     for (const input of [

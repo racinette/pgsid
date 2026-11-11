@@ -19,7 +19,7 @@ enums and JSON Schemas refine the declared TypeScript type without changing the
 value.
 
 Shapes keep the server's value exactly. Integers that do not fit a JavaScript
-number are bigints, numeric values are decimal text, bytea is a byte array, and
+number are bigints, numerics are exact decimal values, bytea is a byte array, and
 a real is the single-precision value the server stored, not the nearest double
 of its printed text. A range is either `{ empty: true }` or has a lower and
 an upper bound, each `{ value, inclusive }` or `null` when unbounded, so an
@@ -46,6 +46,31 @@ Schema is checked before it is sent. Money, bit strings, network
 addresses, UUIDs, XML and text search values are the server's canonical text,
 as client libraries already return them; money's text depends on the server's
 monetary locale, so it is not reinterpreted.
+
+## Numerics
+
+A numeric is a `PgsidNumeric`: an exact decimal that keeps its scale, NaN and
+the infinities, and computes as PostgreSQL does. It is made only by
+`numeric(value)` from a string, read as PostgreSQL reads numeric input, or from
+a bigint; there is no conversion from a JavaScript number, whose value is
+already rounded. `toString()` (and template strings and `JSON.stringify`) gives
+its exact text, `19.90` keeping its trailing zero, and `toNumber()` the nearest
+double, losing what a double cannot hold.
+
+`add`, `sub`, `mul`, `div`, `mod`, `neg`, `abs`, `round(scale?)` and
+`trunc(scale?)` return new numerics, computed by the same PostgreSQL arithmetic
+the CHECK evaluator uses, so `div` by zero throws an error with code `22012`
+and an overflow `22003`. `compare` and `equals` follow PostgreSQL's order, in
+which NaN equals itself and sorts after every other value; `isNaN`,
+`isInfinite` and `sign` inspect it. The operators `+`, `-`, `<` and `>` throw
+rather than act on the text.
+
+`numeric` and `PgsidNumeric` are exported from the `pgsid/numeric.ts` module
+generated beside the runtime's `pgsid` module, and beside the schema
+declarations, whenever a numeric is used. Each copy of the module accepts
+values made by any other, so a value read through one query can be sent through
+another. The module carries the evaluator's numeric operations, about 50 KB
+when minified.
 
 ## Sending and reading
 
