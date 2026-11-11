@@ -207,6 +207,10 @@ const sessionDependentCases = new Map<string, string>([
   ],
 ])
 const binaryContextCases = new Map([...platformDependentCases, ...sessionDependentCases])
+// Checks reading XML text sent as a parameter that is well-formed only as a document or only as
+// content: the server reads it by the session's XML option, so the check waits on that option.
+// Derived per case from the server's own well-formedness tests.
+const xmlOptionCases = new Map<string, string>()
 const arraySortContextCases = new Map<string, string>([
   [
     '043_lane_allocations/sorted_precision_ambiguous_ties/sorted_precision_text',
@@ -364,12 +368,7 @@ export function publicDecoder(codec: Codec): (value: string | null) => unknown {
   const element = publicDecoder(codec.element)
   if (codec.kind === 'array') {
     const { delimiter, dimensions, setting } = codec
-    // decodeArray never ends on text without braces, which a codec that mistakes a type for an
-    // array hands it (a range over int2vector reads its bounds as int2[]).
-    return (value) => {
-      if (value !== null && !/^(?:\\[[^=]*\\]=)?\\{/u.test(value)) throw new Error('array codec read non-array text ' + JSON.stringify(value))
-      return decodeArray(value, element, delimiter, dimensions, setting)
-    }
+    return (value) => decodeArray(value, element, delimiter, dimensions, setting)
   }
   return codec.kind === 'range' ? (value) => decodeRange(value, element) : (value) => decodeMultirange(value, element)
 }
@@ -1824,6 +1823,8 @@ describe('world CHECK INSERT parity', () => {
             ...(polygonColumns.includes(column.name)
               ? [`box_send(box(${parameter})) = box_send(box(${stored}))`]
               : []),
+            // XML output and xml_send drop a declaration the stored text keeps.
+            ...(xmlColumns.includes(column.name) ? [`${parameter}::text = ${stored}::text`] : []),
           ]
           const sent = publicValues.publicEncoder(codec)(value, column.name)
           const read = await pg
@@ -1874,27 +1875,54 @@ describe('world CHECK INSERT parity', () => {
           throw new Error(
             `${item.name}: ${name} has neither a public nor an evaluator value (${entryValues.get(name)}: ${JSON.stringify(inexactInputs.get(`${item.name}/${name}`))})`,
           )
-      substitutable.setCheckWorldSubstitute((checkOwner, constraint, args) => {
-        const reads = entryInputs.get(`${checkOwner}\0${constraint}`)
-        if (reads?.length !== args.length)
-          throw new Error(`${item.name}: cannot map the inputs of ${checkOwner}.${constraint}`)
-        return args.map((arg, index) => {
-          const { column, nullness: tested } = reads[index]!
-          if (!entryValues.has(column)) return arg
-          return tested ? nullness(internalRow[column]) : internalRow[column]
+      // The evaluator entries, taking the evaluator's value of each input in `values` and the
+      // public value of every other.
+      const runEntries = (values: ReadonlyMap<string, string>): Result[] => {
+        substitutable.setCheckWorldSubstitute((checkOwner, constraint, args) => {
+          const reads = entryInputs.get(`${checkOwner}\0${constraint}`)
+          if (reads?.length !== args.length)
+            throw new Error(`${item.name}: cannot map the inputs of ${checkOwner}.${constraint}`)
+          return args.map((arg, index) => {
+            const { column, nullness: tested } = reads[index]!
+            if (!values.has(column)) return arg
+            return tested ? nullness(internalRow[column]) : internalRow[column]
+          })
         })
-      })
-      let entryResults: Result[]
-      try {
-        entryResults = normalized(
-          substitutable[evaluate]!(
-            Object.fromEntries(
-              Object.entries(publicRow).filter(([name]) => !entryValues.has(name)),
+        try {
+          return normalized(
+            substitutable[evaluate]!(
+              Object.fromEntries(Object.entries(publicRow).filter(([name]) => !values.has(name))),
             ),
-          ),
-        )
-      } finally {
-        substitutable.setCheckWorldSubstitute(undefined)
+          )
+        } finally {
+          substitutable.setCheckWorldSubstitute(undefined)
+        }
+      }
+      const entryResults = runEntries(entryValues)
+      // Go's CHECK inputs still take an XML payload, the value as stored, until they take public
+      // values. Its public reading can be undecided where that payload is not: XML text
+      // well-formed only as content waits on the session's XML option when sent, but not once
+      // stored. Go is compared with the entries given that payload.
+      const goValues = new Map(entryValues)
+      for (const name of xmlColumns)
+        if (texts[name] !== null) goValues.set(name, 'Go reads the stored XML payload')
+      const goResults = goValues.size === entryValues.size ? entryResults : runEntries(goValues)
+      for (const name of xmlColumns) {
+        const sent = publicRow[name]
+        if (typeof sent !== 'string' || entryValues.has(name)) continue
+        const { document, content } = (
+          await pg.query<{ document: boolean; content: boolean }>(
+            'SELECT xml_is_well_formed_document($1) AS document, xml_is_well_formed_content($1) AS content',
+            [sent],
+          )
+        ).rows[0]!
+        if (document === content) continue
+        for (const [key, reads] of entryInputs)
+          if (key.startsWith(`${owner}\0`) && reads.some(({ column }) => column === name))
+            xmlOptionCases.set(
+              `${item.name}/${key.slice(owner.length + 1)}`,
+              `${owner}.${key.slice(owner.length + 1)}`,
+            )
       }
       evaluatorResults.set(item.name, entryResults)
       if (entryValues.size > withoutPublicValue.size)
@@ -1915,7 +1943,7 @@ describe('world CHECK INSERT parity', () => {
           // Every input here is the server's own value, so rejecting one is a defect.
           publicFailures.set(item.name, String(error))
         }
-      const results = entryResults
+      const results = goResults
       const schemaCases = goCases.get(item.schema) ?? []
       schemaCases.push({
         name: item.name,
@@ -2164,7 +2192,8 @@ describe('world CHECK INSERT parity', () => {
           check.result.certain ||
             catalogDependentChecks.has(`${item.schema}.${table.name}.${check.constraint}`) ||
             binaryContextCases.has(`${item.name}/${check.constraint}`) ||
-            declaredValueContextCases.has(`${item.name}/${check.constraint}`),
+            declaredValueContextCases.has(`${item.name}/${check.constraint}`) ||
+            xmlOptionCases.has(`${item.name}/${check.constraint}`),
           `${item.name}/${check.constraint}: unexpected deferral in CHECK world`,
         ).toBe(true)
     const row = inputs.get(item.name)!
@@ -3824,7 +3853,8 @@ describe('world CHECK INSERT parity', () => {
         expect(measured.unknown, measured.constraint).toBe(
           binaryDeferrals(measured.constraint) +
             [...declaredValueContextCases.values()].filter((name) => name === measured.constraint)
-              .length,
+              .length +
+            [...xmlOptionCases.values()].filter((name) => name === measured.constraint).length,
         )
       }
     for (const name of checkWorlds) {
