@@ -24,6 +24,12 @@ import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import type { CatalogSnapshot, ColumnInfo } from '../../src/catalog/types.js'
 import { catalogCheckGroups } from '../../src/sql-semantics/catalog-checks.js'
 import {
+  type TypescriptCodec,
+  typescriptCodec,
+  typescriptCodecSource,
+  withTypescriptJsonValue,
+} from '../../src/codegen/typescript/sql/codecs.js'
+import {
   enumType,
   arrayElementBaseType,
   isRangeType,
@@ -42,7 +48,19 @@ import {
   rangeBoundProfiles,
   arrayElementIdentity,
 } from '../../src/codegen/shared/check-array-types.js'
-import type { RangeInputPayload } from '../../tools/check-rust/range-input.js'
+import { type RangeInputPayload, rangeTypescriptInput } from '../../tools/check-rust/range-input.js'
+import {
+  type OwnedArrayInputPayload,
+  arrayTypescriptInput,
+} from '../../tools/check-rust/array-input.js'
+import { multirangeTypescriptInput } from '../../tools/check-rust/multirange-input.js'
+import { compositeTypescriptInput } from '../../tools/check-rust/composite-input.js'
+import {
+  checkEntryInputs,
+  entryNullness,
+  substitutableChecks,
+  undecidedPublicColumns,
+} from './check-world-entries.js'
 import {
   catalogDateType,
   catalogArrayType,
@@ -322,6 +340,53 @@ for (const world of worlds) {
 }
 
 const checkOracles = new WorldCheckOracles()
+// Built-in types parse to JavaScript values unless told otherwise; other types arrive as text.
+const serverText: Record<number, (value: string) => string> = {}
+for (let oid = 1; oid < 16384; oid++) serverText[oid] = (value) => value
+
+// The generated CHECK API takes public values, the shapes generated queries read from the server's
+// output text. The runner reads each input as a query would, through the generated codecs, and
+// writes the value back the way a query sends it, to tell whether the value is exactly the input.
+const publicValueSource = withTypescriptJsonValue(`${typescriptCodecSource}
+type Codec =
+  | { kind: 'scalar'; name: string }
+  | { kind: 'array'; element: Codec; delimiter: string; dimensions: readonly number[]; setting: string }
+  | { kind: 'range' | 'multirange'; element: Codec }
+  | { kind: 'composite'; fields: readonly { name: string; codec: Codec }[] }
+const scalarDecoders: Record<string, (value: string | null) => unknown> = { Bool: decodeBool, Int: decodeInt, Bigint: decodeBigint, Float: decodeFloat, Float4: decodeFloat4, Numeric: decodeNumeric, Text: decodeText, Bytea: decodeBytea, Json: decodeJson, Date: decodeDate, Timestamp: decodeTimestamp, Timestamptz: decodeTimestamptz, Time: decodeTime, Timetz: decodeTimetz, Interval: decodeInterval, Point: decodePoint, Line: decodeLine, Lseg: decodeLseg, Box: decodeBox, Path: decodePath, Polygon: decodePolygon, Circle: decodeCircle }
+const scalarEncoders: Record<string, (value: unknown, name: string) => string | null> = { Bool: encodeBool, Int: encodeInt, Bigint: encodeBigint, Float: encodeFloat, Float4: encodeFloat4, Numeric: encodeNumeric, Text: encodeText, Bytea: encodeBytea, Json: encodeJson, Date: encodeDate, Timestamp: encodeTimestamp, Timestamptz: encodeTimestamptz, Time: encodeTime, Timetz: encodeTimetz, Interval: encodeInterval, Point: encodePoint, Line: encodeLine, Lseg: encodeLseg, Box: encodeBox, Path: encodePath, Polygon: encodePolygon, Circle: encodeCircle }
+export function publicDecoder(codec: Codec): (value: string | null) => unknown {
+  if (codec.kind === 'scalar') return scalarDecoders[codec.name]!
+  if (codec.kind === 'composite') {
+    const fields = codec.fields.map((field) => [field.name, publicDecoder(field.codec)] as const)
+    return (value) => decodeComposite(value, fields)
+  }
+  const element = publicDecoder(codec.element)
+  if (codec.kind === 'array') {
+    const { delimiter, dimensions, setting } = codec
+    // decodeArray never ends on text without braces, which a codec that mistakes a type for an
+    // array hands it (a range over int2vector reads its bounds as int2[]).
+    return (value) => {
+      if (value !== null && !/^(?:\\[[^=]*\\]=)?\\{/u.test(value)) throw new Error('array codec read non-array text ' + JSON.stringify(value))
+      return decodeArray(value, element, delimiter, dimensions, setting)
+    }
+  }
+  return codec.kind === 'range' ? (value) => decodeRange(value, element) : (value) => decodeMultirange(value, element)
+}
+export function publicEncoder(codec: Codec): (value: unknown, name: string) => string | null {
+  if (codec.kind === 'scalar') return scalarEncoders[codec.name]!
+  if (codec.kind === 'composite') {
+    const fields = codec.fields.map((field) => [field.name, publicEncoder(field.codec)] as const)
+    return (value, name) => encodeComposite(value, fields, name)
+  }
+  const element = publicEncoder(codec.element)
+  if (codec.kind === 'array') {
+    const { delimiter, dimensions } = codec
+    return (value, name) => encodeArray(value, element, delimiter, dimensions, name)
+  }
+  return codec.kind === 'range' ? (value, name) => encodeRange(value, element, name) : (value, name) => encodeMultirange(value, element, name)
+}
+`)
 
 const normalized = (results: Result[]): Result[] =>
   results.map(({ constraint, result, message }) => ({
@@ -350,7 +415,23 @@ describe('world CHECK INSERT parity', () => {
     return ` COLLATE ${name}`
   }
   const inputs = new Map<string, Record<string, unknown>>()
+  // Every case runs the evaluator entries, which Go is compared with and which take the
+  // evaluator's own value of an input without an exact public value. A case whose every input has
+  // one also runs the public CHECK API, compared with the server wherever it decides.
+  const publicCases: string[] = []
+  const internalCases = new Map<string, { reason: string; inputs: Record<string, string> }>()
+  // Inputs whose public value reads back as another value, by case and column.
+  const inexactInputs = new Map<string, { text: string; read: string | { code: string } }>()
+  // Cases where the public CHECK API rejected a value decoded from the server's own output.
+  const publicFailures = new Map<string, string>()
+  // Constraints the public CHECK API leaves undecided where the evaluator entries decide.
+  const publicDeferrals = new Map<string, string>()
+  // Cases with an exact public value of every input where the entries Go is compared with take
+  // the evaluator's value of some inputs anyway, and why.
+  const entryOnlyInputs = new Map<string, string[]>()
+  // Each case's results from the public CHECK API and from the evaluator entries.
   const typescriptResults = new Map<string, Result[]>()
+  const evaluatorResults = new Map<string, Result[]>()
   const goCases = new Map<string, GoCheckCase[]>()
   const coverage = new Map<
     string,
@@ -575,6 +656,8 @@ describe('world CHECK INSERT parity', () => {
       'dir',
     )
     await writeFile(join(directory, 'checks.ts'), ts.checks)
+    await writeFile(join(directory, 'public-values.ts'), publicValueSource)
+    await writeFile(join(directory, 'checks-substitutable.ts'), substitutableChecks(ts.checks))
     for (const artifact of checkTypescriptArtifacts(ts.rustFiles!)) {
       const path = join(directory, 'checks-rust', artifact.path)
       await mkdir(dirname(path), { recursive: true })
@@ -593,17 +676,51 @@ describe('world CHECK INSERT parity', () => {
       '--outDir',
       join(directory, 'js'),
       join(directory, 'checks.ts'),
+      join(directory, 'public-values.ts'),
+      join(directory, 'checks-substitutable.ts'),
     ]).catch((error: { stdout: string; stderr: string }) => {
       throw new Error(error.stdout + error.stderr, { cause: error })
     })
     await progress('typescript-load')
     generated = await import(pathToFileURL(join(directory, 'js/checks.js')).href)
-    const jsonbRuntime = await import(
+    const publicValues = (await import(
+      pathToFileURL(join(directory, 'js/public-values.js')).href
+    )) as {
+      publicDecoder(codec: TypescriptCodec): (value: string | null) => unknown
+      publicEncoder(codec: TypescriptCodec): (value: unknown, name: string) => string | null
+    }
+    // The same checks with each evaluator entry call open to substituted inputs.
+    const substitutable = (await import(
+      pathToFileURL(join(directory, 'js/checks-substitutable.js')).href
+    )) as Record<string, (row: Record<string, unknown>) => Result[]> & {
+      setCheckWorldSubstitute(
+        substitute: ((owner: string, constraint: string, args: unknown[]) => unknown[]) | undefined,
+      ): void
+    }
+    const entryInputs = checkEntryInputs(ts.checks)
+    const undecidedColumns = undecidedPublicColumns(ts.checks)
+    const runtime = await import(
       pathToFileURL(join(directory, 'js/checks-rust/checkruntime/runtime.js')).href
     )
-    const jsonpathOperations = await import(
+    const operations = await import(
       pathToFileURL(join(directory, 'js/checks-rust/pg_catalog/operations.js')).href
     )
+    const nullness = entryNullness(runtime)
+    // Each column type's binary output function, which shows bits its text may not.
+    const sendFunctions = new Map<string, ((value: string) => string) | null>()
+    const NULL = { kind: 'Null' }
+    // A captured array leaves its NULL bitmap open, as the Go fixture does.
+    type BitmapArray = { elements: unknown[]; nullBitmap?: unknown }
+    const withNullBitmap = <T extends BitmapArray>(payload: T): T & OwnedArrayInputPayload =>
+      ({
+        ...payload,
+        nullBitmap: payload.nullBitmap ?? { kind: 'Unknown' },
+        elements: payload.elements.map((cell) =>
+          (cell as { kind: string }).kind === 'Array'
+            ? { kind: 'Array', value: withNullBitmap((cell as { value: BitmapArray }).value) }
+            : cell,
+        ),
+      }) as unknown as T & OwnedArrayInputPayload
     for (const artifact of go.artifacts) {
       await mkdir(dirname(artifact.path), { recursive: true })
       await writeFile(artifact.path, artifact.content)
@@ -686,7 +803,6 @@ describe('world CHECK INSERT parity', () => {
             catalogPointType(column.typeName, column.typeOid, catalog.domains),
         )
         .map((column) => column.name)
-      const portableRow = { ...row }
       const lineColumns = table.columns
         .filter(
           (column) =>
@@ -878,6 +994,8 @@ describe('world CHECK INSERT parity', () => {
         )
         .map((column) => column.name)
       const goRow = { ...row }
+      // The evaluator's own value of each input the generated code converts from a payload.
+      const internalRow: Record<string, unknown> = {}
       for (const [family, names] of [
         ['time', timeColumns],
         ['timetz', timetzColumns],
@@ -904,8 +1022,15 @@ describe('world CHECK INSERT parity', () => {
                   ? { time, zone: bytes.readInt32BE(8) }
                   : { time, days: bytes.readInt32BE(8), months: bytes.readInt32BE(12) }
           }
-          portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
           goRow[name] = payload
+          internalRow[name] =
+            payload === null
+              ? NULL
+              : typeof payload === 'bigint'
+                ? runtime.makeTimeValue(payload)
+                : 'zone' in payload
+                  ? runtime.makeTimetzValue(payload.time, payload.zone)
+                  : runtime.makeIntervalValue(payload.months, payload.days, payload.time)
         }
       }
       for (const name of xidColumns) {
@@ -916,8 +1041,8 @@ describe('world CHECK INSERT parity', () => {
         ).rows[0]!.binary
         const bytes = hex === null ? null : Buffer.from(hex, 'hex')
         const payload = bytes === null ? null : BigInt(bytes.readUInt32BE())
-        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
         goRow[name] = payload
+        internalRow[name] = payload === null ? NULL : runtime.makeXidValue(payload)
       }
       for (const name of cidColumns) {
         const hex = (
@@ -927,8 +1052,8 @@ describe('world CHECK INSERT parity', () => {
         ).rows[0]!.binary
         const bytes = hex === null ? null : Buffer.from(hex, 'hex')
         const payload = bytes === null ? null : BigInt(bytes.readUInt32BE())
-        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
         goRow[name] = payload
+        internalRow[name] = payload === null ? NULL : runtime.makeCidValue(payload)
       }
       for (const name of internalCharColumns) {
         const hex = (
@@ -938,8 +1063,8 @@ describe('world CHECK INSERT parity', () => {
         ).rows[0]!.binary
         const bytes = hex === null ? null : Buffer.from(hex, 'hex')
         const payload = bytes === null ? null : bytes.readUInt8(0)
-        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
         goRow[name] = payload
+        internalRow[name] = payload === null ? NULL : runtime.makeInternalCharValue(payload)
       }
       for (const name of tidColumns) {
         const hex = (
@@ -949,8 +1074,8 @@ describe('world CHECK INSERT parity', () => {
         ).rows[0]!.binary
         const bytes = hex === null ? null : Buffer.from(hex, 'hex')
         const payload = bytes === null ? null : bytes.readUIntBE(0, 6)
-        portableRow[name] = payload === null ? null : { kind: 'Value', value: BigInt(payload) }
         goRow[name] = payload === null ? null : BigInt(payload)
+        internalRow[name] = payload === null ? NULL : runtime.makeTidValue(BigInt(payload))
       }
       for (const name of pgLsnColumns) {
         const hex = (
@@ -960,8 +1085,8 @@ describe('world CHECK INSERT parity', () => {
         ).rows[0]!.binary
         const bytes = hex === null ? null : Buffer.from(hex, 'hex')
         const payload = bytes === null ? null : bytes.readBigInt64BE()
-        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
         goRow[name] = payload
+        internalRow[name] = payload === null ? NULL : runtime.makePgLsnBits(payload)
       }
       for (const name of xid8Columns) {
         const hex = (
@@ -971,8 +1096,8 @@ describe('world CHECK INSERT parity', () => {
         ).rows[0]!.binary
         const bytes = hex === null ? null : Buffer.from(hex, 'hex')
         const payload = bytes === null ? null : bytes.readBigInt64BE()
-        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
         goRow[name] = payload
+        internalRow[name] = payload === null ? NULL : runtime.makeXid8Bits(payload)
       }
       for (const name of vectorColumns) {
         const column = table.columns.find((column) => column.name === name)!
@@ -985,8 +1110,8 @@ describe('world CHECK INSERT parity', () => {
           )
         ).rows[0]!.wire
         const value = decodeCatalogVector(wire, oid)
-        portableRow[name] = value.kind === 'Null' ? null : value
         goRow[name] = value.kind === 'Null' ? null : value
+        internalRow[name] = value.kind === 'Null' ? NULL : runtime.makeArrayValue(value.value)
       }
       for (const name of arrayColumns) {
         const column = table.columns.find((column) => column.name === name)!
@@ -1006,8 +1131,9 @@ describe('world CHECK INSERT parity', () => {
             name,
             type.slice(6),
           )
-          portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
           goRow[name] = payload === null ? null : { value: payload }
+          internalRow[name] =
+            payload === null ? NULL : runtime.makeArrayValue(arrayTypescriptInput(payload, runtime))
           continue
         }
         const profiles: Record<string, { kind: string; family: number }> = {
@@ -1093,8 +1219,8 @@ describe('world CHECK INSERT parity', () => {
           )
         ).rows[0]!.value
         if (captured === null) {
-          portableRow[name] = null
           goRow[name] = null
+          internalRow[name] = NULL
           continue
         }
         const nestedBounds = new Map<string, Awaited<ReturnType<typeof readRangeBoundCell>>>()
@@ -1172,7 +1298,7 @@ describe('world CHECK INSERT parity', () => {
             }
           }
           return carrier === 'pg_catalog.jsonb' && bound !== null
-            ? jsonbRuntime.arrayElementFromJsonb(jsonbRuntime.makeJsonbValue(bound))
+            ? runtime.arrayElementFromJsonb(runtime.makeJsonbValue(bound))
             : rangeBoundCell(carrier, bound)
         }
         const convert = (
@@ -1254,17 +1380,11 @@ describe('world CHECK INSERT parity', () => {
                           ? text === 'true'
                           : text
             if (portable && profile.kind === 'Enum')
-              return jsonbRuntime.arrayElementFromEnum(
-                jsonbRuntime.makeEnumValue(payload as number),
-              )
+              return runtime.arrayElementFromEnum(runtime.makeEnumValue(payload as number))
             if (portable && profile.kind === 'Json')
-              return jsonbRuntime.arrayElementFromJson(
-                jsonbRuntime.makeJsonValue(payload as string),
-              )
+              return runtime.arrayElementFromJson(runtime.makeJsonValue(payload as string))
             if (portable && profile.kind === 'Jsonb')
-              return jsonbRuntime.arrayElementFromJsonb(
-                jsonbRuntime.makeJsonbValue(payload as string),
-              )
+              return runtime.arrayElementFromJsonb(runtime.makeJsonbValue(payload as string))
             return { kind: profile.kind, value: payload }
           })
           return {
@@ -1277,8 +1397,10 @@ describe('world CHECK INSERT parity', () => {
             },
           }
         }
-        portableRow[name] = convert(captured, type, true)
         goRow[name] = convert(captured, type, false)
+        internalRow[name] = runtime.makeArrayValue(
+          arrayTypescriptInput(withNullBitmap(convert(captured, type, true).value), runtime),
+        )
       }
       for (const name of xmlColumns) {
         const encoded = (
@@ -1287,8 +1409,8 @@ describe('world CHECK INSERT parity', () => {
           )
         ).rows[0]!.source
         const source = encoded === null ? null : Buffer.from(encoded, 'hex').toString('utf8')
-        portableRow[name] = source === null ? null : jsonbRuntime.makeXmlValue(source)
         goRow[name] = source
+        internalRow[name] = source === null ? NULL : runtime.makeXmlValue(source)
       }
       for (const name of jsonpathColumns) {
         const source = (
@@ -1296,11 +1418,9 @@ describe('world CHECK INSERT parity', () => {
             `SELECT ${quote(name)}::text AS source FROM (SELECT ${expressions.join(',')}) candidate`,
           )
         ).rows[0]!.source
-        portableRow[name] =
-          source === null
-            ? null
-            : jsonpathOperations.jsonpathFromStoredText(jsonbRuntime.makeTextValue(source))
         goRow[name] = source
+        internalRow[name] =
+          source === null ? NULL : operations.jsonpathFromStoredText(runtime.makeTextValue(source))
       }
       for (const name of jsonbColumns) {
         const source = (
@@ -1308,8 +1428,8 @@ describe('world CHECK INSERT parity', () => {
             `SELECT ${quote(name)}::text AS source FROM (SELECT ${expressions.join(',')}) candidate`,
           )
         ).rows[0]!.source
-        portableRow[name] = source === null ? null : jsonbRuntime.makeJsonbValue(source)
         goRow[name] = source
+        internalRow[name] = source === null ? NULL : runtime.makeJsonbValue(source)
       }
       for (const name of jsonColumns) {
         const source = (
@@ -1317,8 +1437,8 @@ describe('world CHECK INSERT parity', () => {
             `SELECT ${quote(name)}::text AS source FROM (SELECT ${expressions.join(',')}) candidate`,
           )
         ).rows[0]!.source
-        portableRow[name] = source === null ? null : { kind: 'Value', value: { source } }
         goRow[name] = source
+        internalRow[name] = source === null ? NULL : runtime.makeJsonValue(source)
       }
       for (const name of snapshotColumns) {
         const column = table.columns.find((column) => column.name === name)!
@@ -1344,8 +1464,8 @@ describe('world CHECK INSERT parity', () => {
             })),
           }
         }
-        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
         goRow[name] = payload
+        internalRow[name] = payload === null ? NULL : runtime.makeSnapshotValue(payload)
       }
       for (const name of oidColumns) {
         const hex = (
@@ -1355,8 +1475,8 @@ describe('world CHECK INSERT parity', () => {
         ).rows[0]!.binary
         const bytes = hex === null ? null : Buffer.from(hex, 'hex')
         const payload = bytes === null ? null : BigInt(bytes.readUInt32BE())
-        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
         goRow[name] = payload
+        internalRow[name] = payload === null ? NULL : runtime.makeOidValue(payload)
       }
       for (const name of moneyColumns) {
         const hex = (
@@ -1366,8 +1486,8 @@ describe('world CHECK INSERT parity', () => {
         ).rows[0]!.binary
         const bytes = hex === null ? null : Buffer.from(hex, 'hex')
         const payload = bytes === null ? null : bytes.readBigInt64BE()
-        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
         goRow[name] = payload
+        internalRow[name] = payload === null ? NULL : runtime.makeMoneyValue(payload)
       }
       for (const name of polygonColumns) {
         const selected = (
@@ -1397,8 +1517,19 @@ describe('world CHECK INSERT parity', () => {
             },
           }
         }
-        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
         goRow[name] = payload
+        internalRow[name] =
+          payload === null
+            ? NULL
+            : runtime.makePolygonValue({
+                points: payload.points.map((point) => ({ ...point, wireKnown: true })),
+                bounds: runtime.makeBoxBits(
+                  payload.bounds.highX,
+                  payload.bounds.highY,
+                  payload.bounds.lowX,
+                  payload.bounds.lowY,
+                ),
+              })
       }
       for (const name of multirangeColumns) {
         const column = table.columns.find((column) => column.name === name)!
@@ -1414,8 +1545,11 @@ describe('world CHECK INSERT parity', () => {
           )
         ).rows[0]!.value
         const payload = await readMultirangeFixture(pg, type, text)
-        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
         goRow[name] = payload
+        internalRow[name] =
+          payload === null
+            ? NULL
+            : runtime.makeCoercedMultirangeValue(multirangeTypescriptInput(payload, runtime))
       }
       for (const name of compositeColumns) {
         const column = table.columns.find((column) => column.name === name)!
@@ -1430,8 +1564,11 @@ describe('world CHECK INSERT parity', () => {
           name,
           type,
         )
-        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
         goRow[name] = payload
+        internalRow[name] =
+          payload === null
+            ? NULL
+            : runtime.makeCompositeValue(compositeTypescriptInput(payload, runtime))
       }
       for (const name of rangeColumns) {
         const column = table.columns.find((column) => column.name === name)!
@@ -1442,24 +1579,11 @@ describe('world CHECK INSERT parity', () => {
           catalog.rangeTypes,
         )!
         const payload = await readRangeFixture(pg, `SELECT ${expressions.join(',')}`, name, type)
-        const bound = (cell: NonNullable<typeof payload>['bounds'][number]) =>
-          cell.kind === 'Int8' ? cell.value : null
-        // TypeScript takes an int8range as its public value; Go still takes the payload.
-        portableRow[name] =
-          payload === null
-            ? null
-            : payload.typeName === 'pg_catalog.int8range'
-              ? payload.empty
-                ? { empty: true }
-                : {
-                    empty: false,
-                    lower: bound(payload.bounds[0]!),
-                    upper: bound(payload.bounds[1]!),
-                    lowerInclusive: payload.lowerInclusive,
-                    upperInclusive: payload.upperInclusive,
-                  }
-              : { kind: 'Value', value: payload }
         goRow[name] = payload
+        internalRow[name] =
+          payload === null
+            ? NULL
+            : runtime.makeCoercedRangeValue(rangeTypescriptInput(payload, runtime))
       }
       for (const name of pathColumns) {
         const hex = (
@@ -1475,8 +1599,14 @@ describe('world CHECK INSERT parity', () => {
             points.push({ x: bytes.readBigInt64BE(offset), y: bytes.readBigInt64BE(offset + 8) })
           payload = { closed: bytes[0] === 1, points }
         }
-        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
         goRow[name] = payload
+        internalRow[name] =
+          payload === null
+            ? NULL
+            : runtime.makePathValue({
+                closed: payload.closed,
+                points: payload.points.map((point) => ({ ...point, wireKnown: true })),
+              })
       }
       for (const name of circleColumns) {
         const hex = (
@@ -1493,8 +1623,9 @@ describe('world CHECK INSERT parity', () => {
                 y: bytes.readBigInt64BE(8),
                 radius: bytes.readBigInt64BE(16),
               }
-        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
         goRow[name] = payload
+        internalRow[name] =
+          payload === null ? NULL : runtime.makeCircleBits(payload.x, payload.y, payload.radius)
       }
       for (const name of boxColumns) {
         const hex = (
@@ -1512,8 +1643,11 @@ describe('world CHECK INSERT parity', () => {
                 lowX: bytes.readBigInt64BE(16),
                 lowY: bytes.readBigInt64BE(24),
               }
-        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
         goRow[name] = payload
+        internalRow[name] =
+          payload === null
+            ? NULL
+            : runtime.makeBoxBits(payload.highX, payload.highY, payload.lowX, payload.lowY)
       }
       for (const name of lsegColumns) {
         const hex = (
@@ -1531,8 +1665,11 @@ describe('world CHECK INSERT parity', () => {
                 x2: bytes.readBigInt64BE(16),
                 y2: bytes.readBigInt64BE(24),
               }
-        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
         goRow[name] = payload
+        internalRow[name] =
+          payload === null
+            ? NULL
+            : runtime.makeLsegBits(payload.x1, payload.y1, payload.x2, payload.y2)
       }
       for (const name of lineColumns) {
         const hex = (
@@ -1545,8 +1682,9 @@ describe('world CHECK INSERT parity', () => {
           bytes === null
             ? null
             : { a: bytes.readBigInt64BE(), b: bytes.readBigInt64BE(8), c: bytes.readBigInt64BE(16) }
-        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
         goRow[name] = payload
+        internalRow[name] =
+          payload === null ? NULL : runtime.makeStoredLineBits(payload.a, payload.b, payload.c)
       }
       for (const name of pointColumns) {
         const hex = (
@@ -1557,8 +1695,8 @@ describe('world CHECK INSERT parity', () => {
         const bytes = hex === null ? null : Buffer.from(hex, 'hex')
         const payload =
           bytes === null ? null : { x: bytes.readBigInt64BE(), y: bytes.readBigInt64BE(8) }
-        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
         goRow[name] = payload
+        internalRow[name] = payload === null ? NULL : runtime.makePointBits(payload.x, payload.y)
       }
       for (const name of floatColumns) {
         const column = table.columns.find((column) => column.name === name)!
@@ -1575,8 +1713,13 @@ describe('world CHECK INSERT parity', () => {
             : single
               ? Buffer.from(hex, 'hex').readInt32BE()
               : Buffer.from(hex, 'hex').readBigInt64BE()
-        portableRow[name] = bits === null ? null : { kind: 'Value', value: bits }
         goRow[name] = bits === null ? null : { bits, single }
+        internalRow[name] =
+          bits === null
+            ? NULL
+            : single
+              ? runtime.makeFloat4Bits(Number(bits))
+              : runtime.makeFloat8Bits(BigInt(bits))
       }
       for (const name of numericColumns) {
         const value = (
@@ -1584,8 +1727,8 @@ describe('world CHECK INSERT parity', () => {
             `SELECT ${quote(name)}::text AS value FROM (SELECT ${expressions.join(',')}) candidate`,
           )
         ).rows[0]!.value
-        portableRow[name] = value
         goRow[name] = value
+        internalRow[name] = value === null ? NULL : runtime.makeNumericValue(value)
       }
       for (const name of dateColumns) {
         const hex = (
@@ -1594,8 +1737,8 @@ describe('world CHECK INSERT parity', () => {
           )
         ).rows[0]!.binary
         const days = hex === null ? null : Buffer.from(hex, 'hex').readInt32BE()
-        portableRow[name] = days === null ? { kind: 'Null' } : { kind: 'Value', value: days }
         goRow[name] = days
+        internalRow[name] = days === null ? NULL : runtime.makeStoredDateValue(days)
       }
       for (const name of timestampColumns) {
         const hex = (
@@ -1604,8 +1747,8 @@ describe('world CHECK INSERT parity', () => {
           )
         ).rows[0]!.binary
         const micros = hex === null ? null : Buffer.from(hex, 'hex').readBigInt64BE()
-        portableRow[name] = micros === null ? { kind: 'Null' } : { kind: 'Value', value: micros }
         goRow[name] = micros
+        internalRow[name] = micros === null ? NULL : runtime.makeStoredTimestampValue(micros)
       }
       for (const name of timestamptzColumns) {
         const hex = (
@@ -1614,13 +1757,165 @@ describe('world CHECK INSERT parity', () => {
           )
         ).rows[0]!.binary
         const micros = hex === null ? null : Buffer.from(hex, 'hex').readBigInt64BE()
-        portableRow[name] = micros === null ? { kind: 'Null' } : { kind: 'Value', value: micros }
         goRow[name] = micros
+        internalRow[name] = micros === null ? NULL : runtime.makeStoredTimestamptzValue(micros)
       }
-      const results = normalized(
-        generated[`evaluate${typeName(table.schema + '_' + table.name)}Checks`]!(portableRow),
-      )
-      typescriptResults.set(item.name, results)
+      // Each input as a generated query reads it: the server's output text, unparsed.
+      const inputColumns = table.columns.filter((column) => column.generated === 'none')
+      const texts = (
+        await pg.query<Record<string, string | null>>(`SELECT ${expressions.join(',')}`, [], {
+          parsers: serverText,
+        })
+      ).rows[0]!
+      const publicRow: Record<string, unknown> = {}
+      // The inputs without an exact public value, and why.
+      const withoutPublicValue = new Map<string, string>()
+      for (const column of inputColumns) {
+        const codec = typescriptCodec(column.typeName, catalog)
+        const text = texts[column.name]!
+        let value: unknown
+        try {
+          value = publicValues.publicDecoder(codec)(text)
+        } catch (error) {
+          const message = (error as Error).message
+          withoutPublicValue.set(
+            column.name,
+            /array of \d+ dimensions/u.test(message)
+              ? 'array of more dimensions than declared'
+              : `server output the public decoder rejects: ${message}`,
+          )
+          continue
+        }
+        if (text !== null) {
+          // The value as a query sends it, read by the parameter's own type: exact when the server
+          // prints it and sends it as it does the stored value. A polygon also keeps the bounding
+          // box it was built with, which neither form carries.
+          let send = sendFunctions.get(column.typeName)
+          if (send === undefined) {
+            // A domain's value goes to its base type's send function as that base type, and a
+            // value whose send function takes a type of its own, as refcursor's textsend takes
+            // text, is cast to that type.
+            const found = (
+              await pg.query<{ send: string; argument: string }>(
+                `WITH RECURSIVE chain AS (
+                  SELECT oid, typtype, typbasetype FROM pg_catalog.pg_type WHERE oid = $1::regtype
+                  UNION ALL
+                  SELECT t.oid, t.typtype, t.typbasetype
+                  FROM pg_catalog.pg_type t JOIN chain c ON t.oid = c.typbasetype
+                  WHERE c.typtype = 'd'
+                )
+                SELECT p.oid::regproc::text AS send,
+                  format_type(CASE WHEN a.typtype = 'p' THEN b.oid ELSE a.oid END, NULL) AS argument
+                FROM chain b
+                JOIN pg_catalog.pg_type t ON t.oid = b.oid
+                JOIN pg_catalog.pg_proc p ON p.oid = t.typsend
+                JOIN pg_catalog.pg_type a ON a.oid = p.proargtypes[0]
+                WHERE b.typtype <> 'd'`,
+                [column.typeName],
+              )
+            ).rows[0]
+            send = found ? (value: string) => `${found.send}((${value})::${found.argument})` : null
+            sendFunctions.set(column.typeName, send)
+          }
+          const parameter = `$1::${column.typeName}`
+          const stored = quote(column.name)
+          const sameness = [
+            ...(send ? [`${send(parameter)} = ${send(stored)}`] : []),
+            ...(polygonColumns.includes(column.name)
+              ? [`box_send(box(${parameter})) = box_send(box(${stored}))`]
+              : []),
+          ]
+          const sent = publicValues.publicEncoder(codec)(value, column.name)
+          const read = await pg
+            .query<{ text: string; same: string }>(
+              `SELECT ${parameter} AS text, (${sameness.length ? sameness.join(' AND ') : 'true'})::text AS same FROM (SELECT ${expressions.join(',')}) candidate`,
+              [sent],
+              { parsers: serverText, serializers: serverText },
+            )
+            .then(
+              (result) => result.rows[0]!,
+              (error: { code: string }) => ({ code: error.code }),
+            )
+          if (!('text' in read) || read.text !== text || read.same !== 'true') {
+            withoutPublicValue.set(
+              column.name,
+              'code' in read
+                ? `server rejects its own output as input with ${read.code}`
+                : codec.kind === 'array' && /\[-?\d+:-?\d+\]/u.test(text)
+                  ? 'array with lower bounds other than 1'
+                  : read.text === text
+                    ? 'public value reads back as the same text but another stored value'
+                    : 'public value reads back as another value',
+            )
+            inexactInputs.set(`${item.name}/${column.name}`, {
+              text,
+              read: 'code' in read ? read : read.text,
+            })
+            continue
+          }
+        }
+        publicRow[column.name] = value
+      }
+      const evaluate = `evaluate${typeName(table.schema + '_' + table.name)}Checks`
+      // Go reads its payload of each input. The evaluator entries take the evaluator's value of an
+      // input without an exact public value, of one whose public reading the generated converter
+      // leaves undecided, and of an OID alias, whose public text names a catalog object; the public
+      // API reads every other input, which is then the same value.
+      const owner = `${table.schema}.${table.name}`
+      const entryValues = new Map(withoutPublicValue)
+      for (const column of inputColumns)
+        if (texts[column.name] !== null && !entryValues.has(column.name))
+          if (undecidedColumns.has(`${owner}\0${column.name}`))
+            entryValues.set(column.name, 'public converter leaves the column type undecided')
+          else if (oidColumns.includes(column.name))
+            entryValues.set(column.name, 'OID alias read by its catalog name')
+      for (const name of entryValues.keys())
+        if (!Object.hasOwn(internalRow, name))
+          throw new Error(
+            `${item.name}: ${name} has neither a public nor an evaluator value (${entryValues.get(name)}: ${JSON.stringify(inexactInputs.get(`${item.name}/${name}`))})`,
+          )
+      substitutable.setCheckWorldSubstitute((checkOwner, constraint, args) => {
+        const reads = entryInputs.get(`${checkOwner}\0${constraint}`)
+        if (reads?.length !== args.length)
+          throw new Error(`${item.name}: cannot map the inputs of ${checkOwner}.${constraint}`)
+        return args.map((arg, index) => {
+          const { column, nullness: tested } = reads[index]!
+          if (!entryValues.has(column)) return arg
+          return tested ? nullness(internalRow[column]) : internalRow[column]
+        })
+      })
+      let entryResults: Result[]
+      try {
+        entryResults = normalized(
+          substitutable[evaluate]!(
+            Object.fromEntries(
+              Object.entries(publicRow).filter(([name]) => !entryValues.has(name)),
+            ),
+          ),
+        )
+      } finally {
+        substitutable.setCheckWorldSubstitute(undefined)
+      }
+      evaluatorResults.set(item.name, entryResults)
+      if (entryValues.size > withoutPublicValue.size)
+        entryOnlyInputs.set(
+          item.name,
+          [...entryValues].filter(([name]) => !withoutPublicValue.has(name)).map(([, why]) => why),
+        )
+      if (withoutPublicValue.size)
+        internalCases.set(item.name, {
+          reason: [...new Set(withoutPublicValue.values())].sort().join('; '),
+          inputs: Object.fromEntries(withoutPublicValue),
+        })
+      else
+        try {
+          typescriptResults.set(item.name, normalized(generated[evaluate]!(publicRow)))
+          publicCases.push(item.name)
+        } catch (error) {
+          // Every input here is the server's own value, so rejecting one is a defect.
+          publicFailures.set(item.name, String(error))
+        }
+      const results = entryResults
       const schemaCases = goCases.get(item.schema) ?? []
       schemaCases.push({
         name: item.name,
@@ -1686,13 +1981,14 @@ describe('world CHECK INSERT parity', () => {
   })
 
   it.runIf(worlds.some((world) => world.name === '027_survey_positions'))(
-    'rejects malformed and oversized portable point payloads and defers an unsupplied one',
+    'rejects malformed point values and internal payloads and defers an unsupplied one',
     () => {
       const table = catalog.tables.find(
         (table) => table.schema === 'world_027_survey_positions' && table.name === 'survey_matches',
       )!
       const evaluate = generated[`evaluate${typeName(table.schema + '_' + table.name)}Checks`]!
-      const valid = { kind: 'Value', value: { x: 0n, y: 0n } }
+      // A point's public value is its exact float coordinates.
+      const valid = { x: 0, y: 0 }
       const baseline = {
         candidate_point: valid,
         reference_point: valid,
@@ -1706,9 +2002,15 @@ describe('world CHECK INSERT parity', () => {
         expect(result.result.certain, result.constraint).toBe(false)
         expect(result.message, result.constraint).toBeTruthy()
       }
+      // Text, partial or non-number coordinates and the evaluator's payloads are not points.
       for (const candidate of [
         '(0,0)',
         {},
+        { x: 0 },
+        { x: 0, y: '0' },
+        { x: 0n, y: 0n },
+        [0, 0],
+        { kind: 'Value', value: { x: 0n, y: 0n } },
         { kind: 'Invalid' },
         { kind: 'Value', value: null },
         { kind: 'Value', value: { x: 0, y: 0 } },
@@ -1749,31 +2051,43 @@ describe('world CHECK INSERT parity', () => {
   )
 
   it.runIf(worlds.some((world) => world.name === '027_survey_positions'))(
-    'retains point semantics when computed NaN wire bits are unavailable',
-    () => {
+    'compares a public NaN coordinate as the server reads it, deferring only its NaN bits',
+    async () => {
       const table = catalog.tables.find(
         (table) => table.schema === 'world_027_survey_positions' && table.name === 'survey_matches',
       )!
       const evaluate = generated[`evaluate${typeName(table.schema + '_' + table.name)}Checks`]!
-      const point = { kind: 'Value', value: { x: 0x7ff8000000000000n, y: 0n, wireKnown: false } }
-      const results = Object.fromEntries(
-        normalized(
-          evaluate({
-            candidate_point: point,
-            reference_point: point,
-            recorded_match: true,
-            choose_candidate: true,
-            recorded_selection: new Uint8Array(16),
-            recorded_coalesced: new Uint8Array(16),
-            skip_validation: false,
-          }),
-        ).map(({ constraint, result }) => [constraint, result]),
-      )
-      expect(results).toEqual({
+      // A public NaN coordinate carries no wire bits: the server spells its own NaN for it, so a
+      // wire comparison decides where any NaN differs and stays open where only its bits could.
+      const point = { x: NaN, y: 0 }
+      const serverBytes = (
+        await pg.query<{ wire: Uint8Array }>("SELECT point_send(point('NaN'::float8, 0)) AS wire")
+      ).rows[0]!.wire
+      const evaluated = (recorded: Uint8Array) =>
+        Object.fromEntries(
+          normalized(
+            evaluate({
+              candidate_point: point,
+              reference_point: point,
+              recorded_match: true,
+              choose_candidate: true,
+              recorded_selection: recorded,
+              recorded_coalesced: recorded,
+              skip_validation: false,
+            }),
+          ).map(({ constraint, result }) => [constraint, result]),
+        )
+      expect(evaluated(new Uint8Array(16))).toEqual({
         survey_same_position: { certain: true, value: true },
-        survey_selection: { certain: false },
-        survey_coalesced: { certain: false },
+        survey_selection: { certain: true, value: false },
+        survey_coalesced: { certain: true, value: false },
       })
+      const sameBits = evaluated(serverBytes)
+      expect(sameBits['survey_same_position']).toEqual({ certain: true, value: true })
+      for (const name of ['survey_selection', 'survey_coalesced'])
+        expect([{ certain: false }, { certain: true, value: true }], name).toContainEqual(
+          sameBits[name],
+        )
     },
   )
 
@@ -1838,7 +2152,12 @@ describe('world CHECK INSERT parity', () => {
     expect((await pg.query<{ schema: string }>('SELECT current_schema() AS schema')).rows).toEqual([
       { schema: item.schema },
     ])
-    const results = typescriptResults.get(item.name)!
+    const results = evaluatorResults.get(item.name)!
+    const publicResults = typescriptResults.get(item.name)
+    if (publicResults)
+      expect(publicResults.map(({ constraint }) => constraint)).toEqual(
+        results.map(({ constraint }) => constraint),
+      )
     if (checkWorlds.has(item.name.split('/')[0]!))
       for (const check of results)
         expect(
@@ -1920,6 +2239,22 @@ describe('world CHECK INSERT parity', () => {
         oracleError ? 'error' : expected === null ? 'null' : expected ? 'true' : 'false'
       ]++
       oracleResults.push({ constraint, result, message, postgres: expected })
+      // The public CHECK API decides as the server does wherever it decides; where it defers and
+      // the evaluator entry decides, the deferral is counted.
+      const publicCheck = publicResults?.find((candidate) => candidate.constraint === constraint)
+      if (publicCheck?.result.certain)
+        expect(
+          publicCheck.result,
+          `${item.name}/${constraint}: public CHECK API differs from PostgreSQL`,
+        ).toEqual(
+          oracleError ? { certain: true, error: oracleError } : { certain: true, value: expected },
+        )
+      else if (publicCheck) {
+        expect(publicCheck.message, `${item.name}/${constraint}: missing diagnostic`).toEqual(
+          expect.any(String),
+        )
+        if (result.certain) publicDeferrals.set(`${item.name}/${constraint}`, publicCheck.message!)
+      }
       if (!result.certain) {
         expect(message, `${item.name}/${constraint}: missing diagnostic`).toEqual(
           expect.any(String),
@@ -1928,7 +2263,10 @@ describe('world CHECK INSERT parity', () => {
         unknownComparisons++
         continue
       }
-      expect(result, `${item.name}/${constraint}: generated CHECK differs from PostgreSQL`).toEqual(
+      expect(
+        result,
+        `${item.name}/${constraint}: generated CHECK evaluator entry differs from PostgreSQL`,
+      ).toEqual(
         oracleError ? { certain: true, error: oracleError } : { certain: true, value: expected },
       )
       if (oracleError) {
@@ -3527,6 +3865,35 @@ describe('world CHECK INSERT parity', () => {
     )
     console.table(worldStats)
     console.info('Detailed CHECK results:', join(reportDirectory, 'report.json'))
+    // Which path each case took, and why a case has no exact public value.
+    const internalReasons: Record<string, number> = {}
+    for (const { reason } of internalCases.values())
+      internalReasons[reason] = (internalReasons[reason] ?? 0) + 1
+    await writeFile(
+      join(reportDirectory, 'public-values.json'),
+      JSON.stringify(
+        {
+          publicCases: publicCases.length,
+          internalCases: internalCases.size,
+          internalReasons,
+          cases: Object.fromEntries(internalCases),
+          inexactInputs: Object.fromEntries(inexactInputs),
+          publicFailures: Object.fromEntries(publicFailures),
+          publicDeferrals: Object.fromEntries(publicDeferrals),
+          entryOnlyInputs: Object.fromEntries(entryOnlyInputs),
+        },
+        null,
+        2,
+      ) + '\n',
+    )
+    console.info(
+      `CHECK inputs: ${publicCases.length} cases through the public API and the evaluator entries, ${internalCases.size} through the entries only, ${entryOnlyInputs.size} public cases whose entries take some evaluator values for Go, ${publicDeferrals.size} constraints the public API defers where the entries decide:`,
+      internalReasons,
+      join(reportDirectory, 'public-values.json'),
+    )
+    expect(publicCases.length + internalCases.size).toBe(cases.length)
+    // Every value here is the server's own output, which the public API must accept.
+    expect(Object.fromEntries(publicFailures)).toEqual({})
     console.info(
       `World CHECK parity: ${cases.length} INSERT cases, ${definiteConstraints.length} distinct constraints with definite results, ${definite} definite CHECK comparisons, ${unknownComparisons} Unknown CHECK results; ${localRejections} of ${databaseRejections} database rejections detected locally; Go and TypeScript agree.`,
     )
