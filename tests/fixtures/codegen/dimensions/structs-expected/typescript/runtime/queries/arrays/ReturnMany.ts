@@ -20,7 +20,12 @@ function arrayDimensionError(depth: number, dimensions: readonly number[], setti
 function decodeArray(value: string | null, element: (item: string | null) => unknown, delimiter: string, dimensions: readonly number[], setting: string): unknown {
     if (value === null)
         return null;
+    const malformed = (): never => {
+        throw new TypeError("Malformed array text: " + JSON.stringify(value));
+    };
     let index = value.startsWith("[") ? value.indexOf("=") + 1 : 0;
+    if (value[index] !== "{")
+        malformed();
     let depth = 0;
     while (value[index + depth] === "{")
         depth++;
@@ -40,18 +45,24 @@ function decodeArray(value: string | null, element: (item: string | null) => unk
                 items.push(list());
             else if (value[index] === "\"") {
                 let text = "";
-                for (index++; value[index] !== "\""; index++)
+                for (index++; value[index] !== "\""; index++) {
+                    if (index >= value.length)
+                        malformed();
                     text += value[index] === "\\" ? value[++index] : value[index];
+                }
                 index++;
                 items.push(element(text));
             }
             else {
                 const start = index;
                 while (value[index] !== delimiter && value[index] !== "}")
-                    index++;
+                    if (++index > value.length)
+                        malformed();
                 const text = value.slice(start, index);
                 items.push(element(text === "NULL" ? null : text));
             }
+            if (value[index] !== delimiter && value[index] !== "}")
+                malformed();
             if (value[index++] === "}")
                 return items;
         }
