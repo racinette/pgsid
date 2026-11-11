@@ -2630,7 +2630,11 @@ function checkRustNumeric(row: object, name: string): _checkRust.NumericValue {
   const value = Reflect.get(row, name)
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.numericUnknown()
   if (value === null) return _checkRust.numericNull()
-  if (typeof value === 'string') return _checkRust.makeNumericValue(value)
+  // A value of any copy of the numeric module, read by its exact text.
+  if (typeof value === 'object' && (value as Record<symbol, unknown>)[Symbol.for('pgsid.numeric')] === true) {
+    const numeric = _checkRust.makeNumericValue(String(value))
+    if (numeric.kind === 'Value') return numeric
+  }
   return checkRustInvalid(name)
 }
 function checkRustDate(row: object, name: string): _checkRust.DateValue {

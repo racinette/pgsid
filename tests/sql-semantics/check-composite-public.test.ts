@@ -21,6 +21,17 @@ CREATE TABLE notes (
   amount numeric(4,1) CONSTRAINT small_amount CHECK (amount < 100)
 );
 `
+// A numeric is written here as { numeric: text } and sent as the numeric module's value.
+const n = (text: string) => ({ numeric: text })
+let numeric: (value: string) => unknown
+const send = (value: unknown): unknown =>
+  Array.isArray(value)
+    ? value.map(send)
+    : value && typeof value === 'object'
+      ? 'numeric' in value && typeof value.numeric === 'string'
+        ? numeric(value.numeric)
+        : Object.fromEntries(Object.entries(value).map(([key, item]) => [key, send(item)]))
+      : value
 const columns = ['home', 'homes', 'booking', 'tagged', 'tags', 'code', 'amount'] as const
 const queries = `-- name: InsertNote :exec
 INSERT INTO notes (id, ${columns.join(', ')}) VALUES (@id, ${columns.map((column) => `@${column}`).join(', ')});
@@ -47,19 +58,19 @@ const cases: Partial<Record<(typeof columns)[number], unknown>>[] = [
   { booking: { span: span(5, 3), label: 'x', sizes: [] } },
   { booking: { span: { empty: true }, sizes: [[1, 2], [3]] } },
   // Type modifiers apply as the server reads the value, before any check.
-  { tagged: { code: 'abc', amount: '1.25' } },
-  { tagged: { amount: '1' } },
+  { tagged: { code: 'abc', amount: n('1.25') } },
+  { tagged: { amount: n('1') } },
   { tagged: { code: 'long' } },
-  { tagged: { code: 'abc', amount: '12345' } },
+  { tagged: { code: 'abc', amount: n('12345') } },
   { tags: [{ code: 'a' }, { code: 'b' }, { code: 'c' }] },
   { tags: [{ code: 'long' }, { code: 'b' }, { code: 'c' }] },
   { code: 'abc' },
   { code: '' },
   { code: 'long' },
   { code: 'ab   ' },
-  { amount: '99.94' },
-  { amount: '99.96' },
-  { amount: '12345' },
+  { amount: n('99.94') },
+  { amount: n('99.96') },
+  { amount: n('12345') },
 ]
 
 let root: string
@@ -102,6 +113,9 @@ sql:
     fromPglite: typeof fromPglite
   })
   checks = (await import(join(root, 'generated/schema/public/checks.ts'))) as typeof checks
+  ;({ numeric } = (await import(join(root, 'generated/runtime/notes/pgsid/numeric.ts'))) as {
+    numeric: typeof numeric
+  })
   db = new PGlite()
   await db.exec(schema)
 }, 300_000)
@@ -123,7 +137,7 @@ describe('CHECKs on public TypeScript composites', () => {
     const empty = Object.fromEntries(columns.map((column) => [column, null]))
     let decided = 0
     for (const [index, change] of cases.entries()) {
-      const params = { id: index + 1, ...empty, ...change }
+      const params = send({ id: index + 1, ...empty, ...change })
       let calls = 0
       const counted = {
         queryText: (sql: string, values: readonly (string | null)[]) => {
@@ -148,7 +162,9 @@ describe('CHECKs on public TypeScript composites', () => {
 
   it('takes only public composites in the schema-level CHECK API', () => {
     const result = (row: object, constraint: string) =>
-      checks.evaluatePublicNotesChecks(row).find((check) => check.constraint === constraint)!.result
+      checks
+        .evaluatePublicNotesChecks(send(row) as object)
+        .find((check) => check.constraint === constraint)!.result
     expect(result({ home: { street: 'a', zip: 'x' } }, 'postal_zip')).toEqual({
       certain: true,
       value: false,
@@ -157,8 +173,8 @@ describe('CHECKs on public TypeScript composites', () => {
     // rounds to its scale before the check.
     expect(result({ code: 'long' }, 'has_code')).toMatchObject({ certain: true, error: '22001' })
     expect(result({ code: 'ab   ' }, 'has_code')).toEqual({ certain: true, value: true })
-    expect(result({ amount: '99.96' }, 'small_amount')).toEqual({ certain: true, value: false })
-    expect(result({ amount: '12345' }, 'small_amount')).toMatchObject({
+    expect(result({ amount: n('99.96') }, 'small_amount')).toEqual({ certain: true, value: false })
+    expect(result({ amount: n('12345') }, 'small_amount')).toMatchObject({
       certain: true,
       error: '22003',
     })
@@ -167,12 +183,15 @@ describe('CHECKs on public TypeScript composites', () => {
       [{ tagged: { code: 'long' } }, 'coded'],
       [{ tags: [{ code: 'long' }] }, 'few_tags'],
       [{ code: 'long' }, 'has_code'],
-      [{ amount: '12345' }, 'small_amount'],
-      [{ amount: '99.96' }, 'small_amount'],
+      [{ amount: n('12345') }, 'small_amount'],
+      [{ amount: n('99.96') }, 'small_amount'],
     ] as const)
       expect(result(row, constraint), JSON.stringify(row)).not.toMatchObject({ value: true })
     for (const home of ['Main,12345', ['Main', '12345'], { street: 1, zip: '12345' }])
       expect(() => result({ home }, 'postal_zip'), JSON.stringify(home)).toThrow(TypeError)
+    // A numeric is taken only as the numeric module's value, never as its text.
+    for (const amount of ['99.96', 99.96, { toString: () => '99.96' }])
+      expect(() => result({ amount }, 'small_amount'), String(amount)).toThrow(TypeError)
     // A composite is any object of its fields: unknown keys are ignored and missing fields are
     // NULL, as queries send them, so a stray object is an all-NULL row rather than malformed.
     expect(result({ home: { kind: 'Value', value: {} } }, 'postal_zip')).toEqual({

@@ -1,5 +1,25 @@
 type PgsidJsonValue = null | boolean | number | string | PgsidJsonValue[] | { [key: string]: PgsidJsonValue };
 interface PgsidJson<T = PgsidJsonValue> { readonly text: string; value(): T; safeValue(): { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: Error } }
+interface PgsidNumeric {
+  readonly [Symbol.toStringTag]: 'PgsidNumeric'
+  toString(): string
+  toJSON(): string
+  toNumber(): number
+  add(other: PgsidNumeric): PgsidNumeric
+  sub(other: PgsidNumeric): PgsidNumeric
+  mul(other: PgsidNumeric): PgsidNumeric
+  div(other: PgsidNumeric): PgsidNumeric
+  mod(other: PgsidNumeric): PgsidNumeric
+  neg(): PgsidNumeric
+  abs(): PgsidNumeric
+  round(scale?: number): PgsidNumeric
+  trunc(scale?: number): PgsidNumeric
+  compare(other: PgsidNumeric): -1 | 0 | 1
+  equals(other: PgsidNumeric): boolean
+  isNaN(): boolean
+  isInfinite(): boolean
+  sign(): number
+}
 import type { TableTypes } from "../helpers.js";
 export type Accounts = TableTypes<{
     "id": bigint;
@@ -19,7 +39,7 @@ export type Events = TableTypes<{
     "audit": PgsidJson<import("../../jsonschemas/index.js").EventAudit> | null;
     "metadata": {
         readonly "source": string | null;
-        readonly "confidence": string | null;
+        readonly "confidence": PgsidNumeric | null;
     } | null;
     "note": string | null;
     "created_at": {
@@ -37,7 +57,7 @@ export type Events = TableTypes<{
     "audit"?: PgsidJson<import("../../jsonschemas/index.js").EventAudit> | null;
     "metadata"?: {
         readonly "source": string | null;
-        readonly "confidence": string | null;
+        readonly "confidence": PgsidNumeric | null;
     } | null;
     "note"?: string | null;
     "created_at"?: {
@@ -55,7 +75,7 @@ export type Events = TableTypes<{
     "audit"?: PgsidJson<import("../../jsonschemas/index.js").EventAudit> | null;
     "metadata"?: {
         readonly "source": string | null;
-        readonly "confidence": string | null;
+        readonly "confidence": PgsidNumeric | null;
     } | null;
     "note"?: string | null;
     "created_at"?: {

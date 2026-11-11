@@ -9,6 +9,7 @@ import type { CodegenOutput, CodegenRenderResult, CodegenTarget } from '../targe
 import type { JsonSchemaAlternative } from '../shared/json-schema-lineage.js'
 import { renderTypescriptQueryArtifacts, renderTypescriptQueryHelpers } from './query.js'
 import { renderTypescriptSchemaArtifacts } from './schema.js'
+import { typescriptNumericArtifacts } from './numeric-module.js'
 import { typescriptJsonSchemaLocations } from './json-schema-validator-graph.js'
 import {
   createTypescriptJsonSchemaGraphs,
@@ -205,6 +206,14 @@ export function createTypescriptCodegenTarget(
             ),
             typesModuleSpecifier: runtime ? typescriptModuleSpecifier(runtime, types) : undefined,
             checkRustModuleSpecifier: `./${analysis.query.name}.check-rust/checks.js`,
+            ...(runtime && runtimeDirectory
+              ? {
+                  numericModuleSpecifier: typescriptModuleSpecifier(
+                    runtime,
+                    join(runtimeDirectory, 'pgsid', 'numeric.ts'),
+                  ),
+                }
+              : {}),
             queryableModuleSpecifier:
               runtime && helper ? typescriptModuleSpecifier(runtime, helper) : undefined,
             jsonSchemaRuntimeModuleSpecifier:
@@ -254,6 +263,7 @@ export function createTypescriptCodegenTarget(
                   }))
                 : []),
             ],
+            usesNumeric: Boolean(runtime && rendered.usesNumeric),
             diagnostics: rendered.diagnostics,
           }
         })
@@ -280,6 +290,14 @@ export function createTypescriptCodegenTarget(
                     ),
                   },
                 ]
+              : []),
+            // The numeric module, beside the support module, once a query here reads a numeric.
+            ...(runtimeDirectory && results.some((result) => result.usesNumeric)
+              ? typescriptNumericArtifacts().map((artifact) => ({
+                  kind: 'runtime',
+                  path: join(runtimeDirectory, 'pgsid', artifact.path),
+                  content: artifact.content,
+                }))
               : []),
           ],
           diagnostics: results.flatMap((result) => result.diagnostics),

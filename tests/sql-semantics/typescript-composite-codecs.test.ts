@@ -28,13 +28,33 @@ const address = (street: string | null, number: number | null, tags: (string | n
   number,
   tags,
 })
+// A numeric is written here as { numeric: text }: sent as the numeric module's value, and read
+// back into that form, since the value has no fields of its own for toEqual to compare.
+const n = (text: string) => ({ numeric: text })
+let numeric: (value: string) => unknown
+const send = (value: unknown): unknown =>
+  Array.isArray(value)
+    ? value.map(send)
+    : value && typeof value === 'object'
+      ? 'numeric' in value && typeof value.numeric === 'string'
+        ? numeric(value.numeric)
+        : Object.fromEntries(Object.entries(value).map(([key, item]) => [key, send(item)]))
+      : value
+const read = (value: unknown): unknown =>
+  Array.isArray(value)
+    ? value.map(read)
+    : value && typeof value === 'object'
+      ? (value as Record<symbol, unknown>)[Symbol.for('pgsid.numeric')] === true
+        ? n(String(value))
+        : Object.fromEntries(Object.entries(value).map(([key, item]) => [key, read(item)]))
+      : value
 const rows = [
   {
     id: 1,
     who: {
       name: tricky,
       home: address('', 7, [tricky, null, 'NULL', '']),
-      balance: '-12.50',
+      balance: n('-12.50'),
       seen: { epochMicroseconds: 1n },
       stay: {
         empty: false,
@@ -45,14 +65,14 @@ const rows = [
     everyone: [
       { name: 'NULL', home: null, balance: null, seen: { infinity: 1 }, stay: { empty: true } },
       null,
-      { name: null, home: address(null, null, null), balance: 'NaN', seen: null, stay: null },
+      { name: null, home: address(null, null, null), balance: n('NaN'), seen: null, stay: null },
     ],
     mail: address('Main', 1, []),
   },
   { id: 2, who: null, everyone: [], mail: null },
   {
     id: 3,
-    who: { name: '', home: address(' padded ', -1, ['']), balance: '0', seen: null, stay: null },
+    who: { name: '', home: address(' padded ', -1, ['']), balance: n('0'), seen: null, stay: null },
     everyone: null,
     mail: address('(x,y)', 2147483647, null),
   },
@@ -93,6 +113,9 @@ sql:
   helpers = (await import(
     join(root, 'generated/runtime/people/pgsid/queryable.ts')
   )) as typeof helpers
+  ;({ numeric } = (await import(join(root, 'generated/runtime/people/pgsid/numeric.ts'))) as {
+    numeric: typeof numeric
+  })
   db = new PGlite()
   await db.exec(schema)
   server = await servePglite(db)
@@ -143,10 +166,10 @@ describe('TypeScript composite codecs', () => {
     const queryable = connect()
     await db.exec('BEGIN')
     try {
-      for (const row of rows) await runtime['insertPerson']!(queryable, row)
+      for (const row of rows) await runtime['insertPerson']!(queryable, send(row))
       for (const row of rows) {
-        expect(await runtime['getPerson']!(queryable, { id: row.id })).toEqual(row)
-        expect(await runtime['getRow']!(queryable, { id: row.id })).toEqual({ p: row })
+        expect(read(await runtime['getPerson']!(queryable, { id: row.id }))).toEqual(row)
+        expect(read(await runtime['getRow']!(queryable, { id: row.id }))).toEqual({ p: row })
       }
     } finally {
       await db.exec('ROLLBACK')
@@ -171,24 +194,30 @@ describe('TypeScript composite codecs', () => {
       ['who', [1]],
       ['mail', address('Main', 1.5, null)],
       ['everyone', { name: 'x' }],
+      // A numeric field takes the numeric module's value, not its text.
+      ['who', { ...(send(rows[2]!.who) as object), balance: '0' }],
       // A range field takes bounds with their inclusivity, not the former flat shape.
       [
         'who',
         {
-          ...rows[2]!.who,
+          ...(send(rows[2]!.who) as object),
           stay: { empty: false, lower: 1, upper: 5, lowerInclusive: true, upperInclusive: false },
         },
       ],
       [
         'who',
         {
-          ...rows[2]!.who,
+          ...(send(rows[2]!.who) as object),
           stay: { empty: false, lower: { value: null, inclusive: true }, upper: null },
         },
       ],
     ] as const)
       await expect(
-        runtime['insertPerson']!(queryable, { ...rows[1], id: 9, [column]: value }),
+        runtime['insertPerson']!(queryable, {
+          ...(send(rows[1]) as object),
+          id: 9,
+          [column]: value,
+        }),
       ).rejects.toThrow(new RegExp(`Parameter ${column} holds a malformed`, 'u'))
   })
 })

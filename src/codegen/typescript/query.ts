@@ -85,6 +85,9 @@ export interface RenderTypescriptQueryArtifactsOptions {
   jsonSchemaPredicate?: GenerateTypescriptJsonSchemaValidatorOptions['schemaPredicate']
   jsonSchemaDiagnostic?: GenerateTypescriptJsonSchemaValidatorOptions['schemaValidation']
   checkRustModuleSpecifier?: string
+  // Where the runtime finds the numeric module (pgsid/numeric.ts), which the caller writes when
+  // usesNumeric is set; by default beside the runtime's support module.
+  numericModuleSpecifier?: string
 }
 
 export interface TypescriptQueryArtifacts {
@@ -98,6 +101,9 @@ export interface TypescriptQueryArtifacts {
     language: string
     checks: string
   } | null
+  // The runtime reads or sends numerics: the numeric module must be written where
+  // numericModuleSpecifier points, for the runtime to read them and its caller to make them.
+  usesNumeric?: boolean
   diagnostics: readonly TypescriptQueryDiagnostic[]
 }
 
@@ -265,6 +271,13 @@ export function renderTypescriptQueryArtifacts(
     },
     Boolean(options.checkRustModuleSpecifier),
   )
+  const codecs = codecStatements(new Set(rendered.flatMap((query) => [...query.codecNames])))
+  const emitsCodec = (name: string): boolean =>
+    codecs.some((statement) => ts.isFunctionDeclaration(statement) && statement.name?.text === name)
+  // Reading a numeric makes the numeric module's value, so the runtime imports that module; a
+  // caller sending one makes it with that module too.
+  const readsNumeric = emitsCodec('decodeNumeric')
+  const usesNumeric = readsNumeric || emitsCodec('encodeNumeric')
   const runtime = withTypescriptJsonValue(
     printFile([
       ...(typeNames.length
@@ -323,6 +336,19 @@ export function renderTypescriptQueryArtifacts(
             ),
           ]
         : []),
+      ...(readsNumeric
+        ? [
+            factory.createImportDeclaration(
+              undefined,
+              factory.createImportClause(
+                false,
+                undefined,
+                factory.createNamespaceImport(factory.createIdentifier('_numeric')),
+              ),
+              factory.createStringLiteral(options.numericModuleSpecifier ?? './pgsid/numeric.js'),
+            ),
+          ]
+        : []),
       ...synthesizedStatements(checkRuntime.checks),
       ...(checkTables.length
         ? synthesizedStatements(`export class SqlCheckViolationError extends Error {
@@ -333,7 +359,7 @@ export function renderTypescriptQueryArtifacts(
   }
 }`)
         : []),
-      ...codecStatements(new Set(rendered.flatMap((query) => [...query.codecNames]))),
+      ...codecs,
       ...rendered.flatMap((query) => query.runtimeDeclarations),
       ...rendered.map((query) => query.wrapper),
     ]),
@@ -343,6 +369,7 @@ export function renderTypescriptQueryArtifacts(
     runtime: options.emitRuntime === false ? null : runtime,
     checkRust: options.emitRuntime === false ? null : checkRuntime.rust,
     checkRustFiles: options.emitRuntime === false ? null : checkRuntime.rustFiles,
+    usesNumeric: options.emitRuntime !== false && usesNumeric,
     diagnostics,
   }
 }

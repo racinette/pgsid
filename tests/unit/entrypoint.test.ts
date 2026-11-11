@@ -73,6 +73,7 @@ const SURFACE = [
   'snapshotCatalog',
   'traceValueLineage',
   'typescriptJsonSchemaBindings',
+  'typescriptNumericArtifacts',
   'watchProject',
 ] as const
 
