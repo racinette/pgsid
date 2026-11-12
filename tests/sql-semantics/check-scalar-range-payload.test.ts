@@ -35,6 +35,19 @@ import { readRangeFixture } from './check-range-fixtures.js'
 import { readMultirangeFixture } from './check-multirange-fixtures.js'
 import { rangeArrayText, readRangeArrayFixture } from './check-range-array-fixtures.js'
 import { internalCheckRows } from '../support/check-entries.js'
+import { publicValueConstructors } from './public-value-constructors.js'
+
+// A deep copy that keeps a JSON container as its text, which is all of its state.
+const snapshot = (value: unknown): unknown =>
+  value instanceof Uint8Array
+    ? new Uint8Array(value)
+    : Array.isArray(value)
+      ? value.map(snapshot)
+      : value !== null && typeof value === 'object'
+        ? (value as Record<symbol, unknown>)[Symbol.for('pgsid.json')] === true
+          ? { json: (value as { text: string }).text }
+          : Object.fromEntries(Object.entries(value).map(([key, item]) => [key, snapshot(item)]))
+        : value
 
 // Each subtype's three sample values in their public shapes, in the order of the backend fixtures.
 const publicScalars = {
@@ -94,6 +107,7 @@ it('validates public scalar range payloads, compiled support and snapshots indep
   const pg = await PGlite.create(),
     root = await mkdtemp(join(tmpdir(), 'pgsid-scalar-range-payload-')),
     run = promisify(execFile)
+  const constructors = await publicValueConstructors()
   try {
     let schema =
       'CREATE SCHEMA "Scalar.Public";' +
@@ -265,9 +279,14 @@ it('validates public scalar range payloads, compiled support and snapshots indep
       expect(w).not.toBeNull()
       expect(m).not.toBeNull()
       expect(items).not.toBeNull()
-      // Public bounds take the subtype's own shape; a public array always starts at 1.
+      // Public bounds take the subtype's own shape, JSON as containers; a public array always
+      // starts at 1.
       const [pa, pb, pc] =
-        backend.kind === 31 ? await moneyBounds(first, last) : publicScalars[backend.type]!
+        backend.kind === 31
+          ? await moneyBounds(first, last)
+          : backend.type === 'pg_catalog.jsonb'
+            ? publicScalars[backend.type]!.map((value) => constructors.json(value))
+            : publicScalars[backend.type]!
       const publicRow = {
           v: span(pa, pb),
           w: span(pb, pc),
@@ -292,9 +311,9 @@ it('validates public scalar range payloads, compiled support and snapshots indep
           results: await serverCheckResults(pg, `scalar_payload_${index}`, text),
         })
       }
-      const before = structuredClone(publicRow)
+      const before = snapshot(publicRow)
       await compare(publicRow, publicText)
-      expect(publicRow).toEqual(before)
+      expect(snapshot(publicRow)).toEqual(before)
       await compare(
         { ...publicRow, v: publicRow.w, w: publicRow.v },
         { ...publicText, v: last, w: first },
@@ -306,7 +325,11 @@ it('validates public scalar range payloads, compiled support and snapshots indep
         expect(r).toEqual({ certain: true, value: null })
       // A bound of another shape is a type error, as are payloads.
       const wrong =
-        backend.type === 'pg_catalog.jsonb' ? 1n : typeof pa === 'string' ? 0 : 'wrong carrier'
+        backend.type === 'pg_catalog.jsonb'
+          ? publicScalars[backend.type]![0]
+          : typeof pa === 'string'
+            ? 0
+            : 'wrong carrier'
       expect
         .soft(() => evaluate({ ...publicRow, v: span(wrong, pb) }), backend.type)
         .toThrow(TypeError)
