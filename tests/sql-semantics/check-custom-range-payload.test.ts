@@ -24,6 +24,7 @@ import {
 } from '../../tools/check-rust/array-input.js'
 import { differingChecks, serverCheckResults } from '../support/check-server-results.js'
 import { internalCheckRows } from '../support/check-entries.js'
+import { writeGoModule } from '../support/go-module.js'
 
 it('uses portable captured profiles in public custom range and multirange adapters across independent catalogs', async () => {
   const pg = await PGlite.create(),
@@ -665,7 +666,7 @@ CREATE TABLE custom_multi_array_payloads(windows integer_set[],head integer_set,
     await expect(
       pg.exec(`INSERT INTO custom_multi_imports VALUES('{[bad,3]}','{[1,2]}',false)`),
     ).rejects.toMatchObject({ code: '22P02' })
-    await writeFile(join(root, 'go.mod'), 'module custompayload\n\ngo 1.25\n')
+    await writeGoModule(root, 'custompayload')
     await writeFile(
       join(root, 'schema/public/custom_test.go'),
       `package public

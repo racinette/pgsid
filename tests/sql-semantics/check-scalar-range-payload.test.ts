@@ -36,6 +36,7 @@ import { readMultirangeFixture } from './check-multirange-fixtures.js'
 import { rangeArrayText, readRangeArrayFixture } from './check-range-array-fixtures.js'
 import { internalCheckRows } from '../support/check-entries.js'
 import { publicValueConstructors } from './public-value-constructors.js'
+import { writeGoModule } from '../support/go-module.js'
 
 // A deep copy that keeps a JSON container as its text, which is all of its state.
 const snapshot = (value: unknown): unknown =>
@@ -492,7 +493,7 @@ it('validates public scalar range payloads, compiled support and snapshots indep
       join(root, 'schema/public/scalar_payload_test.go'),
       `package public\nimport("testing";checkruntime "scalarpayload/schema/public/checkrust/checkruntime")\nfunc TestScalarPayloads(t *testing.T){${checks.join('\n')}}\n`,
     )
-    await writeFile(join(root, 'go.mod'), 'module scalarpayload\n\ngo 1.25\n')
+    await writeGoModule(root, 'scalarpayload')
     await run('go', ['test', '-p', '1', './...'], { cwd: root }).catch(
       (error: { stdout: string; stderr: string }) => {
         throw new Error(error.stdout + error.stderr, { cause: error })

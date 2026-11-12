@@ -44,11 +44,11 @@ sql:
     await writeFile(
       join(root, 'generated/queries/windows/custom_test.go'),
       `package windows
-import("context";"errors";"testing";pgsid "example.com/pgsid-fixture/generated/queries/pgsid/pgx";checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime";schema "example.com/pgsid-fixture/generated/schema/public";"github.com/jackc/pgx/v5/pgconn")
+import("context";"errors";"testing";pgsid "example.com/pgsid-fixture/generated/queries/pgsid/pgx";checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime";schema "example.com/pgsid-fixture/generated/schema/public";values "example.com/pgsid-fixture/generated/pgsid";"github.com/jackc/pgx/v5/pgconn")
 type customDB struct{pgsid.DBTX;args []any;calls int;failure error}
 func(db *customDB)Exec(ctx context.Context,sql string,args ...any)(pgconn.CommandTag,error){db.calls++;db.args=args;return pgconn.NewCommandTag("INSERT 0 1"),db.failure}
 func TestCustomWrites(t *testing.T){
- db:=&customDB{};queries:=New(db);var v any="not a range";var w schema.SavedWrite="not a range";var m any="not a multirange";expected:=false
+ db:=&customDB{};queries:=New(db);v:=values.RangeOf(values.Inclusive[int32](1),values.Exclusive[int32](10));var w schema.SavedWrite=v;m:=values.Multirange[int32]{v};expected:=false
  params:=InsertWindowParams{V:&v,W:&w,M:&m,Expected:&expected}
  if err:=queries.InsertWindow(context.Background(),params);err!=nil{t.Fatal(err)}
  if db.calls!=1||len(db.args)!=4||db.args[0]!=params.V||db.args[1]!=params.W||db.args[2]!=params.M||db.args[3]!=params.Expected{t.Fatal("raw parameters changed")}

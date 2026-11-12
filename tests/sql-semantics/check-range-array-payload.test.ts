@@ -26,6 +26,7 @@ import { readRangeFixture, rangeCoreSamples } from './check-range-fixtures.js'
 import { rangeArrayText, readRangeArrayFixture } from './check-range-array-fixtures.js'
 import { internalCheckRows } from '../support/check-entries.js'
 import { publicValueConstructors } from './public-value-constructors.js'
+import { writeGoModule } from '../support/go-module.js'
 
 it('validates range array and domain-cell profiles before copying public inputs, independently of deployment OIDs', async () => {
   const pg = await PGlite.create(),
@@ -440,7 +441,7 @@ it('validates range array and domain-cell profiles before copying public inputs,
  for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicRangeArrayPayload${i}Checks(input); if e != nil {return nil}; return r}(){if c.Constraint=="nested_cell"&&c.Result.Certain{t.Fatal("nested identity",c)}}
 }`)
     }
-    await writeFile(join(root, 'go.mod'), 'module rangearraypayload\n\ngo 1.25\n')
+    await writeGoModule(root, 'rangearraypayload')
     await writeFile(
       join(root, 'schema/public/array_fixtures_test.go'),
       printGoFile({

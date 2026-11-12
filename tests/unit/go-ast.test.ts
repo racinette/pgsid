@@ -2,6 +2,28 @@ import { describe, expect, it } from 'vitest'
 import { go, printGoFile } from '../../src/codegen/go/ast.js'
 
 describe('Go AST bridge', () => {
+  it('renders a type alias apart from a defined type', () => {
+    expect(
+      printGoFile({
+        package: 'db',
+        imports: [{ path: 'example.com/app/pgsid', alias: 'pgsid' }],
+        declarations: [
+          go.alias(
+            'Span',
+            go.index(go.selector(go.ident('pgsid'), 'Range'), go.ident('int32')),
+          ),
+          go.type('Count', go.ident('int32')),
+        ],
+      }),
+    ).toBe(`package db
+
+import pgsid "example.com/app/pgsid"
+
+type Span = pgsid.Range[int32]
+type Count int32
+`)
+  })
+
   it('renders and formats native Go AST declarations synchronously', () => {
     expect(
       printGoFile({

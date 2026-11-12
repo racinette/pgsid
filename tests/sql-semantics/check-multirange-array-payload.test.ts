@@ -33,6 +33,7 @@ import {
 } from './check-multirange-array-fixtures.js'
 import { internalCheckRows } from '../support/check-entries.js'
 import { publicValueConstructors } from './public-value-constructors.js'
+import { writeGoModule } from '../support/go-module.js'
 
 it('validates multirange array and domain-cell profiles before copying public inputs, independently of deployment OIDs', async () => {
   const pg = await PGlite.create(),
@@ -448,7 +449,7 @@ it('validates multirange array and domain-cell profiles before copying public in
  for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicMultirangeArrayPayload${i}Checks(input); if e != nil {return nil}; return r}(){if c.Constraint=="nested_cell"&&c.Result.Certain{t.Fatal("nested identity",c)}}
 }`)
     }
-    await writeFile(join(root, 'go.mod'), 'module multiarraypayload\n\ngo 1.25\n')
+    await writeGoModule(root, 'multiarraypayload')
     await writeFile(
       join(root, 'schema/public/array_fixtures_test.go'),
       printGoFile({

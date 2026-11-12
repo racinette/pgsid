@@ -15,8 +15,7 @@ import { renderGoSchemaCheckArtifacts } from './sql/catalog-checks.js'
 import {
   usesGoNullStructs,
   renderGoNulls,
-  renderGoTemporal,
-  usesGoTemporal,
+  goValueArtifacts,
   goNullsOutDir,
   goJsonNulls,
   goNullsImportPath,
@@ -45,6 +44,7 @@ import {
   addGoNullImport,
   resolveGoColumnType,
   resolveGoDomainBase,
+  ownsGoValue,
   resolveGoPgType,
   resolveGoValueType,
   type ResolvedGoType,
@@ -153,7 +153,13 @@ export function renderGoSchemaArtifacts(
           const resolved = resolveGoDomainBase(domain, catalog, config, context)
           imports.push(...resolved.imports)
           addGoNullImport(imports, config, context, resolved.type)
-          declarations.push(go.type(goName(domain.name), resolved.type))
+          // A defined type drops the methods pgx moves a pgsid value with; an alias keeps them.
+          declarations.push(
+            (ownsGoValue(domain, catalog, config, context) ? go.alias : go.type)(
+              goName(domain.name),
+              resolved.type,
+            ),
+          )
         }
       }
       for (const composite of catalog.compositeTypes
@@ -271,9 +277,10 @@ export function renderGoSchemaArtifacts(
         ...(usesGoNullStructs(config)
           ? [{ path: join(goNullsOutDir(outDir), 'null.go'), content: renderGoNulls() }]
           : []),
-        ...([...artifacts, ...jsonArtifacts].some((artifact) => usesGoTemporal(artifact.content))
-          ? [{ path: join(goNullsOutDir(outDir), 'temporal.go'), content: renderGoTemporal() }]
-          : []),
+        ...goValueArtifacts(
+          goNullsOutDir(outDir),
+          [...artifacts, ...jsonArtifacts].map((artifact) => artifact.content),
+        ),
       ],
       diagnostics,
     }

@@ -18,6 +18,7 @@ import {
 } from '../../tools/check-rust/multirange-input.js'
 import { serverCheckResults } from '../support/check-server-results.js'
 import { internalCheckRows } from '../support/check-entries.js'
+import { writeGoModule } from '../support/go-module.js'
 
 it('validates public multirange payloads, nominal subtype guards, partial finite bounds and lazy behavior in Go and TypeScript', async () => {
   const pg = await PGlite.create(),
@@ -370,7 +371,7 @@ it('validates public multirange payloads, nominal subtype guards, partial finite
         [9007199254740994n],
       ),
     ).rejects.toMatchObject({ code: '23514' })
-    await writeFile(join(root, 'go.mod'), 'module multirangepayload\n\ngo 1.25\n')
+    await writeGoModule(root, 'multirangepayload')
     await writeFile(
       join(root, 'schema/public/range_test.go'),
       `package public

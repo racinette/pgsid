@@ -18,7 +18,18 @@ export function renderGoExecutorInterface(catalog?: CatalogSnapshot, structs = f
   ]
   const names = [
     ...new Set(
-      (catalog ? [...catalog.domains, ...catalog.enums, ...catalog.compositeTypes] : []).map(
+      (catalog
+        ? [
+            ...catalog.domains,
+            ...catalog.enums,
+            ...catalog.compositeTypes,
+            ...catalog.rangeTypes.flatMap((range) => [
+              range,
+              { schema: range.multirangeSchema, name: range.multirangeName },
+            ]),
+          ]
+        : []
+      ).map(
         (item) => `"${item.schema.replaceAll('"', '""')}"."${item.name.replaceAll('"', '""')}"`,
       ),
     ),

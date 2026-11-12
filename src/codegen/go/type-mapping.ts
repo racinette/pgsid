@@ -24,6 +24,7 @@ import {
   assertArrayDimensions,
   resolveArrayDimensions,
 } from '../shared/array-dimensions.js'
+import { rangeSubtype } from '../shared/range-subtype.js'
 
 export interface GoTypeContext {
   importPath: string
@@ -170,6 +171,11 @@ export function resolveGoPgType(
   const domain = catalog ? findDomain(base, catalog, sourceSchema, typeOid) : undefined
   const enumeration = catalog ? findEnum(base, catalog, sourceSchema) : undefined
   const composite = catalog ? findComposite(base, catalog, sourceSchema) : undefined
+  const range = rangeSubtype(
+    unmodified.includes('.') ? unmodified.split('.')[0]!.replaceAll('"', '') : undefined,
+    unqualified,
+    catalog,
+  )
   let resolved: ResolvedGoType
   if (domain) {
     resolved = config.sql.codegen?.go?.domains
@@ -179,6 +185,16 @@ export function resolveGoPgType(
     resolved = namedType(enumeration.name, enumeration.schema, context)
   } else if (composite) {
     resolved = namedType(composite.name, composite.schema, context)
+  } else if (range) {
+    if (!context?.nullsImportPath) throw new Error(`Go ${unqualified} values require an import path context`)
+    const subtype = resolveGoPgType(range.subtype, config, catalog, undefined, undefined, context)
+    resolved = {
+      type: go.index(
+        go.selector(go.ident('pgsid'), range.kind === 'range' ? 'Range' : 'Multirange'),
+        subtype.type,
+      ),
+      imports: [...subtype.imports, { path: context.nullsImportPath, as: 'pgsid' }],
+    }
   } else if (Object.hasOwn(pgsidTypes, alias)) {
     if (!context?.nullsImportPath) throw new Error(`Go ${alias} values require an import path context`)
     resolved = {
@@ -237,6 +253,33 @@ export function resolveGoDomainBase(
     domain.baseTypeOid,
     context,
   )
+}
+
+// Whether a domain's values are, under every domain it is declared over, a pgsid value type.
+export function ownsGoValue(
+  domain: DomainInfo,
+  catalog: CatalogSnapshot,
+  config: Config,
+  context?: GoTypeContext,
+): boolean {
+  let base = domain
+  for (
+    let nested = catalog.domains.find((item) => item.oid === base.baseTypeOid);
+    nested;
+    nested = catalog.domains.find((item) => item.oid === base.baseTypeOid)
+  )
+    base = nested
+  if (base.baseTypeName.endsWith('[]')) return false
+  let type = resolveGoPgType(
+    base.baseTypeName,
+    config,
+    catalog,
+    base.schema,
+    base.baseTypeOid,
+    context,
+  ).type
+  while (type.kind === 'index') type = type.left
+  return type.kind === 'selector' && type.left.kind === 'ident' && type.left.name === 'pgsid'
 }
 
 export function resolveGoValueType(

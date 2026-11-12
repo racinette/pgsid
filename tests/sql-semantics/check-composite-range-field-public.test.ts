@@ -19,6 +19,7 @@ import { differingChecks, serverCheckResults } from '../support/check-server-res
 import { expectUndecidedOrRejected } from './check-public-inputs.js'
 import { customRangeProfiles } from './check-custom-range-fixtures.js'
 import { readRangeFixture } from './check-range-fixtures.js'
+import { writeGoModule } from '../support/go-module.js'
 
 it('copies custom range fields in public composite bounds through compiled child contexts and independent snapshots', async () => {
   const pg = await PGlite.create(),
@@ -369,11 +370,8 @@ func TestCompositeRangeInputs(t *testing.T){
 }
 `,
     )
-    await writeFile(
-      join(root, 'schema/go.mod'),
-      'module compositerangefieldpublic/schema\n\ngo 1.23\n',
-    )
-    await run('go', ['test', './...'], { cwd: join(root, 'schema') }).catch(
+    await writeGoModule(root, 'compositerangefieldpublic')
+    await run('go', ['test', './...'], { cwd: root }).catch(
       (e: { stdout: string; stderr: string }) => {
         throw new Error(e.stdout + e.stderr, { cause: e })
       },

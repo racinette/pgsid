@@ -19,8 +19,7 @@ import {
   goNullsOutDir,
   usesGoNullStructs,
   renderGoNulls,
-  renderGoTemporal,
-  usesGoTemporal,
+  goValueArtifacts,
   goJsonNulls,
   runtimeSource,
 } from './nulls.js'
@@ -362,22 +361,17 @@ export function createGoCodegenTarget(
           diagnostics: rendered.diagnostics,
         }
       })
-      // The pgsid package's temporal types, once a query here names one.
-      const temporalDirectory = schemaOutDir
+      const valueDirectory = schemaOutDir
         ? goNullsOutDir(schemaOutDir)
         : helper && dirname(dirname(helper.path))
       return {
         artifacts: [
           ...results.flatMap((result) => result.artifacts),
-          ...(temporalDirectory &&
-          results.some((result) => result.artifacts.some((item) => usesGoTemporal(item.content)))
-            ? [
-                {
-                  kind: 'helpers' as const,
-                  path: join(temporalDirectory, 'temporal.go'),
-                  content: renderGoTemporal(),
-                },
-              ]
+          ...(valueDirectory
+            ? goValueArtifacts(
+                valueDirectory,
+                results.flatMap((result) => result.artifacts.map((item) => item.content)),
+              ).map((artifact) => ({ kind: 'helpers' as const, ...artifact }))
             : []),
           ...(analyses.length
             ? [

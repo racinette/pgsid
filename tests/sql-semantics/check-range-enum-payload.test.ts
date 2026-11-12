@@ -32,6 +32,7 @@ import { readRangeFixture } from './check-range-fixtures.js'
 import { readMultirangeFixture } from './check-multirange-fixtures.js'
 import { rangeArrayText, readRangeArrayFixture } from './check-range-array-fixtures.js'
 import { internalCheckRows } from '../support/check-entries.js'
+import { writeGoModule } from '../support/go-module.js'
 
 it('attaches compiled enum definitions before public range, multirange and recursive array validation in Go and TypeScript', async () => {
   const pg = await PGlite.create(),
@@ -329,7 +330,7 @@ skip:=true;row.Bypass=KnownCheckValue(&skip);for _,c:=range func() []CheckEvalua
 }
 `,
     )
-    await writeFile(join(root, 'go.mod'), 'module enumpublic\n\ngo 1.25\n')
+    await writeGoModule(root, 'enumpublic')
     await run('go', ['test', '-p', '1', './...'], { cwd: root }).catch(
       (e: { stdout: string; stderr: string }) => {
         throw new Error(e.stdout + e.stderr, { cause: e })
