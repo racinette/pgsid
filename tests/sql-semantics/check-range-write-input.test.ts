@@ -42,11 +42,11 @@ sql:
     await writeFile(
       join(root, 'generated/queries/windows/range_test.go'),
       `package windows
-import("context";"errors";"testing";pgsid "example.com/pgsid-fixture/generated/queries/pgsid/pgx";checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime";schema "example.com/pgsid-fixture/generated/schema/public";"github.com/jackc/pgx/v5/pgconn")
+import("context";"errors";"testing";pgsid "example.com/pgsid-fixture/generated/queries/pgsid/pgx";checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime";schema "example.com/pgsid-fixture/generated/schema/public";values "example.com/pgsid-fixture/generated/pgsid";"github.com/jackc/pgx/v5/pgconn")
 type rangeDB struct{pgsid.DBTX;args []any;calls int;failure error}
 func(db *rangeDB)Exec(ctx context.Context,sql string,args ...any)(pgconn.CommandTag,error){db.calls++;db.args=args;return pgconn.NewCommandTag("INSERT 0 1"),db.failure}
 func TestRangeWrites(t *testing.T){
- db:=&rangeDB{};queries:=New(db);var span any="not a range";var domain schema.NestedSpan="not a range";expected:=false
+ db:=&rangeDB{};queries:=New(db);span:=values.RangeOf(values.Inclusive[int32](1),values.Exclusive[int32](10));var domain schema.NestedSpan=span;expected:=false
  params:=InsertWindowParams{Span:&span,DomainSpan:&domain,Expected:&expected}
  if err:=queries.InsertWindow(context.Background(),params);err!=nil{t.Fatal(err)}
  if db.calls!=1||len(db.args)!=3||db.args[0]!=params.Span||db.args[1]!=params.DomainSpan||db.args[2]!=params.Expected{t.Fatal("raw parameters changed")}

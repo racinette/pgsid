@@ -53,6 +53,7 @@ export type GoStatement =
 
 export type GoDeclaration =
   | { kind: 'type'; name: string; type: GoExpression }
+  | { kind: 'alias'; name: string; type: GoExpression }
   | { kind: 'const'; name: string; type?: GoExpression; expression: GoExpression }
   | {
       kind: 'function'
@@ -183,6 +184,7 @@ export const go = {
   }),
   any: (): GoExpression => ({ kind: 'ident', name: 'any' }),
   type: (name: string, type: GoExpression): GoDeclaration => ({ kind: 'type', name, type }),
+  alias: (name: string, type: GoExpression): GoDeclaration => ({ kind: 'alias', name, type }),
   const: (name: string, expression: GoExpression, type?: GoExpression): GoDeclaration => ({
     kind: 'const',
     name,

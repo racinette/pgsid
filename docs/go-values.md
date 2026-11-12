@@ -38,3 +38,26 @@ is sent rather than read back as infinity.
 Each type also writes and reads a text form, which JSON encoding uses: the
 infinities as `infinity` and `-infinity`, timestamps and dates in RFC 3339
 layouts, and intervals as PostgreSQL's `iso_8601` interval style writes them.
+
+## Ranges
+
+A range is generic over the Go type of its subtype's values and holds either
+the empty range or two bounds. A bound is built as including its value,
+excluding it, or as no bound at all, so an unbounded end never carries a value
+or an inclusivity that would mean nothing. A multirange is a slice of ranges;
+with no ranges it is the empty multirange, and NULL needs a pointer, as for
+every value of the package.
+
+What is written is sent as written; the server canonicalizes it, so a discrete
+range reads back in its canonical bounds and a multirange as its merged,
+ordered ranges. An infinite value inside a bound is a value, distinct from an
+unbounded end.
+
+pgx moves ranges and multiranges in its binary format for the built-in range
+types and for the user-defined ones its type registration loads. Over the
+simple protocol a range or multirange writes PostgreSQL's range text, quoting
+a bound the way range input reads it.
+
+A domain over one of these values, directly or through other domains, is an
+alias of the value's type rather than a type of its own, since a defined type
+would drop the methods pgx moves the value with.

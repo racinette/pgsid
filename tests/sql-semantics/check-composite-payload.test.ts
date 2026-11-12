@@ -25,6 +25,7 @@ import { go, printGoFile } from '../../src/codegen/go/ast.js'
 import { rangeRustCell, type RangeInputCell } from '../../tools/check-rust/range-input.js'
 import { readRangeFixture, readRangeBoundCell } from './check-range-fixtures.js'
 import { internalCheckRows } from '../support/check-entries.js'
+import { writeGoModule } from '../support/go-module.js'
 
 type Cell =
   | RangeInputCell
@@ -589,7 +590,7 @@ func TestCompositePayloads(t *testing.T){
     await run(join(root, 'native-test'), []).catch((e: { stdout: string; stderr: string }) => {
       throw new Error(e.stdout + e.stderr, { cause: e })
     })
-    await writeFile(join(root, 'go.mod'), 'module compositepublic\n\ngo 1.25\n')
+    await writeGoModule(root, 'compositepublic')
     await run('go', ['test', '-p', '1', './...'], { cwd: root }).catch(
       (e: { stdout: string; stderr: string }) => {
         throw new Error(e.stdout + e.stderr, { cause: e })

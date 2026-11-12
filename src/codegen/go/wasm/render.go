@@ -217,6 +217,13 @@ func declaration(node *wireNode) (ast.Decl, error) {
 			return nil, err
 		}
 		return &ast.GenDecl{Tok: token.TYPE, Specs: []ast.Spec{&ast.TypeSpec{Name: ast.NewIdent(node.Name), Type: value}}}, nil
+	case "alias":
+		value, err := expression(node.Type)
+		if err != nil {
+			return nil, err
+		}
+		// The printer writes the alias's = only where the spec has a position for it.
+		return &ast.GenDecl{Tok: token.TYPE, Specs: []ast.Spec{&ast.TypeSpec{Name: ast.NewIdent(node.Name), Assign: 1, Type: value}}}, nil
 	default:
 		return nil, fmt.Errorf("unsupported declaration kind %q", node.Kind)
 	}

@@ -31,6 +31,7 @@ import { readMultirangeFixture } from './check-multirange-fixtures.js'
 import { rangeArrayText, readRangeArrayFixture } from './check-range-array-fixtures.js'
 import { readMultirangeArrayFixture } from './check-multirange-array-fixtures.js'
 import { arrayInputPlan } from '../../src/codegen/shared/check-array-types.js'
+import { writeGoModule } from '../support/go-module.js'
 
 it('decodes complete profile words before validating caller hints in public range, multirange and nested arrays', async () => {
   const pg = await PGlite.create(),
@@ -425,7 +426,7 @@ import("testing";"reflect";checkruntime "profilewords/schema/public/checkrust/ch
 func forgeProfileWords(input checkruntime.ArrayValue)checkruntime.ArrayValue{for i,c:=range input.Value.Elements{if c.Kind==checkruntime.ArrayElementRange{input.Value.Elements[i].Range.Support=checkruntime.MakeRangeSupport(99,99)};if c.Kind==checkruntime.ArrayElementMultirange{for j:=range input.Value.Elements[i].Multirange.Ranges{input.Value.Elements[i].Multirange.Ranges[j].Value.Support=checkruntime.MakeRangeSupport(99,99)}};if c.Kind==checkruntime.ArrayElementArray{input.Value.Elements[i].Array=forgeProfileWords(checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:c.Array}).Value}};return input}
 func TestProfileWords(t *testing.T){${assertions.join('\n')}}\n`,
     )
-    await writeFile(join(root, 'go.mod'), 'module profilewords\n\ngo 1.25\n')
+    await writeGoModule(root, 'profilewords')
     await run('go', ['test', '-p', '1', './...'], { cwd: root }).catch(
       (e: { stdout: string; stderr: string }) => {
         throw new Error(e.stdout + e.stderr, { cause: e })

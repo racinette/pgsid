@@ -12,6 +12,7 @@ import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescri
 import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
 import { parseConfigString } from '../../src/config/loader.js'
+import { writeGoModule } from '../support/go-module.js'
 
 it('validates public int8range values in TypeScript, range payloads in Go, and lazy behavior in both', async () => {
   const pg = await PGlite.create(),
@@ -195,7 +196,7 @@ it('validates public int8range values in TypeScript, range payloads in Go, and l
         [9007199254740994n],
       ),
     ).rejects.toMatchObject({ code: '23514' })
-    await writeFile(join(root, 'go.mod'), 'module rangepayload\n\ngo 1.25\n')
+    await writeGoModule(root, 'rangepayload')
     await writeFile(
       join(root, 'schema/public/range_test.go'),
       `package public
