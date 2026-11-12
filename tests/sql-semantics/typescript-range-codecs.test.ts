@@ -41,13 +41,15 @@ const span = <T>(
 })
 const empty = { empty: true as const }
 const tricky = 'a "quoted", \\ value (with) [brackets]'
+let numeric: (value: string) => { toString(): string }
 // Every value is already in the canonical form the server stores, so it reads back unchanged.
-const rows = [
+// Numerics are numeric values, built once the generated numeric module is loaded.
+const rows = () => [
   {
     id: 1,
     small: span(1, 10),
     wide: span(-9223372036854775808n, null, true, false),
-    exact: span('1.5', '2.50', true, true),
+    exact: span(numeric('1.5'), numeric('2.50'), true, true),
     days: span('2026-01-01', '2026-02-01'),
     local: span({ infinity: -1 }, { localMicroseconds: 1n }, false, true),
     instant: span(null, { epochMicroseconds: 0n }, false, false),
@@ -92,6 +94,14 @@ const rows = [
     list: null,
   },
 ]
+// A numeric has no fields of its own to compare, so a numeric range is compared by its bounds' text.
+const comparable = (row: unknown) => {
+  const { exact } = row as { exact: ReturnType<typeof span<unknown>> | typeof empty | null }
+  if (!exact || exact.empty) return row
+  const text = (bound: { value: unknown; inclusive: boolean } | null) =>
+    bound && { ...bound, value: String(bound.value) }
+  return { ...(row as object), exact: { ...exact, lower: text(exact.lower), upper: text(exact.upper) } }
+}
 
 let root: string
 let db: PGlite
@@ -128,6 +138,9 @@ sql:
   helpers = (await import(
     join(root, 'generated/runtime/spans/pgsid/queryable.ts')
   )) as typeof helpers
+  ;({ numeric } = (await import(join(root, 'generated/runtime/spans/pgsid/numeric.ts'))) as {
+    numeric: typeof numeric
+  })
   db = new PGlite()
   await db.exec(schema)
   server = await servePglite(db)
@@ -205,9 +218,11 @@ void [small, open, inclusive, bare, flat]
       const queryable = connect()
       await db.exec('BEGIN')
       try {
-        for (const row of rows) await runtime['insertSpan']!(queryable, row)
-        for (const row of rows)
-          expect(await runtime['getSpan']!(queryable, { id: row.id })).toEqual(row)
+        for (const row of rows()) await runtime['insertSpan']!(queryable, row)
+        for (const row of rows())
+          expect(comparable(await runtime['getSpan']!(queryable, { id: row.id }))).toEqual(
+            comparable(row),
+          )
         expect(
           (await db.query<{ words: string }>('SELECT words::text AS words FROM spans WHERE id = 2'))
             .rows[0]!.words,
@@ -250,9 +265,11 @@ void [small, open, inclusive, bare, flat]
       ['wide', span(1, 2)],
       ['smalls', span(1, 2)],
       ['smalls', [null]],
+      // A numeric bound is a numeric value, not its text.
+      ['exact', span('1.5', '2.50')],
     ] as const)
       await expect(
-        runtime['insertSpan']!(queryable, { ...rows[2], id: 9, [column]: value }),
+        runtime['insertSpan']!(queryable, { ...rows()[2], id: 9, [column]: value }),
       ).rejects.toThrow(new RegExp(`Parameter ${column} holds a malformed`, 'u'))
   })
 })

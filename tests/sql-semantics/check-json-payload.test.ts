@@ -12,6 +12,7 @@ import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-tr
 import { jsonInputForms, invalidJsonInputForms } from './check-json-input-forms.js'
 import { internalCheckRows, storedOrRejected } from '../support/check-entries.js'
 import { serverCheckResults } from '../support/check-server-results.js'
+import { publicValueConstructors } from './public-value-constructors.js'
 
 it('validates lossless SQL-coerced JSON wrappers through the public TypeScript API and compares real INSERT outcomes', async () => {
   const pg = await PGlite.create()
@@ -63,9 +64,13 @@ it('validates lossless SQL-coerced JSON wrappers through the public TypeScript A
     const runtime = await import(pathToFileURL(join(root, 'js/checks-rust/checks.js')).href)
     const internal = internalCheckRows(bundle.checks, runtime)
     type Result = { certain: boolean; value?: boolean | null; error?: string }
-    // A public json value is a JSON value, sent as its JSON text; JSON text a JavaScript value does
-    // not round-trip (duplicate keys, escapes, spacing, number spellings) is a stored value the
-    // evaluator entry takes directly.
+    // A public json value is a JSON container, sent as its JSON text: one built from a JavaScript
+    // value, or one holding JSON text as written (duplicate keys, escapes, spacing, number
+    // spellings), which the stored-value evaluator entry also takes directly.
+    const constructors = await publicValueConstructors()
+    // A JSON value to send, as a container; undefined and SQL NULL pass as themselves.
+    const publicJson = (value: unknown) =>
+      value === undefined || value === null ? value : constructors.json(value)
     const outcome = (result: Result): unknown =>
       !result.certain
         ? { kind: 'Unknown' }
@@ -86,7 +91,7 @@ it('validates lossless SQL-coerced JSON wrappers through the public TypeScript A
       Object.fromEntries(
         generated
           .evaluatePublicJsonExtractionInputsChecks({
-            document,
+            document: publicJson(document),
             field_name,
             element_index,
             expected_source,
@@ -151,6 +156,28 @@ it('validates lossless SQL-coerced JSON wrappers through the public TypeScript A
     expect(storedExtraction('{"a":1,"a":2}', 'a', null, '2', '2', null)).toEqual(
       outcomes(await serverExtraction('{"a":1,"a":2}', 'a', null, '2', '2', null)),
     )
+    // A container of JSON text as written reaches the public API with the same text.
+    for (const [source, ...row] of [
+      ['{"a":1,"a":2}', 'a', null, '2', '2', null],
+      ['{"a":"\\u0061"}', 'a', null, '"\\u0061"', 'a', null],
+      [' [ 1.50 , null ] ', null, 0, '1.50', null, 2],
+    ] as [string, string | null, number | null, string | null, string | null, number | null][])
+      expect(
+        Object.fromEntries(
+          generated
+            .evaluatePublicJsonExtractionInputsChecks({
+              document: constructors.jsonText(source),
+              field_name: row[0],
+              element_index: row[1],
+              expected_source: row[2],
+              expected_text: row[3],
+              expected_length: row[4],
+              bypass: false,
+            })
+            .map((c: { constraint: string; result: Result }) => [c.constraint, c.result]),
+        ),
+        source,
+      ).toEqual(await serverExtraction(source, ...row))
     expect(evaluateExtraction({ a: 2 }, 'a', null, '2', '2', null)).toEqual({
       field_source: { certain: true, value: true },
       field_text: { certain: true, value: true },
@@ -224,7 +251,8 @@ it('validates lossless SQL-coerced JSON wrappers through the public TypeScript A
     expect(evaluateText(undefined)).toEqual({ certain: false })
     for (const source of ['"a\0b"', '"\ud800"', 123, {}])
       expect(() => evaluateText(source)).toThrow(TypeError)
-    const evaluate = (
+    // The generated API given the document as is, and given its JSON value as a container.
+    const evaluateAsIs = (
       document: unknown,
       expected_kind: unknown = 'object',
       expected_source: unknown = '{}',
@@ -234,6 +262,8 @@ it('validates lossless SQL-coerced JSON wrappers through the public TypeScript A
           .evaluatePublicJsonPayloadsChecks({ document, expected_kind, expected_source })
           .map((c: { constraint: string; result: Result }) => [c.constraint, c.result]),
       )
+    const evaluate = (document: unknown, expected_kind?: unknown, expected_source?: unknown) =>
+      evaluateAsIs(publicJson(document), expected_kind, expected_source)
     const stored = (
       document: unknown,
       expected_kind: string | null = 'object',
@@ -283,7 +313,7 @@ it('validates lossless SQL-coerced JSON wrappers through the public TypeScript A
         pg.query('INSERT INTO json_payloads VALUES($1,$2,$3)', [source, 'wrong', oracle.source]),
       ).rejects.toMatchObject({ code: '23514' })
     }
-    // Public JSON values, sent as their JSON text: any JavaScript object is a JSON object, even
+    // Public JSON containers, sent as their JSON text: any value JSON can write is a document, even
     // one shaped like an internal value.
     for (const document of [
       false,
@@ -332,9 +362,12 @@ it('validates lossless SQL-coerced JSON wrappers through the public TypeScript A
     expect(evaluate({ a: 1 }, 'object', '{"a":1}')).toEqual(allTrue)
     expect(evaluate({}).source).toEqual({ certain: true, value: true })
     expect(evaluate('{}').shape).toEqual({ certain: true, value: false })
-    // No JSON text: a value JSON cannot represent is malformed.
+    // No JSON text: a value JSON cannot represent has no container, and a value that is not a
+    // container is malformed, even one JSON could write.
     for (const document of [1n, Symbol('json'), () => 1])
-      expect(() => evaluate(document)).toThrow(TypeError)
+      expect(() => constructors.json(document)).toThrow(TypeError)
+    for (const document of [1n, Symbol('json'), () => 1, {}, '{}', 0, false, { text: '{}' }])
+      expect(() => evaluateAsIs(document)).toThrow(TypeError)
     // Stored text the JSON input rejects is no value, or one the evaluator leaves undecided.
     for (const source of ['NaN', '[1,]', '"a\0b"', '"\ud800"', '"\udc00"']) {
       const value = storedOrRejected(() => runtime.makeJsonValue(source))

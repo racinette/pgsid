@@ -10,6 +10,7 @@ import { snapshotCatalog } from '../../../../src/catalog/snapshot.js'
 import { buildNullabilityCatalog } from '../../../../src/query/catalog-adapter.js'
 import { inferNullability } from '../../../../src/query/nullability-walk.js'
 import {
+  CHECK_CASE_CATALOG_ONLY,
   DEP_CATALOG_ONLY,
   EVALUATION_CATALOG_ONLY,
   OVERLOAD_CATALOG_ONLY,
@@ -267,6 +268,7 @@ describe('capability reach of the generated corpus', () => {
       ...OVERLOAD_CATALOG_ONLY,
       ...EVALUATION_CATALOG_ONLY,
       ...VALUE_LINEAGE_CATALOG_ONLY,
+      ...CHECK_CASE_CATALOG_ONLY,
     ])
     members = catalogMembers(baseCatalog).filter((m) => !depOnly.has(m))
 
@@ -337,7 +339,7 @@ describe('capability reach of the generated corpus', () => {
   })
 
   it('between them the two corpora leave no capability cold', () => {
-    // The union bound. Everything outside the three interface partitions is
+    // The union bound. Everything outside the interface partitions is
     // walk-facing, so a member neither corpus asks is a walk branch with no
     // input at all — which is exactly the state this census exists to keep
     // visible.
@@ -512,6 +514,7 @@ describe.runIf(process.env.CAPABILITY_WITNESSES)('which fixture reaches each cap
       ...OVERLOAD_CATALOG_ONLY,
       ...EVALUATION_CATALOG_ONLY,
       ...VALUE_LINEAGE_CATALOG_ONLY,
+      ...CHECK_CASE_CATALOG_ONLY,
     ])
     const members = catalogMembers(catalog).filter((m) => !depOnly.has(m))
     console.log(

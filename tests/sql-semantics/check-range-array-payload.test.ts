@@ -25,6 +25,7 @@ import { differingChecks, serverCheckResults } from '../support/check-server-res
 import { readRangeFixture, rangeCoreSamples } from './check-range-fixtures.js'
 import { rangeArrayText, readRangeArrayFixture } from './check-range-array-fixtures.js'
 import { internalCheckRows } from '../support/check-entries.js'
+import { publicValueConstructors } from './public-value-constructors.js'
 
 it('validates range array and domain-cell profiles before copying public inputs, independently of deployment OIDs', async () => {
   const pg = await PGlite.create(),
@@ -109,6 +110,7 @@ it('validates range array and domain-cell profiles before copying public inputs,
       goCases: string[] = []
     let nativeInserts = 0,
       assertions = 0
+    const constructors = await publicValueConstructors()
     for (const [i, metadata] of families.entries()) {
       const text = rangeCoreSamples(metadata.identity).ranges[5]!
       const head = (await readRangeFixture(
@@ -155,7 +157,9 @@ it('validates range array and domain-cell profiles before copying public inputs,
               ? { localMicroseconds: BigInt(Date.parse(value + 'Z')) * 1000n }
               : metadata.subtype === 'pg_catalog.timestamptz'
                 ? { epochMicroseconds: BigInt(Date.parse(value.replace('+00', 'Z'))) * 1000n }
-                : value
+                : metadata.subtype === 'pg_catalog."numeric"'
+                  ? constructors.numeric(value)
+                  : value
       const [lowerText, upperText] = text.slice(1, -1).split(',') as [string, string]
       const publicHead = {
         empty: false,

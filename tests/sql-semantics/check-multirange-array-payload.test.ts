@@ -32,6 +32,7 @@ import {
   readMultirangeArrayFixture,
 } from './check-multirange-array-fixtures.js'
 import { internalCheckRows } from '../support/check-entries.js'
+import { publicValueConstructors } from './public-value-constructors.js'
 
 it('validates multirange array and domain-cell profiles before copying public inputs, independently of deployment OIDs', async () => {
   const pg = await PGlite.create(),
@@ -116,6 +117,7 @@ it('validates multirange array and domain-cell profiles before copying public in
       goCases: string[] = []
     let nativeInserts = 0,
       assertions = 0
+    const constructors = await publicValueConstructors()
     for (const [i, metadata] of families.entries()) {
       const text = '{' + rangeCoreSamples(metadata.identity).ranges[5]! + '}'
       const head = (await readMultirangeFixture(pg, metadata.multirange, text))!
@@ -158,7 +160,9 @@ it('validates multirange array and domain-cell profiles before copying public in
               ? { localMicroseconds: BigInt(Date.parse(value + 'Z')) * 1000n }
               : metadata.subtype === 'pg_catalog.timestamptz'
                 ? { epochMicroseconds: BigInt(Date.parse(value.replace('+00', 'Z'))) * 1000n }
-                : value
+                : metadata.subtype === 'pg_catalog."numeric"'
+                  ? constructors.numeric(value)
+                  : value
       const rangeText = text.slice(1, -1)
       const [lowerText, upperText] = rangeText.slice(1, -1).split(',') as [string, string]
       const publicRange = {
