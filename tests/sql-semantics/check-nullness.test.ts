@@ -24,6 +24,7 @@ import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-tr
 import { renderGoCheckTests, type GoCheckCase } from './check-codegen.js'
 import { writeCheckRustSources } from '../../tools/check-rust/sources.js'
 import { internalCheckRows, type InternalCheckRows } from '../support/check-entries.js'
+import { publicValueConstructors, type PublicNumeric } from './public-value-constructors.js'
 
 const run = promisify(execFile)
 const portableItems = (value: unknown) =>
@@ -77,6 +78,7 @@ describe('CHECK input nullness', () => {
   let fallback: typeof evaluate
   let internal: InternalCheckRows
   let runtime: Record<string, (...inputs: unknown[]) => unknown>
+  let numeric: (value: string) => PublicNumeric
 
   beforeAll(async () => {
     pg = await PGlite.create()
@@ -227,6 +229,7 @@ describe('CHECK input nullness', () => {
       .evaluatePublicNullInputsChecks
     runtime = await import(pathToFileURL(join(directory, 'js/checks-rust/checks.js')).href)
     internal = internalCheckRows(ts.checks, runtime)
+    ;({ numeric } = await publicValueConstructors())
 
     const arrayFallback = join(directory, 'array-fallback')
     await mkdir(arrayFallback)
@@ -420,6 +423,8 @@ fn nullness() {
         portable['local_time'] = {
           localMicroseconds: BigInt(local.getTime() - local.getTimezoneOffset() * 60_000) * 1000n,
         }
+      for (const name of ['amount', 'price', 'nested_price'])
+        if (typeof portable[name] === 'string') portable[name] = numeric(portable[name])
       for (const name of ['duration', 'domain_duration', 'clock', 'zoned_clock', 'domain_clock']) {
         if (portable[name] === undefined || portable[name] === null) continue
         portable[name] = name.includes('duration')
@@ -509,10 +514,7 @@ fn nullness() {
     })
 
   it('preserves clock and interval payload states and rejects malformed known payloads', () => {
-    const zone = [
-      { microseconds: 0, offsetSeconds: 2147483648 },
-      { kind: 'Value', value: { time: 0n, zone: 2147483648 } },
-    ]
+    const zone = [{ kind: 'Value', value: { time: 0n, zone: 2147483648 } }]
     const months = [
       { months: 2147483648, days: 0, microseconds: 0n },
       { kind: 'Value', value: { time: 0n, months: 2147483648, days: 0 } },
@@ -552,6 +554,18 @@ fn nullness() {
       for (const payload of [{ kind: 'Null' }, { kind: 'Unknown' }, failure])
         expect(() => evaluate({ [name]: payload }), name).toThrow(TypeError)
     }
+    // A public zone is any whole number of seconds, and the server's timetz input refuses one
+    // beyond its displacement limit, so the checks reading it are decided as that refusal.
+    for (const name of ['zoned_clock', 'domain_clock'])
+      expect(
+        evaluate({ [name]: { microseconds: 0, offsetSeconds: 2147483648 } })
+          .filter((item) => [name + '_null', name + '_present'].includes(item.constraint))
+          .map((item) => item.result),
+        name,
+      ).toEqual([
+        { certain: true, error: '22009' },
+        { certain: true, error: '22009' },
+      ])
   })
 
   it('keeps composite row NULL semantics distinct from scalar nullness', async () => {

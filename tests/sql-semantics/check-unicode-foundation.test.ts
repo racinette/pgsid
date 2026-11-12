@@ -35,8 +35,11 @@ function samples(): string[] {
     const last = Number.parseInt(match[2]!, 16)
     points.push(first - 1, first, last, last + 1)
   }
-  const table = readFileSync('/tmp/pgsid-check-unicode-data/tables.rs', 'utf8')
-  const keys = table.split('const UNICODE_COMPOSE_KEYS:')[1]!.split('];')[0]!
+  const runtime = (
+    JSON.parse(readFileSync('src/codegen/go/assets/check-rust-sources.json', 'utf8')) as CheckRustSource
+  ).modules.find((module) => module.name === 'checkruntime')!
+  const table = runtime.files.find((file) => file.source.includes('const UNICODE_COMPOSE_KEYS:'))!
+  const keys = table.source.split('const UNICODE_COMPOSE_KEYS:')[1]!.split('];')[0]!
   const pairs = [...keys.matchAll(/(\d+)i64/gu)].map((match) => {
     const key = Number(match[1])
     return String.fromCodePoint(Math.floor(key / 2097152), key % 2097152)

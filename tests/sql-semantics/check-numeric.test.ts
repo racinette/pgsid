@@ -21,6 +21,7 @@ import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescri
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
 import { builtinCallables } from '../../src/postgres/builtins/inventory.js'
 import { internalCheckRows } from '../support/check-entries.js'
+import { publicValueConstructors } from './public-value-constructors.js'
 
 const expressions: Record<string, string> = {
   equal: 'a = b',
@@ -492,7 +493,8 @@ describe('portable Rust CHECK numeric comparisons', () => {
     )
   }, 180_000)
 
-  it('validates exact strings and wrappers at the production TypeScript boundary', async () => {
+  it('validates numeric values and wrappers at the production TypeScript boundary', async () => {
+    const { numeric } = await publicValueConstructors()
     const output = renderTypescriptSchemaCheckArtifacts([table], catalog.domains, [])
     const publicDirectory = join(directory, 'public')
     await mkdir(publicDirectory, { recursive: true })
@@ -526,13 +528,14 @@ describe('portable Rust CHECK numeric comparisons', () => {
         .evaluatePublicNumericChecksChecks({ a, b, flag: true })
         .find((check: { constraint: string }) => check.constraint === 'equal')
     const evaluate = (a: unknown, b: unknown) => evaluation(a, b).result
-    expect(evaluate('1.2300', '1.23')).toEqual({ certain: true, value: true })
-    expect(evaluate('9007199254740993', '9007199254740992')).toEqual({
+    const one = numeric('1')
+    expect(evaluate(numeric('1.2300'), numeric('1.23'))).toEqual({ certain: true, value: true })
+    expect(evaluate(numeric('9007199254740993'), numeric('9007199254740992'))).toEqual({
       certain: true,
       value: false,
     })
     expect(() =>
-      evaluate({ kind: 'Value', value: '9007199254740993' }, '9007199254740992'),
+      evaluate({ kind: 'Value', value: '9007199254740993' }, numeric('9007199254740992')),
     ).toThrow(TypeError)
     // The evaluator entries take the runtime's own values, including failed operands, which no
     // public value expresses.
@@ -544,8 +547,11 @@ describe('portable Rust CHECK numeric comparisons', () => {
         runtime.makeNumericValue('9007199254740992'),
       ).equal,
     ).toEqual({ kind: 'False' })
-    expect(evaluate(null, '1')).toEqual({ certain: true, value: null })
-    expect(evaluate(undefined, '1')).toEqual({ certain: false })
+    expect(evaluate(null, one)).toEqual({ certain: true, value: null })
+    expect(evaluate(undefined, one)).toEqual({ certain: false })
+    // A numeric is a numeric value, not its text or a lookalike.
+    for (const a of ['1', '1.2300', { toString: () => '1' }])
+      expect(() => evaluate(a, one), String(a)).toThrow(TypeError)
     for (const a of [
       0.1,
       1,
@@ -555,8 +561,8 @@ describe('portable Rust CHECK numeric comparisons', () => {
       { kind: 'Value', value: 'invalid' },
       { kind: 'Value', value: 1 },
     ])
-      expectUndecidedOrRejected(() => evaluate(a, '1'))
-    expect(evaluation(undefined, '1')).toMatchObject({
+      expectUndecidedOrRejected(() => evaluate(a, one))
+    expect(evaluation(undefined, one)).toMatchObject({
       owner: 'public.numeric_checks',
       constraint: 'equal',
       result: { certain: false },
@@ -573,7 +579,7 @@ describe('portable Rust CHECK numeric comparisons', () => {
       ['XX000', 'internal error'],
     ]) {
       const failure = { kind: 'Error', value: { state: parseInt(code!, 36) } }
-      expect(() => evaluation(failure, '1')).toThrow(TypeError)
+      expect(() => evaluation(failure, one)).toThrow(TypeError)
       const outcome = rows(failure).equal as { kind: string; value: { state: number } }
       expect(outcome).toEqual(failure)
       expect(outcome.value.state.toString(36).toUpperCase().padStart(5, '0')).toBe(code)
