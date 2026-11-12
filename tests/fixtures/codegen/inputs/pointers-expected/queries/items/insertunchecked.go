@@ -3,12 +3,13 @@ package items
 import (
 	"context"
 	jsonschemas "example.com/pgsid-validation/generated/jsonschemas"
+	pgsid "example.com/pgsid-validation/generated/pgsid"
 )
 
 const InsertUncheckedSQL = "INSERT INTO items (payload, unchecked) VALUES ('{\"actor\":1}', $1);"
 
 type InsertUncheckedParams struct {
-	Payload *jsonschemas.Event `db:"payload"`
+	Payload *pgsid.JSON[jsonschemas.Event] `db:"payload"`
 }
 
 func (q *Queries) InsertUnchecked(ctx context.Context, params InsertUncheckedParams) error {

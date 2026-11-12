@@ -10,8 +10,8 @@ import (
 const UpdatePayloadSQL = "UPDATE items SET payload = $1 WHERE id = $2;"
 
 type UpdatePayloadParams struct {
-	Payload jsonschemas.Event `db:"payload"`
-	Id      pgsid.Null[int32] `db:"id"`
+	Payload pgsid.JSON[jsonschemas.Event] `db:"payload"`
+	Id      pgsid.Null[int32]             `db:"id"`
 }
 
 func (q *Queries) UpdatePayload(ctx context.Context, params UpdatePayloadParams) (int64, error) {

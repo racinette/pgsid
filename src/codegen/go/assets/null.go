@@ -1,4 +1,4 @@
-package pgsid
+package null
 
 import (
 	"bytes"

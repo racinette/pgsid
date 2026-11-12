@@ -16,16 +16,40 @@ export const nullStruct = (
   type: GoExpression,
 ): GoExpression => go.index(go.selector(go.ident('pgsid'), kind), type)
 export const runtimeSource = (
-  name: 'null.go' | 'null-pgx.go' | 'validation.go' | 'array.go' | 'temporal.go' | 'range.go',
+  name: 'null.go' | 'null-pgx.go' | 'validation.go' | 'array.go' | 'temporal.go' | 'range.go' | 'json.go' | 'null-alias.go',
 ): string => {
   const source = new URL(`./assets/${name}`, import.meta.url)
   return readFileSync(existsSync(source) ? source : new URL(`./${name}`, import.meta.url), 'utf8')
 }
-export const renderGoNulls = (): string =>
-  printGoFile({ package: 'pgsid', imports: [], declarations: [], source: runtimeSource('null.go') })
+// The null wrappers' own package, beneath the pgsid package, which names the same types.
+export const goNullWrappersImportPath = (nullsImportPath: string): string => `${nullsImportPath}/null`
+export const goNullArtifacts = (
+  directory: string,
+  nullsImportPath: string,
+): { path: string; content: string }[] => [
+  {
+    path: join(directory, 'null', 'null.go'),
+    content: printGoFile({
+      package: 'null',
+      imports: [],
+      declarations: [],
+      source: runtimeSource('null.go'),
+    }),
+  },
+  {
+    path: join(directory, 'null.go'),
+    content: printGoFile({
+      package: 'pgsid',
+      imports: [{ path: goNullWrappersImportPath(nullsImportPath), alias: 'pgsidnull' }],
+      declarations: [],
+      source: runtimeSource('null-alias.go'),
+    }),
+  },
+]
 const goValueFiles = [
   { name: 'temporal.go', names: /\bpgsid\.(?:Timestamptz|Timestamp|Date|Interval)\b/u },
   { name: 'range.go', names: /\bpgsid\.(?:Range|Multirange|Bound)\b/u },
+  { name: 'json.go', names: /\bpgsid\.JSON\b/u },
 ] as const
 // The pgsid package's value files that generated Go names a type of, each written once.
 export const goValueArtifacts = (

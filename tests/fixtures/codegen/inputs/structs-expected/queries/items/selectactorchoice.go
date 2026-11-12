@@ -2,7 +2,6 @@ package items
 
 import (
 	"context"
-	"encoding/json"
 	pgsid "example.com/pgsid-validation/generated/pgsid"
 	pgsidpgx "example.com/pgsid-validation/generated/queries/pgsid/pgx"
 )
@@ -13,7 +12,7 @@ type SelectActorChoiceParams struct {
 	Id pgsid.Null[int32] `db:"id"`
 }
 type SelectActorChoiceRow struct {
-	Actor pgsid.Null[json.RawMessage] `db:"actor"`
+	Actor pgsid.Null[pgsid.JSON[any]] `db:"actor"`
 }
 
 func (q *Queries) SelectActorChoice(ctx context.Context, params SelectActorChoiceParams) (SelectActorChoiceRow, error) {

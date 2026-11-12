@@ -13,7 +13,7 @@ type GetNestedFunctionParams struct {
 	Id pgsid.Null[int64] `db:"id"`
 }
 type GetNestedFunctionRow struct {
-	Nested pgsid.Null[jsonschemas.DocumentNested] `db:"nested"`
+	Nested pgsid.Null[pgsid.JSON[jsonschemas.DocumentNested]] `db:"nested"`
 }
 
 func (q *Queries) GetNestedFunction(ctx context.Context, params GetNestedFunctionParams) (GetNestedFunctionRow, error) {

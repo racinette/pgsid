@@ -3,13 +3,14 @@ package items
 import (
 	"context"
 	jsonschemas "example.com/pgsid-validation/generated/jsonschemas"
+	pgsid "example.com/pgsid-validation/generated/pgsid"
 	pgsidpgx "example.com/pgsid-validation/generated/queries/pgsid/pgx"
 )
 
 const InsertPayloadSQL = "INSERT INTO items (payload) VALUES ($1);"
 
 type InsertPayloadParams struct {
-	Payload jsonschemas.Event `db:"payload"`
+	Payload pgsid.JSON[jsonschemas.Event] `db:"payload"`
 }
 
 func (q *Queries) InsertPayload(ctx context.Context, params InsertPayloadParams) error {

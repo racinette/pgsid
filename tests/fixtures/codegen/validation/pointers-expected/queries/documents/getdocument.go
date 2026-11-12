@@ -3,6 +3,7 @@ package documents
 import (
 	"context"
 	jsonschemas "example.com/pgsid-validation/generated/jsonschemas"
+	pgsid "example.com/pgsid-validation/generated/pgsid"
 	pgsidpgx "example.com/pgsid-validation/generated/queries/pgsid/pgx"
 )
 
@@ -11,12 +12,12 @@ const GetDocumentSQL = "WITH selected AS (SELECT * FROM documents)\nSELECT paylo
 type GetDocumentParams struct {
 }
 type GetDocumentRow struct {
-	Payload   jsonschemas.Document       `db:"payload"`
-	Node      *jsonschemas.DocumentNode  `db:"node"`
-	Unchecked jsonschemas.Document       `db:"unchecked"`
-	Forced    jsonschemas.Document       `db:"forced"`
-	Maybe     *jsonschemas.MaybeDocument `db:"maybe"`
-	Strict    *jsonschemas.Document      `db:"strict"`
+	Payload   pgsid.JSON[jsonschemas.Document]       `db:"payload"`
+	Node      *pgsid.JSON[jsonschemas.DocumentNode]  `db:"node"`
+	Unchecked pgsid.JSON[jsonschemas.Document]       `db:"unchecked"`
+	Forced    pgsid.JSON[jsonschemas.Document]       `db:"forced"`
+	Maybe     *pgsid.JSON[jsonschemas.MaybeDocument] `db:"maybe"`
+	Strict    *pgsid.JSON[jsonschemas.Document]      `db:"strict"`
 }
 
 func (q *Queries) GetDocument(ctx context.Context) (GetDocumentRow, error) {

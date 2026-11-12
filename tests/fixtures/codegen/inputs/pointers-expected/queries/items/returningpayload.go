@@ -3,16 +3,17 @@ package items
 import (
 	"context"
 	jsonschemas "example.com/pgsid-validation/generated/jsonschemas"
+	pgsid "example.com/pgsid-validation/generated/pgsid"
 	pgsidpgx "example.com/pgsid-validation/generated/queries/pgsid/pgx"
 )
 
 const ReturningPayloadSQL = "UPDATE items SET payload = $1 RETURNING payload;"
 
 type ReturningPayloadParams struct {
-	Payload jsonschemas.Event `db:"payload"`
+	Payload pgsid.JSON[jsonschemas.Event] `db:"payload"`
 }
 type ReturningPayloadRow struct {
-	Payload jsonschemas.Event `db:"payload"`
+	Payload pgsid.JSON[jsonschemas.Event] `db:"payload"`
 }
 
 func (q *Queries) ReturningPayload(ctx context.Context, params ReturningPayloadParams) (ReturningPayloadRow, error) {

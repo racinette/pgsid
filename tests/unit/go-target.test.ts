@@ -158,11 +158,12 @@ describe('Go codegen target', () => {
     expect(support.diagnostics).toEqual([])
     expect(support.artifacts.map((item) => item.path)).toEqual([
       '/workspace/internal/queries/pgsid/pgx/db.go',
+      '/workspace/internal/queries/pgsid/null/null.go',
       '/workspace/internal/queries/pgsid/null.go',
       '/workspace/internal/queries/jsonschemas/payload.go',
     ])
-    expect(support.artifacts[2]!.content).toContain(
-      'pgsid "example.com/app/internal/queries/pgsid"',
+    expect(support.artifacts[3]!.content).toContain(
+      'pgsid "example.com/app/internal/queries/pgsid/null"',
     )
     for (const path of ['pgsid.sql', 'jsonschemas.sql', 'jsonschemas/nested.sql'])
       expect(

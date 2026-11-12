@@ -3,14 +3,15 @@ package items
 import (
 	"context"
 	jsonschemas "example.com/pgsid-validation/generated/jsonschemas"
+	pgsid "example.com/pgsid-validation/generated/pgsid"
 	pgsidpgx "example.com/pgsid-validation/generated/queries/pgsid/pgx"
 )
 
 const TupleUpdateSQL = "UPDATE items SET (payload, unchecked) = ($1, $2);"
 
 type TupleUpdateParams struct {
-	First  jsonschemas.Event  `db:"first"`
-	Second *jsonschemas.Event `db:"second"`
+	First  pgsid.JSON[jsonschemas.Event]  `db:"first"`
+	Second *pgsid.JSON[jsonschemas.Event] `db:"second"`
 }
 
 func (q *Queries) TupleUpdate(ctx context.Context, params TupleUpdateParams) error {

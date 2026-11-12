@@ -3,6 +3,7 @@ package documents
 import (
 	"context"
 	jsonschemas "example.com/pgsid-validation/generated/jsonschemas"
+	pgsid "example.com/pgsid-validation/generated/pgsid"
 	pgsidpgx "example.com/pgsid-validation/generated/queries/pgsid/pgx"
 )
 
@@ -11,7 +12,7 @@ const ListDocumentsSQL = "SELECT payload FROM documents;"
 type ListDocumentsParams struct {
 }
 type ListDocumentsRow struct {
-	Payload jsonschemas.Document `db:"payload"`
+	Payload pgsid.JSON[jsonschemas.Document] `db:"payload"`
 }
 
 func (q *Queries) ListDocuments(ctx context.Context) ([]ListDocumentsRow, error) {

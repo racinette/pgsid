@@ -12,17 +12,17 @@ type GetPartsParams struct {
 	Id *int64 `db:"id"`
 }
 type GetPartsRow struct {
-	Nested      *jsonschemas.DocumentNested                   `db:"nested"`
-	Members     []pgsid.Null[jsonschemas.DocumentMembersItem] `db:"members"`
-	FirstMember *pgsid.Null[jsonschemas.DocumentMembersItem]  `db:"first_member"`
-	LastMember  *pgsid.Null[jsonschemas.DocumentMembersItem]  `db:"last_member"`
-	Profile     *jsonschemas.DocumentMembersItemProfile       `db:"profile"`
-	LookupValue *jsonschemas.DocumentLookupValue              `db:"lookup_value"`
-	Node        *jsonschemas.DocumentNode                     `db:"node"`
+	Nested      *pgsid.JSON[jsonschemas.DocumentNested]                    `db:"nested"`
+	Members     *pgsid.JSON[[]pgsid.Null[jsonschemas.DocumentMembersItem]] `db:"members"`
+	FirstMember *pgsid.JSON[pgsid.Null[jsonschemas.DocumentMembersItem]]   `db:"first_member"`
+	LastMember  *pgsid.JSON[pgsid.Null[jsonschemas.DocumentMembersItem]]   `db:"last_member"`
+	Profile     *pgsid.JSON[jsonschemas.DocumentMembersItemProfile]        `db:"profile"`
+	LookupValue *pgsid.JSON[jsonschemas.DocumentLookupValue]               `db:"lookup_value"`
+	Node        *pgsid.JSON[jsonschemas.DocumentNode]                      `db:"node"`
 }
 
 func (q *Queries) GetParts(ctx context.Context, params GetPartsParams) (GetPartsRow, error) {
 	var row GetPartsRow
-	err := q.db.QueryRow(ctx, GetPartsSQL, params.Id).Scan(&row.Nested, &row.Members, &row.FirstMember, &row.LastMember, &row.Profile, &row.LookupValue, &row.Node)
+	err := q.db.QueryRow(ctx, GetPartsSQL, params.Id).Scan(pgsid.NullableJSON(&row.Nested), pgsid.NullableJSON(&row.Members), pgsid.NullableJSON(&row.FirstMember), pgsid.NullableJSON(&row.LastMember), pgsid.NullableJSON(&row.Profile), pgsid.NullableJSON(&row.LookupValue), pgsid.NullableJSON(&row.Node))
 	return row, err
 }

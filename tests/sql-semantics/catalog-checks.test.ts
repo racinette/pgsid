@@ -32,7 +32,7 @@ import {
   renderGoSchemaCheckArtifacts,
   renderGoSchemaChecks,
 } from '../../src/codegen/go/sql/catalog-checks.js'
-import { renderGoNulls } from '../../src/codegen/go/nulls.js'
+import { goNullArtifacts } from '../../src/codegen/go/nulls.js'
 import { createGoTypeContext } from '../../src/codegen/go/type-mapping.js'
 import { renderTypescriptQueryArtifacts } from '../../src/codegen/typescript/query.js'
 import { renderGoQueryArtifacts } from '../../src/codegen/go/query.js'
@@ -988,7 +988,10 @@ func main() {
       await mkdir(join(directory, 'pgsid'))
       await mkdir(join(directory, 'standalone'))
       await writeFile(join(directory, 'go.mod'), 'module example.com/typed\n\ngo 1.24\n')
-      await writeFile(join(directory, 'pgsid', 'null.go'), renderGoNulls())
+      for (const artifact of goNullArtifacts(join(directory, 'pgsid'), 'example.com/typed/pgsid')) {
+        await mkdir(dirname(artifact.path), { recursive: true })
+        await writeFile(artifact.path, artifact.content)
+      }
       await writeFile(join(directory, 'checks.go'), checks)
       await writeFile(join(directory, 'standalone', 'checks.go'), standaloneStructs)
       await writeFile(join(directory, 'main.go'), 'package main\nfunc main() {}\n')

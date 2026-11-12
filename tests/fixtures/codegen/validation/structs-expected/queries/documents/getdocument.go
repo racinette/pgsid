@@ -12,12 +12,12 @@ const GetDocumentSQL = "WITH selected AS (SELECT * FROM documents)\nSELECT paylo
 type GetDocumentParams struct {
 }
 type GetDocumentRow struct {
-	Payload   jsonschemas.Document                  `db:"payload"`
-	Node      pgsid.Null[jsonschemas.DocumentNode]  `db:"node"`
-	Unchecked jsonschemas.Document                  `db:"unchecked"`
-	Forced    jsonschemas.Document                  `db:"forced"`
-	Maybe     pgsid.Null[jsonschemas.MaybeDocument] `db:"maybe"`
-	Strict    pgsid.Null[jsonschemas.Document]      `db:"strict"`
+	Payload   pgsid.JSON[jsonschemas.Document]                  `db:"payload"`
+	Node      pgsid.Null[pgsid.JSON[jsonschemas.DocumentNode]]  `db:"node"`
+	Unchecked pgsid.JSON[jsonschemas.Document]                  `db:"unchecked"`
+	Forced    pgsid.JSON[jsonschemas.Document]                  `db:"forced"`
+	Maybe     pgsid.Null[pgsid.JSON[jsonschemas.MaybeDocument]] `db:"maybe"`
+	Strict    pgsid.Null[pgsid.JSON[jsonschemas.Document]]      `db:"strict"`
 }
 
 func (q *Queries) GetDocument(ctx context.Context) (GetDocumentRow, error) {

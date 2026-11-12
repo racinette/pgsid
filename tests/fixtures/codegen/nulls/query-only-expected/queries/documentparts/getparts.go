@@ -13,13 +13,13 @@ type GetPartsParams struct {
 	Id pgsid.Null[int64] `db:"id"`
 }
 type GetPartsRow struct {
-	Nested      pgsid.Null[jsonschemas.DocumentNested]                    `db:"nested"`
-	Members     pgsid.Null[[]pgsid.Null[jsonschemas.DocumentMembersItem]] `db:"members"`
-	FirstMember pgsid.Null[pgsid.Null[jsonschemas.DocumentMembersItem]]   `db:"first_member"`
-	LastMember  pgsid.Null[pgsid.Null[jsonschemas.DocumentMembersItem]]   `db:"last_member"`
-	Profile     pgsid.Null[jsonschemas.DocumentMembersItemProfile]        `db:"profile"`
-	LookupValue pgsid.Null[jsonschemas.DocumentLookupValue]               `db:"lookup_value"`
-	Node        pgsid.Null[jsonschemas.DocumentNode]                      `db:"node"`
+	Nested      pgsid.Null[pgsid.JSON[jsonschemas.DocumentNested]]                    `db:"nested"`
+	Members     pgsid.Null[pgsid.JSON[[]pgsid.Null[jsonschemas.DocumentMembersItem]]] `db:"members"`
+	FirstMember pgsid.Null[pgsid.JSON[pgsid.Null[jsonschemas.DocumentMembersItem]]]   `db:"first_member"`
+	LastMember  pgsid.Null[pgsid.JSON[pgsid.Null[jsonschemas.DocumentMembersItem]]]   `db:"last_member"`
+	Profile     pgsid.Null[pgsid.JSON[jsonschemas.DocumentMembersItemProfile]]        `db:"profile"`
+	LookupValue pgsid.Null[pgsid.JSON[jsonschemas.DocumentLookupValue]]               `db:"lookup_value"`
+	Node        pgsid.Null[pgsid.JSON[jsonschemas.DocumentNode]]                      `db:"node"`
 }
 
 func (q *Queries) GetParts(ctx context.Context, params GetPartsParams) (GetPartsRow, error) {

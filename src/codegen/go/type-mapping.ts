@@ -62,8 +62,6 @@ const defaultTypes: Readonly<Record<string, { type: string; imports?: GoTypeImpo
   int2: { type: 'int16' },
   int4: { type: 'int32' },
   int8: { type: 'int64' },
-  json: { type: 'json.RawMessage', imports: [{ path: 'encoding/json' }] },
-  jsonb: { type: 'json.RawMessage', imports: [{ path: 'encoding/json' }] },
   macaddr: { type: 'string' },
   macaddr8: { type: 'string' },
   money: { type: 'string' },
@@ -127,7 +125,7 @@ export function resolveGoColumnType(
       )
     }
     if (typeof mapping === 'object' && 'jsonSchema' in mapping) {
-      return namedType(mapping.jsonSchema, undefined, context)
+      return jsonContainer(namedType(mapping.jsonSchema, undefined, context), context)
     }
     return mapped(mapping as GoTargetTypeMapping)
   }
@@ -195,6 +193,8 @@ export function resolveGoPgType(
       ),
       imports: [...subtype.imports, { path: context.nullsImportPath, as: 'pgsid' }],
     }
+  } else if (alias === 'json' || alias === 'jsonb') {
+    resolved = jsonContainer({ type: go.ident('any'), imports: [] }, context)
   } else if (Object.hasOwn(pgsidTypes, alias)) {
     if (!context?.nullsImportPath) throw new Error(`Go ${alias} values require an import path context`)
     resolved = {
@@ -314,7 +314,7 @@ export function resolveGoValueType(
         alternative.schemaName === root.schemaName,
     )
   ) {
-    return namedType(root.schemaName, undefined, context)
+    return jsonContainer(namedType(root.schemaName, undefined, context), context)
   }
   if (
     lineage.complete &&
@@ -329,15 +329,22 @@ export function resolveGoValueType(
       goJsonNulls(config),
     )
     const imports: GoTypeImport[] = []
-    const candidates = lineage.alternatives.map((alternative) =>
-      alternative.representation === 'text'
-        ? go.ident('string')
-        : types.resolve(alternative.schema, (name) => {
+    const candidates = lineage.alternatives.map((alternative) => {
+      if (alternative.representation === 'text') return go.ident('string')
+      const container = jsonContainer(
+        {
+          type: types.resolve(alternative.schema, (name) => {
             const resolved = namedType(name, undefined, context)
             imports.push(...resolved.imports)
             return resolved.type
           }),
-    )
+          imports: [],
+        },
+        context,
+      )
+      imports.push(...container.imports)
+      return container.type
+    })
     const type = candidates[0]!
     if (candidates.every((candidate) => JSON.stringify(candidate) === JSON.stringify(type)))
       return { type, imports }
@@ -477,6 +484,16 @@ const isNilable = (type: GoExpression): boolean =>
   type.kind === 'slice' ||
   type.kind === 'map' ||
   type.kind === 'interface'
+
+// A json or jsonb value is the pgsid package's container of its document, decoded as the type given.
+const jsonContainer = (resolved: ResolvedGoType, context?: GoTypeContext): ResolvedGoType => {
+  if (!context?.nullsImportPath) throw new Error('Go JSON values require an import path context')
+  return {
+    ...resolved,
+    type: go.index(go.selector(go.ident('pgsid'), 'JSON'), resolved.type),
+    imports: [...resolved.imports, { path: context.nullsImportPath, as: 'pgsid' }],
+  }
+}
 
 const namedType = (
   name: string,

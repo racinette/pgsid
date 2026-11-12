@@ -12,7 +12,7 @@ type SelectActorParams struct {
 	Id pgsid.Null[int32] `db:"id"`
 }
 type SelectActorRow struct {
-	Actor pgsid.Null[int64] `db:"actor"`
+	Actor pgsid.Null[pgsid.JSON[int64]] `db:"actor"`
 }
 
 func (q *Queries) SelectActor(ctx context.Context, params SelectActorParams) (SelectActorRow, error) {

@@ -3,13 +3,14 @@ package items
 import (
 	"context"
 	jsonschemas "example.com/pgsid-validation/generated/jsonschemas"
+	pgsid "example.com/pgsid-validation/generated/pgsid"
 	pgsidpgx "example.com/pgsid-validation/generated/queries/pgsid/pgx"
 )
 
 const InsertFromCteSQL = "WITH a AS (SELECT $1::jsonb AS payload), b AS (SELECT payload FROM a)\nINSERT INTO items (payload) SELECT payload FROM b;"
 
 type InsertFromCteParams struct {
-	Payload *jsonschemas.Event `db:"payload"`
+	Payload *pgsid.JSON[jsonschemas.Event] `db:"payload"`
 }
 
 func (q *Queries) InsertFromCte(ctx context.Context, params InsertFromCteParams) error {

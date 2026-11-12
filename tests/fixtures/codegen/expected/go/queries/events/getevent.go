@@ -13,17 +13,17 @@ type GetEventParams struct {
 	Id *int64 `db:"id"`
 }
 type GetEventRow struct {
-	Id              public.EventId                 `db:"id"`
-	Payload         jsonschemas.EventPayload       `db:"payload"`
-	Actor           *jsonschemas.EventPayloadActor `db:"actor"`
-	State           public.EventState              `db:"state"`
-	CreatedAt       pgsid.Timestamptz              `db:"created_at"`
-	JoinedAccountId *int64                         `db:"joined_account_id"`
-	DisplayName     *string                        `db:"display_name"`
+	Id              public.EventId                             `db:"id"`
+	Payload         pgsid.JSON[jsonschemas.EventPayload]       `db:"payload"`
+	Actor           *pgsid.JSON[jsonschemas.EventPayloadActor] `db:"actor"`
+	State           public.EventState                          `db:"state"`
+	CreatedAt       pgsid.Timestamptz                          `db:"created_at"`
+	JoinedAccountId *int64                                     `db:"joined_account_id"`
+	DisplayName     *string                                    `db:"display_name"`
 }
 
 func (q *Queries) GetEvent(ctx context.Context, params GetEventParams) (GetEventRow, error) {
 	var row GetEventRow
-	err := q.db.QueryRow(ctx, GetEventSQL, params.Id).Scan(&row.Id, &row.Payload, &row.Actor, &row.State, &row.CreatedAt, &row.JoinedAccountId, &row.DisplayName)
+	err := q.db.QueryRow(ctx, GetEventSQL, params.Id).Scan(&row.Id, &row.Payload, pgsid.NullableJSON(&row.Actor), &row.State, &row.CreatedAt, &row.JoinedAccountId, &row.DisplayName)
 	return row, err
 }

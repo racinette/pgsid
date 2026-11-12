@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
+	"example.com/pgsid-nulls/generated/jsonschemas"
 	"example.com/pgsid-nulls/generated/pgsid"
 	support "example.com/pgsid-nulls/generated/queries/pgsid/pgx"
 	"example.com/pgsid-nulls/generated/schema/public"
@@ -97,7 +98,13 @@ func TestSQLNullsAndCodecs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !got.UserId.Valid || got.UserId.V != 7 || !got.State.Valid || !got.Payload.Valid || got.Payload.V.RequiredNullable.Valid || got.MaybePayload.Valid || !got.NullableValue.Valid || got.NullableValue.V.Valid || !got.Numbers.Valid || got.Numbers.V[1].Valid || !got.Numbers.V[2].Valid || !got.Metadata.Valid || got.Metadata.V.Label.Valid || !got.Metadata.V.Payload.Valid || string(got.Metadata.V.Payload.V) != "null" {
+	payload, payloadErr := got.Payload.V.Value()
+	maybe, maybeErr := got.MaybePayload.Value()
+	nullable, nullableErr := got.NullableValue.V.Value()
+	if payloadErr != nil || maybeErr != nil || nullableErr != nil {
+		t.Fatal(payloadErr, maybeErr, nullableErr)
+	}
+	if !got.UserId.Valid || got.UserId.V != 7 || !got.State.Valid || !got.Payload.Valid || payload.RequiredNullable.Valid || maybe.Valid || !got.NullableValue.Valid || nullable.Valid || !got.Numbers.Valid || got.Numbers.V[1].Valid || !got.Numbers.V[2].Valid || !got.Metadata.Valid || got.Metadata.V.Label.Valid || !got.Metadata.V.Payload.Valid || got.Metadata.V.Payload.V.Text() != "null" {
 		t.Fatalf("wrong values: %+v", got)
 	}
 	encoded, err := d.rows.m.Encode(90002, pgtype.TextFormatCode, got.Metadata.V, nil)
@@ -156,7 +163,18 @@ func TestParameters(t *testing.T) {
 	if d.args[0] != public.UserId(0) {
 		t.Fatalf("zero became NULL: %v", d.args[0])
 	}
+	// The zero document is the JSON null document, which is not SQL NULL.
 	raw, err := d.args[2].(driver.Valuer).Value()
+	if err != nil || string(raw.([]byte)) != "null" {
+		t.Fatalf("the zero document was sent as %v %v", raw, err)
+	}
+	if params.Payload.V, err = pgsid.JSONOf(jsonschemas.Document{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.SetItem(context.Background(), params); err != nil {
+		t.Fatal(err)
+	}
+	raw, err = d.args[2].(driver.Valuer).Value()
 	if err != nil || raw == nil {
 		t.Fatalf("typed JSON value became SQL NULL: %v %v", raw, err)
 	}

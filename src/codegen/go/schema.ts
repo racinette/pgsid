@@ -14,7 +14,7 @@ import { go, printGoFile, type GoDeclaration, type GoField } from './ast.js'
 import { renderGoSchemaCheckArtifacts } from './sql/catalog-checks.js'
 import {
   usesGoNullStructs,
-  renderGoNulls,
+  goNullArtifacts,
   goValueArtifacts,
   goNullsOutDir,
   goJsonNulls,
@@ -275,7 +275,7 @@ export function renderGoSchemaArtifacts(
         ...artifacts,
         ...jsonArtifacts,
         ...(usesGoNullStructs(config)
-          ? [{ path: join(goNullsOutDir(outDir), 'null.go'), content: renderGoNulls() }]
+          ? goNullArtifacts(goNullsOutDir(outDir), goNullsImportPath(importPath))
           : []),
         ...goValueArtifacts(
           goNullsOutDir(outDir),

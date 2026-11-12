@@ -3,16 +3,17 @@ package documents
 import (
 	"context"
 	jsonschemas "example.com/pgsid-validation/generated/jsonschemas"
+	pgsid "example.com/pgsid-validation/generated/pgsid"
 	pgsidpgx "example.com/pgsid-validation/generated/queries/pgsid/pgx"
 )
 
 const UpdateDocumentSQL = "UPDATE documents SET payload = $1 RETURNING payload;"
 
 type UpdateDocumentParams struct {
-	Payload jsonschemas.Document `db:"payload"`
+	Payload pgsid.JSON[jsonschemas.Document] `db:"payload"`
 }
 type UpdateDocumentRow struct {
-	Payload jsonschemas.Document `db:"payload"`
+	Payload pgsid.JSON[jsonschemas.Document] `db:"payload"`
 }
 
 func (q *Queries) UpdateDocument(ctx context.Context, params UpdateDocumentParams) (UpdateDocumentRow, error) {

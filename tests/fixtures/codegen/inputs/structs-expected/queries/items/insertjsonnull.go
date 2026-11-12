@@ -3,13 +3,14 @@ package items
 import (
 	"context"
 	jsonschemas "example.com/pgsid-validation/generated/jsonschemas"
+	pgsid "example.com/pgsid-validation/generated/pgsid"
 	pgsidpgx "example.com/pgsid-validation/generated/queries/pgsid/pgx"
 )
 
 const InsertJSONNullSQL = "INSERT INTO items (payload, literal) VALUES ('{\"actor\":1}', $1);"
 
 type InsertJSONNullParams struct {
-	Payload jsonschemas.Maybe `db:"payload"`
+	Payload pgsid.JSON[jsonschemas.Maybe] `db:"payload"`
 }
 
 func (q *Queries) InsertJSONNull(ctx context.Context, params InsertJSONNullParams) error {

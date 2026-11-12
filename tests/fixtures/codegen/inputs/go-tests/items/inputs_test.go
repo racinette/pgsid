@@ -46,6 +46,19 @@ func params[T any](t *testing.T, data string) T {
 	}
 	return value
 }
+// sent returns the JSON text a parameter carries to the driver: a document as itself, or the
+// text a nullable document's value encodes.
+func sent(t *testing.T, value any) string {
+	t.Helper()
+	switch document := value.(type) {
+	case json.RawMessage:
+		return string(document)
+	case interface{ Text() string }:
+		return document.Text()
+	}
+	t.Fatalf("expected a JSON document, got %T", value)
+	return ""
+}
 func inputDetail(t *testing.T, err error, query, column string) {
 	t.Helper()
 	var context *support.QueryValidationError
@@ -101,12 +114,8 @@ func TestValidInputsEncodedOnceAndDriverErrorsPreserved(t *testing.T) {
 	if string(before) != string(after) {
 		t.Fatal("input mutated")
 	}
-	raw, ok := db.args[0].(json.RawMessage)
-	if !ok {
-		t.Fatalf("expected encoded JSON, got %T", db.args[0])
-	}
 	var document map[string]any
-	if err := json.Unmarshal(raw, &document); err != nil {
+	if err := json.Unmarshal([]byte(sent(t, db.args[0])), &document); err != nil {
 		t.Fatal(err)
 	}
 	if document["actor"] != float64(2) {
@@ -132,19 +141,19 @@ func TestNullsArraysAndOptOut(t *testing.T) {
 	if err := q.InsertMaybe(context.Background(), jsonNull); err != nil {
 		t.Fatal(err)
 	}
-	if string(db.args[0].(json.RawMessage)) != "null" {
+	if sent(t, db.args[0]) != "null" {
 		t.Fatal(db.args)
 	}
 	if err := q.InsertJSONNull(context.Background(), InsertJSONNullParams{}); err != nil {
 		t.Fatal(err)
 	}
-	if string(db.args[0].(json.RawMessage)) != "null" {
+	if sent(t, db.args[0]) != "null" {
 		t.Fatal(db.args)
 	}
 	if err := q.InsertArray(context.Background(), params[InsertArrayParams](t, `{"payload":[1,2]}`)); err != nil {
 		t.Fatal(err)
 	}
-	if string(db.args[0].(json.RawMessage)) != "[1,2]" {
+	if sent(t, db.args[0]) != "[1,2]" {
 		t.Fatal(db.args)
 	}
 	inputDetail(t, q.InsertArray(context.Background(), params[InsertArrayParams](t, `{"payload":[0]}`)), "InsertArray", "payload")
