@@ -87,10 +87,14 @@ describe('renderGoSchemaArtifacts', () => {
       '/generated/public/checkrust/langruntime/runtime.go',
       '/generated/public/checkrust/pg_catalog/operations.go',
       '/jsonschemas/eventpayload.go',
+      '/pgsid/temporal.go',
     ])
     const source = result.artifacts.map((artifact) => artifact.content).join('\n')
     expect(source).toContain('"github.com/shopspring/decimal"')
-    expect(source).toContain('"time"')
+    expect(
+      result.artifacts.find((artifact) => artifact.path === '/generated/public/schema.go')!.content,
+    ).not.toContain('"time"')
+    expect(source).toContain('pgsid "pgsid"')
     expect(source).toContain('type EventPayload struct {')
     expect(source).not.toContain('type UnusedPayload')
     expect(source).toContain('Actor int64')
@@ -105,7 +109,7 @@ describe('renderGoSchemaArtifacts', () => {
     expect(source).toContain('Payload   *jsonschemas.EventPayload')
     expect(source).toContain('Amount    decimal.Decimal')
     expect(source).toMatch(/Meta\s+\*EventMeta/u)
-    expect(source).toContain('CreatedAt time.Time')
+    expect(source).toMatch(/CreatedAt\s+pgsid\.Timestamptz/u)
     expect(source).toContain('Actor *int64')
     expect(source).toContain('func EvaluatePublicEventIdDomainChecks(')
     expect(source).toContain('type PublicEventIdCheckInput struct')

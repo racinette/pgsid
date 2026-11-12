@@ -250,7 +250,7 @@ describe('floating-point SQL text input and binary output', () => {
     }
     await writeFile(
       join(folder, 'go.mod'),
-      'module floatpublic\n\ngo 1.25\n\nrequire (\n github.com/jackc/pgx/v5 v5.10.0\n github.com/shopspring/decimal v1.4.0\n)\n',
+      'module floatpublic\n\ngo 1.25\n\nrequire (\n github.com/jackc/pgx/v5 v5.10.0\n)\n',
     )
     await writeFile(
       join(folder, 'go.sum'),

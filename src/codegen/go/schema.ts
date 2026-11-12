@@ -15,6 +15,8 @@ import { renderGoSchemaCheckArtifacts } from './sql/catalog-checks.js'
 import {
   usesGoNullStructs,
   renderGoNulls,
+  renderGoTemporal,
+  usesGoTemporal,
   goNullsOutDir,
   goJsonNulls,
   goNullsImportPath,
@@ -268,6 +270,9 @@ export function renderGoSchemaArtifacts(
         ...jsonArtifacts,
         ...(usesGoNullStructs(config)
           ? [{ path: join(goNullsOutDir(outDir), 'null.go'), content: renderGoNulls() }]
+          : []),
+        ...([...artifacts, ...jsonArtifacts].some((artifact) => usesGoTemporal(artifact.content))
+          ? [{ path: join(goNullsOutDir(outDir), 'temporal.go'), content: renderGoTemporal() }]
           : []),
       ],
       diagnostics,

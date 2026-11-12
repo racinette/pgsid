@@ -65,6 +65,7 @@ import {
   addGoNullImport,
   nullableGoType,
   resolveGoColumnType,
+  localGoTypeContext,
   resolveGoPgType,
   storedGoColumnNotNull,
   storedGoDomainNotNull,
@@ -339,7 +340,14 @@ export function renderGoSchemaCheckArtifacts(
             }
           const resolved = schemaTypes
             ? resolveGoColumnType(table.schema, table.name, column, catalog, config, context)
-            : resolveGoPgType(column.typeName, typeConfig, catalog, table.schema, column.typeOid)
+            : resolveGoPgType(
+                column.typeName,
+                typeConfig,
+                catalog,
+                table.schema,
+                column.typeOid,
+                localGoTypeContext(context),
+              )
           imports.push(...resolved.imports)
           const type = nullableGoType(resolved.type, storedGoColumnNotNull(column, catalog), config)
           addGoNullImport(imports, config, context, type)
@@ -364,7 +372,7 @@ export function renderGoSchemaCheckArtifacts(
               catalog,
               domain.schema,
               domain.oid,
-              schemaTypes ? context : undefined,
+              schemaTypes ? context : localGoTypeContext(context),
             )
             imports.push(...resolved.imports)
             const type = nullableGoType(

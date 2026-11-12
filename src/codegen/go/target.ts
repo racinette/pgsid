@@ -19,6 +19,8 @@ import {
   goNullsOutDir,
   usesGoNullStructs,
   renderGoNulls,
+  renderGoTemporal,
+  usesGoTemporal,
   goJsonNulls,
   runtimeSource,
 } from './nulls.js'
@@ -29,7 +31,7 @@ import {
   runtimeGoJsonSchemas,
   goJsonSchemasImportPath,
 } from './jsonschemas.js'
-import { createGoTypeContext } from './type-mapping.js'
+import { createGoTypeContext, localGoTypeContext } from './type-mapping.js'
 import { renderGoSchemaArtifacts } from './schema.js'
 import { renderGoSchemaCheckArtifacts } from './sql/catalog-checks.js'
 import { checkTriggerWarning } from '../shared/check-trigger-warning.js'
@@ -63,7 +65,7 @@ export function createGoCodegenTarget(
       ? goJsonSchemasOutDir(schemaOutDir)
       : undefined
   if (jsonOutDir) roots.push(jsonOutDir)
-  if (schemaOutDir && usesGoNullStructs(config)) roots.push(goNullsOutDir(schemaOutDir))
+  if (schemaOutDir) roots.push(goNullsOutDir(schemaOutDir))
   const schemaImportPath = schemaOutDir
     ? (target.schema?.importPath ?? discoverGoImportPath(schemaOutDir))
     : undefined
@@ -277,7 +279,7 @@ export function createGoCodegenTarget(
       const reserved = [...helpers.values()]
         .map((helper) => dirname(dirname(helper.path)))
         .concat(jsonOutDir ? [jsonOutDir] : [])
-        .concat(schemaOutDir && usesGoNullStructs(config) ? [goNullsOutDir(schemaOutDir)] : [])
+        .concat(schemaOutDir ? [goNullsOutDir(schemaOutDir)] : [])
         .concat(
           !schemaOutDir && referencedGoJsonSchemas(config).length
             ? [...helpers.values()].map((helper) =>
@@ -329,11 +331,14 @@ export function createGoCodegenTarget(
           return tail === '' || (tail !== '..' && !tail.startsWith(`..${sep}`) && !isAbsolute(tail))
         })
         .sort(([left], [right]) => right.length - left.length)[0]?.[1]
+      const helperContext = helper
+        ? createGoTypeContext(`${helper.importPath.replace(/\/pgsid\/pgx$/u, '')}/schema`, config)
+        : undefined
       const queryContext =
         typeContext ??
-        ((usesGoNullStructs(config) || referencedGoJsonSchemas(config).length > 0) && helper
-          ? createGoTypeContext(`${helper.importPath.replace(/\/pgsid\/pgx$/u, '')}/schema`, config)
-          : undefined)
+        (usesGoNullStructs(config) || referencedGoJsonSchemas(config).length > 0
+          ? helperContext
+          : localGoTypeContext(helperContext))
       const results = analyses.map((analysis) => {
         const rendered = renderGoQueryArtifacts(
           [analysis],
@@ -357,9 +362,23 @@ export function createGoCodegenTarget(
           diagnostics: rendered.diagnostics,
         }
       })
+      // The pgsid package's temporal types, once a query here names one.
+      const temporalDirectory = schemaOutDir
+        ? goNullsOutDir(schemaOutDir)
+        : helper && dirname(dirname(helper.path))
       return {
         artifacts: [
           ...results.flatMap((result) => result.artifacts),
+          ...(temporalDirectory &&
+          results.some((result) => result.artifacts.some((item) => usesGoTemporal(item.content)))
+            ? [
+                {
+                  kind: 'helpers' as const,
+                  path: join(temporalDirectory, 'temporal.go'),
+                  content: renderGoTemporal(),
+                },
+              ]
+            : []),
           ...(analyses.length
             ? [
                 {

@@ -673,11 +673,14 @@ evaluatePublicFamily2Checks(nested)
     goCases.push(
       `{for _,dimension:=range []checkruntime.ArrayDimension{{Lower:2147483647,Length:2},{Lower:1,Length:3}} {value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"pg_catalog.int4",ElementKind:2,Dimensions:[]checkruntime.ArrayDimension{dimension},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementInt4,Int4:1},{Kind:checkruntime.ArrayElementInt4,Int4:2}}}};_,e:=EvaluatePublicFamily2Checks(PublicFamily2CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(1))});if e==nil {t.Fatal("malformed array shape",dimension)}}}`,
     )
+    const { readFile } = await import('node:fs/promises')
     await writeFile(
       join(root, 'go.mod'),
-      'module arraysql\n\ngo 1.25\n\nrequire (\n github.com/jackc/pgx/v5 v5.10.0\n github.com/shopspring/decimal v1.4.0\n)\n',
+      (await readFile('tests/fixtures/codegen/project/go.mod', 'utf8')).replace(
+        /^module .*$/mu,
+        'module arraysql',
+      ),
     )
-    const { readFile } = await import('node:fs/promises')
     await writeFile(
       join(root, 'go.sum'),
       await readFile('tests/fixtures/codegen/project/go.sum', 'utf8'),

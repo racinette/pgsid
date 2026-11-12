@@ -2,7 +2,7 @@ package public
 
 import (
 	jsonschemas "example.com/pgsid-fixture/generated/go/jsonschemas"
-	"time"
+	pgsid "example.com/pgsid-fixture/generated/go/pgsid"
 )
 
 type EventState string
@@ -31,7 +31,7 @@ type Events struct {
 	Audit     *jsonschemas.EventAudit  `db:"audit"`
 	Metadata  *EventMetadata           `db:"metadata"`
 	Note      *string                  `db:"note"`
-	CreatedAt time.Time                `db:"created_at"`
+	CreatedAt pgsid.Timestamptz        `db:"created_at"`
 }
 type EventDetails struct {
 	Id          EventId                        `db:"id"`

@@ -53,7 +53,11 @@ describe('Go codegen target', () => {
                 sql/queries: {outDir: internal/queries, importPath: example.com/app/internal/queries}
     `)
     const target = createCodegenTargets(config, {}, { baseDirectory: '/workspace' })[0]!
-    expect(target.outputRoots).toEqual(['/workspace/internal/db', '/workspace/internal/queries'])
+    expect(target.outputRoots).toEqual([
+      '/workspace/internal/db',
+      '/workspace/internal/queries',
+      '/workspace/internal/pgsid',
+    ])
   })
 
   it('routes executable queries and emits shared helpers with explicit query import paths', () => {
