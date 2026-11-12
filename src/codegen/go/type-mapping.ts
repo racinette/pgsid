@@ -31,7 +31,14 @@ export interface GoTypeContext {
   aliases?: Readonly<Record<string, string>>
   directories?: Readonly<Record<string, string>>
   nullsImportPath?: string
+  // Names catalog types as identifiers of the package being written, while value types still
+  // come from the pgsid package.
+  localNames?: boolean
 }
+
+// A context that reaches the pgsid package and nothing else.
+export const localGoTypeContext = (context: GoTypeContext | undefined): GoTypeContext | undefined =>
+  context && { importPath: context.importPath, nullsImportPath: context.nullsImportPath, localNames: true }
 
 export interface ResolvedGoType {
   type: GoExpression
@@ -48,14 +55,12 @@ const defaultTypes: Readonly<Record<string, { type: string; imports?: GoTypeImpo
   bytea: { type: '[]byte' },
   char: { type: 'string' },
   cidr: { type: 'string' },
-  date: { type: 'time.Time', imports: [{ path: 'time' }] },
   float4: { type: 'float32' },
   float8: { type: 'float64' },
   inet: { type: 'string' },
   int2: { type: 'int16' },
   int4: { type: 'int32' },
   int8: { type: 'int64' },
-  interval: { type: 'string' },
   json: { type: 'json.RawMessage', imports: [{ path: 'encoding/json' }] },
   jsonb: { type: 'json.RawMessage', imports: [{ path: 'encoding/json' }] },
   macaddr: { type: 'string' },
@@ -67,13 +72,20 @@ const defaultTypes: Readonly<Record<string, { type: string; imports?: GoTypeImpo
   refcursor: { type: 'string' },
   text: { type: 'string' },
   time: { type: 'string' },
-  timestamp: { type: 'time.Time', imports: [{ path: 'time' }] },
-  timestamptz: { type: 'time.Time', imports: [{ path: 'time' }] },
   timetz: { type: 'string' },
   uuid: { type: 'string' },
   varbit: { type: 'string' },
   varchar: { type: 'string' },
   xml: { type: 'string' },
+}
+
+// Types the pgsid package owns, so that every value PostgreSQL holds, infinities included, has
+// one.
+const pgsidTypes: Readonly<Record<string, string>> = {
+  date: 'Date',
+  interval: 'Interval',
+  timestamp: 'Timestamp',
+  timestamptz: 'Timestamptz',
 }
 
 const aliases: Readonly<Record<string, string>> = {
@@ -167,6 +179,12 @@ export function resolveGoPgType(
     resolved = namedType(enumeration.name, enumeration.schema, context)
   } else if (composite) {
     resolved = namedType(composite.name, composite.schema, context)
+  } else if (Object.hasOwn(pgsidTypes, alias)) {
+    if (!context?.nullsImportPath) throw new Error(`Go ${alias} values require an import path context`)
+    resolved = {
+      type: go.selector(go.ident('pgsid'), pgsidTypes[alias]!),
+      imports: [{ path: context.nullsImportPath, as: 'pgsid' }],
+    }
   } else {
     resolved = mapped(defaultTypes[alias] ?? defaultTypes[unmodified] ?? { type: 'any' })
   }
@@ -422,7 +440,7 @@ const namedType = (
   schema: string | undefined,
   context?: GoTypeContext,
 ): ResolvedGoType => {
-  if (!context || (schema !== undefined && schema === context.schema))
+  if (!context || context.localNames || (schema !== undefined && schema === context.schema))
     return { type: go.ident(goName(name)), imports: [] }
   const directory =
     schema === undefined

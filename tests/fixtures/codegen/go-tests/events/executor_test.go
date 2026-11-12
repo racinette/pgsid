@@ -116,7 +116,8 @@ func TestOneDecodesValuesAndNulls(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if row.Id != public.EventId(7) || row.Payload.Actor.Id != 42 || row.Actor == nil || row.Actor.Id != 42 || row.State != public.EventStateReady || !row.CreatedAt.Equal(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)) || row.JoinedAccountId != nil || row.DisplayName != nil {
+	createdAt, finite := row.CreatedAt.Time()
+	if row.Id != public.EventId(7) || row.Payload.Actor.Id != 42 || row.Actor == nil || row.Actor.Id != 42 || row.State != public.EventStateReady || !finite || !createdAt.Equal(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)) || row.JoinedAccountId != nil || row.DisplayName != nil {
 		t.Fatalf("wrong decoded row: %#v", row)
 	}
 }

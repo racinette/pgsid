@@ -328,7 +328,7 @@ it('validates nested domain array identities and owned payloads in public Go and
     expect(storedOrRejected(() => stored(cycle))).toBeUndefined()
     await writeFile(
       join(root, 'go.mod'),
-      'module nestedinput\n\ngo 1.25\n\nrequire (\n github.com/jackc/pgx/v5 v5.10.0\n github.com/shopspring/decimal v1.4.0\n)\n',
+      'module nestedinput\n\ngo 1.25\n\nrequire (\n github.com/jackc/pgx/v5 v5.10.0\n)\n',
     )
     await writeFile(
       join(root, 'go.sum'),

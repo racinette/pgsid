@@ -294,6 +294,8 @@ const addArtifact = (
   target: string,
 ): void => {
   const owner = artifacts[artifact.path]
+  // A target writes a shared support file from each render that needs it.
+  if (owner?.target === target && owner.content === artifact.content) return
   if (owner) {
     throw new Error(
       `Codegen targets ${JSON.stringify(owner.target)} and ${JSON.stringify(target)} both emit ${JSON.stringify(artifact.path)}`,

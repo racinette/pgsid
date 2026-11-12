@@ -3,8 +3,8 @@ package events
 import (
 	"context"
 	jsonschemas "example.com/pgsid-fixture/generated/go/jsonschemas"
+	pgsid "example.com/pgsid-fixture/generated/go/pgsid"
 	public "example.com/pgsid-fixture/generated/go/schema/public"
-	"time"
 )
 
 const GetEventSQL = "WITH selected AS (\n  SELECT id, account_id, payload, state, created_at\n  FROM public.events\n  WHERE id = $1\n)\nSELECT\n  selected.id,\n  selected.payload,\n  selected.payload -> 'actor' AS actor,\n  selected.state,\n  selected.created_at,\n  accounts.id AS joined_account_id,\n  accounts.display_name\nFROM selected\nLEFT JOIN public.accounts AS accounts ON accounts.id = selected.account_id;"
@@ -17,7 +17,7 @@ type GetEventRow struct {
 	Payload         jsonschemas.EventPayload       `db:"payload"`
 	Actor           *jsonschemas.EventPayloadActor `db:"actor"`
 	State           public.EventState              `db:"state"`
-	CreatedAt       time.Time                      `db:"created_at"`
+	CreatedAt       pgsid.Timestamptz              `db:"created_at"`
 	JoinedAccountId *int64                         `db:"joined_account_id"`
 	DisplayName     *string                        `db:"display_name"`
 }

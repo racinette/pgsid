@@ -16,13 +16,18 @@ export const nullStruct = (
   type: GoExpression,
 ): GoExpression => go.index(go.selector(go.ident('pgsid'), kind), type)
 export const runtimeSource = (
-  name: 'null.go' | 'null-pgx.go' | 'validation.go' | 'array.go',
+  name: 'null.go' | 'null-pgx.go' | 'validation.go' | 'array.go' | 'temporal.go',
 ): string => {
   const source = new URL(`./assets/${name}`, import.meta.url)
   return readFileSync(existsSync(source) ? source : new URL(`./${name}`, import.meta.url), 'utf8')
 }
 export const renderGoNulls = (): string =>
   printGoFile({ package: 'pgsid', imports: [], declarations: [], source: runtimeSource('null.go') })
+export const renderGoTemporal = (): string =>
+  printGoFile({ package: 'pgsid', imports: [], declarations: [], source: runtimeSource('temporal.go') })
+// Whether generated Go names a temporal type of the pgsid package.
+export const usesGoTemporal = (content: string): boolean =>
+  /\bpgsid\.(?:Timestamptz|Timestamp|Date|Interval)\b/u.test(content)
 
 export const hasNullStruct = (type: GoExpression): boolean => {
   if (
