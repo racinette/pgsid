@@ -10,8 +10,8 @@ import (
 const TupleUpdateSQL = "UPDATE items SET (payload, unchecked) = ($1, $2);"
 
 type TupleUpdateParams struct {
-	First  jsonschemas.Event             `db:"first"`
-	Second pgsid.Null[jsonschemas.Event] `db:"second"`
+	First  pgsid.JSON[jsonschemas.Event]             `db:"first"`
+	Second pgsid.Null[pgsid.JSON[jsonschemas.Event]] `db:"second"`
 }
 
 func (q *Queries) TupleUpdate(ctx context.Context, params TupleUpdateParams) error {

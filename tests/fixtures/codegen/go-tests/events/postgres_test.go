@@ -36,7 +36,7 @@ func TestPostgresExecutor(t *testing.T) {
 	}
 	queries, id := New(conn), int64(7)
 	row, err := queries.GetEvent(ctx, GetEventParams{Id: &id})
-	if err != nil || row.Payload.Actor.Id != 42 || row.Actor == nil || row.Actor.Id != 42 || row.State != public.EventStateReady || row.JoinedAccountId != nil {
+	if err != nil || row.Actor == nil || decoded(t, row.Payload).Actor.Id != 42 || decoded(t, *row.Actor).Id != 42 || row.State != public.EventStateReady || row.JoinedAccountId != nil {
 		t.Fatalf("got %#v, %v", row, err)
 	}
 	states, err := queries.GetEventStates(ctx, GetEventStatesParams{Id: &id})
@@ -91,7 +91,7 @@ func TestPostgresExecutor(t *testing.T) {
 		t.Fatal(err)
 	}
 	updated, err := queries.UpdateEvent(ctx, params)
-	if err != nil || updated.Payload.Actor.Id != 43 || updated.Score == nil || *updated.Score != "2.5" {
+	if err != nil || decoded(t, updated.Payload).Actor.Id != 43 || updated.Score == nil || *updated.Score != "2.5" {
 		t.Fatalf("got %#v, %v", updated, err)
 	}
 	state := public.EventStateReady

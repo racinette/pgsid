@@ -3,13 +3,14 @@ package items
 import (
 	"context"
 	jsonschemas "example.com/pgsid-validation/generated/jsonschemas"
+	pgsid "example.com/pgsid-validation/generated/pgsid"
 	pgsidpgx "example.com/pgsid-validation/generated/queries/pgsid/pgx"
 )
 
 const InsertArraySQL = "INSERT INTO items (payload, numbers) VALUES ('{\"actor\":1}', $1);"
 
 type InsertArrayParams struct {
-	Payload *jsonschemas.Numbers `db:"payload"`
+	Payload *pgsid.JSON[jsonschemas.Numbers] `db:"payload"`
 }
 
 func (q *Queries) InsertArray(ctx context.Context, params InsertArrayParams) error {

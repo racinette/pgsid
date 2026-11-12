@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 
+	"example.com/pgsid-validation/generated/jsonschemas"
+	pgsid "example.com/pgsid-validation/generated/pgsid"
 	support "example.com/pgsid-validation/generated/queries/pgsid/pgx"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -104,7 +106,30 @@ func detail(t *testing.T, err error, query, column string) *jsonschema.Validatio
 	return issue
 }
 
-func TestValidationBeforeDecoding(t *testing.T) {
+// read decodes a JSON column's document, through the pointer or null struct a nullable column holds
+// it in, and returns what the document's Value returns.
+func read(t *testing.T, field any) (any, error) {
+	t.Helper()
+	value := reflect.ValueOf(field)
+	if value.Kind() == reflect.Pointer {
+		if value.IsNil() {
+			t.Fatal("the document is SQL NULL")
+		}
+		value = value.Elem()
+	}
+	if valid := value.FieldByName("Valid"); valid.IsValid() {
+		if !valid.Bool() {
+			t.Fatal("the document is SQL NULL")
+		}
+		value = value.FieldByName("V")
+	}
+	result := value.MethodByName("Value").Call(nil)
+	err, _ := result[1].Interface().(error)
+	return result[0].Interface(), err
+}
+
+// Documents are checked against their schema when read, not when scanned.
+func TestValidationWhenRead(t *testing.T) {
 	cases := []struct{ name, payload, keyword string }{
 		{"required", `{}`, "required"},
 		{"unknown", strings.Replace(valid, `"mode":"b"`, `"mode":"b","surprise":1`, 1), "additionalProperties"},
@@ -118,7 +143,11 @@ func TestValidationBeforeDecoding(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			_, err := New(&fakeDB{getDocument(c.payload)}).GetDocument(context.Background())
+			row, err := New(&fakeDB{getDocument(c.payload)}).GetDocument(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = read(t, row.Payload)
 			issue := detail(t, err, "GetDocument", "payload")
 			output, _ := json.Marshal(issue.BasicOutput())
 			if !strings.Contains(string(output), c.keyword) {
@@ -136,7 +165,15 @@ func TestSuccessfulDecodingOptOutAndDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if row.Payload.Id != 9007199254740992 || row.Unchecked.Id != 0 {
+	payload, err := read(t, row.Payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unchecked, err := read(t, row.Unchecked)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.(jsonschemas.Document).Id != 9007199254740992 || unchecked.(jsonschemas.Document).Id != 0 {
 		t.Fatalf("wrong row: %+v", row)
 	}
 	data, err := json.Marshal(row.Payload)
@@ -145,12 +182,19 @@ func TestSuccessfulDecodingOptOutAndDefaults(t *testing.T) {
 	}
 	r := getDocument(valid)
 	r.values[2] = []byte(strings.Replace(valid, `"mode":"b"`, `"mode":"b","extraKey":true`, 1))
-	if _, err := New(&fakeDB{r}).GetDocument(context.Background()); err != nil {
+	row, err = New(&fakeDB{r}).GetDocument(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := read(t, row.Unchecked); err != nil {
 		t.Fatal(err)
 	}
 	r = getDocument(valid)
 	r.values[3] = []byte(`{}`)
-	_, err = New(&fakeDB{r}).GetDocument(context.Background())
+	if row, err = New(&fakeDB{r}).GetDocument(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	_, err = read(t, row.Forced)
 	detail(t, err, "GetDocument", "forced")
 }
 
@@ -163,31 +207,60 @@ func TestSQLNullAndJSONNull(t *testing.T) {
 			t.Fatal(err)
 		}
 		v := reflect.ValueOf(row.Maybe)
+		present := v.Kind() == reflect.Pointer && !v.IsNil()
 		if v.Kind() == reflect.Struct {
-			if v.FieldByName("Valid").Bool() != (maybe != nil) {
-				t.Fatalf("SQL and JSON null conflated: %+v", row.Maybe)
+			present = v.FieldByName("Valid").Bool()
+		}
+		if present != (maybe != nil) {
+			t.Fatalf("SQL and JSON null conflated: %+v", row.Maybe)
+		}
+		if present {
+			if _, err := read(t, row.Maybe); err != nil {
+				t.Fatal(err)
 			}
 		}
 	}
 	r := getDocument(valid)
 	r.values[5] = []byte("null")
-	_, err := New(&fakeDB{r}).GetDocument(context.Background())
+	row, err := New(&fakeDB{r}).GetDocument(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = read(t, row.Strict)
 	detail(t, err, "GetDocument", "strict")
 }
 
 func TestProjectedAndReturningValidation(t *testing.T) {
 	for _, node := range []string{`{}`, `{"id":2,"next":{"id":0}}`, `{"id":2,"surprise":true}`} {
-		_, err := New(&fakeDB{document(node)}).GetNode(context.Background())
+		row, err := New(&fakeDB{document(node)}).GetNode(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = read(t, row.Node)
 		detail(t, err, "GetNode", "node")
 	}
-	if _, err := New(&fakeDB{document(`{"id":2,"next":{"id":3}}`)}).GetNode(context.Background()); err != nil {
+	row, err := New(&fakeDB{document(`{"id":2,"next":{"id":3}}`)}).GetNode(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := read(t, row.Node); err != nil {
 		t.Fatal(err)
 	}
 	params := UpdateDocumentParams{}
 	if err := json.Unmarshal([]byte(valid), &params.Payload); err != nil {
 		t.Fatal(err)
 	}
-	_, err := New(&fakeDB{document(`{}`)}).UpdateDocument(context.Background(), params)
+	updated, err := New(&fakeDB{document(`{}`)}).UpdateDocument(context.Background(), params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = read(t, updated.Payload)
+	detail(t, err, "UpdateDocument", "payload")
+	// A document sent is checked before the statement runs.
+	if err := json.Unmarshal([]byte(`{}`), &params.Payload); err != nil {
+		t.Fatal(err)
+	}
+	_, err = New(&fakeDB{document(valid)}).UpdateDocument(context.Background(), params)
 	detail(t, err, "UpdateDocument", "payload")
 	r := document("alice")
 	r.oids[0] = pgtype.TextOID
@@ -197,21 +270,32 @@ func TestProjectedAndReturningValidation(t *testing.T) {
 }
 
 func TestUnusualOutputAlias(t *testing.T) {
-	_, err := New(&fakeDB{document(`{}`)}).GetPrototype(context.Background())
+	row, err := New(&fakeDB{document(`{}`)}).GetPrototype(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = read(t, row.Proto)
 	detail(t, err, "GetPrototype", "__proto__")
-	if _, err := New(&fakeDB{document(valid)}).GetPrototype(context.Background()); err != nil {
+	if row, err = New(&fakeDB{document(valid)}).GetPrototype(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := read(t, row.Proto); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func TestManyStopsClosesAndPreservesDriverErrors(t *testing.T) {
+func TestManyReadsLazilyClosesAndPreservesDriverErrors(t *testing.T) {
 	r := document(valid)
 	r.batch = [][][]byte{{[]byte(valid)}, {[]byte(`{}`)}}
 	rows, err := New(&fakeDB{r}).ListDocuments(context.Background())
-	detail(t, err, "ListDocuments", "payload")
-	if rows != nil || !r.closed {
-		t.Fatal("failed batch returned partial results or leaked rows")
+	if err != nil || len(rows) != 2 || !r.closed {
+		t.Fatalf("batch read %d rows, closed %v: %v", len(rows), r.closed, err)
 	}
+	if _, err := read(t, rows[0].Payload); err != nil {
+		t.Fatal(err)
+	}
+	_, err = read(t, rows[1].Payload)
+	detail(t, err, "ListDocuments", "payload")
 	for _, failure := range []error{pgx.ErrNoRows, context.Canceled} {
 		r := getDocument(valid)
 		r.err = failure
@@ -222,19 +306,25 @@ func TestManyStopsClosesAndPreservesDriverErrors(t *testing.T) {
 	}
 }
 
-func TestScannerAtomicAndConcurrent(t *testing.T) {
+func TestScannerChecksWhenReadAndConcurrently(t *testing.T) {
 	var wg sync.WaitGroup
 	for i := 0; i < 32; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			value := json.RawMessage(`"unchanged"`)
+			var value pgsid.JSON[jsonschemas.Document]
 			scanner := support.ValidatedJSON(&value, "pgsid:///jsonschemas/Document.json#", "GetDocument", "payload", false).(interface{ Scan(any) error })
-			if err := scanner.Scan([]byte(`{}`)); err == nil || string(value) != `"unchanged"` {
-				t.Errorf("invalid payload changed destination: %s %v", value, err)
+			if err := scanner.Scan([]byte(`{}`)); err != nil || value.Text() != `{}` {
+				t.Errorf("an invalid document was not kept as sent: %s %v", value.Text(), err)
 			}
-			if err := scanner.Scan([]byte(valid)); err != nil || string(value) != valid {
-				t.Errorf("valid payload changed: %s %v", value, err)
+			if _, err := value.Value(); err == nil {
+				t.Error("an invalid document decoded")
+			}
+			if err := scanner.Scan([]byte(valid)); err != nil || value.Text() != valid {
+				t.Errorf("a valid document changed: %s %v", value.Text(), err)
+			}
+			if _, err := value.Value(); err != nil {
+				t.Error(err)
 			}
 		}()
 	}
@@ -243,7 +333,11 @@ func TestScannerAtomicAndConcurrent(t *testing.T) {
 
 func TestMalformedJSONAndDecodeErrorsKeepContext(t *testing.T) {
 	for _, payload := range []string{`{`, valid + ` {}`, strings.Replace(valid, `"mode":"b"`, `"mode":"b","count":100000000000000000000`, 1)} {
-		_, err := New(&fakeDB{getDocument(payload)}).GetDocument(context.Background())
+		row, err := New(&fakeDB{getDocument(payload)}).GetDocument(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = read(t, row.Payload)
 		var issue *support.QueryValidationError
 		if !errors.As(err, &issue) || issue.Query != "GetDocument" || issue.Column != "payload" {
 			t.Fatalf("lost error context: %v", err)
@@ -261,8 +355,11 @@ func TestJSONCodecsFormatsAndDomains(t *testing.T) {
 				if format == pgx.BinaryFormatCode && oid != pgtype.JSONOID {
 					r.values[0] = append([]byte{1}, r.values[0]...)
 				}
-				_, err := New(&fakeDB{r}).GetNode(context.Background())
-				if value == `{"id":1}` {
+				row, err := New(&fakeDB{r}).GetNode(context.Background())
+				if err != nil {
+					t.Fatalf("codec %d format %d: %v", oid, format, err)
+				}
+				if _, err = read(t, row.Node); value == `{"id":1}` {
 					if err != nil {
 						t.Fatalf("codec %d format %d: %v", oid, format, err)
 					}

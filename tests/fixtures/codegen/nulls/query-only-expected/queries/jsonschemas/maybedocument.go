@@ -1,7 +1,7 @@
 package jsonschemas
 
 import (
-	pgsid "example.com/pgsid-nulls/generated/queries/pgsid"
+	pgsid "example.com/pgsid-nulls/generated/queries/pgsid/null"
 	json "encoding/json"
 )
 

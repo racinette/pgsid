@@ -59,21 +59,22 @@ func TestNestedSchemaIdentityAndCodecs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var nested pgsid.Null[jsonschemas.DocumentNested] = row.Nested
-	var first pgsid.Null[pgsid.Null[jsonschemas.DocumentMembersItem]] = row.FirstMember
-	var profile pgsid.Null[jsonschemas.DocumentMembersItemProfile] = row.Profile
-	var lookup pgsid.Null[jsonschemas.DocumentLookupValue] = row.LookupValue
-	var node pgsid.Null[jsonschemas.DocumentNode] = row.Node
-	doc := jsonschemas.Document{Nested: nested.V}
-	doc.Members.V = row.Members.V
+	var nested jsonschemas.DocumentNested = decoded(t, row.Nested)
+	var first pgsid.Null[jsonschemas.DocumentMembersItem] = decoded(t, row.FirstMember)
+	var last pgsid.Null[jsonschemas.DocumentMembersItem] = decoded(t, row.LastMember)
+	var profile jsonschemas.DocumentMembersItemProfile = decoded(t, row.Profile)
+	var lookup jsonschemas.DocumentLookupValue = decoded(t, row.LookupValue)
+	var node jsonschemas.DocumentNode = decoded(t, row.Node)
+	doc := jsonschemas.Document{Nested: nested}
+	doc.Members.V = decoded(t, row.Members)
 	doc.Members.Set = true
-	doc.Members.V[0] = first.V
-	doc.Members.V[0].V.Profile = profile.V
-	doc.Lookup.V = jsonschemas.DocumentLookup{"key": lookup.V}
+	doc.Members.V[0] = first
+	doc.Members.V[0].V.Profile = profile
+	doc.Lookup.V = jsonschemas.DocumentLookup{"key": lookup}
 	doc.Lookup.Set = true
-	doc.Node.V = node.V
+	doc.Node.V = node
 	doc.Node.Set = true
-	if !nested.Valid || !doc.Nested.Enabled.Set || !first.Valid || !first.V.Valid || !row.LastMember.Valid || row.LastMember.V.Valid || !profile.V.Label.Set || !lookup.V.Enabled.Set || doc.Node.V.Next.V.Id.V != 8 {
+	if !doc.Nested.Enabled.Set || !first.Valid || last.Valid || !profile.Label.Set || !lookup.Enabled.Set || doc.Node.V.Next.V.Id.V != 8 {
 		t.Fatalf("nested states changed: %+v", row)
 	}
 	db.row.values = [][]byte{nil, nil, nil, nil, nil, nil, nil}
@@ -89,5 +90,18 @@ func TestNestedSchemaIdentityAndCodecs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	function.Nested = nested
+	function.Nested = row.Nested
+}
+
+// decoded reads a column's document, failing the test when it is SQL NULL or does not decode.
+func decoded[T any](t *testing.T, column pgsid.Null[pgsid.JSON[T]]) T {
+	t.Helper()
+	if !column.Valid {
+		t.Fatal("the document is SQL NULL")
+	}
+	value, err := column.V.Value()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return value
 }

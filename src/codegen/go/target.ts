@@ -18,7 +18,7 @@ import { renderGoQueryArtifacts } from './query.js'
 import {
   goNullsOutDir,
   usesGoNullStructs,
-  renderGoNulls,
+  goNullArtifacts,
   goValueArtifacts,
   goJsonNulls,
   runtimeSource,
@@ -214,13 +214,10 @@ export function createGoCodegenTarget(
                         ]
                       : []),
                     ...(!schemaOutDir && usesGoNullStructs(config)
-                      ? [
-                          {
-                            kind: 'helpers',
-                            path: join(dirname(dirname(helper.path)), 'null.go'),
-                            content: renderGoNulls(),
-                          },
-                        ]
+                      ? goNullArtifacts(
+                          dirname(dirname(helper.path)),
+                          helper.importPath.replace(/\/pgx$/u, ''),
+                        ).map((artifact) => ({ kind: 'helpers' as const, ...artifact }))
                       : []),
                     ...(!schemaOutDir
                       ? renderGoJsonSchemaArtifacts(

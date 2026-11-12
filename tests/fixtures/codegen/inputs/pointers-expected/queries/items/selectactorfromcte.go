@@ -2,6 +2,7 @@ package items
 
 import (
 	"context"
+	pgsid "example.com/pgsid-validation/generated/pgsid"
 	pgsidpgx "example.com/pgsid-validation/generated/queries/pgsid/pgx"
 )
 
@@ -11,7 +12,7 @@ type SelectActorFromCteParams struct {
 	Id *int32 `db:"id"`
 }
 type SelectActorFromCteRow struct {
-	Actor *int64 `db:"actor"`
+	Actor *pgsid.JSON[int64] `db:"actor"`
 }
 
 func (q *Queries) SelectActorFromCte(ctx context.Context, params SelectActorFromCteParams) (SelectActorFromCteRow, error) {

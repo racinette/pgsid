@@ -108,8 +108,14 @@ func (v jsonValue) Value() (driver.Value, error) {
 	if !v.value.SQLValid() {
 		return nil, nil
 	}
+	if document, ok := v.value.SQLValue().(jsonDocument); ok {
+		return []byte(document.Text()), nil
+	}
 	return json.Marshal(v.value.SQLValue())
 }
+
+// A JSON container's text is its document as written, which re-encoding would compact.
+type jsonDocument interface{ Text() string }
 
 func Prepare(db DBTX) {
 	if conn, ok := db.(interface{ TypeMap() *pgtype.Map }); ok {
@@ -204,9 +210,14 @@ func (p *jsonEncodePlan) Encode(value any, buf []byte) ([]byte, error) {
 	if !n.SQLValid() {
 		return nil, nil
 	}
-	raw, err := json.Marshal(n.SQLUnderlying())
-	if err != nil {
-		return nil, err
+	var raw []byte
+	if document, ok := n.SQLUnderlying().(jsonDocument); ok {
+		raw = []byte(document.Text())
+	} else {
+		var err error
+		if raw, err = json.Marshal(n.SQLUnderlying()); err != nil {
+			return nil, err
+		}
 	}
 	v := json.RawMessage(raw)
 	return p.codec.PlanEncode(p.m, p.oid, p.format, v).Encode(v, buf)
@@ -237,6 +248,15 @@ func (s jsonScanTarget) Scan(value any) error {
 	target := s.target
 	if s.nullable != nil {
 		target = s.nullable.SQLTarget()
+	}
+	if scanner, ok := target.(interface{ ScanBytes([]byte) error }); ok {
+		if err := scanner.ScanBytes(data); err != nil {
+			return err
+		}
+		if s.nullable != nil {
+			s.nullable.SetSQLValid(true)
+		}
+		return nil
 	}
 	next := reflect.New(reflect.TypeOf(target).Elem())
 	if err := json.Unmarshal(data, next.Interface()); err != nil {

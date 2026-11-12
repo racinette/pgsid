@@ -3,6 +3,7 @@ package events
 import (
 	"context"
 	jsonschemas "example.com/pgsid-fixture/generated/go/jsonschemas"
+	pgsid "example.com/pgsid-fixture/generated/go/pgsid"
 	public "example.com/pgsid-fixture/generated/go/schema/public"
 )
 
@@ -11,9 +12,9 @@ const ListEventsSQL = "WITH selected AS (SELECT id, payload, note FROM public.ev
 type ListEventsParams struct {
 }
 type ListEventsRow struct {
-	Id      public.EventId           `db:"id"`
-	Payload jsonschemas.EventPayload `db:"payload"`
-	Note    *string                  `db:"note"`
+	Id      public.EventId                       `db:"id"`
+	Payload pgsid.JSON[jsonschemas.EventPayload] `db:"payload"`
+	Note    *string                              `db:"note"`
 }
 
 func (q *Queries) ListEvents(ctx context.Context) ([]ListEventsRow, error) {

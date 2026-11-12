@@ -81,6 +81,12 @@ func ValidateJSONInput(value any, contract, query, column string, nullable bool)
 	if isNull && nullable {
 		return nil, nil
 	}
+	if document, ok := value.(interface{ Text() string }); ok && !isNull {
+		if err := ValidateJSON([]byte(document.Text()), contract); err != nil {
+			return fail(err)
+		}
+		return value, nil
+	}
 	var data []byte
 	var err error
 	if raw, ok := value.([]byte); ok {
@@ -217,15 +223,31 @@ func (s *validatedJSON) Scan(value any) error {
 	default:
 		return fmt.Errorf("cannot scan JSON from %T", value)
 	}
-	err := ValidateJSON(data, s.contract)
-	if err != nil {
-		return &QueryValidationError{Query: s.query, Column: s.column, Err: err}
+	container := destination.Elem()
+	if container.Kind() == reflect.Pointer {
+		container.Set(reflect.New(container.Type().Elem()))
+		container = container.Elem()
 	}
-	decoded := reflect.New(destination.Elem().Type())
-	if err := json.Unmarshal(data, decoded.Interface()); err != nil {
-		return &QueryValidationError{Query: s.query, Column: s.column, Err: err}
+	scanner, ok := container.Addr().Interface().(interface{ ScanBytes([]byte) error })
+	if !ok || !container.MethodByName("WithCheck").IsValid() {
+		return fmt.Errorf("JSON destination must be a JSON container, got %T", target)
 	}
-	destination.Elem().Set(decoded.Elem())
+	if err := scanner.ScanBytes(data); err != nil {
+		return err
+	}
+	withCheck := container.MethodByName("WithCheck")
+	query, column, contract := s.query, s.column, s.contract
+	check := func(text []byte, decode func() error) error {
+		err := ValidateJSON(text, contract)
+		if err == nil {
+			err = decode()
+		}
+		if err != nil {
+			return &QueryValidationError{Query: query, Column: column, Err: err}
+		}
+		return nil
+	}
+	container.Set(withCheck.Call([]reflect.Value{reflect.ValueOf(check)})[0])
 	if nullable != nil {
 		nullable.SetSQLValid(true)
 	}

@@ -36,7 +36,7 @@ func TestPostgresNullRoundTrips(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !got.Payload.Valid || got.Payload.V.RequiredNullable.Valid || !got.NullableValue.Valid || got.NullableValue.V.Valid || got.MaybePayload.Valid || !got.Numbers.Valid || got.Numbers.V[1].Valid || !got.Metadata.Valid || got.Metadata.V.Label.Valid || !got.Metadata.V.Payload.Valid || string(got.Metadata.V.Payload.V) != "null" {
+	if !got.Payload.Valid || document(t, got.Payload.V).RequiredNullable.Valid || !got.NullableValue.Valid || document(t, got.NullableValue.V).Valid || document(t, got.MaybePayload).Valid || !got.Numbers.Valid || got.Numbers.V[1].Valid || !got.Metadata.Valid || got.Metadata.V.Label.Valid || !got.Metadata.V.Payload.Valid || got.Metadata.V.Payload.V.Text() != "null" {
 		t.Fatalf("wrong decoded flags: %+v", got)
 	}
 	params := SetItemParams{Id: pgsid.Null[int64]{V: 1, Valid: true}, UserId: pgsid.Null[public.UserId]{V: 0, Valid: true}, State: got.State, Numbers: got.Numbers, Metadata: got.Metadata}
@@ -50,22 +50,24 @@ func TestPostgresNullRoundTrips(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !got.UserId.Valid || got.UserId.V != 0 || !got.Payload.V.OptionalNullable.Valid || !got.Payload.V.Nested.Enabled.Set || got.Payload.V.Nested.Enabled.V || got.Payload.V.Values[0].Valid || !got.Payload.V.Values[1].Valid || got.Numbers.V[1].Valid || !got.Metadata.V.Payload.Valid {
+	payload := document(t, got.Payload.V)
+	if !got.UserId.Valid || got.UserId.V != 0 || !payload.OptionalNullable.Valid || !payload.Nested.Enabled.Set || payload.Nested.Enabled.V || payload.Values[0].Valid || !payload.Values[1].Valid || got.Numbers.V[1].Valid || !got.Metadata.V.Payload.Valid {
 		t.Fatalf("roundtrip changed states: %+v", got)
 	}
 	parts, err := documentparts.New(conn).GetParts(ctx, documentparts.GetPartsParams{Id: id.Id})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !parts.Nested.Valid || !parts.FirstMember.Valid || !parts.FirstMember.V.Valid || !parts.LastMember.Valid || parts.LastMember.V.Valid || !parts.Profile.Valid || !parts.LookupValue.Valid || !parts.Node.Valid || parts.Node.V.Next.V.Id.V != 8 {
+	if !parts.Nested.Valid || !parts.FirstMember.Valid || !document(t, parts.FirstMember.V).Valid || !parts.LastMember.Valid || document(t, parts.LastMember.V).Valid || !parts.Profile.Valid || !parts.LookupValue.Valid || !parts.Node.Valid || document(t, parts.Node.V).Next.V.Id.V != 8 {
 		t.Fatalf("nested SQL states changed: %+v", parts)
 	}
-	got.Payload.V.Nested = parts.Nested.V
-	got.Payload.V.Members.V = parts.Members.V
-	got.Payload.V.Members.V[0] = parts.FirstMember.V
-	got.Payload.V.Members.V[0].V.Profile = parts.Profile.V
-	got.Payload.V.Lookup.V["key"] = parts.LookupValue.V
-	got.Payload.V.Node.V = parts.Node.V
+	// Each part read on its own has the type of its place in the document.
+	payload.Nested = document(t, parts.Nested.V)
+	payload.Members.V = document(t, parts.Members.V)
+	payload.Members.V[0] = document(t, parts.FirstMember.V)
+	payload.Members.V[0].V.Profile = document(t, parts.Profile.V)
+	payload.Lookup.V["key"] = document(t, parts.LookupValue.V)
+	payload.Node.V = document(t, parts.Node.V)
 	params.UserId.Valid = false
 	params.State.Valid = false
 	params.Payload.Valid = false

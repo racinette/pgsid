@@ -10,7 +10,7 @@ import (
 const InsertMaybeSQL = "INSERT INTO items (payload, maybe) VALUES ('{\"actor\":1}', $1);"
 
 type InsertMaybeParams struct {
-	Payload pgsid.Null[jsonschemas.Maybe] `db:"payload"`
+	Payload pgsid.Null[pgsid.JSON[jsonschemas.Maybe]] `db:"payload"`
 }
 
 func (q *Queries) InsertMaybe(ctx context.Context, params InsertMaybeParams) error {

@@ -22,22 +22,22 @@ type Accounts struct {
 	DisplayName string `db:"display_name"`
 }
 type Events struct {
-	Id        EventId                  `db:"id"`
-	DefaultId DefaultEventId           `db:"default_id"`
-	AccountId *int64                   `db:"account_id"`
-	State     EventState               `db:"state"`
-	States    []EventState             `db:"states"`
-	Payload   jsonschemas.EventPayload `db:"payload"`
-	Audit     *jsonschemas.EventAudit  `db:"audit"`
-	Metadata  *EventMetadata           `db:"metadata"`
-	Note      *string                  `db:"note"`
-	CreatedAt pgsid.Timestamptz        `db:"created_at"`
+	Id        EventId                              `db:"id"`
+	DefaultId DefaultEventId                       `db:"default_id"`
+	AccountId *int64                               `db:"account_id"`
+	State     EventState                           `db:"state"`
+	States    []EventState                         `db:"states"`
+	Payload   pgsid.JSON[jsonschemas.EventPayload] `db:"payload"`
+	Audit     *pgsid.JSON[jsonschemas.EventAudit]  `db:"audit"`
+	Metadata  *EventMetadata                       `db:"metadata"`
+	Note      *string                              `db:"note"`
+	CreatedAt pgsid.Timestamptz                    `db:"created_at"`
 }
 type EventDetails struct {
-	Id          EventId                        `db:"id"`
-	Actor       *jsonschemas.EventPayloadActor `db:"actor"`
-	AccountId   *int64                         `db:"account_id"`
-	DisplayName *string                        `db:"display_name"`
+	Id          EventId                                    `db:"id"`
+	Actor       *pgsid.JSON[jsonschemas.EventPayloadActor] `db:"actor"`
+	AccountId   *int64                                     `db:"account_id"`
+	DisplayName *string                                    `db:"display_name"`
 }
 type EventTotals struct {
 	State EventState `db:"state"`

@@ -3,16 +3,17 @@ package items
 import (
 	"context"
 	jsonschemas "example.com/pgsid-validation/generated/jsonschemas"
+	pgsid "example.com/pgsid-validation/generated/pgsid"
 	pgsidpgx "example.com/pgsid-validation/generated/queries/pgsid/pgx"
 )
 
 const WriteInCteSQL = "WITH written AS (INSERT INTO items (payload) VALUES ($1) RETURNING payload)\nSELECT payload FROM written;"
 
 type WriteInCteParams struct {
-	Payload jsonschemas.Event `db:"payload"`
+	Payload pgsid.JSON[jsonschemas.Event] `db:"payload"`
 }
 type WriteInCteRow struct {
-	Payload jsonschemas.Event `db:"payload"`
+	Payload pgsid.JSON[jsonschemas.Event] `db:"payload"`
 }
 
 func (q *Queries) WriteInCte(ctx context.Context, params WriteInCteParams) (WriteInCteRow, error) {

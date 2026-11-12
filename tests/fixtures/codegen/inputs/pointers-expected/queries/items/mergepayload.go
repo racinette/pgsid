@@ -3,14 +3,15 @@ package items
 import (
 	"context"
 	jsonschemas "example.com/pgsid-validation/generated/jsonschemas"
+	pgsid "example.com/pgsid-validation/generated/pgsid"
 	pgsidpgx "example.com/pgsid-validation/generated/queries/pgsid/pgx"
 )
 
 const MergePayloadSQL = "MERGE INTO items USING (SELECT $1::integer AS id, $2::jsonb AS payload) AS source\nON items.id = source.id\nWHEN MATCHED THEN UPDATE SET payload = source.payload\nWHEN NOT MATCHED THEN INSERT (id, payload) VALUES (source.id, source.payload);"
 
 type MergePayloadParams struct {
-	Id      int32             `db:"id"`
-	Payload jsonschemas.Event `db:"payload"`
+	Id      int32                         `db:"id"`
+	Payload pgsid.JSON[jsonschemas.Event] `db:"payload"`
 }
 
 func (q *Queries) MergePayload(ctx context.Context, params MergePayloadParams) error {

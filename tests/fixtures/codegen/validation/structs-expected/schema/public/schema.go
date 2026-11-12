@@ -6,9 +6,9 @@ import (
 )
 
 type Documents struct {
-	Payload   jsonschemas.Document                  `db:"payload"`
-	Unchecked jsonschemas.Document                  `db:"unchecked"`
-	Forced    jsonschemas.Document                  `db:"forced"`
-	Maybe     pgsid.Null[jsonschemas.MaybeDocument] `db:"maybe"`
-	Strict    pgsid.Null[jsonschemas.Document]      `db:"strict"`
+	Payload   pgsid.JSON[jsonschemas.Document]                  `db:"payload"`
+	Unchecked pgsid.JSON[jsonschemas.Document]                  `db:"unchecked"`
+	Forced    pgsid.JSON[jsonschemas.Document]                  `db:"forced"`
+	Maybe     pgsid.Null[pgsid.JSON[jsonschemas.MaybeDocument]] `db:"maybe"`
+	Strict    pgsid.Null[pgsid.JSON[jsonschemas.Document]]      `db:"strict"`
 }

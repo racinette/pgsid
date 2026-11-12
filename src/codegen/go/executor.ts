@@ -1,6 +1,13 @@
 import type { CatalogSnapshot } from '../../catalog/types.js'
 import type { QueryAnalysisItem } from '../../query-analysis.js'
-import { go, printGoFile, type GoDeclaration, type GoField, type GoStatement } from './ast.js'
+import {
+  go,
+  printGoFile,
+  type GoDeclaration,
+  type GoExpression,
+  type GoField,
+  type GoStatement,
+} from './ast.js'
 import { runtimeSource } from './nulls.js'
 import { goName } from './names.js'
 import type { CheckInputPlan } from '../shared/check-inputs.js'
@@ -145,6 +152,14 @@ export function renderGoExecutorBundle(
   })
 }
 
+const nullableDocument = (type: GoExpression): boolean =>
+  type.kind === 'pointer' &&
+  type.type.kind === 'index' &&
+  type.type.left.kind === 'selector' &&
+  type.type.left.name === 'JSON' &&
+  type.type.left.left.kind === 'ident' &&
+  type.type.left.left.name === 'pgsid'
+
 export function goExecutorDeclaration(
   analysis: QueryAnalysisItem,
   parameterFields: readonly GoField[],
@@ -187,7 +202,9 @@ export function goExecutorDeclaration(
         go.string(item.jsonValidation.column),
         id(item.sqlNullable ? 'true' : 'false'),
       ])
-    return item.sqlNullable ? go.call(member('pgsidpgx', 'Nullable'), [target]) : target
+    if (item.sqlNullable) return go.call(member('pgsidpgx', 'Nullable'), [target])
+    // pgx reads the null document into a pointer as nil, which would make it SQL NULL.
+    return nullableDocument(item.type) ? go.call(member('pgsid', 'NullableJSON'), [target]) : target
   }
   const scan = (value: ReturnType<typeof id>) =>
     go.call(

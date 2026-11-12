@@ -10,7 +10,7 @@ import (
 const InsertArraySQL = "INSERT INTO items (payload, numbers) VALUES ('{\"actor\":1}', $1);"
 
 type InsertArrayParams struct {
-	Payload pgsid.Null[jsonschemas.Numbers] `db:"payload"`
+	Payload pgsid.Null[pgsid.JSON[jsonschemas.Numbers]] `db:"payload"`
 }
 
 func (q *Queries) InsertArray(ctx context.Context, params InsertArrayParams) error {

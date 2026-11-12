@@ -3,6 +3,7 @@ package documents
 import (
 	"context"
 	jsonschemas "example.com/pgsid-validation/generated/jsonschemas"
+	pgsid "example.com/pgsid-validation/generated/pgsid"
 	pgsidpgx "example.com/pgsid-validation/generated/queries/pgsid/pgx"
 )
 
@@ -11,7 +12,7 @@ const GetNodeSQL = "SELECT payload -> 'node' AS node FROM documents;"
 type GetNodeParams struct {
 }
 type GetNodeRow struct {
-	Node *jsonschemas.DocumentNode `db:"node"`
+	Node *pgsid.JSON[jsonschemas.DocumentNode] `db:"node"`
 }
 
 func (q *Queries) GetNode(ctx context.Context) (GetNodeRow, error) {

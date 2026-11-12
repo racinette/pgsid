@@ -14,14 +14,14 @@ type GetItemParams struct {
 	Id pgsid.Null[int64] `db:"id"`
 }
 type GetItemRow struct {
-	Id            int64                            `db:"id"`
-	UserId        pgsid.Null[public.UserId]        `db:"user_id"`
-	State         pgsid.Null[public.State]         `db:"state"`
-	Payload       pgsid.Null[jsonschemas.Document] `db:"payload"`
-	MaybePayload  jsonschemas.MaybeDocument        `db:"maybe_payload"`
-	Numbers       pgsid.Null[[]pgsid.Null[int64]]  `db:"numbers"`
-	Metadata      pgsid.Null[public.Profile]       `db:"metadata"`
-	NullableValue pgsid.Null[*string]              `db:"nullable_value"`
+	Id            int64                                        `db:"id"`
+	UserId        pgsid.Null[public.UserId]                    `db:"user_id"`
+	State         pgsid.Null[public.State]                     `db:"state"`
+	Payload       pgsid.Null[pgsid.JSON[jsonschemas.Document]] `db:"payload"`
+	MaybePayload  pgsid.JSON[jsonschemas.MaybeDocument]        `db:"maybe_payload"`
+	Numbers       pgsid.Null[[]pgsid.Null[int64]]              `db:"numbers"`
+	Metadata      pgsid.Null[public.Profile]                   `db:"metadata"`
+	NullableValue pgsid.Null[pgsid.JSON[*string]]              `db:"nullable_value"`
 }
 
 func (q *Queries) GetItem(ctx context.Context, params GetItemParams) (GetItemRow, error) {

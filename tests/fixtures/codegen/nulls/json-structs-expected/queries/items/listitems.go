@@ -12,14 +12,14 @@ const ListItemsSQL = "SELECT id, user_id, state, payload, maybe_payload, numbers
 type ListItemsParams struct {
 }
 type ListItemsRow struct {
-	Id            int64                     `db:"id"`
-	UserId        *public.UserId            `db:"user_id"`
-	State         *public.State             `db:"state"`
-	Payload       *jsonschemas.Document     `db:"payload"`
-	MaybePayload  jsonschemas.MaybeDocument `db:"maybe_payload"`
-	Numbers       []int64                   `db:"numbers"`
-	Metadata      *public.Profile           `db:"metadata"`
-	NullableValue *pgsid.Null[string]       `db:"nullable_value"`
+	Id            int64                                 `db:"id"`
+	UserId        *public.UserId                        `db:"user_id"`
+	State         *public.State                         `db:"state"`
+	Payload       *pgsid.JSON[jsonschemas.Document]     `db:"payload"`
+	MaybePayload  pgsid.JSON[jsonschemas.MaybeDocument] `db:"maybe_payload"`
+	Numbers       []int64                               `db:"numbers"`
+	Metadata      *public.Profile                       `db:"metadata"`
+	NullableValue *pgsid.JSON[pgsid.Null[string]]       `db:"nullable_value"`
 }
 
 func (q *Queries) ListItems(ctx context.Context) ([]ListItemsRow, error) {
@@ -31,7 +31,7 @@ func (q *Queries) ListItems(ctx context.Context) ([]ListItemsRow, error) {
 	items := make([]ListItemsRow, 0)
 	for rows.Next() {
 		var row ListItemsRow
-		if err := rows.Scan(&row.Id, &row.UserId, &row.State, &row.Payload, &row.MaybePayload, &row.Numbers, &row.Metadata, &row.NullableValue); err != nil {
+		if err := rows.Scan(&row.Id, &row.UserId, &row.State, pgsid.NullableJSON(&row.Payload), &row.MaybePayload, &row.Numbers, &row.Metadata, pgsid.NullableJSON(&row.NullableValue)); err != nil {
 			return nil, err
 		}
 		items = append(items, row)

@@ -12,7 +12,7 @@ const GetNodeSQL = "SELECT payload -> 'node' AS node FROM documents;"
 type GetNodeParams struct {
 }
 type GetNodeRow struct {
-	Node pgsid.Null[jsonschemas.DocumentNode] `db:"node"`
+	Node pgsid.Null[pgsid.JSON[jsonschemas.DocumentNode]] `db:"node"`
 }
 
 func (q *Queries) GetNode(ctx context.Context) (GetNodeRow, error) {

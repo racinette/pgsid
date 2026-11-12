@@ -42,6 +42,22 @@ func TestConcurrentCompilationUsesOneSchema(t *testing.T) {
 	}
 }
 
+// document is the least a JSON container offers the validated scan: its text, and a copy carrying
+// the check that reading its value runs.
+type document struct {
+	text  []byte
+	check func(text []byte, decode func() error) error
+}
+
+func (d *document) ScanBytes(src []byte) error {
+	d.text = append([]byte(nil), src...)
+	return nil
+}
+func (d document) WithCheck(check func(text []byte, decode func() error) error) document {
+	d.check = check
+	return d
+}
+
 func TestStandaloneInputsAndOutputsShareSchema(t *testing.T) {
 	const contract = "pgsid:///jsonschemas/MaybeDocument.json#"
 	data := []byte(`{"value":2}`)
@@ -69,8 +85,11 @@ func TestStandaloneInputsAndOutputsShareSchema(t *testing.T) {
 			if _, err := ValidateJSONInput(json.RawMessage(data), contract, query, column, false); err != nil {
 				t.Fatal(err)
 			}
-			var destination map[string]any
+			var destination document
 			if err := ValidatedJSON(&destination, contract, query, column, false).(*validatedJSON).Scan(data); err != nil {
+				t.Fatal(err)
+			}
+			if err := destination.check(destination.text, func() error { return nil }); err != nil {
 				t.Fatal(err)
 			}
 		}

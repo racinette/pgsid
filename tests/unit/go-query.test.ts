@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { CatalogSnapshot } from '../../src/catalog/types.js'
 import type { JsonSchemaDocument } from '../../src/config/schema.js'
 import { renderGoQueryArtifacts } from '../../src/codegen/go/query.js'
-import { createGoTypeContext } from '../../src/codegen/go/type-mapping.js'
+import { createGoTypeContext, localGoTypeContext } from '../../src/codegen/go/type-mapping.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import type { QueryAnalysisItem } from '../../src/query-analysis.js'
 import type { QueryParameter } from '../../src/query-file.js'
@@ -162,6 +162,7 @@ describe('renderGoQueryArtifacts', () => {
       { EventPayload: eventPayload },
       catalog,
       'db',
+      localGoTypeContext(createGoTypeContext('example.com/app/schema', config)),
     )
 
     expect(result.diagnostics).toEqual([])
@@ -169,7 +170,7 @@ describe('renderGoQueryArtifacts', () => {
     expect(result.types).toContain('type GetEventParams struct {')
     expect(result.types).toContain('Id EventId `db:"id"`')
     expect(result.types).toContain('type GetEventRow struct {')
-    expect(result.types).toMatch(/Actor\s+\*int64\s+`db:"actor"`/u)
+    expect(result.types).toMatch(/Actor\s+\*pgsid\.JSON\[int64\]\s+`db:"actor"`/u)
   })
 
   it.each(['pointers', 'structs'] as const)(
@@ -232,13 +233,13 @@ describe('renderGoQueryArtifacts', () => {
       )
       expect(result.diagnostics).toEqual([])
       expect(result.types).toContain('jsonschemas "example.com/app/jsonschemas"')
-      expect(result.types).toMatch(/Casted\s+jsonschemas.Payload\s+`db:"casted"`/u)
+      expect(result.types).toMatch(/Casted\s+pgsid\.JSON\[jsonschemas\.Payload\]\s+`db:"casted"`/u)
       for (const name of ['Payload', 'Joined', 'Chosen']) {
         if (nulls === 'structs')
           expect(result.types).toMatch(
-            new RegExp(`${name}\\s+pgsid\\.Null\\[jsonschemas\\.Payload\\]`),
+            new RegExp(`${name}\\s+pgsid\\.Null\\[pgsid\\.JSON\\[jsonschemas\\.Payload\\]\\]`),
           )
-        else expect(result.types).toMatch(new RegExp(`${name}\\s+\\*jsonschemas\\.Payload`))
+        else expect(result.types).toMatch(new RegExp(`${name}\\s+\\*pgsid\\.JSON\\[jsonschemas\\.Payload\\]`))
       }
       expect(result.types).not.toContain('json:"name')
     },
@@ -340,9 +341,9 @@ describe('renderGoQueryArtifacts', () => {
       expect(result.types).not.toContain('struct {\n\t\t')
       expect(result.types).toMatch(/TextActor\s+(?:\*string|pgsid.Null\[string\])/u)
       expect(result.types).toMatch(
-        /Chosen\s+(?:\*jsonschemas.PayloadActor|pgsid.Null\[jsonschemas.PayloadActor\])/u,
+        /Chosen\s+(?:\*pgsid\.JSON\[jsonschemas\.PayloadActor\]|pgsid\.Null\[pgsid\.JSON\[jsonschemas\.PayloadActor\]\])/u,
       )
-      expect(result.types).toContain('[]jsonschemas.PayloadMembersItem')
+      expect(result.types).toContain('pgsid.JSON[[]jsonschemas.PayloadMembersItem]')
     },
   )
 
@@ -354,6 +355,7 @@ describe('renderGoQueryArtifacts', () => {
       {},
       undefined,
       'db',
+      createGoTypeContext('example.com/app/schema', config),
     )
     expect(result.types).toBeNull()
     expect(result.diagnostics[0]?.code).toBe('generated-name-collision')

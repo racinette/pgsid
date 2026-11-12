@@ -3,7 +3,7 @@ import type { Config, JsonSchemaDocument } from '../../config/schema.js'
 import { normalizeQueryName } from '../../query-file.js'
 import { go, printGoFile, type GoDeclaration, type GoExpression } from './ast.js'
 import { createGoJsonSchemaTypes } from './json-schema-types.js'
-import { hasNullStruct, type GoNulls } from './nulls.js'
+import { goNullWrappersImportPath, hasNullStruct, type GoNulls } from './nulls.js'
 import { assertUniqueGoNames, goName, goSchemaDirectory } from './names.js'
 import { goJsonSchemaResourceUri, renderGoValidationRuntime } from './json-schema-validation.js'
 
@@ -84,7 +84,9 @@ export function renderGoJsonSchemaArtifacts(
     const hasNulls = types.declarations.some((type) => hasNullStruct(type.type))
     if (hasNulls && !options.nullsImportPath)
       throw new Error('Go JSON null structs require an import path')
-    const imports = hasNulls ? [{ path: options.nullsImportPath!, alias: 'pgsid' }] : []
+    const imports = hasNulls
+      ? [{ path: goNullWrappersImportPath(options.nullsImportPath!), alias: 'pgsid' }]
+      : []
     const declarations: GoDeclaration[] = []
     let needsJson = false
     for (const { name, type } of types.declarations) {

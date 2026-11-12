@@ -1,11 +1,14 @@
 package public
 
-import jsonschemas "example.com/pgsid-validation/generated/jsonschemas"
+import (
+	jsonschemas "example.com/pgsid-validation/generated/jsonschemas"
+	pgsid "example.com/pgsid-validation/generated/pgsid"
+)
 
 type Documents struct {
-	Payload   jsonschemas.Document       `db:"payload"`
-	Unchecked jsonschemas.Document       `db:"unchecked"`
-	Forced    jsonschemas.Document       `db:"forced"`
-	Maybe     *jsonschemas.MaybeDocument `db:"maybe"`
-	Strict    *jsonschemas.Document      `db:"strict"`
+	Payload   pgsid.JSON[jsonschemas.Document]       `db:"payload"`
+	Unchecked pgsid.JSON[jsonschemas.Document]       `db:"unchecked"`
+	Forced    pgsid.JSON[jsonschemas.Document]       `db:"forced"`
+	Maybe     *pgsid.JSON[jsonschemas.MaybeDocument] `db:"maybe"`
+	Strict    *pgsid.JSON[jsonschemas.Document]      `db:"strict"`
 }

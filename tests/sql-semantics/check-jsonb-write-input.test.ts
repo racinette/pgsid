@@ -113,17 +113,19 @@ import (
  pgsid "example.com/pgsid-fixture/generated/queries/pgsid/pgx"
  checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
  schema "example.com/pgsid-fixture/generated/schema/public"
+ values "example.com/pgsid-fixture/generated/pgsid"
  "github.com/jackc/pgx/v5/pgconn"
 )
+func documentText(t *testing.T,text string) values.JSON[any]{document,err:=values.JSONText[any](text);if err!=nil{t.Fatal(err)};return document}
 type recordingJSONBDB struct {pgsid.DBTX;arguments []any;calls int;failure error}
 func(db *recordingJSONBDB)Exec(ctx context.Context,sql string,arguments ...any)(pgconn.CommandTag,error){db.calls++;db.arguments=arguments;return pgconn.NewCommandTag("INSERT 0 1"),db.failure}
 func TestRawJSONBReachesDatabase(t *testing.T){
  db:=&recordingJSONBDB{};queries:=New(db)
- raw:=json.RawMessage(${JSON.stringify('{"a":9007199254740993,"a":2}')});domain:=schema.RetainedDocument(raw);kind:="object";source:="deliberately wrong"
+ raw:=documentText(t,${JSON.stringify('{"a":9007199254740993,"a":2}')});domain:=schema.RetainedDocument(raw);kind:="object";source:="deliberately wrong"
  params:=InsertDocumentParams{Document:&raw,DomainDocument:&domain,ExpectedKind:&kind,ExpectedSource:&source}
  if err:=queries.InsertDocument(context.Background(),params);err!=nil||db.calls!=1{t.Fatal(err)}
  if len(db.arguments)!=4||db.arguments[0]!=params.Document||db.arguments[1]!=params.DomainDocument||db.arguments[2]!=params.ExpectedKind||db.arguments[3]!=params.ExpectedSource{t.Fatal("raw JSONB parameters changed")}
- db.failure=&pgconn.PgError{Code:"22P02",Message:"invalid JSONB input"};raw=json.RawMessage("[1,]")
+ db.failure=&pgconn.PgError{Code:"22P02",Message:"invalid JSONB input"};raw=documentText(t,"[1]")
  if err:=queries.InsertDocument(context.Background(),params);!errors.Is(err,db.failure)||db.calls!=2{t.Fatal("database conversion error lost",err)}
 }
 func TestCoercedJSONBValues(t *testing.T){
@@ -179,7 +181,7 @@ func TestJSONBFieldWrites(t *testing.T){
  input.Document=pgsid.KnownCheckValue(checkruntime.JsonbValue{Kind:checkruntime.JsonbValueError,Error:checkruntime.MakeSqlError(${parseInt('22003', 36)})})
  for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicJsonbFieldWritesChecks(input); if e != nil {panic(e)}; return r}(){if !check.Result.Certain||check.Result.Value.Error!="22003"{t.Fatal("JSONB error lost",check)}}
  bypass=true;if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonbFieldWritesChecks);err!=nil{t.Fatal("skipped JSONB read failed",err)}
- db:=&recordingJSONBDB{};queries:=New(db);bypass=false;raw:=json.RawMessage(${JSON.stringify('{"a":1,"a":2}')});domain:=schema.RetainedDocument(raw)
+ db:=&recordingJSONBDB{};queries:=New(db);bypass=false;raw:=documentText(t,${JSON.stringify('{"a":1,"a":2}')});domain:=schema.RetainedDocument(raw)
  params:=InsertDocumentFieldParams{Document:&domain,FieldName:&key,ExpectedText:&expected,ExpectedExists:&exists,Bypass:&bypass}
  if err:=queries.InsertDocumentField(context.Background(),params);err!=nil||db.calls!=1{t.Fatal("raw JSONB extraction input failed",err)}
  if len(db.arguments)!=5||db.arguments[0]!=params.Document||db.arguments[1]!=params.FieldName||db.arguments[2]!=params.ExpectedText||db.arguments[3]!=params.ExpectedExists||db.arguments[4]!=params.Bypass{t.Fatal("raw JSONB read parameters changed")}
@@ -211,7 +213,7 @@ func TestJSONBConversionWrites(t *testing.T){
  for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicJsonbConversionWritesChecks(input); if e != nil {panic(e)}; return r}(){if check.Constraint=="converted_number"&&(!check.Result.Certain||check.Result.Value.Error!="22003"){t.Fatal("conversion error lost",check)}}
  bypass=true;if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonbConversionWritesChecks);err!=nil{t.Fatal("skipped conversion failed",err)}
  db:=&recordingJSONBDB{};queries:=New(db);bypass=false
- raw:=json.RawMessage(${JSON.stringify('{"a":1}')});expectedText:=json.RawMessage(${JSON.stringify('"[1,null]"')});expectedFlag:=json.RawMessage("true");expectedInteger:=json.RawMessage("9223372036854775807")
+ raw:=documentText(t,${JSON.stringify('{"a":1}')});expectedText:=documentText(t,${JSON.stringify('"[1,null]"')});expectedFlag:=documentText(t,"true");expectedInteger:=documentText(t,"9223372036854775807")
  params:=InsertDocumentConversionParams{SourceText:&text,SourceFlag:&flag,SourceInteger:&integer,SourceJson:&raw,SourceStored:&raw,ExpectedText:&expectedText,ExpectedFlag:&expectedFlag,ExpectedInteger:&expectedInteger,ExpectedJson:&raw,ExpectedStored:&raw,Bypass:&bypass}
  if err:=queries.InsertDocumentConversion(context.Background(),params);err!=nil||db.calls!=1{t.Fatal("raw conversion rejected locally",err)}
  if len(db.arguments)!=11||db.arguments[0]!=params.SourceText||db.arguments[1]!=params.SourceFlag||db.arguments[2]!=params.SourceInteger||db.arguments[3]!=params.SourceJson||db.arguments[4]!=params.SourceStored||db.arguments[5]!=params.ExpectedText||db.arguments[6]!=params.ExpectedFlag||db.arguments[7]!=params.ExpectedInteger||db.arguments[8]!=params.ExpectedJson||db.arguments[9]!=params.ExpectedStored||db.arguments[10]!=params.Bypass{t.Fatal("raw conversion parameters changed")}
@@ -229,7 +231,7 @@ func TestJSONBFormatWrites(t *testing.T){
  input.Document=pgsid.KnownCheckValue(checkruntime.JsonbValue{Kind:checkruntime.JsonbValueError,Error:checkruntime.MakeSqlError(${parseInt('22003', 36)})})
  for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicJsonbFormatWritesChecks(input); if e != nil {panic(e)}; return r}(){if !check.Result.Certain||check.Result.Value.Error!="22003"{t.Fatal("format error lost",check)}}
  bypass=true;if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonbFormatWritesChecks);err!=nil{t.Fatal("skipped format failed",err)};bypass=false
- db:=&recordingJSONBDB{};queries:=New(db);raw:=json.RawMessage(${JSON.stringify('{"a":null,"b":[null,1]}')});domain:=schema.RetainedDocument(raw)
+ db:=&recordingJSONBDB{};queries:=New(db);raw:=documentText(t,${JSON.stringify('{"a":null,"b":[null,1]}')});domain:=schema.RetainedDocument(raw)
  params:=InsertDocumentFormatParams{Document:&domain,StripArrays:&arrays,ExpectedDefault:&raw,ExpectedStrip:&raw,ExpectedPretty:&pretty,Bypass:&bypass}
  if err:=queries.InsertDocumentFormat(context.Background(),params);err!=nil||db.calls!=1{t.Fatal("raw format rejected locally",err)}
  if len(db.arguments)!=6||db.arguments[0]!=params.Document||db.arguments[1]!=params.StripArrays||db.arguments[2]!=params.ExpectedDefault||db.arguments[3]!=params.ExpectedStrip||db.arguments[4]!=params.ExpectedPretty||db.arguments[5]!=params.Bypass{t.Fatal("raw format parameters changed")}
@@ -245,7 +247,7 @@ func TestJSONBEditWrites(t *testing.T){
  input.Lhs=pgsid.KnownCheckValue(checkruntime.JsonbValue{Kind:checkruntime.JsonbValueError,Error:checkruntime.MakeSqlError(${parseInt('22003', 36)})});input.Rhs=pgsid.KnownCheckValue(checkruntime.JsonbValue{Kind:checkruntime.JsonbValueError,Error:checkruntime.MakeSqlError(${parseInt('22012', 36)})})
  for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicJsonbEditWritesChecks(input); if e != nil {panic(e)}; return r}(){if !check.Result.Certain||check.Result.Value.Error!="22003"{t.Fatal("edit error precedence lost",check)}}
  bypass=true;if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonbEditWritesChecks);err!=nil{t.Fatal("skipped edits failed",err)};bypass=false
- db:=&recordingJSONBDB{};queries:=New(db);raw:=json.RawMessage("[1,2]");domain:=schema.RetainedDocument(raw)
+ db:=&recordingJSONBDB{};queries:=New(db);raw:=documentText(t,"[1,2]");domain:=schema.RetainedDocument(raw)
  params:=InsertDocumentEditParams{Lhs:&domain,Rhs:&raw,KeyName:&key,ElementIndex:&index,ExpectedConcat:&raw,ExpectedKey:&raw,ExpectedIndex:&raw,Bypass:&bypass}
  if err:=queries.InsertDocumentEdit(context.Background(),params);err!=nil||db.calls!=1{t.Fatal("raw edits rejected locally",err)}
  if len(db.arguments)!=8||db.arguments[0]!=params.Lhs||db.arguments[1]!=params.Rhs||db.arguments[2]!=params.KeyName||db.arguments[3]!=params.ElementIndex||db.arguments[4]!=params.ExpectedConcat||db.arguments[5]!=params.ExpectedKey||db.arguments[6]!=params.ExpectedIndex||db.arguments[7]!=params.Bypass{t.Fatal("raw edit parameters changed")}
@@ -262,7 +264,7 @@ func TestJSONBScalarWrites(t *testing.T){
  bypass=true;if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonbScalarWritesChecks);err!=nil{t.Fatal("skipped casts failed",err)};bypass=false
  input.NumericDocument=pgsid.KnownCheckValue(checkruntime.MakeJsonbValue("null"));input.BooleanDocument=pgsid.KnownCheckValue(checkruntime.MakeJsonbValue("null"));input.ExpectedCount=pgsid.NullCheckValue[*int32]();input.ExpectedFlag=pgsid.NullCheckValue[*bool]();input.ExpectedNumeric=pgsid.NullCheckValue[*string]()
  if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonbScalarWritesChecks);err!=nil{t.Fatal("JSON null cast was not SQL NULL",err)}
- db:=&recordingJSONBDB{};queries:=New(db);raw:=json.RawMessage("1.5");domain:=schema.RetainedDocument(raw);boolean:=json.RawMessage("true")
+ db:=&recordingJSONBDB{};queries:=New(db);raw:=documentText(t,"1.5");domain:=schema.RetainedDocument(raw);boolean:=documentText(t,"true")
  params:=InsertDocumentScalarParams{NumericDocument:&domain,BooleanDocument:&boolean,ExpectedCount:&count,ExpectedFlag:&flag,ExpectedNumeric:&wire,Bypass:&bypass}
  if err:=queries.InsertDocumentScalar(context.Background(),params);err!=nil||db.calls!=1{t.Fatal("raw scalar casts failed locally",err)}
  if len(db.arguments)!=6||db.arguments[0]!=params.NumericDocument||db.arguments[1]!=params.BooleanDocument||db.arguments[2]!=params.ExpectedCount||db.arguments[3]!=params.ExpectedFlag||db.arguments[4]!=params.ExpectedNumeric||db.arguments[5]!=params.Bypass{t.Fatal("raw scalar parameters changed")}
@@ -282,7 +284,7 @@ func TestJSONBRelationWrites(t *testing.T){
  input.Rhs=pgsid.KnownCheckValue(checkruntime.JsonbValue{Kind:checkruntime.JsonbValueError,Error:checkruntime.MakeSqlError(${parseInt('22012', 36)})})
  for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicJsonbRelationWritesChecks(input); if e != nil {panic(e)}; return r}(){if !check.Result.Certain||check.Result.Value.Error!="22003"{t.Fatal("JSONB error precedence lost",check)}}
  bypass=true;if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonbRelationWritesChecks);err!=nil{t.Fatal("skipped JSONB relation failed",err)}
- db:=&recordingJSONBDB{};queries:=New(db);bypass=false;raw:=json.RawMessage(${JSON.stringify('{"a":1}')});domain:=schema.RetainedDocument(raw)
+ db:=&recordingJSONBDB{};queries:=New(db);bypass=false;raw:=documentText(t,${JSON.stringify('{"a":1}')});domain:=schema.RetainedDocument(raw)
  params:=InsertDocumentRelationParams{Lhs:&domain,Rhs:&raw,ExpectedEqual:&equal,ExpectedContains:&contains,ExpectedOrder:&order,Bypass:&bypass}
  if err:=queries.InsertDocumentRelation(context.Background(),params);err!=nil||db.calls!=1{t.Fatal("raw JSONB relation failed locally",err)}
  if len(db.arguments)!=6||db.arguments[0]!=params.Lhs||db.arguments[1]!=params.Rhs||db.arguments[2]!=params.ExpectedEqual||db.arguments[3]!=params.ExpectedContains||db.arguments[4]!=params.ExpectedOrder||db.arguments[5]!=params.Bypass{t.Fatal("raw JSONB relation parameters changed")}

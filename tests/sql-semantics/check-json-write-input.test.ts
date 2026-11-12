@@ -54,23 +54,24 @@ sql:
       `package documents
 import (
  "context"
- "encoding/json"
  "errors"
  "testing"
  pgsid "example.com/pgsid-fixture/generated/queries/pgsid/pgx"
  checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
  schema "example.com/pgsid-fixture/generated/schema/public"
+ values "example.com/pgsid-fixture/generated/pgsid"
  "github.com/jackc/pgx/v5/pgconn"
 )
+func documentText(t *testing.T,text string) values.JSON[any]{document,err:=values.JSONText[any](text);if err!=nil{t.Fatal(err)};return document}
 type recordingJSONDB struct {pgsid.DBTX;arguments []any;calls int;failure error}
 func(db *recordingJSONDB)Exec(ctx context.Context,sql string,arguments ...any)(pgconn.CommandTag,error){db.calls++;db.arguments=arguments;return pgconn.NewCommandTag("INSERT 0 1"),db.failure}
 func TestRawJSONReachesDatabase(t *testing.T){
  db:=&recordingJSONDB{};queries:=New(db)
- document:=json.RawMessage("{\\"a\\":9007199254740993,\\"a\\":2}");domainDocument:=schema.NestedDocument(document);kind:="object";source:=string(document)
+ document:=documentText(t,"{\\"a\\":9007199254740993,\\"a\\":2}");domainDocument:=schema.NestedDocument(document);kind:="object";source:=document.Text()
  params:=InsertDocumentParams{Document:&document,DomainDocument:&domainDocument,ExpectedKind:&kind,ExpectedSource:&source}
  if err:=queries.InsertDocument(context.Background(),params);err!=nil{t.Fatal(err)}
  if db.calls!=1 || len(db.arguments)!=4 || db.arguments[0]!=params.Document || db.arguments[1]!=params.DomainDocument || db.arguments[2]!=params.ExpectedKind || db.arguments[3]!=params.ExpectedSource{t.Fatal("raw JSON parameters changed")}
- document=json.RawMessage("[1,]");db.failure=errors.New("database JSON input rejection")
+ document=documentText(t,"[1]");db.failure=errors.New("database JSON input rejection")
  if err:=queries.InsertDocument(context.Background(),params);!errors.Is(err,db.failure) || db.calls!=2{t.Fatal("database JSON error lost",err)}
 }
 func TestCoercedJSONInputs(t *testing.T){
@@ -122,8 +123,8 @@ func TestJSONFieldValues(t *testing.T){
  }
  bypass=true
  if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonFieldWritesChecks);err!=nil{t.Fatal("skipped JSON extraction failed",err)}
- db:=&recordingJSONDB{};queries:=New(db);raw:=json.RawMessage(source);bypass=false
- params:=InsertDocumentFieldParams{Document:(*schema.NestedDocument)(&raw),FieldName:&key,ExpectedText:&expected,Bypass:&bypass}
+ db:=&recordingJSONDB{};queries:=New(db);raw:=schema.NestedDocument(documentText(t,source));bypass=false
+ params:=InsertDocumentFieldParams{Document:&raw,FieldName:&key,ExpectedText:&expected,Bypass:&bypass}
  if err:=queries.InsertDocumentField(context.Background(),params);err!=nil||db.calls!=1{t.Fatal("raw JSON field input failed",err)}
  if db.arguments[0]!=params.Document||db.arguments[1]!=params.FieldName||db.arguments[2]!=params.ExpectedText||db.arguments[3]!=params.Bypass{t.Fatal("raw JSON extraction parameters changed")}
 }

@@ -61,3 +61,28 @@ a bound the way range input reads it.
 A domain over one of these values, directly or through other domains, is an
 alias of the value's type rather than a type of its own, since a defined type
 would drop the methods pgx moves the value with.
+
+## JSON documents
+
+A json or jsonb value is a container of the document's text, generic over the
+Go type the document decodes into: the type generated from the JSON Schema the
+column or expression is bound to, or any value when none is. The text is the
+document as written or as the server sent it, so a json column reads back its
+exact spelling, and it is decoded only when its value is asked for. A
+document's value carries the column's schema check when runtime validation is
+on, and reading the value runs the check and the decoding together, reporting
+either failure with the query and column it came from. A document sent as a
+parameter is checked before the statement runs.
+
+The JSON null document is the container's zero value and a value of its own;
+SQL NULL needs a pointer, or a null wrapper. pgx alone reads the null document
+into a pointer as nil, so generated queries read a nullable document through the
+package's own scan target, which keeps the two apart. Building a document from
+a Go value encodes it without escaping HTML characters, and building one from
+text accepts only a single JSON document.
+
+## Null wrappers
+
+The null wrappers that JSON Schema types and rows share live in a package of
+their own beneath the value package, which names the same types. JSON Schema
+types import only that package, so they can be used without the driver.

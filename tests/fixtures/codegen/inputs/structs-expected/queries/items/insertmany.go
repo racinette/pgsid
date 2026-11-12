@@ -3,14 +3,15 @@ package items
 import (
 	"context"
 	jsonschemas "example.com/pgsid-validation/generated/jsonschemas"
+	pgsid "example.com/pgsid-validation/generated/pgsid"
 	pgsidpgx "example.com/pgsid-validation/generated/queries/pgsid/pgx"
 )
 
 const InsertManySQL = "INSERT INTO items (payload) VALUES ($1), ($2);"
 
 type InsertManyParams struct {
-	First  jsonschemas.Event `db:"first"`
-	Second jsonschemas.Event `db:"second"`
+	First  pgsid.JSON[jsonschemas.Event] `db:"first"`
+	Second pgsid.JSON[jsonschemas.Event] `db:"second"`
 }
 
 func (q *Queries) InsertMany(ctx context.Context, params InsertManyParams) error {
