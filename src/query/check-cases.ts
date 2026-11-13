@@ -998,6 +998,46 @@ export interface OutputCaseGroup {
   columns: readonly number[]
   kinds: readonly (CheckCaseLiteralKind | null)[]
   cases: readonly (readonly CheckColumnCase[])[]
+  /**
+   * While what tells the members apart is selected: the output column holding it, or which
+   * columns are NULL, and each member with its label, aligned with `columns`. An outer-joined
+   * row's absence is not among them; `absent` says the row may be absent.
+   */
+  discriminant?: { column: number } | { nullness: true }
+  members?: readonly { label: CheckCaseLabel; cases: readonly CheckColumnCase[] }[]
+  absent?: boolean
+}
+
+/**
+ * A group's labelled members over some of its columns, while what tells them apart is among
+ * them.
+ */
+function labelledMembers(
+  group: CheckCaseGroup,
+  positions: readonly number[],
+  indices: readonly number[],
+): Pick<OutputCaseGroup, 'discriminant' | 'members'> {
+  const discriminant = group.discriminant
+  if (!discriminant || !group.labels) return {}
+  if ('column' in discriminant) {
+    const position = positions.indexOf(group.columns.indexOf(discriminant.column))
+    if (position < 0) return {}
+    return {
+      discriminant: { column: indices[position]! },
+      members: group.cases.map((member, index) => ({
+        label: group.labels![index]!,
+        cases: positions.map((at) => member[at]!),
+      })),
+    }
+  }
+  if (positions.length !== group.columns.length) return {}
+  return {
+    discriminant: { nullness: true },
+    members: group.cases.map((member, index) => ({
+      label: group.labels![index]!,
+      cases: positions.map((at) => member[at]!),
+    })),
+  }
 }
 
 export interface OutputCheckCases {
@@ -1055,6 +1095,12 @@ export function outputCheckCases(
           ({ position }) => cases.columns.get(group.columns[position]!)?.kind ?? null,
         ),
         cases: merged,
+        ...labelledMembers(
+          group,
+          selected.map(({ position }) => position),
+          selected.map(({ index }) => index),
+        ),
+        ...(origin.optional ? { absent: true } : {}),
       })
     }
   }
@@ -1109,6 +1155,11 @@ export function tableColumnCases(
         columns: order.map((position) => indices[position]!),
         kinds: order.map((position) => cases.columns.get(group.columns[position]!)?.kind ?? null),
         cases: group.cases.map((member) => order.map((position) => member[position]!)),
+        ...labelledMembers(
+          group,
+          order,
+          order.map((position) => indices[position]!),
+        ),
       },
     ]
   })

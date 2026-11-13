@@ -41,8 +41,8 @@ export type GoExpression =
   | { kind: 'ellipsis'; type: GoExpression }
   | { kind: 'number'; value: string }
   | { kind: 'call'; expression: GoExpression; arguments: GoExpression[] }
-  | { kind: 'unary'; operator: '&' | '*'; expression: GoExpression }
-  | { kind: 'binary'; operator: '!='; left: GoExpression; right: GoExpression }
+  | { kind: 'unary'; operator: '&' | '*' | '!'; expression: GoExpression }
+  | { kind: 'binary'; operator: '!=' | '==' | '&&'; left: GoExpression; right: GoExpression }
   | { kind: 'composite'; type: GoExpression; elements: GoExpression[] }
   | { kind: 'key-value'; left: GoExpression; right: GoExpression }
 
@@ -135,6 +135,19 @@ export const go = {
     left,
     right,
   }),
+  equal: (left: GoExpression, right: GoExpression): GoExpression => ({
+    kind: 'binary',
+    operator: '==',
+    left,
+    right,
+  }),
+  and: (left: GoExpression, right: GoExpression): GoExpression => ({
+    kind: 'binary',
+    operator: '&&',
+    left,
+    right,
+  }),
+  not: (expression: GoExpression): GoExpression => ({ kind: 'unary', operator: '!', expression }),
   composite: (type: GoExpression, elements: GoExpression[] = []): GoExpression => ({
     kind: 'composite',
     type,

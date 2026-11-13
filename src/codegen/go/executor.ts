@@ -9,6 +9,7 @@ import {
   type GoStatement,
 } from './ast.js'
 import { runtimeSource } from './nulls.js'
+import { goRowGroupLocal } from './row-groups.js'
 import { goName } from './names.js'
 import type { CheckInputPlan } from '../shared/check-inputs.js'
 
@@ -166,7 +167,11 @@ export function goExecutorDeclaration(
   outputFields: readonly GoField[],
   structs = false,
   checkInputs: readonly CheckInputPlan[] = [],
+  // The row's groups: each field is built from its columns, which are scanned into locals.
+  groups: readonly { field: string; builder: string; columns: readonly number[] }[] = [],
 ): GoDeclaration {
+  const grouped = new Set(groups.flatMap((group) => group.columns))
+  const local = (column: number) => id(goRowGroupLocal(column))
   const name = goName(analysis.query.name)
   const parameters = [field('ctx', member('context', 'Context'))]
   if (parameterFields.length) parameters.push(field('params', id(`${name}Params`)))
@@ -184,8 +189,10 @@ export function goExecutorDeclaration(
     ),
   ]
   const query = (method: string) => go.call(go.selector(member('q', 'db'), method), args)
-  const scanTarget = (item: GoField) => {
-    const target = go.address(member('row', item.names![0]!))
+  const scanTarget = (item: GoField, index: number) => {
+    const target = go.address(
+      grouped.has(index) ? local(index) : member('row', item.names![0]!),
+    )
     if (item.arrayValidation)
       return go.call(go.index(member('pgsidpgx', 'ArrayTarget'), item.arrayValidation.element), [
         target,
@@ -224,6 +231,22 @@ export function goExecutorDeclaration(
         ? [go.call(member('pgsidpgx', 'ScanTargets'), outputFields.map(scanTarget))]
         : outputFields.map(scanTarget),
     )
+  const locals: GoStatement[] = outputFields.flatMap((item, index) =>
+    grouped.has(index) ? [go.variable(goRowGroupLocal(index), item.type)] : [],
+  )
+  // Each group's member, once its columns are scanned; `failure` returns the error.
+  const assemble = (failure: (error: ReturnType<typeof id>) => GoStatement): GoStatement[] =>
+    groups.map((group) =>
+      go.if(
+        go.notEqual(id('err'), id('nil')),
+        [failure(id('err'))],
+        go.assign(
+          [member('row', group.field), id('err')],
+          [go.call(id(group.builder), group.columns.map(local))],
+          '=',
+        ),
+      ),
+    )
   const body: GoStatement[] = []
   let results: GoField[]
   const command = analysis.query.definition.command
@@ -241,7 +264,14 @@ export function goExecutorDeclaration(
     results = [result(id(`${name}Row`)), result(id('error'))]
     body.push(
       go.variable('row', id(`${name}Row`)),
+      ...locals,
       go.assign([id('err')], [scan(query('QueryRow'))]),
+      ...(groups.length
+        ? [
+            go.if(go.notEqual(id('err'), id('nil')), [go.return(id('row'), id('err'))]),
+            ...assemble((error) => go.return(go.composite(id(`${name}Row`), []), error)),
+          ]
+        : []),
       go.return(id('row'), id('err')),
     )
   } else {
@@ -254,11 +284,13 @@ export function goExecutorDeclaration(
       go.assign([id('items')], [go.call(id('make'), [rowsType, go.number(0)])]),
       go.for(go.call(member('rows', 'Next')), [
         go.variable('row', id(`${name}Row`)),
+        ...locals,
         go.if(
           go.notEqual(id('err'), id('nil')),
           [go.return(id('nil'), id('err'))],
           go.assign([id('err')], [scan(id('rows'))]),
         ),
+        ...assemble((error) => go.return(id('nil'), error)),
         go.assign([id('items')], [go.call(id('append'), [id('items'), id('row')])], '='),
       ]),
       go.if(

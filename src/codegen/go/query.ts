@@ -14,7 +14,9 @@ import {
   planArrayDimensionInputs,
   resolveArrayDimensions,
 } from '../shared/array-dimensions.js'
-import { go, printGoFile, type GoDeclaration, type GoField } from './ast.js'
+import { go, printGoFile, type GoDeclaration, type GoExpression, type GoField } from './ast.js'
+import { outputRelations, rowGroups } from '../shared/row-groups.js'
+import { renderGoRowGroups } from './row-groups.js'
 import { normalizeGoImports } from './imports.js'
 import { assertUniqueGoNames, GeneratedGoNameCollisionError, goName } from './names.js'
 import {
@@ -356,6 +358,7 @@ const renderQuery = (
     diagnostics,
   )
   const lineage = analysis.rawLineage?.map((output) => interpretValueLineage(output.value))
+  const setTypes: GoExpression[] = []
   const outputFields: GoField[] = outputNames.map((name, index) => {
     const resolved =
       resolveGoValueType(lineage?.[index], config, schemas, catalog, context) ??
@@ -367,6 +370,7 @@ const renderQuery = (
         undefined,
         context,
       )
+    setTypes[index] = resolved.type
     imports.push(...resolved.imports)
     addGoNullImport(
       imports,
@@ -416,7 +420,44 @@ const renderQuery = (
     imports.push({ path: helperImportPath, as: 'pgsidpgx' })
   }
   assertUniqueFields(outputFields, analysis.query.name, 'output')
-  declarations.push(go.type(`${queryName}Row`, go.struct(outputFields)))
+  const outputs = analysis.contract.outputs
+  const model = rowGroups({
+      names: outputNames,
+      notNull: outputNames.map((_, index) => outputs[index]?.notNull ?? false),
+      presence: analysis.contract.outputPresenceGroups,
+      cases: analysis.contract.outputCases,
+      relations: outputRelations(
+        analysis.query.definition.stmt,
+        outputNames.map((_, index) => outputs[index]?.origins?.[0]?.table ?? null),
+      ),
+    })
+  // A group's columns leave the flat row, so only the columns left reserve their names.
+  const grouped = new Set(model.flatMap((group) => group.columns))
+  const groups = renderGoRowGroups(
+    model,
+    queryName,
+    new Set([
+      `${queryName}Row`,
+      `${queryName}Params`,
+      `${queryName}SQL`,
+      ...outputFields.flatMap((field, index) => (grouped.has(index) ? [] : [field.names![0]!])),
+    ]),
+    {
+      names: outputNames,
+      scanned: outputFields.map((field) => field.type),
+      set: setTypes,
+      notNull: outputNames.map((_, index) => outputs[index]?.notNull ?? false),
+      structs: config.sql.codegen?.go?.nulls === 'structs',
+    },
+  )
+  // A group's field takes the place of its first column.
+  const rowFields = outputFields.flatMap((field, index) => [
+    ...groups.fields.filter(({ group }) => group.columns[0] === index).map(({ field }) => field),
+    ...(grouped.has(index) ? [] : [field]),
+  ])
+  if (groups.formatsErrors) imports.push({ path: 'fmt' })
+  declarations.push(go.type(`${queryName}Row`, go.struct(rowFields)))
+  declarations.push(...groups.declarations)
   if (executor)
     declarations.push(
       goExecutorDeclaration(
@@ -424,6 +465,12 @@ const renderQuery = (
         parameterFields,
         outputFields,
         config.sql.codegen?.go?.nulls === 'structs',
+        [],
+        groups.fields.map(({ group, field, builder }) => ({
+          field: field.names![0]!,
+          builder,
+          columns: group.columns,
+        })),
       ),
     )
 }

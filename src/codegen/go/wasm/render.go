@@ -362,13 +362,15 @@ func expression(node *wireNode) (ast.Expr, error) {
 		if err != nil {
 			return nil, err
 		}
-		if node.Operator == "*" {
+		switch node.Operator {
+		case "*":
 			return &ast.StarExpr{X: value}, nil
+		case "&":
+			return &ast.UnaryExpr{Op: token.AND, X: value}, nil
+		case "!":
+			return &ast.UnaryExpr{Op: token.NOT, X: value}, nil
 		}
-		if node.Operator != "&" {
-			return nil, fmt.Errorf("unsupported unary operator %q", node.Operator)
-		}
-		return &ast.UnaryExpr{Op: token.AND, X: value}, nil
+		return nil, fmt.Errorf("unsupported unary operator %q", node.Operator)
 	case "binary", "key-value":
 		left, err := expression(node.Left)
 		if err != nil {
@@ -381,10 +383,12 @@ func expression(node *wireNode) (ast.Expr, error) {
 		if node.Kind == "key-value" {
 			return &ast.KeyValueExpr{Key: left, Value: right}, nil
 		}
-		if node.Operator != "!=" {
+		operators := map[string]token.Token{"!=": token.NEQ, "==": token.EQL, "&&": token.LAND}
+		operator, ok := operators[node.Operator]
+		if !ok {
 			return nil, fmt.Errorf("unsupported binary operator %q", node.Operator)
 		}
-		return &ast.BinaryExpr{X: left, Op: token.NEQ, Y: right}, nil
+		return &ast.BinaryExpr{X: left, Op: operator, Y: right}, nil
 	case "composite":
 		value, err := expression(node.Type)
 		if err != nil {
