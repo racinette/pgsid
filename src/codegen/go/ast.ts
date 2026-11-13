@@ -15,6 +15,10 @@ export interface GoField {
   arrayValidation?: {
     dimensions: readonly number[]
     element: GoExpression
+    // Where the dimension counts are declared, for messages naming the setting to change.
+    setting: string
+    // Whether the field is the interface several counts share rather than a nested slice.
+    union: boolean
     query: string
     column: string
     nullable: boolean
@@ -52,12 +56,13 @@ export type GoStatement =
   | { kind: 'for'; condition: GoExpression; body: GoStatement[] }
 
 export type GoDeclaration =
-  | { kind: 'type'; name: string; type: GoExpression }
-  | { kind: 'alias'; name: string; type: GoExpression }
+  | { kind: 'type'; name: string; type: GoExpression; typeParams?: GoField[] }
+  | { kind: 'alias'; name: string; type: GoExpression; typeParams?: GoField[] }
   | { kind: 'const'; name: string; type?: GoExpression; expression: GoExpression }
   | {
       kind: 'function'
       name: string
+      typeParams?: GoField[]
       receiver?: GoField[]
       parameters: GoField[]
       results: GoField[]
@@ -174,6 +179,7 @@ export const go = {
     results: GoField[],
     body: GoStatement[],
     receiver?: GoField[],
+    typeParams?: GoField[],
   ): GoDeclaration => ({
     kind: 'function',
     name,
@@ -181,10 +187,21 @@ export const go = {
     results,
     body,
     ...(receiver ? { receiver } : {}),
+    ...(typeParams ? { typeParams } : {}),
   }),
   any: (): GoExpression => ({ kind: 'ident', name: 'any' }),
-  type: (name: string, type: GoExpression): GoDeclaration => ({ kind: 'type', name, type }),
-  alias: (name: string, type: GoExpression): GoDeclaration => ({ kind: 'alias', name, type }),
+  type: (name: string, type: GoExpression, typeParams?: GoField[]): GoDeclaration => ({
+    kind: 'type',
+    name,
+    type,
+    ...(typeParams ? { typeParams } : {}),
+  }),
+  alias: (name: string, type: GoExpression, typeParams?: GoField[]): GoDeclaration => ({
+    kind: 'alias',
+    name,
+    type,
+    ...(typeParams ? { typeParams } : {}),
+  }),
   const: (name: string, expression: GoExpression, type?: GoExpression): GoDeclaration => ({
     kind: 'const',
     name,

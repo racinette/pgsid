@@ -189,7 +189,18 @@ export function goExecutorDeclaration(
     if (item.arrayValidation)
       return go.call(go.index(member('pgsidpgx', 'ArrayTarget'), item.arrayValidation.element), [
         target,
+        item.arrayValidation.union
+          ? go.composite(
+              go.slice(go.any()),
+              item.arrayValidation.dimensions.map((count) =>
+                go.call(go.index(member('pgsid', `D${count}`), item.arrayValidation!.element), [
+                  id('nil'),
+                ]),
+              ),
+            )
+          : id('nil'),
         go.composite(go.slice(id('int')), item.arrayValidation.dimensions.map(go.number)),
+        go.string(item.arrayValidation.setting),
         go.string(item.arrayValidation.query),
         go.string(item.arrayValidation.column),
         id(item.arrayValidation.nullable ? 'true' : 'false'),
@@ -283,6 +294,7 @@ export function goExecutorDeclaration(
                 [
                   value,
                   go.composite(go.slice(id('int')), item.arrayValidation.dimensions.map(go.number)),
+                  go.string(item.arrayValidation.setting),
                   go.string(item.arrayValidation.query),
                   go.string(item.arrayValidation.column),
                   id(item.arrayValidation.nullable ? 'true' : 'false'),

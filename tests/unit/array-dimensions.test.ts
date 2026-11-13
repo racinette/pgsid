@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { parseConfigString } from '../../src/config/loader.js'
 import { printNode } from '../../src/codegen/typescript/ast.js'
 import { resolveTypescriptPgType } from '../../src/codegen/typescript/type-mapping.js'
-import { resolveGoPgType } from '../../src/codegen/go/type-mapping.js'
+import { createGoTypeContext, resolveGoPgType } from '../../src/codegen/go/type-mapping.js'
 import { go, printGoFile } from '../../src/codegen/go/ast.js'
 import { resolveArrayDimensions } from '../../src/codegen/shared/array-dimensions.js'
 import type { ValueLineage } from '../../src/query/value-lineage.js'
@@ -73,7 +73,7 @@ describe('array dimensions', () => {
     ).toThrow("Unrecognized key(s) in object: 'pgType'")
   })
 
-  it('uses nested Go slices for fixed depths and pgtype.Array for an explicit union', () => {
+  it('uses nested Go slices for fixed depths and a shared pgsid interface for a union', () => {
     const fixed = resolveGoPgType(
       'integer[]',
       config,
@@ -89,16 +89,16 @@ describe('array dimensions', () => {
       undefined,
       undefined,
       undefined,
-      undefined,
-      [1, 2],
+      createGoTypeContext('example.com/app/schema', config),
+      [2, 1],
     )
     const source = printGoFile({
       package: 'arrays',
-      imports: union.imports.map((item) => ({ path: item.path })),
+      imports: union.imports.map((item) => ({ path: item.path, alias: item.as })),
       declarations: [go.type('Cube', fixed.type), go.type('Flexible', union.type)],
     })
     expect(source).toContain('type Cube [][][]int32')
-    expect(source).toContain('type Flexible pgtype.Array[int32]')
+    expect(source).toContain('type Flexible pgsid.Array1Or2[int32]')
     expect(union.arrayDimensions).toEqual([1, 2])
   })
 

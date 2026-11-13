@@ -9,7 +9,11 @@ import type { CatalogSnapshot } from '../../catalog/types.js'
 import type { Config, GoTypeImport, JsonSchemaDocument } from '../../config/schema.js'
 import type { QueryAnalysisItem } from '../../query-analysis.js'
 import { interpretValueLineage } from '../../query/value-lineage.js'
-import { planArrayDimensionInputs, resolveArrayDimensions } from '../shared/array-dimensions.js'
+import {
+  arrayDimensionsSetting,
+  planArrayDimensionInputs,
+  resolveArrayDimensions,
+} from '../shared/array-dimensions.js'
 import { go, printGoFile, type GoDeclaration, type GoField } from './ast.js'
 import { normalizeGoImports } from './imports.js'
 import { assertUniqueGoNames, GeneratedGoNameCollisionError, goName } from './names.js'
@@ -216,7 +220,7 @@ const renderQuery = (
         undefined,
         undefined,
         context,
-        constraints.some(Array.isArray) || common.length > 1 ? common : common[0]!,
+        common.length > 1 ? common : common[0]!,
       )
     }
     imports.push(...resolved.imports)
@@ -236,11 +240,16 @@ const renderQuery = (
           })
         : []
     return {
-      ...(executor && resolved.dimensionUnion && resolved.arrayDimensions
+      ...(executor && resolved.arrayDimensions
         ? {
             arrayValidation: {
               dimensions: resolved.arrayDimensions,
               element: resolved.arrayElementType!,
+              setting: arrayDimensionsSetting(
+                destinations.length === 1 ? destinations[0] : undefined,
+                'go',
+              ),
+              union: resolved.dimensionUnion ?? false,
               query: analysis.query.name,
               column: sourceName,
               nullable: !parameter.notNull,
@@ -372,6 +381,8 @@ const renderQuery = (
             arrayValidation: {
               dimensions: resolved.arrayDimensions,
               element: resolved.arrayElementType!,
+              setting: arrayDimensionsSetting(lineage?.[index], 'go'),
+              union: resolved.dimensionUnion ?? false,
               query: analysis.query.name,
               column: name,
               nullable: !(analysis.contract.outputs[index]?.notNull ?? false),

@@ -42,6 +42,7 @@ type wireNode struct {
 	Parameters  []wireField `json:"parameters,omitempty"`
 	Results     []wireField `json:"results,omitempty"`
 	Receiver    []wireField `json:"receiver,omitempty"`
+	TypeParams  []wireField `json:"typeParams,omitempty"`
 	Body        []wireNode  `json:"body,omitempty"`
 	Arguments   []wireNode  `json:"arguments,omitempty"`
 	Elements    []wireNode  `json:"elements,omitempty"`
@@ -191,6 +192,9 @@ func declaration(node *wireNode) (ast.Decl, error) {
 			return nil, err
 		}
 		result := &ast.FuncDecl{Name: ast.NewIdent(node.Name), Type: &ast.FuncType{Params: parameters, Results: results}, Body: body}
+		if result.Type.TypeParams, err = typeParams(node.TypeParams); err != nil {
+			return nil, err
+		}
 		if len(node.Receiver) > 0 {
 			result.Recv, err = fieldList(node.Receiver)
 			if err != nil {
@@ -216,14 +220,22 @@ func declaration(node *wireNode) (ast.Decl, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &ast.GenDecl{Tok: token.TYPE, Specs: []ast.Spec{&ast.TypeSpec{Name: ast.NewIdent(node.Name), Type: value}}}, nil
+		params, err := typeParams(node.TypeParams)
+		if err != nil {
+			return nil, err
+		}
+		return &ast.GenDecl{Tok: token.TYPE, Specs: []ast.Spec{&ast.TypeSpec{Name: ast.NewIdent(node.Name), TypeParams: params, Type: value}}}, nil
 	case "alias":
 		value, err := expression(node.Type)
 		if err != nil {
 			return nil, err
 		}
+		params, err := typeParams(node.TypeParams)
+		if err != nil {
+			return nil, err
+		}
 		// The printer writes the alias's = only where the spec has a position for it.
-		return &ast.GenDecl{Tok: token.TYPE, Specs: []ast.Spec{&ast.TypeSpec{Name: ast.NewIdent(node.Name), Assign: 1, Type: value}}}, nil
+		return &ast.GenDecl{Tok: token.TYPE, Specs: []ast.Spec{&ast.TypeSpec{Name: ast.NewIdent(node.Name), TypeParams: params, Assign: 1, Type: value}}}, nil
 	default:
 		return nil, fmt.Errorf("unsupported declaration kind %q", node.Kind)
 	}
@@ -386,6 +398,14 @@ func expression(node *wireNode) (ast.Expr, error) {
 	default:
 		return nil, fmt.Errorf("unsupported expression kind %q", node.Kind)
 	}
+}
+
+// No type parameters leave the list absent, which the printer would otherwise write as [].
+func typeParams(fields []wireField) (*ast.FieldList, error) {
+	if len(fields) == 0 {
+		return nil, nil
+	}
+	return fieldList(fields)
 }
 
 func fieldList(fields []wireField) (*ast.FieldList, error) {

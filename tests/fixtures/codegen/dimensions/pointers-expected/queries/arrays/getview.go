@@ -2,8 +2,8 @@ package arrays
 
 import (
 	"context"
+	pgsid "example.com/pgsid-validation/generated/pgsid"
 	pgsidpgx "example.com/pgsid-validation/generated/queries/pgsid/pgx"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const GetViewSQL = "SELECT matrix, flexible FROM array_view;"
@@ -11,12 +11,12 @@ const GetViewSQL = "SELECT matrix, flexible FROM array_view;"
 type GetViewParams struct {
 }
 type GetViewRow struct {
-	Matrix   [][]int32           `db:"matrix"`
-	Flexible pgtype.Array[int32] `db:"flexible"`
+	Matrix   [][]int32              `db:"matrix"`
+	Flexible pgsid.Array1Or2[int32] `db:"flexible"`
 }
 
 func (q *Queries) GetView(ctx context.Context) (GetViewRow, error) {
 	var row GetViewRow
-	err := q.db.QueryRow(ctx, GetViewSQL).Scan(pgsidpgx.ArrayTarget[int32](&row.Matrix, []int{2}, "GetView", "matrix", false), pgsidpgx.ArrayTarget[int32](&row.Flexible, []int{1, 2}, "GetView", "flexible", false))
+	err := q.db.QueryRow(ctx, GetViewSQL).Scan(pgsidpgx.ArrayTarget[int32](&row.Matrix, nil, []int{2}, "sql.codegen.go.mappings.column[\"public.arrays.matrix\"].dimensions", "GetView", "matrix", false), pgsidpgx.ArrayTarget[int32](&row.Flexible, []any{pgsid.D1[int32](nil), pgsid.D2[int32](nil)}, []int{1, 2}, "sql.codegen.go.mappings.column[\"public.arrays.flexible\"].dimensions", "GetView", "flexible", false))
 	return row, err
 }

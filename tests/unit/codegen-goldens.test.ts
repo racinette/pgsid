@@ -193,9 +193,12 @@ func TestQueryDeclarations(t *testing.T) {
           join(root, 'generated/queries/arrays'),
           { recursive: true },
         )
-      if (project.dimensionTests && project.config === 'structs.yaml')
+      if (project.dimensionTests)
         await cp(
-          join(fixtureRoot, 'dimensions/go-tests/structs'),
+          join(
+            fixtureRoot,
+            `dimensions/go-tests/${project.config === 'structs.yaml' ? 'structs' : 'pointers'}`,
+          ),
           join(root, 'generated/queries/arrays'),
           { recursive: true },
         )

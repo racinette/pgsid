@@ -155,7 +155,7 @@ export function resolveGoPgType(
     mappings[pgType] ?? mappings[base] ?? mappings[unmodified] ?? mappings[`pg_catalog.${alias}`]
   if (mapping) {
     const resolved = mapped(mapping)
-    return array ? arrayType(resolved, config, dimensions ?? 1, dimensions !== undefined) : resolved
+    return array ? arrayType(resolved, config, dimensions ?? 1, dimensions !== undefined, context) : resolved
   }
   const visibleSchema =
     catalog && !unmodified.includes('.')
@@ -204,7 +204,7 @@ export function resolveGoPgType(
   } else {
     resolved = mapped(defaultTypes[alias] ?? defaultTypes[unmodified] ?? { type: 'any' })
   }
-  return array ? arrayType(resolved, config, dimensions ?? 1, dimensions !== undefined) : resolved
+  return array ? arrayType(resolved, config, dimensions ?? 1, dimensions !== undefined, context) : resolved
 }
 
 function arrayType(
@@ -212,18 +212,22 @@ function arrayType(
   config: Config,
   dimensions: number | readonly number[],
   explicit: boolean,
+  context: GoTypeContext | undefined,
 ): ResolvedGoType {
   const element =
     config.sql.codegen?.go?.nulls === 'structs' ? nullStruct('Null', resolved.type) : resolved.type
-  if (typeof dimensions !== 'number')
+  if (typeof dimensions !== 'number') {
+    if (!context?.nullsImportPath)
+      throw new Error('Go arrays of several dimension counts require an import path context')
     return {
       ...resolved,
-      type: go.index(go.selector(go.ident('pgtype'), 'Array'), element),
-      imports: [...resolved.imports, { path: 'github.com/jackc/pgx/v5/pgtype' }],
-      arrayDimensions: dimensions,
+      type: go.index(go.selector(go.ident('pgsid'), goArrayUnionName(dimensions)), element),
+      imports: [...resolved.imports, { path: context.nullsImportPath, as: 'pgsid' }],
+      arrayDimensions: [...dimensions].sort((a, b) => a - b),
       arrayElementType: element,
       dimensionUnion: true,
     }
+  }
   let type = element
   for (let index = 0; index < dimensions; index++) type = go.slice(type)
   return {
@@ -483,7 +487,24 @@ const isNilable = (type: GoExpression): boolean =>
   type.kind === 'pointer' ||
   type.kind === 'slice' ||
   type.kind === 'map' ||
-  type.kind === 'interface'
+  type.kind === 'interface' ||
+  goArrayUnion(type) !== null
+
+// The name of the pgsid interface an array of several declared dimension counts takes.
+export const goArrayUnionName = (dimensions: readonly number[]): string =>
+  `Array${[...dimensions].sort((a, b) => a - b).join('Or')}`
+
+// The dimension counts a type is the pgsid array interface of, if it is one.
+export const goArrayUnion = (type: GoExpression): number[] | null => {
+  const match =
+    type.kind === 'index' &&
+    type.left.kind === 'selector' &&
+    type.left.left.kind === 'ident' &&
+    type.left.left.name === 'pgsid'
+      ? /^Array(\d(?:Or\d)*)$/u.exec(type.left.name)
+      : null
+  return match ? match[1]!.split('Or').map(Number) : null
+}
 
 // A json or jsonb value is the pgsid package's container of its document, decoded as the type given.
 const jsonContainer = (resolved: ResolvedGoType, context?: GoTypeContext): ResolvedGoType => {
