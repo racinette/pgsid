@@ -150,7 +150,7 @@ describe('CHECK list and range validators', () => {
       if (rust) {
         for (const name of Object.keys(definitions)) {
           expect(typescript.checks).toMatch(new RegExp(`"${name}", \\(\\) => checkRustOutcome`))
-          expect(go.checks).toMatch(new RegExp(`"${name}", checkRustOutcome`))
+          expect(go.checks).toMatch(new RegExp(`"${name}", checkRustEvaluate\\(func\\(\\) EvalBool \\{\\n\\s*return checkRustOutcome`))
         }
       }
       const directory = await mkdtemp(join(tmpdir(), 'pgsid-predicate-validator-'))

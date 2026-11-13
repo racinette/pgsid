@@ -308,7 +308,7 @@ evaluatePublicFamily2Checks(nested)
       expect(result).toHaveLength(1)
       expect(result[0].result).toEqual({ certain: true, value: true })
       goCases.push(
-        `{builder:=checkruntime.MakeArrayArguments(${JSON.stringify(elementType)},${family});builder=checkruntime.AppendArrayDimension(builder,-2,2);builder=checkruntime.AppendArrayArgument(builder,${goExpression(expressions[index]!)});builder=checkruntime.AppendArrayArgument(builder,checkruntime.ArrayElement{Kind:checkruntime.ArrayElementNull});value:=checkruntime.FinishArrayArguments(builder);result:=func() []CheckEvaluation {r, e := EvaluatePublicFamily${family}Checks(PublicFamily${family}CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(2))}); if e != nil {panic(e)}; return r}();if len(result)!=1 || !result[0].Result.Certain || !result[0].Result.Value.Valid || !result[0].Result.Value.Value {t.Fatalf("family ${family}: %+v",result)}}`,
+        `{builder:=checkruntime.MakeArrayArguments(${JSON.stringify(elementType)},${family});builder=checkruntime.AppendArrayDimension(builder,-2,2);builder=checkruntime.AppendArrayArgument(builder,${goExpression(expressions[index]!)});builder=checkruntime.AppendArrayArgument(builder,checkruntime.ArrayElement{Kind:checkruntime.ArrayElementNull});value:=checkruntime.FinishArrayArguments(builder);result:=func() []CheckEvaluation {r, e := evaluatePublicFamily${family}Checks(publicFamily${family}CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(2))}); if e != nil {panic(e)}; return r}();if len(result)!=1 || !result[0].Result.Certain || !result[0].Result.Value.Valid || !result[0].Result.Value.Value {t.Fatalf("family ${family}: %+v",result)}}`,
       )
     }
     const shapedEmpty = "array_cat(''::int2vector,''::int2vector)"
@@ -348,7 +348,7 @@ evaluatePublicFamily2Checks(nested)
         }),
       ).toEqual({ count: True })
       goCases.push(
-        `{value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"pg_catalog.int2",ElementKind:1,Dimensions:[]checkruntime.ArrayDimension{${dimensions.map((dimension) => `{Lower:${dimension.lower},Length:${dimension.length}}`).join(',')}},Elements:[]checkruntime.ArrayElement{}}};result:=func() []CheckEvaluation {r, e := EvaluatePublicFamily1Checks(PublicFamily1CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(0))}); if e != nil {panic(e)}; return r}()[0].Result;if !result.Certain || !result.Value.Valid || !result.Value.Value {t.Fatal("shaped-empty public array",result)}}`,
+        `{value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"pg_catalog.int2",ElementKind:1,Dimensions:[]checkruntime.ArrayDimension{${dimensions.map((dimension) => `{Lower:${dimension.lower},Length:${dimension.length}}`).join(',')}},Elements:[]checkruntime.ArrayElement{}}};result:=func() []CheckEvaluation {r, e := evaluatePublicFamily1Checks(publicFamily1CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(0))}); if e != nil {panic(e)}; return r}()[0].Result;if !result.Certain || !result.Value.Valid || !result.Value.Value {t.Fatal("shaped-empty public array",result)}}`,
       )
     }
     const outcomes: unknown[] = []
@@ -478,7 +478,7 @@ evaluatePublicFamily2Checks(nested)
         ),
       ).toEqual(failure('22012'))
     goCases.push(
-      `{for _,flag:=range []checkruntime.BoolValue{{Kind:checkruntime.BoolValueNull},{Kind:checkruntime.BoolValueError,Error:checkruntime.SqlError{State:1}}} {value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"pg_catalog.int4",ElementKind:2,Dimensions:[]checkruntime.ArrayDimension{{Lower:1,Length:1}},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementError,Error:checkruntime.SqlError{State:3452582}}},NullBitmap:flag}};result:=func() []CheckEvaluation {r, e := EvaluatePublicFamily2Checks(PublicFamily2CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(1))}); if e != nil {panic(e)}; return r}()[0].Result;if !result.Certain || result.Value.Error!="22012" {t.Fatal("incoming error before bitmap validation",flag,result)}}}`,
+      `{for _,flag:=range []checkruntime.BoolValue{{Kind:checkruntime.BoolValueNull},{Kind:checkruntime.BoolValueError,Error:checkruntime.SqlError{State:1}}} {value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"pg_catalog.int4",ElementKind:2,Dimensions:[]checkruntime.ArrayDimension{{Lower:1,Length:1}},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementError,Error:checkruntime.SqlError{State:3452582}}},NullBitmap:flag}};result:=func() []CheckEvaluation {r, e := evaluatePublicFamily2Checks(publicFamily2CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(1))}); if e != nil {panic(e)}; return r}()[0].Result;if !result.Certain || result.Value.Error!="22012" {t.Fatal("incoming error before bitmap validation",flag,result)}}}`,
     )
     // Payloads, bitmaps included, are not public values.
     for (const nullBitmap of [
@@ -494,7 +494,7 @@ evaluatePublicFamily2Checks(nested)
         }),
       ).toThrow(TypeError)
     goCases.push(
-      `{for _,flag:=range []checkruntime.BoolValue{{Kind:checkruntime.BoolValueUnknown},{Kind:checkruntime.BoolValueValue,Value:false},{Kind:checkruntime.BoolValueValue,Value:true},{Kind:checkruntime.BoolValueNull},{Kind:checkruntime.BoolValueError,Error:checkruntime.SqlError{State:1}}} {for _,nullCell:=range []bool{false,true} {cell:=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementInt4,Int4:1};if nullCell {cell=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementNull}};value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"pg_catalog.int4",ElementKind:2,Dimensions:[]checkruntime.ArrayDimension{{Lower:1,Length:1}},Elements:[]checkruntime.ArrayElement{cell},NullBitmap:flag}};r,e:=EvaluatePublicFamily2Checks(PublicFamily2CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(1))});if flag.Kind==checkruntime.BoolValueValue && !flag.Value && nullCell {if e==nil {t.Fatal("bitmap denies its NULL cell",r)};continue};if e!=nil {panic(e)};result:=r[0].Result;valid:=flag.Kind==checkruntime.BoolValueUnknown || (flag.Kind==checkruntime.BoolValueValue && (flag.Value || !nullCell));if result.Certain!=valid || (valid && (!result.Value.Valid || !result.Value.Value)) {t.Fatal("bitmap metadata",flag,nullCell,result)}}}}`,
+      `{for _,flag:=range []checkruntime.BoolValue{{Kind:checkruntime.BoolValueUnknown},{Kind:checkruntime.BoolValueValue,Value:false},{Kind:checkruntime.BoolValueValue,Value:true},{Kind:checkruntime.BoolValueNull},{Kind:checkruntime.BoolValueError,Error:checkruntime.SqlError{State:1}}} {for _,nullCell:=range []bool{false,true} {cell:=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementInt4,Int4:1};if nullCell {cell=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementNull}};value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"pg_catalog.int4",ElementKind:2,Dimensions:[]checkruntime.ArrayDimension{{Lower:1,Length:1}},Elements:[]checkruntime.ArrayElement{cell},NullBitmap:flag}};r,e:=evaluatePublicFamily2Checks(publicFamily2CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(1))});if flag.Kind==checkruntime.BoolValueValue && !flag.Value && nullCell {if e==nil {t.Fatal("bitmap denies its NULL cell",r)};continue};if e!=nil {panic(e)};result:=r[0].Result;valid:=flag.Kind==checkruntime.BoolValueUnknown || (flag.Kind==checkruntime.BoolValueValue && (flag.Value || !nullCell));if result.Certain!=valid || (valid && (!result.Value.Valid || !result.Value.Value)) {t.Fatal("bitmap metadata",flag,nullCell,result)}}}}`,
     )
     expect(
       (
@@ -504,7 +504,7 @@ evaluatePublicFamily2Checks(nested)
       ).rows[0]!.value,
     ).toBe('[2147483646:2147483647]={0,1}')
     goCases.push(
-      `{value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"pg_catalog.int4",ElementKind:2,Dimensions:[]checkruntime.ArrayDimension{{Lower:2147483646,Length:2}},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementInt4,Int4:0},{Kind:checkruntime.ArrayElementInt4,Int4:1}}}};result:=func() []CheckEvaluation {r, e := EvaluatePublicFamily2Checks(PublicFamily2CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(2))}); if e != nil {panic(e)}; return r}()[0].Result;if !result.Certain || !result.Value.Valid || !result.Value.Value {t.Fatal("inclusive upper bound",result)}}`,
+      `{value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"pg_catalog.int4",ElementKind:2,Dimensions:[]checkruntime.ArrayDimension{{Lower:2147483646,Length:2}},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementInt4,Int4:0},{Kind:checkruntime.ArrayElementInt4,Int4:1}}}};result:=func() []CheckEvaluation {r, e := evaluatePublicFamily2Checks(publicFamily2CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(2))}); if e != nil {panic(e)}; return r}()[0].Result;if !result.Certain || !result.Value.Valid || !result.Value.Value {t.Fatal("inclusive upper bound",result)}}`,
     )
     expect(
       storedRows('public.array_metadata', {
@@ -547,7 +547,7 @@ evaluatePublicFamily2Checks(nested)
       false,
     )
     goCases.push(
-      `{for _,value:=range []checkruntime.ArrayValue{checkruntime.ArrayNull(),checkruntime.ArrayUnknown(),{Kind:checkruntime.ArrayValueError,Error:checkruntime.SqlError{State:3452558}}} {result:=func() []CheckEvaluation {r, e := EvaluatePublicNullArraysChecks(PublicNullArraysCheckInput{Value:KnownCheckValue(value)}); if e != nil {panic(e)}; return r}()[0].Result;if value.Kind==checkruntime.ArrayValueNull && (!result.Certain || !result.Value.Valid || result.Value.Value) {t.Fatal("NULL array",result)};if value.Kind==checkruntime.ArrayValueUnknown && result.Certain {t.Fatal("Unknown array",result)};if value.Kind==checkruntime.ArrayValueError && (!result.Certain || result.Value.Error=="") {t.Fatal("array error",result)}}}`,
+      `{for _,value:=range []checkruntime.ArrayValue{checkruntime.ArrayNull(),checkruntime.ArrayUnknown(),{Kind:checkruntime.ArrayValueError,Error:checkruntime.SqlError{State:3452558}}} {result:=func() []CheckEvaluation {r, e := evaluatePublicNullArraysChecks(publicNullArraysCheckInput{Value:KnownCheckValue(value)}); if e != nil {panic(e)}; return r}()[0].Result;if value.Kind==checkruntime.ArrayValueNull && (!result.Certain || !result.Value.Valid || result.Value.Value) {t.Fatal("NULL array",result)};if value.Kind==checkruntime.ArrayValueUnknown && result.Certain {t.Fatal("Unknown array",result)};if value.Kind==checkruntime.ArrayValueError && (!result.Certain || result.Value.Error=="") {t.Fatal("array error",result)}}}`,
     )
     // A stored JSONPath keeps its stored text; the public value is the path's text.
     expect(
@@ -588,7 +588,7 @@ evaluatePublicFamily2Checks(nested)
           }).then((results) => results['count']),
         )
     goCases.push(
-      `{value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"pg_catalog.jsonpath",ElementKind:40,Dimensions:[]checkruntime.ArrayDimension{{Lower:1,Length:1}},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementJsonpathStoredText,JsonpathStoredText:"$.a"}}}};result:=func() []CheckEvaluation {r, e := EvaluatePublicFamily40Checks(PublicFamily40CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(1))}); if e != nil {panic(e)}; return r}()[0].Result;if !result.Certain || !result.Value.Valid || !result.Value.Value {t.Fatal("stored JSONPath array",result)}}`,
+      `{value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"pg_catalog.jsonpath",ElementKind:40,Dimensions:[]checkruntime.ArrayDimension{{Lower:1,Length:1}},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementJsonpathStoredText,JsonpathStoredText:"$.a"}}}};result:=func() []CheckEvaluation {r, e := evaluatePublicFamily40Checks(publicFamily40CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(1))}); if e != nil {panic(e)}; return r}()[0].Result;if !result.Certain || !result.Value.Valid || !result.Value.Value {t.Fatal("stored JSONPath array",result)}}`,
     )
     const invalid = [
       {},
@@ -671,7 +671,7 @@ evaluatePublicFamily2Checks(nested)
         JSON.stringify(value),
       ).toThrow(TypeError)
     goCases.push(
-      `{for _,dimension:=range []checkruntime.ArrayDimension{{Lower:2147483647,Length:2},{Lower:1,Length:3}} {value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"pg_catalog.int4",ElementKind:2,Dimensions:[]checkruntime.ArrayDimension{dimension},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementInt4,Int4:1},{Kind:checkruntime.ArrayElementInt4,Int4:2}}}};_,e:=EvaluatePublicFamily2Checks(PublicFamily2CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(1))});if e==nil {t.Fatal("malformed array shape",dimension)}}}`,
+      `{for _,dimension:=range []checkruntime.ArrayDimension{{Lower:2147483647,Length:2},{Lower:1,Length:3}} {value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"pg_catalog.int4",ElementKind:2,Dimensions:[]checkruntime.ArrayDimension{dimension},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementInt4,Int4:1},{Kind:checkruntime.ArrayElementInt4,Int4:2}}}};_,e:=evaluatePublicFamily2Checks(publicFamily2CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(1))});if e==nil {t.Fatal("malformed array shape",dimension)}}}`,
     )
     const { readFile } = await import('node:fs/promises')
     await writeFile(

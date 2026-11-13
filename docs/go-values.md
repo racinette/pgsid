@@ -137,11 +137,27 @@ the server reads the parameter; the evaluator's own representation of a value
 is not part of the generated API. A value sent as text, such as a text search
 value, money, an OID alias, a log sequence number or a JSON document, goes
 through its type's own input in the evaluator under the server settings the
-project declares. Text the server would refuse fails every check that reads
-it with the server's error, and text whose reading depends on the database,
-such as a role or relation name or a nonzero amount of money read through the
-session's monetary locale, leaves those checks to the server. Shapes are read
-as the server stores them: a box with its corners ordered, a polygon with the
-bounding box of its points, and a circle with a negative radius or a line
-whose A and B are both zero refused. A nil pointer is SQL NULL, and a JSON
-null document is a value.
+project declares, and text whose reading depends on the database, such as a
+role or relation name or a nonzero amount of money read through the session's
+monetary locale, is left to the server. Shapes are read as the server stores
+them: a box with its corners ordered, a polygon with the bounding box of its
+points, and a circle with a negative radius or a line whose A and B are both
+zero refused. A nil pointer, slice or interface is SQL NULL, and a JSON null
+document is a value.
+
+The column's type modifier applies as it does on input: a varchar longer than
+its length fails, and trailing spaces past it are dropped. Ranges, multiranges,
+arrays and records are built through the evaluator's copies of the server's
+constructors, so bounds are ordered and canonicalized, empty ranges dropped
+from a multirange, and an array whose sub-arrays differ in length refused.
+Each bound, element and field converts through its own type and modifier, and
+one of a domain type then meets the domain's constraints, NOT NULL first and
+base domains before derived ones. The server reads a container's parts in
+order, so the first part it rejects fails the whole value, and a part that
+cannot be decided, such as an enum label the captured catalog does not list,
+leaves the whole value undecided rather than decided around that part.
+
+The server reads a supplied value before any check runs, so a value its input
+rejects fails every check that reads it, even one whose CASE would not reach
+it, and a value whose reading cannot be decided leaves each of those checks
+undecided. An input left unset stays undecided only where a check reaches it.

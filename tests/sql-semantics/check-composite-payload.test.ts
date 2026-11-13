@@ -548,11 +548,11 @@ fn native_w_${nativeIndex}()->CompositeValue {${rustWrapper(sample.w?.value ?? n
 import("testing";"reflect";checkruntime "compositepublic/schema/public/checkrust/checkruntime")
 func TestCompositePayloads(t *testing.T){
  cases:=[]struct{v,w checkruntime.CompositeValue;rowNull,rowNotNull,choose bool;expected map[string]int}{${cases.join(',')}}
- for i,c:=range cases{skip:=false;row:=PublicRecordsCheckInput{V:KnownCheckValue(c.v),W:KnownCheckValue(c.w),ExpectedNull:KnownCheckValue(&c.rowNull),ExpectedNotNull:KnownCheckValue(&c.rowNotNull),ChooseFirst:KnownCheckValue(&c.choose),Bypass:KnownCheckValue(&skip)}
- for _,result:=range func() []CheckEvaluation {r, e := EvaluatePublicRecordsChecks(row); if e != nil {panic(e)}; return r}(){want:=c.expected[result.Constraint];got:=result.Result;if !got.Certain||(!got.Value.Valid&&want!=2)||(got.Value.Valid&&(want==2||got.Value.Value!=(want==1))){t.Fatal(i,result.Constraint,got,want)}}
+ for i,c:=range cases{skip:=false;row:=publicRecordsCheckInput{V:KnownCheckValue(c.v),W:KnownCheckValue(c.w),ExpectedNull:KnownCheckValue(&c.rowNull),ExpectedNotNull:KnownCheckValue(&c.rowNotNull),ChooseFirst:KnownCheckValue(&c.choose),Bypass:KnownCheckValue(&skip)}
+ for _,result:=range func() []CheckEvaluation {r, e := evaluatePublicRecordsChecks(row); if e != nil {panic(e)}; return r}(){want:=c.expected[result.Constraint];got:=result.Result;if !got.Certain||(!got.Value.Valid&&want!=2)||(got.Value.Valid&&(want==2||got.Value.Value!=(want==1))){t.Fatal(i,result.Constraint,got,want)}}
  }
  c:=cases[6];c.choose=false;skip:=false
- run:=func(v checkruntime.CompositeValue)([]CheckEvaluation,error){return EvaluatePublicRecordsChecks(PublicRecordsCheckInput{V:KnownCheckValue(v),W:KnownCheckValue(c.w),ExpectedNull:KnownCheckValue(&c.rowNull),ExpectedNotNull:KnownCheckValue(&c.rowNotNull),ChooseFirst:KnownCheckValue(&c.choose),Bypass:KnownCheckValue(&skip)})}
+ run:=func(v checkruntime.CompositeValue)([]CheckEvaluation,error){return evaluatePublicRecordsChecks(publicRecordsCheckInput{V:KnownCheckValue(v),W:KnownCheckValue(c.w),ExpectedNull:KnownCheckValue(&c.rowNull),ExpectedNotNull:KnownCheckValue(&c.rowNotNull),ChooseFirst:KnownCheckValue(&c.choose),Bypass:KnownCheckValue(&skip)})}
  evaluate:=func(v checkruntime.CompositeValue)[]CheckEvaluation{r,e:=run(v);if e!=nil{t.Fatal(e)};return r}
  baseline:=evaluate(c.v)
  forged:=checkruntime.CompositeFromCoercedValue(c.v)

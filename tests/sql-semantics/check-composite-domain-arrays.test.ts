@@ -395,7 +395,7 @@ INSERT INTO bundles VALUES(ARRAY[ROW(2,'z','hi')::required],false);`)
 import("testing";"reflect";checkruntime "compositedomainpublic/schema/public/checkrust/checkruntime")
 func TestDomainArrayPayloads(t *testing.T){
  value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:${JSON.stringify('"public"."required"')},ElementKind:44,Dimensions:[]checkruntime.ArrayDimension{{Lower:1,Length:1}},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementComposite,Composite:checkruntime.CompositePayload{TypeName:"public.leaf",Fields:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementInt2,Int2:2},{Kind:checkruntime.ArrayElementEnum,Enum:checkruntime.EnumPayload{Ordinal:0,LabelOid:777}},{Kind:checkruntime.ArrayElementText,Text:"hi"}}}}},NullBitmap:checkruntime.BoolValue{Kind:checkruntime.BoolValueValue,Value:false}}}
- evaluate:=func(value checkruntime.ArrayValue,skip bool)[]CheckEvaluation{return func() []CheckEvaluation {r, e := EvaluatePublicBundlesChecks(PublicBundlesCheckInput{A:KnownCheckValue(value),Bypass:KnownCheckValue(skip)}); if e != nil {return nil}; return r}()}
+ evaluate:=func(value checkruntime.ArrayValue,skip bool)[]CheckEvaluation{return func() []CheckEvaluation {r, e := evaluatePublicBundlesChecks(publicBundlesCheckInput{A:KnownCheckValue(value),Bypass:KnownCheckValue(skip)}); if e != nil {return nil}; return r}()}
  before:=checkruntime.CopyArrayValue(value)
  if len(evaluate(value,false))==0{t.Fatal("valid input rejected")}
  for _,result:=range evaluate(value,false){if !result.Result.Certain||!result.Result.Value.Valid||!result.Result.Value.Value{t.Fatal(result)}}

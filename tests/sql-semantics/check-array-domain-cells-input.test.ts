@@ -354,11 +354,11 @@ func sampleNested() checkruntime.ArrayValue {
 }
 func nestedInt(value int32) *int32 {return &value}
 func nestedBool(value bool) *bool {return &value}
-func nestedRow(value checkruntime.ArrayValue) PublicNestedPlansCheckInput {
- return PublicNestedPlansCheckInput{Groups:KnownCheckValue(value),ExpectedOuter:KnownCheckValue(nestedInt(2)),ExpectedInner:KnownCheckValue(nestedInt(2)),ExpectedLower:KnownCheckValue(nestedInt(5)),ExpectedFirst:KnownCheckValue(nestedInt(10)),Bypass:KnownCheckValue(nestedBool(false))}
+func nestedRow(value checkruntime.ArrayValue) publicNestedPlansCheckInput {
+ return publicNestedPlansCheckInput{Groups:KnownCheckValue(value),ExpectedOuter:KnownCheckValue(nestedInt(2)),ExpectedInner:KnownCheckValue(nestedInt(2)),ExpectedLower:KnownCheckValue(nestedInt(5)),ExpectedFirst:KnownCheckValue(nestedInt(10)),Bypass:KnownCheckValue(nestedBool(false))}
 }
 func TestNestedPublicInputs(t *testing.T) {
- for _,result:=range func() []CheckEvaluation {r, e := EvaluatePublicNestedPlansChecks(nestedRow(sampleNested())); if e != nil {panic(e)}; return r}() {if !result.Result.Certain || !result.Result.Value.Valid || !result.Result.Value.Value {t.Fatal("nested value",result)}}
+ for _,result:=range func() []CheckEvaluation {r, e := evaluatePublicNestedPlansChecks(nestedRow(sampleNested())); if e != nil {panic(e)}; return r}() {if !result.Result.Certain || !result.Result.Value.Valid || !result.Result.Value.Value {t.Fatal("nested value",result)}}
  for mode:=0;mode<5;mode++ {
   value:=sampleNested()
   if mode==0 {value.Value.Elements[0].Array.ElementType="pg_catalog.text"}
@@ -366,16 +366,16 @@ func TestNestedPublicInputs(t *testing.T) {
   if mode==2 {value.Value.Elements[0].Array.Dimensions[0].Length=3}
   if mode==3 {value.Value.Elements[0].Array.Elements[0].Int4=1099511627776}
   if mode==4 {value.Value.Elements[0].Array=value.Value}
-  for _,result:=range func() []CheckEvaluation {r, e := EvaluatePublicNestedPlansChecks(nestedRow(value)); if e != nil {return nil}; return r}() {if result.Result.Certain {t.Fatal("invalid nested input",mode,result)}}
+  for _,result:=range func() []CheckEvaluation {r, e := evaluatePublicNestedPlansChecks(nestedRow(value)); if e != nil {return nil}; return r}() {if result.Result.Certain {t.Fatal("invalid nested input",mode,result)}}
  }
  value:=sampleNested()
  value.Value.Elements[0].Array.Elements[0]=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementUnknown}
- for _,result:=range func() []CheckEvaluation {r, e := EvaluatePublicNestedPlansChecks(nestedRow(value)); if e != nil {return nil}; return r}() {if result.Result.Certain!=(result.Constraint!="inner_first") {t.Fatal("partial nested input",result)}}
+ for _,result:=range func() []CheckEvaluation {r, e := evaluatePublicNestedPlansChecks(nestedRow(value)); if e != nil {return nil}; return r}() {if result.Result.Certain!=(result.Constraint!="inner_first") {t.Fatal("partial nested input",result)}}
  value=sampleNested()
  value.Value.Elements[0].Array.Elements[0]=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementError,Error:checkruntime.SqlError{State:3452582}}
- for _,result:=range func() []CheckEvaluation {r, e := EvaluatePublicNestedPlansChecks(nestedRow(value)); if e != nil {panic(e)}; return r}() {if !result.Result.Certain || result.Result.Value.Error!="22012" {t.Fatal("nested error",result)}}
+ for _,result:=range func() []CheckEvaluation {r, e := evaluatePublicNestedPlansChecks(nestedRow(value)); if e != nil {panic(e)}; return r}() {if !result.Result.Certain || result.Result.Value.Error!="22012" {t.Fatal("nested error",result)}}
  row:=nestedRow(value);row.Bypass=KnownCheckValue(nestedBool(true))
- for _,result:=range func() []CheckEvaluation {r, e := EvaluatePublicNestedPlansChecks(row); if e != nil {panic(e)}; return r}() {if !result.Result.Certain || !result.Result.Value.Valid || !result.Result.Value.Value {t.Fatal("skipped nested error",result)}}
+ for _,result:=range func() []CheckEvaluation {r, e := evaluatePublicNestedPlansChecks(row); if e != nil {panic(e)}; return r}() {if !result.Result.Certain || !result.Result.Value.Valid || !result.Result.Value.Value {t.Fatal("skipped nested error",result)}}
 }`,
     )
     await run('go', ['test', '-p', '1', './...'], { cwd: root }).catch((error) => {

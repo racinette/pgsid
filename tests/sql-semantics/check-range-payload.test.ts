@@ -200,18 +200,52 @@ it('validates public int8range values in TypeScript, range payloads in Go, and l
     await writeFile(
       join(root, 'schema/public/range_test.go'),
       `package public
-import("testing";checkruntime "rangepayload/schema/public/checkrust/checkruntime")
+import("testing";checkruntime "rangepayload/schema/public/checkrust/checkruntime";pgsid "rangepayload/pgsid")
+func ptr[T any](value T) *T { return &value }
+func evaluateRanges(t *testing.T, input PublicRangePayloadsCheckInput) map[string]EvalBool {
+ r, e := EvaluatePublicRangePayloadsChecks(input); if e != nil {t.Fatal(e)}
+ out:=map[string]EvalBool{};for _,c:=range r {out[c.Constraint]=c.Result};return out
+}
 func TestPublicRanges(t *testing.T){
+ value:=pgsid.RangeOf(pgsid.Inclusive[int64](9007199254740993),pgsid.Exclusive[int64](9007199254740999))
+ input:=PublicRangePayloadsCheckInput{Span:KnownCheckValue(ptr(NestedRange(value))),Expected:KnownCheckValue(ptr(int64(9007199254740993))),Bypass:KnownCheckValue(ptr(false))}
+ for name,c:=range evaluateRanges(t,input){if !c.Certain||!c.Value.Valid||!c.Value.Value{t.Fatal("valid range",name,c)}}
+ input.Expected=KnownCheckValue(ptr(int64(9007199254740994)))
+ if c:=evaluateRanges(t,input)["bound"];!c.Certain||!c.Value.Valid||c.Value.Value{t.Fatal("wrong bound",c)}
+ input.Bypass=KnownCheckValue(ptr(true))
+ if c:=evaluateRanges(t,input)["guarded"];!c.Certain||!c.Value.Valid||!c.Value.Value{t.Fatal("skipped bound",c)}
+ input.Expected=KnownCheckValue(ptr(int64(9007199254740993)));input.Bypass=KnownCheckValue(ptr(false))
+ // An exclusive lower bound is canonicalized as range input does.
+ input.Span=KnownCheckValue(ptr(NestedRange(pgsid.RangeOf(pgsid.Exclusive[int64](9007199254740992),pgsid.Exclusive[int64](9007199254740999)))))
+ for name,c:=range evaluateRanges(t,input){if !c.Certain||!c.Value.Valid||!c.Value.Value{t.Fatal("canonical range",name,c)}}
+ // An unbounded side has no inclusivity: the lower bound is NULL and not inclusive.
+ input.Span=KnownCheckValue(ptr(NestedRange(pgsid.RangeOf(pgsid.Unbounded[int64](),pgsid.Exclusive[int64](9007199254740999)))));input.Expected=NullCheckValue[*int64]()
+ open:=evaluateRanges(t,input)
+ if !open["bound"].Certain||!open["bound"].Value.Value||!open["shape"].Certain||!open["shape"].Value.Valid||open["shape"].Value.Value||!open["present"].Value.Value{t.Fatal("unbounded range",open)}
+ input.Span=KnownCheckValue(ptr(NestedRange(pgsid.EmptyRange[int64]())))
+ if c:=evaluateRanges(t,input)["shape"];!c.Certain||!c.Value.Valid||c.Value.Value{t.Fatal("empty range",c)}
+ // The server rejects a reversed range while reading the value, before any CHECK can skip it.
+ input.Span=KnownCheckValue(ptr(NestedRange(pgsid.RangeOf(pgsid.Inclusive[int64](9),pgsid.Exclusive[int64](1)))));input.Bypass=KnownCheckValue(ptr(true))
+ for name,c:=range evaluateRanges(t,input){if !c.Certain||c.Value.Error!="22000"{t.Fatal("reversed range",name,c)}}
+ input.Span=NullCheckValue[*NestedRange]()
+ result:=evaluateRanges(t,input)
+ if !result["bound"].Value.Value||result["shape"].Value.Valid||!result["shape"].Certain||result["present"].Value.Value{t.Fatal("NULL range",result)}
+}
+// The evaluator's own range payloads, which the public converters build: one of another range
+// type or with a bound of another family is malformed, and an undecided bound leaves undecided
+// only what reads it.
+func TestStoredRanges(t *testing.T){
  expected:=int64(9007199254740993);bypass:=true
  value:=checkruntime.MakeCoercedRangeValue(checkruntime.RangePayload{TypeName:"pg_catalog.int8range",ElementType:"pg_catalog.int8",ElementKind:3,LowerInclusive:true,Bounds:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementInt8,Int8:9007199254740993},{Kind:checkruntime.ArrayElementInt8,Int8:9007199254740999}}})
- input:=PublicRangePayloadsCheckInput{Span:KnownCheckValue(value),Expected:KnownCheckValue(&expected),Bypass:KnownCheckValue(&bypass)}
- for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicRangePayloadsChecks(input); if e != nil {panic(e)}; return r}(){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("valid range",c)}}
+ input:=publicRangePayloadsCheckInput{Span:KnownCheckValue(value),Expected:KnownCheckValue(&expected),Bypass:KnownCheckValue(&bypass)}
+ for _,c:=range func() []CheckEvaluation {r, e := evaluatePublicRangePayloadsChecks(input); if e != nil {panic(e)}; return r}(){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("valid range",c)}}
  bad:=value;bad.Value.TypeName="pg_catalog.int4range";input.Span=KnownCheckValue(bad)
- for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicRangePayloadsChecks(input); if e != nil {panic(e)}; return r}(){if c.Constraint=="guarded" {if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("lazy",c)}} else if c.Result.Certain {t.Fatal("wrong nominal identity",c)}}
- for _,kind:=range []checkruntime.ArrayElementKind{checkruntime.ArrayElementInt4,255} {bad=value;bad.Value.Bounds=append([]checkruntime.ArrayElement(nil),value.Value.Bounds...);bad.Value.Bounds[0]=checkruntime.ArrayElement{Kind:kind,Int4:1};input.Span=KnownCheckValue(bad);for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicRangePayloadsChecks(input); if e != nil {return nil}; return r}(){if c.Constraint!="guarded" && c.Result.Certain {t.Fatal("invalid bound",c)}}}
+ for _,c:=range func() []CheckEvaluation {r, e := evaluatePublicRangePayloadsChecks(input); if e != nil {panic(e)}; return r}(){if c.Constraint=="guarded" {if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("lazy",c)}} else if c.Result.Certain {t.Fatal("wrong nominal identity",c)}}
+ for _,kind:=range []checkruntime.ArrayElementKind{checkruntime.ArrayElementInt4,255} {bad=value;bad.Value.Bounds=append([]checkruntime.ArrayElement(nil),value.Value.Bounds...);bad.Value.Bounds[0]=checkruntime.ArrayElement{Kind:kind,Int4:1};input.Span=KnownCheckValue(bad);for _,c:=range func() []CheckEvaluation {r, e := evaluatePublicRangePayloadsChecks(input); if e != nil {return nil}; return r}(){if c.Constraint!="guarded" && c.Result.Certain {t.Fatal("invalid bound",c)}}}
  partial:=value;partial.Value.Bounds=append([]checkruntime.ArrayElement(nil),value.Value.Bounds...);partial.Value.Bounds[0]=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementUnknown};input.Span=KnownCheckValue(partial)
- for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicRangePayloadsChecks(input); if e != nil {panic(e)}; return r}(){if c.Constraint=="bound" {if c.Result.Certain {t.Fatal("partial bound",c)}} else if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("partial structure",c)}}
+ for _,c:=range func() []CheckEvaluation {r, e := evaluatePublicRangePayloadsChecks(input); if e != nil {panic(e)}; return r}(){if c.Constraint=="bound" {if c.Result.Certain {t.Fatal("partial bound",c)}} else if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("partial structure",c)}}
 }
+
 `,
     )
     await run('go', ['test', '-p', '1', './...'], { cwd: root }).catch(

@@ -216,8 +216,8 @@ func TestPartialText(t *testing.T){
  for _,cell:=range []runtime.ArrayElement{{Kind:runtime.ArrayElementTextNonNull},{Kind:runtime.ArrayElementNull},{Kind:runtime.ArrayElementUnknown},{Kind:runtime.ArrayElementError,Error:runtime.MakeSqlError(${parseInt('22003', 36)})},{Kind:runtime.ArrayElementXml,Xml:"plain"}} {
   array:=runtime.ArrayValue{Kind:runtime.ArrayValueValue,Value:runtime.ArrayPayload{ElementType:"pg_catalog.text",ElementKind:8,Dimensions:[]runtime.ArrayDimension{{Lower:1,Length:1}},Elements:[]runtime.ArrayElement{cell},NullBitmap:runtime.BoolValue{Kind:runtime.BoolValueValue,Value:cell.Kind==runtime.ArrayElementNull}}}
   record:=runtime.CompositeValue{Kind:runtime.CompositeValueValue,Value:runtime.CompositePayload{TypeName:"public.text_knowledge_packet",Fields:[]runtime.ArrayElement{cell,{Kind:runtime.ArrayElementArray,Array:array.Value}}}}
-  input:=PublicTextKnowledgeCheckInput{Xs:KnownCheckValue(array),R:KnownCheckValue(record),Expected:KnownCheckValue(&expected)}
-  checks,e:=EvaluatePublicTextKnowledgeChecks(input)
+  input:=publicTextKnowledgeCheckInput{Xs:KnownCheckValue(array),R:KnownCheckValue(record),Expected:KnownCheckValue(&expected)}
+  checks,e:=evaluatePublicTextKnowledgeChecks(input)
   if e!=nil{if cell.Kind==runtime.ArrayElementTextNonNull||cell.Kind==runtime.ArrayElementNull||cell.Kind==runtime.ArrayElementError||cell.Kind==runtime.ArrayElementUnknown{t.Fatal(cell,e)};continue}
   if len(checks)!=5{t.Fatal(checks)}
   for _,check:=range checks{

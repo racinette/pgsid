@@ -483,7 +483,7 @@ import("testing";"reflect";r "nestedcompositepublic/schema/public/checkrust/chec
 func TestNestedPayloads(t *testing.T){
  inner:=r.ArrayPayload{ElementType:${JSON.stringify('"public"."approved"')},ElementKind:44,Dimensions:[]r.ArrayDimension{{Lower:1,Length:1}},Elements:[]r.ArrayElement{{Kind:r.ArrayElementComposite,Composite:r.CompositePayload{TypeName:"public.leaf",Fields:[]r.ArrayElement{{Kind:r.ArrayElementInt2,Int2:2},{Kind:r.ArrayElementText,Text:"abc"}}}}}}
  value:=r.ArrayValue{Kind:r.ArrayValueValue,Value:r.ArrayPayload{ElementType:${JSON.stringify('"public"."required_batch"')},ElementKind:41,Dimensions:[]r.ArrayDimension{{Lower:1,Length:1}},Elements:[]r.ArrayElement{{Kind:r.ArrayElementArray,Array:inner}}}}
- evaluate:=func(v r.ArrayValue)[]CheckEvaluation{return func() []CheckEvaluation {r, e := EvaluatePublicBundlesChecks(PublicBundlesCheckInput{A:KnownCheckValue(v),Bypass:KnownCheckValue(false)}); if e != nil {return nil}; return r}()}
+ evaluate:=func(v r.ArrayValue)[]CheckEvaluation{return func() []CheckEvaluation {r, e := evaluatePublicBundlesChecks(publicBundlesCheckInput{A:KnownCheckValue(v),Bypass:KnownCheckValue(false)}); if e != nil {return nil}; return r}()}
  before:=r.CopyArrayValue(value)
  if len(evaluate(value))==0{t.Fatal("valid input rejected")}
  for _,c:=range evaluate(value){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal(c)}}

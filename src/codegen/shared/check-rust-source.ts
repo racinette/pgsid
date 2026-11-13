@@ -184,6 +184,8 @@ export function prepareCheckRustGroup(
   executionContext: CheckExecutionContext = {},
   // Inputs may parse values whose input needs the regular expression engine, e.g. jsonpath.
   inputsRequireRegex = false,
+  // Callables the inputs' reads call beyond those the checks do, e.g. a type modifier's coercion.
+  inputCallables: readonly string[] = [],
 ): {
   checks: readonly (
     | {
@@ -228,7 +230,7 @@ export function prepareCheckRustGroup(
       ? assembleCheckRust({
           source: evaluatorSource,
           sharedDeclarations: [...declarations.values()],
-          callables: [...new Set(supported.flatMap((item) => item.callables))],
+          callables: [...new Set([...supported.flatMap((item) => item.callables), ...inputCallables])],
           requiresRegex: inputsRequireRegex || supported.some((item) => item.requiresRegex),
         })
       : null,

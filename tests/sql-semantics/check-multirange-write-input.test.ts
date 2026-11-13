@@ -42,7 +42,7 @@ sql:
     await writeFile(
       join(root, 'generated/queries/windows/range_test.go'),
       `package windows
-import("context";"errors";"testing";pgsid "example.com/pgsid-fixture/generated/queries/pgsid/pgx";checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime";schema "example.com/pgsid-fixture/generated/schema/public";values "example.com/pgsid-fixture/generated/pgsid";"github.com/jackc/pgx/v5/pgconn")
+import("context";"errors";"testing";pgsid "example.com/pgsid-fixture/generated/queries/pgsid/pgx";schema "example.com/pgsid-fixture/generated/schema/public";values "example.com/pgsid-fixture/generated/pgsid";"github.com/jackc/pgx/v5/pgconn")
 type rangeDB struct{pgsid.DBTX;args []any;calls int;failure error}
 func(db *rangeDB)Exec(ctx context.Context,sql string,args ...any)(pgconn.CommandTag,error){db.calls++;db.args=args;return pgconn.NewCommandTag("INSERT 0 1"),db.failure}
 func TestMultirangeWrites(t *testing.T){
@@ -51,9 +51,7 @@ func TestMultirangeWrites(t *testing.T){
  if err:=queries.InsertWindow(context.Background(),params);err!=nil{t.Fatal(err)}
  if db.calls!=1||len(db.args)!=3||db.args[0]!=params.Span||db.args[1]!=params.DomainSpan||db.args[2]!=params.Expected{t.Fatal("raw parameters changed")}
  db.failure=errors.New("database range input failure");if err:=queries.InsertWindow(context.Background(),params);!errors.Is(err,db.failure){t.Fatal("database error lost",err)}
- spanValue:=checkruntime.MakeCoercedRangeValue(checkruntime.RangePayload{TypeName:"pg_catalog.int4range",ElementType:"pg_catalog.int4",ElementKind:2,LowerInclusive:true,Bounds:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementInt4,Int4:1},{Kind:checkruntime.ArrayElementInt4,Int4:9}}})
- value:=checkruntime.MakeCoercedMultirangeValue(checkruntime.MultirangePayload{TypeName:"pg_catalog.int4multirange",RangeType:"pg_catalog.int4range",ElementType:"pg_catalog.int4",ElementKind:2,Ranges:[]checkruntime.RangeValue{spanValue}})
- input:=pgsid.PublicMultirangeWritesCheckInput{Span:pgsid.KnownCheckValue(value),DomainSpan:pgsid.KnownCheckValue(value),Expected:pgsid.KnownCheckValue(&expected)}
+ input:=pgsid.PublicMultirangeWritesCheckInput{Span:pgsid.KnownCheckValue(&span),DomainSpan:pgsid.KnownCheckValue(&domain),Expected:pgsid.KnownCheckValue(&expected)}
  if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicMultirangeWritesChecks);err!=nil{t.Fatal("typed range",err)}
  expected=true;if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicMultirangeWritesChecks);err==nil{t.Fatal("wrong range shape was accepted")}
 }

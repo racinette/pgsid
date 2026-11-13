@@ -166,6 +166,33 @@ func checkRustState(value string) (checkruntime.SqlError, bool) {
 	}
 	return checkruntime.MakeSqlError(int(state)), true
 }
+func checkRustEvaluate(evaluate func() EvalBool) (result EvalBool) {
+	defer func() {
+		if fault, read := checkRustReadResult(recover()); read {
+			result = fault
+		}
+	}()
+	return evaluate()
+}
+
+type checkReadFault struct {
+	failure   checkruntime.SqlError
+	undecided bool
+}
+
+func checkRustReadResult(fault any) (EvalBool, bool) {
+	if fault == nil {
+		return EvalBool{}, false
+	}
+	read, ok := fault.(checkReadFault)
+	if !ok {
+		panic(fault)
+	}
+	if read.undecided {
+		return evalBoolUncertain(), true
+	}
+	return checkRustOutcome(checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: read.failure}), true
+}
 func checkRustOutcome(value checkruntime.CheckOutcome) EvalBool {
 	switch value.Kind {
 	case checkruntime.CheckOutcomeTrue:
@@ -267,15 +294,29 @@ func checkEvaluation(owner, constraint string, result EvalBool, unknownMessage s
 	}
 	return evaluation
 }
+func checkRustReadInt8Value(supplied bool, value checkruntime.Int8Value) checkruntime.Int8Value {
+	if supplied && value.Kind == checkruntime.Int8ValueError {
+		panic(checkReadFault{failure: value.Error})
+	}
+	if supplied && value.Kind == checkruntime.Int8ValueUnknown {
+		panic(checkReadFault{undecided: true})
+	}
+	if supplied && value.Kind == checkruntime.Int8ValueUnimplemented {
+		panic(checkReadFault{undecided: true})
+	}
+	return value
+}
 
 type publicDefaultEventIdCheckInput struct {
 	Value CheckOptional[DefaultEventId]
+	eager bool
 }
 type PublicDefaultEventIdCheckInput struct {
 	Value CheckOptional[DefaultEventId]
 }
 type publicEventIdCheckInput struct {
 	Value CheckOptional[EventId]
+	eager bool
 }
 type PublicEventIdCheckInput struct {
 	Value CheckOptional[EventId]
@@ -288,18 +329,22 @@ type CheckEvaluation struct {
 }
 
 func EvaluatePublicDefaultEventIdDomainChecks(input PublicDefaultEventIdCheckInput) (results []CheckEvaluation, err error) {
-	return evaluatePublicDefaultEventIdDomainChecks(publicDefaultEventIdCheckInput{Value: input.Value})
+	return evaluatePublicDefaultEventIdDomainChecks(publicDefaultEventIdCheckInput{Value: input.Value, eager: true})
 }
 func EvaluatePublicEventIdDomainChecks(input PublicEventIdCheckInput) (results []CheckEvaluation, err error) {
-	return evaluatePublicEventIdDomainChecks(publicEventIdCheckInput{Value: input.Value})
+	return evaluatePublicEventIdDomainChecks(publicEventIdCheckInput{Value: input.Value, eager: true})
 }
 func evaluatePublicDefaultEventIdDomainChecks(row publicDefaultEventIdCheckInput) (results []CheckEvaluation, err error) {
 	at := ""
 	defer checkInputRecover(&at, &results, &err)
-	return []CheckEvaluation{checkEvaluation("public.event_id", "event_id_check", checkRustOutcome(checkrust.EvaluateCheckPublicDomainDefaultEventIdFromPublicEventIdEventIdCheckH7azw(checkRustInt8(checkInputAt(&at, "value", row.Value)))), "A required input is unavailable, or its value or an evaluated expression is not supported.")}, nil
+	return []CheckEvaluation{checkEvaluation("public.event_id", "event_id_check", checkRustEvaluate(func() EvalBool {
+		return checkRustOutcome(checkrust.EvaluateCheckPublicDomainDefaultEventIdFromPublicEventIdEventIdCheckH7azw(checkRustReadInt8Value(row.eager && row.Value.Set, checkRustInt8(checkInputAt(&at, "value", row.Value)))))
+	}), "A required input is unavailable, or its value or an evaluated expression is not supported.")}, nil
 }
 func evaluatePublicEventIdDomainChecks(row publicEventIdCheckInput) (results []CheckEvaluation, err error) {
 	at := ""
 	defer checkInputRecover(&at, &results, &err)
-	return []CheckEvaluation{checkEvaluation("public.event_id", "event_id_check", checkRustOutcome(checkrust.EvaluateCheckPublicDomainEventIdEventIdCheckHcydw(checkRustInt8(checkInputAt(&at, "value", row.Value)))), "A required input is unavailable, or its value or an evaluated expression is not supported.")}, nil
+	return []CheckEvaluation{checkEvaluation("public.event_id", "event_id_check", checkRustEvaluate(func() EvalBool {
+		return checkRustOutcome(checkrust.EvaluateCheckPublicDomainEventIdEventIdCheckHcydw(checkRustReadInt8Value(row.eager && row.Value.Set, checkRustInt8(checkInputAt(&at, "value", row.Value)))))
+	}), "A required input is unavailable, or its value or an evaluated expression is not supported.")}, nil
 }

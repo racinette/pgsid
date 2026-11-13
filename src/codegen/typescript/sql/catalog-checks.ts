@@ -76,9 +76,8 @@ import {
 import type { EvalExpression } from '../../../sql-semantics/eval-expressions.js'
 import { portableCheckAtoms } from '../../shared/check-atom-support.js'
 import { checkUnknownMessage } from '../../shared/check-diagnostics.js'
-import { checkRustCallableNames, prepareCheckRustGroup } from '../../shared/check-rust-source.js'
-import { builtinCast, builtinMetadata } from '../../../postgres/builtins/inventory.js'
-import { rustCallableName } from '../../../postgres/builtins/rust-name.js'
+import { prepareCheckRustGroup } from '../../shared/check-rust-source.js'
+import { checkTypeModifierCoercion } from '../../shared/check-type-modifiers.js'
 import {
   transpileCheckRustTypescriptFiles,
   typescriptRuntimeName,
@@ -125,23 +124,10 @@ function readPublicText(
   return visit(expression) as EvalBoolExpression
 }
 
-// The function the server applies a type modifier with when it reads a parameter of the type: the
-// type's length coercion, given the modifier and, where it takes one, that the cast is implicit.
+// The function the server applies a type modifier with when it reads a parameter of the type.
 function typeModifierCoercion(type: string): { callable: string; explicit: boolean } | null {
-  const conversion = builtinCast(type, type)
-  if (conversion?.method !== 'f' || !conversion.implementation) return null
-  const callable = builtinMetadata(conversion.implementation)
-  if (
-    callable.kind !== 'function' ||
-    ![2, 3].includes(callable.args.length) ||
-    callable.args[1] !== 'pg_catalog.int4' ||
-    (callable.args.length === 3 && callable.args[2] !== 'pg_catalog.bool')
-  )
-    return null
-  const name = rustCallableName(callable)
-  return checkRustCallableNames().has(name)
-    ? { callable: typescriptRuntimeName(name), explicit: callable.args.length === 3 }
-    : null
+  const coercion = checkTypeModifierCoercion(type)
+  return coercion && { ...coercion, callable: typescriptRuntimeName(coercion.callable) }
 }
 
 // The runtime value types a CHECK input can be read as.

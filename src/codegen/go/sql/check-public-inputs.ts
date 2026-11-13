@@ -8,7 +8,11 @@ import { go, type GoExpression } from '../ast.js'
 // value pgx sends: a value its input rejects becomes that error, and a value no input reads at
 // all is a malformed input. Converters are fixed per family; the ones a check file uses are
 // emitted with it.
-const converters: Record<string, { dependencies: readonly string[]; source: string }> = {
+type GoPublicPackage = 'time' | 'math' | 'operations' | 'reflect' | 'pgtype' | 'strconv' | 'strings'
+const converters: Record<
+  string,
+  { dependencies: readonly string[]; source: string; packages?: readonly GoPublicPackage[] }
+> = {
   checkPublic: {
     dependencies: [],
     source: `// checkPublic converts an input's value, keeping an unset input unset and NULL NULL.
@@ -36,6 +40,21 @@ func checkPublicNull[P any](field CheckOptional[pgsid.Null[P]]) CheckOptional[P]
   return KnownCheckValue(field.V.V)
 }`,
   },
+  checkPublicNilable: {
+    dependencies: [],
+    packages: ['reflect'],
+    source: `// A nil slice, map or interface is NULL, as pgx sends it.
+func checkPublicNilable[P any](field CheckOptional[P]) CheckOptional[P] {
+  if !field.Set || field.Null { return field }
+  native := reflect.ValueOf(any(field.V))
+  if !native.IsValid() { return CheckOptional[P]{Set: true, Null: true} }
+  switch native.Kind() {
+  case reflect.Slice, reflect.Map, reflect.Pointer, reflect.Interface:
+    if native.IsNil() { return CheckOptional[P]{Set: true, Null: true} }
+  }
+  return field
+}`,
+  },
   checkPublicAt: {
     dependencies: [],
     source: `// The input being converted names a malformed value's error.
@@ -43,6 +62,7 @@ func checkPublicAt[R any](at *string, name string, convert func() R) R { *at = n
   },
   checkPublicText: {
     dependencies: [],
+    packages: ['strings'],
     source: `// Bytes that are no UTF-8 reach the server as sent, and its encoding decides whether they form text.
 func checkPublicText(value string) checkruntime.TextValue {
   if !utf8.ValidString(value) || strings.IndexByte(value, 0) >= 0 { return checkruntime.TextUnknown() }
@@ -81,6 +101,7 @@ func checkPublicDate(value pgsid.Date) checkruntime.DateValue {
   },
   checkPublicInstant: {
     dependencies: [],
+    packages: ['time'],
     source: `// Microseconds from 2000-01-01, as pgx sends a time, or false when the server's input rejects it:
 // from 4714-11-24 00:00 BC up to, not including, 294277-01-01.
 func checkPublicInstant(instant time.Time) (int64, bool) {
@@ -146,6 +167,7 @@ func checkPublicTimetz(value pgsid.Timetz) checkruntime.TimetzValue {
   },
   checkPublicFloatBits: {
     dependencies: [],
+    packages: ['math'],
     source: `// Geometric payloads keep each float8's exact bits.
 func checkPublicFloatBits(value float64) int64 { return int64(math.Float64bits(value)) }
 // float8_lt: NaN sorts above every number and equals itself.
@@ -245,9 +267,245 @@ func checkPublicXid8[V ~uint64](value V) checkruntime.Xid8Value { return checkru
   },
   checkPublicNumeric: {
     dependencies: ['checkPublicText'],
+    packages: ['operations'],
     source: `// A numeric is sent as its text, which numeric input reads.
 func checkPublicNumeric[S ~string](value S) checkruntime.NumericValue {
   return pg_catalog.ScalarNumericFromText(checkPublicText(string(value)))
+}`,
+  },
+  checkPublicCell: {
+    dependencies: [],
+    packages: ['reflect'],
+    source: `// A container hands every cell to its converter: nil, a nil pointer, slice or map, and a null
+// wrapper that is not valid are NULL, and a pointer or wrapper holding a value is that value.
+func checkPublicCell(value any) (any, bool) {
+  for {
+    if value == nil { return nil, true }
+    if wrapper, ok := value.(interface{ SQLValid() bool; SQLUnderlying() any }); ok {
+      if !wrapper.SQLValid() { return nil, true }
+      value = wrapper.SQLUnderlying()
+      continue
+    }
+    native := reflect.ValueOf(value)
+    switch native.Kind() {
+    case reflect.Pointer:
+      if native.IsNil() { return nil, true }
+      value = native.Elem().Interface()
+      continue
+    case reflect.Slice, reflect.Map:
+      if native.IsNil() { return nil, true }
+    }
+    return value, false
+  }
+}
+func checkPublicNullElement() checkruntime.ArrayElement { return checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull} }
+// A part whose conversion is not decided yet.
+func checkPublicUndecidedElement(value any) checkruntime.ArrayElement { return checkruntime.ArrayElement{Kind: checkruntime.ArrayElementUnknown} }
+// A cell of the Go type its column declares; any other value is malformed.
+func checkPublicAs[T any](cell any) T {
+  value, ok := cell.(T)
+  if !ok { return checkRustInvalid[T]() }
+  return value
+}
+// The text of a value sent as text: a string type, or a JSON document's text.
+func checkPublicString(cell any) string {
+  if document, ok := cell.(interface{ Text() string }); ok { return document.Text() }
+  native := reflect.ValueOf(cell)
+  if native.Kind() != reflect.String { return checkRustInvalid[string]() }
+  return native.String()
+}
+// An unsigned identifier of any unsigned integer type.
+func checkPublicUnsigned(cell any) uint64 {
+  native := reflect.ValueOf(cell)
+  switch native.Kind() {
+  case reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uint: return native.Uint()
+  }
+  return checkRustInvalid[uint64]()
+}`,
+  },
+  checkPublicParts: {
+    dependencies: [],
+    source: `// The server reads a container's parts in order: the first part its input rejects fails the
+// whole value, and an undecided part leaves it undecided, since that part may be the one rejected.
+type checkPublicParts struct {
+  failed, undecided bool
+  failure checkruntime.SqlError
+}
+func (p *checkPublicParts) read(part checkruntime.ArrayElement) checkruntime.ArrayElement {
+  switch part.Kind {
+  case checkruntime.ArrayElementError: p.fail(part.Error, false)
+  case checkruntime.ArrayElementUnknown, checkruntime.ArrayElementUnimplemented: p.fail(checkruntime.SqlError{}, true)
+  }
+  return part
+}
+func (p *checkPublicParts) fail(failure checkruntime.SqlError, undecided bool) {
+  if p.failed { return }
+  p.failed, p.undecided, p.failure = true, undecided, failure
+}`,
+  },
+  checkPublicRange: {
+    dependencies: ['checkPublicParts'],
+    packages: ['pgtype'],
+    source: `// A range's bounds go through the subtype's input, then the evaluator's range constructor orders
+// and canonicalizes them as range input does.
+func checkPublicRange(value any, bound func(any) checkruntime.ArrayElement, empty func() checkruntime.RangeValue, construct func(lower, upper checkruntime.ArrayElement, flags checkruntime.TextValue) checkruntime.RangeValue) checkruntime.RangeValue {
+  span, ok := value.(interface{ BoundTypes() (pgtype.BoundType, pgtype.BoundType); Bounds() (any, any) })
+  if !ok { return checkRustInvalid[checkruntime.RangeValue]() }
+  lowerType, upperType := span.BoundTypes()
+  if lowerType == pgtype.Empty { return empty() }
+  lowerValue, upperValue := span.Bounds()
+  var parts checkPublicParts
+  cell := func(kind pgtype.BoundType, item any) checkruntime.ArrayElement {
+    if kind == pgtype.Unbounded { return checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull} }
+    return parts.read(bound(item))
+  }
+  lower := cell(lowerType, lowerValue)
+  upper := cell(upperType, upperValue)
+  if parts.failed {
+    if parts.undecided { return checkruntime.RangeUnknown() }
+    return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: parts.failure}
+  }
+  flags := "("
+  if lowerType == pgtype.Inclusive { flags = "[" }
+  if upperType == pgtype.Inclusive { flags += "]" } else { flags += ")" }
+  return construct(lower, upper, checkruntime.MakeTextValue(flags))
+}`,
+  },
+  checkPublicMultirange: {
+    dependencies: ['checkPublicParts'],
+    source: `// The evaluator's multirange constructor sorts, drops empty ranges and merges as multirange input does.
+func checkPublicMultirange(value any, rangeType string, span func(any) checkruntime.RangeValue, construct func(checkruntime.ArrayValue) checkruntime.MultirangeValue) checkruntime.MultirangeValue {
+  items, ok := value.(interface{ Len() int; Index(int) any })
+  if !ok { return checkRustInvalid[checkruntime.MultirangeValue]() }
+  members := checkruntime.MakeArrayArguments(rangeType, 42)
+  var parts checkPublicParts
+  for index := 0; index < items.Len(); index++ {
+    members = checkruntime.AppendArrayArgument(members, parts.read(checkruntime.ArrayElementFromRange(span(items.Index(index)))))
+  }
+  if parts.failed {
+    if parts.undecided { return checkruntime.MultirangeUnknown() }
+    return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueError, Error: parts.failure}
+  }
+  return construct(checkruntime.FinishArrayConstructor(members))
+}`,
+  },
+  checkPublicArray: {
+    dependencies: ['checkPublicParts'],
+    packages: ['reflect', 'strconv', 'strings'],
+    source: `// An array has the dimension count its column declares, each level a slice, or one of several
+// declared counts as the dimension type it holds; below the declared levels a slice is one element.
+// Array input's rules apply: sub-arrays must match and an array without elements has no dimensions.
+func checkPublicArray(value any, counts []int, elementType string, kind int, element func(any) checkruntime.ArrayElement) checkruntime.ArrayValue {
+  depth := counts[0]
+  native := reflect.ValueOf(value)
+  if len(counts) > 1 {
+    // The dimension types are named for their counts.
+    name := native.Type().Name()
+    count, err := strconv.Atoi(strings.TrimPrefix(name[:max(strings.IndexByte(name, '['), 0)], "D"))
+    if err != nil { return checkRustInvalid[checkruntime.ArrayValue]() }
+    depth = count
+  }
+  var parts checkPublicParts
+  lengths := []int{}
+  cells := []any{}
+  var walk func(items reflect.Value, level int)
+  walk = func(items reflect.Value, level int) {
+    if items.Kind() != reflect.Slice { checkRustInvalid[struct{}](); return }
+    if len(lengths) == level {
+      lengths = append(lengths, items.Len())
+    } else if lengths[level] != items.Len() {
+      parts.fail(checkruntime.MakeSqlError(3484946), false)
+    }
+    for index := 0; index < items.Len(); index++ {
+      if level+1 < depth { walk(items.Index(index), level+1) } else { cells = append(cells, items.Index(index).Interface()) }
+    }
+  }
+  walk(native, 0)
+  arguments := checkruntime.MakeArrayArguments(elementType, kind)
+  if len(cells) > 0 {
+    for _, length := range lengths { arguments = checkruntime.AppendArrayDimension(arguments, 1, length) }
+  }
+  for _, cell := range cells { arguments = checkruntime.AppendArrayArgument(arguments, parts.read(element(cell))) }
+  if parts.failed {
+    if parts.undecided { return checkruntime.ArrayUnknown() }
+    return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: parts.failure}
+  }
+  return checkruntime.FinishArrayArguments(arguments)
+}`,
+  },
+  checkPublicComposite: {
+    dependencies: ['checkPublicParts'],
+    packages: ['reflect'],
+    source: `// A composite is the struct of its fields, read in attribute order.
+func checkPublicComposite(value any, typeName string, fields []string, convert []func(any) checkruntime.ArrayElement) checkruntime.CompositeValue {
+  native := reflect.ValueOf(value)
+  if native.Kind() != reflect.Struct { return checkRustInvalid[checkruntime.CompositeValue]() }
+  composite := checkruntime.MakeCompositeFields(typeName)
+  var parts checkPublicParts
+  for index, name := range fields {
+    field := native.FieldByName(name)
+    if !field.IsValid() { return checkRustInvalid[checkruntime.CompositeValue]() }
+    composite = checkruntime.AppendCompositeField(composite, parts.read(convert[index](field.Interface())))
+  }
+  if parts.failed {
+    if parts.undecided { return checkruntime.CompositeUnknown() }
+    return checkruntime.CompositeValue{Kind: checkruntime.CompositeValueError, Error: parts.failure}
+  }
+  return composite
+}`,
+  },
+  checkPublicDomainCell: {
+    dependencies: ['checkPublicCell'],
+    source: `// The server reads a part of a domain type through the domain's input: the base type's input, then
+// the domain's NOT NULL and CHECK constraints, base domains first.
+func checkPublicDomainCell(value any, notNull bool, base func(any) checkruntime.ArrayElement, evaluate func(any) ([]CheckEvaluation, bool), order []int) checkruntime.ArrayElement {
+  element := base(value)
+  if element.Kind == checkruntime.ArrayElementError || element.Kind == checkruntime.ArrayElementUnknown || element.Kind == checkruntime.ArrayElementUnimplemented { return element }
+  if _, null := checkPublicCell(value); null && notNull {
+    return checkruntime.ArrayElement{Kind: checkruntime.ArrayElementError, Error: checkruntime.MakeSqlError(${parseInt('23502', 36)})}
+  }
+  if evaluate == nil { return element }
+  results, decided := evaluate(value)
+  if !decided { return checkruntime.ArrayElement{Kind: checkruntime.ArrayElementUnknown} }
+  for _, index := range order {
+    result := results[index].Result
+    if !result.Certain { return checkruntime.ArrayElement{Kind: checkruntime.ArrayElementUnknown} }
+    if result.Value.Error != "" {
+      state, ok := checkRustState(result.Value.Error)
+      if !ok { return checkruntime.ArrayElement{Kind: checkruntime.ArrayElementUnknown} }
+      return checkruntime.ArrayElement{Kind: checkruntime.ArrayElementError, Error: state}
+    }
+    if result.Value.Valid && !result.Value.Value {
+      return checkruntime.ArrayElement{Kind: checkruntime.ArrayElementError, Error: checkruntime.MakeSqlError(${parseInt('23514', 36)})}
+    }
+  }
+  return element
+}`,
+  },
+  checkPublicOptional: {
+    dependencies: [],
+    packages: ['reflect'],
+    source: `// A domain's own checks take its value as its input field holds it: the value, a pointer to it, or
+// a valid null wrapper around it.
+func checkPublicOptional[X any](cell any, null bool) CheckOptional[X] {
+  if null { return NullCheckValue[X]() }
+  var field X
+  target := reflect.ValueOf(&field).Elem()
+  value := reflect.ValueOf(cell)
+  switch {
+  case value.Type().AssignableTo(target.Type()):
+    target.Set(value)
+  case target.Kind() == reflect.Pointer && value.Type().AssignableTo(target.Type().Elem()):
+    pointer := reflect.New(target.Type().Elem())
+    pointer.Elem().Set(value)
+    target.Set(pointer)
+  case target.Kind() == reflect.Struct && target.FieldByName("V").IsValid() && value.Type().AssignableTo(target.FieldByName("V").Type()):
+    target.FieldByName("V").Set(value)
+    target.FieldByName("Valid").SetBool(true)
+  default:
+    return checkRustInvalid[CheckOptional[X]]()
+  }
+  return KnownCheckValue(field)
 }`,
   },
   checkPublicInternalChar: {
@@ -272,8 +530,12 @@ func checkPublicInternalChar[S ~string](value S, utf8Server bool) checkruntime.I
   },
 }
 
-// The converter sources a check file uses, with what they use, in a stable order.
-export function goCheckPublicSource(used: ReadonlySet<string>): string {
+// The converter sources a check file uses, with what they use, in a stable order, and the packages
+// they import.
+export function goCheckPublicSource(used: ReadonlySet<string>): {
+  source: string
+  packages: ReadonlySet<GoPublicPackage>
+} {
   const included = new Set<string>()
   const visit = (name: string) => {
     if (included.has(name)) return
@@ -283,10 +545,11 @@ export function goCheckPublicSource(used: ReadonlySet<string>): string {
     for (const dependency of converter.dependencies) visit(dependency)
   }
   for (const name of used) visit(name)
-  return Object.keys(converters)
-    .filter((name) => included.has(name))
-    .map((name) => converters[name]!.source)
-    .join('\n')
+  const names = Object.keys(converters).filter((name) => included.has(name))
+  return {
+    source: names.map((name) => converters[name]!.source).join('\n'),
+    packages: new Set(names.flatMap((name) => converters[name]!.packages ?? [])),
+  }
 }
 
 export const goCheckPublicConverters = new Set(Object.keys(converters))
@@ -332,9 +595,11 @@ const oidAliasTypes: Readonly<Record<number, string>> = {
   4191: 'pg_catalog.regcollation',
 }
 
-// The runtime's names for its callables, as the Go translation spells them.
-const goCallable = (name: string): string =>
+// The runtime's names for its callables, as the Go translation spells them: built-in functions
+// lose their schema prefix.
+export const goCallable = (name: string): string =>
   name
+    .replace(/^sql__pg_catalog__/u, '')
     .split('_')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join('')
@@ -346,7 +611,7 @@ export interface GoCheckPublicConversion {
   // A function from the public value to the runtime value.
   convert: GoExpression
   converters: readonly string[]
-  packages: readonly ('time' | 'math' | 'operations')[]
+  packages: readonly GoPublicPackage[]
 }
 
 /**

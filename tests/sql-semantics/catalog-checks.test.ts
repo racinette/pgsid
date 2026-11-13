@@ -125,11 +125,11 @@ describe('catalog CHECK lowering', () => {
     expect(typescript.checks).toContain('evalBool')
     expect(go.checks).toContain('checkRustOutcome(checkrust.EvaluateCheck')
     expect(typescript.checks).toMatch(/"email_length", \(\) => checkRustOutcome/u)
-    expect(go.checks).toMatch(/"email_length", checkRustOutcome/u)
+    expect(go.checks).toMatch(/"email_length", checkRustEvaluate\(func\(\) EvalBool \{\n\s*return checkRustOutcome/u)
     expect(typescript.checks).toMatch(/"amount_plus", \(\) => checkRustOutcome/u)
-    expect(go.checks).toMatch(/"amount_minus", checkRustOutcome/u)
+    expect(go.checks).toMatch(/"amount_minus", checkRustEvaluate\(func\(\) EvalBool \{\n\s*return checkRustOutcome/u)
     expect(typescript.checks).toMatch(/"enabled_equal", \(\) => checkRustOutcome/u)
-    expect(go.checks).toMatch(/"enabled_unequal", checkRustOutcome/u)
+    expect(go.checks).toMatch(/"enabled_unequal", checkRustEvaluate\(func\(\) EvalBool \{\n\s*return checkRustOutcome/u)
     expect(typescript.checks).toMatch(/"enabled_less", \(\) => checkRustOutcome/u)
     expect(typescript.checks).toMatch(/"negative_floor", \(\) => checkRustOutcome/u)
     expect(typescript.checks).toMatch(/"minimum_floor", \(\) => checkRustOutcome/u)
@@ -144,7 +144,7 @@ describe('catalog CHECK lowering', () => {
       'scalar_no_else',
     ]) {
       expect(typescript.checks).toMatch(new RegExp(`"${name}", \\(\\) => checkRustOutcome`))
-      expect(go.checks).toMatch(new RegExp(`"${name}", checkRustOutcome`))
+      expect(go.checks).toMatch(new RegExp(`"${name}", checkRustEvaluate\\(func\\(\\) EvalBool \\{\\n\\s*return checkRustOutcome`))
     }
     expect(typescript.checks).toMatch(/"id_positive", \(\) => checkRustOutcome/u)
 

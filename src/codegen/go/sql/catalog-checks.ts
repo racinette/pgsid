@@ -48,6 +48,7 @@ import {
 } from '../../../sql-semantics/catalog-check-binder.js'
 import {
   enumType,
+  isCatalogVectorType,
   isRangeType,
   isMultirangeType,
   isArrayLikeType,
@@ -56,7 +57,10 @@ import {
 import { emitEvalBoolExpression } from '../../../sql-semantics/check-expressions.js'
 import { portableCheckAtoms } from '../../shared/check-atom-support.js'
 import { checkUnknownMessage } from '../../shared/check-diagnostics.js'
-import { prepareCheckRustGroup } from '../../shared/check-rust-source.js'
+import { checkRustCallableNames, prepareCheckRustGroup } from '../../shared/check-rust-source.js'
+import { checkRustValueType } from '../../shared/check-rust-evaluator.js'
+import { checkTypeModifierCoercion } from '../../shared/check-type-modifiers.js'
+import { arrayDimensionsMapping } from '../../shared/array-dimensions.js'
 import { transpileCheckRustGoFiles } from '../../shared/check-rust-transpile.js'
 import { go, printGoFile, type GoExpression, type GoField } from '../ast.js'
 import { normalizeGoImports } from '../imports.js'
@@ -76,9 +80,11 @@ import { goCheckInputSource } from './check-inputs.js'
 import {
   goCheckBaseOid,
   goCheckPublicConversion,
+  goCallable,
   goCheckPublicSource,
   type GoCheckPublicConversion,
 } from './check-public-inputs.js'
+import { createGoCheckPublicContainers } from './check-public-containers.js'
 
 interface GoCheckInputField {
   name: string
@@ -88,10 +94,71 @@ interface GoCheckInputField {
   exposed: GoField
   portable?: string
   conversion?: GoCheckPublicConversion
+  // A public field no check reads, which the evaluator's input leaves unset.
+  unread?: boolean
   type?: GoExpression
+  notNull?: boolean
 }
+const containerTypes: ReadonlySet<string> = new Set([
+  'RangeValue',
+  'MultirangeValue',
+  'ArrayValue',
+  'CompositeValue',
+])
 import { goSqlBackend } from './registry.js'
 import { goSqlRuntime } from './runtime.js'
+
+// The runtime value types a CHECK input can be read as.
+const goCheckReadTypes: ReadonlySet<string> = new Set([
+  'Int2Value',
+  'Int4Value',
+  'Int8Value',
+  'Float4Value',
+  'Float8Value',
+  'PointValue',
+  'LineValue',
+  'LsegValue',
+  'MoneyValue',
+  'TsvectorValue',
+  'TsqueryValue',
+  'AclitemValue',
+  'XidValue',
+  'CidValue',
+  'PgLsnValue',
+  'TidValue',
+  'InternalCharValue',
+  'Xid8Value',
+  'SnapshotValue',
+  'RangeValue',
+  'MultirangeValue',
+  'CompositeValue',
+  'JsonValue',
+  'JsonbValue',
+  'JsonpathValue',
+  'XmlValue',
+  'ArrayValue',
+  'OidValue',
+  'PolygonValue',
+  'PathValue',
+  'CircleValue',
+  'BoxValue',
+  'NetworkValue',
+  'UuidValue',
+  'MacaddrValue',
+  'Macaddr8Value',
+  'ByteaValue',
+  'BitValue',
+  'NumericValue',
+  'TimeValue',
+  'TimetzValue',
+  'IntervalValue',
+  'DateValue',
+  'TimestampValue',
+  'TimestamptzValue',
+  'EnumValue',
+  'TextValue',
+  'BoolValue',
+])
 
 export function renderGoSchemaChecks(
   tables: readonly TableInfo[],
@@ -125,6 +192,10 @@ export function renderGoSchemaCheckArtifacts(
   context?: GoTypeContext,
   rustImportPath?: string,
   rust = true,
+  // Whether the evaluator needs the regular expression engine beyond what the inputs show.
+  regex = false,
+  // Runtime callables the inputs' reads call, which the checks themselves may not.
+  callables: readonly string[] = [],
 ): {
   checks: string
   rust: string | null
@@ -218,12 +289,14 @@ export function renderGoSchemaCheckArtifacts(
         ),
         config.sql.codegen?.checks,
         // A jsonpath input is read by jsonpath input, which the regular expression engine serves.
-        tables.some((table) =>
+        regex ||
+          tables.some((table) =>
           table.columns.some((column) => catalogJsonpathType(column.typeName, column.typeOid, domains)),
         ) ||
           selectedDomains.some((domain) =>
             catalogJsonpathType(domain.baseTypeName, domain.baseTypeOid, domains),
           ),
+        callables,
       )
     : null
   if (rustGroup?.source && !rustImportPath)
@@ -337,6 +410,83 @@ export function renderGoSchemaCheckArtifacts(
           },
         }
       : config
+  // Public containers reach the evaluator through converters generated per type.
+  const containers = rustGroup?.source
+    ? createGoCheckPublicContainers({
+        context: config.sql.codegen?.checks,
+        domains,
+        enums: catalog.enums,
+        regex: rustGroup.requiresRegex,
+        boundContext,
+        compositeContext,
+        domainGroup: (domain) => {
+          const group = groups.find(
+            (item) =>
+              item.kind === 'domain' &&
+              item.source.schema === domain.schema &&
+              item.source.name === domain.name,
+          )
+          return group && { name: group.name, owners: group.checks.map((check) => check.owner) }
+        },
+      })
+    : null
+  const readTypes = new Set<string>()
+  const readCallables = new Set<string>()
+  const readPackages = new Set<'operations'>()
+  // The type each group's checks read an input as.
+  const inputTypes = new Map<(typeof groups)[number], Map<string, string>>()
+  {
+    let index = 0
+    for (const group of groups) {
+      const types = new Map<string, string>()
+      for (let check = 0; check < group.checks.length; check++) {
+        const prepared = rustGroup?.checks[index++]
+        if (prepared?.kind === 'supported')
+          for (const item of prepared.inputs) if (!types.has(item.name)) types.set(item.name, item.type)
+      }
+      inputTypes.set(group, types)
+    }
+  }
+  // The dimension counts a group's array input has: a table column's declared ones, else one.
+  const columnDimensions = (group: (typeof groups)[number], name: string): readonly number[] => {
+    const mapping =
+      group.kind === 'table'
+        ? arrayDimensionsMapping(
+            config.sql.codegen?.go?.mappings.column[`${group.source.schema}.${group.source.name}.${name}`],
+          )
+        : null
+    const dimensions = mapping?.dimensions ?? 1
+    return [...new Set(typeof dimensions === 'number' ? [dimensions] : dimensions)].sort(
+      (left, right) => left - right,
+    )
+  }
+  // The type modifier the server applies as it reads a group's input: the column's own or the one
+  // its domain chain declares for the base type.
+  const inputTypeMod = (group: (typeof groups)[number], name: string): number => {
+    const column =
+      group.kind === 'table'
+        ? tables
+            .find(
+              (table) => table.schema === group.source.schema && table.name === group.source.name,
+            )
+            ?.columns.find((item) => item.name === name)
+        : undefined
+    let typeMod = column?.typeMod ?? -1
+    let domain =
+      group.kind === 'table'
+        ? domains.find((item) => item.oid === column?.typeOid)
+        : domains.find(
+            (item) => item.schema === group.source.schema && item.name === group.source.name,
+          )
+    const seen = new Set<number>()
+    while (domain && !seen.has(domain.oid)) {
+      seen.add(domain.oid)
+      if ((domain.baseTypeMod ?? -1) >= 0) typeMod = domain.baseTypeMod!
+      const base = domain.baseTypeOid
+      domain = domains.find((item) => item.oid === base)
+    }
+    return typeMod
+  }
   const groupInputs = groups.map((group) => {
     const table =
       group.kind === 'table'
@@ -352,6 +502,37 @@ export function renderGoSchemaCheckArtifacts(
         : undefined
     const columns: readonly ColumnInfo[] = table?.columns ?? []
     // Each input as the evaluator reads it, and as callers supply it: the public value, converted.
+    // A container no check reads is accepted as its public value and left unset; one a check reads
+    // is converted through its type's converter.
+    const containerConversion = (
+      name: string,
+      portable: string,
+      goBase: GoExpression,
+    ): GoCheckPublicConversion | 'unread' | null => {
+      // Without a type context a check file cannot name a record's type, or a range's.
+      if (!context) return null
+      const type = inputTypes.get(group)?.get(name)
+      if (!type || !containers) return 'unread'
+      if (isCatalogVectorType(type)) return null
+      const converter =
+        portable === 'RangeValue'
+          ? containers.rangeConverter(type)
+          : portable === 'MultirangeValue'
+            ? containers.multirangeConverter(type)
+            : portable === 'CompositeValue'
+              ? containers.compositeConverter(type)
+              : containers.arrayConverter(type, columnDimensions(group, name))
+      return {
+        convert: {
+          kind: 'function-literal',
+          parameters: [{ names: ['value'], type: goBase }],
+          results: [{ type: go.selector(go.ident('checkruntime'), portable) }],
+          body: [go.return(go.call(go.ident(converter), [go.ident('value')]))],
+        },
+        converters: [],
+        packages: [],
+      }
+    }
     const input = (
       name: string,
       portable: string | null,
@@ -385,15 +566,25 @@ export function renderGoSchemaCheckArtifacts(
         } catch {
           return { name, internal, exposed: internal, portable }
         }
-        const conversion = goCheckPublicConversion(
-          portable,
-          baseOid,
-          exposed.resolved.type,
-          config.sql.codegen?.checks,
-        )
+        const conversion = containerTypes.has(portable)
+          ? containerConversion(name, portable, exposed.resolved.type)
+          : goCheckPublicConversion(
+              portable,
+              baseOid,
+              exposed.resolved.type,
+              config.sql.codegen?.checks,
+            )
         if (!conversion) return { name, internal, exposed: internal, portable }
         use(exposed)
-        return { name, internal, exposed: exposed.field, portable, conversion, type: exposed.type }
+        return {
+          name,
+          internal,
+          exposed: exposed.field,
+          portable,
+          ...(conversion === 'unread' ? { unread: true } : { conversion }),
+          type: exposed.type,
+          notNull,
+        }
       }
       const exposed = publicField()
       use(exposed)
@@ -475,59 +666,30 @@ export function renderGoSchemaCheckArtifacts(
         config.sql.codegen?.checks,
       )
       if (prepared?.kind === 'supported') {
-        const arguments_ = prepared.inputs.map((item) => {
-          if (
-            ![
-              'Int2Value',
-              'Int4Value',
-              'Int8Value',
-              'Float4Value',
-              'Float8Value',
-              'PointValue',
-              'LineValue',
-              'LsegValue',
-              'MoneyValue',
-              'TsvectorValue',
-              'TsqueryValue',
-              'AclitemValue',
-              'XidValue',
-              'CidValue',
-              'PgLsnValue',
-              'TidValue',
-              'InternalCharValue',
-              'Xid8Value',
-              'SnapshotValue',
-              'RangeValue',
-              'MultirangeValue',
-              'CompositeValue',
-              'JsonValue',
-              'JsonbValue',
-              'JsonpathValue',
-              'XmlValue',
-              'ArrayValue',
-              'OidValue',
-              'PolygonValue',
-              'PathValue',
-              'CircleValue',
-              'BoxValue',
-              'NetworkValue',
-              'UuidValue',
-              'MacaddrValue',
-              'Macaddr8Value',
-              'ByteaValue',
-              'BitValue',
-              'NumericValue',
-              'TimeValue',
-              'TimetzValue',
-              'IntervalValue',
-              'DateValue',
-              'TimestampValue',
-              'TimestamptzValue',
-              'EnumValue',
-              'TextValue',
-              'BoolValue',
-            ].includes(item.rustType)
-          )
+        // A container converted from its public value is the evaluator's value already; the
+        // payload adapter only checks values in-package tests supply.
+        const read = (item: (typeof prepared.inputs)[number]): GoExpression => {
+          const adapted = readPayload(item)
+          const field = group.fields.find((candidate) => candidate.name === item.name)
+          if (item.nullness || !field?.conversion || !containerTypes.has(field.portable!))
+            return adapted
+          rustInputAdapters.add('checkRustConverted')
+          const prefix = field.portable!.slice(0, -'Value'.length)
+          return go.call(go.ident('checkRustConverted'), [
+            go.selector(row, 'eager'),
+            go.selector(row, goName(item.name)),
+            go.selector(go.ident('checkruntime'), `${prefix}Unknown`),
+            go.selector(go.ident('checkruntime'), `${prefix}Null`),
+            {
+              kind: 'function-literal',
+              parameters: [],
+              results: [{ type: go.selector(go.ident('checkruntime'), field.portable!) }],
+              body: [go.return(adapted)],
+            },
+          ])
+        }
+        const readPayload = (item: (typeof prepared.inputs)[number]): GoExpression => {
+          if (!goCheckReadTypes.has(item.rustType))
             throw new Error(`Unsupported Go Rust CHECK input: ${item.rustType}`)
           const compositeArray =
             isArrayLikeType(item.type) &&
@@ -789,32 +951,110 @@ export function renderGoSchemaCheckArtifacts(
                 ]
               : []),
           ])
+        }
+        // A value is read as the server reads the parameter, through the type modifier too; a
+        // modifier the evaluator cannot apply leaves the value undecided.
+        const typedRead = (item: (typeof prepared.inputs)[number]): GoExpression => {
+          const value = read(item)
+          const typeMod = item.nullness ? -1 : inputTypeMod(group, item.name)
+          if (typeMod < 0) return value
+          readPackages.add('operations')
+          if (isArrayLikeType(item.type) && !isCatalogVectorType(item.type))
+            return go.call(go.selector(go.ident('pg_catalog'), 'ArrayWithTypmod'), [
+              value,
+              go.number(typeMod),
+            ])
+          const coercion = checkTypeModifierCoercion(item.type)
+          if (!coercion)
+            return go.call(
+              go.selector(go.ident('checkruntime'), `${item.rustType.slice(0, -'Value'.length)}Unknown`),
+            )
+          readCallables.add(coercion.callable)
+          return go.call(go.selector(go.ident('pg_catalog'), goCallable(coercion.callable)), [
+            value,
+            go.call(go.selector(go.ident('checkruntime'), 'MakeInt4Value'), [go.number(typeMod)]),
+            ...(coercion.explicit
+              ? [go.call(go.selector(go.ident('checkruntime'), 'MakeBoolValue'), [go.ident('false')])]
+              : []),
+          ])
+        }
+        // The server reads a supplied value before any check runs: a value its input rejects fails
+        // every check that reads it, and one whose reading is undecided leaves each of them
+        // undecided. An unset input stays undecided only where a check reaches it. Public values are
+        // read so; the evaluator's own values, which in-package tests supply, are read lazily.
+        const checkedRead = (item: (typeof prepared.inputs)[number]): GoExpression => {
+          readTypes.add(item.rustType)
+          return go.call(go.ident(`checkRustRead${item.rustType}`), [
+            go.and(go.selector(row, 'eager'), go.selector(go.selector(row, goName(item.name)), 'Set')),
+            typedRead(item),
+          ])
+        }
+        // A NULL test reads the value too: a value the server's input rejects fails the check, as
+        // for any other read of the column.
+        const nullnessRead = (item: (typeof prepared.inputs)[number]): GoExpression | null => {
+          let rustType: string
+          try {
+            rustType = checkRustValueType(item.enum ? enumType(item.enum) : item.type)
+          } catch {
+            return null
+          }
+          if (rustType === 'BoolValue' || !goCheckReadTypes.has(rustType)) return null
+          rustInputAdapters.add('checkRustNullnessRead')
+          return go.call(go.ident('checkRustNullnessRead'), [
+            read(item),
+            {
+              kind: 'function-literal',
+              parameters: [],
+              results: [],
+              body: [go.expression(checkedRead({ ...item, nullness: undefined, rustType }))],
+            },
+          ])
+        }
+        const arguments_ = prepared.inputs.map((item) =>
+          item.nullness ? (nullnessRead(item) ?? read(item)) : checkedRead(item),
+        )
+        rustInputAdapters.add('checkRustEvaluate')
+        // Each check reads its inputs inside its own evaluation, so a read that fails one check
+        // leaves the others to their own reads.
+        const evaluation = (result: GoExpression, expression: GoExpression): GoExpression => ({
+          kind: 'function-literal',
+          parameters: [],
+          results: [{ type: result }],
+          body: [go.return(expression)],
         })
         const diagnosticEvaluation = prepared.diagnosticEntryName
-          ? go.call(
-              go.selector(
-                go.ident('checkrust'),
-                prepared.diagnosticEntryName.replace(
-                  /(^|_)([a-z0-9])/gu,
-                  (_, _separator, part: string) => part.toUpperCase(),
+          ? evaluation(
+              go.selector(go.ident('checkruntime'), 'CheckEvaluationResult'),
+              go.call(
+                go.selector(
+                  go.ident('checkrust'),
+                  prepared.diagnosticEntryName.replace(
+                    /(^|_)([a-z0-9])/gu,
+                    (_, _separator, part: string) => part.toUpperCase(),
+                  ),
                 ),
+                arguments_,
               ),
-              arguments_,
             )
           : undefined
         if (diagnosticEvaluation) rustInputAdapters.add('checkRustEvaluation')
         return {
           ...(diagnosticEvaluation ? { diagnosticEvaluation } : {}),
           value: {
-            expression: go.call(go.ident('checkRustOutcome'), [
-              go.call(
-                go.selector(
-                  go.ident('checkrust'),
-                  prepared.entryName.replace(/(^|_)([a-z0-9])/gu, (_, _separator, part: string) =>
-                    part.toUpperCase(),
+            expression: go.call(go.ident('checkRustEvaluate'), [
+              evaluation(
+                go.ident('EvalBool'),
+                go.call(go.ident('checkRustOutcome'), [
+                  go.call(
+                    go.selector(
+                      go.ident('checkrust'),
+                      prepared.entryName.replace(/(^|_)([a-z0-9])/gu, (_, _separator, part: string) =>
+                        part.toUpperCase(),
+                      ),
+                    ),
+                    arguments_,
                   ),
-                ),
-                arguments_,
+                ]),
               ),
             ]),
           },
@@ -888,16 +1128,102 @@ export function renderGoSchemaCheckArtifacts(
   // Callers' public values are converted to the values the evaluator reads, which the unexported
   // input and entry take.
   const internalName = (name: string) => name.charAt(0).toLowerCase() + name.slice(1)
+  // A domain reached only inside a value gets its checks generated too, and a jsonpath part needs
+  // the regular expression engine: both on a second pass.
+  // A read may call the runtime where no check does, e.g. to apply a type modifier; the evaluator
+  // source then carries that callable too.
+  const available = rustGroup?.source ? checkRustCallableNames(rustGroup.source) : null
+  // Only built-in functions are selected by name; the runtime's own helpers are always present.
+  const missing = [...readCallables, ...(containers?.callables ?? [])].filter(
+    (name) =>
+      name.startsWith('sql__') && available && !available.has(name) && !callables.includes(name),
+  )
+  if (containers) {
+    const reached = [...containers.reachedDomains].filter((domain) => !selectedDomains.includes(domain))
+    if (reached.length || (containers.jsonpathReached && !regex) || missing.length)
+      return renderGoSchemaCheckArtifacts(
+        tables,
+        packageName,
+        domains,
+        [...selectedDomains, ...reached],
+        catalog,
+        config,
+        context,
+        rustImportPath,
+        rust,
+        regex || containers.jsonpathReached,
+        [...callables, ...new Set(missing)],
+      )
+  }
+  const containerDeclarations =
+    containers?.declarations((domain) => {
+      const field = groupInputs.find(
+        (group) =>
+          group.kind === 'domain' &&
+          group.source.schema === domain.schema &&
+          group.source.name === domain.name,
+      )?.fields[0]
+      // A domain whose input still takes the evaluator's value cannot be given a public one.
+      if (!field || (field.portable && !field.conversion && !field.unread)) return null
+      const type = field.exposed.type
+      return type.kind === 'index' ? type.right : null
+    }) ?? []
+  for (const adapter of containers?.adapters ?? []) {
+    rustInputAdapters.add(adapter)
+    const helper = /^checkRustInt[248]$/u.test(adapter)
+      ? 'checkInputInteger'
+      : adapter === 'checkRustBool'
+        ? 'checkInputBoolean'
+        : /^checkRustFloat[48]$/u.test(adapter)
+          ? 'checkInputFloat'
+          : adapter === 'checkRustBytea'
+            ? 'checkPrimitive'
+            : 'checkInputText'
+    inputHelpers.add(helper)
+  }
+  if (rustInputAdapters.has('checkRustEvaluate') || rustInputAdapters.has('checkRustEvaluation'))
+    rustInputAdapters.add('checkRustReadResult')
+  // Each read type fails its check when a supplied value's reading errs or is undecided.
+  const readFunctions = [...readTypes].sort().map((rustType) => {
+    const runtimeName = (name: string) => go.selector(go.ident('checkruntime'), name)
+    const kind = go.selector(go.ident('value'), 'Kind')
+    const fault = (field: GoExpression) =>
+      go.expression(go.call(go.ident('panic'), [go.composite(go.ident('checkReadFault'), [field])]))
+    const when = (suffix: string, field: GoExpression) =>
+      go.if(go.and(go.ident('supplied'), go.equal(kind, runtimeName(`${rustType}${suffix}`))), [
+        fault(field),
+      ])
+    return go.function(
+      `checkRustRead${rustType}`,
+      [
+        { names: ['supplied'], type: go.ident('bool') },
+        { names: ['value'], type: runtimeName(rustType) },
+      ],
+      [{ type: runtimeName(rustType) }],
+      [
+        when('Error', go.keyValue('failure', go.selector(go.ident('value'), 'Error'))),
+        when('Unknown', go.keyValue('undecided', go.ident('true'))),
+        when('Unimplemented', go.keyValue('undecided', go.ident('true'))),
+        go.return(go.ident('value')),
+      ],
+    )
+  })
   const conversions = emitted.flatMap(({ fields }) => fields.flatMap((field) => (field.conversion ? [field] : [])))
   const publicConverters = new Set(conversions.flatMap((field) => field.conversion!.converters))
   if (conversions.length) for (const name of ['checkPublic', 'checkPublicAt']) publicConverters.add(name)
   if (conversions.some((field) => field.type!.kind === 'pointer')) publicConverters.add('checkPublicPointer')
-  if (
-    config.sql.codegen?.go?.nulls === 'structs' &&
-    conversions.some((field) => field.type!.kind === 'index')
-  )
+  if (config.sql.codegen?.go?.nulls === 'structs' && conversions.some((field) => !field.notNull))
     publicConverters.add('checkPublicNull')
-  const publicPackages = new Set(conversions.flatMap((field) => field.conversion!.packages))
+  if (conversions.some((field) => containerTypes.has(field.portable!)))
+    publicConverters.add('checkPublicNilable')
+  for (const helper of containers?.helpers ?? []) publicConverters.add(helper)
+  const publicSource = goCheckPublicSource(publicConverters)
+  const publicPackages = new Set([
+    ...conversions.flatMap((field) => field.conversion!.packages),
+    ...publicSource.packages,
+    ...readPackages,
+    ...(containers?.packages ?? []),
+  ])
   const inputSource = goCheckInputSource(inputHelpers)
   if (inputSource.reflect) imports.push({ path: 'reflect' })
   const rustFiles = rustGroup?.source
@@ -934,6 +1260,10 @@ export function renderGoSchemaCheckArtifacts(
           ? [{ path: 'math' }, { path: 'reflect' }]
           : []),
         ...(publicPackages.has('math') ? [{ path: 'math' }] : []),
+        ...(publicPackages.has('reflect') ? [{ path: 'reflect' }] : []),
+        ...(publicPackages.has('strconv') ? [{ path: 'strconv' }] : []),
+        ...(publicPackages.has('strings') ? [{ path: 'strings' }] : []),
+        ...(publicPackages.has('pgtype') ? [{ path: 'github.com/jackc/pgx/v5/pgtype' }] : []),
         ...(publicPackages.has('time') ? [{ path: 'time' }] : []),
         ...(publicPackages.has('operations')
           ? [{ path: `${rustImportPath}/checkrust/pg_catalog`, as: 'pg_catalog' }]
@@ -949,7 +1279,7 @@ export function renderGoSchemaCheckArtifacts(
       ]),
       source: `${goSqlRuntime([...inputSource.runtime, ...emitted.flatMap((group) => group.results.flatMap((result) => result.helpers))], packageName)}
 type CheckOptional[T any] struct { V T; Set bool; Null bool }
-${goCheckPublicSource(publicConverters)}
+${publicSource.source}
 func KnownCheckValue[T any](value T) CheckOptional[T] { return CheckOptional[T]{V: value, Set: true} }
 func NullCheckValue[T any]() CheckOptional[T] { return CheckOptional[T]{Set: true, Null: true} }
 
@@ -1031,8 +1361,16 @@ func checkEvaluation(owner, constraint string, result EvalBool, unknownMessage s
   return evaluation
 }`,
       declarations: [
+        ...containerDeclarations,
+        ...readFunctions,
         ...emitted.flatMap(({ inputType, fields }) => [
-          go.type(internalName(inputType), go.struct(fields.map((field) => field.internal))),
+          go.type(
+            internalName(inputType),
+            go.struct([
+              ...fields.map((field) => field.internal),
+              ...(rustGroup?.source ? [{ names: ['eager'], type: go.ident('bool') }] : []),
+            ]),
+          ),
           go.type(inputType, go.struct(fields.map((field) => field.exposed))),
         ]),
         go.type(
@@ -1051,11 +1389,13 @@ func checkEvaluation(owner, constraint string, result EvalBool, unknownMessage s
             const supplied = go.selector(go.ident('input'), goName(field.name))
             if (!field.conversion) return supplied
             const set =
-              field.type!.kind === 'pointer'
-                ? go.call(go.ident('checkPublicPointer'), [supplied])
-                : config.sql.codegen?.go?.nulls === 'structs' && field.type!.kind === 'index'
-                  ? go.call(go.ident('checkPublicNull'), [supplied])
-                  : supplied
+              !field.notNull && config.sql.codegen?.go?.nulls === 'structs'
+                ? go.call(go.ident('checkPublicNull'), [supplied])
+                : field.type!.kind === 'pointer'
+                  ? go.call(go.ident('checkPublicPointer'), [supplied])
+                  : containerTypes.has(field.portable!)
+                    ? go.call(go.ident('checkPublicNilable'), [supplied])
+                    : supplied
             const converted = go.index(
               go.ident('CheckOptional'),
               go.selector(go.ident('checkruntime'), field.portable!),
@@ -1098,7 +1438,12 @@ func checkEvaluation(owner, constraint string, result EvalBool, unknownMessage s
                   go.call(go.ident(internalName(entry)), [
                     go.composite(
                       go.ident(internalName(inputType)),
-                      fields.map((field) => go.keyValue(goName(field.name), value(field))),
+                      [
+                        ...fields.flatMap((field) =>
+                          field.unread ? [] : [go.keyValue(goName(field.name), value(field))],
+                        ),
+                        ...(rustGroup?.source ? [go.keyValue('eager', go.ident('true'))] : []),
+                      ],
                     ),
                   ]),
                 ),
@@ -1158,7 +1503,13 @@ func checkEvaluation(owner, constraint string, result EvalBool, unknownMessage s
   }
 }
 
-const goRustAdapterSource = `func checkRustArrayNullness[T any](field CheckOptional[T],elementType string,elementKind int,boundProfile checkruntime.RangeBoundContext,tree ...string) checkruntime.BoolValue { return checkruntime.ArrayIsNull(checkRustArray(field,elementType,elementKind,boundProfile,tree...)) }
+const goRustAdapterSource = `func checkRustConverted[T any](eager bool, field CheckOptional[T], unknown, null func() T, adapt func() T) T {
+  if !eager { return adapt() }
+  if !field.Set { return unknown() }
+  if field.Null { return null() }
+  return field.V
+}
+func checkRustArrayNullness[T any](field CheckOptional[T],elementType string,elementKind int,boundProfile checkruntime.RangeBoundContext,tree ...string) checkruntime.BoolValue { return checkruntime.ArrayIsNull(checkRustArray(field,elementType,elementKind,boundProfile,tree...)) }
 func checkRustArrayProfileWord(input string) int {
   word,width:=utf8.DecodeRuneInString(input)
   if width==0 || width!=len(input) || (word==utf8.RuneError && width==1) { return -1 }
@@ -2092,10 +2443,36 @@ func checkRustState(value string) (checkruntime.SqlError, bool) {
   if error != nil { return checkruntime.SqlError{}, false }
   return checkruntime.MakeSqlError(int(state)), true
 }
-func checkRustEvaluation(owner,constraint string,value checkruntime.CheckEvaluationResult,fallback string) CheckEvaluation {
+func checkRustEvaluation(owner,constraint string,evaluate func() checkruntime.CheckEvaluationResult,fallback string) (evaluation CheckEvaluation) {
+ defer func() {
+  if result, read := checkRustReadResult(recover()); read { evaluation = checkEvaluation(owner,constraint,result,fallback) }
+ }()
+ value:=evaluate()
  description:=checkruntime.CheckRequirementMessage(value.Reason)
  if description.Kind==checkruntime.TextValueValue {fallback=description.Value}
  return checkEvaluation(owner,constraint,checkRustOutcome(value.Outcome),fallback)
+}
+func checkRustEvaluate(evaluate func() EvalBool) (result EvalBool) {
+  defer func() {
+    if fault, read := checkRustReadResult(recover()); read { result = fault }
+  }()
+  return evaluate()
+}
+// A read that fails a check: the input's error, or that its reading is undecided.
+type checkReadFault struct {
+  failure checkruntime.SqlError
+  undecided bool
+}
+func checkRustReadResult(fault any) (EvalBool, bool) {
+  if fault == nil { return EvalBool{}, false }
+  read, ok := fault.(checkReadFault)
+  if !ok { panic(fault) }
+  if read.undecided { return evalBoolUncertain(), true }
+  return checkRustOutcome(checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: read.failure}), true
+}
+func checkRustNullnessRead(nullness checkruntime.BoolValue, read func()) checkruntime.BoolValue {
+  if nullness.Kind == checkruntime.BoolValueValue && !nullness.Value { read() }
+  return nullness
 }
 func checkRustOutcome(value checkruntime.CheckOutcome) EvalBool {
   switch value.Kind {
