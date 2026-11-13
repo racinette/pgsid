@@ -16,6 +16,7 @@ import { renderGoValidation } from './json-schema-validation.js'
 import { renderGoExecutorBundle, renderGoExecutorInterface } from './executor.js'
 import { renderGoQueryArtifacts } from './query.js'
 import {
+  goNullsImportPath,
   goNullsOutDir,
   usesGoNullStructs,
   goNullArtifacts,
@@ -368,6 +369,9 @@ export function createGoCodegenTarget(
             ? goValueArtifacts(
                 valueDirectory,
                 results.flatMap((result) => result.artifacts.map((item) => item.content)),
+                schemaImportPath
+                  ? goNullsImportPath(schemaImportPath)
+                  : helper!.importPath.replace(/\/pgx$/u, ''),
               ).map((artifact) => ({ kind: 'helpers' as const, ...artifact }))
             : []),
           ...(analyses.length

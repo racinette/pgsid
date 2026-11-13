@@ -64,6 +64,21 @@ transaction and command identifiers are unsigned integers. A text search vector
 is a string type of its own, since pgx reads that type in binary, which only
 its own value takes: the text is rendered from it, and parsed back to be sent.
 
+## Numerics
+
+A numeric is an opaque value that keeps the server's exact text: every digit,
+its scale, NaN and the two infinities. It is made from text, which is read as
+numeric input reads it, so it accepts and refuses what the server does and
+keeps the scale written, or from an integer, and it reads back as numeric
+output writes it. Its arithmetic, rounding, truncation, sign and order are
+PostgreSQL's own, taken from the CHECK evaluator, which the value package
+carries internally for them: a division keeps the scale the server chooses,
+NaN equals itself and sorts after every other value, and an operation the
+server refuses, such as a division by zero, returns the server's error with
+its SQLSTATE. Conversion to a Go float is available but loses precision. JSON
+writes the exact text as a string and reads a string or a number, and pgx
+moves the value as its numeric type, or as its text over the simple protocol.
+
 ## Ranges
 
 A range is generic over the Go type of its subtype's values and holds either

@@ -280,6 +280,7 @@ export function renderGoSchemaArtifacts(
         ...goValueArtifacts(
           goNullsOutDir(outDir),
           [...artifacts, ...jsonArtifacts].map((artifact) => artifact.content),
+          goNullsImportPath(importPath),
         ),
       ],
       diagnostics,

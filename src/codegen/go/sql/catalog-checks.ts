@@ -1168,6 +1168,8 @@ export function renderGoSchemaCheckArtifacts(
       const type = field.exposed.type
       return type.kind === 'index' ? type.right : null
     }) ?? []
+  if (containers?.values && context?.nullsImportPath)
+    imports.push({ path: context.nullsImportPath, as: 'pgsid' })
   for (const adapter of containers?.adapters ?? []) {
     rustInputAdapters.add(adapter)
     const helper = /^checkRustInt[248]$/u.test(adapter)
@@ -1268,8 +1270,7 @@ export function renderGoSchemaCheckArtifacts(
         ...(publicPackages.has('operations')
           ? [{ path: `${rustImportPath}/checkrust/pg_catalog`, as: 'pg_catalog' }]
           : []),
-        ...(['checkPublicText', 'checkPublicInternalChar'].some((name) => publicConverters.has(name)) ||
-        publicConverters.has('checkPublicNumeric')
+        ...(['checkPublicText', 'checkPublicInternalChar'].some((name) => publicConverters.has(name))
           ? [{ path: 'unicode/utf8' }]
           : []),
         ...(rustGroup?.source ? [{ path: `${rustImportPath}/checkrust`, as: 'checkrust' }] : []),

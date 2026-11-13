@@ -117,7 +117,7 @@ import (
 )
 func documentText(t *testing.T,text string) values.JSON[any]{document,err:=values.JSONText[any](text);if err!=nil{t.Fatal(err)};return document}
 func jsonbDocument(t *testing.T,text string) *values.JSON[any]{document:=documentText(t,text);return &document}
-func numericText(text string) *string{return &text}
+func numericText(text string) *values.Numeric{value,err:=values.NumericOf(text);if err!=nil{panic(err)};return &value}
 type recordingJSONBDB struct {pgsid.DBTX;arguments []any;calls int;failure error}
 func(db *recordingJSONBDB)Exec(ctx context.Context,sql string,arguments ...any)(pgconn.CommandTag,error){db.calls++;db.arguments=arguments;return pgconn.NewCommandTag("INSERT 0 1"),db.failure}
 func TestRawJSONBReachesDatabase(t *testing.T){

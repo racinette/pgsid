@@ -21,6 +21,8 @@
     "check-rust:build-wasm": "bash scripts/build-check-rust-wasm.sh",
     "typescript-numeric:build": "node --import tsx scripts/build-typescript-numeric.ts",
     "typescript-numeric:check": "node --import tsx scripts/build-typescript-numeric.ts --check",
+    "go-numeric:build": "node --import tsx scripts/build-go-numeric.ts",
+    "go-numeric:check": "node --import tsx scripts/build-go-numeric.ts --check",
     "builtin-inventory:generate": "node --import tsx scripts/generate-builtin-inventory.ts",
     "builtin-inventory:check": "node --import tsx scripts/generate-builtin-inventory.ts --check",
     "builtin-groups:explore": "node --import tsx scripts/explore-builtin-groups.ts",

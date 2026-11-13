@@ -64,6 +64,13 @@ func connect(t *testing.T, ctx context.Context) *pgx.Conn {
 }
 
 func pointer[T any](value T) *T { return &value }
+func numeric(text string) pgsid.Numeric {
+	value, err := pgsid.NumericOf(text)
+	if err != nil {
+		panic(err)
+	}
+	return value
+}
 func ints(lower, upper pgsid.Bound[int32]) pgsid.Range[int32] { return pgsid.RangeOf(lower, upper) }
 func day(year int, month time.Month, date int) pgsid.Date {
 	return pgsid.DateOf(time.Date(year, month, date, 0, 0, 0, 0, time.UTC))
@@ -107,7 +114,7 @@ func TestRangeRoundTrip(t *testing.T) {
 			Id:        1,
 			Ints:      pointer(ints(pgsid.Inclusive[int32](1), pgsid.Inclusive[int32](9))),
 			Bigs:      pointer(pgsid.RangeOf(pgsid.Unbounded[int64](), pgsid.Exclusive[int64](math.MaxInt64))),
-			Exact:     pointer(pgsid.RangeOf(pgsid.Inclusive("1.50"), pgsid.Unbounded[string]())),
+			Exact:     pointer(pgsid.RangeOf(pgsid.Inclusive(numeric("1.50")), pgsid.Unbounded[pgsid.Numeric]())),
 			Days:      pointer(pgsid.RangeOf(pgsid.Exclusive(day(2026, 1, 1)), pgsid.Inclusive(day(2026, 1, 31)))),
 			Local:     pointer(pgsid.RangeOf(pgsid.Inclusive(pgsid.TimestampNegInfinity), pgsid.Exclusive(pgsid.TimestampOf(time.Date(2026, 1, 1, 12, 0, 0, 1000, time.UTC))))),
 			Instant:   pointer(pgsid.RangeOf(pgsid.Exclusive(pgsid.TimestamptzOf(time.Unix(0, 0))), pgsid.Inclusive(pgsid.TimestamptzInfinity))),

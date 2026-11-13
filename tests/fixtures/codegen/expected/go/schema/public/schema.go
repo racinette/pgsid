@@ -14,8 +14,8 @@ const EventStateDone EventState = "done"
 type EventId int64
 type DefaultEventId EventId
 type EventMetadata struct {
-	Source     *string `db:"source"`
-	Confidence *string `db:"confidence"`
+	Source     *string        `db:"source"`
+	Confidence *pgsid.Numeric `db:"confidence"`
 }
 type Accounts struct {
 	Id          int64  `db:"id"`

@@ -266,13 +266,13 @@ func checkPublicCircle(value pgsid.Circle) checkruntime.CircleValue {
 func checkPublicXid8[V ~uint64](value V) checkruntime.Xid8Value { return checkruntime.MakeXid8Bits(int64(value)) }`,
   },
   checkPublicNumeric: {
-    dependencies: ['checkPublicText'],
-    packages: ['operations'],
-    source: `// A numeric is sent as its text, which numeric input reads.
-func checkPublicNumeric[S ~string](value S) checkruntime.NumericValue {
-  return pg_catalog.ScalarNumericFromText(checkPublicText(string(value)))
+    dependencies: [],
+    source: `// A numeric value holds numeric output, which numeric input reads back unchanged.
+func checkPublicNumeric(value pgsid.Numeric) checkruntime.NumericValue {
+  return checkruntime.MakeNumericValue(value.String())
 }`,
   },
+
   checkPublicCell: {
     dependencies: [],
     packages: ['reflect'],
@@ -695,7 +695,7 @@ export function goCheckPublicConversion(
     case 'Xid8Value':
       return generic('checkPublicXid8')
     case 'NumericValue':
-      return generic('checkPublicNumeric', ['operations'])
+      return named('checkPublicNumeric')
     case 'InternalCharValue':
       return {
         convert: {

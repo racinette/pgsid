@@ -2,6 +2,7 @@ import { readFileSync, existsSync } from 'node:fs'
 import { dirname, join, posix } from 'node:path'
 import type { Config } from '../../config/schema.js'
 import { go, printGoFile, type GoDeclaration, type GoExpression } from './ast.js'
+import { goNumericArtifacts } from './numeric.js'
 
 export type GoNulls = 'pointers' | 'structs'
 export const goJsonNulls = (config: Config): GoNulls =>
@@ -61,7 +62,11 @@ const goValueFiles = [
 export const goValueArtifacts = (
   directory: string,
   contents: readonly string[],
+  importPath: string,
 ): { path: string; content: string }[] => [
+  ...(contents.some((content) => /\bpgsid\.Numeric\b/u.test(content))
+    ? goNumericArtifacts(directory, importPath)
+    : []),
   ...goValueFiles
     .filter((file) => contents.some((content) => file.names.test(content)))
     .map((file) => ({

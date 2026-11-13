@@ -57,6 +57,7 @@ const typedConverters: Readonly<Record<string, { name: string; type?: string }>>
   PathValue: { name: 'checkPublicPath', type: 'Path' },
   PolygonValue: { name: 'checkPublicPolygon', type: 'Polygon' },
   CircleValue: { name: 'checkPublicCircle', type: 'Circle' },
+  NumericValue: { name: 'checkPublicNumeric', type: 'Numeric' },
 }
 // Families whose input adapter reads any public value of the family's Go types.
 const adaptedFamilies: Readonly<Record<string, string>> = {
@@ -105,6 +106,8 @@ export function createGoCheckPublicContainers(options: GoCheckPublicContainerOpt
   // every group's inputs are; their callers are generated last.
   const domainCalls: { name: string; domain: DomainInfo; entry: string; input: string }[] = []
   let jsonpathReached = false
+  // Whether a converter names a type of the value package.
+  let values = false
   const undecided = (name: string): boolean => name.startsWith('checkPublicUndecided')
   const undecidedFor = (returnType: string): string => {
     const name = `checkPublicUndecided${returnType}`
@@ -216,6 +219,7 @@ export function createGoCheckPublicContainers(options: GoCheckPublicContainerOpt
     }
     const typed = typedConverters[valueType]
     if (typed) {
+      values = true
       helpers.add(typed.name)
       helpers.add('checkPublicCell')
       return wrap(
@@ -237,10 +241,6 @@ export function createGoCheckPublicContainers(options: GoCheckPublicContainerOpt
       return wrap(go.call(go.ident(adapter), [known]))
     }
     switch (valueType) {
-      case 'NumericValue':
-        helpers.add('checkPublicNumeric')
-        packages.add('operations')
-        return wrap(go.call(go.ident('checkPublicNumeric'), [text()]))
       case 'XidValue':
         helpers.add('checkPublicXid')
         return wrap(go.call(go.ident('checkPublicXid'), [unsigned('uint32')]))
@@ -604,6 +604,9 @@ export function createGoCheckPublicContainers(options: GoCheckPublicContainerOpt
     reachedDomains,
     get jsonpathReached() {
       return jsonpathReached
+    },
+    get values() {
+      return values
     },
     /**
      * The generated converters, with the callers of domain checks, given each domain group's
