@@ -1059,7 +1059,7 @@ it('ranks owned minimal covers and binary-origin queries with public weight arra
     }
     const goRows = publicCases.map(
       (c) =>
-        'PublicVectorRowsCheckInput{' +
+        'publicVectorRowsCheckInput{' +
         Object.entries(c.row)
           .map(
             ([name, input]) =>
@@ -1084,7 +1084,7 @@ it('ranks owned minimal covers and binary-origin queries with public weight arra
       `package checks
 import("testing";checkruntime "tsvector-public/checkrust/checkruntime")
 func ptr[T any](value T)*T{return &value}
-func TestPayloads(t *testing.T){rows:=[]PublicVectorRowsCheckInput{${goRows.join(',')}};results:=[]map[string]EvalBool{};for _,row:=range rows{values:=map[string]EvalBool{};for _,check:=range func() []CheckEvaluation {r, e := EvaluatePublicVectorRowsChecks(row); if e != nil {panic(e)}; return r}(){values[check.Constraint]=check.Result};results=append(results,values)}
+func TestPayloads(t *testing.T){rows:=[]publicVectorRowsCheckInput{${goRows.join(',')}};results:=[]map[string]EvalBool{};for _,row:=range rows{values:=map[string]EvalBool{};for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicVectorRowsChecks(row); if e != nil {panic(e)}; return r}(){values[check.Constraint]=check.Result};results=append(results,values)}
 ${assertions.join('\n')}
 
 base:=rows[12];for _,v:=range []checkruntime.TsvectorValue{
@@ -1093,7 +1093,7 @@ base:=rows[12];for _,v:=range []checkruntime.TsvectorValue{
  {Kind:checkruntime.TsvectorValueValue,Value:checkruntime.TsvectorPayload{NativeBytes:13,Lexemes:[]checkruntime.TsvectorLexeme{{Text:string([]byte{255})}}}},
  {Kind:checkruntime.TsvectorValueValue,Value:checkruntime.TsvectorPayload{NativeBytes:13,Lexemes:[]checkruntime.TsvectorLexeme{{Text:"a",Positions:[]checkruntime.TsvectorPosition{{Position:-1,Weight:3}}}}}},
  {Kind:checkruntime.TsvectorValueKind(99)},
-}{base.Item=KnownCheckValue(v);for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicVectorRowsChecks(base); if e != nil {return nil}; return r}(){if (c.Constraint=="same"||c.Constraint=="presence")&&c.Result.Certain{t.Fatal("malformed vector became certain",c)}}}
+}{base.Item=KnownCheckValue(v);for _,c:=range func() []CheckEvaluation {r, e := evaluatePublicVectorRowsChecks(base); if e != nil {return nil}; return r}(){if (c.Constraint=="same"||c.Constraint=="presence")&&c.Result.Certain{t.Fatal("malformed vector became certain",c)}}}
 
 }`,
     )

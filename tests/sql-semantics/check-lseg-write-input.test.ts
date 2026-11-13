@@ -58,7 +58,6 @@ import (
  "errors"
  "testing"
  pgsid "example.com/pgsid-fixture/generated/queries/pgsid/pgx"
- checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
  schema "example.com/pgsid-fixture/generated/schema/public"
  values "example.com/pgsid-fixture/generated/pgsid"
  "github.com/jackc/pgx/v5/pgconn"
@@ -86,21 +85,40 @@ func TestRawParametersReachDatabase(t *testing.T) {
  db.failure=errors.New("database CHECK rejection")
  if err:=queries.InsertPosition(context.Background(),params);!errors.Is(err,db.failure) {t.Fatal("database rejection was not preserved",err)}
 }
-func TestPortablePayloadStillValidates(t *testing.T) {
+func TestPublicValuesStillValidate(t *testing.T) {
  wire:=[]byte{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0x40,0x08,0,0,0,0,0,0,0x40,0x10,0,0,0,0,0,0}
- input:=pgsid.PublicLsegWritesCheckInput{
-  Position:pgsid.KnownCheckValue(checkruntime.MakeLsegBits(0,0,0x4008000000000000,0x4010000000000000)),
-  DomainPosition:pgsid.KnownCheckValue(checkruntime.MakeLsegBits(0,0,0x4008000000000000,0x4010000000000000)),
-  Expected:pgsid.KnownCheckValue(&wire),
- }
+ position:=values.Lseg{End:values.Point{X:3,Y:4}}
+ domainPosition:=schema.NestedEdge(position)
+ input:=pgsid.PublicLsegWritesCheckInput{Position:pgsid.KnownCheckValue(&position),DomainPosition:pgsid.KnownCheckValue(&domainPosition),Expected:pgsid.KnownCheckValue(&wire)}
  if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicLsegWritesChecks);err!=nil {t.Fatal(err)}
  wrong:=[]byte{0}
  input.Expected=pgsid.KnownCheckValue(&wrong)
- if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicLsegWritesChecks);err==nil {t.Fatal("portable lseg CHECK did not reject wrong wire bytes")}
- input.Expected=pgsid.KnownCheckValue(&wire)
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicLsegWritesChecks);err==nil {t.Fatal("public lseg CHECK did not reject wrong wire bytes")}
+}
+`,
+    )
+    await writeFile(
+      join(root, 'generated/queries/pgsid/pgx/lseg_payload_test.go'),
+      `package pgsidpgx
+import (
+ "testing"
+ checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
+)
+func TestStoredPayloadStillValidates(t *testing.T) {
+ wire:=[]byte{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0x40,0x08,0,0,0,0,0,0,0x40,0x10,0,0,0,0,0,0}
+ input:=publicLsegWritesCheckInput{
+  Position:KnownCheckValue(checkruntime.MakeLsegBits(0,0,0x4008000000000000,0x4010000000000000)),
+  DomainPosition:KnownCheckValue(checkruntime.MakeLsegBits(0,0,0x4008000000000000,0x4010000000000000)),
+  Expected:KnownCheckValue(&wire),
+ }
+ if err:=ValidateCheckInputs(input,evaluatePublicLsegWritesChecks);err!=nil {t.Fatal(err)}
+ wrong:=[]byte{0}
+ input.Expected=KnownCheckValue(&wrong)
+ if err:=ValidateCheckInputs(input,evaluatePublicLsegWritesChecks);err==nil {t.Fatal("portable lseg CHECK did not reject wrong wire bytes")}
+ input.Expected=KnownCheckValue(&wire)
  input.Position.V.Value.WireKnown=false
  wireChecks:=0
- for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicLsegWritesChecks(input); if e != nil {return nil}; return r}() {
+ for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicLsegWritesChecks(input); if e != nil {return nil}; return r}() {
   if check.Constraint=="position_wire" {wireChecks++;if check.Result.Certain {t.Fatal("unavailable lseg wire precision was treated as known")}}
  }
  if wireChecks!=1 {t.Fatal("missing lseg wire constraint")}

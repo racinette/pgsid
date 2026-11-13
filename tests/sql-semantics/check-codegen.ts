@@ -131,7 +131,8 @@ export function renderGoCheckTests(
     const statements: GoStatement[] = [
       go.assign(
         [input],
-        [go.composite(go.ident(goName(table.schema + '_' + table.name) + 'CheckInput'))],
+        // The evaluator's own values go to the unexported input the public one is converted to.
+        [go.composite(go.ident(internalGoName(goName(table.schema + '_' + table.name) + 'CheckInput')))],
       ),
     ]
     for (const column of table.columns) {
@@ -702,7 +703,7 @@ export function renderGoCheckTests(
       go.assign(
         [actualResults, go.ident('err')],
         [
-          go.call(go.ident('Evaluate' + goName(table.schema + '_' + table.name) + 'Checks'), [
+          go.call(go.ident(internalGoName('Evaluate' + goName(table.schema + '_' + table.name) + 'Checks')), [
             input,
           ]),
         ],
@@ -808,3 +809,6 @@ func setFloatFixture[T any](number float64, target *T) {
       : '')
   )
 }
+
+// The unexported input and entry a generated Go check file evaluates the runtime's values with.
+export const internalGoName = (name: string): string => name.charAt(0).toLowerCase() + name.slice(1)

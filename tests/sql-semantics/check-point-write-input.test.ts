@@ -58,7 +58,6 @@ import (
  "errors"
  "testing"
  pgsid "example.com/pgsid-fixture/generated/queries/pgsid/pgx"
- checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
  values "example.com/pgsid-fixture/generated/pgsid"
  "github.com/jackc/pgx/v5/pgconn"
 )
@@ -84,16 +83,34 @@ func TestRawParametersReachDatabase(t *testing.T) {
  db.failure=errors.New("database CHECK rejection")
  if err:=queries.InsertPosition(context.Background(),params);!errors.Is(err,db.failure) {t.Fatal("database rejection was not preserved",err)}
 }
-func TestPortablePayloadStillValidates(t *testing.T) {
+func TestPublicValuesStillValidate(t *testing.T) {
  wire:=[]byte{0x3f,0xf0,0,0,0,0,0,0,0x40,0,0,0,0,0,0,0}
- input:=pgsid.PublicPointWritesCheckInput{
-  Position:pgsid.KnownCheckValue(checkruntime.MakePointBits(0x3ff0000000000000,0x4000000000000000)),
-  Expected:pgsid.KnownCheckValue(&wire),
- }
+ position:=values.Point{X:1,Y:2}
+ input:=pgsid.PublicPointWritesCheckInput{Position:pgsid.KnownCheckValue(&position),Expected:pgsid.KnownCheckValue(&wire)}
  if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicPointWritesChecks);err!=nil {t.Fatal(err)}
  wrong:=[]byte{0}
  input.Expected=pgsid.KnownCheckValue(&wrong)
- if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicPointWritesChecks);err==nil {t.Fatal("portable point CHECK did not reject wrong wire bytes")}
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicPointWritesChecks);err==nil {t.Fatal("public point CHECK did not reject wrong wire bytes")}
+}
+`,
+    )
+    await writeFile(
+      join(root, 'generated/queries/pgsid/pgx/point_payload_test.go'),
+      `package pgsidpgx
+import (
+ "testing"
+ checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
+)
+func TestStoredPayloadStillValidates(t *testing.T) {
+ wire:=[]byte{0x3f,0xf0,0,0,0,0,0,0,0x40,0,0,0,0,0,0,0}
+ input:=publicPointWritesCheckInput{
+  Position:KnownCheckValue(checkruntime.MakePointBits(0x3ff0000000000000,0x4000000000000000)),
+  Expected:KnownCheckValue(&wire),
+ }
+ if err:=ValidateCheckInputs(input,evaluatePublicPointWritesChecks);err!=nil {t.Fatal(err)}
+ wrong:=[]byte{0}
+ input.Expected=KnownCheckValue(&wrong)
+ if err:=ValidateCheckInputs(input,evaluatePublicPointWritesChecks);err==nil {t.Fatal("portable point CHECK did not reject wrong wire bytes")}
 }
 `,
     )

@@ -58,7 +58,6 @@ import (
  "errors"
  "testing"
  pgsid "example.com/pgsid-fixture/generated/queries/pgsid/pgx"
- checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
  schema "example.com/pgsid-fixture/generated/schema/public"
  values "example.com/pgsid-fixture/generated/pgsid"
  "github.com/jackc/pgx/v5/pgconn"
@@ -86,21 +85,44 @@ func TestRawParametersReachDatabase(t *testing.T) {
  db.failure=errors.New("database CHECK rejection")
  if err:=queries.InsertPosition(context.Background(),params);!errors.Is(err,db.failure) {t.Fatal("database rejection was not preserved",err)}
 }
-func TestPortablePayloadStillValidates(t *testing.T) {
+func TestPublicValuesStillValidate(t *testing.T) {
  wire:=[]byte{0x40,0x08,0,0,0,0,0,0,0x40,0x10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
- input:=pgsid.PublicBoxWritesCheckInput{
-  Position:pgsid.KnownCheckValue(checkruntime.MakeBoxBits(0x4008000000000000,0x4010000000000000,0,0)),
-  DomainPosition:pgsid.KnownCheckValue(checkruntime.MakeBoxBits(0x4008000000000000,0x4010000000000000,0,0)),
-  Expected:pgsid.KnownCheckValue(&wire),
- }
+ position:=values.Box{High:values.Point{X:3,Y:4}}
+ domainPosition:=schema.NestedEdge(position)
+ input:=pgsid.PublicBoxWritesCheckInput{Position:pgsid.KnownCheckValue(&position),DomainPosition:pgsid.KnownCheckValue(&domainPosition),Expected:pgsid.KnownCheckValue(&wire)}
  if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicBoxWritesChecks);err!=nil {t.Fatal(err)}
  wrong:=[]byte{0}
  input.Expected=pgsid.KnownCheckValue(&wrong)
- if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicBoxWritesChecks);err==nil {t.Fatal("portable box CHECK did not reject wrong wire bytes")}
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicBoxWritesChecks);err==nil {t.Fatal("public box CHECK did not reject wrong wire bytes")}
+ swapped:=values.Box{Low:values.Point{X:3,Y:4}}
  input.Expected=pgsid.KnownCheckValue(&wire)
+ input.Position=pgsid.KnownCheckValue(&swapped)
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicBoxWritesChecks);err!=nil {t.Fatal("box with swapped corners lost its canonical wire form",err)}
+}
+`,
+    )
+    await writeFile(
+      join(root, 'generated/queries/pgsid/pgx/box_payload_test.go'),
+      `package pgsidpgx
+import (
+ "testing"
+ checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
+)
+func TestStoredPayloadStillValidates(t *testing.T) {
+ wire:=[]byte{0x40,0x08,0,0,0,0,0,0,0x40,0x10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+ input:=publicBoxWritesCheckInput{
+  Position:KnownCheckValue(checkruntime.MakeBoxBits(0x4008000000000000,0x4010000000000000,0,0)),
+  DomainPosition:KnownCheckValue(checkruntime.MakeBoxBits(0x4008000000000000,0x4010000000000000,0,0)),
+  Expected:KnownCheckValue(&wire),
+ }
+ if err:=ValidateCheckInputs(input,evaluatePublicBoxWritesChecks);err!=nil {t.Fatal(err)}
+ wrong:=[]byte{0}
+ input.Expected=KnownCheckValue(&wrong)
+ if err:=ValidateCheckInputs(input,evaluatePublicBoxWritesChecks);err==nil {t.Fatal("portable box CHECK did not reject wrong wire bytes")}
+ input.Expected=KnownCheckValue(&wire)
  input.Position.V.Value.WireKnown=false
  wireChecks:=0
- for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicBoxWritesChecks(input); if e != nil {return nil}; return r}() {
+ for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicBoxWritesChecks(input); if e != nil {return nil}; return r}() {
   if check.Constraint=="position_wire" {wireChecks++;if check.Result.Certain {t.Fatal("unavailable box wire precision was treated as known")}}
  }
  if wireChecks!=1 {t.Fatal("missing box wire constraint")}
@@ -108,7 +130,7 @@ func TestPortablePayloadStillValidates(t *testing.T) {
  input.Position.V.Value.HighX=0
  input.Position.V.Value.LowX=0x4008000000000000
  wireChecks=0
- for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicBoxWritesChecks(input); if e != nil {panic(e)}; return r}() {
+ for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicBoxWritesChecks(input); if e != nil {panic(e)}; return r}() {
   if check.Constraint=="position_wire" {wireChecks++;if !check.Result.Certain || !check.Result.Value.Valid || check.Result.Value.Value {t.Fatal("stored noncanonical box did not produce its definite wire comparison")}}
  }
  if wireChecks!=1 {t.Fatal("missing box wire constraint")}

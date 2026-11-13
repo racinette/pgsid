@@ -58,7 +58,6 @@ import (
  "errors"
  "testing"
  pgsid "example.com/pgsid-fixture/generated/queries/pgsid/pgx"
- checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
  schema "example.com/pgsid-fixture/generated/schema/public"
  "github.com/jackc/pgx/v5/pgconn"
 )
@@ -85,32 +84,55 @@ func TestRawParametersReachDatabase(t *testing.T) {
  db.failure=errors.New("database CHECK rejection")
  if err:=queries.InsertPosition(context.Background(),params);!errors.Is(err,db.failure) {t.Fatal("database rejection was not preserved",err)}
 }
-func TestPortablePayloadStillValidates(t *testing.T) {
+func TestPublicValuesStillValidate(t *testing.T) {
  wire:=[]byte{0,0,0,125}
- input:=pgsid.PublicOidWritesCheckInput{
-  Position:pgsid.KnownCheckValue(checkruntime.MakeOidValue(125)),
-  DomainPosition:pgsid.KnownCheckValue(checkruntime.MakeOidValue(125)),
-  Expected:pgsid.KnownCheckValue(&wire),
- }
+ var position uint32=125
+ var domainPosition schema.NestedEdge=125
+ input:=pgsid.PublicOidWritesCheckInput{Position:pgsid.KnownCheckValue(&position),DomainPosition:pgsid.KnownCheckValue(&domainPosition),Expected:pgsid.KnownCheckValue(&wire)}
  if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicOidWritesChecks);err!=nil {t.Fatal(err)}
  wrong:=[]byte{0}
  input.Expected=pgsid.KnownCheckValue(&wrong)
- if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicOidWritesChecks);err==nil {t.Fatal("portable oid CHECK did not reject wrong wire bytes")}
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicOidWritesChecks);err==nil {t.Fatal("public oid CHECK did not reject wrong wire bytes")}
+ var changed uint32=126
  input.Expected=pgsid.KnownCheckValue(&wire)
+ input.Position=pgsid.KnownCheckValue(&changed)
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicOidWritesChecks);err==nil {t.Fatal("changed oid value kept the old wire bytes")}
+}
+`,
+    )
+    await writeFile(
+      join(root, 'generated/queries/pgsid/pgx/oid_payload_test.go'),
+      `package pgsidpgx
+import (
+ "testing"
+ checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
+)
+func TestStoredPayloadStillValidates(t *testing.T) {
+ wire:=[]byte{0,0,0,125}
+ input:=publicOidWritesCheckInput{
+  Position:KnownCheckValue(checkruntime.MakeOidValue(125)),
+  DomainPosition:KnownCheckValue(checkruntime.MakeOidValue(125)),
+  Expected:KnownCheckValue(&wire),
+ }
+ if err:=ValidateCheckInputs(input,evaluatePublicOidWritesChecks);err!=nil {t.Fatal(err)}
+ wrong:=[]byte{0}
+ input.Expected=KnownCheckValue(&wrong)
+ if err:=ValidateCheckInputs(input,evaluatePublicOidWritesChecks);err==nil {t.Fatal("portable oid CHECK did not reject wrong wire bytes")}
+ input.Expected=KnownCheckValue(&wire)
  input.Position.V=checkruntime.OidValue{}
  wireChecks:=0
- for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicOidWritesChecks(input); if e != nil {return nil}; return r}() {
+ for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicOidWritesChecks(input); if e != nil {return nil}; return r}() {
   if check.Constraint=="position_wire" {wireChecks++;if check.Result.Certain {t.Fatal("zero oid wrapper did not remain unknown")}}
  }
  if wireChecks!=1 {t.Fatal("missing oid wire constraint")}
  for _,invalid:=range []int64{-1,4294967296} {
   input.Position.V=checkruntime.OidValue{Kind:checkruntime.OidValueValue,Value:invalid}
-  for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicOidWritesChecks(input); if e != nil {return nil}; return r}() {
+  for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicOidWritesChecks(input); if e != nil {return nil}; return r}() {
    if check.Constraint=="position_wire" && check.Result.Certain {t.Fatal("invalid OID carrier became definite",invalid)}
   }
  }
  input.Position.V=checkruntime.MakeOidValue(126)
- for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicOidWritesChecks(input); if e != nil {panic(e)}; return r}() {
+ for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicOidWritesChecks(input); if e != nil {panic(e)}; return r}() {
   if check.Constraint=="position_wire" && (!check.Result.Certain || !check.Result.Value.Valid || check.Result.Value.Value) {t.Fatal("changed oid units did not reject wrong wire bytes")}
  }
 

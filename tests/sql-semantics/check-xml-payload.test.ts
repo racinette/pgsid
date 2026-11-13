@@ -182,17 +182,17 @@ it('validates public XML storage/rendered profiles in Go and TypeScript without 
 import("testing";runtime "xmlpayload/schema/public/checkrust/checkruntime")
 func TestXmlPayload(t *testing.T){
  expected:=${JSON.stringify(raw)};bypass:=false
- input:=PublicXmlPayloadsCheckInput{V:KnownCheckValue(runtime.MakeXmlValue(expected)),Expected:KnownCheckValue(&expected),Bypass:KnownCheckValue(&bypass)}
- result:=func() []CheckEvaluation {r, e := EvaluatePublicXmlPayloadsChecks(input); if e != nil {panic(e)}; return r}()
+ input:=publicXmlPayloadsCheckInput{V:KnownCheckValue(runtime.MakeXmlValue(expected)),Expected:KnownCheckValue(&expected),Bypass:KnownCheckValue(&bypass)}
+ result:=func() []CheckEvaluation {r, e := evaluatePublicXmlPayloadsChecks(input); if e != nil {panic(e)}; return r}()
  if !result[2].Result.Certain || !result[2].Result.Value.Value {t.Fatal("storage lost",result)}
  input.V=KnownCheckValue(runtime.XmlValue{Kind:runtime.XmlValueRenderedText,RenderedText:"<r/>"})
- result=func() []CheckEvaluation {r, e := EvaluatePublicXmlPayloadsChecks(input); if e != nil {panic(e)}; return r}();if result[2].Result.Certain {t.Fatal("rendered source guessed",result)}
- expected="3c722f3e";result=func() []CheckEvaluation {r, e := EvaluatePublicXmlPayloadsChecks(input); if e != nil {panic(e)}; return r}();if !result[1].Result.Certain || !result[1].Result.Value.Value {t.Fatal("rendered wire lost",result)}
- expected="";input.V=KnownCheckValue(runtime.XmlValue{Kind:runtime.XmlValueRenderedText,RenderedText:""});result=func() []CheckEvaluation {r, e := EvaluatePublicXmlPayloadsChecks(input); if e != nil {panic(e)}; return r}();if !result[1].Result.Certain || !result[1].Result.Value.Value {t.Fatal("empty rendered wire lost",result)}
+ result=func() []CheckEvaluation {r, e := evaluatePublicXmlPayloadsChecks(input); if e != nil {panic(e)}; return r}();if result[2].Result.Certain {t.Fatal("rendered source guessed",result)}
+ expected="3c722f3e";result=func() []CheckEvaluation {r, e := evaluatePublicXmlPayloadsChecks(input); if e != nil {panic(e)}; return r}();if !result[1].Result.Certain || !result[1].Result.Value.Value {t.Fatal("rendered wire lost",result)}
+ expected="";input.V=KnownCheckValue(runtime.XmlValue{Kind:runtime.XmlValueRenderedText,RenderedText:""});result=func() []CheckEvaluation {r, e := evaluatePublicXmlPayloadsChecks(input); if e != nil {panic(e)}; return r}();if !result[1].Result.Certain || !result[1].Result.Value.Value {t.Fatal("empty rendered wire lost",result)}
  for _,bad:=range []runtime.XmlValue{{Kind:runtime.XmlValueValue,Value:"a\\x00b"},{Kind:runtime.XmlValueValue,Value:string([]byte{255})},{Kind:runtime.XmlValueRenderedText,RenderedText:string([]byte{255})},{Kind:255}}{
-  input.V=KnownCheckValue(bad);for _,check:=range func() []CheckEvaluation {r, e := EvaluatePublicXmlPayloadsChecks(input); if e != nil {return nil}; return r}(){if check.Result.Certain{t.Fatal("bad XML encoding admitted",check)}}
+  input.V=KnownCheckValue(bad);for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicXmlPayloadsChecks(input); if e != nil {return nil}; return r}(){if check.Result.Certain{t.Fatal("bad XML encoding admitted",check)}}
  }
- input.V=KnownCheckValue(runtime.XmlValue{Kind:runtime.XmlValueError,Error:runtime.MakeSqlError(${parseInt('22003', 36)})});for _,check:=range func() []CheckEvaluation {r, e := EvaluatePublicXmlPayloadsChecks(input); if e != nil {panic(e)}; return r}(){if !check.Result.Certain||check.Result.Value.Error!="22003" {t.Fatal("error lost",check)}}
+ input.V=KnownCheckValue(runtime.XmlValue{Kind:runtime.XmlValueError,Error:runtime.MakeSqlError(${parseInt('22003', 36)})});for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicXmlPayloadsChecks(input); if e != nil {panic(e)}; return r}(){if !check.Result.Certain||check.Result.Value.Error!="22003" {t.Fatal("error lost",check)}}
 }
 `,
     )

@@ -289,10 +289,10 @@ func TestJsonpathPayload(t *testing.T) {
  expected := ${JSON.stringify('$."a"')}; bypass := false
  makeValue := func(source string) runtime.JsonpathValue { return operations.JsonpathFromCoercedSourceUtf8(runtime.MakeTextValue(source)) }
  value := makeValue("$.a")
- input := PublicPathPayloadsCheckInput{Path: KnownCheckValue(value),Expected: KnownCheckValue(&expected),Bypass: KnownCheckValue(&bypass)}
- if err := ValidateCheckInputs(input,EvaluatePublicPathPayloadsChecks); err != nil { t.Fatal(err) }
+ input := publicPathPayloadsCheckInput{Path: KnownCheckValue(value),Expected: KnownCheckValue(&expected),Bypass: KnownCheckValue(&bypass)}
+ if err := ValidateCheckInputs(input,evaluatePublicPathPayloadsChecks); err != nil { t.Fatal(err) }
  stored:=operations.JsonpathFromStoredText(runtime.MakeTextValue(expected));input.Path=KnownCheckValue(stored)
- if err:=ValidateCheckInputs(input,EvaluatePublicPathPayloadsChecks);err!=nil{t.Fatal("stored text lost",err)}
+ if err:=ValidateCheckInputs(input,evaluatePublicPathPayloadsChecks);err!=nil{t.Fatal("stored text lost",err)}
 
  for _,mutate := range []func(*runtime.JsonpathPayload){
   func(p *runtime.JsonpathPayload){p.Root=-1},func(p *runtime.JsonpathPayload){p.Root=len(p.Nodes)},func(p *runtime.JsonpathPayload){p.Nodes=nil},
@@ -301,13 +301,13 @@ func TestJsonpathPayload(t *testing.T) {
   func(p *runtime.JsonpathPayload){p.Nodes[p.Root].Kind=2},func(p *runtime.JsonpathPayload){p.Characters[0]=0},func(p *runtime.JsonpathPayload){p.Characters[0]=0xd800},
  } {
   bad:=makeValue("$.a");mutate(&bad.Value);input.Path=KnownCheckValue(bad)
-  for _,check:=range func() []CheckEvaluation {r, e := EvaluatePublicPathPayloadsChecks(input); if e != nil {return nil}; return r}(){if check.Result.Certain{t.Fatal("malformed graph became definite",check)}}
+  for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicPathPayloadsChecks(input); if e != nil {return nil}; return r}(){if check.Result.Certain{t.Fatal("malformed graph became definite",check)}}
  }
  bad:=makeValue("1");root:=bad.Value.Root;number:=bad.Value.Nodes[root];bad.Value.Nodes=append(bad.Value.Nodes,number);bad.Value.Nodes[root].Kind=runtime.JsonpathNodePlus;bad.Value.Nodes[root].Left=len(bad.Value.Nodes)-1;input.Path=KnownCheckValue(bad)
- for _,check:=range func() []CheckEvaluation {r, e := EvaluatePublicPathPayloadsChecks(input); if e != nil {return nil}; return r}(){if check.Result.Certain{t.Fatal("unfolded numeric node became definite",check)}}
+ for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicPathPayloadsChecks(input); if e != nil {return nil}; return r}(){if check.Result.Certain{t.Fatal("unfolded numeric node became definite",check)}}
  input.Path=KnownCheckValue(runtime.JsonpathValue{Kind:runtime.JsonpathValueError,Error:runtime.MakeSqlError(${parseInt('22012', 36)})})
- for _,check:=range func() []CheckEvaluation {r, e := EvaluatePublicPathPayloadsChecks(input); if e != nil {panic(e)}; return r}(){if !check.Result.Certain||check.Result.Value.Error!="22012"{t.Fatal("incoming error lost",check)}}
- input.Path=NullCheckValue[runtime.JsonpathValue]();if err:=ValidateCheckInputs(input,EvaluatePublicPathPayloadsChecks);err==nil{t.Fatal("null passed required value")}
+ for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicPathPayloadsChecks(input); if e != nil {panic(e)}; return r}(){if !check.Result.Certain||check.Result.Value.Error!="22012"{t.Fatal("incoming error lost",check)}}
+ input.Path=NullCheckValue[runtime.JsonpathValue]();if err:=ValidateCheckInputs(input,evaluatePublicPathPayloadsChecks);err==nil{t.Fatal("null passed required value")}
 }
 `,
     )

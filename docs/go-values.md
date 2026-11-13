@@ -129,3 +129,19 @@ The lower bounds PostgreSQL keeps for each dimension are not part of the value.
 The null wrappers that JSON Schema types and rows share live in a package of
 their own beneath the value package, which names the same types. JSON Schema
 types import only that package, so they can be used without the driver.
+
+## CHECK inputs
+
+Generated CHECK validators take the values queries take and read each one as
+the server reads the parameter; the evaluator's own representation of a value
+is not part of the generated API. A value sent as text, such as a text search
+value, money, an OID alias, a log sequence number or a JSON document, goes
+through its type's own input in the evaluator under the server settings the
+project declares. Text the server would refuse fails every check that reads
+it with the server's error, and text whose reading depends on the database,
+such as a role or relation name or a nonzero amount of money read through the
+session's monetary locale, leaves those checks to the server. Shapes are read
+as the server stores them: a box with its corners ordered, a polygon with the
+bounding box of its points, and a circle with a negative radius or a line
+whose A and B are both zero refused. A nil pointer is SQL NULL, and a JSON
+null document is a value.
