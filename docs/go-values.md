@@ -81,6 +81,24 @@ package's own scan target, which keeps the two apart. Building a document from
 a Go value encodes it without escaping HTML characters, and building one from
 text accepts only a single JSON document.
 
+## Arrays
+
+An array has the number of dimensions its column declares, one unless a
+mapping declares another, and is never read for it from the value. One
+declared count is a nested slice of that depth. Several counts are a sealed
+interface over the element type, which the array of each declared count, a
+nested slice of that depth, implements; an array of any other count, or of
+other elements, is not a value of the interface, so the compiler refuses it.
+The interface is shared by every column and parameter that declares the same
+counts, so a value read from one query can be written by another.
+
+A value the server returns with a count its declaration does not allow fails
+the read, and the error names the setting that declares the counts. A
+parameter is refused before the statement runs when it is not rectangular,
+and an empty array of any count is sent as the empty array rather than as
+NULL. The empty array reads back as the array of the lowest declared count.
+The lower bounds PostgreSQL keeps for each dimension are not part of the value.
+
 ## Null wrappers
 
 The null wrappers that JSON Schema types and rows share live in a package of
