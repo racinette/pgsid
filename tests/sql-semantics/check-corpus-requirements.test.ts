@@ -21,7 +21,8 @@ describe('world CHECK context and materialized input requirements', () => {
     await pg.exec('CREATE EXTENSION plpgsql_check')
     directory = await mkdtemp(join(tmpdir(), 'pgsid-corpus-requirements-'))
     catalog = await loadWorldCatalog(pg)
-  })
+    // Every world's schema is loaded, which outlasts the default hook time.
+  }, 300_000)
   afterAll(async () => {
     if (pg && !pg.closed) await pg.close()
     if (directory) await rm(directory, { recursive: true, force: true })

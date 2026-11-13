@@ -60,6 +60,7 @@ import (
  pgsid "example.com/pgsid-fixture/generated/queries/pgsid/pgx"
  checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
  schema "example.com/pgsid-fixture/generated/schema/public"
+ values "example.com/pgsid-fixture/generated/pgsid"
  "github.com/jackc/pgx/v5/pgconn"
 )
 type recordingPathDB struct {
@@ -76,8 +77,8 @@ func (db *recordingPathDB) Exec(ctx context.Context, sql string, arguments ...an
 func TestRawParametersReachDatabase(t *testing.T) {
  db:=&recordingPathDB{}
  queries:=New(db)
- var position any="[(0,0),(3,4)]"
- var domainPosition schema.NestedEdge="[(0,0),(3,4)]"
+ position:=values.Path{Points:[]values.Point{{},{X:3,Y:4}}}
+ domainPosition:=schema.NestedEdge(position)
  wire:=[]byte{0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0x40,0x08,0,0,0,0,0,0,0x40,0x10,0,0,0,0,0,0}
  params:=InsertPositionParams{Position:&position,DomainPosition:&domainPosition,Expected:&wire}
  if err:=queries.InsertPosition(context.Background(),params);err!=nil {t.Fatal(err)}

@@ -16,7 +16,7 @@ export const nullStruct = (
   type: GoExpression,
 ): GoExpression => go.index(go.selector(go.ident('pgsid'), kind), type)
 export const runtimeSource = (
-  name: 'null.go' | 'null-pgx.go' | 'validation.go' | 'array.go' | 'temporal.go' | 'range.go' | 'json.go' | 'null-alias.go' | 'dimensions.go',
+  name: 'null.go' | 'null-pgx.go' | 'validation.go' | 'array.go' | 'temporal.go' | 'range.go' | 'json.go' | 'null-alias.go' | 'dimensions.go' | 'time.go' | 'geometry.go' | 'tsvector.go',
 ): string => {
   const source = new URL(`./assets/${name}`, import.meta.url)
   return readFileSync(existsSync(source) ? source : new URL(`./${name}`, import.meta.url), 'utf8')
@@ -50,6 +50,9 @@ const goValueFiles = [
   { name: 'temporal.go', names: /\bpgsid\.(?:Timestamptz|Timestamp|Date|Interval)\b/u },
   { name: 'range.go', names: /\bpgsid\.(?:Range|Multirange|Bound)\b/u },
   { name: 'json.go', names: /\bpgsid\.JSON\b/u },
+  { name: 'time.go', names: /\bpgsid\.(?:Time|Timetz)\b/u },
+  { name: 'geometry.go', names: /\bpgsid\.(?:Point|Line|Lseg|Box|Path|Polygon|Circle)\b/u },
+  { name: 'tsvector.go', names: /\bpgsid\.Tsvector\b/u },
   { name: 'dimensions.go', names: /\bpgsid\.(?:D[1-6]|Array\d(?:Or\d)*)\b/u },
 ] as const
 // The pgsid package's value files that generated Go names a type of, each written once, and a

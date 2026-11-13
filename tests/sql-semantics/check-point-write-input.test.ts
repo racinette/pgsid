@@ -59,8 +59,8 @@ import (
  "testing"
  pgsid "example.com/pgsid-fixture/generated/queries/pgsid/pgx"
  checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
+ values "example.com/pgsid-fixture/generated/pgsid"
  "github.com/jackc/pgx/v5/pgconn"
- "github.com/jackc/pgx/v5/pgtype"
 )
 type recordingPointDB struct {
  pgsid.DBTX
@@ -76,7 +76,7 @@ func (db *recordingPointDB) Exec(ctx context.Context, sql string, arguments ...a
 func TestRawParametersReachDatabase(t *testing.T) {
  db:=&recordingPointDB{}
  queries:=New(db)
- var position any=pgtype.Point{P:pgtype.Vec2{X:1,Y:2},Valid:true}
+ position:=values.Point{X:1,Y:2}
  wire:=[]byte{0x3f,0xf0,0,0,0,0,0,0,0x40,0,0,0,0,0,0,0}
  params:=InsertPositionParams{Position:&position,Expected:&wire}
  if err:=queries.InsertPosition(context.Background(),params);err!=nil {t.Fatal(err)}
