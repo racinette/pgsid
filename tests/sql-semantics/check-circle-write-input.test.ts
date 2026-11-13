@@ -58,7 +58,6 @@ import (
  "errors"
  "testing"
  pgsid "example.com/pgsid-fixture/generated/queries/pgsid/pgx"
- checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
  schema "example.com/pgsid-fixture/generated/schema/public"
  values "example.com/pgsid-fixture/generated/pgsid"
  "github.com/jackc/pgx/v5/pgconn"
@@ -86,28 +85,51 @@ func TestRawParametersReachDatabase(t *testing.T) {
  db.failure=errors.New("database CHECK rejection")
  if err:=queries.InsertPosition(context.Background(),params);!errors.Is(err,db.failure) {t.Fatal("database rejection was not preserved",err)}
 }
-func TestPortablePayloadStillValidates(t *testing.T) {
+func TestPublicValuesStillValidate(t *testing.T) {
  wire:=[]byte{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0x40,0x08,0,0,0,0,0,0}
- input:=pgsid.PublicCircleWritesCheckInput{
-  Position:pgsid.KnownCheckValue(checkruntime.MakeCircleBits(0,0,0x4008000000000000)),
-  DomainPosition:pgsid.KnownCheckValue(checkruntime.MakeCircleBits(0,0,0x4008000000000000)),
-  Expected:pgsid.KnownCheckValue(&wire),
- }
+ position:=values.Circle{Radius:3}
+ domainPosition:=schema.NestedEdge(position)
+ input:=pgsid.PublicCircleWritesCheckInput{Position:pgsid.KnownCheckValue(&position),DomainPosition:pgsid.KnownCheckValue(&domainPosition),Expected:pgsid.KnownCheckValue(&wire)}
  if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicCircleWritesChecks);err!=nil {t.Fatal(err)}
  wrong:=[]byte{0}
  input.Expected=pgsid.KnownCheckValue(&wrong)
- if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicCircleWritesChecks);err==nil {t.Fatal("portable circle CHECK did not reject wrong wire bytes")}
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicCircleWritesChecks);err==nil {t.Fatal("public circle CHECK did not reject wrong wire bytes")}
+ negative:=values.Circle{Radius:-1.5}
  input.Expected=pgsid.KnownCheckValue(&wire)
+ input.Position=pgsid.KnownCheckValue(&negative)
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicCircleWritesChecks);err==nil {t.Fatal("circle with a negative radius was accepted")}
+}
+`,
+    )
+    await writeFile(
+      join(root, 'generated/queries/pgsid/pgx/circle_payload_test.go'),
+      `package pgsidpgx
+import (
+ "testing"
+ checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
+)
+func TestStoredPayloadStillValidates(t *testing.T) {
+ wire:=[]byte{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0x40,0x08,0,0,0,0,0,0}
+ input:=publicCircleWritesCheckInput{
+  Position:KnownCheckValue(checkruntime.MakeCircleBits(0,0,0x4008000000000000)),
+  DomainPosition:KnownCheckValue(checkruntime.MakeCircleBits(0,0,0x4008000000000000)),
+  Expected:KnownCheckValue(&wire),
+ }
+ if err:=ValidateCheckInputs(input,evaluatePublicCircleWritesChecks);err!=nil {t.Fatal(err)}
+ wrong:=[]byte{0}
+ input.Expected=KnownCheckValue(&wrong)
+ if err:=ValidateCheckInputs(input,evaluatePublicCircleWritesChecks);err==nil {t.Fatal("portable circle CHECK did not reject wrong wire bytes")}
+ input.Expected=KnownCheckValue(&wire)
  input.Position.V.Value.WireKnown=false
  wireChecks:=0
- for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicCircleWritesChecks(input); if e != nil {return nil}; return r}() {
+ for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicCircleWritesChecks(input); if e != nil {return nil}; return r}() {
   if check.Constraint=="position_wire" {wireChecks++;if check.Result.Certain {t.Fatal("unavailable circle wire precision was treated as known")}}
  }
  if wireChecks!=1 {t.Fatal("missing circle wire constraint")}
  input.Position.V.Value.WireKnown=true
  input.Position.V.Value.Radius= -0x3ff8000000000000
  wireChecks=0
- for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicCircleWritesChecks(input); if e != nil {panic(e)}; return r}() {
+ for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicCircleWritesChecks(input); if e != nil {panic(e)}; return r}() {
   if check.Constraint=="position_wire" {wireChecks++;if !check.Result.Certain || !check.Result.Value.Valid || check.Result.Value.Value {t.Fatal("stored negative-radius circle did not produce its definite wire comparison")}}
  }
  if wireChecks!=1 {t.Fatal("missing circle wire constraint")}

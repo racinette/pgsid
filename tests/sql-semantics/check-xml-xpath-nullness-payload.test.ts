@@ -246,9 +246,9 @@ func TestXmlKnowledge(t *testing.T){
   cell:=runtime.ArrayElement{Kind:runtime.ArrayElementXmlNonNull,XmlNonNull:knowledge}
   array:=runtime.ArrayValue{Kind:runtime.ArrayValueValue,Value:runtime.ArrayPayload{ElementType:"pg_catalog.xml",ElementKind:45,Dimensions:[]runtime.ArrayDimension{{Lower:1,Length:1}},Elements:[]runtime.ArrayElement{cell},NullBitmap:runtime.BoolValue{Kind:runtime.BoolValueValue,Value:false}}}
   record:=runtime.CompositeValue{Kind:runtime.CompositeValueValue,Value:runtime.CompositePayload{TypeName:"public.xml_null_packet",Fields:[]runtime.ArrayElement{cell,{Kind:runtime.ArrayElementArray,Array:array.Value}}}}
-  input:=PublicXmlNullPayloadsCheckInput{X:KnownCheckValue(runtime.XmlValue{Kind:runtime.XmlValueNonNull,NonNull:knowledge}),Xs:KnownCheckValue(array),R:KnownCheckValue(record),Expected:KnownCheckValue(&expected),Bad:KnownCheckValue(&bad)}
+  input:=publicXmlNullPayloadsCheckInput{X:KnownCheckValue(runtime.XmlValue{Kind:runtime.XmlValueNonNull,NonNull:knowledge}),Xs:KnownCheckValue(array),R:KnownCheckValue(record),Expected:KnownCheckValue(&expected),Bad:KnownCheckValue(&bad)}
   invalid:=document.Kind!=runtime.BoolValueUnknown&&document.Kind!=runtime.BoolValueValue
-  checks,e:=EvaluatePublicXmlNullPayloadsChecks(input)
+  checks,e:=evaluatePublicXmlNullPayloadsChecks(input)
   if e!=nil{if !invalid{t.Fatal(document,e)};continue}
   if len(checks)!=10{t.Fatal(checks)}
   for _,check:=range checks{

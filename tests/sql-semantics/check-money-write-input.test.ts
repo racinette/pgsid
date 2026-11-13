@@ -58,7 +58,6 @@ import (
  "errors"
  "testing"
  pgsid "example.com/pgsid-fixture/generated/queries/pgsid/pgx"
- checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
  schema "example.com/pgsid-fixture/generated/schema/public"
  "github.com/jackc/pgx/v5/pgconn"
 )
@@ -85,26 +84,51 @@ func TestRawParametersReachDatabase(t *testing.T) {
  db.failure=errors.New("database CHECK rejection")
  if err:=queries.InsertPosition(context.Background(),params);!errors.Is(err,db.failure) {t.Fatal("database rejection was not preserved",err)}
 }
-func TestPortablePayloadStillValidates(t *testing.T) {
- wire:=[]byte{0,0,0,0,0,0,0,125}
- input:=pgsid.PublicMoneyWritesCheckInput{
-  Position:pgsid.KnownCheckValue(checkruntime.MakeMoneyValue(125)),
-  DomainPosition:pgsid.KnownCheckValue(checkruntime.MakeMoneyValue(125)),
-  Expected:pgsid.KnownCheckValue(&wire),
- }
+func TestPublicValuesStillValidate(t *testing.T) {
+ wire:=[]byte{0,0,0,0,0,0,0,0}
+ var position string=" 00 "
+ var domainPosition schema.NestedEdge="0"
+ input:=pgsid.PublicMoneyWritesCheckInput{Position:pgsid.KnownCheckValue(&position),DomainPosition:pgsid.KnownCheckValue(&domainPosition),Expected:pgsid.KnownCheckValue(&wire)}
  if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicMoneyWritesChecks);err!=nil {t.Fatal(err)}
  wrong:=[]byte{0}
  input.Expected=pgsid.KnownCheckValue(&wrong)
- if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicMoneyWritesChecks);err==nil {t.Fatal("portable money CHECK did not reject wrong wire bytes")}
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicMoneyWritesChecks);err==nil {t.Fatal("public money CHECK did not reject wrong wire bytes")}
+ var amount string="1.25"
  input.Expected=pgsid.KnownCheckValue(&wire)
+ input.Position=pgsid.KnownCheckValue(&amount)
+ for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicMoneyWritesChecks(input); if e != nil {panic(e)}; return r}() {
+  if check.Constraint=="position_wire" && check.Result.Certain {t.Fatal("nonzero money text was read without the session's monetary locale")}
+ }
+}
+`,
+    )
+    await writeFile(
+      join(root, 'generated/queries/pgsid/pgx/money_payload_test.go'),
+      `package pgsidpgx
+import (
+ "testing"
+ checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
+)
+func TestStoredPayloadStillValidates(t *testing.T) {
+ wire:=[]byte{0,0,0,0,0,0,0,125}
+ input:=publicMoneyWritesCheckInput{
+  Position:KnownCheckValue(checkruntime.MakeMoneyValue(125)),
+  DomainPosition:KnownCheckValue(checkruntime.MakeMoneyValue(125)),
+  Expected:KnownCheckValue(&wire),
+ }
+ if err:=ValidateCheckInputs(input,evaluatePublicMoneyWritesChecks);err!=nil {t.Fatal(err)}
+ wrong:=[]byte{0}
+ input.Expected=KnownCheckValue(&wrong)
+ if err:=ValidateCheckInputs(input,evaluatePublicMoneyWritesChecks);err==nil {t.Fatal("portable money CHECK did not reject wrong wire bytes")}
+ input.Expected=KnownCheckValue(&wire)
  input.Position.V=checkruntime.MoneyValue{}
  wireChecks:=0
- for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicMoneyWritesChecks(input); if e != nil {return nil}; return r}() {
+ for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicMoneyWritesChecks(input); if e != nil {return nil}; return r}() {
   if check.Constraint=="position_wire" {wireChecks++;if check.Result.Certain {t.Fatal("zero money wrapper did not remain unknown")}}
  }
  if wireChecks!=1 {t.Fatal("missing money wire constraint")}
  input.Position.V=checkruntime.MakeMoneyValue(126)
- for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicMoneyWritesChecks(input); if e != nil {panic(e)}; return r}() {
+ for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicMoneyWritesChecks(input); if e != nil {panic(e)}; return r}() {
   if check.Constraint=="position_wire" && (!check.Result.Certain || !check.Result.Value.Valid || check.Result.Value.Value) {t.Fatal("changed money units did not reject wrong wire bytes")}
  }
 

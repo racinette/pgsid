@@ -268,8 +268,14 @@ func checkEvaluation(owner, constraint string, result EvalBool, unknownMessage s
 	return evaluation
 }
 
+type publicDefaultEventIdCheckInput struct {
+	Value CheckOptional[DefaultEventId]
+}
 type PublicDefaultEventIdCheckInput struct {
 	Value CheckOptional[DefaultEventId]
+}
+type publicEventIdCheckInput struct {
+	Value CheckOptional[EventId]
 }
 type PublicEventIdCheckInput struct {
 	Value CheckOptional[EventId]
@@ -281,12 +287,18 @@ type CheckEvaluation struct {
 	Message    string
 }
 
-func EvaluatePublicDefaultEventIdDomainChecks(row PublicDefaultEventIdCheckInput) (results []CheckEvaluation, err error) {
+func EvaluatePublicDefaultEventIdDomainChecks(input PublicDefaultEventIdCheckInput) (results []CheckEvaluation, err error) {
+	return evaluatePublicDefaultEventIdDomainChecks(publicDefaultEventIdCheckInput{Value: input.Value})
+}
+func EvaluatePublicEventIdDomainChecks(input PublicEventIdCheckInput) (results []CheckEvaluation, err error) {
+	return evaluatePublicEventIdDomainChecks(publicEventIdCheckInput{Value: input.Value})
+}
+func evaluatePublicDefaultEventIdDomainChecks(row publicDefaultEventIdCheckInput) (results []CheckEvaluation, err error) {
 	at := ""
 	defer checkInputRecover(&at, &results, &err)
 	return []CheckEvaluation{checkEvaluation("public.event_id", "event_id_check", checkRustOutcome(checkrust.EvaluateCheckPublicDomainDefaultEventIdFromPublicEventIdEventIdCheckH7azw(checkRustInt8(checkInputAt(&at, "value", row.Value)))), "A required input is unavailable, or its value or an evaluated expression is not supported.")}, nil
 }
-func EvaluatePublicEventIdDomainChecks(row PublicEventIdCheckInput) (results []CheckEvaluation, err error) {
+func evaluatePublicEventIdDomainChecks(row publicEventIdCheckInput) (results []CheckEvaluation, err error) {
 	at := ""
 	defer checkInputRecover(&at, &results, &err)
 	return []CheckEvaluation{checkEvaluation("public.event_id", "event_id_check", checkRustOutcome(checkrust.EvaluateCheckPublicDomainEventIdEventIdCheckHcydw(checkRustInt8(checkInputAt(&at, "value", row.Value)))), "A required input is unavailable, or its value or an evaluated expression is not supported.")}, nil

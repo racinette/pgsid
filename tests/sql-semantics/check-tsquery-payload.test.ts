@@ -436,7 +436,7 @@ it('validates SQL-coerced tsquery payloads, domains and optional stored size thr
     }
     const goRows = publicCases.map(
       (c) =>
-        'PublicQueryRowsCheckInput{' +
+        'publicQueryRowsCheckInput{' +
         Object.entries(c.row)
           .map(
             ([name, input]) =>
@@ -461,7 +461,7 @@ it('validates SQL-coerced tsquery payloads, domains and optional stored size thr
       `package checks
 import("testing";checkruntime "tsquery-public/checkrust/checkruntime")
 func ptr[T any](value T)*T{return &value}
-func TestPayloads(t *testing.T){rows:=[]PublicQueryRowsCheckInput{${goRows.join(',')}};results:=[]map[string]EvalBool{};for _,row:=range rows{values:=map[string]EvalBool{};for _,check:=range func() []CheckEvaluation {r, e := EvaluatePublicQueryRowsChecks(row); if e != nil {panic(e)}; return r}(){values[check.Constraint]=check.Result};results=append(results,values)}
+func TestPayloads(t *testing.T){rows:=[]publicQueryRowsCheckInput{${goRows.join(',')}};results:=[]map[string]EvalBool{};for _,row:=range rows{values:=map[string]EvalBool{};for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicQueryRowsChecks(row); if e != nil {panic(e)}; return r}(){values[check.Constraint]=check.Result};results=append(results,values)}
 ${assertions.join('\n')}
 
 base:=rows[12];for _,v:=range []checkruntime.TsqueryValue{
@@ -471,7 +471,7 @@ base:=rows[12];for _,v:=range []checkruntime.TsqueryValue{
  {Kind:checkruntime.TsqueryValueValue,Value:checkruntime.TsqueryPayload{NativeBytes:-1,Nodes:[]checkruntime.TsqueryNode{{Text:"a",Weight:16}}}},
  {Kind:checkruntime.TsqueryValueValue,Value:checkruntime.TsqueryPayload{NativeBytes:-1,Nodes:[]checkruntime.TsqueryNode{{Kind:1}}}},
  {Kind:checkruntime.TsqueryValueKind(99)},
-}{base.Item=KnownCheckValue(v);for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicQueryRowsChecks(base); if e != nil {return nil}; return r}(){if (c.Constraint=="rendered"||c.Constraint=="presence")&&c.Result.Certain{t.Fatal("malformed query became certain",c)}}}
+}{base.Item=KnownCheckValue(v);for _,c:=range func() []CheckEvaluation {r, e := evaluatePublicQueryRowsChecks(base); if e != nil {return nil}; return r}(){if (c.Constraint=="rendered"||c.Constraint=="presence")&&c.Result.Certain{t.Fatal("malformed query became certain",c)}}}
 
 
 }`,

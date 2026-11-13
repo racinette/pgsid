@@ -76,7 +76,6 @@ import (
  "errors"
  "testing"
  pgsid "example.com/pgsid-fixture/generated/queries/pgsid/pgx"
- checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
  schema "example.com/pgsid-fixture/generated/schema/public"
  "github.com/jackc/pgx/v5/pgconn"
 )
@@ -86,7 +85,7 @@ func (db *recordingAliasDB) Exec(ctx context.Context, sql string, arguments ...a
 }
 func TestRawNamesReachDatabase(t *testing.T) {
  db:=&recordingAliasDB{};queries:=New(db);wire:=[]byte{0,0,0,125}
- ${names.map((name) => `var position${capital(name)} any="alias_target";var domainPosition${capital(name)} schema.NestedEdge${capital(name)}="alias_target"`).join('\n')}
+ ${names.map((name) => `var position${capital(name)} string="alias_target";var domainPosition${capital(name)} schema.NestedEdge${capital(name)}="alias_target"`).join('\n')}
  params:=InsertAliasesParams{
  ${names.map((name) => `Position${capital(name)}:&position${capital(name)},DomainPosition${capital(name)}:&domainPosition${capital(name)},`).join('\n')}
  Expected:&wire,
@@ -98,10 +97,12 @@ func TestRawNamesReachDatabase(t *testing.T) {
  db.failure=errors.New("database CHECK rejection")
  if err:=queries.InsertAliases(context.Background(),params);!errors.Is(err,db.failure) {t.Fatal("database rejection lost",err)}
 }
-func TestPortableAliases(t *testing.T) {
+func TestPublicAliases(t *testing.T) {
  wire:=[]byte{0,0,0,125}
+ numeric:="125"
+ ${names.map((name) => `domainPosition${capital(name)}:=schema.NestedEdge${capital(name)}(numeric)`).join('\n')}
  input:=pgsid.PublicAliasWritesCheckInput{
- ${names.map((name) => `Position${capital(name)}:pgsid.KnownCheckValue(checkruntime.MakeOidValue(125)),DomainPosition${capital(name)}:pgsid.KnownCheckValue(checkruntime.MakeOidValue(125)),`).join('\n')}
+ ${names.map((name) => `Position${capital(name)}:pgsid.KnownCheckValue(&numeric),DomainPosition${capital(name)}:pgsid.KnownCheckValue(&domainPosition${capital(name)}),`).join('\n')}
  Expected:pgsid.KnownCheckValue(&wire),
  }
  if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicAliasWritesChecks);err!=nil {t.Fatal(err)}
@@ -111,9 +112,41 @@ func TestPortableAliases(t *testing.T) {
  ${names
    .map(
      (name) => `
+ {named:=${JSON.stringify(name === 'regoperator' ? '===(integer,integer)' : name === 'regprocedure' ? 'alias_target(integer)' : 'alias_target')}
+ input.Position${capital(name)}=pgsid.KnownCheckValue(&named)
+ for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicAliasWritesChecks(input); if e != nil {panic(e)}; return r}() {
+ if check.Constraint=="position_${name}_wire" && check.Result.Certain {t.Fatal("alias name was resolved without the catalog","${name}")}
+ }
+ input.Position${capital(name)}=pgsid.KnownCheckValue(&numeric)}
+ `,
+   )
+   .join('\n')}
+}
+`,
+    )
+    await writeFile(
+      join(root, 'generated/queries/pgsid/pgx/alias_payload_test.go'),
+      `package pgsidpgx
+import (
+ "testing"
+ checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
+)
+func TestPortableAliases(t *testing.T) {
+ wire:=[]byte{0,0,0,125}
+ input:=publicAliasWritesCheckInput{
+ ${names.map((name) => `Position${capital(name)}:KnownCheckValue(checkruntime.MakeOidValue(125)),DomainPosition${capital(name)}:KnownCheckValue(checkruntime.MakeOidValue(125)),`).join('\n')}
+ Expected:KnownCheckValue(&wire),
+ }
+ if err:=ValidateCheckInputs(input,evaluatePublicAliasWritesChecks);err!=nil {t.Fatal(err)}
+ wrong:=[]byte{0};input.Expected=KnownCheckValue(&wrong)
+ if err:=ValidateCheckInputs(input,evaluatePublicAliasWritesChecks);err==nil {t.Fatal("wrong bytes accepted")}
+ input.Expected=KnownCheckValue(&wire)
+ ${names
+   .map(
+     (name) => `
  for _,invalid:=range []checkruntime.OidValue{{},{Kind:checkruntime.OidValueValue,Value:-1},{Kind:checkruntime.OidValueValue,Value:4294967296}} {
  input.Position${capital(name)}.V=invalid
- for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicAliasWritesChecks(input); if e != nil {return nil}; return r}() {
+ for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicAliasWritesChecks(input); if e != nil {return nil}; return r}() {
  if check.Constraint=="position_${name}_wire" && check.Result.Certain {t.Fatal("invalid alias became definite","${name}",invalid)}
  }
  }

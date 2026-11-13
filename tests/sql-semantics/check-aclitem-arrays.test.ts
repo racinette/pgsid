@@ -601,7 +601,7 @@ it('validates public owned ACL arrays and preserves bitmap metadata in both targ
         `checkruntime.MakeArrayValue(checkruntime.ArrayPayload{ElementType:"pg_catalog.aclitem",ElementKind:46,Dimensions:[]checkruntime.ArrayDimension{${p.dimensions.map((d) => `{Lower:${d.lower},Length:${d.length}}`).join(',')}},Elements:[]checkruntime.ArrayElement{${p.elements.map((c) => (c.kind === 'Null' ? 'checkruntime.ArrayElement{Kind:checkruntime.ArrayElementNull}' : c.kind === 'Aclitem' ? `checkruntime.ArrayElementFromAclitem(${goAcl(c.value)})` : '')).join(',')}},NullBitmap:checkruntime.BoolValue{Kind:checkruntime.BoolValueValue,Value:${p.nullBitmap.kind === 'Value' && p.nullBitmap.value}}})`
     const rows = samples.map(
         (s) =>
-          `PublicOwnedAclsCheckInput{Items:KnownCheckValue(${s.value === null ? 'checkruntime.ArrayNull()' : goArray(s.value)}),Probe:KnownCheckValue(${s.probe === null ? 'checkruntime.AclitemNull()' : goAcl(s.probe)}),Reference:KnownCheckValue(${goArray(array(['wide']))})}`,
+          `publicOwnedAclsCheckInput{Items:KnownCheckValue(${s.value === null ? 'checkruntime.ArrayNull()' : goArray(s.value)}),Probe:KnownCheckValue(${s.probe === null ? 'checkruntime.AclitemNull()' : goAcl(s.probe)}),Reference:KnownCheckValue(${goArray(array(['wide']))})}`,
       ),
       assertions = cases.flatMap((c, i) =>
         Object.entries(c.expected).map(
@@ -613,10 +613,10 @@ it('validates public owned ACL arrays and preserves bitmap metadata in both targ
       join(goRoot, 'checks_test.go'),
       `package checks
 import("testing";checkruntime "acl-owned/checkrust/checkruntime")
-func TestArrays(t *testing.T){rows:=[]PublicOwnedAclsCheckInput{${rows.join(',')}};results:=[]map[string]EvalBool{};for _,row:=range rows{values:=map[string]EvalBool{};for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicOwnedAclsChecks(row); if e != nil {panic(e)}; return r}(){values[c.Constraint]=c.Result};results=append(results,values)}
+func TestArrays(t *testing.T){rows:=[]publicOwnedAclsCheckInput{${rows.join(',')}};results:=[]map[string]EvalBool{};for _,row:=range rows{values:=map[string]EvalBool{};for _,c:=range func() []CheckEvaluation {r, e := evaluatePublicOwnedAclsChecks(row); if e != nil {panic(e)}; return r}(){values[c.Constraint]=c.Result};results=append(results,values)}
 ${assertions.join('\n')}
-base:=rows[0];bad:=base.Items.V;bad.Value.Elements=append([]checkruntime.ArrayElement(nil),bad.Value.Elements...);bad.Value.Elements[0].Aclitem.Privileges=-1;base.Items=KnownCheckValue(bad);for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicOwnedAclsChecks(base); if e != nil {return nil}; return r}(){if(c.Constraint=="covers"||c.Constraint=="same")&&c.Result.Certain{t.Fatal("malformed ACL array accepted",c)}}
-base=rows[0];missing:=base.Items.V;missing.Value.NullBitmap=checkruntime.BoolValue{};base.Items=KnownCheckValue(missing);for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicOwnedAclsChecks(base); if e != nil {return nil}; return r}(){if c.Constraint=="covers"&&c.Result.Certain{t.Fatal("unknown bitmap became definite",c)}}
+base:=rows[0];bad:=base.Items.V;bad.Value.Elements=append([]checkruntime.ArrayElement(nil),bad.Value.Elements...);bad.Value.Elements[0].Aclitem.Privileges=-1;base.Items=KnownCheckValue(bad);for _,c:=range func() []CheckEvaluation {r, e := evaluatePublicOwnedAclsChecks(base); if e != nil {return nil}; return r}(){if(c.Constraint=="covers"||c.Constraint=="same")&&c.Result.Certain{t.Fatal("malformed ACL array accepted",c)}}
+base=rows[0];missing:=base.Items.V;missing.Value.NullBitmap=checkruntime.BoolValue{};base.Items=KnownCheckValue(missing);for _,c:=range func() []CheckEvaluation {r, e := evaluatePublicOwnedAclsChecks(base); if e != nil {return nil}; return r}(){if c.Constraint=="covers"&&c.Result.Certain{t.Fatal("unknown bitmap became definite",c)}}
 }`,
     )
     await run('go', ['test', '-p', '1', './...'], { cwd: goRoot }).catch(

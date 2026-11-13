@@ -182,7 +182,13 @@ export function resolveGoPgType(
     )
   const unmodified = base.replace(/\([^)]*\)$/u, '')
   const unqualified = unmodified.split('.').at(-1)?.replaceAll('"', '') ?? unmodified
-  const alias = aliases[unqualified] ?? unqualified
+  // Type modifiers can sit inside a name, as in timestamp(3) with time zone, and an interval can
+  // carry its fields; neither changes the value.
+  const builtin = unqualified
+    .replace(/\([^)]*\)/gu, '')
+    .replace(/\s+/gu, ' ')
+    .trim()
+  const alias = /^interval(?: |$)/u.test(builtin) ? 'interval' : (aliases[builtin] ?? builtin)
   const mapping =
     mappings[pgType] ?? mappings[base] ?? mappings[unmodified] ?? mappings[`pg_catalog.${alias}`]
   if (mapping) {

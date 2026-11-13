@@ -58,7 +58,6 @@ import (
  "errors"
  "testing"
  pgsid "example.com/pgsid-fixture/generated/queries/pgsid/pgx"
- checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
  schema "example.com/pgsid-fixture/generated/schema/public"
  "github.com/jackc/pgx/v5/pgconn"
 )
@@ -76,8 +75,8 @@ func (db *recordingWalLocationDB) Exec(ctx context.Context, sql string, argument
 func TestRawParametersReachDatabase(t *testing.T) {
  db:=&recordingWalLocationDB{}
  queries:=New(db)
- var position any=string("FFFFFFFF/FFFFFFFF")
- var domainPosition schema.NestedEdge=string("FFFFFFFF/FFFFFFFF")
+ var position string="FFFFFFFF/FFFFFFFF"
+ var domainPosition schema.NestedEdge="FFFFFFFF/FFFFFFFF"
  wire:=[]byte{255,255,255,255,255,255,255,255}
  params:=InsertPositionParams{Position:&position,DomainPosition:&domainPosition,Expected:&wire}
  if err:=queries.InsertPosition(context.Background(),params);err!=nil {t.Fatal(err)}
@@ -85,27 +84,53 @@ func TestRawParametersReachDatabase(t *testing.T) {
  db.failure=errors.New("database CHECK rejection")
  if err:=queries.InsertPosition(context.Background(),params);!errors.Is(err,db.failure) {t.Fatal("database rejection was not preserved",err)}
 }
-func TestPortablePayloadStillValidates(t *testing.T) {
+func TestPublicValuesStillValidate(t *testing.T) {
  wire:=[]byte{255,255,255,255,255,255,255,255}
- input:=pgsid.PublicWalLocationWritesCheckInput{
-  Position:pgsid.KnownCheckValue(checkruntime.MakePgLsnBits(-1)),
-  DomainPosition:pgsid.KnownCheckValue(checkruntime.MakePgLsnBits(-1)),
-  Expected:pgsid.KnownCheckValue(&wire),
- }
+ position:="FFFFFFFF/FFFFFFFF"
+ domainPosition:=schema.NestedEdge("ffffffff/ffffffff")
+ input:=pgsid.PublicWalLocationWritesCheckInput{Position:pgsid.KnownCheckValue(&position),DomainPosition:pgsid.KnownCheckValue(&domainPosition),Expected:pgsid.KnownCheckValue(&wire)}
  if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicWalLocationWritesChecks);err!=nil {t.Fatal(err)}
  wrong:=[]byte{0}
  input.Expected=pgsid.KnownCheckValue(&wrong)
- if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicWalLocationWritesChecks);err==nil {t.Fatal("portable WAL-location CHECK did not reject wrong wire bytes")}
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicWalLocationWritesChecks);err==nil {t.Fatal("public WAL-location CHECK did not reject wrong wire bytes")}
+ changed:="0/7E"
  input.Expected=pgsid.KnownCheckValue(&wire)
+ input.Position=pgsid.KnownCheckValue(&changed)
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicWalLocationWritesChecks);err==nil {t.Fatal("changed WAL location kept the old wire bytes")}
+ malformed:="FFFFFFFF"
+ input.Position=pgsid.KnownCheckValue(&malformed)
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicWalLocationWritesChecks);err==nil {t.Fatal("malformed WAL location was accepted")}
+}
+`,
+      )
+      await writeFile(
+        join(root, 'generated/queries/pgsid/pgx/wal_location_payload_test.go'),
+        `package pgsidpgx
+import (
+ "testing"
+ checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
+)
+func TestStoredPayloadStillValidates(t *testing.T) {
+ wire:=[]byte{255,255,255,255,255,255,255,255}
+ input:=publicWalLocationWritesCheckInput{
+  Position:KnownCheckValue(checkruntime.MakePgLsnBits(-1)),
+  DomainPosition:KnownCheckValue(checkruntime.MakePgLsnBits(-1)),
+  Expected:KnownCheckValue(&wire),
+ }
+ if err:=ValidateCheckInputs(input,evaluatePublicWalLocationWritesChecks);err!=nil {t.Fatal(err)}
+ wrong:=[]byte{0}
+ input.Expected=KnownCheckValue(&wrong)
+ if err:=ValidateCheckInputs(input,evaluatePublicWalLocationWritesChecks);err==nil {t.Fatal("portable WAL-location CHECK did not reject wrong wire bytes")}
+ input.Expected=KnownCheckValue(&wire)
  input.Position.V=checkruntime.PgLsnValue{}
  wireChecks:=0
- for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicWalLocationWritesChecks(input); if e != nil {return nil}; return r}() {
+ for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicWalLocationWritesChecks(input); if e != nil {return nil}; return r}() {
   if check.Constraint=="position_wire" {wireChecks++;if check.Result.Certain {t.Fatal("zero WAL-location wrapper did not remain unknown")}}
  }
  if wireChecks!=1 {t.Fatal("missing oid wire constraint")}
  
  input.Position.V=checkruntime.MakePgLsnBits(126)
- for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicWalLocationWritesChecks(input); if e != nil {panic(e)}; return r}() {
+ for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicWalLocationWritesChecks(input); if e != nil {panic(e)}; return r}() {
   if check.Constraint=="position_wire" && (!check.Result.Certain || !check.Result.Value.Valid || check.Result.Value.Value) {t.Fatal("changed WAL location did not reject wrong wire bytes")}
  }
 

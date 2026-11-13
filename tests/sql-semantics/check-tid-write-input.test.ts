@@ -58,7 +58,6 @@ import (
  "errors"
  "testing"
  pgsid "example.com/pgsid-fixture/generated/queries/pgsid/pgx"
- checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
  schema "example.com/pgsid-fixture/generated/schema/public"
  "github.com/jackc/pgx/v5/pgconn"
 )
@@ -76,8 +75,8 @@ func (db *recordingHeapPointerDB) Exec(ctx context.Context, sql string, argument
 func TestRawParametersReachDatabase(t *testing.T) {
  db:=&recordingHeapPointerDB{}
  queries:=New(db)
- var position any=string("(4294967295,65535)")
- var domainPosition schema.NestedEdge=string("(4294967295,65535)")
+ var position string="(4294967295,65535)"
+ var domainPosition schema.NestedEdge="(4294967295,65535)"
  wire:=[]byte{255,255,255,255,255,255}
  params:=InsertPositionParams{Position:&position,DomainPosition:&domainPosition,Expected:&wire}
  if err:=queries.InsertPosition(context.Background(),params);err!=nil {t.Fatal(err)}
@@ -85,26 +84,55 @@ func TestRawParametersReachDatabase(t *testing.T) {
  db.failure=errors.New("database CHECK rejection")
  if err:=queries.InsertPosition(context.Background(),params);!errors.Is(err,db.failure) {t.Fatal("database rejection was not preserved",err)}
 }
-func TestPortablePayloadStillValidates(t *testing.T) {
+func TestPublicValuesStillValidate(t *testing.T) {
  wire:=[]byte{255,255,255,255,255,255}
- input:=pgsid.PublicHeapPointerWritesCheckInput{
-  Position:pgsid.KnownCheckValue(checkruntime.MakeTidValue(281474976710655)),
-  DomainPosition:pgsid.KnownCheckValue(checkruntime.MakeTidValue(281474976710655)),
-  Expected:pgsid.KnownCheckValue(&wire),
- }
+ position:="(4294967295,65535)"
+ domainPosition:=schema.NestedEdge("( 4294967295, 65535)")
+ input:=pgsid.PublicHeapPointerWritesCheckInput{Position:pgsid.KnownCheckValue(&position),DomainPosition:pgsid.KnownCheckValue(&domainPosition),Expected:pgsid.KnownCheckValue(&wire)}
  if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicHeapPointerWritesChecks);err!=nil {t.Fatal(err)}
  wrong:=[]byte{0}
  input.Expected=pgsid.KnownCheckValue(&wrong)
- if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicHeapPointerWritesChecks);err==nil {t.Fatal("portable tuple-pointer CHECK did not reject wrong wire bytes")}
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicHeapPointerWritesChecks);err==nil {t.Fatal("public tuple-pointer CHECK did not reject wrong wire bytes")}
+ for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicHeapPointerWritesChecks(input); if e != nil {return nil}; return r}() {
+  if check.Constraint=="latest_pointer" && check.Result.Certain {t.Fatal("heap lookup became definite without relation state")}
+ }
+ changed:="(0,126)"
  input.Expected=pgsid.KnownCheckValue(&wire)
+ input.Position=pgsid.KnownCheckValue(&changed)
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicHeapPointerWritesChecks);err==nil {t.Fatal("changed tuple pointer kept the old wire bytes")}
+ outOfRange:="(4294967296,1)"
+ input.Position=pgsid.KnownCheckValue(&outOfRange)
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicHeapPointerWritesChecks);err==nil {t.Fatal("out-of-range tuple pointer was accepted")}
+}
+`,
+      )
+      await writeFile(
+        join(root, 'generated/queries/pgsid/pgx/heap_pointer_payload_test.go'),
+        `package pgsidpgx
+import (
+ "testing"
+ checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
+)
+func TestStoredPayloadStillValidates(t *testing.T) {
+ wire:=[]byte{255,255,255,255,255,255}
+ input:=publicHeapPointerWritesCheckInput{
+  Position:KnownCheckValue(checkruntime.MakeTidValue(281474976710655)),
+  DomainPosition:KnownCheckValue(checkruntime.MakeTidValue(281474976710655)),
+  Expected:KnownCheckValue(&wire),
+ }
+ if err:=ValidateCheckInputs(input,evaluatePublicHeapPointerWritesChecks);err!=nil {t.Fatal(err)}
+ wrong:=[]byte{0}
+ input.Expected=KnownCheckValue(&wrong)
+ if err:=ValidateCheckInputs(input,evaluatePublicHeapPointerWritesChecks);err==nil {t.Fatal("portable tuple-pointer CHECK did not reject wrong wire bytes")}
+ input.Expected=KnownCheckValue(&wire)
  input.Position.V=checkruntime.TidValue{}
  wireChecks:=0
- for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicHeapPointerWritesChecks(input); if e != nil {return nil}; return r}() {
+ for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicHeapPointerWritesChecks(input); if e != nil {return nil}; return r}() {
   if check.Constraint=="position_wire" {wireChecks++;if check.Result.Certain {t.Fatal("zero tuple-pointer wrapper did not remain unknown")}}
  }
  if wireChecks!=1 {t.Fatal("missing oid wire constraint")}
  
- for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicHeapPointerWritesChecks(input); if e != nil {return nil}; return r}() {
+ for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicHeapPointerWritesChecks(input); if e != nil {return nil}; return r}() {
   if check.Constraint=="latest_pointer" && check.Result.Certain {t.Fatal("heap lookup became definite without relation state")}
  }
  if checkruntime.MakeTidParts(4294967295,65535)!=checkruntime.MakeTidValue(281474976710655) {t.Fatal("tuple pointer fields lost bits")}
@@ -113,12 +141,12 @@ func TestPortablePayloadStillValidates(t *testing.T) {
  } {if invalid.Kind!=checkruntime.TidValueUnimplemented {t.Fatal("invalid tuple fields became definite",invalid)}}
  for _,invalid:=range []int64{-1,281474976710656} {
   input.Position.V=checkruntime.TidValue{Kind:checkruntime.TidValueValue,Value:invalid}
-  for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicHeapPointerWritesChecks(input); if e != nil {return nil}; return r}() {
+  for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicHeapPointerWritesChecks(input); if e != nil {return nil}; return r}() {
    if check.Constraint=="position_wire" && check.Result.Certain {t.Fatal("invalid packed tuple pointer became definite",invalid)}
   }
  }
  input.Position.V=checkruntime.MakeTidValue(126)
- for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicHeapPointerWritesChecks(input); if e != nil {panic(e)}; return r}() {
+ for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicHeapPointerWritesChecks(input); if e != nil {panic(e)}; return r}() {
   if check.Constraint=="position_wire" && (!check.Result.Certain || !check.Result.Value.Valid || check.Result.Value.Value) {t.Fatal("changed tuple pointer did not reject wrong wire bytes")}
  }
 

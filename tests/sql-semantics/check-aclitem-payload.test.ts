@@ -486,7 +486,7 @@ it('validates SQL-coerced ACL payloads, domains and partial inputs through nativ
     }
     const goRows = publicCases.map(
       (c) =>
-        'PublicAclRowsCheckInput{' +
+        'publicAclRowsCheckInput{' +
         Object.entries(c.row)
           .map(
             ([name, input]) =>
@@ -511,9 +511,9 @@ it('validates SQL-coerced ACL payloads, domains and partial inputs through nativ
       `package checks
 import("testing";checkruntime "aclitem-public/checkrust/checkruntime")
 func ptr[T any](value T)*T{return &value}
-func TestPayloads(t *testing.T){rows:=[]PublicAclRowsCheckInput{${goRows.join(',')}};results:=[]map[string]EvalBool{};for _,row:=range rows{values:=map[string]EvalBool{};for _,check:=range func() []CheckEvaluation {r, e := EvaluatePublicAclRowsChecks(row); if e != nil {panic(e)}; return r}(){values[check.Constraint]=check.Result};results=append(results,values)}
+func TestPayloads(t *testing.T){rows:=[]publicAclRowsCheckInput{${goRows.join(',')}};results:=[]map[string]EvalBool{};for _,row:=range rows{values:=map[string]EvalBool{};for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicAclRowsChecks(row); if e != nil {panic(e)}; return r}(){values[check.Constraint]=check.Result};results=append(results,values)}
 ${assertions.join('\n')}
-base:=rows[0];for _,v:=range []checkruntime.AclitemValue{{Kind:checkruntime.AclitemValueValue,Value:checkruntime.AclitemPayload{Grantee:-1}},{Kind:checkruntime.AclitemValueValue,Value:checkruntime.AclitemPayload{Grantor:4294967296}},{Kind:checkruntime.AclitemValueValue,Value:checkruntime.AclitemPayload{Privileges:-1}},{Kind:checkruntime.AclitemValueValue,Value:checkruntime.AclitemPayload{GrantOptions:4294967296}},{Kind:checkruntime.AclitemValueKind(99)}}{base.Item=KnownCheckValue(v);for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicAclRowsChecks(base); if e != nil {return nil}; return r}(){if (c.Constraint=="same"||c.Constraint=="presence")&&c.Result.Certain{t.Fatal("malformed ACL became certain",c)}}}
+base:=rows[0];for _,v:=range []checkruntime.AclitemValue{{Kind:checkruntime.AclitemValueValue,Value:checkruntime.AclitemPayload{Grantee:-1}},{Kind:checkruntime.AclitemValueValue,Value:checkruntime.AclitemPayload{Grantor:4294967296}},{Kind:checkruntime.AclitemValueValue,Value:checkruntime.AclitemPayload{Privileges:-1}},{Kind:checkruntime.AclitemValueValue,Value:checkruntime.AclitemPayload{GrantOptions:4294967296}},{Kind:checkruntime.AclitemValueKind(99)}}{base.Item=KnownCheckValue(v);for _,c:=range func() []CheckEvaluation {r, e := evaluatePublicAclRowsChecks(base); if e != nil {return nil}; return r}(){if (c.Constraint=="same"||c.Constraint=="presence")&&c.Result.Certain{t.Fatal("malformed ACL became certain",c)}}}
 }`,
     )
     await run('go', ['test', '-p', '1', './...'], { cwd: goRoot }).catch(

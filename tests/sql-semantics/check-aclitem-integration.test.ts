@@ -610,7 +610,7 @@ it('validates nested public ACL composite payloads and domain-array fields in Go
         }).match(/return ([\s\S]*)\n\}/)![1]!,
       rows = samples.map(
         (s) =>
-          `PublicAclNestedCheckInput{Payload:KnownCheckValue(${goComposite(s.payload)}),Reference:KnownCheckValue(${goComposite(good)}),Probe:KnownCheckValue(checkruntime.MakeAclitemValue(1,2,2,0)),Bypass:KnownCheckValue(ptr(false))}`,
+          `publicAclNestedCheckInput{Payload:KnownCheckValue(${goComposite(s.payload)}),Reference:KnownCheckValue(${goComposite(good)}),Probe:KnownCheckValue(checkruntime.MakeAclitemValue(1,2,2,0)),Bypass:KnownCheckValue(ptr(false))}`,
       ),
       assertions = cases.flatMap((c, i) =>
         Object.entries(c.expected).map(
@@ -623,11 +623,11 @@ it('validates nested public ACL composite payloads and domain-array fields in Go
       `package checks
 import("testing";checkruntime "acl-nested/checkrust/checkruntime")
 func ptr[T any](v T)*T{return &v}
-func TestNested(t *testing.T){rows:=[]PublicAclNestedCheckInput{${rows.join(',')}};results:=[]map[string]EvalBool{};for _,row:=range rows{out:=map[string]EvalBool{};for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicAclNestedChecks(row); if e != nil {panic(e)}; return r}(){out[c.Constraint]=c.Result};results=append(results,out)}
+func TestNested(t *testing.T){rows:=[]publicAclNestedCheckInput{${rows.join(',')}};results:=[]map[string]EvalBool{};for _,row:=range rows{out:=map[string]EvalBool{};for _,c:=range func() []CheckEvaluation {r, e := evaluatePublicAclNestedChecks(row); if e != nil {panic(e)}; return r}(){out[c.Constraint]=c.Result};results=append(results,out)}
 ${assertions.join('\n')}
-base:=rows[0];base.Payload=KnownCheckValue(${goComposite(partial)});for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicAclNestedChecks(base); if e != nil {panic(e)}; return r}(){if c.Constraint=="entry"&&c.Result.Certain{t.Fatal("unknown field became definite",c)};if(c.Constraint=="covers"||c.Constraint=="history_entry")&&(!c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value){t.Fatal("known nested field lost",c)}}
-base.Payload=KnownCheckValue(${goComposite(malformed)});for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicAclNestedChecks(base); if e != nil {return nil}; return r}(){if c.Constraint=="entry"&&c.Result.Certain{t.Fatal("malformed ACL field accepted",c)}}
-base.Payload=KnownCheckValue(checkruntime.CompositeValue{});base.Bypass=KnownCheckValue(ptr(true));for _,c:=range func() []CheckEvaluation {r, e := EvaluatePublicAclNestedChecks(base); if e != nil {panic(e)}; return r}(){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("skip lost",c)}}
+base:=rows[0];base.Payload=KnownCheckValue(${goComposite(partial)});for _,c:=range func() []CheckEvaluation {r, e := evaluatePublicAclNestedChecks(base); if e != nil {panic(e)}; return r}(){if c.Constraint=="entry"&&c.Result.Certain{t.Fatal("unknown field became definite",c)};if(c.Constraint=="covers"||c.Constraint=="history_entry")&&(!c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value){t.Fatal("known nested field lost",c)}}
+base.Payload=KnownCheckValue(${goComposite(malformed)});for _,c:=range func() []CheckEvaluation {r, e := evaluatePublicAclNestedChecks(base); if e != nil {return nil}; return r}(){if c.Constraint=="entry"&&c.Result.Certain{t.Fatal("malformed ACL field accepted",c)}}
+base.Payload=KnownCheckValue(checkruntime.CompositeValue{});base.Bypass=KnownCheckValue(ptr(true));for _,c:=range func() []CheckEvaluation {r, e := evaluatePublicAclNestedChecks(base); if e != nil {panic(e)}; return r}(){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("skip lost",c)}}
 }`,
     )
     await run('go', ['test', '-p', '1', './...'], { cwd: goRoot }).catch(
@@ -701,11 +701,18 @@ sql:
     await writeFile(
       join(root, 'generated/queries/acls/acl_input_test.go'),
       `package acls
-import("context";"errors";"testing";pgsid "example.com/pgsid-fixture/generated/queries/pgsid/pgx";checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime";schema "example.com/pgsid-fixture/generated/schema/public";"github.com/jackc/pgx/v5/pgconn")
+import("context";"errors";"testing";pgsid "example.com/pgsid-fixture/generated/queries/pgsid/pgx";schema "example.com/pgsid-fixture/generated/schema/public";"github.com/jackc/pgx/v5/pgconn")
 type recordingACLDB struct{pgsid.DBTX;arguments []any;calls int;failure error}
 func(db *recordingACLDB)Exec(ctx context.Context,sql string,args ...any)(pgconn.CommandTag,error){db.calls++;db.arguments=args;return pgconn.NewCommandTag("INSERT 0 1"),db.failure}
 func TestRawACLInputs(t *testing.T){db:=&recordingACLDB{};queries:=New(db);entry:="acl_writer=r/acl_owner";domain:=schema.NestedAcl(entry);reference:=entry;params:=InsertEntryParams{Entry:&entry,DomainEntry:&domain,Reference:&reference};if err:=queries.InsertEntry(context.Background(),params);err!=nil{t.Fatal(err)};if db.calls!=1||len(db.arguments)!=3||db.arguments[0]!=params.Entry||db.arguments[1]!=params.DomainEntry||db.arguments[2]!=params.Reference{t.Fatal("raw ACL parameters changed",db.arguments)};db.failure=errors.New("database ACL rejection");if err:=queries.InsertEntry(context.Background(),params);!errors.Is(err,db.failure){t.Fatal("database rejection lost",err)};if db.calls!=2{t.Fatal("raw ACL was rejected before database validation")}}
-func TestPortableACLInputs(t *testing.T){v:=checkruntime.MakeAclitemValue(1,2,2,0);input:=pgsid.PublicAclWritesCheckInput{Entry:pgsid.KnownCheckValue(v),DomainEntry:pgsid.KnownCheckValue(v),Reference:pgsid.KnownCheckValue(v)};if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicAclWritesChecks);err!=nil{t.Fatal(err)};input.Entry=pgsid.KnownCheckValue(checkruntime.MakeAclitemValue(1,2,1,0));if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicAclWritesChecks);err==nil{t.Fatal("portable ACL mismatch did not reject")};input.Entry=pgsid.KnownCheckValue(checkruntime.MakeAclitemValue(4294967295,4294967295,2,0));found:=false;for _,c:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicAclWritesChecks(input); if e != nil {panic(e)}; return r}(){if c.Constraint=="checked_entry"{found=true;if !c.Result.Certain||c.Result.Value.Error!="23514"{t.Fatalf("domain failure lost: %+v",c)}}};if !found{t.Fatal("missing checked ACL cast")}}
+func TestPublicACLInputs(t *testing.T){entry:="acl_writer=r/acl_owner";domain:=schema.NestedAcl(entry);input:=pgsid.PublicAclWritesCheckInput{Entry:pgsid.KnownCheckValue(&entry),DomainEntry:pgsid.KnownCheckValue(&domain),Reference:pgsid.KnownCheckValue(&entry)};if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicAclWritesChecks);err!=nil{t.Fatal(err)};for _,c:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicAclWritesChecks(input); if e != nil {panic(e)}; return r}(){if c.Result.Certain{t.Fatalf("ACL text naming roles was decided without the database: %+v",c)}}}
+`,
+    )
+    await writeFile(
+      join(root, 'generated/queries/pgsid/pgx/acl_payload_test.go'),
+      `package pgsidpgx
+import("testing";checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime")
+func TestPortableACLInputs(t *testing.T){v:=checkruntime.MakeAclitemValue(1,2,2,0);input:=publicAclWritesCheckInput{Entry:KnownCheckValue(v),DomainEntry:KnownCheckValue(v),Reference:KnownCheckValue(v)};if err:=ValidateCheckInputs(input,evaluatePublicAclWritesChecks);err!=nil{t.Fatal(err)};input.Entry=KnownCheckValue(checkruntime.MakeAclitemValue(1,2,1,0));if err:=ValidateCheckInputs(input,evaluatePublicAclWritesChecks);err==nil{t.Fatal("portable ACL mismatch did not reject")};input.Entry=KnownCheckValue(checkruntime.MakeAclitemValue(4294967295,4294967295,2,0));found:=false;for _,c:=range func() []CheckEvaluation {r, e := evaluatePublicAclWritesChecks(input); if e != nil {panic(e)}; return r}(){if c.Constraint=="checked_entry"{found=true;if !c.Result.Certain||c.Result.Value.Error!="23514"{t.Fatalf("domain failure lost: %+v",c)}}};if !found{t.Fatal("missing checked ACL cast")}}
 `,
     )
     await run('go', ['test', '-mod=mod', '-p', '1', './...'], { cwd: root }).catch(

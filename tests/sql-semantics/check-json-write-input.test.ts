@@ -57,7 +57,6 @@ import (
  "errors"
  "testing"
  pgsid "example.com/pgsid-fixture/generated/queries/pgsid/pgx"
- checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
  schema "example.com/pgsid-fixture/generated/schema/public"
  values "example.com/pgsid-fixture/generated/pgsid"
  "github.com/jackc/pgx/v5/pgconn"
@@ -74,22 +73,20 @@ func TestRawJSONReachesDatabase(t *testing.T){
  document=documentText(t,"[1]");db.failure=errors.New("database JSON input rejection")
  if err:=queries.InsertDocument(context.Background(),params);!errors.Is(err,db.failure) || db.calls!=2{t.Fatal("database JSON error lost",err)}
 }
-func TestCoercedJSONInputs(t *testing.T){
- source:="{\\"a\\":9007199254740993,\\"a\\":2}";kind:="object";value:=checkruntime.MakeJsonValue(source)
- input:=pgsid.PublicJsonWritesCheckInput{Document:pgsid.KnownCheckValue(value),DomainDocument:pgsid.KnownCheckValue(value),ExpectedKind:pgsid.KnownCheckValue(&kind),ExpectedSource:pgsid.KnownCheckValue(&source)}
+func TestPublicJSONInputs(t *testing.T){
+ source:="{\\"a\\":9007199254740993,\\"a\\":2}";kind:="object";document:=documentText(t,source);domainDocument:=schema.NestedDocument(document)
+ input:=pgsid.PublicJsonWritesCheckInput{Document:pgsid.KnownCheckValue(&document),DomainDocument:pgsid.KnownCheckValue(&domainDocument),ExpectedKind:pgsid.KnownCheckValue(&kind),ExpectedSource:pgsid.KnownCheckValue(&source)}
  if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonWritesChecks);err!=nil{t.Fatal(err)}
  kind="array"
  if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonWritesChecks);err==nil{t.Fatal("wrong JSON shape accepted")}
- kind="object";value.Value.Kind=3;value.Value.Depth=10000;input.Document=pgsid.KnownCheckValue(value)
- if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonWritesChecks);err!=nil{t.Fatal("cached metadata was trusted",err)}
- for _,bad:=range []checkruntime.JsonValue{{},{Kind:checkruntime.JsonValueValue},{Kind:checkruntime.JsonValueValue,Value:checkruntime.JsonPayload{Source:"[1,]"}},{Kind:checkruntime.JsonValueValue,Value:checkruntime.JsonPayload{Source:string([]byte{255})}},{Kind:checkruntime.JsonValueValue,Value:checkruntime.JsonPayload{Source:string([]byte{0})}}}{
-  input.Document=pgsid.KnownCheckValue(bad)
-  for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicJsonWritesChecks(input); if e != nil {return nil}; return r}(){if check.Constraint!="domain_shape" && check.Result.Certain{t.Fatal("invalid JSON became definite",check)}}
- }
- input.Document=pgsid.NullCheckValue[checkruntime.JsonValue]()
+ kind="object"
+ input.Document=pgsid.NullCheckValue[*values.JSON[any]]()
  if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonWritesChecks);err==nil{t.Fatal("SQL NULL passed required presence")}
- input.Document=pgsid.KnownCheckValue(checkruntime.JsonValue{Kind:checkruntime.JsonValueError,Error:checkruntime.MakeSqlError(${parseInt('22003', 36)})})
- for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicJsonWritesChecks(input); if e != nil {panic(e)}; return r}(){if check.Constraint!="domain_shape" && (!check.Result.Certain || check.Result.Value.Error!="22003"){t.Fatal("JSON error lost",check)}}
+ input.Document=pgsid.KnownCheckValue[*values.JSON[any]](nil)
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonWritesChecks);err==nil{t.Fatal("nil document passed required presence")}
+ var null values.JSON[any];domainNull:=schema.NestedDocument(null);kind="null";source="null"
+ input.Document=pgsid.KnownCheckValue(&null);input.DomainDocument=pgsid.KnownCheckValue(&domainNull)
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonWritesChecks);err!=nil{t.Fatal("JSON null document was treated as SQL NULL",err)}
 }
 func TestJSONTextCastsBeforeWrites(t *testing.T){
  db:=&recordingJSONDB{};queries:=New(db);source:="[1, 2]";expected:=source;bypass:=false
@@ -107,8 +104,8 @@ func TestJSONTextCastsBeforeWrites(t *testing.T){
 }
 func TestJSONFieldValues(t *testing.T){
  key:="a";expected:="last";bypass:=false;source:=${JSON.stringify('{"a":"first","a":"last"}')}
- value:=checkruntime.MakeJsonValue(source)
- input:=pgsid.PublicJsonFieldWritesCheckInput{Document:pgsid.KnownCheckValue(value),FieldName:pgsid.KnownCheckValue(&key),ExpectedText:pgsid.KnownCheckValue(&expected),Bypass:pgsid.KnownCheckValue(&bypass)}
+ document:=documentText(t,source)
+ input:=pgsid.PublicJsonFieldWritesCheckInput{Document:pgsid.KnownCheckValue(&document),FieldName:pgsid.KnownCheckValue(&key),ExpectedText:pgsid.KnownCheckValue(&expected),Bypass:pgsid.KnownCheckValue(&bypass)}
  if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonFieldWritesChecks);err!=nil{t.Fatal(err)}
  expected="wrong"
  if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonFieldWritesChecks);err==nil{t.Fatal("wrong JSON field accepted")}
@@ -117,7 +114,7 @@ func TestJSONFieldValues(t *testing.T){
   {${JSON.stringify('{"a":1,"bad":"\\ud800"}')},"22P02"},
   {${JSON.stringify('{"a":1,"bad":"\\u00e9"}')},""},
  }{
-  input.Document=pgsid.KnownCheckValue(checkruntime.MakeJsonValue(c.source))
+  document=documentText(t,c.source)
   result:=func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicJsonFieldWritesChecks(input); if e != nil {panic(e)}; return r}()[0].Result
   if c.state=="" {if result.Certain{t.Fatal("missing encoding context became definite",result)}} else if !result.Certain||result.Value.Error!=c.state{t.Fatal("JSON decoding error lost",result)}
  }
@@ -127,6 +124,32 @@ func TestJSONFieldValues(t *testing.T){
  params:=InsertDocumentFieldParams{Document:&raw,FieldName:&key,ExpectedText:&expected,Bypass:&bypass}
  if err:=queries.InsertDocumentField(context.Background(),params);err!=nil||db.calls!=1{t.Fatal("raw JSON field input failed",err)}
  if db.arguments[0]!=params.Document||db.arguments[1]!=params.FieldName||db.arguments[2]!=params.ExpectedText||db.arguments[3]!=params.Bypass{t.Fatal("raw JSON extraction parameters changed")}
+}
+`,
+    )
+    await writeFile(
+      join(root, 'generated/queries/pgsid/pgx/json_payload_test.go'),
+      `package pgsidpgx
+import (
+ "testing"
+ checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
+)
+func TestCoercedJSONInputs(t *testing.T){
+ source:="{\\"a\\":9007199254740993,\\"a\\":2}";kind:="object";value:=checkruntime.MakeJsonValue(source)
+ input:=publicJsonWritesCheckInput{Document:KnownCheckValue(value),DomainDocument:KnownCheckValue(value),ExpectedKind:KnownCheckValue(&kind),ExpectedSource:KnownCheckValue(&source)}
+ if err:=ValidateCheckInputs(input,evaluatePublicJsonWritesChecks);err!=nil{t.Fatal(err)}
+ kind="array"
+ if err:=ValidateCheckInputs(input,evaluatePublicJsonWritesChecks);err==nil{t.Fatal("wrong JSON shape accepted")}
+ kind="object";value.Value.Kind=3;value.Value.Depth=10000;input.Document=KnownCheckValue(value)
+ if err:=ValidateCheckInputs(input,evaluatePublicJsonWritesChecks);err!=nil{t.Fatal("cached metadata was trusted",err)}
+ for _,bad:=range []checkruntime.JsonValue{{},{Kind:checkruntime.JsonValueValue},{Kind:checkruntime.JsonValueValue,Value:checkruntime.JsonPayload{Source:"[1,]"}},{Kind:checkruntime.JsonValueValue,Value:checkruntime.JsonPayload{Source:string([]byte{255})}},{Kind:checkruntime.JsonValueValue,Value:checkruntime.JsonPayload{Source:string([]byte{0})}}}{
+  input.Document=KnownCheckValue(bad)
+  for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicJsonWritesChecks(input); if e != nil {return nil}; return r}(){if check.Constraint!="domain_shape" && check.Result.Certain{t.Fatal("invalid JSON became definite",check)}}
+ }
+ input.Document=NullCheckValue[checkruntime.JsonValue]()
+ if err:=ValidateCheckInputs(input,evaluatePublicJsonWritesChecks);err==nil{t.Fatal("SQL NULL passed required presence")}
+ input.Document=KnownCheckValue(checkruntime.JsonValue{Kind:checkruntime.JsonValueError,Error:checkruntime.MakeSqlError(${parseInt('22003', 36)})})
+ for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicJsonWritesChecks(input); if e != nil {panic(e)}; return r}(){if check.Constraint!="domain_shape" && (!check.Result.Certain || check.Result.Value.Error!="22003"){t.Fatal("JSON error lost",check)}}
 }
 `,
     )

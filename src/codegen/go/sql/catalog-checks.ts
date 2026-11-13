@@ -58,7 +58,7 @@ import { portableCheckAtoms } from '../../shared/check-atom-support.js'
 import { checkUnknownMessage } from '../../shared/check-diagnostics.js'
 import { prepareCheckRustGroup } from '../../shared/check-rust-source.js'
 import { transpileCheckRustGoFiles } from '../../shared/check-rust-transpile.js'
-import { go, printGoFile, type GoExpression } from '../ast.js'
+import { go, printGoFile, type GoExpression, type GoField } from '../ast.js'
 import { normalizeGoImports } from '../imports.js'
 import { goName } from '../names.js'
 import {
@@ -73,6 +73,23 @@ import {
 } from '../type-mapping.js'
 import { goEvalBoolBackend } from './check.js'
 import { goCheckInputSource } from './check-inputs.js'
+import {
+  goCheckBaseOid,
+  goCheckPublicConversion,
+  goCheckPublicSource,
+  type GoCheckPublicConversion,
+} from './check-public-inputs.js'
+
+interface GoCheckInputField {
+  name: string
+  // The field as the evaluator reads it.
+  internal: GoField
+  // The field as callers supply it; the same field where no conversion stands between them.
+  exposed: GoField
+  portable?: string
+  conversion?: GoCheckPublicConversion
+  type?: GoExpression
+}
 import { goSqlBackend } from './registry.js'
 import { goSqlRuntime } from './runtime.js'
 
@@ -200,6 +217,13 @@ export function renderGoSchemaCheckArtifacts(
           })),
         ),
         config.sql.codegen?.checks,
+        // A jsonpath input is read by jsonpath input, which the regular expression engine serves.
+        tables.some((table) =>
+          table.columns.some((column) => catalogJsonpathType(column.typeName, column.typeOid, domains)),
+        ) ||
+          selectedDomains.some((domain) =>
+            catalogJsonpathType(domain.baseTypeName, domain.baseTypeOid, domains),
+          ),
       )
     : null
   if (rustGroup?.source && !rustImportPath)
@@ -327,62 +351,92 @@ export function renderGoSchemaCheckArtifacts(
           )
         : undefined
     const columns: readonly ColumnInfo[] = table?.columns ?? []
-    const fields = table
-      ? columns.map((column) => {
-          const portable = portableValueType(column.typeName, column.typeOid)
-          if (rustGroup?.source && portable)
-            return {
-              names: [goName(column.name)],
-              type: go.index(
-                go.ident('CheckOptional'),
-                go.selector(go.ident('checkruntime'), portable),
-              ),
-            }
-          const resolved = schemaTypes
-            ? resolveGoColumnType(table.schema, table.name, column, catalog, config, context)
-            : resolveGoPgType(
-                column.typeName,
-                typeConfig,
-                catalog,
-                table.schema,
-                column.typeOid,
-                localGoTypeContext(context),
-              )
-          imports.push(...resolved.imports)
-          const type = nullableGoType(resolved.type, storedGoColumnNotNull(column, catalog), config)
-          addGoNullImport(imports, config, context, type)
-          return { names: [goName(column.name)], type: go.index(go.ident('CheckOptional'), type) }
-        })
-      : domain
-        ? (() => {
-            const portable = portableValueType(domain.baseTypeName, domain.baseTypeOid)
-            if (rustGroup?.source && portable)
-              return [
-                {
-                  names: ['Value'],
-                  type: go.index(
-                    go.ident('CheckOptional'),
-                    go.selector(go.ident('checkruntime'), portable),
+    // Each input as the evaluator reads it, and as callers supply it: the public value, converted.
+    const input = (
+      name: string,
+      portable: string | null,
+      baseOid: number | undefined,
+      notNull: boolean,
+      resolve: () => ReturnType<typeof resolveGoPgType>,
+    ): GoCheckInputField => {
+      const names = [goName(name)]
+      const publicField = () => {
+        const resolved = resolve()
+        const type = nullableGoType(resolved.type, notNull, config)
+        return {
+          resolved,
+          type,
+          field: { names, type: go.index(go.ident('CheckOptional'), type) },
+        }
+      }
+      const use = (item: ReturnType<typeof publicField>) => {
+        imports.push(...item.resolved.imports)
+        addGoNullImport(imports, config, context, item.type)
+      }
+      if (rustGroup?.source && portable) {
+        const internal = {
+          names,
+          type: go.index(go.ident('CheckOptional'), go.selector(go.ident('checkruntime'), portable)),
+        }
+        // A check file without the value package's import path cannot name a value of it.
+        let exposed: ReturnType<typeof publicField>
+        try {
+          exposed = publicField()
+        } catch {
+          return { name, internal, exposed: internal, portable }
+        }
+        const conversion = goCheckPublicConversion(
+          portable,
+          baseOid,
+          exposed.resolved.type,
+          config.sql.codegen?.checks,
+        )
+        if (!conversion) return { name, internal, exposed: internal, portable }
+        use(exposed)
+        return { name, internal, exposed: exposed.field, portable, conversion, type: exposed.type }
+      }
+      const exposed = publicField()
+      use(exposed)
+      return { name, internal: exposed.field, exposed: exposed.field }
+    }
+    const fields: GoCheckInputField[] = table
+      ? columns.map((column) =>
+          input(
+            column.name,
+            portableValueType(column.typeName, column.typeOid),
+            goCheckBaseOid(column.typeOid, domains),
+            storedGoColumnNotNull(column, catalog),
+            () =>
+              schemaTypes
+                ? resolveGoColumnType(table.schema, table.name, column, catalog, config, context)
+                : resolveGoPgType(
+                    column.typeName,
+                    typeConfig,
+                    catalog,
+                    table.schema,
+                    column.typeOid,
+                    localGoTypeContext(context),
                   ),
-                },
-              ]
-            const resolved = resolveGoPgType(
-              `${domain.schema}.${domain.name}`,
-              typeConfig,
-              catalog,
-              domain.schema,
-              domain.oid,
-              schemaTypes ? context : localGoTypeContext(context),
-            )
-            imports.push(...resolved.imports)
-            const type = nullableGoType(
-              resolved.type,
+          ),
+        )
+      : domain
+        ? [
+            input(
+              'value',
+              portableValueType(domain.baseTypeName, domain.baseTypeOid),
+              goCheckBaseOid(domain.baseTypeOid, domains),
               storedGoDomainNotNull(domain, catalog),
-              config,
-            )
-            addGoNullImport(imports, config, context, type)
-            return [{ names: ['Value'], type: go.index(go.ident('CheckOptional'), type) }]
-          })()
+              () =>
+                resolveGoPgType(
+                  `${domain.schema}.${domain.name}`,
+                  typeConfig,
+                  catalog,
+                  domain.schema,
+                  domain.oid,
+                  schemaTypes ? context : localGoTypeContext(context),
+                ),
+            ),
+          ]
         : []
     return { ...group, fields, inputType: `${goName(group.name)}CheckInput` }
   })
@@ -831,6 +885,19 @@ export function renderGoSchemaCheckArtifacts(
     }),
   }))
   const resultType = go.ident('CheckEvaluation')
+  // Callers' public values are converted to the values the evaluator reads, which the unexported
+  // input and entry take.
+  const internalName = (name: string) => name.charAt(0).toLowerCase() + name.slice(1)
+  const conversions = emitted.flatMap(({ fields }) => fields.flatMap((field) => (field.conversion ? [field] : [])))
+  const publicConverters = new Set(conversions.flatMap((field) => field.conversion!.converters))
+  if (conversions.length) for (const name of ['checkPublic', 'checkPublicAt']) publicConverters.add(name)
+  if (conversions.some((field) => field.type!.kind === 'pointer')) publicConverters.add('checkPublicPointer')
+  if (
+    config.sql.codegen?.go?.nulls === 'structs' &&
+    conversions.some((field) => field.type!.kind === 'index')
+  )
+    publicConverters.add('checkPublicNull')
+  const publicPackages = new Set(conversions.flatMap((field) => field.conversion!.packages))
   const inputSource = goCheckInputSource(inputHelpers)
   if (inputSource.reflect) imports.push({ path: 'reflect' })
   const rustFiles = rustGroup?.source
@@ -866,6 +933,15 @@ export function renderGoSchemaCheckArtifacts(
         ...(rustInputAdapters.has('checkRustFloat4')
           ? [{ path: 'math' }, { path: 'reflect' }]
           : []),
+        ...(publicPackages.has('math') ? [{ path: 'math' }] : []),
+        ...(publicPackages.has('time') ? [{ path: 'time' }] : []),
+        ...(publicPackages.has('operations')
+          ? [{ path: `${rustImportPath}/checkrust/pg_catalog`, as: 'pg_catalog' }]
+          : []),
+        ...(['checkPublicText', 'checkPublicInternalChar'].some((name) => publicConverters.has(name)) ||
+        publicConverters.has('checkPublicNumeric')
+          ? [{ path: 'unicode/utf8' }]
+          : []),
         ...(rustGroup?.source ? [{ path: `${rustImportPath}/checkrust`, as: 'checkrust' }] : []),
         ...(rustGroup?.source
           ? [{ path: `${rustImportPath}/checkrust/checkruntime`, as: 'checkruntime' }]
@@ -873,6 +949,7 @@ export function renderGoSchemaCheckArtifacts(
       ]),
       source: `${goSqlRuntime([...inputSource.runtime, ...emitted.flatMap((group) => group.results.flatMap((result) => result.helpers))], packageName)}
 type CheckOptional[T any] struct { V T; Set bool; Null bool }
+${goCheckPublicSource(publicConverters)}
 func KnownCheckValue[T any](value T) CheckOptional[T] { return CheckOptional[T]{V: value, Set: true} }
 func NullCheckValue[T any]() CheckOptional[T] { return CheckOptional[T]{Set: true, Null: true} }
 
@@ -954,7 +1031,10 @@ func checkEvaluation(owner, constraint string, result EvalBool, unknownMessage s
   return evaluation
 }`,
       declarations: [
-        ...emitted.map(({ inputType, fields }) => go.type(inputType, go.struct(fields))),
+        ...emitted.flatMap(({ inputType, fields }) => [
+          go.type(internalName(inputType), go.struct(fields.map((field) => field.internal))),
+          go.type(inputType, go.struct(fields.map((field) => field.exposed))),
+        ]),
         go.type(
           'CheckEvaluation',
           go.struct([
@@ -964,10 +1044,72 @@ func checkEvaluation(owner, constraint string, result EvalBool, unknownMessage s
             { names: ['Message'], type: go.ident('string') },
           ]),
         ),
+        ...emitted.flatMap(({ name, kind, fields, inputType }) => {
+          const entry = `Evaluate${goName(name)}${kind === 'domain' ? 'DomainChecks' : 'Checks'}`
+          // Callers supply public values, each converted to the value the evaluator reads.
+          const value = (field: GoCheckInputField): GoExpression => {
+            const supplied = go.selector(go.ident('input'), goName(field.name))
+            if (!field.conversion) return supplied
+            const set =
+              field.type!.kind === 'pointer'
+                ? go.call(go.ident('checkPublicPointer'), [supplied])
+                : config.sql.codegen?.go?.nulls === 'structs' && field.type!.kind === 'index'
+                  ? go.call(go.ident('checkPublicNull'), [supplied])
+                  : supplied
+            const converted = go.index(
+              go.ident('CheckOptional'),
+              go.selector(go.ident('checkruntime'), field.portable!),
+            )
+            return go.call(go.ident('checkPublicAt'), [
+              go.address(go.ident('at')),
+              go.string(field.name),
+              {
+                kind: 'function-literal',
+                parameters: [],
+                results: [{ type: converted }],
+                body: [
+                  go.return(go.call(go.ident('checkPublic'), [set, field.conversion.convert])),
+                ],
+              },
+            ])
+          }
+          return [
+            go.function(
+              entry,
+              [{ names: ['input'], type: go.ident(inputType) }],
+              [
+                { names: ['results'], type: go.slice(resultType) },
+                { names: ['err'], type: go.ident('error') },
+              ],
+              [
+                ...(fields.some((field) => field.conversion)
+                  ? [
+                      go.assign([go.ident('at')], [go.string('')]),
+                      go.defer(
+                        go.call(go.ident('checkInputRecover'), [
+                          go.address(go.ident('at')),
+                          go.address(go.ident('results')),
+                          go.address(go.ident('err')),
+                        ]),
+                      ),
+                    ]
+                  : []),
+                go.return(
+                  go.call(go.ident(internalName(entry)), [
+                    go.composite(
+                      go.ident(internalName(inputType)),
+                      fields.map((field) => go.keyValue(goName(field.name), value(field))),
+                    ),
+                  ]),
+                ),
+              ],
+            ),
+          ]
+        }),
         ...emitted.map(({ name, kind, checks, results, inputType }) =>
           go.function(
-            `Evaluate${goName(name)}${kind === 'domain' ? 'DomainChecks' : 'Checks'}`,
-            [{ names: ['row'], type: go.ident(inputType) }],
+            internalName(`Evaluate${goName(name)}${kind === 'domain' ? 'DomainChecks' : 'Checks'}`),
+            [{ names: ['row'], type: go.ident(internalName(inputType)) }],
             [
               { names: ['results'], type: go.slice(resultType) },
               { names: ['err'], type: go.ident('error') },

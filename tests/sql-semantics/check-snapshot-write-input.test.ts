@@ -55,7 +55,6 @@ import (
  "errors"
  "testing"
  pgsid "example.com/pgsid-fixture/generated/queries/pgsid/pgx"
- checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
  schema "example.com/pgsid-fixture/generated/schema/public"
  "github.com/jackc/pgx/v5/pgconn"
 )
@@ -63,11 +62,11 @@ type recordingSnapshotDB struct {pgsid.DBTX;arguments []any;calls int;failure er
 func (db *recordingSnapshotDB) Exec(ctx context.Context,sql string,arguments ...any)(pgconn.CommandTag,error){db.calls++;db.arguments=arguments;return pgconn.NewCommandTag("INSERT 0 1"),db.failure}
 func TestRawParametersReachDatabase(t *testing.T){
  db:=&recordingSnapshotDB{};queries:=New(db)
- var position any=string("1:9:3,5");var domainPosition schema.NestedSnapshotEdge=string("1:9:3,5");wire:=[]byte{0}
+ var position string="1:9:3,5";var domainPosition schema.NestedSnapshotEdge="1:9:3,5";wire:=[]byte{0}
  params:=InsertSnapshotParams{Position:&position,DomainPosition:&domainPosition,Expected:&wire}
  if err:=queries.InsertSnapshot(context.Background(),params);err!=nil{t.Fatal(err)}
  if db.calls!=1 || len(db.arguments)!=3 || db.arguments[0]!=params.Position || db.arguments[1]!=params.DomainPosition || db.arguments[2]!=params.Expected{t.Fatal("raw snapshot parameters changed")}
- position=string("invalid");db.failure=errors.New("database snapshot input rejection")
+ position="invalid";db.failure=errors.New("database snapshot input rejection")
  if err:=queries.InsertSnapshot(context.Background(),params);!errors.Is(err,db.failure) || db.calls!=2{t.Fatal("database error not preserved",err)}
 }
 func TestRawTextEncodingDefersToDatabase(t *testing.T){
@@ -83,31 +82,58 @@ func TestRawTextEncodingDefersToDatabase(t *testing.T){
   if db.arguments[0]!=params.SourceText || db.arguments[1]!=params.ExpectedText{t.Fatal("raw text parameters changed")}
  }
 }
+func TestPublicSnapshotInputs(t *testing.T){
+ wire,err:=hex.DecodeString("000000020000000000000001000000000000000900000000000000030000000000000005");if err!=nil{t.Fatal(err)}
+ position:="1:9:3,5";domainPosition:=schema.NestedSnapshotEdge("1:9:3,3,5")
+ input:=pgsid.PublicSnapshotWritesCheckInput{Position:pgsid.KnownCheckValue(&position),DomainPosition:pgsid.KnownCheckValue(&domainPosition),Expected:pgsid.KnownCheckValue(&wire)}
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicSnapshotWritesChecks);err!=nil{t.Fatal(err)}
+ wrong:=[]byte{0};input.Expected=pgsid.KnownCheckValue(&wrong)
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicSnapshotWritesChecks);err==nil{t.Fatal("wrong snapshot bytes accepted")}
+ input.Expected=pgsid.KnownCheckValue(&wire)
+ for _,bad:=range []string{"1:9:5,3","1:9:9","9:1:","invalid"}{
+  input.Position=pgsid.KnownCheckValue(&bad)
+  if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicSnapshotWritesChecks);err==nil{t.Fatal("snapshot input rejected by the server was accepted",bad)}
+ }
+ input.Position=pgsid.NullCheckValue[*string]()
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicSnapshotWritesChecks);err==nil{t.Fatal("NULL snapshot passed required presence")}
+ input.Position=pgsid.KnownCheckValue[*string](nil)
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicSnapshotWritesChecks);err==nil{t.Fatal("nil snapshot passed required presence")}
+}
+`,
+      )
+      await writeFile(
+        join(root, 'generated/queries/pgsid/pgx/snapshot_payload_test.go'),
+        `package pgsidpgx
+import (
+ "encoding/hex"
+ "testing"
+ checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
+)
 func TestCoercedSnapshotInputs(t *testing.T){
  wire,err:=hex.DecodeString("000000020000000000000001000000000000000900000000000000030000000000000005");if err!=nil{t.Fatal(err)}
  words:=[]checkruntime.SnapshotXid{{Bits:3},{Bits:5}}
  value:=checkruntime.MakeSnapshotValue(checkruntime.SnapshotPayload{Xmin:1,Xmax:9,Xip:words})
  words[0].Bits=7
- input:=pgsid.PublicSnapshotWritesCheckInput{Position:pgsid.KnownCheckValue(value),DomainPosition:pgsid.KnownCheckValue(value),Expected:pgsid.KnownCheckValue(&wire)}
- if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicSnapshotWritesChecks);err!=nil{t.Fatal(err)}
- wrong:=[]byte{0};input.Expected=pgsid.KnownCheckValue(&wrong)
- if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicSnapshotWritesChecks);err==nil{t.Fatal("wrong snapshot bytes accepted")}
- input.Expected=pgsid.KnownCheckValue(&wire)
+ input:=publicSnapshotWritesCheckInput{Position:KnownCheckValue(value),DomainPosition:KnownCheckValue(value),Expected:KnownCheckValue(&wire)}
+ if err:=ValidateCheckInputs(input,evaluatePublicSnapshotWritesChecks);err!=nil{t.Fatal(err)}
+ wrong:=[]byte{0};input.Expected=KnownCheckValue(&wrong)
+ if err:=ValidateCheckInputs(input,evaluatePublicSnapshotWritesChecks);err==nil{t.Fatal("wrong snapshot bytes accepted")}
+ input.Expected=KnownCheckValue(&wire)
  for _,bad:=range []checkruntime.SnapshotValue{
   {},{Kind:checkruntime.SnapshotValueValue},
   {Kind:checkruntime.SnapshotValueValue,Value:checkruntime.SnapshotPayload{Xmin:1,Xmax:9,Xip:[]checkruntime.SnapshotXid{{Bits:5},{Bits:3}}}},
  }{
-  input.Position=pgsid.KnownCheckValue(bad)
-  for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicSnapshotWritesChecks(input); if e != nil {return nil}; return r}(){if (check.Constraint=="position_wire" || check.Constraint=="position_present") && check.Result.Certain{t.Fatal("invalid snapshot became definite",check)}}
+  input.Position=KnownCheckValue(bad)
+  for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicSnapshotWritesChecks(input); if e != nil {return nil}; return r}(){if (check.Constraint=="position_wire" || check.Constraint=="position_present") && check.Result.Certain{t.Fatal("invalid snapshot became definite",check)}}
  }
- input.Position=pgsid.NullCheckValue[checkruntime.SnapshotValue]()
- if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicSnapshotWritesChecks);err==nil{t.Fatal("NULL snapshot passed required presence")}
- input.Position=pgsid.KnownCheckValue(checkruntime.SnapshotValue{Kind:checkruntime.SnapshotValueError,Error:checkruntime.MakeSqlError(${parseInt('22003', 36)})})
- for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicSnapshotWritesChecks(input); if e != nil {panic(e)}; return r}(){if check.Constraint=="position_wire" && (!check.Result.Certain || check.Result.Value.Error!="22003"){t.Fatal("snapshot error lost",check)}}
+ input.Position=NullCheckValue[checkruntime.SnapshotValue]()
+ if err:=ValidateCheckInputs(input,evaluatePublicSnapshotWritesChecks);err==nil{t.Fatal("NULL snapshot passed required presence")}
+ input.Position=KnownCheckValue(checkruntime.SnapshotValue{Kind:checkruntime.SnapshotValueError,Error:checkruntime.MakeSqlError(${parseInt('22003', 36)})})
+ for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicSnapshotWritesChecks(input); if e != nil {panic(e)}; return r}(){if check.Constraint=="position_wire" && (!check.Result.Certain || check.Result.Value.Error!="22003"){t.Fatal("snapshot error lost",check)}}
  binaryWire,err:=hex.DecodeString("00000001000000000000000100000000000000090000000000000009");if err!=nil{t.Fatal(err)}
  binaryValue:=checkruntime.MakeSnapshotValue(checkruntime.SnapshotPayload{Xmin:1,Xmax:9,Xip:[]checkruntime.SnapshotXid{{Bits:9}}})
- input.Position=pgsid.KnownCheckValue(binaryValue);input.DomainPosition=pgsid.KnownCheckValue(binaryValue);input.Expected=pgsid.KnownCheckValue(&binaryWire)
- if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicSnapshotWritesChecks);err!=nil{t.Fatal("SQL-coerced binary endpoint snapshot rejected",err)}
+ input.Position=KnownCheckValue(binaryValue);input.DomainPosition=KnownCheckValue(binaryValue);input.Expected=KnownCheckValue(&binaryWire)
+ if err:=ValidateCheckInputs(input,evaluatePublicSnapshotWritesChecks);err!=nil{t.Fatal("SQL-coerced binary endpoint snapshot rejected",err)}
 }
 `,
       )

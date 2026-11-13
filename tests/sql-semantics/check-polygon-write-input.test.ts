@@ -58,7 +58,6 @@ import (
  "errors"
  "testing"
  pgsid "example.com/pgsid-fixture/generated/queries/pgsid/pgx"
- checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
  schema "example.com/pgsid-fixture/generated/schema/public"
  values "example.com/pgsid-fixture/generated/pgsid"
  "github.com/jackc/pgx/v5/pgconn"
@@ -86,32 +85,55 @@ func TestRawParametersReachDatabase(t *testing.T) {
  db.failure=errors.New("database CHECK rejection")
  if err:=queries.InsertPosition(context.Background(),params);!errors.Is(err,db.failure) {t.Fatal("database rejection was not preserved",err)}
 }
-func TestPortablePayloadStillValidates(t *testing.T) {
+func TestPublicValuesStillValidate(t *testing.T) {
  wire:=[]byte{0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0x40,0x08,0,0,0,0,0,0,0x40,0x10,0,0,0,0,0,0}
- input:=pgsid.PublicPolygonWritesCheckInput{
-  Position:pgsid.KnownCheckValue(checkruntime.MakePolygonValue(checkruntime.PolygonPayload{Points:[]checkruntime.PointPayload{{X:0,Y:0,WireKnown:true},{X:0x4008000000000000,Y:0x4010000000000000,WireKnown:true}}})),
-  DomainPosition:pgsid.KnownCheckValue(checkruntime.MakePolygonValue(checkruntime.PolygonPayload{Points:[]checkruntime.PointPayload{{X:0,Y:0,WireKnown:true},{X:0x4008000000000000,Y:0x4010000000000000,WireKnown:true}}})),
-  Expected:pgsid.KnownCheckValue(&wire),
- }
+ position:=values.Polygon{Points:[]values.Point{{},{X:3,Y:4}}}
+ domainPosition:=schema.NestedEdge(position)
+ input:=pgsid.PublicPolygonWritesCheckInput{Position:pgsid.KnownCheckValue(&position),DomainPosition:pgsid.KnownCheckValue(&domainPosition),Expected:pgsid.KnownCheckValue(&wire)}
  if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicPolygonWritesChecks);err!=nil {t.Fatal(err)}
  wrong:=[]byte{0}
  input.Expected=pgsid.KnownCheckValue(&wrong)
- if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicPolygonWritesChecks);err==nil {t.Fatal("portable polygon CHECK did not reject wrong wire bytes")}
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicPolygonWritesChecks);err==nil {t.Fatal("public polygon CHECK did not reject wrong wire bytes")}
+ moved:=values.Polygon{Points:[]values.Point{{X:1},{X:3,Y:4}}}
  input.Expected=pgsid.KnownCheckValue(&wire)
+ input.Position=pgsid.KnownCheckValue(&moved)
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicPolygonWritesChecks);err==nil {t.Fatal("changed polygon coordinate kept the old wire bytes")}
+}
+`,
+    )
+    await writeFile(
+      join(root, 'generated/queries/pgsid/pgx/polygon_payload_test.go'),
+      `package pgsidpgx
+import (
+ "testing"
+ checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
+)
+func TestStoredPayloadStillValidates(t *testing.T) {
+ wire:=[]byte{0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0x40,0x08,0,0,0,0,0,0,0x40,0x10,0,0,0,0,0,0}
+ input:=publicPolygonWritesCheckInput{
+  Position:KnownCheckValue(checkruntime.MakePolygonValue(checkruntime.PolygonPayload{Points:[]checkruntime.PointPayload{{X:0,Y:0,WireKnown:true},{X:0x4008000000000000,Y:0x4010000000000000,WireKnown:true}}})),
+  DomainPosition:KnownCheckValue(checkruntime.MakePolygonValue(checkruntime.PolygonPayload{Points:[]checkruntime.PointPayload{{X:0,Y:0,WireKnown:true},{X:0x4008000000000000,Y:0x4010000000000000,WireKnown:true}}})),
+  Expected:KnownCheckValue(&wire),
+ }
+ if err:=ValidateCheckInputs(input,evaluatePublicPolygonWritesChecks);err!=nil {t.Fatal(err)}
+ wrong:=[]byte{0}
+ input.Expected=KnownCheckValue(&wrong)
+ if err:=ValidateCheckInputs(input,evaluatePublicPolygonWritesChecks);err==nil {t.Fatal("portable polygon CHECK did not reject wrong wire bytes")}
+ input.Expected=KnownCheckValue(&wire)
  input.Position.V.Value.Points[0].WireKnown=false
  wireChecks:=0
- for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicPolygonWritesChecks(input); if e != nil {return nil}; return r}() {
+ for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicPolygonWritesChecks(input); if e != nil {return nil}; return r}() {
   if check.Constraint=="position_wire" {wireChecks++;if check.Result.Certain {t.Fatal("unavailable polygon wire precision was treated as known")}}
  }
  if wireChecks!=1 {t.Fatal("missing polygon wire constraint")}
  input.Position.V.Value.Points[0].WireKnown=true
  input.Position.V.Value.Points[0].X=0x3ff0000000000000
- for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicPolygonWritesChecks(input); if e != nil {return nil}; return r}() {
+ for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicPolygonWritesChecks(input); if e != nil {return nil}; return r}() {
   if check.Constraint=="position_wire" && check.Result.Certain {t.Fatal("inconsistent cached bounds were accepted")}
  }
  input.Position.V.Value.Bounds=checkruntime.BoxUnknown()
  wireChecks=0
- for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicPolygonWritesChecks(input); if e != nil {panic(e)}; return r}() {
+ for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicPolygonWritesChecks(input); if e != nil {panic(e)}; return r}() {
   if check.Constraint=="position_wire" {wireChecks++;if !check.Result.Certain || !check.Result.Value.Valid || check.Result.Value.Value {t.Fatal("changed polygon coordinate did not produce its definite wire comparison")}}
  }
  if wireChecks!=1 {t.Fatal("missing polygon wire constraint")}

@@ -58,7 +58,6 @@ import (
  "errors"
  "testing"
  pgsid "example.com/pgsid-fixture/generated/queries/pgsid/pgx"
- checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
  schema "example.com/pgsid-fixture/generated/schema/public"
  values "example.com/pgsid-fixture/generated/pgsid"
  "github.com/jackc/pgx/v5/pgconn"
@@ -86,21 +85,44 @@ func TestRawParametersReachDatabase(t *testing.T) {
  db.failure=errors.New("database CHECK rejection")
  if err:=queries.InsertPosition(context.Background(),params);!errors.Is(err,db.failure) {t.Fatal("database rejection was not preserved",err)}
 }
-func TestPortablePayloadStillValidates(t *testing.T) {
+func TestPublicValuesStillValidate(t *testing.T) {
  wire:=[]byte{0x3f,0xf0,0,0,0,0,0,0,0xbf,0xf0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
- input:=pgsid.PublicLineWritesCheckInput{
-  Position:pgsid.KnownCheckValue(checkruntime.MakeLineBits(0x3ff0000000000000,-4616189618054758400,0)),
-  DomainPosition:pgsid.KnownCheckValue(checkruntime.MakeLineBits(0x3ff0000000000000,-4616189618054758400,0)),
-  Expected:pgsid.KnownCheckValue(&wire),
- }
+ position:=values.Line{A:1,B:-1}
+ domainPosition:=schema.NestedAxis(position)
+ input:=pgsid.PublicLineWritesCheckInput{Position:pgsid.KnownCheckValue(&position),DomainPosition:pgsid.KnownCheckValue(&domainPosition),Expected:pgsid.KnownCheckValue(&wire)}
  if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicLineWritesChecks);err!=nil {t.Fatal(err)}
  wrong:=[]byte{0}
  input.Expected=pgsid.KnownCheckValue(&wrong)
- if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicLineWritesChecks);err==nil {t.Fatal("portable line CHECK did not reject wrong wire bytes")}
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicLineWritesChecks);err==nil {t.Fatal("public line CHECK did not reject wrong wire bytes")}
+ degenerate:=values.Line{C:1}
  input.Expected=pgsid.KnownCheckValue(&wire)
+ input.Position=pgsid.KnownCheckValue(&degenerate)
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicLineWritesChecks);err==nil {t.Fatal("line with zero A and B was accepted")}
+}
+`,
+    )
+    await writeFile(
+      join(root, 'generated/queries/pgsid/pgx/line_payload_test.go'),
+      `package pgsidpgx
+import (
+ "testing"
+ checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
+)
+func TestStoredPayloadStillValidates(t *testing.T) {
+ wire:=[]byte{0x3f,0xf0,0,0,0,0,0,0,0xbf,0xf0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+ input:=publicLineWritesCheckInput{
+  Position:KnownCheckValue(checkruntime.MakeLineBits(0x3ff0000000000000,-4616189618054758400,0)),
+  DomainPosition:KnownCheckValue(checkruntime.MakeLineBits(0x3ff0000000000000,-4616189618054758400,0)),
+  Expected:KnownCheckValue(&wire),
+ }
+ if err:=ValidateCheckInputs(input,evaluatePublicLineWritesChecks);err!=nil {t.Fatal(err)}
+ wrong:=[]byte{0}
+ input.Expected=KnownCheckValue(&wrong)
+ if err:=ValidateCheckInputs(input,evaluatePublicLineWritesChecks);err==nil {t.Fatal("portable line CHECK did not reject wrong wire bytes")}
+ input.Expected=KnownCheckValue(&wire)
  input.Position.V.Value.WireKnown=false
  wireChecks:=0
- for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicLineWritesChecks(input); if e != nil {return nil}; return r}() {
+ for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicLineWritesChecks(input); if e != nil {return nil}; return r}() {
   if check.Constraint=="position_wire" {wireChecks++;if check.Result.Certain {t.Fatal("unavailable line wire precision was treated as known")}}
  }
  if wireChecks!=1 {t.Fatal("missing line wire constraint")}
@@ -108,7 +130,7 @@ func TestPortablePayloadStillValidates(t *testing.T) {
  input.Position.V.Value.WireKnown=true
  input.Position.V.Value.A=0
  input.Position.V.Value.B=0
- for _,check:=range func() []pgsid.CheckEvaluation {r, e := pgsid.EvaluatePublicLineWritesChecks(input); if e != nil {return nil}; return r}() {
+ for _,check:=range func() []CheckEvaluation {r, e := evaluatePublicLineWritesChecks(input); if e != nil {return nil}; return r}() {
   if check.Constraint=="position_wire" {wireChecks++;if check.Result.Certain {t.Fatal("invalid line coefficient pair was treated as a known payload")}}
  }
  if wireChecks!=1 {t.Fatal("missing line wire constraint")}
