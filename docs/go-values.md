@@ -39,6 +39,31 @@ Each type also writes and reads a text form, which JSON encoding uses: the
 infinities as `infinity` and `-infinity`, timestamps and dates in RFC 3339
 layouts, and intervals as PostgreSQL's `iso_8601` interval style writes them.
 
+## Clocks
+
+A time is a clock reading from midnight to 24:00:00, which the server allows,
+and a time with time zone adds the offset east of UTC it was read at, within the
+fifteen hours fifty-nine minutes and fifty-nine seconds the server keeps. Both
+are built only through constructors that refuse anything outside those bounds,
+and both write and read the server's text for them. pgx registers no codec for
+time with time zone, so that value moves as its text.
+
+## Geometric shapes
+
+Points, lines, segments, boxes, paths, polygons and circles are structs of
+float8 coordinates, which every pair of floats is, so their fields are their
+values; the server refuses a shape its input does, such as a line whose A and B
+are both zero, and keeps a box with its upper right corner first. pgx moves them
+in binary, and over the simple protocol as the text pgx writes for them.
+
+## Text values
+
+Types whose public value is the server's text, such as network addresses, text
+search queries, ACL items and log sequence numbers, are strings, and the small
+transaction and command identifiers are unsigned integers. A text search vector
+is a string type of its own, since pgx reads that type in binary, which only
+its own value takes: the text is rendered from it, and parsed back to be sent.
+
 ## Ranges
 
 A range is generic over the Go type of its subtype's values and holds either

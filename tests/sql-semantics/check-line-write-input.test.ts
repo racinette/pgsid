@@ -60,6 +60,7 @@ import (
  pgsid "example.com/pgsid-fixture/generated/queries/pgsid/pgx"
  checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
  schema "example.com/pgsid-fixture/generated/schema/public"
+ values "example.com/pgsid-fixture/generated/pgsid"
  "github.com/jackc/pgx/v5/pgconn"
 )
 type recordingLineDB struct {
@@ -76,8 +77,8 @@ func (db *recordingLineDB) Exec(ctx context.Context, sql string, arguments ...an
 func TestRawParametersReachDatabase(t *testing.T) {
  db:=&recordingLineDB{}
  queries:=New(db)
- var position any="{1,-1,0}"
- var domainPosition schema.NestedAxis="{1,-1,0}"
+ position:=values.Line{A:1,B:-1,C:0}
+ domainPosition:=schema.NestedAxis(position)
  wire:=[]byte{0x3f,0xf0,0,0,0,0,0,0,0xbf,0xf0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
  params:=InsertPositionParams{Position:&position,DomainPosition:&domainPosition,Expected:&wire}
  if err:=queries.InsertPosition(context.Background(),params);err!=nil {t.Fatal(err)}

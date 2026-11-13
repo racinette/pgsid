@@ -58,7 +58,7 @@ import (
 type recordingPathDB struct { pgsid.DBTX; arguments []any; calls int; failure error }
 func(db *recordingPathDB)Exec(ctx context.Context,sql string,arguments ...any)(pgconn.CommandTag,error){db.calls++;db.arguments=arguments;return pgconn.NewCommandTag("INSERT 0 1"),db.failure}
 func TestRawPathAssignment(t *testing.T){
- db:=&recordingPathDB{};queries:=New(db);var raw any="$.a";expected:="deliberately wrong"
+ db:=&recordingPathDB{};queries:=New(db);raw:="$.a";expected:="deliberately wrong"
  params:=InsertPathParams{Path:&raw,Expected:&expected}
  if err:=queries.InsertPath(context.Background(),params);err!=nil||db.calls!=1{t.Fatal(err)}
  if len(db.arguments)!=2||db.arguments[0]!=params.Path||db.arguments[1]!=params.Expected{t.Fatal("raw path parameters changed")}

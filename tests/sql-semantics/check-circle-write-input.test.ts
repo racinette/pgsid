@@ -60,6 +60,7 @@ import (
  pgsid "example.com/pgsid-fixture/generated/queries/pgsid/pgx"
  checkruntime "example.com/pgsid-fixture/generated/queries/pgsid/pgx/checkrust/checkruntime"
  schema "example.com/pgsid-fixture/generated/schema/public"
+ values "example.com/pgsid-fixture/generated/pgsid"
  "github.com/jackc/pgx/v5/pgconn"
 )
 type recordingCircleDB struct {
@@ -76,8 +77,8 @@ func (db *recordingCircleDB) Exec(ctx context.Context, sql string, arguments ...
 func TestRawParametersReachDatabase(t *testing.T) {
  db:=&recordingCircleDB{}
  queries:=New(db)
- var position any="<(0,0),3>"
- var domainPosition schema.NestedEdge="<(0,0),3>"
+ position:=values.Circle{Center:values.Point{},Radius:3}
+ domainPosition:=schema.NestedEdge(position)
  wire:=[]byte{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0x40,0x08,0,0,0,0,0,0}
  params:=InsertPositionParams{Position:&position,DomainPosition:&domainPosition,Expected:&wire}
  if err:=queries.InsertPosition(context.Background(),params);err!=nil {t.Fatal(err)}

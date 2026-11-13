@@ -70,21 +70,51 @@ const defaultTypes: Readonly<Record<string, { type: string; imports?: GoTypeImpo
   oid: { type: 'uint32' },
   refcursor: { type: 'string' },
   text: { type: 'string' },
-  time: { type: 'string' },
-  timetz: { type: 'string' },
   uuid: { type: 'string' },
   varbit: { type: 'string' },
   varchar: { type: 'string' },
   xml: { type: 'string' },
+  // Types whose public value is their text, as the server writes it.
+  aclitem: { type: 'string' },
+  jsonpath: { type: 'string' },
+  pg_lsn: { type: 'string' },
+  pg_snapshot: { type: 'string' },
+  tid: { type: 'string' },
+  tsquery: { type: 'string' },
+  txid_snapshot: { type: 'string' },
+  regclass: { type: 'string' },
+  regcollation: { type: 'string' },
+  regconfig: { type: 'string' },
+  regdictionary: { type: 'string' },
+  regnamespace: { type: 'string' },
+  regoper: { type: 'string' },
+  regoperator: { type: 'string' },
+  regproc: { type: 'string' },
+  regprocedure: { type: 'string' },
+  regrole: { type: 'string' },
+  regtype: { type: 'string' },
+  cid: { type: 'uint32' },
+  xid: { type: 'uint32' },
+  xid8: { type: 'uint64' },
 }
 
 // Types the pgsid package owns, so that every value PostgreSQL holds, infinities included, has
 // one.
 const pgsidTypes: Readonly<Record<string, string>> = {
+  box: 'Box',
+  circle: 'Circle',
   date: 'Date',
   interval: 'Interval',
+  line: 'Line',
+  lseg: 'Lseg',
+  path: 'Path',
+  point: 'Point',
+  polygon: 'Polygon',
+  time: 'Time',
   timestamp: 'Timestamp',
   timestamptz: 'Timestamptz',
+  timetz: 'Timetz',
+  tsvector: 'Tsvector',
 }
 
 const aliases: Readonly<Record<string, string>> = {
@@ -99,6 +129,8 @@ const aliases: Readonly<Record<string, string>> = {
   smallint: 'int2',
   'timestamp with time zone': 'timestamptz',
   'timestamp without time zone': 'timestamp',
+  'time with time zone': 'timetz',
+  'time without time zone': 'time',
 }
 
 export function resolveGoColumnType(
