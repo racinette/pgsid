@@ -43,7 +43,7 @@ function pgsidChecked<S extends z.ZodType>(schema: S, evaluate: (row: never) => 
   })
 }`
 
-const parsedHelpers = (): ts.Statement[] => {
+export const parsedHelpers = (): ts.Statement[] => {
   const parsed = ts.createSourceFile('zod.ts', helpers, ts.ScriptTarget.ES2022, true)
   const synthesize = (node: ts.Node): void => {
     ts.forEachChild(node, synthesize)
@@ -53,14 +53,14 @@ const parsedHelpers = (): ts.Statement[] => {
   return [...parsed.statements]
 }
 
-const z = (member: string, args: ts.Expression[] = []): ts.Expression =>
+export const z = (member: string, args: ts.Expression[] = []): ts.Expression =>
   factory.createCallExpression(
     factory.createPropertyAccessExpression(identifier('z'), member),
     undefined,
     args,
   )
 
-const method = (target: ts.Expression, member: string, args: ts.Expression[] = []) =>
+export const method = (target: ts.Expression, member: string, args: ts.Expression[] = []) =>
   factory.createCallExpression(
     factory.createPropertyAccessExpression(target, member),
     undefined,
@@ -79,7 +79,7 @@ const literal = (kind: OutputLiterals['kind'], value: string): ts.Expression => 
   return negative ? factory.createPrefixUnaryExpression(ts.SyntaxKind.MinusToken, number) : number
 }
 
-const literalSchema = (literals: OutputLiterals): ts.Expression =>
+export const literalSchema = (literals: OutputLiterals): ts.Expression =>
   literals.kind === 'string'
     ? z('enum', [
         factory.createArrayLiteralExpression(

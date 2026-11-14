@@ -155,6 +155,8 @@ export const queriesCodegenSchema = z
   .object({
     exclude: z.array(z.string()).default([]),
     out: z.record(z.string(), queryOutEntrySchema).default({}),
+    // zod v4 schemas of each query's parameters and rows, in its runtime module.
+    zod: z.boolean().default(false),
   })
   .strict()
   .default({})

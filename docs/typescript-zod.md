@@ -38,3 +38,17 @@ that read it with the server's error. Refinements run once the fields parse.
 The inferred types are the flat field types; the case unions CHECKs derive
 (see `check-unions.md`) are checked by the refinement, not carried by zod's
 types.
+
+## Query parameters and rows
+
+With `queries: { zod: true }`, each query's runtime module also exports
+`<query>ParamsSchema` and `<query>RowSchema`. A parameter list is an object
+schema keyed by the parameters' names, or a readonly tuple where the query
+numbers its parameters; a row is an object schema keyed by its columns. Their
+fields follow the same rule as the table fields: a CHECK literal set or an
+enum's labels as literals, booleans, safe integers, bigints and text natively
+where the field's type is that plain type, and every other shape checked by the
+query codec's encoder and typed as the generated field, so the inferred types
+are the generated parameter and row types. A column that is always NULL is
+`z.null()`. The CHECKs a query's writes meet are not part of the parameter
+schema; the generated function evaluates them before it sends the query.

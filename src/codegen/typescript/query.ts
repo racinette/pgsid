@@ -15,6 +15,9 @@ import { checkInputCases, planCheckInputs, type CheckInputPlan } from '../shared
 import type { CheckCaseCatalog } from '../../query/types.js'
 import { checkTriggerWarning } from '../shared/check-trigger-warning.js'
 import { renderTypescriptSchemaCheckArtifacts, type CheckRustParts } from './sql/catalog-checks.js'
+import { queryZodSchema } from './query-zod.js'
+import type { OutputLiterals } from '../../query/check-cases.js'
+import { parsedHelpers } from './zod.js'
 import {
   typescriptDomainBase,
   typescriptPublicCheckInput,
@@ -120,6 +123,8 @@ interface RenderedQuery {
   codecNames: ReadonlySet<string>
   hasValidators: boolean
   checkInputs: readonly CheckInputPlan[]
+  // The query's zod schemas call the codecs' acceptance helper, or name zod at all.
+  zod: { used: boolean; accepts: boolean }
 }
 
 interface RenderedValidator {
@@ -282,8 +287,21 @@ export function renderTypescriptQueryArtifacts(
   // caller sending one makes it with that module too.
   const readsNumeric = emitsCodec('decodeNumeric')
   const usesNumeric = readsNumeric || emitsCodec('encodeNumeric')
+  const zodImport = rendered.some((query) => query.zod.used)
+    ? [
+        factory.createImportDeclaration(
+          undefined,
+          factory.createImportClause(false, undefined, factory.createNamedImports([factory.createImportSpecifier(false, undefined, factory.createIdentifier('z'))])),
+          factory.createStringLiteral('zod/v4'),
+        ),
+      ]
+    : []
+  const zodHelpers = rendered.some((query) => query.zod.accepts)
+    ? parsedHelpers().filter((statement) => ts.isFunctionDeclaration(statement) && statement.name?.text === 'pgsidAccepts')
+    : []
   const runtime = withTypescriptJsonValue(
     printFile([
+      ...zodImport,
       ...(typeNames.length
         ? [namedImport(typeNames, options.typesModuleSpecifier ?? './types.js', true)]
         : []),
@@ -364,6 +382,7 @@ export function renderTypescriptQueryArtifacts(
 }`)
         : []),
       ...codecs,
+      ...zodHelpers,
       ...rendered.flatMap((query) => query.runtimeDeclarations),
       ...rendered.map((query) => query.wrapper),
     ]),
@@ -795,7 +814,56 @@ const renderQuery = (
       ...checkCaseRefinements(outputNames, baseTypes, analysis.contract.outputCases?.groups ?? []),
     ]),
   ]
+  // An enum's labels, which a zod field takes as its literals.
+  const enumLiterals = (type: string | undefined): OutputLiterals | undefined => {
+    const labels = options.catalog?.enums.find((item) =>
+      [`${item.schema}.${item.name}`, item.name, `"${item.schema}"."${item.name}"`, `${item.schema}."${item.name}"`].includes(type ?? ''),
+    )?.values
+    return labels ? { kind: 'string', values: labels } : undefined
+  }
+  // zod schemas of the parameters and the row, where the project asks for them.
+  const zodSchemas = config.sql.codegen?.typescript?.queries.zod && options.emitRuntime !== false
+    ? [
+        ...(analysis.contract.params.length
+          ? [
+              queryZodSchema(
+                `${functionName}ParamsSchema`,
+                `${queryName}Params`,
+                analysis.contract.params.map((param, index) => {
+                  const name = analysis.query.definition.parameters.find((item) => item.index === index + 1)?.name
+                  return {
+                    key: name ?? index,
+                    codec: parameterCodecs[index]!,
+                    base: parameterBases[index]!,
+                    notNull: param.notNull,
+                    literals: parameterCases?.literals[index] ?? enumLiterals(parameterTypes[index]),
+                  }
+                }),
+                analysis.query.definition.parameters.length === 0,
+              ),
+            ]
+          : []),
+        ...(analysis.query.definition.command === 'one' || analysis.query.definition.command === 'many'
+          ? [
+              queryZodSchema(
+                `${functionName}RowSchema`,
+                `${queryName}Row`,
+                outputCodecs.map(({ name, codec }, index) => ({
+                  key: name,
+                  codec,
+                  base: baseTypes[index]!,
+                  notNull: analysis.contract.outputs[index]?.notNull ?? false,
+                  alwaysNull: analysis.contract.outputs[index]?.alwaysNull ?? false,
+                  literals: analysis.contract.outputCases?.literals[index] ?? enumLiterals(outputTypes[index]),
+                })),
+                false,
+              ),
+            ]
+          : []),
+      ]
+    : []
   const runtimeDeclarations: ts.Statement[] = [
+    ...zodSchemas.map((schema) => schema.statement),
     factory.createVariableStatement(
       [exportModifier],
       factory.createVariableDeclarationList(
@@ -823,7 +891,9 @@ const renderQuery = (
       ...parameterCodecs.flatMap((codec) => [...typescriptCodecNames(codec, 'encode')]),
       ...outputCodecs.flatMap(({ codec }) => [...typescriptCodecNames(codec, 'decode')]),
       ...(validators.some((validator) => validator.container) ? ['checkedJson'] : []),
+      ...zodSchemas.flatMap((schema) => schema.encoders),
     ]),
+    zod: { used: zodSchemas.length > 0, accepts: zodSchemas.some((schema) => schema.accepts) },
     wrapper: renderWrapper(
       analysis,
       queryName,
