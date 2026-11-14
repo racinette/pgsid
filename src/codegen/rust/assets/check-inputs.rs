@@ -316,3 +316,150 @@ pub fn internal_char(value: &super::super::Char) -> InternalCharValue {
 pub fn enumeration(ordinal: i32) -> EnumValue {
     make_enum_value(ordinal)
 }
+
+/// The server reads a container's parts in order: the first part its input refuses fails the whole
+/// value, and an undecided part leaves it undecided, since that part may be the one refused.
+pub struct Parts {
+    fault: Option<Option<SqlError>>,
+}
+pub fn parts() -> Parts {
+    Parts { fault: None }
+}
+fn fail(parts: &mut Parts, fault: Option<SqlError>) {
+    if parts.fault.is_none() {
+        parts.fault = Some(fault);
+    }
+}
+pub fn part(parts: &mut Parts, element: ArrayElement) -> ArrayElement {
+    match &element {
+        ArrayElement::Error(error) => fail(parts, Some(*error)),
+        ArrayElement::Unknown | ArrayElement::Unimplemented => fail(parts, None),
+        _ => {}
+    }
+    element
+}
+/// A container's failure, if a part failed it.
+pub fn parts_fault(parts: &Parts) -> Option<Option<SqlError>> {
+    parts.fault
+}
+
+/// A part that may be NULL, through its converter where it is not.
+pub fn cell<T>(value: Option<&T>, convert: impl FnOnce(&T) -> ArrayElement) -> ArrayElement {
+    value.map_or(ArrayElement::Null, convert)
+}
+
+/// An array of nested vectors, read as array input reads it: sub-arrays must match, and an array
+/// without elements has no dimensions.
+pub fn array<T, N: super::super::dims::Nested<Option<T>>>(
+    value: &N,
+    element_type: &str,
+    kind: i32,
+    convert: impl Fn(Option<&T>) -> ArrayElement,
+) -> ArrayValue {
+    let mut parts = parts();
+    let mut lengths = Vec::new();
+    if value.lengths(&mut lengths, 0).is_err() {
+        fail(&mut parts, Some(make_sql_error(INVALID_TEXT_REPRESENTATION)));
+    }
+    let mut cells = Vec::new();
+    value.values(&mut cells);
+    let mut arguments = make_array_arguments(element_type, kind);
+    if !cells.is_empty() {
+        for length in &lengths {
+            arguments = append_array_dimension(arguments, 1, *length as i32);
+        }
+    }
+    for item in cells {
+        arguments = append_array_argument(arguments, part(&mut parts, convert(item.as_ref())));
+    }
+    match parts_fault(&parts) {
+        Some(Some(error)) => ArrayValue::Error(error),
+        Some(None) => ArrayValue::Unknown,
+        None => finish_array_arguments(arguments),
+    }
+}
+
+/// A range's bounds go through the subtype's input, then the evaluator's range constructor orders
+/// and canonicalizes them as range input does.
+pub fn range<T>(
+    value: &super::super::Range<T>,
+    bound: impl Fn(Option<&T>) -> ArrayElement,
+    empty: impl FnOnce() -> RangeValue,
+    construct: impl FnOnce(ArrayElement, ArrayElement, TextValue) -> RangeValue,
+) -> RangeValue {
+    let (lower, upper) = match value {
+        super::super::Range::Empty => return empty(),
+        super::super::Range::Bounds { lower, upper } => (lower, upper),
+    };
+    let mut parts = parts();
+    let mut read = |end: &std::ops::Bound<T>| match end {
+        std::ops::Bound::Unbounded => ArrayElement::Null,
+        std::ops::Bound::Included(value) | std::ops::Bound::Excluded(value) => part(&mut parts, bound(Some(value))),
+    };
+    let (lower_element, upper_element) = (read(lower), read(upper));
+    match parts_fault(&parts) {
+        Some(Some(error)) => return RangeValue::Error(error),
+        Some(None) => return RangeValue::Unknown,
+        None => {}
+    }
+    let flags = format!(
+        "{}{}",
+        if matches!(lower, std::ops::Bound::Included(_)) { "[" } else { "(" },
+        if matches!(upper, std::ops::Bound::Included(_)) { "]" } else { ")" },
+    );
+    construct(lower_element, upper_element, make_text_value(&flags))
+}
+
+/// The evaluator's multirange constructor sorts, drops empty ranges and merges as multirange input
+/// does.
+pub fn multirange<T>(
+    value: &super::super::Multirange<T>,
+    range_type: &str,
+    span: impl Fn(&super::super::Range<T>) -> RangeValue,
+    construct: impl FnOnce(ArrayValue) -> MultirangeValue,
+) -> MultirangeValue {
+    let mut members = make_array_arguments(range_type, 42);
+    let mut parts = parts();
+    for item in value.0.iter() {
+        members = append_array_argument(members, part(&mut parts, array_element_from_range(span(item))));
+    }
+    match parts_fault(&parts) {
+        Some(Some(error)) => MultirangeValue::Error(error),
+        Some(None) => MultirangeValue::Unknown,
+        None => construct(finish_array_constructor(members)),
+    }
+}
+
+const NOT_NULL_VIOLATION: u32 = 3505682;
+const CHECK_VIOLATION: u32 = 3505720;
+
+/// A part of a domain type, read through the domain's input: the base type's input, then the
+/// domain's NOT NULL and CHECK constraints, in `order`, base domains first.
+pub fn domain_cell(
+    base: ArrayElement,
+    null: bool,
+    not_null: bool,
+    evaluations: Vec<super::super::CheckEvaluation>,
+    order: &[usize],
+) -> ArrayElement {
+    if matches!(base, ArrayElement::Error(_) | ArrayElement::Unknown | ArrayElement::Unimplemented) {
+        return base;
+    }
+    if null && not_null {
+        return ArrayElement::Error(make_sql_error(NOT_NULL_VIOLATION));
+    }
+    for index in order {
+        match &evaluations[*index].result {
+            super::super::CheckResult::True | super::super::CheckResult::Null => {}
+            super::super::CheckResult::False => return ArrayElement::Error(make_sql_error(CHECK_VIOLATION)),
+            super::super::CheckResult::Error { state, .. } => {
+                return match u32::from_str_radix(state, 36) {
+                    Ok(state) => ArrayElement::Error(make_sql_error(state)),
+                    Err(_) => ArrayElement::Unknown,
+                }
+            }
+            super::super::CheckResult::Undecided { .. } => return ArrayElement::Unknown,
+        }
+    }
+    base
+}

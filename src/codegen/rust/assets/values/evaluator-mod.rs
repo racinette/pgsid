@@ -1,2 +1,2 @@
-#[allow(dead_code, unused_imports, unused_variables, unused_mut, unused_assignments, non_snake_case, non_camel_case_types, clippy::all)]
+#[allow(dead_code, unused_imports, unused_variables, unused_mut, unused_assignments, irrefutable_let_patterns, non_snake_case, non_camel_case_types, clippy::all)]
 pub(super) mod evaluator;

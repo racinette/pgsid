@@ -24,6 +24,22 @@ that error, before any check runs, because the server refuses the row while
 reading it. A value whose reading depends on what the evaluation cannot know,
 such as text holding a NUL byte, leaves those checks undecided.
 
+## Containers
+
+Arrays, ranges, multiranges and composite values are read part by part, as
+the server's input reads them: every element, bound or field goes through its
+own type's input, a part of a domain type through the domain's NOT NULL and
+CHECK constraints too, base domains first, and the evaluator's own
+constructors then build the value, so a range is ordered and made canonical
+and a multirange sorted and merged as the server would. The parts are read in
+order: the first part the server would refuse fails the whole value with its
+error, and a part whose reading is undecided leaves the whole value undecided,
+since it may be the part refused. An array has the dimension counts its
+column declares, and sub-arrays of differing lengths are refused as array
+input refuses them. A column's type modifier applies to each element through
+the coercion an assignment uses, which refuses a value too long where an
+explicit cast would cut it.
+
 ## Results
 
 A check is true, false, NULL, an error with its SQLSTATE and message, or
@@ -35,7 +51,8 @@ would raise, and passes the undecided ones, which only the server decides. A
 domain's checks run on a NULL value too, since a domain CHECK can refuse NULL.
 
 A check whose expression the evaluator cannot evaluate, or that reads a value
-of a type the Rust inputs do not convert, is undecided, saying so.
+of a type the Rust inputs do not convert, is undecided, saying so; so is a
+container holding such a type.
 
 ## The evaluator
 

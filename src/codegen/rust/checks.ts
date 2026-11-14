@@ -6,8 +6,11 @@ import { portableCheckAtoms } from '../shared/check-atom-support.js'
 import { checkRustTextInput, checkRustValueType, type CheckExecutionContext } from '../shared/check-rust-evaluator.js'
 import { prepareCheckRustGroup } from '../shared/check-rust-source.js'
 import { checkTypeModifierCoercion } from '../shared/check-type-modifiers.js'
-import { rust, type RustExpression, type RustItem, type RustPattern, type RustStatement, type RustType } from './ast.js'
+import { printItem, rust, type RustExpression, type RustItem, type RustPattern, type RustStatement, type RustType } from './ast.js'
 import { splitRustItems, type RustSourceModule } from './evaluator.js'
+import { createRustCheckContainers, type RustCheckContainers } from './check-containers.js'
+import { isCatalogVectorType } from '../../sql-semantics/expressions.js'
+import { rustDeclaredType } from './type-mapping.js'
 import { rustEnumVariants } from './names.js'
 
 // CHECK constraints evaluated through the evaluator the values module carries: a table's checks
@@ -20,8 +23,10 @@ type Input = Extract<PreparedCheck, { kind: 'supported' }>['inputs'][number]
 
 export interface RustCheckPlan {
   groups: readonly { group: CatalogCheckGroup; checks: readonly { owner: string; constraint: string; prepared: PreparedCheck }[] }[]
-  module: RustSourceModule | null
   context: CheckExecutionContext
+  containers: RustCheckContainers
+  /** The evaluator's checks module, once every generated check has named its converters. */
+  module: () => RustSourceModule | null
 }
 
 const asset = (name: string): string => {
@@ -30,8 +35,34 @@ const asset = (name: string): string => {
 }
 
 /** Every CHECK of the catalog's tables and domains, prepared for the evaluator at once. */
-export function planRustChecks(catalog: CatalogSnapshot, config?: Config): RustCheckPlan {
+export function planRustChecks(
+  catalog: CatalogSnapshot,
+  config: Config | undefined,
+  literalDomain: (domain: DomainInfo) => boolean,
+): RustCheckPlan {
   const context = config?.sql.codegen?.checks ?? {}
+  let groups_: RustCheckPlan['groups'] = []
+  const containers = createRustCheckContainers({
+    catalog,
+    context,
+    literalDomain,
+    domainChecks: (domain) =>
+      groups_
+        .find(({ group }) => group.kind === 'domain' && group.source.schema === domain.schema && group.source.name === domain.name)
+        ?.checks.map((check) => check.owner),
+    scalar: (type, rustType, base, values) => {
+      const definition = type.startsWith('enum:') ? (JSON.parse(type.slice('enum:'.length)) as [string, string]) : null
+      const enumeration = definition && catalog.enums.find((item) => item.schema === definition[0] && item.name === definition[1])
+      return payload(
+        { name: '', type, rustName: '', rustType, ...(enumeration ? { enum: enumeration } : {}) },
+        rustType,
+        base,
+        { values, catalog, enumType: (schema, name) => rustDeclaredType(schema, name, { depth: 3 }) },
+        context,
+        0,
+      )
+    },
+  })
   const groups = catalogCheckGroups(
     catalog.tables,
     catalog.domains,
@@ -40,7 +71,7 @@ export function planRustChecks(catalog: CatalogSnapshot, config?: Config): RustC
     catalog.rangeTypes,
     catalog.compositeTypeGraph,
   )
-  if (!groups.length) return { groups: [], module: null, context }
+  if (!groups.length) return { groups: [], context, containers, module: () => null }
   const flat = groups.flatMap((group) =>
     group.checks.map(({ plan, source }) => ({
       expression: portableCheckAtoms(plan.expression),
@@ -55,25 +86,33 @@ export function planRustChecks(catalog: CatalogSnapshot, config?: Config): RustC
   )
   const prepared = prepareCheckRustGroup(flat, context)
   let index = 0
-  return {
-    context,
-    groups: groups.map((group) => ({
+  groups_ = groups.map((group) => ({
       group,
       checks: group.checks.map(({ plan, source }) => ({
         owner: `${source.schema}.${source.name}`,
         constraint: plan.name,
         prepared: prepared.checks[index++]!,
       })),
-    })),
-    module: prepared.evaluatorSource
-      ? {
-          name: 'checks',
-          dependencies: ['checkruntime', 'pg_catalog'],
-          items: splitRustItems(
-            [prepared.evaluatorSource, ...(prepared.sharedDeclarations ?? []).map((item) => item.source), asset('check-inputs.rs')].join('\n'),
-          ),
-        }
-      : null,
+    }))
+  return {
+    context,
+    groups: groups_,
+    containers,
+    module: () =>
+      prepared.evaluatorSource
+        ? {
+            name: 'checks',
+            dependencies: ['checkruntime', 'pg_catalog'],
+            items: splitRustItems(
+              [
+                prepared.evaluatorSource,
+                ...(prepared.sharedDeclarations ?? []).map((item) => item.source),
+                asset('check-inputs.rs'),
+                ...containers.items.map((item) => printItem(item)),
+              ].join('\n'),
+            ),
+          }
+        : null,
   }
 }
 
@@ -87,10 +126,11 @@ export interface RustCheckSubject {
   /** Where the values module and the evaluator are, from the generated code. */
   values: readonly string[]
   /** The public type of an input, set, and the access to its base value. */
-  input: (name: string) => { type: RustType; access: RustBaseAccess; typeMod: number; baseOid: number } | null
+  input: (name: string) => { type: RustType; access: RustBaseAccess; typeMod: number; baseOid: number; counts?: readonly number[] } | null
   /** A PostgreSQL enum's Rust type. */
   enumType: (schema: string, name: string) => RustType
   catalog: CatalogSnapshot
+  containers: RustCheckContainers
 }
 
 const path = (...segments: string[]): RustExpression => ({ kind: 'path', path: segments })
@@ -99,11 +139,11 @@ const path = (...segments: string[]): RustExpression => ({ kind: 'path', path: s
  * The evaluator's value of an input, from the public value `value` refers to, or null where its
  * type is one the Rust inputs do not read.
  */
-function payload(
-  input: Input,
+export function payload(
+  input: Pick<Input, 'type' | 'enum'> & { name: string; rustName: string; rustType: string },
   rustType: string,
   base: RustExpression,
-  subject: RustCheckSubject,
+  subject: Pick<RustCheckSubject, 'values' | 'catalog' | 'enumType'>,
   context: CheckExecutionContext,
   baseOid: number,
 ): RustExpression | null {
@@ -209,6 +249,28 @@ function payload(
       return textInput(checkRustTextInput('pg_catalog.aclitem', context), shown)
     case 'SnapshotValue':
       return textInput(checkRustTextInput('pg_catalog.pg_snapshot', context), shown)
+    case 'ArrayValue':
+      // int2vector and oidvector are read from their text, the elements separated by spaces.
+      if (isCatalogVectorType(input.type))
+        return textInput(
+          checkRustTextInput(input.type, context),
+          rust.method(
+            {
+              kind: 'method',
+              receiver: rust.method(rust.method(base, 'iter'), 'map', {
+                kind: 'closure',
+                parameters: [{ pattern: rust.binding('item') }],
+                body: rust.method(rust.ident('item'), 'to_string'),
+              }),
+              name: 'collect',
+              generics: [rust.vec({ kind: 'infer' })],
+              arguments: [],
+            },
+            'join',
+            rust.string(' '),
+          ),
+        )
+      return null
     case 'EnumValue': {
       const definition = input.enum
       const enumeration = definition && subject.catalog.enums.find((item) => item.schema === definition.schema && item.name === definition.name)
@@ -266,7 +328,16 @@ export function rustCheckItems(
   const read = (input: Input, rustType: string): RustExpression | null => {
     const found = subject.input(input.name)
     if (!found) return null
-    const converted = payload(input, rustType, found.access(rust.ident('value')), subject, context, found.baseOid)
+    const base = found.access(rust.ident('value'))
+    // A container goes through its converter, which applies the type modifier itself.
+    const container =
+      ['ArrayValue', 'RangeValue', 'MultirangeValue', 'CompositeValue'].includes(rustType) && !isCatalogVectorType(input.type)
+    const convert =
+      container &&
+      subject.containers.input(input.type, found.typeMod, found.counts ?? [1], rustType)
+    const converted = container
+      ? convert && rust.call(path(...subject.values, 'evaluator', 'checks', convert), rust.ref_(base))
+      : payload(input, rustType, base, subject, context, found.baseOid)
     if (!converted) return null
     let value: RustExpression = rust.call(
       valueExpression('evaluator', 'checks', 'read'),
@@ -277,7 +348,7 @@ export function rustCheckItems(
     )
     // A value is read through the type modifier too; one the evaluator cannot apply leaves the
     // value undecided.
-    if (found.typeMod >= 0) {
+    if (found.typeMod >= 0 && !container) {
       const coercion = checkTypeModifierCoercion(input.type)
       value = coercion
         ? rust.call(

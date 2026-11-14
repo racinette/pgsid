@@ -38,6 +38,22 @@ CREATE TABLE items (
   CHECK (flag OR qty > 5),
   CHECK (name IS NOT NULL OR kind = 'x')
 );
+CREATE TYPE pair AS (n int, label varchar(3), p positive);
+CREATE TABLE boxes (
+  id int PRIMARY KEY,
+  nums int[] CHECK (cardinality(nums) < 4),
+  grid int[] CHECK (array_ndims(grid) = 2),
+  either int[] CHECK (cardinality(either) < 3),
+  pos positive[] CHECK (cardinality(pos) < 9),
+  span int4range CHECK (NOT isempty(span)),
+  days daterange CHECK (lower(days) > '2000-01-01'),
+  many int4multirange CHECK (many <> '{}'),
+  couple pair CHECK ((couple).n > 0),
+  couples pair[] CHECK (cardinality(couples) < 3),
+  moods mood[] CHECK (moods[1] <> 'sad'),
+  vec int2vector CHECK (vec[0] > 0),
+  labels varchar(2)[] CHECK (cardinality(labels) < 5)
+);
 `
 
 // Every row is evaluated by the generated CHECK API, then inserted: a row the evaluation refuses
@@ -133,6 +149,66 @@ async fn main() {
             failures += 1;
         }
     }
+    let day = |year, month, date| Date::Finite(NaiveDate::from_ymd_opt(year, month, date).unwrap());
+    let pair = |n: i32, label: &str, p: i32| Pair { n: Some(n), label: Some(label.to_owned()), p: Some(Positive(p)) };
+    let full = |id: i32| Boxes {
+        id,
+        nums: Some(vec![Some(1), None]),
+        grid: Some(D2(vec![vec![Some(1), Some(2)], vec![Some(3), Some(4)]])),
+        either: Some(Array1Or2::D1(vec![Some(1)])),
+        pos: Some(vec![Some(Positive(2)), None]),
+        span: Some(Range::Bounds { lower: Bound::Included(1), upper: Bound::Excluded(5) }),
+        days: Some(Range::Bounds { lower: Bound::Included(day(2020, 1, 1)), upper: Bound::Unbounded }),
+        many: Some(Multirange(vec![Range::Bounds { lower: Bound::Included(1), upper: Bound::Excluded(3) }])),
+        couple: Some(pair(1, "abc", 1)),
+        couples: Some(vec![Some(pair(1, "a", 2)), None]),
+        moods: Some(vec![Some(Mood::Happy)]),
+        vec: Some(vec![1, 2]),
+        labels: Some(vec![Some("ab".to_owned()), None]),
+    };
+    let containers: Vec<(&str, Boxes)> = vec![
+        ("valid containers", full(1)),
+        ("long array", Boxes { nums: Some(vec![Some(1); 4]), ..full(2) }),
+        ("empty array", Boxes { nums: Some(vec![]), ..full(3) }),
+        ("two dimensions declared either way", Boxes { either: Some(Array1Or2::D2(vec![vec![Some(1)], vec![Some(2)], vec![Some(3)]])), ..full(4) }),
+        ("domain element outside its CHECK", Boxes { pos: Some(vec![Some(Positive(0))]), ..full(5) }),
+        ("empty range", Boxes { span: Some(Range::Bounds { lower: Bound::Included(3), upper: Bound::Excluded(3) }), ..full(6) }),
+        ("explicitly empty range", Boxes { span: Some(Range::Empty), ..full(7) }),
+        ("reversed range", Boxes { span: Some(Range::Bounds { lower: Bound::Included(5), upper: Bound::Included(1) }), ..full(8) }),
+        ("early days", Boxes { days: Some(Range::Bounds { lower: Bound::Excluded(day(1999, 12, 31)), upper: Bound::Unbounded }), ..full(9) }),
+        ("canonical lower bound", Boxes { days: Some(Range::Bounds { lower: Bound::Excluded(day(2000, 1, 1)), upper: Bound::Unbounded }), ..full(10) }),
+        ("empty multirange", Boxes { many: Some(Multirange(vec![Range::Empty])), ..full(11) }),
+        ("label beyond its length in a record", Boxes { couple: Some(pair(1, "abcd", 1)), ..full(12) }),
+        ("domain field outside its CHECK", Boxes { couple: Some(pair(1, "a", 0)), ..full(13) }),
+        ("non-positive record", Boxes { couple: Some(pair(0, "a", 1)), ..full(14) }),
+        ("NULL record field", Boxes { couple: Some(Pair { n: None, label: None, p: None }), ..full(15) }),
+        ("many records", Boxes { couples: Some(vec![None, None, None]), ..full(16) }),
+        ("domain field in an array of records", Boxes { couples: Some(vec![Some(pair(1, "a", -1))]), ..full(17) }),
+        ("sad first", Boxes { moods: Some(vec![Some(Mood::Sad), Some(Mood::Ok)]), ..full(18) }),
+        ("vector from zero", Boxes { vec: Some(vec![0, 1]), ..full(19) }),
+        ("element beyond its length", Boxes { labels: Some(vec![Some("abc".to_owned())]), ..full(20) }),
+        ("element padded to its length", Boxes { labels: Some(vec![Some("ab  ".to_owned())]), ..full(21) }),
+    ];
+    for (name, row) in containers {
+        let evaluations = BoxesCheckInput::from(&row).evaluate();
+        if let Some(undecided) = evaluations.iter().find(|evaluation| matches!(evaluation.result, CheckResult::Undecided { .. })) {
+            eprintln!("{name}: {undecided:?}");
+            failures += 1;
+            continue;
+        }
+        let expected = validate_checks(evaluations.clone()).err();
+        let stored = client
+            .execute(
+                "INSERT INTO boxes (id, nums, grid, either, pos, span, days, many, couple, couples, moods, vec, labels) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)",
+                &[&row.id, &row.nums, &row.grid, &row.either, &row.pos, &row.span, &row.days, &row.many, &row.couple, &row.couples, &row.moods, &row.vec, &row.labels],
+            )
+            .await;
+        let server = stored.as_ref().err().and_then(|error| error.code()).map(|code| code.code().to_owned());
+        if expected.as_ref().map(|error| error.sqlstate().to_owned()) != server {
+            eprintln!("{name}: evaluated {expected:?} from {evaluations:?}, the server answered {stored:?}");
+            failures += 1;
+        }
+    }
     // A column not given leaves undecided only the checks that read it.
     let partial = ItemsCheckInput { big: CheckValue::Value(200), ..Default::default() }.evaluate();
     let big = partial.iter().find(|evaluation| evaluation.constraint == "items_big_check").map(|evaluation| &evaluation.result);
@@ -179,7 +255,7 @@ it.skipIf(!cargoAvailable)(
     await writeFile(join(root, 'schema.sql'), schema)
     await writeFile(
       join(root, 'pgsid.yaml'),
-      'schema: schema.sql\nsql:\n  codegen:\n    rust:\n      schema: { outDir: src/db }\n',
+      'schema: schema.sql\nsql:\n  codegen:\n    rust:\n      schema: { outDir: src/db }\n      mappings:\n        column:\n          public.boxes.grid: { dimensions: 2 }\n          public.boxes.either: { dimensions: [1, 2] }\n',
     )
     const built = await buildProject({ baseDirectory: root })
     expect(built.state.diagnostics).toEqual([])

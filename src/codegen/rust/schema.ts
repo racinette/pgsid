@@ -368,6 +368,7 @@ function tableItems(
     group: RustCheckPlan['groups'][number] | undefined
     literalDomain: (domain: DomainInfo) => boolean
     domainChecked: (domain: DomainInfo) => boolean
+    dimensions: (column: string) => number | readonly number[] | undefined
   },
 ): RustItem[] {
   const name = rustTypeName(table.name)
@@ -396,6 +397,7 @@ function tableItems(
         {
           values: rustValuesPath(context),
           catalog,
+          containers: checks.plan.containers,
           enumType: (schema, enumName) => rustDeclaredType(schema, enumName, context),
           input: (input) => {
             const item = columns.find(({ column }) => column.name === input)
@@ -403,7 +405,8 @@ function tableItems(
             const base = literal.has(item.column.name)
               ? { access: (value: RustExpression) => rust.method(value, 'value'), baseOid: item.column.typeOid, typeMod: item.column.typeMod ?? -1 }
               : rustBaseAccess(item.column.typeOid, item.column.typeMod ?? -1, catalog, checks.literalDomain)
-            return { type: item.set, ...base }
+            const declared = checks.dimensions(`${table.schema}.${table.name}.${item.column.name}`)
+            return { type: item.set, ...base, ...(declared === undefined ? {} : { counts: typeof declared === 'number' ? [declared] : declared }) }
           },
         },
         checks.plan.context,
@@ -507,7 +510,7 @@ export function renderRustSchemaArtifacts(
   needs?: Parameters<typeof rustValueArtifacts>[2],
 ): Artifact[] {
   const mappings = config?.sql.codegen?.rust?.mappings.column ?? {}
-  const checkPlan = planRustChecks(catalog, config)
+  const checkPlan = planRustChecks(catalog, config, (domain) => literalDomain(domain))
   const checkGroup = (kind: 'table' | 'domain', schema: string, name: string) =>
     checkPlan.groups.find(({ group }) => group.kind === kind && group.source.schema === schema && group.source.name === name)
   const modules = config?.sql.codegen?.rust?.schema?.names ?? {}
@@ -553,6 +556,7 @@ export function renderRustSchemaArtifacts(
                   {
                     values: rustValuesPath(context),
                     catalog,
+                    containers: checkPlan.containers,
                     enumType: (schema, enumName) => rustDeclaredType(schema, enumName, context),
                     input: () => ({ type: rust.path(rustTypeName(item.name)), ...access }),
                   },
@@ -570,6 +574,7 @@ export function renderRustSchemaArtifacts(
             group: checkGroup('table', item.schema, item.name),
             literalDomain,
             domainChecked: (domain) => checkGroup('domain', domain.schema, domain.name) !== undefined,
+            dimensions,
           }),
         ),
     ]
@@ -592,7 +597,10 @@ export function renderRustSchemaArtifacts(
     ...rustValueArtifacts(
       join(directory, 'pgsid'),
       artifacts.map((artifact) => artifact.content),
-      { ...needs, ...(checkPlan.module ? { checks: checkPlan.module } : {}) },
+      (() => {
+        const checks = checkPlan.module()
+        return { ...needs, ...(checks ? { checks } : {}) }
+      })(),
     ),
   ]
 }
