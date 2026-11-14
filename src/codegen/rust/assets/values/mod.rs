@@ -3,6 +3,7 @@
 mod bits;
 mod clock;
 mod dims;
+mod error;
 mod geometry;
 mod identifiers;
 mod json;
@@ -13,6 +14,7 @@ mod temporal;
 pub use bits::BitString;
 pub use clock::{Time, Timetz};
 pub use dims::{DimensionError, D2, D3, D4, D5, D6};
+pub use error::QueryError;
 pub use geometry::{Circle, Line, Lseg, Path, PgBox, Point, Polygon};
 pub use identifiers::{Char, Cid, Money, OidAlias, PgLsn, Refcursor, Snapshot, Tid, Uuid, Xid, Xid8};
 pub use json::Json;

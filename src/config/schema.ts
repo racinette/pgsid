@@ -296,10 +296,29 @@ export const goCodegenSchema = z
   .default({})
 
 // Rust is generated as a module tree the crate mounts where it likes: a module per schema and the
-// values module beside them.
+// values module beside them. Query modules name the tree by its path in the crate.
 export const rustCodegenSchema = z
   .object({
-    schema: z.object({ outDir: z.string() }).strict().optional(),
+    schema: z
+      .object({
+        outDir: z.string(),
+        module: z
+          .string()
+          .regex(/^crate(?:::[A-Za-z_][A-Za-z0-9_]*)*$/u, 'Rust schema module must be a path from crate')
+          .optional(),
+        names: z
+          .record(z.string(), z.string().regex(/^[a-z_][a-z0-9_]*$/u, 'Rust schema module names must be lowercase identifiers'))
+          .default({}),
+      })
+      .strict()
+      .optional(),
+    queries: z
+      .object({
+        exclude: z.array(z.string()).default([]),
+        out: z.record(z.string(), z.string()).default({}),
+      })
+      .strict()
+      .default({}),
     mappings: z
       .object({ column: z.record(z.string(), arrayDimensionsMappingSchema).default({}) })
       .strict()

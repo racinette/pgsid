@@ -17,6 +17,7 @@ import {
   resolveRustColumnType,
   resolveRustType,
   rustDomainBase,
+  rustSchemaModule,
   rustValues,
   type RustTypeContext,
 } from './type-mapping.js'
@@ -35,7 +36,7 @@ const typeParameter: { pattern: { kind: 'ident'; name: string }; type: RustType 
 }
 
 // A name unique among others generated in one scope, numbered after the first.
-const uniqueNames = (names: readonly string[]): string[] => {
+export const uniqueNames = (names: readonly string[]): string[] => {
   const seen = new Map<string, number>()
   return names.map((name) => {
     const count = seen.get(name) ?? 0
@@ -44,8 +45,11 @@ const uniqueNames = (names: readonly string[]): string[] => {
   })
 }
 
+// The variant of each label of a PostgreSQL enum.
+export const rustEnumVariants = (labels: readonly string[]): string[] => uniqueNames(labels.map(rustTypeName))
+
 function enumItems(schema: string, name: string, labels: readonly string[]): RustItem[] {
-  const variants = uniqueNames(labels.map(rustTypeName))
+  const variants = rustEnumVariants(labels)
   return [
     {
       kind: 'enum',
@@ -199,7 +203,7 @@ function domainItems(domain: DomainInfo, catalog: CatalogSnapshot, context: Rust
 
 // A Rust type a literal set narrows: text to an enum of its strings, an integer to an enum of its
 // integers. Other types keep their values.
-const literalBase = (type: RustType, literals: OutputLiterals): string | null => {
+export const literalBase = (type: RustType, literals: OutputLiterals): string | null => {
   if (type.kind !== 'path' || type.path.length !== 1 || type.generics) return null
   const name = type.path[0]!
   if (literals.kind === 'string' && name === 'String') return name
@@ -208,7 +212,7 @@ const literalBase = (type: RustType, literals: OutputLiterals): string | null =>
   return null
 }
 
-const literalVariant = (value: string, kind: OutputLiterals['kind']): string => {
+export const literalVariant = (value: string, kind: OutputLiterals['kind']): string => {
   if (kind !== 'string') return `N${value.replace('-', 'Minus')}`
   const name = rustTypeName(value)
   return /^[A-Za-z]/u.test(value) && name !== 'Unnamed' ? name : `Value${name === 'Unnamed' ? '' : name}`
@@ -218,7 +222,7 @@ const literalVariant = (value: string, kind: OutputLiterals['kind']): string => 
  * An enum of the values a column's or domain's CHECKs admit, read and written as its base type:
  * a value outside the set is an error, since the stored rows cannot hold it.
  */
-function literalItems(
+export function literalItems(
   name: string,
   base: string,
   literals: OutputLiterals,
@@ -441,8 +445,10 @@ export function renderRustSchemaArtifacts(
   config?: Config,
   relations: SchemaRelationAnalyses = {},
   domainLiterals: SchemaDomainLiterals = {},
+  needs?: Parameters<typeof rustValueArtifacts>[2],
 ): Artifact[] {
   const mappings = config?.sql.codegen?.rust?.mappings.column ?? {}
+  const modules = config?.sql.codegen?.rust?.schema?.names ?? {}
   const dimensions = (column: string) => mappings[column]?.dimensions
   const schemas = [
     ...new Set(
@@ -452,11 +458,11 @@ export function renderRustSchemaArtifacts(
     ),
   ].sort()
   assertUniqueRustNames(
-    schemas.map((schema) => ({ source: schema, generated: rustFieldName(schema) })),
+    schemas.map((schema) => ({ source: schema, generated: rustSchemaModule(schema, { modules }) })),
     'schema',
   )
   const artifacts = schemas.map((schema) => {
-    const context: RustTypeContext = { depth: 1, schema }
+    const context: RustTypeContext = { depth: 1, schema, modules, searchPath: config?.sql.searchPath ?? ['public'] }
     const items: RustItem[] = [
       ...catalog.enums.filter((item) => item.schema === schema).flatMap((item) => enumItems(schema, item.name, item.values)),
       ...catalog.compositeTypes
@@ -478,7 +484,7 @@ export function renderRustSchemaArtifacts(
           tableItems(item, catalog, context, dimensions, relations[`${item.schema}.${item.name}`]?.outputCases),
         ),
     ]
-    return { path: join(directory, `${rustFieldName(schema)}.rs`), content: printRustFile(items) }
+    return { path: join(directory, `${rustSchemaModule(schema, { modules })}.rs`), content: printRustFile(items) }
   })
   return [
     {
@@ -487,7 +493,7 @@ export function renderRustSchemaArtifacts(
       content: printRustFile(
         [
           { kind: 'mod', name: 'pgsid', visibility: 'pub' },
-          ...schemas.map((schema): RustItem => ({ kind: 'mod', name: rustFieldName(schema), visibility: 'pub' })),
+          ...schemas.map((schema): RustItem => ({ kind: 'mod', name: rustSchemaModule(schema, { modules }), visibility: 'pub' })),
         ],
         undefined,
         [{ path: 'allow', arguments: ['dead_code', 'unused_imports'] }],
@@ -497,6 +503,7 @@ export function renderRustSchemaArtifacts(
     ...rustValueArtifacts(
       join(directory, 'pgsid'),
       artifacts.map((artifact) => artifact.content),
+      needs,
     ),
   ]
 }

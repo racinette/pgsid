@@ -10,7 +10,20 @@ export interface RustTypeContext {
   depth: number
   // The schema whose module the code is in, whose own types it names unqualified.
   schema?: string
+  // The generated root's path from the crate, for code outside the generated tree.
+  root?: readonly string[]
+  // Module names given to schemas in place of their own.
+  modules?: Readonly<Record<string, string>>
+  // The schemas an unqualified type name is looked up in, in order.
+  searchPath?: readonly string[]
 }
+
+// The module a schema's types are declared in.
+export const rustSchemaModule = (schema: string, context: Pick<RustTypeContext, 'modules'>): string =>
+  context.modules?.[schema] ?? rustFieldName(schema)
+
+const rootPath = (context: RustTypeContext): string[] =>
+  context.root ? [...context.root] : Array.from({ length: context.depth }, () => 'super')
 
 const builtin: Readonly<Record<string, RustType>> = {
   bool: rust.path('bool'),
@@ -108,21 +121,21 @@ const builtinName = (name: string): string => {
 }
 
 const relative = (context: RustTypeContext, ...path: string[]): RustType =>
-  rust.path(...Array.from({ length: context.depth }, () => 'super'), ...path)
+  rust.path(...rootPath(context), ...path)
 
 // The generated values module, from the code's place.
 export const rustValues = (context: RustTypeContext, name: string, ...generics: RustType[]): RustType => ({
   kind: 'path',
-  path: [...Array.from({ length: context.depth }, () => 'super'), 'pgsid', name],
+  path: [...rootPath(context), 'pgsid', name],
   ...(generics.length ? { generics } : {}),
 })
 
 // A type the generated schema modules declare: by name in its own module, else through its
 // schema's module.
-const declared = (schema: string, name: string, context: RustTypeContext): RustType =>
+export const rustDeclaredType = (schema: string, name: string, context: RustTypeContext): RustType =>
   schema === context.schema
     ? rust.path(rustTypeName(name))
-    : relative(context, rustFieldName(schema), rustTypeName(name))
+    : relative(context, rustSchemaModule(schema, context), rustTypeName(name))
 
 /**
  * The Rust type of a SQL type, not counting nullability. `pgType` is the catalog's spelling,
@@ -139,17 +152,28 @@ export function resolveRustType(
     return rust.vec(rust.option(element))
   }
   const unmodified = pgType.replace(/\([^)]*\)$/u, '')
-  const parts = unmodified.split('.').map((part) => part.replaceAll('"', ''))
+  // The dots between names, outside the quotes a name with a dot is written in.
+  const parts = (unmodified.match(/(?:"(?:[^"]|"")*"|[^."])+/gu) ?? []).map((part) =>
+    part.startsWith('"') ? part.slice(1, -1).replaceAll('""', '"') : part,
+  )
   const [schema, name] = parts.length > 1 ? [parts[0], parts.slice(1).join('.')] : [undefined, parts[0]!]
+  // An unqualified name is the type of the first schema on the search path that has one, as the
+  // server names a type it would find there unqualified.
+  const visible =
+    schema ??
+    (context.searchPath ?? ['public']).find((item) =>
+      [...catalog.domains, ...catalog.enums, ...catalog.compositeTypes].some(
+        (type) => type.schema === item && type.name === name,
+      ),
+    )
   const matches = (item: { schema: string; name: string; oid?: number }) =>
-    (typeOid !== undefined && item.oid === typeOid) ||
-    (item.name === name && (schema === undefined || item.schema === schema))
-  const domain = catalog.domains.find((item) => (typeOid !== undefined && item.oid === typeOid) || (item.name === name && (schema === undefined || item.schema === schema)))
-  if (domain) return declared(domain.schema, domain.name, context)
+    (typeOid !== undefined && item.oid === typeOid) || (item.name === name && item.schema === visible)
+  const domain = catalog.domains.find(matches)
+  if (domain) return rustDeclaredType(domain.schema, domain.name, context)
   const enumeration = catalog.enums.find(matches)
-  if (enumeration) return declared(enumeration.schema, enumeration.name, context)
+  if (enumeration) return rustDeclaredType(enumeration.schema, enumeration.name, context)
   const composite = catalog.compositeTypes.find(matches)
-  if (composite) return declared(composite.schema, composite.name, context)
+  if (composite) return rustDeclaredType(composite.schema, composite.name, context)
   const range = rangeSubtype(schema, name, catalog)
   if (range) {
     const subtype = resolveRustType(range.subtype, catalog, context)

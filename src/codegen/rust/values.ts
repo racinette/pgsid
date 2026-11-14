@@ -13,6 +13,7 @@ import {
 const files = [
   'bits.rs',
   'dims.rs',
+  'error.rs',
   'clock.rs',
   'geometry.rs',
   'identifiers.rs',
@@ -63,23 +64,26 @@ const numericEvaluator = (): { path: string; content: string }[] => {
 
 /**
  * The values module, with the values that call the CHECK evaluator, and the evaluator itself, only
- * where generated code names one of them.
+ * where generated code names one of them. Code rendered apart from `contents`, such as queries,
+ * names what `needs` adds.
  */
 export const rustValueArtifacts = (
   directory: string,
   contents: readonly string[],
+  needs: { evaluator: boolean; unions: readonly string[] } = { evaluator: false, unions: [] },
 ): { path: string; content: string }[] => {
   // Each set of dimension counts a generated type names, as its own enum.
   const unions = [
-    ...new Set(
-      contents.flatMap((content) =>
+    ...new Set([
+      ...needs.unions,
+      ...contents.flatMap((content) =>
         [...content.matchAll(/\bpgsid::(Array\d(?:Or\d)+)\b/gu)].map((match) => match[1]!),
       ),
-    ),
+    ]),
   ].sort()
-  const evaluator = contents.some((content) =>
-    /\bpgsid::(?:Numeric|Tsvector|Tsquery|Xml|Jsonpath|Aclitem)\b/u.test(content),
-  )
+  const evaluator =
+    needs.evaluator ||
+    contents.some((content) => /\bpgsid::(?:Numeric|Tsvector|Tsquery|Xml|Jsonpath|Aclitem)\b/u.test(content))
   return [
     {
       path: join(directory, 'mod.rs'),

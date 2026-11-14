@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { buildProject } from '../../src/project-runtime.js'
 import { sharedTempDirectory } from '../../tools/test-run-temp.js'
+import { writeRustCrate } from '../support/rust-crate.js'
 
 const fixtureRoot = fileURLToPath(new URL('../fixtures/codegen', import.meta.url))
 const projects: {
@@ -115,6 +116,8 @@ const projects: {
 const roots: string[] = []
 const goBinary = process.env['PGSID_GO_BINARY'] ?? 'go'
 const goAvailable = spawnSync(goBinary, ['version'], { encoding: 'utf8' }).status === 0
+const cargo = process.env['PGSID_CARGO_BINARY'] ?? 'cargo'
+const cargoAvailable = spawnSync(cargo, ['--version'], { encoding: 'utf8' }).status === 0
 const runFile = promisify(execFile)
 
 afterEach(async () => {
@@ -253,6 +256,41 @@ func TestQueryDeclarations(t *testing.T) {
       }
     },
     300_000,
+  )
+
+  // The generated Rust tree mounted in a crate of the fixture's dependencies, which the local
+  // registry holds.
+  it.skipIf(!cargoAvailable)(
+    'compiles the generated Rust schema and query modules',
+    async () => {
+      const root = await mkdtemp(join(tmpdir(), 'pgsid-codegen-rust-'))
+      roots.push(root)
+      await cp(join(fixtureRoot, 'project'), root, { recursive: true })
+      const update = await buildProject({ baseDirectory: root })
+      expect(update.state.diagnostics).toEqual([])
+      await writeRustCrate(root)
+      await writeFile(
+        join(root, 'src/main.rs'),
+        `#[path = "../generated/rust/schema/mod.rs"]
+mod db;
+#[path = "../generated/rust/queries/events.rs"]
+mod events;
+#[path = "../generated/rust/queries/admin/events.rs"]
+mod admin_events;
+
+fn main() {}
+`,
+      )
+      await runFile(cargo, ['build', '--offline', '--quiet'], {
+        cwd: root,
+        env: { ...process.env, CARGO_TARGET_DIR: join(sharedTempDirectory, 'pgsid-cargo-target') },
+        timeout: 900_000,
+        maxBuffer: 64 * 1024 * 1024,
+      }).catch((error: { stdout?: string; stderr?: string }) => {
+        throw new Error(`Generated Rust failed to compile:\n${error.stdout}\n${error.stderr}`, { cause: error })
+      })
+    },
+    1_000_000,
   )
 
   it.each(projects)(
