@@ -295,6 +295,15 @@ export const goCodegenSchema = z
   .strict()
   .default({})
 
+// Rust is generated as a module tree the crate mounts where it likes: a module per schema and the
+// values module beside them.
+export const rustCodegenSchema = z
+  .object({
+    schema: z.object({ outDir: z.string() }).strict().optional(),
+  })
+  .strict()
+  .default({})
+
 const xpathPowerOfTenBitsSchema = z
   .array(z.string().regex(/^[0-7][0-9a-fA-F]{15}$/u))
   .length(632)
@@ -382,6 +391,7 @@ export const codegenSchema = z
       .optional(),
     typescript: typescriptCodegenSchema.optional(),
     go: goCodegenSchema.optional(),
+    rust: rustCodegenSchema.optional(),
   })
   .strict()
 

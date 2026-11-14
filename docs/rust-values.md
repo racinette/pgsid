@@ -1,0 +1,59 @@
+# Rust values
+
+Generated Rust is a module tree that a crate mounts wherever it likes: a module
+for each schema, holding that schema's enums, composite types, domains and
+table rows, and a values module beside them for the PostgreSQL values no Rust
+standard type holds whole. Every reference between the modules is relative, so
+the tree works under any path. Values move through tokio-postgres in the
+binary format, which the driver always reads results in.
+
+## Nullability
+
+A value that can be NULL is an option around its type, and one that cannot is
+the type itself. Array elements can always be NULL, so an array is a vector of
+options.
+
+## Temporal values
+
+A date, a timestamp with or without time zone, and an interval are each an
+enum of a finite value and the two infinities, so infinity is a value of its
+own rather than a flag beside a time that would then mean nothing. A finite
+zoned timestamp is a UTC instant, an unzoned one a wall-clock reading, and a
+date a calendar day, each the corresponding chrono value. A finite interval
+keeps its months, days and microseconds apart, as the server does, since a
+month has no fixed number of days and a day no fixed number of microseconds
+across a time-zone change. A value outside the range chrono represents is an
+error when read, and a finite value the server cannot store, such as a finite
+interval holding the encoding of an infinity, is refused when written.
+
+## Ranges
+
+A range is an enum of the empty range and a pair of bounds, each including or
+excluding its value or unbounded, as the standard library's bound type
+expresses them. A range keeps the bounds it was built with; the server stores,
+and reads back, its canonical form, so a range read again may differ from the
+one written while describing the same values. A multirange is the list of its
+ranges, which the server sorts and merges.
+
+## JSON documents
+
+A json or jsonb value is a container of the document's text, decoded into a
+Rust type with serde on request, so a document is read without being parsed
+and a decoding error belongs to the code that asked for the value. SQL NULL is
+the absent option around the container; the JSON null document is a container
+whose text is null. Building a document from text accepts only a single JSON
+document, and building one from a value encodes it.
+
+## Enums, composite types and domains
+
+A PostgreSQL enum is a Rust enum with one variant for each label, and a
+composite type a struct with one optional field for each attribute, both
+matched to the server's names. A domain is a newtype over its base type. The
+server describes a parameter as the domain but a result column as its base
+type, so the newtype accepts either; a domain declared over another domain
+wraps that domain's newtype.
+
+## Table rows
+
+Each table is a struct with one field for each column, optional where the
+column can hold NULL, and reads itself from a result row by column name.

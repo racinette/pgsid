@@ -4,6 +4,7 @@ import type { CatalogSnapshot } from '../catalog/types.js'
 import type { CodegenTarget } from './target.js'
 import type { CheckCaseCatalog } from '../query/types.js'
 import { createGoCodegenTarget } from './go/target.js'
+import { createRustCodegenTarget } from './rust/target.js'
 import { createTypescriptCodegenTarget } from './typescript/target.js'
 
 export interface CreateCodegenTargetsOptions {
@@ -75,6 +76,25 @@ export function createCodegenTargets(
               writeRewritesTree,
             }),
           ) ?? null,
+        ]),
+      ),
+      catalog: options.catalog,
+    }),
+    createRustCodegenTarget(config, {
+      baseDirectory: options.baseDirectory ?? process.cwd(),
+      key: hash(
+        stableJson([
+          config.sql.codegen?.rust ?? null,
+          options.catalog?.domains ?? null,
+          options.catalog?.enums ?? null,
+          options.catalog?.compositeTypes ?? null,
+          options.catalog?.rangeTypes ?? null,
+          options.catalog?.tables.map(({ schema, name, relkind, columns }) => ({
+            schema,
+            name,
+            relkind,
+            columns: columns.map(({ name, typeOid, typeName, notNull }) => ({ name, typeOid, typeName, notNull })),
+          })) ?? null,
         ]),
       ),
       catalog: options.catalog,
