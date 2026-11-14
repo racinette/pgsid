@@ -1,6 +1,7 @@
 //! Values of the PostgreSQL types that no Rust standard type holds whole.
 
 mod bits;
+mod check;
 mod clock;
 mod dims;
 mod error;
@@ -12,6 +13,7 @@ mod range;
 mod temporal;
 
 pub use bits::BitString;
+pub use check::{validate_checks, CheckError, CheckEvaluation, CheckResult, CheckValue};
 pub use clock::{Time, Timetz};
 pub use dims::{DimensionError, D2, D3, D4, D5, D6};
 pub use error::QueryError;
@@ -30,9 +32,8 @@ pub fn domain_base(ty: &postgres_types::Type) -> &postgres_types::Type {
         _ => ty,
     }
 }
-
 #[allow(dead_code, unused_imports, unused_variables, unused_mut, unused_assignments, non_snake_case, non_camel_case_types, clippy::all)]
-mod evaluator;
+pub(super) mod evaluator;
 mod numeric;
 mod text;
 

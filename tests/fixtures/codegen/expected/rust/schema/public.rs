@@ -46,6 +46,31 @@ impl postgres_types::ToSql for DefaultEventId {
     postgres_types::to_sql_checked!();
 }
 
+impl DefaultEventId {
+    /// Evaluates the CHECKs of public.default_event_id on a value, which may be NULL or unknown.
+    pub fn check_value(value: super::pgsid::CheckValue<&Self>) -> Vec<super::pgsid::CheckEvaluation> {
+        vec!(super::pgsid::evaluator::checks::evaluation("public.event_id", "event_id_check", {
+            let input_value = super::pgsid::evaluator::checks::read(&value, super::pgsid::evaluator::checkruntime::Int8Value::Unknown, super::pgsid::evaluator::checkruntime::Int8Value::Null, |value| super::pgsid::evaluator::checks::int8(&value.0.0));
+            let faults = [super::pgsid::evaluator::checks::supplied(&value, match &input_value {
+                super::pgsid::evaluator::checkruntime::Int8Value::Error(error) => Some(Some(*error)),
+                super::pgsid::evaluator::checkruntime::Int8Value::Unknown | super::pgsid::evaluator::checkruntime::Int8Value::Unimplemented => Some(None),
+                _ => None,
+            })];
+            super::pgsid::evaluator::checks::decide(&faults, move || super::pgsid::evaluator::checks::evaluate_check_public_domain_default_event_id_from_public_event_id_event_id_check_h7azw(input_value))
+        }))
+    }
+
+    /// Evaluates the CHECKs of public.default_event_id on the value.
+    pub fn evaluate_checks(&self) -> Vec<super::pgsid::CheckEvaluation> {
+        Self::check_value(super::pgsid::CheckValue::Value(self))
+    }
+
+    /// The first CHECK of the domain the value fails, as the server would report it.
+    pub fn validate_checks(&self) -> Result<(), super::pgsid::CheckError> {
+        super::pgsid::validate_checks(self.evaluate_checks())
+    }
+}
+
 /// The domain public.event_id.
 #[derive(Debug, Clone, PartialEq)]
 pub struct EventId(pub i64);
@@ -70,6 +95,31 @@ impl postgres_types::ToSql for EventId {
     }
 
     postgres_types::to_sql_checked!();
+}
+
+impl EventId {
+    /// Evaluates the CHECKs of public.event_id on a value, which may be NULL or unknown.
+    pub fn check_value(value: super::pgsid::CheckValue<&Self>) -> Vec<super::pgsid::CheckEvaluation> {
+        vec!(super::pgsid::evaluator::checks::evaluation("public.event_id", "event_id_check", {
+            let input_value = super::pgsid::evaluator::checks::read(&value, super::pgsid::evaluator::checkruntime::Int8Value::Unknown, super::pgsid::evaluator::checkruntime::Int8Value::Null, |value| super::pgsid::evaluator::checks::int8(&value.0));
+            let faults = [super::pgsid::evaluator::checks::supplied(&value, match &input_value {
+                super::pgsid::evaluator::checkruntime::Int8Value::Error(error) => Some(Some(*error)),
+                super::pgsid::evaluator::checkruntime::Int8Value::Unknown | super::pgsid::evaluator::checkruntime::Int8Value::Unimplemented => Some(None),
+                _ => None,
+            })];
+            super::pgsid::evaluator::checks::decide(&faults, move || super::pgsid::evaluator::checks::evaluate_check_public_domain_event_id_event_id_check_hcydw(input_value))
+        }))
+    }
+
+    /// Evaluates the CHECKs of public.event_id on the value.
+    pub fn evaluate_checks(&self) -> Vec<super::pgsid::CheckEvaluation> {
+        Self::check_value(super::pgsid::CheckValue::Value(self))
+    }
+
+    /// The first CHECK of the domain the value fails, as the server would report it.
+    pub fn validate_checks(&self) -> Result<(), super::pgsid::CheckError> {
+        super::pgsid::validate_checks(self.evaluate_checks())
+    }
 }
 
 /// A row of public.accounts.
@@ -119,5 +169,33 @@ impl Events {
             note: row.try_get("note")?,
             created_at: row.try_get("created_at")?,
         })
+    }
+}
+
+/// The columns of public.events its CHECKs read, each unknown until given.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct EventsCheckInput {
+    pub id: super::pgsid::CheckValue<EventId>,
+    pub default_id: super::pgsid::CheckValue<DefaultEventId>,
+}
+
+impl EventsCheckInput {
+    /// Evaluates the CHECKs of public.events, and those of its columns' domains, on the columns given.
+    pub fn evaluate(&self) -> Vec<super::pgsid::CheckEvaluation> {
+        vec!(EventId::check_value(self.id.as_ref()), DefaultEventId::check_value(self.default_id.as_ref()), vec!()).into_iter().flatten().collect()
+    }
+
+    /// The first CHECK of the table the columns fail, as the server would report it.
+    pub fn validate(&self) -> Result<(), super::pgsid::CheckError> {
+        super::pgsid::validate_checks(self.evaluate())
+    }
+}
+
+impl From<&Events> for EventsCheckInput {
+    fn from(row: &Events) -> Self {
+        Self {
+            id: super::pgsid::CheckValue::Value(row.id.clone()),
+            default_id: super::pgsid::CheckValue::from(row.default_id.clone()),
+        }
     }
 }

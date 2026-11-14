@@ -46,3 +46,16 @@ export const assertUniqueRustNames = (
     names.set(value.generated, value.source)
   }
 }
+
+// A name unique among others generated in one scope, numbered after the first.
+export const uniqueNames = (names: readonly string[]): string[] => {
+  const seen = new Map<string, number>()
+  return names.map((name) => {
+    const count = seen.get(name) ?? 0
+    seen.set(name, count + 1)
+    return count ? `${name}${count + 1}` : name
+  })
+}
+
+// The variant of each label of a PostgreSQL enum.
+export const rustEnumVariants = (labels: readonly string[]): string[] => uniqueNames(labels.map(rustTypeName))

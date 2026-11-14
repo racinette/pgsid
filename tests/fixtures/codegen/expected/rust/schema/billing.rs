@@ -62,3 +62,29 @@ impl Events {
         })
     }
 }
+
+/// The columns of billing.events its CHECKs read, each unknown until given.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct EventsCheckInput {
+    pub source_id: super::pgsid::CheckValue<super::public::EventId>,
+}
+
+impl EventsCheckInput {
+    /// Evaluates the CHECKs of billing.events, and those of its columns' domains, on the columns given.
+    pub fn evaluate(&self) -> Vec<super::pgsid::CheckEvaluation> {
+        vec!(super::public::EventId::check_value(self.source_id.as_ref()), vec!()).into_iter().flatten().collect()
+    }
+
+    /// The first CHECK of the table the columns fail, as the server would report it.
+    pub fn validate(&self) -> Result<(), super::pgsid::CheckError> {
+        super::pgsid::validate_checks(self.evaluate())
+    }
+}
+
+impl From<&Events> for EventsCheckInput {
+    fn from(row: &Events) -> Self {
+        Self {
+            source_id: super::pgsid::CheckValue::Value(row.source_id.clone()),
+        }
+    }
+}

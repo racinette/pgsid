@@ -11,17 +11,19 @@ import {
   type RustPattern,
   type RustType,
 } from './ast.js'
-import { assertUniqueRustNames, rustFieldName, rustTypeName } from './names.js'
+import { assertUniqueRustNames, rustEnumVariants, rustFieldName, rustTypeName, uniqueNames } from './names.js'
 import {
   nullableRustType,
   resolveRustColumnType,
   resolveRustType,
+  rustDeclaredType,
   rustDomainBase,
   rustSchemaModule,
   rustValues,
   type RustTypeContext,
 } from './type-mapping.js'
 import { rustValueArtifacts } from './values.js'
+import { planRustChecks, rustCheckItems, type RustCheckPlan } from './checks.js'
 
 type Artifact = { path: string; content: string }
 
@@ -34,19 +36,6 @@ const typeParameter: { pattern: { kind: 'ident'; name: string }; type: RustType 
   pattern: { kind: 'ident', name: 'ty' },
   type: rust.ref(rust.path('postgres_types', 'Type')),
 }
-
-// A name unique among others generated in one scope, numbered after the first.
-export const uniqueNames = (names: readonly string[]): string[] => {
-  const seen = new Map<string, number>()
-  return names.map((name) => {
-    const count = seen.get(name) ?? 0
-    seen.set(name, count + 1)
-    return count ? `${name}${count + 1}` : name
-  })
-}
-
-// The variant of each label of a PostgreSQL enum.
-export const rustEnumVariants = (labels: readonly string[]): string[] => uniqueNames(labels.map(rustTypeName))
 
 function enumItems(schema: string, name: string, labels: readonly string[]): RustItem[] {
   const variants = rustEnumVariants(labels)
@@ -374,9 +363,16 @@ function tableItems(
   context: RustTypeContext,
   dimensions: (column: string) => number | readonly number[] | undefined,
   cases: OutputCheckCases | undefined,
+  checks?: {
+    plan: RustCheckPlan
+    group: RustCheckPlan['groups'][number] | undefined
+    literalDomain: (domain: DomainInfo) => boolean
+    domainChecked: (domain: DomainInfo) => boolean
+  },
 ): RustItem[] {
   const name = rustTypeName(table.name)
   const enums: RustItem[] = []
+  const literal = new Set<string>()
   const columns = table.columns.map((column, index) => {
     let type = resolveRustColumnType(column, dimensions(`${table.schema}.${table.name}.${column.name}`), catalog, context)
     // A column whose stored rows' CHECKs admit only some literals holds one of them.
@@ -386,13 +382,43 @@ function tableItems(
       const enumName = `${name}${rustTypeName(column.name)}`
       enums.push(...literalItems(enumName, base, literals, `${table.schema}.${table.name}.${column.name}`))
       type = rust.path(enumName)
+      literal.add(column.name)
     }
-    return { column, field: rustFieldName(column.name), type: nullableRustType(type, column.notNull) }
+    return { column, field: rustFieldName(column.name), set: type, type: nullableRustType(type, column.notNull) }
   })
   assertUniqueRustNames(
     columns.map(({ column, field }) => ({ source: column.name, generated: field })),
     `column in table ${table.schema}.${table.name}`,
   )
+  const checkItems = checks
+    ? rustCheckItems(
+        checks.group,
+        {
+          values: rustValuesPath(context),
+          catalog,
+          enumType: (schema, enumName) => rustDeclaredType(schema, enumName, context),
+          input: (input) => {
+            const item = columns.find(({ column }) => column.name === input)
+            if (!item) return null
+            const base = literal.has(item.column.name)
+              ? { access: (value: RustExpression) => rust.method(value, 'value'), baseOid: item.column.typeOid, typeMod: item.column.typeMod ?? -1 }
+              : rustBaseAccess(item.column.typeOid, item.column.typeMod ?? -1, catalog, checks.literalDomain)
+            return { type: item.set, ...base }
+          },
+        },
+        checks.plan.context,
+        {
+          kind: 'table',
+          table,
+          row: name,
+          fields: new Map(columns.map(({ column, field }) => [column.name, { field, nullable: !column.notNull }])),
+          domains: columns.flatMap(({ column, set }) => {
+            const domain = catalog.domains.find((item) => item.oid === column.typeOid)
+            return domain && checks.domainChecked(domain) && !literal.has(column.name) ? [{ column: column.name, type: set }] : []
+          }),
+        },
+      )
+    : []
   return [
     ...enums,
     {
@@ -432,7 +458,40 @@ function tableItems(
         },
       ],
     },
+    ...checkItems,
   ]
+}
+
+// The values module's path from the code.
+const rustValuesPath = (context: RustTypeContext): string[] => (rustValues(context, 'x') as { path: string[] }).path.slice(0, -1)
+
+/**
+ * How a value of a type reaches the built-in type beneath its domains: a domain's newtype holds
+ * its base, and a domain that is an enum of literals gives its value. The innermost type modifier
+ * a domain declares applies.
+ */
+function rustBaseAccess(
+  oid: number,
+  typeMod: number,
+  catalog: CatalogSnapshot,
+  literalDomain: (domain: DomainInfo) => boolean,
+): { access: (value: RustExpression) => RustExpression; baseOid: number; typeMod: number } {
+  let access = (value: RustExpression) => value
+  let unwrapped = false
+  const seen = new Set<number>()
+  for (let domain = catalog.domains.find((item) => item.oid === oid); domain && !seen.has(domain.oid); domain = catalog.domains.find((item) => item.oid === oid)) {
+    seen.add(domain.oid)
+    if ((domain.baseTypeMod ?? -1) >= 0) typeMod = domain.baseTypeMod!
+    const outer = access
+    if (!unwrapped) {
+      if (literalDomain(domain)) {
+        access = (value) => rust.method(outer(value), 'value')
+        unwrapped = true
+      } else access = (value) => rust.field(outer(value), '0')
+    }
+    oid = domain.baseTypeOid
+  }
+  return { access, baseOid: oid, typeMod }
 }
 
 /**
@@ -448,7 +507,15 @@ export function renderRustSchemaArtifacts(
   needs?: Parameters<typeof rustValueArtifacts>[2],
 ): Artifact[] {
   const mappings = config?.sql.codegen?.rust?.mappings.column ?? {}
+  const checkPlan = planRustChecks(catalog, config)
+  const checkGroup = (kind: 'table' | 'domain', schema: string, name: string) =>
+    checkPlan.groups.find(({ group }) => group.kind === kind && group.source.schema === schema && group.source.name === name)
   const modules = config?.sql.codegen?.rust?.schema?.names ?? {}
+  // A domain whose CHECKs admit only some literals is an enum of them.
+  const literalDomain = (domain: DomainInfo): boolean => {
+    const literals = domainLiterals[`${domain.schema}.${domain.name}`]
+    return Boolean(literals && literalBase(rustDomainBase(domain, catalog, { depth: 1 }), literals))
+  }
   const dimensions = (column: string) => mappings[column]?.dimensions
   const schemas = [
     ...new Set(
@@ -474,14 +541,36 @@ export function renderRustSchemaArtifacts(
           // A domain whose CHECKs admit only some literals is an enum of them.
           const literals = domainLiterals[`${item.schema}.${item.name}`]
           const base = literals && literalBase(rustDomainBase(item, catalog, context), literals)
-          return literals && base
-            ? literalItems(rustTypeName(item.name), base, literals, `${item.schema}.${item.name}`, item)
-            : domainItems(item, catalog, context)
+          const group = checkGroup('domain', item.schema, item.name)
+          const access = rustBaseAccess(item.oid, -1, catalog, literalDomain)
+          return [
+            ...(literals && base
+              ? literalItems(rustTypeName(item.name), base, literals, `${item.schema}.${item.name}`, item)
+              : domainItems(item, catalog, context)),
+            ...(group
+              ? rustCheckItems(
+                  group,
+                  {
+                    values: rustValuesPath(context),
+                    catalog,
+                    enumType: (schema, enumName) => rustDeclaredType(schema, enumName, context),
+                    input: () => ({ type: rust.path(rustTypeName(item.name)), ...access }),
+                  },
+                  checkPlan.context,
+                  { kind: 'domain', domain: item, type: rustTypeName(item.name) },
+                )
+              : []),
+          ]
         }),
       ...catalog.tables
         .filter((item) => item.schema === schema && item.relkind !== 'S')
         .flatMap((item) =>
-          tableItems(item, catalog, context, dimensions, relations[`${item.schema}.${item.name}`]?.outputCases),
+          tableItems(item, catalog, context, dimensions, relations[`${item.schema}.${item.name}`]?.outputCases, {
+            plan: checkPlan,
+            group: checkGroup('table', item.schema, item.name),
+            literalDomain,
+            domainChecked: (domain) => checkGroup('domain', domain.schema, domain.name) !== undefined,
+          }),
         ),
     ]
     return { path: join(directory, `${rustSchemaModule(schema, { modules })}.rs`), content: printRustFile(items) }
@@ -503,7 +592,7 @@ export function renderRustSchemaArtifacts(
     ...rustValueArtifacts(
       join(directory, 'pgsid'),
       artifacts.map((artifact) => artifact.content),
-      needs,
+      { ...needs, ...(checkPlan.module ? { checks: checkPlan.module } : {}) },
     ),
   ]
 }

@@ -1,4 +1,31 @@
 use super::checkruntime::*;
+pub fn sql__pg_catalog__int84gt__p7f5(left: Int8Value, right: Int4Value) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = left { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = right { unresolved_flavor = 1; };
+    if let Int8Value::Unimplemented = left { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = right { unresolved_flavor = 2; };
+    if let Int8Value::Error(error) = left {
+        return BoolValue::Error(error);
+    }
+    if let Int4Value::Error(error) = right {
+        return BoolValue::Error(error);
+    }
+    if left == Int8Value::Null || right == Int4Value::Null {
+        return BoolValue::Null;
+    }
+    let mut condition_flavor_363_4: i32 = unresolved_flavor; if let Int8Value::Unknown = left { if condition_flavor_363_4 < 1 { condition_flavor_363_4 = 1; }; }; if let Int8Value::Unimplemented = left { condition_flavor_363_4 = 2; }; if let Int4Value::Unknown = right { if condition_flavor_363_4 < 1 { condition_flavor_363_4 = 1; }; }; if let Int4Value::Unimplemented = right { condition_flavor_363_4 = 2; }; if (left == Int8Value::Unknown || left == Int8Value::Unimplemented) || (right == Int4Value::Unknown || right == Int4Value::Unimplemented) {
+        return bool_unresolved(condition_flavor_363_4);
+    }
+    if let Int8Value::Value(left_value) = left {
+        if let Int4Value::Value(right_value) = right {
+            let wide_right = right_value as i64;
+            return BoolValue::Value(left_value > wide_right);
+        }
+    }
+    bool_unresolved(unresolved_flavor)
+}
+
 const SQLSTATE_DIVISION_BY_ZERO: u32 = 3452582;
 
 const JSONPATH_PARSE_RANGE: u32 = 3452547;

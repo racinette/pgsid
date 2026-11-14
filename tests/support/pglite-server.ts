@@ -44,8 +44,12 @@ export async function servePglite(db: PGlite): Promise<{ port: number; close(): 
       }
       if (!messages.length) return
       const batch = new Uint8Array(Buffer.concat(messages))
+      // The server answers each Sync and each simple query with one ReadyForQuery. PGlite also
+      // sends one straight after an error in the extended protocol, which a driver would read as
+      // the answer to a Sync it has not reached.
+      const ready = messages.filter((message) => message[0] === 0x53 || message[0] === 0x51).length
       chain = chain.then(async () => {
-        const reply = await db.execProtocolRaw(batch)
+        const reply = trimReady(Buffer.from(await db.execProtocolRaw(batch)), ready)
         if (reply.length && !socket.destroyed) socket.write(reply)
       })
     })
@@ -59,4 +63,23 @@ export async function servePglite(db: PGlite): Promise<{ port: number; close(): 
         server.close(() => resolve())
       }),
   }
+}
+
+// The reply without the ReadyForQuery messages beyond `ready` that directly follow an error.
+function trimReady(reply: Buffer, ready: number): Buffer {
+  const messages: Buffer[] = []
+  for (let offset = 0; offset + 5 <= reply.length; ) {
+    const length = reply.readUInt32BE(offset + 1) + 1
+    messages.push(reply.subarray(offset, offset + length))
+    offset += length
+  }
+  let extra = messages.filter((message) => message[0] === 0x5a).length - ready
+  const kept = messages.filter((message, index) => {
+    if (extra > 0 && message[0] === 0x5a && messages[index - 1]?.[0] === 0x45) {
+      extra--
+      return false
+    }
+    return true
+  })
+  return Buffer.concat(kept)
 }

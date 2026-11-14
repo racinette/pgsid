@@ -2,3 +2,4 @@
 
 pub mod checkruntime;
 pub mod pg_catalog;
+pub mod checks;

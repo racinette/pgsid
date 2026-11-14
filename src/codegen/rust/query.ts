@@ -5,9 +5,9 @@ import { interpretValueLineage, type ValueLineage } from '../../query/value-line
 import { planArrayDimensionInputs, resolveArrayDimensions } from '../shared/array-dimensions.js'
 import { outputRelations, rowGroups } from '../shared/row-groups.js'
 import { printRustFile, printRustType, rust, type RustExpression, type RustField, type RustItem, type RustPattern, type RustType } from './ast.js'
-import { assertUniqueRustNames, GeneratedRustNameCollisionError, rustFieldName, rustTypeName } from './names.js'
+import { assertUniqueRustNames, GeneratedRustNameCollisionError, rustEnumVariants, rustFieldName, rustTypeName, uniqueNames } from './names.js'
 import { renderRustRowGroups, rustRowGroupLocal, rustRowGroupTestable } from './row-groups.js'
-import { literalBase, literalItems, literalVariant, rustEnumVariants, uniqueNames } from './schema.js'
+import { literalBase, literalItems, literalVariant } from './schema.js'
 import {
   nullableRustType,
   resolveRustColumnType,

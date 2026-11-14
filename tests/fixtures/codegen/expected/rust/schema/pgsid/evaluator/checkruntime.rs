@@ -7,6 +7,15 @@ pub enum Int4Value {
     Error(SqlError),
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Int8Value {
+    Unknown,
+    Unimplemented,
+    Null,
+    Value(i64),
+    Error(SqlError),
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub enum TextValue {
     Unknown,
@@ -21,8 +30,30 @@ pub fn make_int4_value(value: i32) -> Int4Value {
     Int4Value::Value(value)
 }
 
+pub fn make_int8_value(value: i64) -> Int8Value {
+    Int8Value::Value(value)
+}
+
 pub fn make_text_value(value: &str) -> TextValue {
     TextValue::Value(value.to_owned())
+}
+
+pub fn bool_null() -> BoolValue {
+    BoolValue::Null
+}
+
+pub fn make_bool_value(value: bool) -> BoolValue {
+    BoolValue::Value(value)
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum CheckOutcome {
+    True,
+    False,
+    Null,
+    Unknown,
+    Unimplemented,
+    Error(SqlError),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -335,6 +366,64 @@ pub enum BoolValue {
     Error(SqlError),
 }
 
+pub fn check_from_bool(value: BoolValue) -> CheckOutcome {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoolValue::Unknown = value { unresolved_flavor = 1; };
+    if let BoolValue::Unimplemented = value { unresolved_flavor = 2; };
+    if let BoolValue::Error(error) = value {
+        return CheckOutcome::Error(error);
+    }
+    let mut condition_flavor_848_4: i32 = unresolved_flavor; if let BoolValue::Unknown = value { if condition_flavor_848_4 < 1 { condition_flavor_848_4 = 1; }; }; if let BoolValue::Unimplemented = value { condition_flavor_848_4 = 2; }; if value == BoolValue::Unknown || value == BoolValue::Unimplemented {
+        return check_unresolved(condition_flavor_848_4);
+    }
+    if value == BoolValue::Null {
+        return CheckOutcome::Null;
+    }
+    if value == BoolValue::Value(false) {
+        return CheckOutcome::False;
+    }
+    CheckOutcome::True
+}
+
+pub fn int4_is_null(value: Int4Value) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int4Value::Unknown = value { unresolved_flavor = 1; };
+    if let Int4Value::Unimplemented = value { unresolved_flavor = 2; };
+    if let Int4Value::Error(error) = value {
+        return BoolValue::Error(error);
+    }
+    let mut condition_flavor_869_4: i32 = unresolved_flavor; if let Int4Value::Unknown = value { if condition_flavor_869_4 < 1 { condition_flavor_869_4 = 1; }; }; if let Int4Value::Unimplemented = value { condition_flavor_869_4 = 2; }; if value == Int4Value::Unknown || value == Int4Value::Unimplemented {
+        return bool_unresolved(condition_flavor_869_4);
+    }
+    BoolValue::Value(value == Int4Value::Null)
+}
+
+pub fn int8_is_null(value: Int8Value) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let Int8Value::Unknown = value { unresolved_flavor = 1; };
+    if let Int8Value::Unimplemented = value { unresolved_flavor = 2; };
+    if let Int8Value::Error(error) = value {
+        return BoolValue::Error(error);
+    }
+    let mut condition_flavor_882_4: i32 = unresolved_flavor; if let Int8Value::Unknown = value { if condition_flavor_882_4 < 1 { condition_flavor_882_4 = 1; }; }; if let Int8Value::Unimplemented = value { condition_flavor_882_4 = 2; }; if value == Int8Value::Unknown || value == Int8Value::Unimplemented {
+        return bool_unresolved(condition_flavor_882_4);
+    }
+    BoolValue::Value(value == Int8Value::Null)
+}
+
+pub fn bool_is_null(value: BoolValue) -> BoolValue {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoolValue::Unknown = value { unresolved_flavor = 1; };
+    if let BoolValue::Unimplemented = value { unresolved_flavor = 2; };
+    if let BoolValue::Error(error) = value {
+        return BoolValue::Error(error);
+    }
+    let mut condition_flavor_908_4: i32 = unresolved_flavor; if let BoolValue::Unknown = value { if condition_flavor_908_4 < 1 { condition_flavor_908_4 = 1; }; }; if let BoolValue::Unimplemented = value { condition_flavor_908_4 = 2; }; if value == BoolValue::Unknown || value == BoolValue::Unimplemented {
+        return bool_unresolved(condition_flavor_908_4);
+    }
+    BoolValue::Value(value == BoolValue::Null)
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub enum NumericValue {
     Unknown,
@@ -469,6 +558,11 @@ pub fn numeric_unresolved(flavor: i32) -> NumericValue {
 pub fn text_unresolved(flavor: i32) -> TextValue {
     if flavor == 1 { return TextValue::Unknown; };
     TextValue::Unimplemented
+}
+
+pub fn check_unresolved(flavor: i32) -> CheckOutcome {
+    if flavor == 1 { return CheckOutcome::Unknown; };
+    CheckOutcome::Unimplemented
 }
 
 // A deferral guarded by a declared-context fact needs the database, unless an input it reached was
@@ -2253,6 +2347,44 @@ pub fn jsonb_storage_admission(source: &JsonbPayload) -> BoolValue {
     jsonb_storage_decision(jsonb_storage_layout(source))
 }
 
+pub(crate) fn array_value_validity(input: BoolValue, unknown_valid: bool) -> CheckOutcome {
+    let mut unresolved_flavor: i32 = 0;
+    if let BoolValue::Unknown = input { unresolved_flavor = 1; };
+    if let BoolValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let BoolValue::Error(error) = input {
+        return CheckOutcome::Error(error);
+    };
+    let mut condition_flavor_54_4: i32 = unresolved_flavor; if let BoolValue::Unknown = input { if condition_flavor_54_4 < 1 { condition_flavor_54_4 = 1; }; }; if let BoolValue::Unimplemented = input { condition_flavor_54_4 = 2; }; if (input == BoolValue::Unknown || input == BoolValue::Unimplemented) && unknown_valid == false {
+        return check_unresolved(condition_flavor_54_4);
+    };
+    CheckOutcome::True
+}
+
+pub(crate) fn array_validity_finish(left: CheckOutcome, right: CheckOutcome) -> CheckOutcome {
+    if left == CheckOutcome::Unknown && right == CheckOutcome::Unimplemented {
+        return right;
+    };
+    if left == CheckOutcome::Unknown || left == CheckOutcome::Unimplemented {
+        return left;
+    };
+    if let CheckOutcome::Error(_) = left {
+        return left;
+    };
+    right
+}
+
+// Stopped validity replaces the result, except that a result the evaluator cannot produce
+// outranks a validity that only waits on a database fact.
+pub(crate) fn array_validity_result(validity: CheckOutcome, result: CheckOutcome) -> CheckOutcome {
+    if validity == CheckOutcome::Unknown && result == CheckOutcome::Unimplemented {
+        return result;
+    };
+    if case_guard_stops(validity) {
+        return validity;
+    };
+    result
+}
+
 pub fn text_number(value: i32, base: i32) -> String {
     let digits: Vec<char> = "0123456789abcdef".chars().collect();
     let mut reversed: Vec<char> = Vec::new();
@@ -2309,4 +2441,42 @@ pub fn text_signed_number(value: i64) -> String {
         output.push(reversed[position]);
     }
     output
+}
+
+pub fn or_finish(left: CheckOutcome, right: CheckOutcome) -> CheckOutcome {
+    let mut unresolved_flavor: i32 = 0;
+    if let CheckOutcome::Unknown = left { unresolved_flavor = 1; };
+    if let CheckOutcome::Unknown = right { unresolved_flavor = 1; };
+    if let CheckOutcome::Unimplemented = left { unresolved_flavor = 2; };
+    if let CheckOutcome::Unimplemented = right { unresolved_flavor = 2; };
+    if let CheckOutcome::Error(error) = left {
+        return CheckOutcome::Error(error);
+    }
+    if let CheckOutcome::Error(error) = right {
+        return CheckOutcome::Error(error);
+    }
+    if left == CheckOutcome::True || right == CheckOutcome::True {
+        return CheckOutcome::True;
+    }
+    let mut condition_flavor_60_4: i32 = unresolved_flavor; if let CheckOutcome::Unknown = left { if condition_flavor_60_4 < 1 { condition_flavor_60_4 = 1; }; }; if let CheckOutcome::Unimplemented = left { condition_flavor_60_4 = 2; }; if let CheckOutcome::Unknown = right { if condition_flavor_60_4 < 1 { condition_flavor_60_4 = 1; }; }; if let CheckOutcome::Unimplemented = right { condition_flavor_60_4 = 2; }; if (left == CheckOutcome::Unknown || left == CheckOutcome::Unimplemented) || (right == CheckOutcome::Unknown || right == CheckOutcome::Unimplemented) {
+        return check_unresolved(condition_flavor_60_4);
+    }
+    if left == CheckOutcome::Null || right == CheckOutcome::Null {
+        return CheckOutcome::Null;
+    }
+    CheckOutcome::False
+}
+
+pub fn case_guard_stops(value: CheckOutcome) -> bool {
+    if value == CheckOutcome::Unknown || value == CheckOutcome::Unimplemented {
+        return true;
+    }
+    if let CheckOutcome::Error(_) = value {
+        return true;
+    }
+    false
+}
+
+pub fn case_guard_takes(value: CheckOutcome) -> bool {
+    value == CheckOutcome::True
 }

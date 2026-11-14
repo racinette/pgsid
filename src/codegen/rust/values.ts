@@ -13,6 +13,7 @@ import { rustEvaluatorArtifacts, type RustSourceModule } from './evaluator.js'
 // The values module's files: fixed source, the same for every project.
 const files = [
   'bits.rs',
+  'check.rs',
   'dims.rs',
   'error.rs',
   'clock.rs',
@@ -88,6 +89,7 @@ export const rustValueArtifacts = (
       content:
         source('mod.rs') +
         (evaluator ? source('evaluator-mod.rs') : '') +
+        (values ? source('evaluator-values-mod.rs') : '') +
         (unions.length
           ? `\n${printRustFile(
               unions.flatMap((name): RustItem[] => [
@@ -104,8 +106,12 @@ export const rustValueArtifacts = (
     ...files.map((name) => ({ path: join(directory, name), content: source(name) })),
     ...(evaluator
       ? [
-          { path: join(directory, 'numeric.rs'), content: source('numeric.rs') },
-          { path: join(directory, 'text.rs'), content: source('text.rs') },
+          ...(values
+            ? [
+                { path: join(directory, 'numeric.rs'), content: source('numeric.rs') },
+                { path: join(directory, 'text.rs'), content: source('text.rs') },
+              ]
+            : []),
           ...rustEvaluatorArtifacts(
             join(directory, 'evaluator'),
             [...new Set([...(values ? rustNumericRoots : []), ...called])],
