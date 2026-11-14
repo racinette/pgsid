@@ -3,10 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { PGlite } from '@electric-sql/pglite'
-import {
-  typescriptNumericFiles,
-  typescriptNumericModule,
-} from '../../src/codegen/typescript/numeric-module.js'
+import { typescriptNumericArtifacts } from '../../src/codegen/typescript/numeric-module.js'
 import { buildTypescriptNumericAsset } from '../../scripts/build-typescript-numeric.js'
 
 // The public numeric against PostgreSQL itself: every operation over a fixed sweep of values,
@@ -82,9 +79,8 @@ let other: Module
 
 async function emit(directory: string): Promise<Module> {
   await mkdir(directory, { recursive: true })
-  await writeFile(join(directory, 'numeric.ts'), typescriptNumericModule)
-  for (const file of typescriptNumericFiles()) {
-    const path = join(directory, 'numeric', file.path)
+  for (const file of typescriptNumericArtifacts()) {
+    const path = join(directory, file.path)
     await mkdir(dirname(path), { recursive: true })
     await writeFile(path, file.content)
   }

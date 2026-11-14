@@ -69,8 +69,10 @@ rather than act on the text.
 generated beside the runtime's `pgsid` module, and beside the schema
 declarations, whenever a numeric is used. Each copy of the module accepts
 values made by any other, so a value read through one query can be sent through
-another. The module carries the evaluator's numeric operations, about 50 KB
-when minified.
+another. The module computes with the evaluator's numeric operations: in a
+runtime directory whose queries have checks, through the evaluator those
+queries share, pruned to what both use; elsewhere through an evaluator of its
+own, pruned to those operations, in the same place.
 
 ## Sending and reading
 

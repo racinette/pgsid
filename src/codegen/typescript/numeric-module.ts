@@ -24,11 +24,12 @@ export const typescriptNumericDeclaration = `interface PgsidNumeric {
   sign(): number
 }`
 
-// The module emitted as pgsid/numeric.ts beside the evaluator files it reaches, which the
-// asset build prunes to what this module uses. A value from another copy of this module, as
-// each runtime directory has its own, is recognised by its registered symbol.
-export const typescriptNumericModule = `import * as operations from "./numeric/pg_catalog/operations.js";
-import * as runtime from "./numeric/checkruntime/runtime.js";
+// The module emitted as pgsid/numeric.ts, reading the evaluator in pgsid/check-rust: the
+// directory's CHECK evaluator where its checks need one, else the evaluator the asset build
+// prunes to what this module uses. A value from another copy of this module, as each runtime
+// directory has its own, is recognised by its registered symbol.
+export const typescriptNumericModule = `import * as operations from "./check-rust/pg_catalog/operations.js";
+import * as runtime from "./check-rust/checkruntime/runtime.js";
 export ${typescriptNumericDeclaration}
 const numericBrand = Symbol.for("pgsid.numeric");
 const numericTexts = new WeakMap<object, string>();
@@ -154,6 +155,6 @@ export function typescriptNumericFiles(): TypescriptNumericFile[] {
 export function typescriptNumericArtifacts(): TypescriptNumericFile[] {
   return [
     { path: 'numeric.ts', content: typescriptNumericModule },
-    ...typescriptNumericFiles().map((file) => ({ ...file, path: `numeric/${file.path}` })),
+    ...typescriptNumericFiles().map((file) => ({ ...file, path: `check-rust/${file.path}` })),
   ]
 }

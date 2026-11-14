@@ -7,6 +7,7 @@ import { buildProject } from '../../src/project-runtime.js'
 
 const schema = `CREATE TABLE items (id int PRIMARY KEY, price numeric CHECK (price > 0), name text CHECK (length(name) < 5));
 CREATE TABLE tags (id int PRIMARY KEY, label text CHECK (label ~ '^[a-z]+$'));
+CREATE TABLE prices (id int PRIMARY KEY, amount numeric);
 `
 
 let root: string
@@ -28,6 +29,12 @@ UPDATE items SET name = @name WHERE id = @id;
     join(root, 'queries/tags.sql'),
     `-- name: AddTag :exec
 INSERT INTO tags (id, label) VALUES (@id, @label);
+`,
+  )
+  await writeFile(
+    join(root, 'queries/prices.sql'),
+    `-- name: GetPrice :one
+SELECT amount FROM prices WHERE id = $1;
 `,
   )
   await writeFile(
@@ -68,6 +75,23 @@ it(
     expect((await files(join(root, 'generated/runtime/tags'))).filter((path) => path.includes('check-rust'))).toContain(
       'pgsid/check-rust/checks.ts',
     )
+    // The numeric module computes with the directory's evaluator, pruned for it too; a directory
+    // without checks has the numeric module's evaluator alone, in the same place.
+    expect(items.filter((path) => path.startsWith('pgsid/numeric'))).toEqual(['pgsid/numeric.ts'])
+    expect(await readFile(join(root, 'generated/runtime/items/pgsid/numeric.ts'), 'utf8')).toContain(
+      '"./check-rust/pg_catalog/operations.js"',
+    )
+    const prices = await files(join(root, 'generated/runtime/prices'))
+    expect(prices.filter((path) => path.startsWith('pgsid/numeric'))).toEqual(['pgsid/numeric.ts'])
+    expect(prices).toContain('pgsid/check-rust/pg_catalog/operations.ts')
+    expect(prices).not.toContain('pgsid/check-rust/checks.ts')
+    for (const directory of ['items', 'prices']) {
+      const { numeric } = (await import(join(root, 'generated/runtime', directory, 'pgsid/numeric.ts'))) as {
+        numeric(text: string): { add(other: unknown): { toString(): string }; div(other: unknown): unknown }
+      }
+      expect(numeric('0.1').add(numeric('0.2')).toString(), directory).toBe('0.3')
+      expect(() => numeric('1').div(numeric('0')), directory).toThrow(/division by zero/u)
+    }
 
     const { fromPglite } = (await import(join(root, 'generated/runtime/items/pgsid/queryable.ts'))) as {
       fromPglite(db: PGlite): unknown

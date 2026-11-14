@@ -17,7 +17,7 @@ const asset = fileURLToPath(
 export function buildTypescriptNumericAsset(): string {
   const files = checkTypescriptArtifacts(
     transpileCheckRustTypescriptFiles(assembleCheckRust({ source: '', callables: [] })),
-    [{ source: typescriptNumericModule, prefix: './numeric/' }],
+    [{ source: typescriptNumericModule, prefix: './check-rust/' }],
   )
   return JSON.stringify({ files }, null, 1) + '\n'
 }

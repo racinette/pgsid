@@ -10,7 +10,7 @@ import type { CodegenOutput, CodegenRenderResult, CodegenTarget } from '../targe
 import type { JsonSchemaAlternative } from '../shared/json-schema-lineage.js'
 import { renderTypescriptQueryArtifacts, renderTypescriptQueryHelpers } from './query.js'
 import { renderTypescriptSchemaArtifacts } from './schema.js'
-import { typescriptNumericArtifacts } from './numeric-module.js'
+import { typescriptNumericArtifacts, typescriptNumericModule } from './numeric-module.js'
 import { typescriptJsonSchemaLocations } from './json-schema-validator-graph.js'
 import {
   createTypescriptJsonSchemaGraphs,
@@ -252,13 +252,18 @@ export function createTypescriptCodegenTarget(
             diagnostics: rendered.diagnostics,
           }
         })
-        // The evaluator of every query's checks, translated once and pruned to what the queries call.
+        // The evaluator of every query's checks, translated once and pruned to what the queries
+        // and the numeric module call, so the directory holds one evaluator.
         const checkRust = results.flatMap((result) => (result.checkRust ? [result.checkRust] : []))
+        const usesNumeric = results.some((result) => result.usesNumeric)
         const sharedCheckRust =
           runtimeDirectory && checkRust.length
             ? checkTypescriptArtifacts(
                 transpileCheckRustTypescriptFiles(combineCheckRustParts(checkRust.map((item) => item.parts))),
-                checkRust.map((item) => ({ source: item.consumer, prefix: './pgsid/check-rust/' })),
+                [
+                  ...checkRust.map((item) => ({ source: item.consumer, prefix: './pgsid/check-rust/' })),
+                  ...(usesNumeric ? [{ source: typescriptNumericModule, prefix: './check-rust/' }] : []),
+                ],
               ).map((artifact) => ({
                 kind: 'runtime' as const,
                 path: join(runtimeDirectory, 'pgsid', 'check-rust', artifact.path),
@@ -290,9 +295,13 @@ export function createTypescriptCodegenTarget(
                   },
                 ]
               : []),
-            // The numeric module, beside the support module, once a query here reads a numeric.
-            ...(runtimeDirectory && results.some((result) => result.usesNumeric)
-              ? typescriptNumericArtifacts().map((artifact) => ({
+            // The numeric module, beside the support module, once a query here reads a numeric,
+            // with an evaluator of its own only where no check needs one.
+            ...(runtimeDirectory && usesNumeric
+              ? (sharedCheckRust.length
+                  ? [{ path: 'numeric.ts', content: typescriptNumericModule }]
+                  : typescriptNumericArtifacts()
+                ).map((artifact) => ({
                   kind: 'runtime',
                   path: join(runtimeDirectory, 'pgsid', artifact.path),
                   content: artifact.content,

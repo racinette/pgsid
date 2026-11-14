@@ -1,5 +1,5 @@
-import * as operations from "./numeric/pg_catalog/operations.js";
-import * as runtime from "./numeric/checkruntime/runtime.js";
+import * as operations from "./check-rust/pg_catalog/operations.js";
+import * as runtime from "./check-rust/checkruntime/runtime.js";
 export interface PgsidNumeric {
   readonly [Symbol.toStringTag]: 'PgsidNumeric'
   toString(): string
