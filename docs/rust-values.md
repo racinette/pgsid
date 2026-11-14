@@ -120,6 +120,14 @@ server describes a parameter as the domain but a result column as its base
 type, so the newtype accepts either; a domain declared over another domain
 wraps that domain's newtype.
 
+## Literal sets
+
+A text or integer column whose stored rows' CHECKs admit only some literals is
+an enum of them, named after its table and column, and a domain whose CHECKs
+admit only some literals is an enum instead of a newtype. Each variant holds one
+admitted value, which it reads and writes as the base type, and a value outside
+the set fails to read rather than become a variant no CHECK allows.
+
 ## Table rows
 
 Each table is a struct with one field for each column, optional where the

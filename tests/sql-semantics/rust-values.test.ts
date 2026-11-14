@@ -19,6 +19,11 @@ CREATE TABLE things (
   instant timestamptz, local timestamp, day date, gap interval, span int4range, stamps tstzrange,
   many int4multirange, doc jsonb, plain json, items integer[], words text[], flag boolean NOT NULL DEFAULT false
 );
+CREATE DOMAIN priority AS text CHECK (VALUE IN ('low', 'high'));
+CREATE TABLE tasks (
+  id integer PRIMARY KEY, status text NOT NULL CHECK (status IN ('todo', 'in progress', 'done')),
+  level integer CHECK (level IN (1, 2, -1)), urgency priority
+);
 `
 
 // The generated schema module against the server through tokio-postgres: each value is written
@@ -28,7 +33,7 @@ const main = `mod db;
 
 use chrono::{NaiveDate, TimeZone, Utc};
 use db::pgsid::{Bound, Date, Interval, Json, Multirange, Range, Timestamp, Timestamptz};
-use db::public::{Mood, NestedPositive, Pair, Positive, Things};
+use db::public::{Mood, NestedPositive, Pair, Positive, Priority, Tasks, TasksLevel, TasksStatus, Things};
 
 const COLUMNS: &str = "id, feeling, couple, amount, nested, instant, local, day, gap, span, stamps, many, doc, plain, items, words, flag";
 
@@ -145,6 +150,22 @@ async fn main() {
     }
     if read(&client, 2).await.doc.map(|doc| doc.text().to_owned()) != Some("null".to_owned()) {
         eprintln!("a JSON null document read as SQL NULL");
+        failures += 1;
+    }
+    // Columns and domains whose CHECKs admit only some literals hold one of them.
+    let task = Tasks { id: 1, status: TasksStatus::InProgress, level: Some(TasksLevel::NMinus1), urgency: Some(Priority::High) };
+    client
+        .execute("INSERT INTO tasks (id, status, level, urgency) VALUES ($1, $2, $3, $4)", &[&task.id, &task.status, &task.level, &task.urgency])
+        .await
+        .unwrap();
+    let stored = client.query_one("SELECT status, level::text, urgency::text FROM tasks WHERE id = 1", &[]).await.unwrap();
+    if (stored.get::<_, String>(0), stored.get::<_, String>(1), stored.get::<_, String>(2)) != ("in progress".to_owned(), "-1".to_owned(), "high".to_owned()) {
+        eprintln!("task stored as {stored:?}");
+        failures += 1;
+    }
+    let back = Tasks::from_row(&client.query_one("SELECT id, status, level, urgency FROM tasks WHERE id = 1", &[]).await.unwrap()).unwrap();
+    if back != task || back.status.value() != "in progress" || back.level.map(|level| level.value()) != Some(-1) {
+        eprintln!("task read back as {back:?}");
         failures += 1;
     }
     if failures > 0 {

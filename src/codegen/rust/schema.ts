@@ -1,7 +1,16 @@
 import { join } from 'node:path'
 import type { CatalogSnapshot, DomainInfo, TableInfo } from '../../catalog/types.js'
 import type { Config } from '../../config/schema.js'
-import { printRustFile, rust, type RustExpression, type RustItem, type RustType } from './ast.js'
+import type { OutputCheckCases, OutputLiterals } from '../../query/check-cases.js'
+import type { SchemaDomainLiterals, SchemaRelationAnalyses } from '../../schema-analysis.js'
+import {
+  printRustFile,
+  rust,
+  type RustExpression,
+  type RustItem,
+  type RustPattern,
+  type RustType,
+} from './ast.js'
 import { assertUniqueRustNames, rustFieldName, rustTypeName } from './names.js'
 import {
   nullableRustType,
@@ -188,26 +197,200 @@ function domainItems(domain: DomainInfo, catalog: CatalogSnapshot, context: Rust
   ]
 }
 
+// A Rust type a literal set narrows: text to an enum of its strings, an integer to an enum of its
+// integers. Other types keep their values.
+const literalBase = (type: RustType, literals: OutputLiterals): string | null => {
+  if (type.kind !== 'path' || type.path.length !== 1 || type.generics) return null
+  const name = type.path[0]!
+  if (literals.kind === 'string' && name === 'String') return name
+  if ((literals.kind === 'number' || literals.kind === 'bigint') && ['i16', 'i32', 'i64'].includes(name))
+    return literals.values.every((value) => /^-?\d+$/u.test(value)) ? name : null
+  return null
+}
+
+const literalVariant = (value: string, kind: OutputLiterals['kind']): string => {
+  if (kind !== 'string') return `N${value.replace('-', 'Minus')}`
+  const name = rustTypeName(value)
+  return /^[A-Za-z]/u.test(value) && name !== 'Unnamed' ? name : `Value${name === 'Unnamed' ? '' : name}`
+}
+
+/**
+ * An enum of the values a column's or domain's CHECKs admit, read and written as its base type:
+ * a value outside the set is an error, since the stored rows cannot hold it.
+ */
+function literalItems(
+  name: string,
+  base: string,
+  literals: OutputLiterals,
+  owner: string,
+  domain?: DomainInfo,
+): RustItem[] {
+  const variants = uniqueNames(literals.values.map((value) => literalVariant(value, literals.kind)))
+  const text = base === 'String'
+  const valueType: RustType = text ? rust.ref(rust.path('str'), 'static') : rust.path(base)
+  const literal = (value: string): RustExpression => (text ? rust.string(value) : rust.number(value))
+  const self = rust.path(name)
+  const baseType: RustExpression = domain
+    ? rust.call(rust.expressionPath('super', 'pgsid', 'domain_base'), rust.ident('ty'))
+    : rust.ident('ty')
+  const fromSql: RustType = { kind: 'path', path: ['postgres_types', 'FromSql'], generics: [{ kind: 'lifetime', name: 'a' }] }
+  const toSql = rust.path('postgres_types', 'ToSql')
+  const named: RustExpression[] = domain
+    ? [
+        {
+          kind: 'paren',
+          value: {
+            kind: 'binary',
+            operator: '&&',
+            left: { kind: 'binary', operator: '==', left: rust.method(rust.ident('ty'), 'name'), right: rust.string(domain.name) },
+            right: { kind: 'binary', operator: '==', left: rust.method(rust.ident('ty'), 'schema'), right: rust.string(domain.schema) },
+          },
+        },
+      ]
+    : []
+  const accepts = (trait: RustType) => ({
+    kind: 'fn' as const,
+    name: 'accepts',
+    parameters: [typeParameter],
+    result: rust.path('bool'),
+    body: [
+      rust.return(
+        [...named, rust.call({ kind: 'qualified', type: rust.path(base), trait, name: 'accepts' }, baseType)].reduce(
+          (left, right): RustExpression => ({ kind: 'binary', operator: '||', left, right }),
+        ),
+      ),
+    ],
+  })
+  const read: RustExpression = rust.try(
+    rust.call({ kind: 'qualified', type: rust.path(base), trait: fromSql, name: 'from_sql' }, baseType, rust.ident('raw')),
+  )
+  return [
+    {
+      kind: 'enum',
+      name,
+      visibility: 'pub',
+      attributes: [rust.derive('Debug', 'Clone', 'Copy', 'PartialEq', 'Eq', 'Hash')],
+      doc: `The values the CHECKs of ${owner} admit.`,
+      variants: variants.map((variant) => ({ name: variant })),
+    },
+    {
+      kind: 'impl',
+      type: self,
+      items: [
+        {
+          kind: 'fn',
+          name: 'value',
+          visibility: 'pub',
+          doc: 'The value as the server stores it.',
+          receiver: '&self',
+          parameters: [],
+          result: valueType,
+          body: [
+            rust.return({
+              kind: 'match',
+              value: rust.ident('self'),
+              arms: variants.map((variant, index) => ({
+                pattern: { kind: 'path', path: ['Self', variant] },
+                body: literal(literals.values[index]!),
+              })),
+            }),
+          ],
+        },
+      ],
+    },
+    {
+      kind: 'impl',
+      generics: [{ name: 'a', lifetime: true }],
+      trait: fromSql,
+      type: self,
+      items: [
+        {
+          kind: 'fn',
+          name: 'from_sql',
+          parameters: [typeParameter, { pattern: rust.binding('raw'), type: rust.ref({ kind: 'slice', type: rust.path('u8') }, 'a') }],
+          result: rust.generic('Result', self, boxError),
+          body: [
+            rust.return({
+              kind: 'match',
+              value: text ? rust.method(read, 'as_str') : read,
+              arms: [
+                ...variants.map((variant, index) => ({
+                  pattern: { kind: 'literal', value: literal(literals.values[index]!) } as RustPattern,
+                  body: rust.call(rust.ident('Ok'), rust.expressionPath('Self', variant)),
+                })),
+                {
+                  pattern: rust.binding('other'),
+                  body: rust.call(
+                    rust.ident('Err'),
+                    rust.method(
+                      rust.macro('format', rust.string(`{:?} is not a value the CHECKs of ${owner} admit`), rust.ident('other')),
+                      'into',
+                    ),
+                  ),
+                },
+              ],
+            }),
+          ],
+        },
+        accepts(fromSql),
+      ],
+    },
+    {
+      kind: 'impl',
+      trait: toSql,
+      type: self,
+      items: [
+        {
+          kind: 'fn',
+          name: 'to_sql',
+          receiver: '&self',
+          parameters: [typeParameter, { pattern: rust.binding('out'), type: { kind: 'reference', mutable: true, type: rust.path('bytes', 'BytesMut') } }],
+          result: rust.generic('Result', rust.path('postgres_types', 'IsNull'), boxError),
+          body: [
+            rust.return(
+              rust.call(
+                { kind: 'qualified', type: valueType, trait: toSql, name: 'to_sql' },
+                rust.ref_(rust.method(rust.ident('self'), 'value')),
+                baseType,
+                rust.ident('out'),
+              ),
+            ),
+          ],
+        },
+        accepts(toSql),
+        { kind: 'macro', path: ['postgres_types', 'to_sql_checked'] },
+      ],
+    },
+  ]
+}
+
 function tableItems(
   table: TableInfo,
   catalog: CatalogSnapshot,
   context: RustTypeContext,
   dimensions: (column: string) => number | readonly number[] | undefined,
+  cases: OutputCheckCases | undefined,
 ): RustItem[] {
   const name = rustTypeName(table.name)
-  const columns = table.columns.map((column) => ({
-    column,
-    field: rustFieldName(column.name),
-    type: nullableRustType(
-      resolveRustColumnType(column, dimensions(`${table.schema}.${table.name}.${column.name}`), catalog, context),
-      column.notNull,
-    ),
-  }))
+  const enums: RustItem[] = []
+  const columns = table.columns.map((column, index) => {
+    let type = resolveRustColumnType(column, dimensions(`${table.schema}.${table.name}.${column.name}`), catalog, context)
+    // A column whose stored rows' CHECKs admit only some literals holds one of them.
+    const literals = cases?.literals[index]
+    const base = literals && literalBase(type, literals)
+    if (literals && base) {
+      const enumName = `${name}${rustTypeName(column.name)}`
+      enums.push(...literalItems(enumName, base, literals, `${table.schema}.${table.name}.${column.name}`))
+      type = rust.path(enumName)
+    }
+    return { column, field: rustFieldName(column.name), type: nullableRustType(type, column.notNull) }
+  })
   assertUniqueRustNames(
     columns.map(({ column, field }) => ({ source: column.name, generated: field })),
     `column in table ${table.schema}.${table.name}`,
   )
   return [
+    ...enums,
     {
       kind: 'struct',
       name,
@@ -256,6 +439,8 @@ export function renderRustSchemaArtifacts(
   catalog: CatalogSnapshot,
   directory: string,
   config?: Config,
+  relations: SchemaRelationAnalyses = {},
+  domainLiterals: SchemaDomainLiterals = {},
 ): Artifact[] {
   const mappings = config?.sql.codegen?.rust?.mappings.column ?? {}
   const dimensions = (column: string) => mappings[column]?.dimensions
@@ -277,10 +462,21 @@ export function renderRustSchemaArtifacts(
       ...catalog.compositeTypes
         .filter((item) => item.schema === schema)
         .flatMap((item) => compositeItems(schema, item.name, item.attributes, catalog, context)),
-      ...catalog.domains.filter((item) => item.schema === schema).flatMap((item) => domainItems(item, catalog, context)),
+      ...catalog.domains
+        .filter((item) => item.schema === schema)
+        .flatMap((item) => {
+          // A domain whose CHECKs admit only some literals is an enum of them.
+          const literals = domainLiterals[`${item.schema}.${item.name}`]
+          const base = literals && literalBase(rustDomainBase(item, catalog, context), literals)
+          return literals && base
+            ? literalItems(rustTypeName(item.name), base, literals, `${item.schema}.${item.name}`, item)
+            : domainItems(item, catalog, context)
+        }),
       ...catalog.tables
         .filter((item) => item.schema === schema && item.relkind !== 'S')
-        .flatMap((item) => tableItems(item, catalog, context, dimensions)),
+        .flatMap((item) =>
+          tableItems(item, catalog, context, dimensions, relations[`${item.schema}.${item.name}`]?.outputCases),
+        ),
     ]
     return { path: join(directory, `${rustFieldName(schema)}.rs`), content: printRustFile(items) }
   })
