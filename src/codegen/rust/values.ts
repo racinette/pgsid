@@ -8,6 +8,7 @@ import {
   type RustPattern,
   type RustType,
 } from './ast.js'
+import { rustEvaluatorArtifacts, type RustSourceModule } from './evaluator.js'
 
 // The values module's files: fixed source, the same for every project.
 const files = [
@@ -52,16 +53,6 @@ const source = (name: string): string => {
   return readFileSync(existsSync(asset) ? asset : new URL(`./values/${name}`, import.meta.url), 'utf8')
 }
 
-// The evaluator modules the numeric value calls, pruned when the asset is built.
-const numericEvaluator = (): { path: string; content: string }[] => {
-  const asset = new URL('./assets/rust-numeric.json', import.meta.url)
-  return (
-    JSON.parse(
-      readFileSync(existsSync(asset) ? asset : new URL('./rust-numeric.json', import.meta.url), 'utf8'),
-    ) as { files: { path: string; content: string }[] }
-  ).files
-}
-
 /**
  * The values module, with the values that call the CHECK evaluator, and the evaluator itself, only
  * where generated code names one of them. Code rendered apart from `contents`, such as queries,
@@ -70,20 +61,27 @@ const numericEvaluator = (): { path: string; content: string }[] => {
 export const rustValueArtifacts = (
   directory: string,
   contents: readonly string[],
-  needs: { evaluator: boolean; unions: readonly string[] } = { evaluator: false, unions: [] },
+  needs: { evaluator?: boolean; unions?: readonly string[]; checks?: RustSourceModule } = {},
 ): { path: string; content: string }[] => {
   // Each set of dimension counts a generated type names, as its own enum.
   const unions = [
     ...new Set([
-      ...needs.unions,
+      ...(needs.unions ?? []),
       ...contents.flatMap((content) =>
         [...content.matchAll(/\bpgsid::(Array\d(?:Or\d)+)\b/gu)].map((match) => match[1]!),
       ),
     ]),
   ].sort()
-  const evaluator =
-    needs.evaluator ||
+  const values =
+    needs.evaluator === true ||
     contents.some((content) => /\bpgsid::(?:Numeric|Tsvector|Tsquery|Xml|Jsonpath|Aclitem)\b/u.test(content))
+  // What generated code calls in the evaluator, besides the values.
+  const called = contents.flatMap((content) =>
+    [...content.matchAll(/\bevaluator::(checkruntime|pg_catalog|checks)::([A-Za-z_][A-Za-z0-9_]*)/gu)].map(
+      (match) => `${match[1]}::${match[2]}`,
+    ),
+  )
+  const evaluator = values || called.length > 0
   return [
     {
       path: join(directory, 'mod.rs'),
@@ -108,11 +106,11 @@ export const rustValueArtifacts = (
       ? [
           { path: join(directory, 'numeric.rs'), content: source('numeric.rs') },
           { path: join(directory, 'text.rs'), content: source('text.rs') },
-          { path: join(directory, 'evaluator', 'mod.rs'), content: source('evaluator.rs') },
-          ...numericEvaluator().map((file) => ({
-            path: join(directory, 'evaluator', file.path),
-            content: file.content,
-          })),
+          ...rustEvaluatorArtifacts(
+            join(directory, 'evaluator'),
+            [...new Set([...(values ? rustNumericRoots : []), ...called])],
+            needs.checks ? [needs.checks] : [],
+          ),
         ]
       : []),
   ]

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, it } from 'vitest'
 import { execFile, spawnSync } from 'node:child_process'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
@@ -9,7 +9,8 @@ import { buildProject } from '../../src/project-runtime.js'
 import { servePglite } from '../support/pglite-server.js'
 import { writeRustCrate } from '../support/rust-crate.js'
 import { sharedTempDirectory } from '../../tools/test-run-temp.js'
-import { buildRustNumericAsset } from '../../scripts/build-rust-numeric.js'
+import { pruneRustEvaluator } from '../../src/codegen/rust/evaluator.js'
+import { rustNumericRoots } from '../../src/codegen/rust/values.js'
 
 const schema = `CREATE TABLE amounts (id integer PRIMARY KEY, exact numeric, scaled numeric(10,3), list numeric[]);
 `
@@ -178,12 +179,16 @@ it.skipIf(!cargoAvailable)(
   1_000_000,
 )
 
-it.skipIf(!cargoAvailable)(
-  'ships the evaluator modules the numeric value reaches as the asset build prunes them',
-  async () => {
-    expect(
-      await readFile(new URL('../../src/codegen/rust/assets/rust-numeric.json', import.meta.url), 'utf8'),
-    ).toBe(buildRustNumericAsset())
-  },
-  600_000,
-)
+it('ships of the evaluator only the modules and items the numeric value reaches', () => {
+  const modules = pruneRustEvaluator(rustNumericRoots)
+  expect(modules.map((module) => module.name)).toEqual(['checkruntime', 'pg_catalog'])
+  const declared = (module: string) =>
+    new Set([...modules.find((item) => item.name === module)!.source.matchAll(/^(?:pub )?fn ([a-z0-9_]+)/gmu)].map((match) => match[1]))
+  for (const root of rustNumericRoots) {
+    const [module, name] = root.split('::')
+    expect(declared(module!).has(name)).toBe(true)
+  }
+  // Text search input and the regular expression engine are reached by no numeric operation.
+  expect(declared('pg_catalog').has('tsvector_from_text_context')).toBe(false)
+  expect(modules.find((item) => item.name === 'pg_catalog')!.source.startsWith('use super::checkruntime::*;\n')).toBe(true)
+})

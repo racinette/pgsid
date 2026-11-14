@@ -1,10 +1,13 @@
 use super::checkruntime::*;
 const SQLSTATE_DIVISION_BY_ZERO: u32 = 3452582;
+
 const JSONPATH_PARSE_RANGE: u32 = 3452547;
+
 #[derive(Clone)]
 struct JsonpathScanSource {
     characters: Vec<char>,
 }
+
 #[derive(Clone)]
 struct JsonpathScanRead {
     kind: i32,
@@ -12,9 +15,13 @@ struct JsonpathScanRead {
     text: Vec<char>,
     error: u32,
 }
+
 const JSONPATH_SCAN_INT: i32 = 259;
+
 const JSONPATH_SCAN_NUMERIC: i32 = 260;
+
 const JSONPATH_SCAN_SYNTAX: u32 = 6819553;
+
 fn jsonpath_scan_space(character: char) -> bool {
     character == ' '
         || character == '\t'
@@ -22,6 +29,7 @@ fn jsonpath_scan_space(character: char) -> bool {
         || character == '\r'
         || character == '\u{000c}'
 }
+
 fn jsonpath_scan_special(character: char) -> bool {
     character == '?'
         || character == '%'
@@ -48,12 +56,14 @@ fn jsonpath_scan_special(character: char) -> bool {
         || character == '+'
         || character == '/'
 }
+
 fn jsonpath_scan_other(character: char) -> bool {
     jsonpath_scan_space(character) == false
         && jsonpath_scan_special(character) == false
         && character != '\\'
         && character != '"'
 }
+
 fn jsonpath_scan_hex(character: char) -> i32 {
     let code = character as i32;
     if code >= 48 && code <= 57 {
@@ -67,6 +77,7 @@ fn jsonpath_scan_hex(character: char) -> i32 {
     };
     -1
 }
+
 fn jsonpath_scan_digits(source: &JsonpathScanSource, begin: usize, radix: i32) -> usize {
     let mut position = begin;
     while position < source.characters.len() {
@@ -84,6 +95,7 @@ fn jsonpath_scan_digits(source: &JsonpathScanSource, begin: usize, radix: i32) -
     }
     position
 }
+
 fn jsonpath_scan_empty_read(kind: i32, end: usize, error: u32) -> JsonpathScanRead {
     let text: Vec<char> = Vec::new();
     JsonpathScanRead {
@@ -93,6 +105,7 @@ fn jsonpath_scan_empty_read(kind: i32, end: usize, error: u32) -> JsonpathScanRe
         error: error,
     }
 }
+
 fn jsonpath_scan_number(source: &JsonpathScanSource, begin: usize) -> JsonpathScanRead {
     let mut integer = begin;
     if source.characters[begin] == '0' {
@@ -194,6 +207,8 @@ fn jsonpath_scan_number(source: &JsonpathScanSource, begin: usize) -> JsonpathSc
     while other < source.characters.len() && jsonpath_scan_other(source.characters[other]) {
         other += 1;
     }
+    // A trailing-junk rule consumes one byte; a non-ASCII character lets the
+    // complete identifier win the byte-length comparison.
     if other > end
         || (other == end
             && other > begin
@@ -204,6 +219,7 @@ fn jsonpath_scan_number(source: &JsonpathScanSource, begin: usize) -> JsonpathSc
     };
     jsonpath_scan_empty_read(kind, end, error)
 }
+
 fn jsonpath_radix_literal(source: &JsonpathScanSource, radix: i32) -> TextValue {
     let mut position: usize = 2;
     while position < source.characters.len()
@@ -264,6 +280,7 @@ fn jsonpath_radix_literal(source: &JsonpathScanSource, radix: i32) -> TextValue 
     }
     TextValue::Value(output)
 }
+
 fn jsonpath_numeric_literal(input: &str) -> TextValue {
     let source = JsonpathScanSource {
         characters: input.chars().collect(),
@@ -307,46 +324,20 @@ fn jsonpath_numeric_literal(input: &str) -> TextValue {
     let parsed = jsonb_from_text(TextValue::Value(clean));
     jsonb_to_text(parsed)
 }
+
 fn numeric_compare(left: NumericValue, right: NumericValue) -> Int4Value {
     let mut unresolved_flavor: i32 = 0;
-    if let NumericValue::Unknown = left {
-        unresolved_flavor = 1;
-    };
-    if let NumericValue::Unknown = right {
-        unresolved_flavor = 1;
-    };
-    if let NumericValue::Unimplemented = left {
-        unresolved_flavor = 2;
-    };
-    if let NumericValue::Unimplemented = right {
-        unresolved_flavor = 2;
-    };
+    if let NumericValue::Unknown = left { unresolved_flavor = 1; };
+    if let NumericValue::Unknown = right { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let NumericValue::Unimplemented = right { unresolved_flavor = 2; };
     if let NumericValue::Error(error) = left {
         return Int4Value::Error(error);
     }
     if let NumericValue::Error(error) = right {
         return Int4Value::Error(error);
     }
-    let mut condition_flavor_13_4: i32 = unresolved_flavor;
-    if let NumericValue::Unknown = left {
-        if condition_flavor_13_4 < 1 {
-            condition_flavor_13_4 = 1;
-        };
-    };
-    if let NumericValue::Unimplemented = left {
-        condition_flavor_13_4 = 2;
-    };
-    if let NumericValue::Unknown = right {
-        if condition_flavor_13_4 < 1 {
-            condition_flavor_13_4 = 1;
-        };
-    };
-    if let NumericValue::Unimplemented = right {
-        condition_flavor_13_4 = 2;
-    };
-    if (left == NumericValue::Unknown || left == NumericValue::Unimplemented)
-        || (right == NumericValue::Unknown || right == NumericValue::Unimplemented)
-    {
+    let mut condition_flavor_13_4: i32 = unresolved_flavor; if let NumericValue::Unknown = left { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let NumericValue::Unimplemented = left { condition_flavor_13_4 = 2; }; if let NumericValue::Unknown = right { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let NumericValue::Unimplemented = right { condition_flavor_13_4 = 2; }; if (left == NumericValue::Unknown || left == NumericValue::Unimplemented) || (right == NumericValue::Unknown || right == NumericValue::Unimplemented) {
         return int4_unresolved(condition_flavor_13_4);
     }
     if left == NumericValue::Null || right == NumericValue::Null {
@@ -418,34 +409,18 @@ fn numeric_compare(left: NumericValue, right: NumericValue) -> Int4Value {
     }
     int4_unresolved(unresolved_flavor)
 }
+
 pub fn sql__pg_catalog__numeric_eq__fw7r(left: NumericValue, right: NumericValue) -> BoolValue {
     let mut unresolved_flavor: i32 = 0;
-    if let NumericValue::Unknown = left {
-        unresolved_flavor = 1;
-    };
-    if let NumericValue::Unknown = right {
-        unresolved_flavor = 1;
-    };
-    if let NumericValue::Unimplemented = left {
-        unresolved_flavor = 2;
-    };
-    if let NumericValue::Unimplemented = right {
-        unresolved_flavor = 2;
-    };
+    if let NumericValue::Unknown = left { unresolved_flavor = 1; };
+    if let NumericValue::Unknown = right { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let NumericValue::Unimplemented = right { unresolved_flavor = 2; };
     let result = numeric_compare(left, right);
     if let Int4Value::Error(error) = result {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_96_4: i32 = unresolved_flavor;
-    if let Int4Value::Unknown = result {
-        if condition_flavor_96_4 < 1 {
-            condition_flavor_96_4 = 1;
-        };
-    };
-    if let Int4Value::Unimplemented = result {
-        condition_flavor_96_4 = 2;
-    };
-    if result == Int4Value::Unknown || result == Int4Value::Unimplemented {
+    let mut condition_flavor_96_4: i32 = unresolved_flavor; if let Int4Value::Unknown = result { if condition_flavor_96_4 < 1 { condition_flavor_96_4 = 1; }; }; if let Int4Value::Unimplemented = result { condition_flavor_96_4 = 2; }; if result == Int4Value::Unknown || result == Int4Value::Unimplemented {
         return bool_unresolved(condition_flavor_96_4);
     }
     if result == Int4Value::Null {
@@ -456,6 +431,7 @@ pub fn sql__pg_catalog__numeric_eq__fw7r(left: NumericValue, right: NumericValue
     }
     bool_unresolved(unresolved_flavor)
 }
+
 fn numeric_work_magnitude(left: NumericWork, right: NumericWork) -> i32 {
     if left.sign == 0 {
         if right.sign == 0 {
@@ -494,6 +470,7 @@ fn numeric_work_magnitude(left: NumericWork, right: NumericWork) -> i32 {
     }
     0
 }
+
 fn numeric_work_sum(left: NumericWork, right: NumericWork, subtract: bool) -> NumericWork {
     let mut scale = left.scale;
     if right.scale > scale {
@@ -600,6 +577,7 @@ fn numeric_work_sum(left: NumericWork, right: NumericWork, subtract: bool) -> Nu
         digits: digits,
     }
 }
+
 fn numeric_work_add(left: NumericWork, right: NumericWork, subtract: bool) -> NumericValue {
     let work = numeric_work_sum(left, right, subtract);
     if work.weight > 131071 {
@@ -607,6 +585,7 @@ fn numeric_work_add(left: NumericWork, right: NumericWork, subtract: bool) -> Nu
     }
     NumericValue::Value(numeric_work_text(work))
 }
+
 fn numeric_product_words(characters: Vec<char>) -> Vec<NumericWireDigit> {
     let mut words: Vec<NumericWireDigit> = Vec::new();
     let mut end = characters.len();
@@ -624,6 +603,7 @@ fn numeric_product_words(characters: Vec<char>) -> Vec<NumericWireDigit> {
     }
     words
 }
+
 fn numeric_work_product(left: NumericWork, right: NumericWork) -> NumericWork {
     let scale = left.scale + right.scale;
     let sign = left.sign * right.sign;
@@ -717,51 +697,26 @@ fn numeric_work_product(left: NumericWork, right: NumericWork) -> NumericWork {
         digits: digits,
     }
 }
+
 fn numeric_work_multiply(left: NumericWork, right: NumericWork) -> NumericValue {
     let work = numeric_work_product(left, right);
     let scale = work.scale;
     numeric_work_round(work, scale, 1)
 }
+
 fn numeric_arithmetic(left: NumericValue, right: NumericValue, mode: i32) -> NumericValue {
     let mut unresolved_flavor: i32 = 0;
-    if let NumericValue::Unknown = left {
-        unresolved_flavor = 1;
-    };
-    if let NumericValue::Unknown = right {
-        unresolved_flavor = 1;
-    };
-    if let NumericValue::Unimplemented = left {
-        unresolved_flavor = 2;
-    };
-    if let NumericValue::Unimplemented = right {
-        unresolved_flavor = 2;
-    };
+    if let NumericValue::Unknown = left { unresolved_flavor = 1; };
+    if let NumericValue::Unknown = right { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let NumericValue::Unimplemented = right { unresolved_flavor = 2; };
     if let NumericValue::Error(error) = left {
         return NumericValue::Error(error);
     }
     if let NumericValue::Error(error) = right {
         return NumericValue::Error(error);
     }
-    let mut condition_flavor_285_4: i32 = unresolved_flavor;
-    if let NumericValue::Unknown = left {
-        if condition_flavor_285_4 < 1 {
-            condition_flavor_285_4 = 1;
-        };
-    };
-    if let NumericValue::Unimplemented = left {
-        condition_flavor_285_4 = 2;
-    };
-    if let NumericValue::Unknown = right {
-        if condition_flavor_285_4 < 1 {
-            condition_flavor_285_4 = 1;
-        };
-    };
-    if let NumericValue::Unimplemented = right {
-        condition_flavor_285_4 = 2;
-    };
-    if (left == NumericValue::Unknown || left == NumericValue::Unimplemented)
-        || (right == NumericValue::Unknown || right == NumericValue::Unimplemented)
-    {
+    let mut condition_flavor_285_4: i32 = unresolved_flavor; if let NumericValue::Unknown = left { if condition_flavor_285_4 < 1 { condition_flavor_285_4 = 1; }; }; if let NumericValue::Unimplemented = left { condition_flavor_285_4 = 2; }; if let NumericValue::Unknown = right { if condition_flavor_285_4 < 1 { condition_flavor_285_4 = 1; }; }; if let NumericValue::Unimplemented = right { condition_flavor_285_4 = 2; }; if (left == NumericValue::Unknown || left == NumericValue::Unimplemented) || (right == NumericValue::Unknown || right == NumericValue::Unimplemented) {
         return numeric_unresolved(condition_flavor_285_4);
     }
     if left == NumericValue::Null || right == NumericValue::Null {
@@ -823,15 +778,19 @@ fn numeric_arithmetic(left: NumericValue, right: NumericValue, mode: i32) -> Num
     }
     numeric_unresolved(unresolved_flavor)
 }
+
 pub fn sql__pg_catalog__numeric_add__o3d7(left: NumericValue, right: NumericValue) -> NumericValue {
     numeric_arithmetic(left, right, 0)
 }
+
 pub fn sql__pg_catalog__numeric_sub__ys09(left: NumericValue, right: NumericValue) -> NumericValue {
     numeric_arithmetic(left, right, 1)
 }
+
 pub fn sql__pg_catalog__numeric_mul__bj4l(left: NumericValue, right: NumericValue) -> NumericValue {
     numeric_arithmetic(left, right, 2)
 }
+
 fn numeric_division_scale(left: NumericWork, right: NumericWork) -> i32 {
     let mut first_weight: i32 = 0;
     let mut second_weight: i32 = 0;
@@ -894,6 +853,7 @@ fn numeric_division_scale(left: NumericWork, right: NumericWork) -> i32 {
     }
     scale
 }
+
 fn numeric_division_work(
     left: NumericWork,
     right: NumericWork,
@@ -1003,46 +963,20 @@ fn numeric_division_work(
         digits: coefficient,
     }
 }
+
 fn numeric_division(left: NumericValue, right: NumericValue, mode: i32) -> NumericValue {
     let mut unresolved_flavor: i32 = 0;
-    if let NumericValue::Unknown = left {
-        unresolved_flavor = 1;
-    };
-    if let NumericValue::Unknown = right {
-        unresolved_flavor = 1;
-    };
-    if let NumericValue::Unimplemented = left {
-        unresolved_flavor = 2;
-    };
-    if let NumericValue::Unimplemented = right {
-        unresolved_flavor = 2;
-    };
+    if let NumericValue::Unknown = left { unresolved_flavor = 1; };
+    if let NumericValue::Unknown = right { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = left { unresolved_flavor = 2; };
+    if let NumericValue::Unimplemented = right { unresolved_flavor = 2; };
     if let NumericValue::Error(error) = left {
         return NumericValue::Error(error);
     }
     if let NumericValue::Error(error) = right {
         return NumericValue::Error(error);
     }
-    let mut condition_flavor_186_4: i32 = unresolved_flavor;
-    if let NumericValue::Unknown = left {
-        if condition_flavor_186_4 < 1 {
-            condition_flavor_186_4 = 1;
-        };
-    };
-    if let NumericValue::Unimplemented = left {
-        condition_flavor_186_4 = 2;
-    };
-    if let NumericValue::Unknown = right {
-        if condition_flavor_186_4 < 1 {
-            condition_flavor_186_4 = 1;
-        };
-    };
-    if let NumericValue::Unimplemented = right {
-        condition_flavor_186_4 = 2;
-    };
-    if (left == NumericValue::Unknown || left == NumericValue::Unimplemented)
-        || (right == NumericValue::Unknown || right == NumericValue::Unimplemented)
-    {
+    let mut condition_flavor_186_4: i32 = unresolved_flavor; if let NumericValue::Unknown = left { if condition_flavor_186_4 < 1 { condition_flavor_186_4 = 1; }; }; if let NumericValue::Unimplemented = left { condition_flavor_186_4 = 2; }; if let NumericValue::Unknown = right { if condition_flavor_186_4 < 1 { condition_flavor_186_4 = 1; }; }; if let NumericValue::Unimplemented = right { condition_flavor_186_4 = 2; }; if (left == NumericValue::Unknown || left == NumericValue::Unimplemented) || (right == NumericValue::Unknown || right == NumericValue::Unimplemented) {
         return numeric_unresolved(condition_flavor_186_4);
     }
     if left == NumericValue::Null || right == NumericValue::Null {
@@ -1104,278 +1038,119 @@ fn numeric_division(left: NumericValue, right: NumericValue, mode: i32) -> Numer
     }
     numeric_unresolved(unresolved_flavor)
 }
+
 pub fn sql__pg_catalog__numeric_div__pnzm(left: NumericValue, right: NumericValue) -> NumericValue {
     numeric_division(left, right, 0)
 }
+
 pub fn sql__pg_catalog__numeric_mod__8ywz(left: NumericValue, right: NumericValue) -> NumericValue {
     numeric_division(left, right, 2)
 }
+
 pub fn sql__pg_catalog__numeric_abs__6g5e(input: NumericValue) -> NumericValue {
     let mut unresolved_flavor: i32 = 0;
-    if let NumericValue::Unknown = input {
-        unresolved_flavor = 1;
-    };
-    if let NumericValue::Unimplemented = input {
-        unresolved_flavor = 2;
-    };
-    if let NumericValue::Error(error) = input {
-        return NumericValue::Error(error);
-    }
-    let mut condition_flavor_42_0: i32 = unresolved_flavor;
-    if let NumericValue::Unknown = input {
-        if condition_flavor_42_0 < 1 {
-            condition_flavor_42_0 = 1;
-        };
-    };
-    if let NumericValue::Unimplemented = input {
-        condition_flavor_42_0 = 2;
-    };
-    if input == NumericValue::Unknown || input == NumericValue::Unimplemented {
-        return numeric_unresolved(condition_flavor_42_0);
-    }
-    if input == NumericValue::Null {
-        return NumericValue::Null;
-    }
-    if let NumericValue::Value(value) = input {
-        let work = numeric_work_from_value(value.as_str());
-        if work.valid == false {
-            return numeric_unresolved(unresolved_flavor);
-        }
-        let mut special = work.special;
-        let mut sign = work.sign;
-        let output_scale = work.scale;
-        if sign < 0 {
-            sign = 1;
-        }
-        if special == 0 {
-            special = 2;
-        }
-        return NumericValue::Value(numeric_work_text(NumericWork {
-            valid: true,
-            special: special,
-            sign: sign,
-            weight: work.weight,
-            scale: output_scale,
-            digits: work.digits,
-        }));
-    }
-    numeric_unresolved(unresolved_flavor)
+    if let NumericValue::Unknown = input { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = input { unresolved_flavor = 2; };
+if let NumericValue::Error(error) = input { return NumericValue::Error(error); }
+let mut condition_flavor_42_0: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_42_0 < 1 { condition_flavor_42_0 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_42_0 = 2; }; if input == NumericValue::Unknown || input == NumericValue::Unimplemented { return numeric_unresolved(condition_flavor_42_0); }
+if input == NumericValue::Null { return NumericValue::Null; }
+if let NumericValue::Value(value) = input {
+let work = numeric_work_from_value(value.as_str());
+if work.valid == false { return numeric_unresolved(unresolved_flavor); }
+let mut special = work.special;
+let mut sign = work.sign;
+let output_scale = work.scale;
+if sign < 0 { sign = 1; }
+if special == 0 { special = 2; }
+return NumericValue::Value(numeric_work_text(NumericWork { valid: true, special: special, sign: sign, weight: work.weight, scale: output_scale, digits: work.digits }));
 }
+numeric_unresolved(unresolved_flavor)
+}
+
 pub fn sql__pg_catalog__numeric_cmp__6h4s(input: NumericValue, right: NumericValue) -> Int4Value {
-    let result = numeric_compare(input.clone(), right.clone());
-    return result;
+let result = numeric_compare(input.clone(), right.clone());
+return result;
 }
+
 pub fn sql__pg_catalog__numeric_uminus__wcmy(input: NumericValue) -> NumericValue {
     let mut unresolved_flavor: i32 = 0;
-    if let NumericValue::Unknown = input {
-        unresolved_flavor = 1;
-    };
-    if let NumericValue::Unimplemented = input {
-        unresolved_flavor = 2;
-    };
-    if let NumericValue::Error(error) = input {
-        return NumericValue::Error(error);
-    }
-    let mut condition_flavor_95_0: i32 = unresolved_flavor;
-    if let NumericValue::Unknown = input {
-        if condition_flavor_95_0 < 1 {
-            condition_flavor_95_0 = 1;
-        };
-    };
-    if let NumericValue::Unimplemented = input {
-        condition_flavor_95_0 = 2;
-    };
-    if input == NumericValue::Unknown || input == NumericValue::Unimplemented {
-        return numeric_unresolved(condition_flavor_95_0);
-    }
-    if input == NumericValue::Null {
-        return NumericValue::Null;
-    }
-    if let NumericValue::Value(value) = input {
-        let work = numeric_work_from_value(value.as_str());
-        if work.valid == false {
-            return numeric_unresolved(unresolved_flavor);
-        }
-        let mut special = work.special;
-        let mut sign = work.sign;
-        let output_scale = work.scale;
-        sign = 0 - sign;
-        if special == 0 {
-            special = 2;
-        } else if special == 2 {
-            special = 0;
-        };
-        return NumericValue::Value(numeric_work_text(NumericWork {
-            valid: true,
-            special: special,
-            sign: sign,
-            weight: work.weight,
-            scale: output_scale,
-            digits: work.digits,
-        }));
-    }
-    numeric_unresolved(unresolved_flavor)
+    if let NumericValue::Unknown = input { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = input { unresolved_flavor = 2; };
+if let NumericValue::Error(error) = input { return NumericValue::Error(error); }
+let mut condition_flavor_95_0: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_95_0 < 1 { condition_flavor_95_0 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_95_0 = 2; }; if input == NumericValue::Unknown || input == NumericValue::Unimplemented { return numeric_unresolved(condition_flavor_95_0); }
+if input == NumericValue::Null { return NumericValue::Null; }
+if let NumericValue::Value(value) = input {
+let work = numeric_work_from_value(value.as_str());
+if work.valid == false { return numeric_unresolved(unresolved_flavor); }
+let mut special = work.special;
+let mut sign = work.sign;
+let output_scale = work.scale;
+sign = 0 - sign;
+if special == 0 { special = 2; } else if special == 2 { special = 0; };
+return NumericValue::Value(numeric_work_text(NumericWork { valid: true, special: special, sign: sign, weight: work.weight, scale: output_scale, digits: work.digits }));
 }
+numeric_unresolved(unresolved_flavor)
+}
+
 pub fn sql__pg_catalog__sign__2rsu(input: NumericValue) -> NumericValue {
     let mut unresolved_flavor: i32 = 0;
-    if let NumericValue::Unknown = input {
-        unresolved_flavor = 1;
-    };
-    if let NumericValue::Unimplemented = input {
-        unresolved_flavor = 2;
-    };
-    if let NumericValue::Error(error) = input {
-        return NumericValue::Error(error);
-    }
-    let mut condition_flavor_149_0: i32 = unresolved_flavor;
-    if let NumericValue::Unknown = input {
-        if condition_flavor_149_0 < 1 {
-            condition_flavor_149_0 = 1;
-        };
-    };
-    if let NumericValue::Unimplemented = input {
-        condition_flavor_149_0 = 2;
-    };
-    if input == NumericValue::Unknown || input == NumericValue::Unimplemented {
-        return numeric_unresolved(condition_flavor_149_0);
-    }
-    if input == NumericValue::Null {
-        return NumericValue::Null;
-    }
-    if let NumericValue::Value(value) = input {
-        let work = numeric_work_from_value(value.as_str());
-        if work.valid == false {
-            return numeric_unresolved(unresolved_flavor);
-        }
-        if work.special == 3 {
-            return NumericValue::Value("NaN".to_owned());
-        }
-        if work.special == 0 || work.sign < 0 {
-            return NumericValue::Value("-1".to_owned());
-        }
-        if work.special == 2 || work.sign > 0 {
-            return NumericValue::Value("1".to_owned());
-        }
-        return NumericValue::Value("0".to_owned());
-    }
-    numeric_unresolved(unresolved_flavor)
+    if let NumericValue::Unknown = input { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = input { unresolved_flavor = 2; };
+if let NumericValue::Error(error) = input { return NumericValue::Error(error); }
+let mut condition_flavor_149_0: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_149_0 < 1 { condition_flavor_149_0 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_149_0 = 2; }; if input == NumericValue::Unknown || input == NumericValue::Unimplemented { return numeric_unresolved(condition_flavor_149_0); }
+if input == NumericValue::Null { return NumericValue::Null; }
+if let NumericValue::Value(value) = input {
+let work = numeric_work_from_value(value.as_str());
+if work.valid == false { return numeric_unresolved(unresolved_flavor); }
+if work.special == 3 { return NumericValue::Value("NaN".to_owned()); }
+if work.special == 0 || work.sign < 0 { return NumericValue::Value("-1".to_owned()); }
+if work.special == 2 || work.sign > 0 { return NumericValue::Value("1".to_owned()); }
+return NumericValue::Value("0".to_owned());
 }
+numeric_unresolved(unresolved_flavor)
+}
+
 pub fn sql__pg_catalog__round__otcq(input: NumericValue, scale: Int4Value) -> NumericValue {
     let mut unresolved_flavor: i32 = 0;
-    if let NumericValue::Unknown = input {
-        unresolved_flavor = 1;
-    };
-    if let Int4Value::Unknown = scale {
-        unresolved_flavor = 1;
-    };
-    if let NumericValue::Unimplemented = input {
-        unresolved_flavor = 2;
-    };
-    if let Int4Value::Unimplemented = scale {
-        unresolved_flavor = 2;
-    };
-    if let NumericValue::Error(error) = input {
-        return NumericValue::Error(error);
-    }
-    if let Int4Value::Error(error) = scale {
-        return NumericValue::Error(error);
-    }
-    let mut condition_flavor_69_0: i32 = unresolved_flavor;
-    if let NumericValue::Unknown = input {
-        if condition_flavor_69_0 < 1 {
-            condition_flavor_69_0 = 1;
-        };
-    };
-    if let NumericValue::Unimplemented = input {
-        condition_flavor_69_0 = 2;
-    };
-    if let Int4Value::Unknown = scale {
-        if condition_flavor_69_0 < 1 {
-            condition_flavor_69_0 = 1;
-        };
-    };
-    if let Int4Value::Unimplemented = scale {
-        condition_flavor_69_0 = 2;
-    };
-    if (input == NumericValue::Unknown || input == NumericValue::Unimplemented)
-        || (scale == Int4Value::Unknown || scale == Int4Value::Unimplemented)
-    {
-        return numeric_unresolved(condition_flavor_69_0);
-    }
-    if input == NumericValue::Null || scale == Int4Value::Null {
-        return NumericValue::Null;
-    }
-    if let NumericValue::Value(value) = input {
-        let work = numeric_work_from_value(value.as_str());
-        if work.valid == false {
-            return numeric_unresolved(unresolved_flavor);
-        }
-        if let Int4Value::Value(precision) = scale {
-            return numeric_work_round(work, precision, 1);
-        }
-    }
-    numeric_unresolved(unresolved_flavor)
+    if let NumericValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = scale { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = scale { unresolved_flavor = 2; };
+if let NumericValue::Error(error) = input { return NumericValue::Error(error); }
+if let Int4Value::Error(error) = scale { return NumericValue::Error(error); }
+let mut condition_flavor_69_0: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_69_0 < 1 { condition_flavor_69_0 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_69_0 = 2; }; if let Int4Value::Unknown = scale { if condition_flavor_69_0 < 1 { condition_flavor_69_0 = 1; }; }; if let Int4Value::Unimplemented = scale { condition_flavor_69_0 = 2; }; if (input == NumericValue::Unknown || input == NumericValue::Unimplemented) || (scale == Int4Value::Unknown || scale == Int4Value::Unimplemented) { return numeric_unresolved(condition_flavor_69_0); }
+if input == NumericValue::Null || scale == Int4Value::Null { return NumericValue::Null; }
+if let NumericValue::Value(value) = input {
+let work = numeric_work_from_value(value.as_str());
+if work.valid == false { return numeric_unresolved(unresolved_flavor); }
+if let Int4Value::Value(precision) = scale { return numeric_work_round(work, precision, 1); }
 }
+numeric_unresolved(unresolved_flavor)
+}
+
 pub fn sql__pg_catalog__trunc__hay3(input: NumericValue, scale: Int4Value) -> NumericValue {
     let mut unresolved_flavor: i32 = 0;
-    if let NumericValue::Unknown = input {
-        unresolved_flavor = 1;
-    };
-    if let Int4Value::Unknown = scale {
-        unresolved_flavor = 1;
-    };
-    if let NumericValue::Unimplemented = input {
-        unresolved_flavor = 2;
-    };
-    if let Int4Value::Unimplemented = scale {
-        unresolved_flavor = 2;
-    };
-    if let NumericValue::Error(error) = input {
-        return NumericValue::Error(error);
-    }
-    if let Int4Value::Error(error) = scale {
-        return NumericValue::Error(error);
-    }
-    let mut condition_flavor_102_0: i32 = unresolved_flavor;
-    if let NumericValue::Unknown = input {
-        if condition_flavor_102_0 < 1 {
-            condition_flavor_102_0 = 1;
-        };
-    };
-    if let NumericValue::Unimplemented = input {
-        condition_flavor_102_0 = 2;
-    };
-    if let Int4Value::Unknown = scale {
-        if condition_flavor_102_0 < 1 {
-            condition_flavor_102_0 = 1;
-        };
-    };
-    if let Int4Value::Unimplemented = scale {
-        condition_flavor_102_0 = 2;
-    };
-    if (input == NumericValue::Unknown || input == NumericValue::Unimplemented)
-        || (scale == Int4Value::Unknown || scale == Int4Value::Unimplemented)
-    {
-        return numeric_unresolved(condition_flavor_102_0);
-    }
-    if input == NumericValue::Null || scale == Int4Value::Null {
-        return NumericValue::Null;
-    }
-    if let NumericValue::Value(value) = input {
-        let work = numeric_work_from_value(value.as_str());
-        if work.valid == false {
-            return numeric_unresolved(unresolved_flavor);
-        }
-        if let Int4Value::Value(precision) = scale {
-            return numeric_work_round(work, precision, 0);
-        }
-    }
-    numeric_unresolved(unresolved_flavor)
+    if let NumericValue::Unknown = input { unresolved_flavor = 1; };
+    if let Int4Value::Unknown = scale { unresolved_flavor = 1; };
+    if let NumericValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let Int4Value::Unimplemented = scale { unresolved_flavor = 2; };
+if let NumericValue::Error(error) = input { return NumericValue::Error(error); }
+if let Int4Value::Error(error) = scale { return NumericValue::Error(error); }
+let mut condition_flavor_102_0: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_102_0 < 1 { condition_flavor_102_0 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_102_0 = 2; }; if let Int4Value::Unknown = scale { if condition_flavor_102_0 < 1 { condition_flavor_102_0 = 1; }; }; if let Int4Value::Unimplemented = scale { condition_flavor_102_0 = 2; }; if (input == NumericValue::Unknown || input == NumericValue::Unimplemented) || (scale == Int4Value::Unknown || scale == Int4Value::Unimplemented) { return numeric_unresolved(condition_flavor_102_0); }
+if input == NumericValue::Null || scale == Int4Value::Null { return NumericValue::Null; }
+if let NumericValue::Value(value) = input {
+let work = numeric_work_from_value(value.as_str());
+if work.valid == false { return numeric_unresolved(unresolved_flavor); }
+if let Int4Value::Value(precision) = scale { return numeric_work_round(work, precision, 0); }
 }
+numeric_unresolved(unresolved_flavor)
+}
+
 #[derive(Clone, Copy)]
 struct NumericWireDigit {
     value: i32,
 }
+
 fn numeric_wire_decimal_digit(character: char) -> i32 {
     let code = character as i32;
     if code >= 48 && code <= 57 {
@@ -1383,6 +1158,7 @@ fn numeric_wire_decimal_digit(character: char) -> i32 {
     }
     -1
 }
+
 fn numeric_wire_scale(input: &str) -> i32 {
     let chars: Vec<char> = input.chars().collect();
     let mut index: usize = 0;
@@ -1414,7 +1190,9 @@ fn numeric_wire_scale(input: &str) -> i32 {
     }
     scale
 }
+
 const NUMERIC_SUPPORT_RANGE_ERROR: u32 = 3452547;
+
 #[derive(Clone)]
 struct NumericWork {
     valid: bool,
@@ -1424,6 +1202,7 @@ struct NumericWork {
     scale: i32,
     digits: String,
 }
+
 fn numeric_work_from_value(value: &str) -> NumericWork {
     let layout = numeric_parts(value);
     let mut digits = String::new();
@@ -1449,6 +1228,7 @@ fn numeric_work_from_value(value: &str) -> NumericWork {
         digits: digits,
     }
 }
+
 fn numeric_work_zeros(count: i32) -> String {
     let mut remaining = count;
     let mut block = "0".to_owned();
@@ -1465,6 +1245,7 @@ fn numeric_work_zeros(count: i32) -> String {
     }
     output
 }
+
 fn numeric_work_text(work: NumericWork) -> String {
     if work.special == 0 {
         return "-Infinity".to_owned();
@@ -1531,6 +1312,7 @@ fn numeric_work_text(work: NumericWork) -> String {
     }
     output
 }
+
 fn numeric_work_rounded(work: NumericWork, scale: i32, mode: i32) -> NumericWork {
     let original: Vec<char> = work.digits.chars().collect();
     let boundary = 0 - scale;
@@ -1616,6 +1398,7 @@ fn numeric_work_rounded(work: NumericWork, scale: i32, mode: i32) -> NumericWork
         digits: coefficient,
     }
 }
+
 fn numeric_work_round(work: NumericWork, requested: i32, mode: i32) -> NumericValue {
     let unresolved_flavor: i32 = 0;
     if work.valid == false {
@@ -1641,20 +1424,14 @@ fn numeric_work_round(work: NumericWork, requested: i32, mode: i32) -> NumericVa
     }
     NumericValue::Value(numeric_work_text(rounded))
 }
+
 const SCALAR_INPUT_INVALID: u32 = 3484946;
+
 pub fn scalar_numeric_from_text(input: TextValue) -> NumericValue {
     let mut unresolved_flavor: i32 = 0;
-    if let TextValue::Unknown = input {
-        unresolved_flavor = 1;
-    };
-    if let TextValue::NonNull = input {
-        if unresolved_flavor < 1 {
-            unresolved_flavor = 1;
-        };
-    };
-    if let TextValue::Unimplemented = input {
-        unresolved_flavor = 2;
-    };
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return NumericValue::Error(error);
     };
@@ -1779,21 +1556,15 @@ pub fn scalar_numeric_from_text(input: TextValue) -> NumericValue {
     };
     numeric_unresolved(unresolved_flavor)
 }
+
 fn tsquery_priority(kind: i32) -> i32 {
-    if kind == 1 {
-        return 4;
-    };
-    if kind == 2 {
-        return 2;
-    };
-    if kind == 3 {
-        return 1;
-    };
-    if kind == 4 {
-        return 3;
-    };
+    if kind == 1 { return 4; };
+    if kind == 2 { return 2; };
+    if kind == 3 { return 1; };
+    if kind == 4 { return 3; };
     0
 }
+
 #[derive(Clone, Copy)]
 struct TsqueryRenderFrame {
     node: usize,
@@ -1801,52 +1572,33 @@ struct TsqueryRenderFrame {
     right_phrase: bool,
     step: i32,
 }
+
 pub fn tsquery_to_text(input: TsqueryValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
-    if let TsqueryValue::Unknown = input {
-        unresolved_flavor = 1;
-    };
-    if let TsqueryValue::Unimplemented = input {
-        unresolved_flavor = 2;
-    };
-    if let TsqueryValue::Error(error) = input {
-        return TextValue::Error(error);
-    };
-    if let TsqueryValue::Null = input {
-        return TextValue::Null;
-    };
-    if let TsqueryValue::Value(value) = input {
-        return tsquery_render(&value, value.root);
-    };
+    if let TsqueryValue::Unknown = input { unresolved_flavor = 1; };
+    if let TsqueryValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TsqueryValue::Error(error) = input { return TextValue::Error(error); };
+    if let TsqueryValue::Null = input { return TextValue::Null; };
+    if let TsqueryValue::Value(value) = input { return tsquery_render(&value,value.root); };
     text_unresolved(unresolved_flavor)
 }
+
 fn tsquery_render(value: &TsqueryPayload, root: usize) -> TextValue {
     let mut output = String::new();
-    if value.nodes.len() == 0 {
-        return TextValue::Value(output);
-    };
+    if value.nodes.len() == 0 { return TextValue::Value(output); };
     let mut frames: Vec<TsqueryRenderFrame> = Vec::new();
-    frames.push(TsqueryRenderFrame {
-        node: root,
-        priority: 0,
-        right_phrase: false,
-        step: 0,
-    });
+    frames.push(TsqueryRenderFrame {node:root,priority:0,right_phrase:false,step:0});
     let mut depth: usize = 1;
     while depth > 0 {
         depth = depth - 1;
         let frame = frames[depth];
         let node = value.nodes[frame.node].clone();
-        if frame.step == 2 {
-            output.push_str(" )");
-        } else if frame.step == 1 {
-            if node.kind == 2 {
-                output.push_str(" & ");
-            } else if node.kind == 3 {
-                output.push_str(" | ");
-            } else if node.distance == 1 {
-                output.push_str(" <-> ");
-            } else {
+        if frame.step == 2 { output.push_str(" )"); }
+        else if frame.step == 1 {
+            if node.kind == 2 { output.push_str(" & "); }
+            else if node.kind == 3 { output.push_str(" | "); }
+            else if node.distance == 1 { output.push_str(" <-> "); }
+            else {
                 output.push_str(" <");
                 let distance = text_signed_number(node.distance as i64);
                 output.push_str(distance.as_str());
@@ -1858,143 +1610,72 @@ fn tsquery_render(value: &TsqueryPayload, root: usize) -> TextValue {
             let mut index: usize = 0;
             while index < chars.len() {
                 let ch = chars[index];
-                if ch == '\'' || ch == '\\' {
-                    output.push(ch);
-                };
+                if ch == '\'' || ch == '\\' { output.push(ch); };
                 output.push(ch);
                 index += 1;
             }
             output.push('\'');
             if node.prefix || node.weight != 0 {
                 output.push(':');
-                if node.prefix {
-                    output.push('*');
-                };
-                if (node.weight / 8 % 2) != 0 {
-                    output.push('A');
-                };
-                if (node.weight / 4 % 2) != 0 {
-                    output.push('B');
-                };
-                if (node.weight / 2 % 2) != 0 {
-                    output.push('C');
-                };
-                if (node.weight / 1 % 2) != 0 {
-                    output.push('D');
-                };
+                if node.prefix { output.push('*'); };
+                if (node.weight / 8 % 2) != 0 { output.push('A'); };
+                if (node.weight / 4 % 2) != 0 { output.push('B'); };
+                if (node.weight / 2 % 2) != 0 { output.push('C'); };
+                if (node.weight / 1 % 2) != 0 { output.push('D'); };
             };
         } else {
             let priority = tsquery_priority(node.kind);
             if priority < frame.priority || (node.kind == 4 && frame.right_phrase) {
                 output.push_str("( ");
-                let closing = TsqueryRenderFrame {
-                    node: frame.node,
-                    priority: 0,
-                    right_phrase: false,
-                    step: 2,
-                };
-                if depth < frames.len() {
-                    frames[depth] = closing;
-                } else {
-                    frames.push(closing);
-                };
+                let closing = TsqueryRenderFrame {node:frame.node,priority:0,right_phrase:false,step:2};
+                if depth < frames.len() { frames[depth] = closing; } else { frames.push(closing); };
                 depth += 1;
             };
-            if node.kind == 1 {
-                output.push('!');
-            } else {
-                let right = TsqueryRenderFrame {
-                    node: node.right,
-                    priority: priority,
-                    right_phrase: node.kind == 4,
-                    step: 0,
-                };
-                if depth < frames.len() {
-                    frames[depth] = right;
-                } else {
-                    frames.push(right);
-                };
+            if node.kind == 1 { output.push('!'); }
+            else {
+                let right = TsqueryRenderFrame {node:node.right,priority:priority,right_phrase:node.kind == 4,step:0};
+                if depth < frames.len() { frames[depth] = right; } else { frames.push(right); };
                 depth += 1;
-                let separator = TsqueryRenderFrame {
-                    node: frame.node,
-                    priority: 0,
-                    right_phrase: false,
-                    step: 1,
-                };
-                if depth < frames.len() {
-                    frames[depth] = separator;
-                } else {
-                    frames.push(separator);
-                };
+                let separator = TsqueryRenderFrame {node:frame.node,priority:0,right_phrase:false,step:1};
+                if depth < frames.len() { frames[depth] = separator; } else { frames.push(separator); };
                 depth += 1;
             };
-            let left = TsqueryRenderFrame {
-                node: node.left,
-                priority: priority,
-                right_phrase: false,
-                step: 0,
-            };
-            if depth < frames.len() {
-                frames[depth] = left;
-            } else {
-                frames.push(left);
-            };
+            let left = TsqueryRenderFrame {node:node.left,priority:priority,right_phrase:false,step:0};
+            if depth < frames.len() { frames[depth] = left; } else { frames.push(left); };
             depth += 1;
         };
     }
     TextValue::Value(output)
 }
+
 pub fn tsvector_to_text(input: TsvectorValue) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
-    if let TsvectorValue::Unknown = input {
-        unresolved_flavor = 1;
-    };
-    if let TsvectorValue::Unimplemented = input {
-        unresolved_flavor = 2;
-    };
-    if let TsvectorValue::Error(error) = input {
-        return TextValue::Error(error);
-    };
-    if let TsvectorValue::Null = input {
-        return TextValue::Null;
-    };
+    if let TsvectorValue::Unknown = input { unresolved_flavor = 1; };
+    if let TsvectorValue::Unimplemented = input { unresolved_flavor = 2; };
+    if let TsvectorValue::Error(error) = input { return TextValue::Error(error); };
+    if let TsvectorValue::Null = input { return TextValue::Null; };
     if let TsvectorValue::Value(value) = input {
         let mut text = String::new();
         let mut i: usize = 0;
         while i < value.lexemes.len() {
-            if i > 0 {
-                text.push(' ');
-            };
+            if i > 0 { text.push(' '); };
             text.push('\'');
             let chars: Vec<char> = value.lexemes[i].text.chars().collect();
             let mut c: usize = 0;
             while c < chars.len() {
-                if chars[c] == '\'' || chars[c] == '\\' {
-                    text.push(chars[c]);
-                };
-                text.push(chars[c]);
-                c += 1;
+                if chars[c] == '\'' || chars[c] == '\\' { text.push(chars[c]); };
+                text.push(chars[c]); c += 1;
             }
             text.push('\'');
             let mut p: usize = 0;
             while p < value.lexemes[i].positions.len() {
-                if p == 0 {
-                    text.push(':');
-                } else {
-                    text.push(',');
-                };
+                if p == 0 { text.push(':'); } else { text.push(','); };
                 let position = value.lexemes[i].positions[p];
-                let digits = text_number(position.position, 10);
+                let digits = text_number(position.position,10);
                 text.push_str(digits.as_str());
-                if position.weight == 3 {
-                    text.push('A');
-                };
-                if position.weight == 2 {
-                    text.push('B');
-                };
-                if position.weight == 1 {
-                    text.push('C');
-                };
+                if position.weight == 3 { text.push('A'); };
+                if position.weight == 2 { text.push('B'); };
+                if position.weight == 1 { text.push('C'); };
                 p += 1;
             }
             i += 1;

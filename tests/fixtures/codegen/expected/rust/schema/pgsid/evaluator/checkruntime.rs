@@ -6,6 +6,7 @@ pub enum Int4Value {
     Value(i32),
     Error(SqlError),
 }
+
 #[derive(Clone, PartialEq, Eq)]
 pub enum TextValue {
     Unknown,
@@ -15,101 +16,130 @@ pub enum TextValue {
     Error(SqlError),
     NonNull,
 }
+
 pub fn make_int4_value(value: i32) -> Int4Value {
     Int4Value::Value(value)
 }
+
 pub fn make_text_value(value: &str) -> TextValue {
     TextValue::Value(value.to_owned())
 }
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct SqlError {
     pub state: u32,
 }
+
 pub fn make_sql_error(state: u32) -> SqlError {
     SqlError { state: state }
 }
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct SqlErrorDescription<'a> {
     pub message: &'a str,
 }
+
 const SQL_ERROR_NUMERIC_OUT_OF_RANGE: u32 = 3452547;
+
 const SQL_ERROR_NOT_NULL_VIOLATION: u32 = 3505682;
+
 const SQL_ERROR_CHECK_VIOLATION: u32 = 3505720;
+
 const SQL_ERROR_DATATYPE_MISMATCH: u32 = 6822148;
+
 const SQL_ERROR_CARDINALITY_VIOLATION: u32 = 3405888;
+
 const SQL_ERROR_NULL_VALUE_NOT_ALLOWED: u32 = 3452548;
+
 const SQL_ERROR_INVALID_DATETIME_FORMAT: u32 = 3452551;
+
 const SQL_ERROR_DATETIME_FIELD_OVERFLOW: u32 = 3452552;
+
 const SQL_ERROR_TIMEZONE_DISPLACEMENT: u32 = 3452553;
+
 const SQL_ERROR_INVALID_USE_OF_ESCAPE: u32 = 3452556;
+
 const SQL_ERROR_ZERO_LENGTH_CHARACTER_STRING: u32 = 3452559;
+
 const SQL_ERROR_INVALID_XML_DOCUMENT: u32 = 3452566;
+
 const SQL_ERROR_NOT_XML_DOCUMENT: u32 = 3452565;
+
 const SQL_ERROR_INVALID_XML_CONTENT: u32 = 3452567;
+
 const SQL_ERROR_INVALID_XML_COMMENT: u32 = 3452572;
+
 const SQL_ERROR_INVALID_XML_PROCESSING_INSTRUCTION: u32 = 3452573;
+
 const SQL_ERROR_DIVISION_BY_ZERO: u32 = 3452582;
+
 const SQL_ERROR_INVALID_FRAME_SIZE: u32 = 3452583;
+
 const SQL_ERROR_SUBSTRING: u32 = 3452581;
+
 const SQL_ERROR_INVALID_REGEX: u32 = 3452591;
+
 const SQL_ERROR_INVALID_LOGARITHM: u32 = 3452594;
+
 const SQL_ERROR_INVALID_POWER: u32 = 3452595;
+
 const SQL_ERROR_INVALID_WIDTH_BUCKET: u32 = 3452596;
+
 const SQL_ERROR_INVALID_PARAMETER: u32 = 3452619;
+
 const SQL_ERROR_INVALID_ESCAPE: u32 = 3452621;
+
 const SQL_ERROR_INVALID_TEXT_REPRESENTATION: u32 = 3484946;
+
 const SQL_ERROR_UNDEFINED_OBJECT: u32 = 6820852;
+
 const SQL_ERROR_SYNTAX: u32 = 6819553;
+
 const SQL_ERROR_STRING_LENGTH_MISMATCH: u32 = 3452622;
+
 const SQL_ERROR_STRING_RIGHT_TRUNCATION: u32 = 3452545;
+
 const SQL_ERROR_ARRAY_SUBSCRIPT: u32 = 3452630;
+
 const SQL_ERROR_FEATURE_NOT_SUPPORTED: u32 = 466560;
+
 const SQL_ERROR_PROGRAM_LIMIT: u32 = 8584704;
+
 const SQL_ERROR_INTERNAL: u32 = 56966976;
+
 const SQL_ERROR_OBJECT_NOT_READY: u32 = 8631360;
+
 const SQL_ERROR_JSON_DATETIME: u32 = 3452653;
+
 const SQL_ERROR_JSON_NON_NUMERIC: u32 = 3452658;
+
 const SQL_ERROR_JSON_SUBSCRIPT: u32 = 3452655;
+
 const SQL_ERROR_JSON_ARRAY: u32 = 3452661;
+
 const SQL_ERROR_JSON_MEMBER: u32 = 3452662;
+
 const SQL_ERROR_JSON_NUMBER: u32 = 3452663;
+
 const SQL_ERROR_JSON_OBJECT: u32 = 3452664;
+
 const SQL_ERROR_JSON_SINGLETON: u32 = 3452660;
+
 pub fn sql_error_message(error: SqlError) -> SqlErrorDescription<'static> {
-    if error.state == SQL_ERROR_DATATYPE_MISMATCH {
-        return SqlErrorDescription {
-            message: "could not convert row type",
-        };
-    }
+    if error.state == SQL_ERROR_DATATYPE_MISMATCH { return SqlErrorDescription { message: "could not convert row type" }; }
     if error.state == SQL_ERROR_ZERO_LENGTH_CHARACTER_STRING {
-        return SqlErrorDescription {
-            message: "zero-length character string",
-        };
+        return SqlErrorDescription { message: "zero-length character string" };
     }
-    if error.state == SQL_ERROR_INVALID_XML_PROCESSING_INSTRUCTION {
-        return SqlErrorDescription {
-            message: "invalid XML processing instruction",
-        };
-    }
-    if error.state == SQL_ERROR_NOT_XML_DOCUMENT {
-        return SqlErrorDescription {
-            message: "not an XML document",
-        };
-    }
+    if error.state == SQL_ERROR_INVALID_XML_PROCESSING_INSTRUCTION { return SqlErrorDescription { message: "invalid XML processing instruction" }; }
+    if error.state == SQL_ERROR_NOT_XML_DOCUMENT { return SqlErrorDescription { message: "not an XML document" }; }
     if error.state == SQL_ERROR_INVALID_XML_DOCUMENT {
-        return SqlErrorDescription {
-            message: "invalid XML document",
-        };
+        return SqlErrorDescription { message: "invalid XML document" };
     }
     if error.state == SQL_ERROR_INVALID_XML_CONTENT {
-        return SqlErrorDescription {
-            message: "invalid XML content",
-        };
+        return SqlErrorDescription { message: "invalid XML content" };
     }
     if error.state == SQL_ERROR_INVALID_XML_COMMENT {
-        return SqlErrorDescription {
-            message: "invalid XML comment",
-        };
+        return SqlErrorDescription { message: "invalid XML comment" };
     }
     if error.state == SQL_ERROR_CARDINALITY_VIOLATION {
         return SqlErrorDescription {
@@ -295,6 +325,7 @@ pub fn sql_error_message(error: SqlError) -> SqlErrorDescription<'static> {
         message: "SQL evaluation failed",
     }
 }
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum BoolValue {
     Unknown,
@@ -303,6 +334,7 @@ pub enum BoolValue {
     Value(bool),
     Error(SqlError),
 }
+
 #[derive(Clone, PartialEq, Eq)]
 pub enum NumericValue {
     Unknown,
@@ -311,6 +343,7 @@ pub enum NumericValue {
     Value(String),
     Error(SqlError),
 }
+
 pub fn make_numeric_value(value: &str) -> NumericValue {
     let unresolved_flavor: i32 = 0;
     let parts = numeric_parts(value);
@@ -319,6 +352,7 @@ pub fn make_numeric_value(value: &str) -> NumericValue {
     }
     NumericValue::Value(value.to_owned())
 }
+
 #[derive(Clone, Copy)]
 pub struct JsonbNode {
     pub kind: i32,
@@ -329,12 +363,17 @@ pub struct JsonbNode {
     pub text_start: usize,
     pub text_end: usize,
 }
+
 #[derive(Clone)]
 pub struct JsonbPayload {
     pub characters: Vec<char>,
     pub nodes: Vec<JsonbNode>,
     pub root: usize,
 }
+
+// Partial JSONB facts. A shape with nodes is the complete logical tree except for kind 7 holes:
+// each hole stands for one nonnull JSON value, and its text holds seven '0'/'1' flags, one per
+// possible node kind from null to object. An empty shape records no structure.
 #[derive(Clone)]
 pub struct JsonbKnowledge {
     pub maximum: i64,
@@ -342,6 +381,7 @@ pub struct JsonbKnowledge {
     pub length: i32,
     pub shape: JsonbPayload,
 }
+
 #[derive(Clone)]
 pub enum JsonbValue {
     Unknown,
@@ -351,21 +391,25 @@ pub enum JsonbValue {
     Value(JsonbPayload),
     Error(SqlError),
 }
+
 #[derive(Clone, Copy)]
 pub struct TsvectorPosition {
     pub position: i32,
     pub weight: i32,
 }
+
 #[derive(Clone)]
 pub struct TsvectorLexeme {
     pub text: String,
     pub positions: Vec<TsvectorPosition>,
 }
+
 #[derive(Clone)]
 pub struct TsvectorPayload {
     pub lexemes: Vec<TsvectorLexeme>,
     pub native_bytes: i32,
 }
+
 #[derive(Clone)]
 pub enum TsvectorValue {
     Unknown,
@@ -374,6 +418,7 @@ pub enum TsvectorValue {
     Value(TsvectorPayload),
     Error(SqlError),
 }
+
 #[derive(Clone)]
 pub struct TsqueryNode {
     pub kind: i32,
@@ -384,12 +429,14 @@ pub struct TsqueryNode {
     pub left: usize,
     pub right: usize,
 }
+
 #[derive(Clone)]
 pub struct TsqueryPayload {
     pub nodes: Vec<TsqueryNode>,
     pub root: usize,
     pub native_bytes: i32,
 }
+
 #[derive(Clone)]
 pub enum TsqueryValue {
     Unknown,
@@ -398,42 +445,39 @@ pub enum TsqueryValue {
     Value(TsqueryPayload),
     Error(SqlError),
 }
+
 pub fn bool_unresolved(flavor: i32) -> BoolValue {
-    if flavor == 1 {
-        return BoolValue::Unknown;
-    };
+    if flavor == 1 { return BoolValue::Unknown; };
     BoolValue::Unimplemented
 }
+
 pub fn int4_unresolved(flavor: i32) -> Int4Value {
-    if flavor == 1 {
-        return Int4Value::Unknown;
-    };
+    if flavor == 1 { return Int4Value::Unknown; };
     Int4Value::Unimplemented
 }
+
 pub fn jsonb_unresolved(flavor: i32) -> JsonbValue {
-    if flavor == 1 {
-        return JsonbValue::Unknown;
-    };
+    if flavor == 1 { return JsonbValue::Unknown; };
     JsonbValue::Unimplemented
 }
+
 pub fn numeric_unresolved(flavor: i32) -> NumericValue {
-    if flavor == 1 {
-        return NumericValue::Unknown;
-    };
+    if flavor == 1 { return NumericValue::Unknown; };
     NumericValue::Unimplemented
 }
+
 pub fn text_unresolved(flavor: i32) -> TextValue {
-    if flavor == 1 {
-        return TextValue::Unknown;
-    };
+    if flavor == 1 { return TextValue::Unknown; };
     TextValue::Unimplemented
 }
+
+// A deferral guarded by a declared-context fact needs the database, unless an input it reached was
+// already Unimplemented.
 pub fn resolution_context(flavor: i32) -> i32 {
-    if flavor == 2 {
-        return 2;
-    };
+    if flavor == 2 { return 2; };
     1
 }
+
 #[derive(Clone, Copy)]
 pub struct NumericLayout {
     pub valid: bool,
@@ -443,6 +487,7 @@ pub struct NumericLayout {
     pub first: usize,
     pub end: usize,
 }
+
 fn invalid_numeric_parts() -> NumericLayout {
     NumericLayout {
         valid: false,
@@ -453,6 +498,7 @@ fn invalid_numeric_parts() -> NumericLayout {
         end: 0,
     }
 }
+
 pub fn numeric_space(value: char) -> bool {
     value == ' '
         || value == '\t'
@@ -461,6 +507,7 @@ pub fn numeric_space(value: char) -> bool {
         || value == '\x0b'
         || value == '\x0c'
 }
+
 fn numeric_digit(value: char) -> i32 {
     if value == '0' {
         return 0;
@@ -494,6 +541,7 @@ fn numeric_digit(value: char) -> i32 {
     }
     -1
 }
+
 pub fn numeric_parts(value: &str) -> NumericLayout {
     let chars: Vec<char> = value.chars().collect();
     if chars.len() > 1000000 {
@@ -678,45 +726,73 @@ pub fn numeric_parts(value: &str) -> NumericLayout {
         end: last,
     }
 }
+
 #[derive(Clone)]
 struct JsonSyntaxSource {
     characters: Vec<char>,
 }
+
 #[derive(Clone, Copy)]
 struct JsonSyntaxToken {
     kind: i32,
     end: usize,
 }
+
 const JSON_SYNTAX_INVALID: i32 = 12;
+
 const JSON_SYNTAX_END: i32 = 0;
+
 const JSON_SYNTAX_STRING: i32 = 1;
+
 const JSON_SYNTAX_NUMBER: i32 = 2;
+
 const JSON_SYNTAX_TRUE: i32 = 3;
+
 const JSON_SYNTAX_FALSE: i32 = 4;
+
 const JSON_SYNTAX_NULL: i32 = 5;
+
 const JSON_SYNTAX_OBJECT_START: i32 = 6;
+
 const JSON_SYNTAX_OBJECT_END: i32 = 7;
+
 const JSON_SYNTAX_ARRAY_START: i32 = 8;
+
 const JSON_SYNTAX_ARRAY_END: i32 = 9;
+
 const JSON_SYNTAX_COLON: i32 = 10;
+
 const JSON_SYNTAX_COMMA: i32 = 11;
+
 const JSON_SYNTAX_ROOT_VALUE: i32 = 0;
+
 const JSON_SYNTAX_ROOT_END: i32 = 1;
+
 const JSON_SYNTAX_ARRAY_FIRST: i32 = 2;
+
 const JSON_SYNTAX_ARRAY_NEXT: i32 = 3;
+
 const JSON_SYNTAX_ARRAY_VALUE: i32 = 4;
+
 const JSON_SYNTAX_OBJECT_FIRST: i32 = 5;
+
 const JSON_SYNTAX_OBJECT_COLON: i32 = 6;
+
 const JSON_SYNTAX_OBJECT_VALUE: i32 = 7;
+
 const JSON_SYNTAX_OBJECT_NEXT: i32 = 8;
+
 const JSON_SYNTAX_OBJECT_KEY: i32 = 9;
+
 fn json_syntax_space(character: char) -> bool {
     character == ' ' || character == '\t' || character == '\n' || character == '\r'
 }
+
 fn json_syntax_digit(character: char) -> bool {
     let code = character as i32;
     code >= 48 && code <= 57
 }
+
 fn json_syntax_alphanumeric(character: char) -> bool {
     let code = character as i32;
     json_syntax_digit(character)
@@ -725,16 +801,19 @@ fn json_syntax_alphanumeric(character: char) -> bool {
         || code >= 128
         || character == '_'
 }
+
 fn json_syntax_hex(character: char) -> bool {
     let code = character as i32;
     (code >= 48 && code <= 57) || (code >= 65 && code <= 70) || (code >= 97 && code <= 102)
 }
+
 fn json_syntax_bad_token(end: usize) -> JsonSyntaxToken {
     JsonSyntaxToken {
         kind: JSON_SYNTAX_INVALID,
         end: end,
     }
 }
+
 fn json_syntax_read_string(source: &JsonSyntaxSource, begin: usize) -> JsonSyntaxToken {
     let mut position = begin + 1;
     while position < source.characters.len() {
@@ -782,6 +861,7 @@ fn json_syntax_read_string(source: &JsonSyntaxSource, begin: usize) -> JsonSynta
     }
     json_syntax_bad_token(position)
 }
+
 fn json_syntax_read_number(source: &JsonSyntaxSource, begin: usize) -> JsonSyntaxToken {
     let mut position = begin;
     if source.characters[position] == '-' {
@@ -834,6 +914,7 @@ fn json_syntax_read_number(source: &JsonSyntaxSource, begin: usize) -> JsonSynta
         end: position,
     }
 }
+
 fn json_syntax_keyword(
     source: &JsonSyntaxSource,
     begin: usize,
@@ -858,6 +939,7 @@ fn json_syntax_keyword(
         end: position,
     }
 }
+
 fn json_syntax_read_token(source: &JsonSyntaxSource, begin: usize) -> JsonSyntaxToken {
     let mut position = begin;
     while position < source.characters.len() && json_syntax_space(source.characters[position]) {
@@ -904,6 +986,7 @@ fn json_syntax_read_token(source: &JsonSyntaxSource, begin: usize) -> JsonSyntax
         end: position + 1,
     }
 }
+
 fn json_syntax_root_kind(token: i32) -> i32 {
     if token == JSON_SYNTAX_NULL {
         return 0;
@@ -928,19 +1011,29 @@ fn json_syntax_root_kind(token: i32) -> i32 {
     };
     -1
 }
+
 #[derive(Clone, Copy)]
 struct JsonSyntaxTransition {
     state: i32,
     action: i32,
 }
+
 const JSON_SYNTAX_REJECT: i32 = 7;
+
 const JSON_SYNTAX_CONTINUE: i32 = 0;
+
 const JSON_SYNTAX_FINISH: i32 = 1;
+
 const JSON_SYNTAX_CLOSE: i32 = 2;
+
 const JSON_SYNTAX_KEY: i32 = 3;
+
 const JSON_SYNTAX_VALUE: i32 = 4;
+
 const JSON_SYNTAX_OPEN_ARRAY: i32 = 5;
+
 const JSON_SYNTAX_OPEN_OBJECT: i32 = 6;
+
 fn json_syntax_step(state: i32, token: i32) -> JsonSyntaxTransition {
     let mut next = state;
     let mut action = JSON_SYNTAX_REJECT;
@@ -994,6 +1087,7 @@ fn json_syntax_step(state: i32, token: i32) -> JsonSyntaxTransition {
         action: action,
     }
 }
+
 #[derive(Clone, Copy)]
 struct JsonReadToken {
     start: usize,
@@ -1001,17 +1095,29 @@ struct JsonReadToken {
     kind: i32,
     syntax: i32,
 }
+
 const JSON_READ_END: i32 = 0;
+
 const JSON_READ_QUOTE: i32 = 1;
+
 const JSON_READ_ATOM: i32 = 2;
+
 const JSON_READ_OBJECT_OPEN: i32 = 3;
+
 const JSON_READ_OBJECT_CLOSE: i32 = 4;
+
 const JSON_READ_ARRAY_OPEN: i32 = 5;
+
 const JSON_READ_ARRAY_CLOSE: i32 = 6;
+
 const JSON_READ_COLON: i32 = 7;
+
 const JSON_READ_COMMA: i32 = 8;
+
 const JSON_READ_ZERO: u32 = 3484949;
+
 const JSON_READ_INVALID_TEXT: u32 = 3484946;
+
 fn json_read_next_token(source: &JsonSyntaxSource, begin: usize) -> JsonReadToken {
     let mut start = begin;
     while start < source.characters.len() && json_syntax_space(source.characters[start]) {
@@ -1043,6 +1149,7 @@ fn json_read_next_token(source: &JsonSyntaxSource, begin: usize) -> JsonReadToke
         syntax: token.kind,
     }
 }
+
 fn json_read_hex(character: char) -> i32 {
     let code = character as i32;
     if code >= 48 && code <= 57 {
@@ -1053,6 +1160,7 @@ fn json_read_hex(character: char) -> i32 {
     };
     code - 87
 }
+
 fn json_read_decode_string_context(
     source: &JsonSyntaxSource,
     token: JsonReadToken,
@@ -1146,6 +1254,7 @@ fn json_read_decode_string_context(
     }
     TextValue::Error(make_sql_error(JSON_READ_INVALID_TEXT))
 }
+
 #[derive(Clone, Copy)]
 struct JsonbFrame {
     state: i32,
@@ -1154,11 +1263,14 @@ struct JsonbFrame {
     key_start: usize,
     key_end: usize,
 }
+
 #[derive(Clone)]
 struct JsonbCharacters {
     characters: Vec<char>,
 }
+
 const JSONB_NUMERIC_RANGE: u32 = 3452547;
+
 fn jsonb_node_link(node: JsonbNode, next: usize) -> JsonbNode {
     JsonbNode {
         kind: node.kind,
@@ -1170,6 +1282,7 @@ fn jsonb_node_link(node: JsonbNode, next: usize) -> JsonbNode {
         text_end: node.text_end,
     }
 }
+
 fn jsonb_node_child(node: JsonbNode, child: usize) -> JsonbNode {
     JsonbNode {
         kind: node.kind,
@@ -1181,6 +1294,7 @@ fn jsonb_node_child(node: JsonbNode, child: usize) -> JsonbNode {
         text_end: node.text_end,
     }
 }
+
 fn jsonb_scalar_ready(source: &JsonSyntaxSource, token: JsonReadToken, utf8: bool) -> BoolValue {
     let unresolved_flavor: i32 = 0;
     let following = json_read_next_token(source, token.end);
@@ -1189,18 +1303,7 @@ fn jsonb_scalar_ready(source: &JsonSyntaxSource, token: JsonReadToken, utf8: boo
         if let TextValue::Error(error) = decoded {
             return BoolValue::Error(error);
         };
-        let mut condition_flavor_49_8: i32 = unresolved_flavor;
-        if let TextValue::Unknown = decoded {
-            if condition_flavor_49_8 < 1 {
-                condition_flavor_49_8 = 1;
-            };
-        };
-        if let TextValue::Unimplemented = decoded {
-            condition_flavor_49_8 = 2;
-        };
-        if (decoded == TextValue::Unknown || decoded == TextValue::Unimplemented)
-            || decoded == TextValue::NonNull
-        {
+        let mut condition_flavor_49_8: i32 = unresolved_flavor; if let TextValue::Unknown = decoded { if condition_flavor_49_8 < 1 { condition_flavor_49_8 = 1; }; }; if let TextValue::Unimplemented = decoded { condition_flavor_49_8 = 2; }; if (decoded == TextValue::Unknown || decoded == TextValue::Unimplemented) || decoded == TextValue::NonNull {
             return bool_unresolved(condition_flavor_49_8);
         };
     };
@@ -1209,22 +1312,14 @@ fn jsonb_scalar_ready(source: &JsonSyntaxSource, token: JsonReadToken, utf8: boo
     };
     BoolValue::Value(true)
 }
+
 fn jsonb_number_text(source: &JsonSyntaxSource, token: JsonReadToken, utf8: bool) -> TextValue {
     let unresolved_flavor: i32 = 0;
     let ready = jsonb_scalar_ready(source, token, utf8);
     if let BoolValue::Error(error) = ready {
         return TextValue::Error(error);
     };
-    let mut condition_flavor_65_4: i32 = unresolved_flavor;
-    if let BoolValue::Unknown = ready {
-        if condition_flavor_65_4 < 1 {
-            condition_flavor_65_4 = 1;
-        };
-    };
-    if let BoolValue::Unimplemented = ready {
-        condition_flavor_65_4 = 2;
-    };
-    if ready == BoolValue::Unknown || ready == BoolValue::Unimplemented {
+    let mut condition_flavor_65_4: i32 = unresolved_flavor; if let BoolValue::Unknown = ready { if condition_flavor_65_4 < 1 { condition_flavor_65_4 = 1; }; }; if let BoolValue::Unimplemented = ready { condition_flavor_65_4 = 2; }; if ready == BoolValue::Unknown || ready == BoolValue::Unimplemented {
         return text_unresolved(condition_flavor_65_4);
     };
     let mut position = token.start;
@@ -1320,6 +1415,7 @@ fn jsonb_number_text(source: &JsonSyntaxSource, token: JsonReadToken, utf8: bool
     };
     TextValue::Value(output)
 }
+
 fn jsonb_key_compare(source: &JsonbCharacters, left: JsonbNode, right: JsonbNode) -> i32 {
     let a = left.key_end - left.key_start;
     let b = right.key_end - right.key_start;
@@ -1343,6 +1439,7 @@ fn jsonb_key_compare(source: &JsonbCharacters, left: JsonbNode, right: JsonbNode
     }
     0
 }
+
 fn jsonb_normalize_objects(input: JsonbPayload) -> JsonbPayload {
     let source = JsonbCharacters {
         characters: input.characters,
@@ -1429,19 +1526,12 @@ fn jsonb_normalize_objects(input: JsonbPayload) -> JsonbPayload {
         root: input.root,
     }
 }
+
 fn jsonb_parse_text_context(input: TextValue, admission: bool, utf8: bool) -> JsonbValue {
     let mut unresolved_flavor: i32 = 0;
-    if let TextValue::Unknown = input {
-        unresolved_flavor = 1;
-    };
-    if let TextValue::NonNull = input {
-        if unresolved_flavor < 1 {
-            unresolved_flavor = 1;
-        };
-    };
-    if let TextValue::Unimplemented = input {
-        unresolved_flavor = 2;
-    };
+    if let TextValue::Unknown = input { unresolved_flavor = 1; };
+    if let TextValue::NonNull = input { if unresolved_flavor < 1 { unresolved_flavor = 1; }; };
+    if let TextValue::Unimplemented = input { unresolved_flavor = 2; };
     if let TextValue::Error(error) = input {
         return JsonbValue::Error(error);
     };
@@ -1482,18 +1572,7 @@ fn jsonb_parse_text_context(input: TextValue, admission: bool, utf8: bool) -> Js
                 if let TextValue::Error(error) = decoded {
                     return JsonbValue::Error(error);
                 };
-                let mut condition_flavor_317_16: i32 = unresolved_flavor;
-                if let TextValue::Unknown = decoded {
-                    if condition_flavor_317_16 < 1 {
-                        condition_flavor_317_16 = 1;
-                    };
-                };
-                if let TextValue::Unimplemented = decoded {
-                    condition_flavor_317_16 = 2;
-                };
-                if (decoded == TextValue::Unknown || decoded == TextValue::Unimplemented)
-                    || decoded == TextValue::NonNull
-                {
+                let mut condition_flavor_317_16: i32 = unresolved_flavor; if let TextValue::Unknown = decoded { if condition_flavor_317_16 < 1 { condition_flavor_317_16 = 1; }; }; if let TextValue::Unimplemented = decoded { condition_flavor_317_16 = 2; }; if (decoded == TextValue::Unknown || decoded == TextValue::Unimplemented) || decoded == TextValue::NonNull {
                     return jsonb_unresolved(condition_flavor_317_16);
                 };
             };
@@ -1517,16 +1596,7 @@ fn jsonb_parse_text_context(input: TextValue, admission: bool, utf8: bool) -> Js
                 if let BoolValue::Error(error) = decision {
                     return JsonbValue::Error(error);
                 };
-                let mut condition_flavor_341_16: i32 = unresolved_flavor;
-                if let BoolValue::Unknown = decision {
-                    if condition_flavor_341_16 < 1 {
-                        condition_flavor_341_16 = 1;
-                    };
-                };
-                if let BoolValue::Unimplemented = decision {
-                    condition_flavor_341_16 = 2;
-                };
-                if decision == BoolValue::Unknown || decision == BoolValue::Unimplemented {
+                let mut condition_flavor_341_16: i32 = unresolved_flavor; if let BoolValue::Unknown = decision { if condition_flavor_341_16 < 1 { condition_flavor_341_16 = 1; }; }; if let BoolValue::Unimplemented = decision { condition_flavor_341_16 = 2; }; if decision == BoolValue::Unknown || decision == BoolValue::Unimplemented {
                     return jsonb_unresolved(condition_flavor_341_16);
                 };
             };
@@ -1546,16 +1616,7 @@ fn jsonb_parse_text_context(input: TextValue, admission: bool, utf8: bool) -> Js
                     if let BoolValue::Error(error) = decision {
                         return JsonbValue::Error(error);
                     };
-                    let mut condition_flavor_361_20: i32 = unresolved_flavor;
-                    if let BoolValue::Unknown = decision {
-                        if condition_flavor_361_20 < 1 {
-                            condition_flavor_361_20 = 1;
-                        };
-                    };
-                    if let BoolValue::Unimplemented = decision {
-                        condition_flavor_361_20 = 2;
-                    };
-                    if decision == BoolValue::Unknown || decision == BoolValue::Unimplemented {
+                    let mut condition_flavor_361_20: i32 = unresolved_flavor; if let BoolValue::Unknown = decision { if condition_flavor_361_20 < 1 { condition_flavor_361_20 = 1; }; }; if let BoolValue::Unimplemented = decision { condition_flavor_361_20 = 2; }; if decision == BoolValue::Unknown || decision == BoolValue::Unimplemented {
                         return jsonb_unresolved(condition_flavor_361_20);
                     };
                 };
@@ -1587,18 +1648,7 @@ fn jsonb_parse_text_context(input: TextValue, admission: bool, utf8: bool) -> Js
                         if let TextValue::Error(error) = decoded {
                             return JsonbValue::Error(error);
                         };
-                        let mut condition_flavor_393_24: i32 = unresolved_flavor;
-                        if let TextValue::Unknown = decoded {
-                            if condition_flavor_393_24 < 1 {
-                                condition_flavor_393_24 = 1;
-                            };
-                        };
-                        if let TextValue::Unimplemented = decoded {
-                            condition_flavor_393_24 = 2;
-                        };
-                        if (decoded == TextValue::Unknown || decoded == TextValue::Unimplemented)
-                            || decoded == TextValue::NonNull
-                        {
+                        let mut condition_flavor_393_24: i32 = unresolved_flavor; if let TextValue::Unknown = decoded { if condition_flavor_393_24 < 1 { condition_flavor_393_24 = 1; }; }; if let TextValue::Unimplemented = decoded { condition_flavor_393_24 = 2; }; if (decoded == TextValue::Unknown || decoded == TextValue::Unimplemented) || decoded == TextValue::NonNull {
                             return jsonb_unresolved(condition_flavor_393_24);
                         };
                     };
@@ -1607,16 +1657,7 @@ fn jsonb_parse_text_context(input: TextValue, admission: bool, utf8: bool) -> Js
                         if let BoolValue::Error(error) = ready {
                             return JsonbValue::Error(error);
                         };
-                        let mut condition_flavor_402_24: i32 = unresolved_flavor;
-                        if let BoolValue::Unknown = ready {
-                            if condition_flavor_402_24 < 1 {
-                                condition_flavor_402_24 = 1;
-                            };
-                        };
-                        if let BoolValue::Unimplemented = ready {
-                            condition_flavor_402_24 = 2;
-                        };
-                        if ready == BoolValue::Unknown || ready == BoolValue::Unimplemented {
+                        let mut condition_flavor_402_24: i32 = unresolved_flavor; if let BoolValue::Unknown = ready { if condition_flavor_402_24 < 1 { condition_flavor_402_24 = 1; }; }; if let BoolValue::Unimplemented = ready { condition_flavor_402_24 = 2; }; if ready == BoolValue::Unknown || ready == BoolValue::Unimplemented {
                             return jsonb_unresolved(condition_flavor_402_24);
                         };
                         let size_text = decoded.clone();
@@ -1637,18 +1678,7 @@ fn jsonb_parse_text_context(input: TextValue, admission: bool, utf8: bool) -> Js
                             if let BoolValue::Error(error) = decision {
                                 return JsonbValue::Error(error);
                             };
-                            let mut condition_flavor_423_28: i32 = unresolved_flavor;
-                            if let BoolValue::Unknown = decision {
-                                if condition_flavor_423_28 < 1 {
-                                    condition_flavor_423_28 = 1;
-                                };
-                            };
-                            if let BoolValue::Unimplemented = decision {
-                                condition_flavor_423_28 = 2;
-                            };
-                            if decision == BoolValue::Unknown
-                                || decision == BoolValue::Unimplemented
-                            {
+                            let mut condition_flavor_423_28: i32 = unresolved_flavor; if let BoolValue::Unknown = decision { if condition_flavor_423_28 < 1 { condition_flavor_423_28 = 1; }; }; if let BoolValue::Unimplemented = decision { condition_flavor_423_28 = 2; }; if decision == BoolValue::Unknown || decision == BoolValue::Unimplemented {
                                 return jsonb_unresolved(condition_flavor_423_28);
                             };
                         };
@@ -1715,6 +1745,7 @@ fn jsonb_parse_text_context(input: TextValue, admission: bool, utf8: bool) -> Js
     };
     jsonb_unresolved(unresolved_flavor)
 }
+
 fn jsonb_quote(source: &JsonbPayload, begin: usize, end: usize) -> String {
     let mut output = String::new();
     output.push('"');
@@ -1749,19 +1780,17 @@ fn jsonb_quote(source: &JsonbPayload, begin: usize, end: usize) -> String {
     output.push('"');
     output
 }
+
 #[derive(Clone, Copy)]
 struct JsonbOutputFrame {
     node: usize,
     child: usize,
 }
+
 fn jsonb_render(input: JsonbValue, require_order: bool, pretty: bool) -> TextValue {
     let mut unresolved_flavor: i32 = 0;
-    if let JsonbValue::Unknown = input {
-        unresolved_flavor = 1;
-    };
-    if let JsonbValue::Unimplemented = input {
-        unresolved_flavor = 2;
-    };
+    if let JsonbValue::Unknown = input { unresolved_flavor = 1; };
+    if let JsonbValue::Unimplemented = input { unresolved_flavor = 2; };
     if let JsonbValue::NonNull(_maximum) = input {
         if pretty {
             return text_unresolved(unresolved_flavor);
@@ -1817,6 +1846,7 @@ fn jsonb_render(input: JsonbValue, require_order: bool, pretty: bool) -> TextVal
                             }
                             member = entry.next;
                         }
+                        // Keys sort by their bytes in the server encoding, which the output does not know.
                         if unicode && nonempty > 1 {
                             return text_unresolved(resolution_context(unresolved_flavor));
                         };
@@ -1891,23 +1921,30 @@ fn jsonb_render(input: JsonbValue, require_order: bool, pretty: bool) -> TextVal
     };
     text_unresolved(unresolved_flavor)
 }
+
 pub fn jsonb_to_text(input: JsonbValue) -> TextValue {
     jsonb_render(input, true, false)
 }
+
 pub fn jsonb_from_text(input: TextValue) -> JsonbValue {
     jsonb_parse_text(input, true)
 }
+
 fn jsonb_parse_text(input: TextValue, admission: bool) -> JsonbValue {
     jsonb_parse_text_context(input, admission, false)
 }
+
 #[derive(Clone, Copy)]
 struct JsonbStorageSize {
     low: i64,
     high: i64,
     reachable: bool,
 }
+
 const JSONB_STORAGE_LIMIT: i64 = 268435455i64;
+
 const JSONB_STORAGE_ERROR: u32 = 8584704;
+
 fn jsonb_storage_bounds(low: i64, high: i64) -> JsonbStorageSize {
     let ceiling = JSONB_STORAGE_LIMIT + 4i64;
     let mut a = low;
@@ -1924,19 +1961,23 @@ fn jsonb_storage_bounds(low: i64, high: i64) -> JsonbStorageSize {
         reachable: true,
     }
 }
+
 fn jsonb_storage_decision(size: JsonbStorageSize) -> BoolValue {
     let unresolved_flavor: i32 = 0;
     if size.low > JSONB_STORAGE_LIMIT {
         return BoolValue::Error(make_sql_error(JSONB_STORAGE_ERROR));
     };
+    // Sizes that straddle the limit differ by how the server's encoding widens the text.
     if size.high > JSONB_STORAGE_LIMIT {
         return bool_unresolved(resolution_context(unresolved_flavor));
     };
     BoolValue::Value(true)
 }
+
 fn jsonb_storage_aligned(value: i64) -> i64 {
     ((value + 3i64) / 4i64) * 4i64
 }
+
 fn jsonb_storage_append(
     current: JsonbStorageSize,
     child: JsonbStorageSize,
@@ -1954,6 +1995,7 @@ fn jsonb_storage_append(
     };
     jsonb_storage_bounds(current.low + child.low, current.high + child.high)
 }
+
 fn jsonb_storage_padding(current: JsonbStorageSize, ordered: bool) -> JsonbStorageSize {
     if ordered && current.low == current.high {
         let padding = jsonb_storage_aligned(current.low) - current.low;
@@ -1961,11 +2003,13 @@ fn jsonb_storage_padding(current: JsonbStorageSize, ordered: bool) -> JsonbStora
     };
     jsonb_storage_bounds(0i64, 3i64)
 }
+
 #[derive(Clone)]
 struct JsonbStorageCharacters {
     non_ascii: Vec<usize>,
     utf8_extra: Vec<usize>,
 }
+
 fn jsonb_storage_unicode_before(source: &JsonbStorageCharacters, end: usize) -> usize {
     let mut low: usize = 0;
     let mut high = source.non_ascii.len();
@@ -1980,6 +2024,7 @@ fn jsonb_storage_unicode_before(source: &JsonbStorageCharacters, end: usize) -> 
     }
     low
 }
+
 fn jsonb_storage_span(
     source: &JsonbStorageCharacters,
     begin: usize,
@@ -1998,6 +2043,7 @@ fn jsonb_storage_span(
     };
     jsonb_storage_bounds(low, low + (unicode as i64) * 3i64)
 }
+
 fn jsonb_storage_group(weight: i32) -> i32 {
     let mut group = weight / 4;
     if weight < 0 && weight % 4 != 0 {
@@ -2005,6 +2051,7 @@ fn jsonb_storage_group(weight: i32) -> i32 {
     };
     group
 }
+
 fn jsonb_storage_numeric(source: &JsonbPayload, node: JsonbNode) -> JsonbStorageSize {
     let mut number = String::new();
     let mut position = node.text_start;
@@ -2044,6 +2091,7 @@ fn jsonb_storage_numeric(source: &JsonbPayload, node: JsonbNode) -> JsonbStorage
     let size = header + (groups as i64) * 2i64;
     jsonb_storage_bounds(size, size)
 }
+
 fn jsonb_storage_character_index(source: &JsonbPayload) -> JsonbStorageCharacters {
     let mut non_ascii: Vec<usize> = Vec::new();
     let mut utf8_extra: Vec<usize> = Vec::new();
@@ -2070,6 +2118,7 @@ fn jsonb_storage_character_index(source: &JsonbPayload) -> JsonbStorageCharacter
         utf8_extra: utf8_extra,
     }
 }
+
 fn jsonb_storage_extents(
     source: &JsonbPayload,
     characters: &JsonbStorageCharacters,
@@ -2193,14 +2242,17 @@ fn jsonb_storage_extents(
     sizes[source.root] = root;
     sizes
 }
+
 fn jsonb_storage_layout(source: &JsonbPayload) -> JsonbStorageSize {
     let characters = jsonb_storage_character_index(source);
     let sizes = jsonb_storage_extents(source, &characters, false);
     sizes[source.root]
 }
+
 pub fn jsonb_storage_admission(source: &JsonbPayload) -> BoolValue {
     jsonb_storage_decision(jsonb_storage_layout(source))
 }
+
 pub fn text_number(value: i32, base: i32) -> String {
     let digits: Vec<char> = "0123456789abcdef".chars().collect();
     let mut reversed: Vec<char> = Vec::new();
@@ -2226,6 +2278,7 @@ pub fn text_number(value: i32, base: i32) -> String {
     }
     output
 }
+
 pub fn text_signed_number(value: i64) -> String {
     let digits: Vec<char> = "0123456789".chars().collect();
     let mut reversed: Vec<char> = Vec::new();

@@ -1,5 +1,4 @@
-//! The CHECK evaluator's numeric arithmetic, order and input and its text search output, pruned
-//! to what the values call.
+//! The CHECK evaluator, pruned to what the generated code calls.
 
 pub mod checkruntime;
 pub mod pg_catalog;
