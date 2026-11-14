@@ -200,6 +200,8 @@ export function prepareCheckRustGroup(
   sharedDeclarations?: readonly { name: string; source: string }[]
   source: CheckRustSource | null
   requiresRegex: boolean
+  // The runtime callables the checks and the inputs' reads call.
+  callables?: readonly string[]
 } {
   assertUniqueCheckEntryNames(constraints.map((constraint) => constraint.identity))
   const prepared = constraints.map(({ expression, identity }) =>
@@ -210,7 +212,9 @@ export function prepareCheckRustGroup(
     supported.flatMap((item) => item.sharedDeclarations.map((d) => [d.name, d] as const)),
   )
   const evaluatorSource = supported.length ? supported.map((item) => item.source).join('\n') : null
+  const callables = [...new Set([...supported.flatMap((item) => item.callables), ...inputCallables])]
   return {
+    callables,
     checks: prepared.map((item) =>
       item.kind === 'supported'
         ? {
@@ -230,7 +234,7 @@ export function prepareCheckRustGroup(
       ? assembleCheckRust({
           source: evaluatorSource,
           sharedDeclarations: [...declarations.values()],
-          callables: [...new Set([...supported.flatMap((item) => item.callables), ...inputCallables])],
+          callables,
           requiresRegex: inputsRequireRegex || supported.some((item) => item.requiresRegex),
         })
       : null,

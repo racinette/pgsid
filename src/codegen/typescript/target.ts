@@ -1,4 +1,5 @@
-import { checkTypescriptArtifacts } from '../shared/check-rust-transpile.js'
+import { checkTypescriptArtifacts, transpileCheckRustTypescriptFiles } from '../shared/check-rust-transpile.js'
+import { combineCheckRustParts } from './sql/check-rust-parts.js'
 import picomatch from 'picomatch'
 import ts from 'typescript'
 import { dirname, isAbsolute, posix, resolve, sep, join } from 'node:path'
@@ -205,7 +206,9 @@ export function createTypescriptCodegenTarget(
               join(jsonTypesDirectory, 'index.d.ts'),
             ),
             typesModuleSpecifier: runtime ? typescriptModuleSpecifier(runtime, types) : undefined,
-            checkRustModuleSpecifier: `./${analysis.query.name}.check-rust/checks.js`,
+            // Every query here shares one evaluator, translated and pruned below.
+            checkRustModuleSpecifier: './pgsid/check-rust/checks.js',
+            deferCheckRust: true,
             ...(runtime && runtimeDirectory
               ? {
                   numericModuleSpecifier: typescriptModuleSpecifier(
@@ -243,33 +246,29 @@ export function createTypescriptCodegenTarget(
               ...(runtime && rendered.runtime !== null
                 ? [{ kind: 'runtime', path: runtime, content: rendered.runtime }]
                 : []),
-              ...(runtime && rendered.checkRust !== null
-                ? (rendered.checkRustFiles
-                    ? checkTypescriptArtifacts(rendered.checkRustFiles, [
-                        {
-                          source: rendered.runtime ?? '',
-                          prefix: `./${analysis.query.name}.check-rust/`,
-                        },
-                      ])
-                    : [{ path: 'checks.ts', content: rendered.checkRust }]
-                  ).map((artifact) => ({
-                    kind: 'runtime' as const,
-                    path: join(
-                      runtimeDirectory!,
-                      `${analysis.query.name}.check-rust`,
-                      artifact.path,
-                    ),
-                    content: artifact.content,
-                  }))
-                : []),
             ],
+            checkRust: runtime && rendered.checkRustParts ? { parts: rendered.checkRustParts, consumer: rendered.runtime ?? '' } : null,
             usesNumeric: Boolean(runtime && rendered.usesNumeric),
             diagnostics: rendered.diagnostics,
           }
         })
+        // The evaluator of every query's checks, translated once and pruned to what the queries call.
+        const checkRust = results.flatMap((result) => (result.checkRust ? [result.checkRust] : []))
+        const sharedCheckRust =
+          runtimeDirectory && checkRust.length
+            ? checkTypescriptArtifacts(
+                transpileCheckRustTypescriptFiles(combineCheckRustParts(checkRust.map((item) => item.parts))),
+                checkRust.map((item) => ({ source: item.consumer, prefix: './pgsid/check-rust/' })),
+              ).map((artifact) => ({
+                kind: 'runtime' as const,
+                path: join(runtimeDirectory, 'pgsid', 'check-rust', artifact.path),
+                content: artifact.content,
+              }))
+            : []
         return {
           artifacts: [
             ...results.flatMap((result) => result.artifacts),
+            ...sharedCheckRust,
             ...(!sharedJsonOutput && !schemaOutDir && analyses.length
               ? renderTypescriptJsonSchemaArtifacts(config, schemas, jsonTypesDirectory).map(
                   (artifact) => ({ ...artifact, kind: 'types' }),

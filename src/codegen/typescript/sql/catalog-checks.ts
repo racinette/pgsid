@@ -211,6 +211,8 @@ export function renderTypescriptSchemaCheckArtifacts(
     enums?: readonly EnumInfo[]
     // The project's column mappings, which declare array dimensions.
     columnMappings?: Readonly<Record<string, unknown>>
+    // The evaluator's source is returned to be translated with others' rather than translated here.
+    deferRust?: boolean
   } = {},
   rust = true,
   // Set on a second pass when a value holds jsonpath parts, whose input needs the regex engine.
@@ -228,6 +230,8 @@ export function renderTypescriptSchemaCheckArtifacts(
     language: string
     checks: string
   } | null
+  // The evaluator's source, where its translation is deferred.
+  rustParts?: CheckRustParts | null
 } {
   const typedInputs = options.typedInputs ?? false
   // A domain chain takes the same public value as its base type.
@@ -1653,7 +1657,17 @@ export function renderTypescriptSchemaCheckArtifacts(
       rust,
       regexInputs || jsonpathReached,
     )
-  const rustFiles = rustGroup?.source ? transpileCheckRustTypescriptFiles(rustGroup.source) : null
+  const rustFiles =
+    rustGroup?.source && !options.deferRust ? transpileCheckRustTypescriptFiles(rustGroup.source) : null
+  const rustParts: CheckRustParts | null =
+    rustGroup?.source && rustGroup.evaluatorSource
+      ? {
+          evaluatorSource: rustGroup.evaluatorSource,
+          sharedDeclarations: rustGroup.sharedDeclarations ?? [],
+          callables: rustGroup.callables ?? [],
+          requiresRegex: rustGroup.requiresRegex,
+        }
+      : null
   return {
     checks: printFile([
       ...(rustGroup?.source
@@ -1799,7 +1813,16 @@ export function renderTypescriptSchemaCheckArtifacts(
       name: group.source.name,
     })),
     rustFiles,
+    ...(options.deferRust ? { rustParts } : {}),
   }
+}
+
+/** A check group's evaluator source, to be translated together with other groups'. */
+export interface CheckRustParts {
+  evaluatorSource: string
+  sharedDeclarations: readonly { name: string; source: string }[]
+  callables: readonly string[]
+  requiresRegex: boolean
 }
 
 // An adapter can call shared helpers, so every function a kept adapter names is kept with it.

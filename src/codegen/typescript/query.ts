@@ -14,7 +14,7 @@ import { planJsonSchemaInputs } from '../shared/json-schema-inputs.js'
 import { checkInputCases, planCheckInputs, type CheckInputPlan } from '../shared/check-inputs.js'
 import type { CheckCaseCatalog } from '../../query/types.js'
 import { checkTriggerWarning } from '../shared/check-trigger-warning.js'
-import { renderTypescriptSchemaCheckArtifacts } from './sql/catalog-checks.js'
+import { renderTypescriptSchemaCheckArtifacts, type CheckRustParts } from './sql/catalog-checks.js'
 import {
   typescriptDomainBase,
   typescriptPublicCheckInput,
@@ -85,6 +85,8 @@ export interface RenderTypescriptQueryArtifactsOptions {
   jsonSchemaPredicate?: GenerateTypescriptJsonSchemaValidatorOptions['schemaPredicate']
   jsonSchemaDiagnostic?: GenerateTypescriptJsonSchemaValidatorOptions['schemaValidation']
   checkRustModuleSpecifier?: string
+  // The CHECK evaluator is translated by the caller, with other queries' checks.
+  deferCheckRust?: boolean
   // Where the runtime finds the numeric module (pgsid/numeric.ts), which the caller writes when
   // usesNumeric is set; by default beside the runtime's support module.
   numericModuleSpecifier?: string
@@ -101,6 +103,7 @@ export interface TypescriptQueryArtifacts {
     language: string
     checks: string
   } | null
+  checkRustParts?: CheckRustParts | null
   // The runtime reads or sends numerics: the numeric module must be written where
   // numericModuleSpecifier points, for the runtime to read them and its caller to make them.
   usesNumeric?: boolean
@@ -268,6 +271,7 @@ export function renderTypescriptQueryArtifacts(
       rangeTypes: options.catalog?.rangeTypes,
       compositeTypeGraph: options.catalog?.compositeTypeGraph,
       columnMappings: config.sql.codegen?.typescript?.mappings.column,
+      ...(options.deferCheckRust ? { deferRust: true } : {}),
     },
     Boolean(options.checkRustModuleSpecifier),
   )
@@ -369,6 +373,7 @@ export function renderTypescriptQueryArtifacts(
     runtime: options.emitRuntime === false ? null : runtime,
     checkRust: options.emitRuntime === false ? null : checkRuntime.rust,
     checkRustFiles: options.emitRuntime === false ? null : checkRuntime.rustFiles,
+    checkRustParts: options.emitRuntime === false ? null : (checkRuntime.rustParts ?? null),
     usesNumeric: options.emitRuntime !== false && usesNumeric,
     diagnostics,
   }

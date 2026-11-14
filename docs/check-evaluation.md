@@ -31,6 +31,10 @@ target language. Go and TypeScript modules contain that transpiled program,
 while row adapters convert public input values and results at the boundary.
 The generated entry names are internal to the adapters.
 
+Generated TypeScript queries share their evaluator: the queries written to one
+runtime directory have their checks lowered together, translated once, and
+pruned to what any of them calls, so a check two queries write appears once.
+
 The generator selects Rust support separately for each constraint. A
 constraint outside the supported expression or value subset retains the
 existing target evaluator. A group can therefore contain Rust and fallback
