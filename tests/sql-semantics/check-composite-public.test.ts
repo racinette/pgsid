@@ -18,7 +18,9 @@ CREATE TABLE notes (
   tagged tag CONSTRAINT coded CHECK ((tagged).code IS NOT NULL),
   tags tag[] CONSTRAINT few_tags CHECK (cardinality(tags) <= 2),
   code varchar(3) CONSTRAINT has_code CHECK (code <> ''),
-  amount numeric(4,1) CONSTRAINT small_amount CHECK (amount < 100)
+  amount numeric(4,1) CONSTRAINT small_amount CHECK (amount < 100),
+  codes varchar(3)[] CONSTRAINT first_code CHECK (codes[1] <> 'abc'),
+  amounts numeric(4,1)[] CONSTRAINT first_amount CHECK (amounts[1] < 100)
 );
 `
 // A numeric is written here as { numeric: text } and sent as the numeric module's value.
@@ -32,7 +34,17 @@ const send = (value: unknown): unknown =>
         ? numeric(value.numeric)
         : Object.fromEntries(Object.entries(value).map(([key, item]) => [key, send(item)]))
       : value
-const columns = ['home', 'homes', 'booking', 'tagged', 'tags', 'code', 'amount'] as const
+const columns = [
+  'home',
+  'homes',
+  'booking',
+  'tagged',
+  'tags',
+  'code',
+  'amount',
+  'codes',
+  'amounts',
+] as const
 const queries = `-- name: InsertNote :exec
 INSERT INTO notes (id, ${columns.join(', ')}) VALUES (@id, ${columns.map((column) => `@${column}`).join(', ')});
 `
@@ -71,6 +83,15 @@ const cases: Partial<Record<(typeof columns)[number], unknown>>[] = [
   { amount: n('99.94') },
   { amount: n('99.96') },
   { amount: n('12345') },
+  // An array's modifier applies to each element as an assignment applies it: a value too long is
+  // refused, not cut, even in an element no check reads.
+  { codes: ['ab'] },
+  { codes: ['abc'] },
+  { codes: ['long'] },
+  { codes: ['ab   '] },
+  { codes: [null, 'long'] },
+  { amounts: [n('99.96')] },
+  { amounts: [null, n('12345')] },
 ]
 
 let root: string
@@ -173,6 +194,11 @@ describe('CHECKs on public TypeScript composites', () => {
     // rounds to its scale before the check.
     expect(result({ code: 'long' }, 'has_code')).toMatchObject({ certain: true, error: '22001' })
     expect(result({ code: 'ab   ' }, 'has_code')).toEqual({ certain: true, value: true })
+    for (const codes of [['long'], [null, 'long']])
+      expect(result({ codes }, 'first_code'), JSON.stringify(codes)).toMatchObject({
+        certain: true,
+        error: '22001',
+      })
     expect(result({ amount: n('99.96') }, 'small_amount')).toEqual({ certain: true, value: false })
     expect(result({ amount: n('12345') }, 'small_amount')).toMatchObject({
       certain: true,
@@ -185,6 +211,8 @@ describe('CHECKs on public TypeScript composites', () => {
       [{ code: 'long' }, 'has_code'],
       [{ amount: n('12345') }, 'small_amount'],
       [{ amount: n('99.96') }, 'small_amount'],
+      [{ codes: ['long'] }, 'first_code'],
+      [{ amounts: [n('99.96')] }, 'first_amount'],
     ] as const)
       expect(result(row, constraint), JSON.stringify(row)).not.toMatchObject({ value: true })
     for (const home of ['Main,12345', ['Main', '12345'], { street: 1, zip: '12345' }])

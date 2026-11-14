@@ -387,12 +387,7 @@ export function createGoCheckPublicContainers(options: GoCheckPublicContainerOpt
       const container = (member: string, convert: string): GoStatement[] | string => {
         if (undecided(convert) || (typeMod >= 0 && member !== 'ArrayElementFromArray'))
           return undecidedFor('ArrayElement')
-        let read: GoExpression = go.call(go.ident(convert), [cell])
-        if (typeMod >= 0) {
-          packages.add('operations')
-          read = go.call(operations('ArrayWithTypmod'), [read, go.number(typeMod)])
-        }
-        return cellBody(go.call(runtime(member), [read]))
+        return cellBody(go.call(runtime(member), [go.call(go.ident(convert), [cell])]))
       }
       if (compositeProfile(type)) return container('ArrayElementFromComposite', compositeConverter(type))
       if (multirangeTypeProfile(type) && !isArrayLikeType(type))
@@ -400,13 +395,15 @@ export function createGoCheckPublicContainers(options: GoCheckPublicContainerOpt
       if (rangeTypeProfile(type) && !isArrayLikeType(type))
         return container('ArrayElementFromRange', rangeConverter(type))
       if (arrayLikeElementType(type) && !isCatalogVectorType(type))
-        return container('ArrayElementFromArray', arrayConverter(type))
+        return container('ArrayElementFromArray', arrayConverter(type, [1], typeMod))
       return cellBody(scalar(type, typeMod))
     })
-  const arrayConverter = (type: string, counts: readonly number[] = [1]): string =>
-    define(`array\0${counts.join(',')}\0${type}`, 'checkPublicArray', 'ArrayValue', () => {
+  // An array's type modifier is its elements': array input reads each element through the
+  // coercion an assignment uses, which refuses a value too long where an explicit cast cuts it.
+  const arrayConverter = (type: string, counts: readonly number[] = [1], typeMod = -1): string =>
+    define(`array\0${counts.join(',')}\0${typeMod}\0${type}`, 'checkPublicArray', 'ArrayValue', () => {
       const item = arrayLikeElementType(type)!
-      const convert = elementConverter(item)
+      const convert = elementConverter(item, typeMod)
       if (undecided(convert)) return undecidedFor('ArrayValue')
       helpers.add('checkPublicArray')
       const array = go.call(go.ident('checkPublicArray'), [

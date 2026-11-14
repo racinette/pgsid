@@ -25,6 +25,7 @@ CREATE TABLE containers (
   pairs pair[],
   one pair,
   short varchar(3),
+  labels varchar(3)[],
   bypass boolean,
   CONSTRAINT span_lower CHECK (lower(span) > 0),
   CONSTRAINT stamps_bounded CHECK (NOT upper_inf(stamps)),
@@ -35,7 +36,8 @@ CREATE TABLE containers (
   CONSTRAINT positives_present CHECK (positives IS NOT NULL),
   CONSTRAINT pairs_first CHECK (pairs[1] IS NULL OR (pairs[1]).left_side > 0),
   CONSTRAINT one_right CHECK ((one).right_side > 1),
-  CONSTRAINT short_abc CHECK (CASE WHEN bypass THEN true ELSE short = 'abc' END)
+  CONSTRAINT short_abc CHECK (CASE WHEN bypass THEN true ELSE short = 'abc' END),
+  CONSTRAINT labels_abc CHECK (CASE WHEN bypass THEN true ELSE labels[1] = 'abc' END)
 );
 `
 
@@ -53,6 +55,7 @@ const valid = {
   pairs: `'{"(1,2,abc)"}'`,
   one: "'(1,2,ab)'",
   short: "'abc'",
+  labels: "'{abc}'",
   bypass: 'false',
 }
 const insert = (values: Partial<Record<keyof typeof valid, string>>) => {
@@ -70,6 +73,11 @@ const cases: [string, Partial<Record<keyof typeof valid, string>>, string | null
   ['long label', { one: "'(1,2,abcd)'" }, '22001'],
   ['long short past CASE', { short: "'abcd'", bypass: 'true' }, '22001'],
   ['trailing spaces', { short: "'abc   '" }, null],
+  // An array's modifier applies to each element as an assignment applies it: a value too long is
+  // refused, not cut.
+  ['long label element past CASE', { labels: "'{abc,abcd}'", bypass: 'true' }, '22001'],
+  ['trailing spaces element', { labels: `'{"abc   "}'` }, null],
+  ['short label element', { labels: "'{ab}'" }, '23514'],
   ['NULL items', { items: 'NULL' }, null],
   ['empty multirange', { many: "'{}'" }, '23514'],
   ['ragged grid', { grid: "'{{1,2},{3}}'" }, '22P02'],
@@ -112,6 +120,7 @@ func valid() PublicContainersCheckInput {
 		Pairs:     KnownCheckValue([]Pair{{LeftSide: ptr[int32](1), RightSide: ptr[Positive](2), Label: ptr("abc")}}),
 		One:       KnownCheckValue(&Pair{LeftSide: ptr[int32](1), RightSide: ptr[Positive](2), Label: ptr("ab")}),
 		Short:     KnownCheckValue(ptr("abc")),
+		Labels:    KnownCheckValue([]string{"abc"}),
 		Bypass:    KnownCheckValue(ptr(false)),
 	}
 }
@@ -168,6 +177,12 @@ func TestServerOutcomes(t *testing.T) {
 			input.Bypass = KnownCheckValue(ptr(true))
 		},
 		"trailing spaces": func(input *PublicContainersCheckInput) { input.Short = KnownCheckValue(ptr("abc   ")) },
+		"long label element past CASE": func(input *PublicContainersCheckInput) {
+			input.Labels = KnownCheckValue([]string{"abc", "abcd"})
+			input.Bypass = KnownCheckValue(ptr(true))
+		},
+		"trailing spaces element": func(input *PublicContainersCheckInput) { input.Labels = KnownCheckValue([]string{"abc   "}) },
+		"short label element":     func(input *PublicContainersCheckInput) { input.Labels = KnownCheckValue([]string{"ab"}) },
 		"NULL items":      func(input *PublicContainersCheckInput) { input.Items = KnownCheckValue[[]int32](nil) },
 		"empty multirange": func(input *PublicContainersCheckInput) {
 			input.Many = KnownCheckValue(ptr(pgsid.Multirange[int32]{}))

@@ -521,7 +521,11 @@ export function renderGoSchemaCheckArtifacts(
             ? containers.multirangeConverter(type)
             : portable === 'CompositeValue'
               ? containers.compositeConverter(type)
-              : containers.arrayConverter(type, columnDimensions(group, name))
+              : containers.arrayConverter(
+                  type,
+                  columnDimensions(group, name),
+                  inputTypeMod(group, name),
+                )
       return {
         convert: {
           kind: 'function-literal',
@@ -959,6 +963,8 @@ export function renderGoSchemaCheckArtifacts(
           const typeMod = item.nullness ? -1 : inputTypeMod(group, item.name)
           if (typeMod < 0) return value
           readPackages.add('operations')
+          // The evaluator's own values skip the public converter, which applies an array's
+          // modifier to each element; on a converted value this cast changes nothing.
           if (isArrayLikeType(item.type) && !isCatalogVectorType(item.type))
             return go.call(go.selector(go.ident('pg_catalog'), 'ArrayWithTypmod'), [
               value,

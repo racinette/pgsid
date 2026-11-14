@@ -767,16 +767,7 @@ export function renderTypescriptSchemaCheckArtifacts(
           ? 'checkRustUndecidedElement'
           : cell(
               runtimeCall(member, [
-                typeMod >= 0
-                  ? runtimeCall(
-                      'arrayWithTypmod',
-                      [
-                        helperCall(convert, [identifier('value'), identifier('name')]),
-                        numberLiteral(typeMod),
-                      ],
-                      '_checkRustOperations',
-                    )
-                  : helperCall(convert, [identifier('value'), identifier('name')]),
+                helperCall(convert, [identifier('value'), identifier('name')]),
               ]),
             )
       if (compositeProfile(type)) return call('arrayElementFromComposite', compositeConverter(type))
@@ -785,23 +776,29 @@ export function renderTypescriptSchemaCheckArtifacts(
       if (rangeTypeProfile(type) && !isArrayLikeType(type))
         return call('arrayElementFromRange', rangeConverter(type))
       if (arrayLikeElementType(type) && !isCatalogVectorType(type))
-        return call('arrayElementFromArray', arrayConverter(type))
+        return call('arrayElementFromArray', arrayConverter(type, [1], typeMod))
       return cell(scalarElement(type, typeMod) ?? 'checkRustUndecidedElement')
     })
-  const arrayConverter = (type: string, dimensions: readonly number[] = [1]): string =>
+  // An array's type modifier is its elements': array input reads each element through the
+  // coercion an assignment uses, which refuses a value too long where an explicit cast cuts it.
+  const arrayConverter = (
+    type: string,
+    dimensions: readonly number[] = [1],
+    typeMod = -1,
+  ): string =>
     defineConverter(
-      `array\0${dimensions.join(',')}\0${type}`,
+      `array\0${dimensions.join(',')}\0${typeMod}\0${type}`,
       'checkRustArray',
       'ArrayValue',
       () => {
         const element = arrayLikeElementType(type)!
-        if (undecided(elementConverter(element))) return 'checkRustUndecidedArray'
+        if (undecided(elementConverter(element, typeMod))) return 'checkRustUndecidedArray'
         const array = helperCall('checkRustPublicArray', [
           identifier('value'),
           identifier('name'),
           factory.createStringLiteral(arrayElementIdentity(element)),
           numberLiteral(arrayElementFamily(element)!),
-          identifier(elementConverter(element)),
+          identifier(elementConverter(element, typeMod)),
           factory.createArrayLiteralExpression(dimensions.map(numberLiteral)),
         ])
         // Composite elements are checked against their type plan, as stored composites are.
@@ -1216,7 +1213,11 @@ export function renderTypescriptSchemaCheckArtifacts(
             const composite = !isArrayLikeType(item.type)
             const convert = composite
               ? compositeConverter(item.type)
-              : arrayConverter(item.type, columnDimensions(group, item.name))
+              : arrayConverter(
+                  item.type,
+                  columnDimensions(group, item.name),
+                  inputTypeMod(group, item.name),
+                )
             const column = composite ? 'checkRustCompositeColumn' : 'checkRustArrayColumn'
             rustInputAdapters.add(column)
             rustInputAdapters.add(convert)
@@ -1304,13 +1305,9 @@ export function renderTypescriptSchemaCheckArtifacts(
         const typedRead = (item: (typeof prepared.inputs)[number]): ts.Expression => {
           const value = read(item)
           const typeMod = item.nullness ? -1 : inputTypeMod(group, item.name)
-          if (typeMod < 0) return value
-          if (isArrayLikeType(item.type) && !isCatalogVectorType(item.type))
-            return runtimeCall(
-              'arrayWithTypmod',
-              [value, numberLiteral(typeMod)],
-              '_checkRustOperations',
-            )
+          // An array's converter has read each element through the modifier already.
+          if (typeMod < 0 || (isArrayLikeType(item.type) && !isCatalogVectorType(item.type)))
+            return value
           const coercion = typeModifierCoercion(item.type)
           if (!coercion)
             return runtimeCall(
