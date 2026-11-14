@@ -25,9 +25,53 @@ const builtin: Readonly<Record<string, RustType>> = {
   name: rust.path('String'),
   bytea: rust.vec(rust.path('u8')),
   oid: rust.path('u32'),
+  int2vector: rust.vec(rust.path('i16')),
+  oidvector: rust.vec(rust.path('u32')),
 }
 const values: Readonly<Record<string, string>> = {
   numeric: 'Numeric',
+  time: 'Time',
+  timetz: 'Timetz',
+  point: 'Point',
+  line: 'Line',
+  lseg: 'Lseg',
+  box: 'PgBox',
+  path: 'Path',
+  polygon: 'Polygon',
+  circle: 'Circle',
+  uuid: 'Uuid',
+  xid: 'Xid',
+  cid: 'Cid',
+  xid8: 'Xid8',
+  money: 'Money',
+  char: 'Char',
+  tid: 'Tid',
+  pg_lsn: 'PgLsn',
+  pg_snapshot: 'Snapshot',
+  txid_snapshot: 'Snapshot',
+  inet: 'Inet',
+  cidr: 'Cidr',
+  macaddr: 'Macaddr',
+  macaddr8: 'Macaddr8',
+  bit: 'BitString',
+  varbit: 'BitString',
+  xml: 'Xml',
+  jsonpath: 'Jsonpath',
+  tsvector: 'Tsvector',
+  tsquery: 'Tsquery',
+  aclitem: 'Aclitem',
+  refcursor: 'Refcursor',
+  regproc: 'OidAlias',
+  regprocedure: 'OidAlias',
+  regoper: 'OidAlias',
+  regoperator: 'OidAlias',
+  regclass: 'OidAlias',
+  regtype: 'OidAlias',
+  regconfig: 'OidAlias',
+  regdictionary: 'OidAlias',
+  regnamespace: 'OidAlias',
+  regrole: 'OidAlias',
+  regcollation: 'OidAlias',
   date: 'Date',
   timestamp: 'Timestamp',
   timestamptz: 'Timestamptz',
@@ -44,6 +88,8 @@ const aliases: Readonly<Record<string, string>> = {
   real: 'float4',
   smallint: 'int2',
   decimal: 'numeric',
+  'bit varying': 'varbit',
+  '"char"': 'char',
   'timestamp with time zone': 'timestamptz',
   'timestamp without time zone': 'timestamp',
   'time with time zone': 'timetz',
@@ -128,3 +174,23 @@ export const rustDomainBase = (
 
 export const nullableRustType = (type: RustType, notNull: boolean): RustType =>
   notNull ? type : rust.option(type)
+
+/**
+ * A column's Rust type, not counting nullability: an array has the dimension counts its
+ * mapping declares, one unless it declares others. One count is nested vectors of that depth,
+ * several the dimension enum of those counts.
+ */
+export function resolveRustColumnType(
+  column: { typeName: string; typeOid: number },
+  dimensions: number | readonly number[] | undefined,
+  catalog: CatalogSnapshot,
+  context: RustTypeContext,
+): RustType {
+  if (dimensions === undefined || !column.typeName.endsWith('[]'))
+    return resolveRustType(column.typeName, catalog, context, column.typeOid)
+  const counts = [...new Set(typeof dimensions === 'number' ? [dimensions] : dimensions)].sort((left, right) => left - right)
+  const element = rust.option(resolveRustType(column.typeName.slice(0, -2), catalog, context))
+  if (counts.length > 1) return rustValues(context, `Array${counts.join('Or')}`, element)
+  if (counts[0] === 1) return rust.vec(element)
+  return rustValues(context, `D${counts[0]}`, element)
+}

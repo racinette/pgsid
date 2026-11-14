@@ -300,6 +300,10 @@ export const goCodegenSchema = z
 export const rustCodegenSchema = z
   .object({
     schema: z.object({ outDir: z.string() }).strict().optional(),
+    mappings: z
+      .object({ column: z.record(z.string(), arrayDimensionsMappingSchema).default({}) })
+      .strict()
+      .default({}),
   })
   .strict()
   .default({})

@@ -1,9 +1,11 @@
 import { join } from 'node:path'
 import type { CatalogSnapshot, DomainInfo, TableInfo } from '../../catalog/types.js'
+import type { Config } from '../../config/schema.js'
 import { printRustFile, rust, type RustExpression, type RustItem, type RustType } from './ast.js'
 import { assertUniqueRustNames, rustFieldName, rustTypeName } from './names.js'
 import {
   nullableRustType,
+  resolveRustColumnType,
   resolveRustType,
   rustDomainBase,
   rustValues,
@@ -186,12 +188,20 @@ function domainItems(domain: DomainInfo, catalog: CatalogSnapshot, context: Rust
   ]
 }
 
-function tableItems(table: TableInfo, catalog: CatalogSnapshot, context: RustTypeContext): RustItem[] {
+function tableItems(
+  table: TableInfo,
+  catalog: CatalogSnapshot,
+  context: RustTypeContext,
+  dimensions: (column: string) => number | readonly number[] | undefined,
+): RustItem[] {
   const name = rustTypeName(table.name)
   const columns = table.columns.map((column) => ({
     column,
     field: rustFieldName(column.name),
-    type: nullableRustType(resolveRustType(column.typeName, catalog, context, column.typeOid), column.notNull),
+    type: nullableRustType(
+      resolveRustColumnType(column, dimensions(`${table.schema}.${table.name}.${column.name}`), catalog, context),
+      column.notNull,
+    ),
   }))
   assertUniqueRustNames(
     columns.map(({ column, field }) => ({ source: column.name, generated: field })),
@@ -242,7 +252,13 @@ function tableItems(table: TableInfo, catalog: CatalogSnapshot, context: RustTyp
  * The generated module tree for a catalog: a module per schema holding its enums, composite
  * types, domains and table rows, and the values module they use, under `directory`.
  */
-export function renderRustSchemaArtifacts(catalog: CatalogSnapshot, directory: string): Artifact[] {
+export function renderRustSchemaArtifacts(
+  catalog: CatalogSnapshot,
+  directory: string,
+  config?: Config,
+): Artifact[] {
+  const mappings = config?.sql.codegen?.rust?.mappings.column ?? {}
+  const dimensions = (column: string) => mappings[column]?.dimensions
   const schemas = [
     ...new Set(
       [...catalog.enums, ...catalog.compositeTypes, ...catalog.domains, ...catalog.tables.filter((table) => table.relkind !== 'S')].map(
@@ -264,7 +280,7 @@ export function renderRustSchemaArtifacts(catalog: CatalogSnapshot, directory: s
       ...catalog.domains.filter((item) => item.schema === schema).flatMap((item) => domainItems(item, catalog, context)),
       ...catalog.tables
         .filter((item) => item.schema === schema && item.relkind !== 'S')
-        .flatMap((item) => tableItems(item, catalog, context)),
+        .flatMap((item) => tableItems(item, catalog, context, dimensions)),
     ]
     return { path: join(directory, `${rustFieldName(schema)}.rs`), content: printRustFile(items) }
   })

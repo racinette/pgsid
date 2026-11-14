@@ -8,7 +8,7 @@ use std::str::FromStr;
 use bytes::{Buf, BufMut, BytesMut};
 use postgres_types::{to_sql_checked, FromSql, IsNull, ToSql, Type};
 
-use super::numeric_evaluator::{checkruntime as runtime, pg_catalog as operations};
+use super::evaluator::{checkruntime as runtime, pg_catalog as operations};
 use super::temporal::accepts_base;
 
 type BoxError = Box<dyn Error + Sync + Send>;

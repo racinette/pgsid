@@ -32,7 +32,7 @@ export function createRustCodegenTarget(
           renderSchema(input): CodegenRenderResult {
             try {
               return {
-                artifacts: renderRustSchemaArtifacts(input.catalog, schemaOutDir).map((artifact) => ({
+                artifacts: renderRustSchemaArtifacts(input.catalog, schemaOutDir, config).map((artifact) => ({
                   ...artifact,
                   kind: 'schema',
                 })),

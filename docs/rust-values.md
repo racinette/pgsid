@@ -10,7 +10,7 @@ binary format, which the driver always reads results in.
 ## Nullability
 
 A value that can be NULL is an option around its type, and one that cannot is
-the type itself. Array elements can always be NULL, so an array is a vector of
+the type itself. Array elements can always be NULL, so their vectors hold
 options.
 
 ## Temporal values
@@ -48,6 +48,59 @@ expresses them. A range keeps the bounds it was built with; the server stores,
 and reads back, its canonical form, so a range read again may differ from the
 one written while describing the same values. A multirange is the list of its
 ranges, which the server sorts and merges.
+
+## Clocks
+
+A time is a clock reading from midnight to 24:00:00, which the server allows
+and chrono's time does not, so it is held as microseconds since midnight and
+offers the chrono time where one exists. A time with time zone adds its offset
+east of UTC, within the bounds the server keeps. Both are built only through
+constructors that refuse anything outside those bounds.
+
+## Geometric shapes
+
+Points, lines, segments, boxes, paths, polygons and circles are structs of
+float8 coordinates, which every pair of floats is, so their fields are their
+values; the server refuses a shape its input does, such as a line whose A and
+B are both zero, and keeps a box with its upper right corner first. The box is
+named apart from the standard library's box.
+
+## Identifiers and positions
+
+A UUID is its sixteen bytes. Transaction and command identifiers, the full
+transaction identifier with its epoch, a row's physical position, a
+write-ahead log position, a visibility snapshot and the single-byte char type
+are each a small type of their own, and a money amount is the integer count of
+the currency's smallest unit the server stores, since its text depends on the
+session's monetary locale. A value of an OID alias type, such as a table
+reference, is the object identifier: the binary format carries no name.
+
+## Network addresses and bit strings
+
+An inet value is a host address with its prefix length and a cidr value a
+network of the same parts, both on the standard library's address type. MAC
+addresses are their bytes, and a bit string is its bits. Each writes the text
+the server writes for it.
+
+## Text-like values
+
+XML, jsonpath, text search vectors and queries, and ACL items are held as the
+server's text. They are sent as text, which the server reads with the type's
+own input; vectors and queries are read from their binary form and written as
+the server writes them, by the CHECK evaluator's own output functions. The
+server has no binary output for ACL items, so they can be written but not read.
+
+## Arrays
+
+An array has the number of dimensions its column declares, one unless the
+column's dimensions mapping declares another, and is never read for it from
+the value. One dimension is a vector of options; a deeper single count is a
+wrapper of nested vectors of that depth. Several declared counts are an enum
+with a variant of nested vectors for each count, shared by every column that
+declares the same counts. An array the server returns with another count fails
+to read, naming the dimensions mapping, and an array whose sub-arrays differ in
+length is refused before it is sent. The empty array reads as the variant of
+the lowest declared count.
 
 ## JSON documents
 
