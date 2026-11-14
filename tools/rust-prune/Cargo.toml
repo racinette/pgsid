@@ -1,0 +1,10 @@
+[package]
+name = "pgsid-rust-prune"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "2", features = ["full", "printing", "parsing"] }

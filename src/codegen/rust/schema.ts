@@ -271,12 +271,20 @@ export function renderRustSchemaArtifacts(catalog: CatalogSnapshot, directory: s
   return [
     {
       path: join(directory, 'mod.rs'),
-      content: printRustFile([
-        { kind: 'mod', name: 'pgsid', visibility: 'pub' },
-        ...schemas.map((schema): RustItem => ({ kind: 'mod', name: rustFieldName(schema), visibility: 'pub' })),
-      ]),
+      // A crate uses some of the generated types, so the rest are not reported as unused.
+      content: printRustFile(
+        [
+          { kind: 'mod', name: 'pgsid', visibility: 'pub' },
+          ...schemas.map((schema): RustItem => ({ kind: 'mod', name: rustFieldName(schema), visibility: 'pub' })),
+        ],
+        undefined,
+        [{ path: 'allow', arguments: ['dead_code', 'unused_imports'] }],
+      ),
     },
     ...artifacts,
-    ...rustValueArtifacts(join(directory, 'pgsid')),
+    ...rustValueArtifacts(
+      join(directory, 'pgsid'),
+      artifacts.map((artifact) => artifact.content),
+    ),
   ]
 }

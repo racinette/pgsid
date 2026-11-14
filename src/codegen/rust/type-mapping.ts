@@ -27,6 +27,7 @@ const builtin: Readonly<Record<string, RustType>> = {
   oid: rust.path('u32'),
 }
 const values: Readonly<Record<string, string>> = {
+  numeric: 'Numeric',
   date: 'Date',
   timestamp: 'Timestamp',
   timestamptz: 'Timestamptz',
@@ -42,6 +43,7 @@ const aliases: Readonly<Record<string, string>> = {
   integer: 'int4',
   real: 'float4',
   smallint: 'int2',
+  decimal: 'numeric',
   'timestamp with time zone': 'timestamptz',
   'timestamp without time zone': 'timestamp',
   'time with time zone': 'timetz',

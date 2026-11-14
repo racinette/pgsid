@@ -26,6 +26,20 @@ across a time-zone change. A value outside the range chrono represents is an
 error when read, and a finite value the server cannot store, such as a finite
 interval holding the encoding of an infinity, is refused when written.
 
+## Numerics
+
+A numeric is an opaque value that keeps the server's exact text: every digit,
+its scale, NaN and the two infinities. It is parsed as numeric input reads text,
+so it accepts and refuses what the server does and keeps the scale written, or
+made from an integer, and it displays as numeric output writes it. Its
+arithmetic, rounding, truncation and sign are PostgreSQL's own, taken from the
+CHECK evaluator, which the values module carries only when a generated type
+holds a numeric. So are its equality and order: values equal as numbers are
+equal whatever their scales, and NaN equals itself and sorts after every other
+value. An operation the server refuses, such as a division by zero, returns
+the server's error with its SQLSTATE. JSON writes the exact text as a string
+and reads a string exactly or a number as the double it denotes.
+
 ## Ranges
 
 A range is an enum of the empty range and a pair of bounds, each including or

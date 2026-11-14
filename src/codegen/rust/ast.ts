@@ -467,10 +467,17 @@ export function printItem(item: RustItem, depth = 0): string {
 }
 
 // A source file of items, separated by blank lines, with an optional header comment.
-export function printRustFile(items: readonly RustItem[], header?: string): string {
+export function printRustFile(
+  items: readonly RustItem[],
+  header?: string,
+  innerAttributes: readonly RustAttribute[] = [],
+): string {
   const uses = items.filter((item) => item.kind === 'use')
   const rest = items.filter((item) => item.kind !== 'use')
-  return `${header ? `${header.split('\n').map((line) => `//${line ? ` ${line}` : ''}`).join('\n')}\n\n` : ''}${[
+  const inner = innerAttributes
+    .map((attribute) => `#![${attribute.path}${attribute.arguments ? `(${attribute.arguments.join(', ')})` : ''}]\n`)
+    .join('')
+  return `${header ? `${header.split('\n').map((line) => `//${line ? ` ${line}` : ''}`).join('\n')}\n\n` : ''}${inner ? `${inner}\n` : ''}${[
     uses.map((item) => printItem(item)).join('\n'),
     ...rest.map((item) => printItem(item)),
   ]
