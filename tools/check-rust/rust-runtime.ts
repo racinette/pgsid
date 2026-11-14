@@ -101,13 +101,18 @@ export async function useVariant(target: string): Promise<void> {
   await utimes(target, now, now)
 }
 
-// Only directories named by a variant hash inside the marked directory are removed.
+// Only directories named by a variant hash inside the marked directory are removed. Suites in
+// other workers trim the same directory, so a variant may be gone by the time it is examined.
 export async function trimVariants(directory: string): Promise<void> {
   const variants: { path: string; time: number }[] = []
   for (const entry of await readdir(directory, { withFileTypes: true }))
     if (entry.isDirectory() && /^[0-9a-f]{32}$/u.test(entry.name)) {
       const path = join(directory, entry.name)
-      variants.push({ path, time: (await stat(path)).mtimeMs })
+      try {
+        variants.push({ path, time: (await stat(path)).mtimeMs })
+      } catch (error) {
+        if ((error as { code?: string }).code !== 'ENOENT') throw error
+      }
     }
   variants.sort((a, b) => b.time - a.time)
   for (const variant of variants.slice(keptVariants))
