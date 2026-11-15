@@ -11,10 +11,7 @@ import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import { lowerTableCheck } from '../../src/sql-semantics/catalog-checks.js'
 import { portableCheckAtoms } from '../../src/codegen/shared/check-atom-support.js'
 import { hasUncertain } from '../../scripts/check-measurements/probes.js'
-import {
-  renderTypescriptSchemaCheckArtifacts,
-  renderTypescriptSchemaChecks,
-} from '../../src/codegen/typescript/sql/catalog-checks.js'
+import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
 import {
   jsonbInputForms,
@@ -151,12 +148,20 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       catalog.domains,
       { enums: catalog.enums, executionContext: { defaultCollation: 'C', serverEncoding: 'UTF8' } },
     )
-    const deferred = renderTypescriptSchemaCheckArtifacts([relationTable], catalog.domains)
-    await writeFile(join(root, 'deferred-checks.ts'), deferred.checks)
-    await writeFile(
-      join(root, 'legacy-checks.ts'),
-      renderTypescriptSchemaChecks([legacyConversion], catalog.domains),
+    const deferred = renderTypescriptSchemaCheckArtifacts(
+      [relationTable],
+      catalog.domains,
+      undefined,
+      {
+        rustModuleSpecifier: './deferred-rust/checks.js',
+      },
     )
+    await writeFile(join(root, 'deferred-checks.ts'), deferred.checks)
+    for (const artifact of checkTypescriptArtifacts(deferred.rustFiles!)) {
+      const path = join(root, 'deferred-rust', artifact.path)
+      await mkdir(dirname(path), { recursive: true })
+      await writeFile(path, artifact.content)
+    }
     await writeFile(join(root, 'package.json'), '{"type":"module"}\n')
     await symlink(resolve('node_modules'), join(root, 'node_modules'), 'dir')
     await writeFile(join(root, 'checks.ts'), bundle.checks)
@@ -178,15 +183,10 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       join(root, 'js'),
       join(root, 'checks.ts'),
       join(root, 'deferred-checks.ts'),
-      join(root, 'legacy-checks.ts'),
     ]).catch((e: { stdout: string; stderr: string; message: string }) => {
       throw new Error(e.stdout + e.stderr || e.message, { cause: e })
     })
     const generated = await import(pathToFileURL(join(root, 'js/checks.js')).href)
-    const legacy = await import(pathToFileURL(join(root, 'js/legacy-checks.js')).href)
-    expect(legacy.evaluatePublicJsonbConversionLegacyChecks({ flag: true })[0].result).toEqual({
-      certain: false,
-    })
     expect(generated.evaluatePublicJsonbConversionLegacyChecks({ flag: true })[0].result).toEqual({
       certain: true,
       value: true,
@@ -823,6 +823,16 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
           'JSONB ordering requires declared database default collation C and server encoding UTF8',
         )
       }
+    // Only the ordering waits on the database; a branch that skips it still decides.
+    for (const c of deferredGenerated.evaluatePublicJsonbRelationInputsChecks({
+      lhs: constructors.json(1),
+      rhs: constructors.json(2),
+      expected_lower: true,
+      expected_order: -1,
+      bypass: true,
+    }))
+      if (['ordered_value', 'compared_value'].includes(c.constraint))
+        expect(c.result).toEqual({ certain: true, value: true })
     type Result = { certain: boolean; value?: boolean | null; error?: string }
     const relationRow = (
       lhs: unknown,

@@ -278,7 +278,6 @@ export function renderTypescriptQueryArtifacts(
       columnMappings: config.sql.codegen?.typescript?.mappings.column,
       ...(options.deferCheckRust ? { deferRust: true } : {}),
     },
-    Boolean(options.checkRustModuleSpecifier),
   )
   const codecs = codecStatements(new Set(rendered.flatMap((query) => [...query.codecNames])))
   const emitsCodec = (name: string): boolean =>

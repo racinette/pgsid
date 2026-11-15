@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, expectTypeOf, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { callableIdentity, readBuiltinCatalog } from '../../src/postgres/builtins/catalog.js'
 import { readBuiltinTypeComparisons } from '../../src/postgres/builtins/type-comparisons.js'
@@ -29,11 +29,8 @@ import { PG18_TYPE_RESOLUTION } from '../../src/postgres/builtins/type-resolutio
 import { PG18_BTREE_COMPARISONS } from '../../src/postgres/builtins/btree-comparisons.generated.js'
 import { PG18_TYPE_IO } from '../../src/postgres/builtins/type-io.generated.js'
 import { PG18_RANGE_TYPES } from '../../src/postgres/builtins/type-ranges.generated.js'
-import type {
-  CallableEmitter,
-  CallableOperands,
-  OperatorBindings,
-} from '../../src/sql-semantics/signatures.js'
+import { emitCheckRustEvaluator } from '../../src/codegen/shared/check-rust-evaluator.js'
+import { checkRustCallableNames } from '../../src/codegen/shared/check-rust-source.js'
 import type { BuiltinCatalog } from '../../src/postgres/builtins/catalog.js'
 import { functionNullability, operatorNullability } from '../../src/sql-semantics/nullability.js'
 
@@ -310,35 +307,41 @@ describe('PostgreSQL builtin inventory', () => {
     })
   })
 
-  it('carries exact catalog types into emitter operands and results', () => {
-    type Add = (typeof PG18_NUMERIC)['operator:["pg_catalog","+"](pg_catalog.int8,pg_catalog.int8)']
-    type Operand = { type: 'pg_catalog.int8'; expression: number }
-    expectTypeOf<CallableOperands<Add, number>>().toEqualTypeOf<readonly [Operand, Operand]>()
-    expectTypeOf<ReturnType<CallableEmitter<Add, number>['emit']>>().toEqualTypeOf<Operand>()
-    const binding: CallableEmitter<Add, number> = {
-      helpers: ['int8Add'],
-      emit: (metadata, operands) => ({ type: metadata.result, expression: operands[0].expression }),
-    }
-    const valid = {
-      'operator:["pg_catalog","+"](pg_catalog.int8,pg_catalog.int8)': binding,
-    } satisfies OperatorBindings<typeof PG18_NUMERIC, number>
-    expect(Object.keys(valid)).toEqual([
-      'operator:["pg_catalog","+"](pg_catalog.int8,pg_catalog.int8)',
-    ])
-    const wrongDomain = {
-      // @ts-expect-error A known temporal overload cannot be implemented in the numeric group.
-      'operator:["pg_catalog","+"](pg_catalog.date,pg_catalog.int4)': binding,
-    } satisfies OperatorBindings<typeof PG18_NUMERIC, number>
-    void wrongDomain
-    const wrongKind = {
-      // @ts-expect-error A function cannot be declared in an operator registry.
-      'function:["pg_catalog","abs"](pg_catalog.int8)': binding,
-    } satisfies OperatorBindings<typeof PG18_NUMERIC, number>
-    void wrongKind
-    const unknown = {
-      // @ts-expect-error Unknown overloads cannot be declared supported.
-      'operator:["pg_catalog","missing"]()': binding,
-    } satisfies OperatorBindings<typeof PG18_NUMERIC, number>
-    void unknown
+  it('carries exact catalog types to the evaluator callables they name', () => {
+    const add = 'operator:["pg_catalog","+"](pg_catalog.int8,pg_catalog.int8)'
+    const operator = PG18_NUMERIC[add]
+    expect(operator).toMatchObject({
+      kind: 'operator',
+      args: ['pg_catalog.int8', 'pg_catalog.int8'],
+      result: 'pg_catalog.int8',
+    })
+    const implementation = builtinMetadata(operator.implementation)
+    if (implementation.kind !== 'function') throw new Error(operator.implementation)
+    expect(implementation).toMatchObject({ args: operator.args, result: operator.result })
+    expect(checkRustCallableNames()).toContain(implementation.rustName)
+    const evaluator = emitCheckRustEvaluator({
+      kind: 'eval-scalar',
+      expression: {
+        kind: 'null-test',
+        type: 'pg_catalog.bool',
+        negated: false,
+        operand: {
+          kind: 'call',
+          call: { kind: 'operator', signature: add, type: 'pg_catalog.int8' },
+          operands: [
+            { kind: 'input', type: 'pg_catalog.int8', name: 'left' },
+            { kind: 'input', type: 'pg_catalog.int8', name: 'right' },
+          ],
+        },
+      },
+    })
+    expect(evaluator.callables).toContain(implementation.rustName)
+    // An overload of another family, a function named as an operator and an unknown overload are
+    // not the operator.
+    expect(PG18_NUMERIC).not.toHaveProperty(
+      'operator:["pg_catalog","+"](pg_catalog.date,pg_catalog.int4)',
+    )
+    expect(() => builtinMetadata('operator:["pg_catalog","abs"](pg_catalog.int8)')).toThrow()
+    expect(() => builtinMetadata('operator:["pg_catalog","missing"]()')).toThrow()
   })
 })

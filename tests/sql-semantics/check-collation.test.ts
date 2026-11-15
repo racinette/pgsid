@@ -1,12 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { renderTypescriptSchemaChecks } from '../../src/codegen/typescript/sql/catalog-checks.js'
+import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
+import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import type { CatalogSnapshot, TableInfo } from '../../src/catalog/types.js'
 import { lowerTableCheck, catalogCheckGroups } from '../../src/sql-semantics/catalog-checks.js'
@@ -217,17 +218,31 @@ describe('CHECK text collation', () => {
     for (const [index, check] of group.checks.entries())
       expect(check.kind, names[index]).toBe('supported')
     const fixtures: { name: string; row: Row; expected: Outcome }[] = []
-    const fallbackPath = join(directory, 'fallback.ts')
-    await writeFile(fallbackPath, renderTypescriptSchemaChecks([table]))
+    // The generated module, as the project generator writes it.
+    const generated = renderTypescriptSchemaCheckArtifacts([table])
+    const root = join(directory, 'generated')
+    await mkdir(root)
+    await writeFile(join(root, 'package.json'), '{"type":"module"}\n')
+    await writeFile(join(root, 'checks.ts'), generated.checks)
+    for (const artifact of checkTypescriptArtifacts(generated.rustFiles!)) {
+      const path = join(root, 'checks-rust', artifact.path)
+      await mkdir(dirname(path), { recursive: true })
+      await writeFile(path, artifact.content)
+    }
     await promisify(execFile)('node_modules/.bin/tsc', [
       '--strict',
-      '--noEmit',
       '--skipLibCheck',
       '--target',
       'es2022',
-      fallbackPath,
+      '--module',
+      'nodenext',
+      '--moduleResolution',
+      'nodenext',
+      '--outDir',
+      join(root, 'js'),
+      join(root, 'checks.ts'),
     ])
-    const fallback = (await import(pathToFileURL(fallbackPath).href))
+    const evaluate = (await import(pathToFileURL(join(root, 'js/checks.js')).href))
       .evaluatePublicCollationChecksChecks as (
       row: object,
     ) => { constraint: string; result: { certain: boolean; value?: boolean | null } }[]
@@ -271,7 +286,7 @@ describe('CHECK text collation', () => {
           })
           expected.set(name, result)
         }
-        for (const item of fallback(input))
+        for (const item of evaluate(input))
           expect(item.result, item.constraint).toEqual({
             certain: true,
             value: expected.get(item.constraint),

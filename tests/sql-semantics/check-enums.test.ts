@@ -11,10 +11,7 @@ import { parseConfigString } from '../../src/config/loader.js'
 import { lowerTableCheck, lowerDomainCheck } from '../../src/sql-semantics/catalog-checks.js'
 import { prepareCheckRust } from '../../src/codegen/shared/check-rust-source.js'
 import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
-import {
-  renderTypescriptSchemaCheckArtifacts,
-  renderTypescriptSchemaChecks,
-} from '../../src/codegen/typescript/sql/catalog-checks.js'
+import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
 import { writeCheckRustSources } from '../../tools/check-rust/sources.js'
 import { renderGoCheckTests, type GoCheckCase } from './check-codegen.js'
@@ -140,7 +137,6 @@ describe('catalog enum CHECKs', () => {
   let directory: string
   let cases: GoCheckCase[]
   let evaluate: (row: object) => GoCheckCase['results']
-  let fallback: typeof evaluate
 
   beforeAll(async () => {
     pg = await PGlite.create()
@@ -243,10 +239,6 @@ describe('catalog enum CHECKs', () => {
     const ts = renderTypescriptSchemaCheckArtifacts([table], catalog.domains, [], options)
     await writeFile(join(directory, 'package.json'), '{"type":"module"}\n')
     await writeFile(join(directory, 'checks.ts'), ts.checks)
-    await writeFile(
-      join(directory, 'fallback.ts'),
-      renderTypescriptSchemaChecks([table], catalog.domains, [], options),
-    )
     for (const artifact of checkTypescriptArtifacts(ts.rustFiles!)) {
       const path = join(directory, 'checks-rust', artifact.path)
       await mkdir(dirname(path), { recursive: true })
@@ -264,11 +256,8 @@ describe('catalog enum CHECKs', () => {
       '--outDir',
       join(directory, 'js'),
       join(directory, 'checks.ts'),
-      join(directory, 'fallback.ts'),
     ])
     evaluate = (await import(pathToFileURL(join(directory, 'js/checks.js')).href))
-      .evaluateEnumsASamplesChecks
-    fallback = (await import(pathToFileURL(join(directory, 'js/fallback.js')).href))
       .evaluateEnumsASamplesChecks
     const operations = await import(
       pathToFileURL(join(directory, 'js/checks-rust/pg_catalog/operations.js')).href
@@ -461,28 +450,19 @@ fn enum_checks() {
       expect(evaluate(test.row).map(({ constraint, result }) => ({ constraint, result }))).toEqual(
         test.results,
       )
-      expect(fallback(test.row).map(({ constraint, result }) => ({ constraint, result }))).toEqual(
-        test.results.map((item) =>
-          item.constraint === 'decision' && test.row['state'] === 'ready'
-            ? { constraint: item.constraint, result: { certain: false } }
-            : item,
-        ),
-      )
     })
   it('rejects unknown labels conservatively and preserves selected errors', () => {
-    for (const target of [evaluate, fallback]) {
-      expect(
-        target({ state: 'invalid', peer: 'queued' }).find((item) => item.constraint === 'equality')!
-          .result,
-      ).toEqual({ certain: false })
-      expect(target({ state: 'ready', amount: 2147483647 })).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            result: { certain: true, error: '22003' },
-            message: expect.any(String),
-          }),
-        ]),
-      )
-    }
+    expect(
+      evaluate({ state: 'invalid', peer: 'queued' }).find((item) => item.constraint === 'equality')!
+        .result,
+    ).toEqual({ certain: false })
+    expect(evaluate({ state: 'ready', amount: 2147483647 })).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          result: { certain: true, error: '22003' },
+          message: expect.any(String),
+        }),
+      ]),
+    )
   })
 })

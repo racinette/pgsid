@@ -1,19 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import {
-  emitEvalExpression,
-  type EvalExpression,
-} from '../../src/sql-semantics/eval-expressions.js'
+import type { EvalExpression } from '../../src/sql-semantics/eval-expressions.js'
 import type { SqlExpression } from '../../src/sql-semantics/expressions.js'
-import { typescriptSqlBackend } from '../../src/codegen/typescript/sql/registry.js'
-import { typescriptEvalBackend } from '../../src/codegen/typescript/sql/eval.js'
-import { goSqlBackend } from '../../src/codegen/go/sql/registry.js'
-import { goEvalBackend } from '../../src/codegen/go/sql/eval.js'
+import type { EvalBoolExpression } from '../../src/sql-semantics/check-expressions.js'
+import { emitCheckRustEvaluator } from '../../src/codegen/shared/check-rust-evaluator.js'
+import { prepareCheckRust } from '../../src/codegen/shared/check-rust-source.js'
 import { scalarSpecs } from '../fixtures/sql-semantics/operations/scalar-specs.js'
 import { numericSpecs } from '../fixtures/sql-semantics/operations/numeric-specs.js'
 import { integerOperationCases } from '../fixtures/sql-semantics/operations/integer-operations.js'
-import { emitEvalBoolExpression } from '../../src/sql-semantics/check-expressions.js'
-import { typescriptEvalBoolBackend } from '../../src/codegen/typescript/sql/check.js'
-import { goEvalBoolBackend } from '../../src/codegen/go/sql/check.js'
+
+// A CHECK that evaluates the expression and tests its result for NULL.
+const nullTest = (operand: EvalExpression): EvalBoolExpression => ({
+  kind: 'eval-scalar',
+  expression: { kind: 'null-test', type: 'pg_catalog.bool', operand, negated: false },
+})
 
 const callables = new Map<string, Extract<SqlExpression, { kind: 'operator' | 'function' }>>()
 const casts = new Map<string, Extract<SqlExpression, { kind: 'cast' }>>()
@@ -29,22 +28,18 @@ for (const fixture of [...scalarSpecs, ...numericSpecs, ...integerOperationCases
     callables.set(expression.signature, expression)
 }
 
-describe('typed partial SQL expression emission', () => {
-  it('emits stored name values and char bytes directly in both targets', () => {
+describe('typed partial SQL expressions in the CHECK evaluator', () => {
+  it('emits stored name values and char bytes directly', () => {
     for (const expression of [
       { kind: 'name', type: 'pg_catalog.name', value: 'é😊'.repeat(40), stored: true },
       { kind: 'internal-char', type: 'pg_catalog."char"', value: '\\377', byte: 255 },
       { kind: 'internal-char', type: 'pg_catalog."char"', value: '\\000', byte: 0 },
     ] as const) {
       const node: EvalExpression = { kind: 'certain', expression }
-      const typescript = emitEvalExpression(node, typescriptSqlBackend, typescriptEvalBackend),
-        go = emitEvalExpression(node, goSqlBackend, goEvalBackend)
-      expect(typescript.helpers).toContain('evalValueCertain')
-      for (const result of [typescript, go]) {
-        expect(result.helpers).toContain(expression.kind === 'name' ? 'textInput' : 'int4Input')
-        expect(result.helpers).not.toContain('nameInput')
-        expect(result.helpers).not.toContain('charInput')
-      }
+      const prepared = prepareCheckRust(nullTest(node))
+      expect(prepared.kind).toBe('supported')
+      if (prepared.kind === 'supported')
+        expect(prepared.evaluator.source).not.toMatch(/sql__pg_catalog__(namein|charin)_/u)
     }
   })
   it('shares lexical CASE operands through nested scalar and Boolean emission without external inputs', () => {
@@ -95,47 +90,15 @@ describe('typed partial SQL expression emission', () => {
         branches: [{ when: equal('outerCase', '1'), then: nested }],
         otherwise: certain(false),
       }
-    const inputs: string[] = [],
-      typescript = {
-        ...typescriptEvalBoolBackend,
-        scalar: {
-          ...typescriptEvalBackend,
-          input: (
-            type: Parameters<NonNullable<typeof typescriptEvalBackend.input>>[0],
-            name: string,
-          ) => {
-            inputs.push(name)
-            return typescriptEvalBackend.uncertain(type)
-          },
-        },
-      },
-      go = {
-        ...goEvalBoolBackend,
-        scalar: {
-          ...goEvalBackend,
-          input: (type: Parameters<NonNullable<typeof goEvalBackend.input>>[0], name: string) => {
-            inputs.push(name)
-            return goEvalBackend.uncertain(type)
-          },
-        },
-      }
-    expect(() =>
-      emitEvalBoolExpression({ kind: 'eval-scalar', expression }, typescriptSqlBackend, typescript),
-    ).not.toThrow()
-    expect(() =>
-      emitEvalBoolExpression({ kind: 'eval-scalar', expression }, goSqlBackend, go),
-    ).not.toThrow()
-    expect(inputs).toEqual([])
-    expect(() =>
-      emitEvalBoolExpression(
-        { kind: 'eval-scalar', expression: equal('outerCase', '1') },
-        typescriptSqlBackend,
-        typescript,
-      ),
-    ).not.toThrow()
-    expect(inputs).toEqual(['outerCase'])
+    expect(emitCheckRustEvaluator({ kind: 'eval-scalar', expression }).inputs).toEqual([])
+    expect(
+      emitCheckRustEvaluator({
+        kind: 'eval-scalar',
+        expression: equal('outerCase', '1'),
+      }).inputs.map((input) => input.name),
+    ).toEqual(['outerCase'])
   })
-  it('lifts every fixture-backed callable with operands in both targets', () => {
+  it('lifts every fixture-backed callable with operands', () => {
     expect(callables.size).toBe(892)
     for (const [signature, expression] of callables) {
       const partial: EvalExpression = {
@@ -146,20 +109,15 @@ describe('typed partial SQL expression emission', () => {
           signature,
           collation: expression.collation,
         },
-        operands: expression.operands.map((operand, index) =>
-          index === 0
-            ? { kind: 'uncertain', type: operand.type }
-            : { kind: 'certain', expression: operand },
+        operands: expression.operands.map(
+          (operand, index) =>
+            ({ kind: 'input', type: operand.type, name: 'operand' + index }) as EvalExpression,
         ),
       }
-      expect(
-        () => emitEvalExpression(partial, typescriptSqlBackend, typescriptEvalBackend),
-        signature,
-      ).not.toThrow()
-      expect(
-        () => emitEvalExpression(partial, goSqlBackend, goEvalBackend),
-        signature,
-      ).not.toThrow()
+      const prepared = prepareCheckRust(nullTest(partial))
+      expect(prepared.kind === 'unsupported' ? prepared.reason : prepared.kind, signature).toBe(
+        'supported',
+      )
     }
   })
 
@@ -169,16 +127,14 @@ describe('typed partial SQL expression emission', () => {
       const partial: EvalExpression = {
         kind: 'call',
         call: { kind: 'cast', signature, type: expression.type },
-        operands: [{ kind: 'uncertain', type: expression.operand.type }],
+        operands: [
+          { kind: 'input', type: expression.operand.type, name: 'operand' } as EvalExpression,
+        ],
       }
-      expect(
-        () => emitEvalExpression(partial, typescriptSqlBackend, typescriptEvalBackend),
-        signature,
-      ).not.toThrow()
-      expect(
-        () => emitEvalExpression(partial, goSqlBackend, goEvalBackend),
-        signature,
-      ).not.toThrow()
+      const prepared = prepareCheckRust(nullTest(partial))
+      expect(prepared.kind === 'unsupported' ? prepared.reason : prepared.kind, signature).toBe(
+        'supported',
+      )
     }
   })
 
@@ -191,18 +147,18 @@ describe('typed partial SQL expression emission', () => {
       collation: 'C',
     }
     expect(() =>
-      emitEvalExpression(
-        { kind: 'call', call, operands: [{ kind: 'uncertain', type: 'pg_catalog.int4' }] },
-        typescriptSqlBackend,
-        typescriptEvalBackend,
+      emitCheckRustEvaluator(
+        nullTest({
+          kind: 'call',
+          call,
+          operands: [{ kind: 'uncertain', type: 'pg_catalog.int4' }],
+        }),
       ),
-    ).toThrow('Operand type mismatch')
+    ).toThrow('Unsupported Rust CHECK callable arguments')
     expect(() =>
-      emitEvalExpression(
-        { kind: 'call', call: { ...call, type: 'pg_catalog.bool' }, operands: [operand] },
-        goSqlBackend,
-        goEvalBackend,
+      emitCheckRustEvaluator(
+        nullTest({ kind: 'call', call: { ...call, type: 'pg_catalog.bool' }, operands: [operand] }),
       ),
-    ).toThrow('Invalid resolved expression')
+    ).toThrow('Unsupported Rust CHECK callable')
   })
 })

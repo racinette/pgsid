@@ -34,7 +34,7 @@ import {
 } from '../../../src/sql-semantics/temporal-casts.js'
 import { constantCheckExpression } from '../../../src/codegen/shared/check-rust-constants.js'
 import { portableCheckAtoms } from '../../../src/codegen/shared/check-atom-support.js'
-import { hasUncertain } from '../../../scripts/check-measurements/probes.js'
+import { hasUncertain, readsSessionState } from '../../../scripts/check-measurements/probes.js'
 
 it('identifies only the selected catalog temporal casts and reports timezone and transaction date requirements', () => {
   const casts = builtinCallables().filter(isTemporalContextCast)
@@ -54,7 +54,7 @@ it('identifies only the selected catalog temporal casts and reports timezone and
     ])
     expect(probe.fullyBound, callableIdentity(cast)).toBe(true)
     expect(hasUncertain(portableCheckAtoms(probe.expression))).toBe(false)
-    expect(hasUncertain(portableCheckAtoms(probe.expression, false))).toBe(true)
+    expect(readsSessionState(probe.expression)).toBe(true)
     expect(checkUnknownMessage(probe.expression)).toContain('sql.codegen.checks.timeZone')
     expect(checkUnknownMessage(probe.expression, undefined, { timeZone: 'UTC' })).not.toContain(
       'sql.codegen.checks.timeZone',
@@ -93,7 +93,7 @@ it('admits selected stable instant arithmetic with explicit conditional calendar
       probe = bindProbe(`pg_catalog.${item.name}(v0,v1) IS NOT NULL`, columns)
     expect(probe.fullyBound, callableIdentity(item)).toBe(true)
     expect(hasUncertain(portableCheckAtoms(probe.expression))).toBe(false)
-    expect(hasUncertain(portableCheckAtoms(probe.expression, false))).toBe(true)
+    expect(readsSessionState(probe.expression)).toBe(true)
     expect(checkUnknownMessage(probe.expression)).toContain('sql.codegen.checks.timeZone')
   }
 })
@@ -224,7 +224,7 @@ it('admits the selected stable text/timetz conversion while retaining the transa
   ])
   expect(probe.fullyBound).toBe(true)
   expect(hasUncertain(portableCheckAtoms(probe.expression))).toBe(false)
-  expect(hasUncertain(portableCheckAtoms(probe.expression, false))).toBe(true)
+  expect(readsSessionState(probe.expression)).toBe(true)
   const literal = bindProbe("timezone('UTC',timetz '24:00+00') IS NOT NULL", [])
   expect(literal.fullyBound).toBe(true)
   expect(constantCheckExpression(literal.expression)).toBe(false)
@@ -265,7 +265,7 @@ it('admits only session timestamptz truncation with unit-build and conditional t
   ])
   expect(probe.fullyBound).toBe(true)
   expect(hasUncertain(portableCheckAtoms(probe.expression))).toBe(false)
-  expect(hasUncertain(portableCheckAtoms(probe.expression, false))).toBe(true)
+  expect(readsSessionState(probe.expression)).toBe(true)
   const message = checkUnknownMessage(probe.expression)
   expect(message).toContain('sql.codegen.checks.timeZone')
   expect(message).toContain('sql.codegen.checks.maxIdentifierBytes')
@@ -300,7 +300,7 @@ it('admits only selected session timestamptz field overloads with conditional ti
     ])
     expect(probe.fullyBound).toBe(true)
     expect(hasUncertain(portableCheckAtoms(probe.expression))).toBe(false)
-    expect(hasUncertain(portableCheckAtoms(probe.expression, false))).toBe(true)
+    expect(readsSessionState(probe.expression)).toBe(true)
     const message = checkUnknownMessage(probe.expression)
     expect(message).toContain('sql.codegen.checks.timeZone')
     expect(message).toContain('sql.codegen.checks.maxIdentifierBytes')
@@ -328,7 +328,7 @@ it('admits the selected mixed local/instant comparison callbacks and preserves t
     const probe = bindProbe(`pg_catalog.${item.name}(v0,v1) IS NOT NULL`, columns)
     expect(probe.fullyBound, callableIdentity(item)).toBe(true)
     expect(hasUncertain(portableCheckAtoms(probe.expression))).toBe(false)
-    expect(hasUncertain(portableCheckAtoms(probe.expression, false))).toBe(true)
+    expect(readsSessionState(probe.expression)).toBe(true)
     expect(probe.preparation.kind, callableIdentity(item)).toBe('supported')
     expect(checkUnknownMessage(probe.expression)).toContain('sql.codegen.checks.timeZone')
     const operators = builtinCallables().filter(
@@ -380,7 +380,7 @@ it('admits the three native local timezone aliases and keeps the timetz name loo
       expect(probe.fullyBound, callableIdentity(item)).toBe(true)
       expect(probe.preparation.kind, callableIdentity(item)).toBe('supported')
       expect(hasUncertain(portableCheckAtoms(probe.expression))).toBe(false)
-      expect(hasUncertain(portableCheckAtoms(probe.expression, false))).toBe(true)
+      expect(readsSessionState(probe.expression)).toBe(true)
       const message = checkUnknownMessage(probe.expression)
       expect(message).toContain('sql.codegen.checks.timeZone')
       expect(message.includes('transaction start instant')).toBe(clock)
@@ -421,7 +421,7 @@ it('admits only selected instant constructors with validation-first timezone and
     expect(probe.fullyBound, callableIdentity(item)).toBe(true)
     expect(probe.preparation.kind, callableIdentity(item)).toBe('supported')
     expect(hasUncertain(portableCheckAtoms(probe.expression))).toBe(false)
-    expect(hasUncertain(portableCheckAtoms(probe.expression, false))).toBe(true)
+    expect(readsSessionState(probe.expression)).toBe(true)
     const message = checkUnknownMessage(probe.expression)
     expect(message).toContain('sql.codegen.checks.timeZone')
     expect(message.includes('sql.codegen.checks.timeZoneAbbreviations')).toBe(explicit)
@@ -460,7 +460,7 @@ it('admits only native instant range and duration-overlap signatures with condit
       expect(probe.fullyBound, callableIdentity(item)).toBe(true)
       expect(probe.preparation.kind, callableIdentity(item)).toBe('supported')
       expect(hasUncertain(portableCheckAtoms(probe.expression))).toBe(false)
-      expect(hasUncertain(portableCheckAtoms(probe.expression, false))).toBe(true)
+      expect(readsSessionState(probe.expression)).toBe(true)
       expect(checkUnknownMessage(probe.expression)).toContain('sql.codegen.checks.timeZone')
       expect(checkUnknownMessage(probe.expression, undefined, { timeZone: 'UTC' })).not.toContain(
         'sql.codegen.checks.',
@@ -492,7 +492,7 @@ it('admits the native interval formatter independently of input collation and se
     const probe = bindProbe(`pg_catalog.to_char(span,${text}) IS NOT NULL`, columns)
     expect(probe.fullyBound).toBe(true)
     expect(hasUncertain(portableCheckAtoms(probe.expression))).toBe(false)
-    expect(hasUncertain(portableCheckAtoms(probe.expression, false))).toBe(true)
+    expect(readsSessionState(probe.expression)).toBe(true)
   }
 })
 
@@ -519,7 +519,7 @@ it('admits timestamp template overloads with conditional locale/casing and insta
     ])
     expect(probe.fullyBound).toBe(true)
     expect(hasUncertain(portableCheckAtoms(probe.expression))).toBe(false)
-    expect(hasUncertain(portableCheckAtoms(probe.expression, false))).toBe(true)
+    expect(readsSessionState(probe.expression)).toBe(true)
     expect(checkUnknownMessage(probe.expression)).toContain('sql.codegen.checks.timeLocale')
     expect(
       checkUnknownMessage(probe.expression, undefined, {
@@ -573,7 +573,7 @@ it('admits only text-template date/instant parsers with conditional context', ()
     ])
     expect(probe.fullyBound).toBe(true)
     expect(hasUncertain(portableCheckAtoms(probe.expression))).toBe(false)
-    expect(hasUncertain(portableCheckAtoms(probe.expression, false))).toBe(true)
+    expect(readsSessionState(probe.expression)).toBe(true)
     const message = checkUnknownMessage(probe.expression)
     expect(message).toContain('sql.codegen.checks.timeLocale')
     expect(message).toContain('sql.codegen.checks.timeZoneAbbreviations')

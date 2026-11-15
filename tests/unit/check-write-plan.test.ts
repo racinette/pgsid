@@ -1,14 +1,15 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { PGlite } from '@electric-sql/pglite'
 import ts from 'typescript'
 import { parseSql } from '../../src/ast.js'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import { planCheckInputs, planCheckWrite } from '../../src/codegen/shared/check-inputs.js'
 import { checkTriggerWarning } from '../../src/codegen/shared/check-trigger-warning.js'
-import { renderTypescriptSchemaChecks } from '../../src/codegen/typescript/sql/catalog-checks.js'
+import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
+import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
 import { renderTypescriptSchemaArtifacts } from '../../src/codegen/typescript/schema.js'
 import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
 import { parseConfigString } from '../../src/config/loader.js'
@@ -295,13 +296,18 @@ describe('CHECK write boundary', () => {
 
   it('types a partial CHECK row independently of stored NOT NULL columns', async () => {
     const table = catalog.tables.find((item) => item.name === 'check_boundary')!
-    const checks = renderTypescriptSchemaChecks([table], catalog.domains, [], {
+    const checks = renderTypescriptSchemaCheckArtifacts([table], catalog.domains, [], {
       typedInputs: true,
     })
     const root = await mkdtemp(join(tmpdir(), 'pgsid-check-types-'))
     try {
       await mkdir(join(root, 'public'))
-      await writeFile(join(root, 'public/checks.ts'), checks)
+      await writeFile(join(root, 'public/checks.ts'), checks.checks)
+      for (const artifact of checkTypescriptArtifacts(checks.rustFiles!)) {
+        const path = join(root, 'public/checks-rust', artifact.path)
+        await mkdir(dirname(path), { recursive: true })
+        await writeFile(path, artifact.content)
+      }
       await writeFile(
         join(root, 'helpers.d.ts'),
         'export interface TableTypes<S, I, U> { select: S; insert: I; update: U }\nexport type InferSelect<T extends TableTypes<unknown, unknown, unknown>> = T["select"]',

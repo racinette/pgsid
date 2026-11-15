@@ -15,11 +15,7 @@ import { parseSql } from '../../src/ast.js'
 import { emitCheckRustEvaluator } from '../../src/codegen/shared/check-rust-evaluator.js'
 import { assembleCheckRust } from '../../src/codegen/shared/check-rust-source.js'
 import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
-import { renderGoSchemaChecks } from '../../src/codegen/go/sql/catalog-checks.js'
-import {
-  renderTypescriptSchemaCheckArtifacts,
-  renderTypescriptSchemaChecks,
-} from '../../src/codegen/typescript/sql/catalog-checks.js'
+import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
 import { renderGoCheckTests, type GoCheckCase } from './check-codegen.js'
 import { writeCheckRustSources } from '../../tools/check-rust/sources.js'
@@ -75,7 +71,6 @@ describe('CHECK input nullness', () => {
   let directory: string
   let cases: GoCheckCase[]
   let evaluate: (row: object) => GoCheckCase['results']
-  let fallback: typeof evaluate
   let internal: InternalCheckRows
   let runtime: Record<string, (...inputs: unknown[]) => unknown>
   let numeric: (value: string) => PublicNumeric
@@ -198,10 +193,6 @@ describe('CHECK input nullness', () => {
     })
     await writeFile(join(directory, 'package.json'), '{"type":"module"}\n')
     await writeFile(join(directory, 'checks.ts'), ts.checks)
-    await writeFile(
-      join(directory, 'fallback.ts'),
-      renderTypescriptSchemaChecks([table], catalog.domains),
-    )
     for (const artifact of checkTypescriptArtifacts(ts.rustFiles!)) {
       const path = join(directory, 'checks-rust', artifact.path)
       await mkdir(dirname(path), { recursive: true })
@@ -219,53 +210,14 @@ describe('CHECK input nullness', () => {
       '--outDir',
       join(directory, 'js'),
       join(directory, 'checks.ts'),
-      join(directory, 'fallback.ts'),
     ]).catch((error: { stdout: string; stderr: string }) => {
       throw new Error(error.stdout + error.stderr, { cause: error })
     })
     evaluate = (await import(pathToFileURL(join(directory, 'js/checks.js')).href))
       .evaluatePublicNullInputsChecks
-    fallback = (await import(pathToFileURL(join(directory, 'js/fallback.js')).href))
-      .evaluatePublicNullInputsChecks
     runtime = await import(pathToFileURL(join(directory, 'js/checks-rust/checks.js')).href)
     internal = internalCheckRows(ts.checks, runtime)
     ;({ numeric } = await publicValueConstructors())
-
-    const arrayFallback = join(directory, 'array-fallback')
-    await mkdir(arrayFallback)
-    const arrayTable = {
-      ...table,
-      columns: table.columns.filter((column) => column.name === 'items'),
-      constraints: table.constraints.filter((constraint) => constraint.name.startsWith('items_')),
-    }
-    await writeFile(
-      join(arrayFallback, 'checks.go'),
-      renderGoSchemaChecks(
-        [arrayTable],
-        'arrayfallback',
-        [],
-        [],
-        catalog,
-        parseConfigString('schema: schema.sql\nsql:\n  codegen:\n    go:\n      nulls: pointers\n'),
-      ),
-    )
-    await writeFile(join(arrayFallback, 'go.mod'), 'module arrayfallback\n\ngo 1.25\n')
-    await writeFile(
-      join(arrayFallback, 'checks_test.go'),
-      renderGoCheckTests(
-        'arrayfallback',
-        cases.map((item) => ({
-          ...item,
-          table: arrayTable,
-          row: Object.hasOwn(item.row, 'items') ? { items: item.row['items'] } : {},
-          results: item.results.filter((result) => result.constraint.startsWith('items_')),
-        })),
-      ),
-    )
-    await run('go', ['test', './...'], {
-      cwd: arrayFallback,
-      env: process.env,
-    })
 
     for (const nulls of ['pointers', 'structs']) {
       const root = join(directory, nulls)
@@ -481,36 +433,6 @@ fn nullness() {
       }
       const results = evaluate(portable).map(({ constraint, result }) => ({ constraint, result }))
       expect(results).toEqual(item.results)
-      const fallbackUnsupported = new Set([
-        'amount_comparison',
-        'amount_null',
-        'amount_present',
-        'conditional_presence',
-        'identifier_null',
-        'identifier_present',
-        'nullness_name_collision',
-        'dispatch_evidence',
-        ...[
-          'day',
-          'instant',
-          'local_time',
-          'duration',
-          'domain_duration',
-          'clock',
-          'zoned_clock',
-          'domain_clock',
-          'price',
-          'nested_price',
-        ].flatMap((name) => [name + '_null', name + '_present']),
-      ])
-      expect(fallback(item.row).map(({ constraint, result }) => ({ constraint, result }))).toEqual(
-        item.results.map((item) =>
-          // The fallback evaluator does not tell Unknown from Unimplemented.
-          fallbackUnsupported.has(item.constraint) || item.result.unimplemented
-            ? { constraint: item.constraint, result: { certain: false } }
-            : item,
-        ),
-      )
     })
 
   it('preserves clock and interval payload states and rejects malformed known payloads', () => {

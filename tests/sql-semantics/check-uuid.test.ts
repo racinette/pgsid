@@ -1,9 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
-import { pathToFileURL } from 'node:url'
+import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
@@ -15,11 +12,6 @@ import {
   type Outcome,
   type Row,
 } from '../../tools/check-rust/parity.js'
-
-import { renderTypescriptSchemaChecks } from '../../src/codegen/typescript/sql/catalog-checks.js'
-import { renderGoSchemaChecks } from '../../src/codegen/go/sql/catalog-checks.js'
-import { parseConfigString } from '../../src/config/loader.js'
-import { renderGoCheckTests } from './check-codegen.js'
 
 const zero = '00000000-0000-0000-0000-000000000000'
 const sample = '01234567-89ab-cdef-0123-456789abcdef'
@@ -340,61 +332,56 @@ describe('portable Rust CHECK UUID values', () => {
     await mkdir(join(directory, 'domains'))
     await runCheckParity(join(directory, 'domains'), 'uuiddomains', group, names, fixtures)
   }, 180000)
-  it('keeps UUID operands unknown in legacy fallback validators', async () => {
+  it('decides UUID version extraction in every target', async () => {
     await pg.exec(
       'CREATE TABLE pending_uuid (identifier uuid CONSTRAINT pending_version CHECK (uuid_extract_version(identifier) = 4))',
     )
     const catalog = await snapshotCatalog(pg)
     const table = catalog.tables.find((item) => item.name === 'pending_uuid')!
-    const root = join(directory, 'fallback')
-    await mkdir(root)
-    const typescript = renderTypescriptSchemaChecks([table])
-    await writeFile(join(root, 'checks.ts'), typescript)
-    const run = promisify(execFile)
-    await run('node_modules/.bin/tsc', [
-      '--strict',
-      '--noEmit',
-      '--skipLibCheck',
-      '--target',
-      'es2022',
-      '--module',
-      'esnext',
-      join(root, 'checks.ts'),
+    const group = prepareCheckRustGroup([
+      {
+        expression: lowerTableCheck(table, table.constraints[0]!)!.expression,
+        identity: {
+          schema: 'public',
+          kind: 'table',
+          owner: table.name,
+          constraint: 'pending_version',
+        },
+      },
     ])
-    const { evaluatePublicPendingUuidChecks } = await import(
-      pathToFileURL(join(root, 'checks.ts')).href
-    )
-    const rows = [{}, { identifier: null }, { identifier: '01234567-89ab-4def-8123-456789abcdef' }]
-    for (const row of rows) {
-      const result = evaluatePublicPendingUuidChecks(row)
-      expect(result[0].result).toEqual({ certain: false })
-      expect(result[0].message).toEqual(expect.any(String))
+    expect(group.checks[0]!.kind).toBe('supported')
+    const fixtures: { name: string; row: Row; expected: Outcome }[] = []
+    for (const value of [
+      null,
+      zero,
+      sample,
+      '01234567-89ab-4def-8123-456789abcdef',
+      '01234567-89ab-1def-8123-456789abcdef',
+    ]) {
+      const result = (
+        await pg.query<{ value: boolean | null }>(
+          'SELECT uuid_extract_version($1::uuid) = 4 AS value',
+          [value],
+        )
+      ).rows[0]!.value
+      fixtures.push({
+        name: 'pending_version',
+        row: { identifier: input(value) },
+        expected: { kind: result === null ? 'Null' : result ? 'True' : 'False' },
+      })
     }
-    const go = renderGoSchemaChecks(
-      [table],
-      'uuidfallback',
-      [],
-      [],
-      catalog,
-      parseConfigString('schema: schema.sql\nsql:\n  codegen:\n    go:\n      nulls: pointers\n'),
-    )
-    await writeFile(join(root, 'checks.go'), go)
-    await writeFile(join(root, 'go.mod'), 'module uuidfallback\n\ngo 1.25\n')
-    await writeFile(
-      join(root, 'checks_test.go'),
-      renderGoCheckTests(
-        'uuidfallback',
-        rows.map((row, index) => ({
-          name: 'pending_' + index,
-          table,
-          row,
-          results: [{ constraint: 'pending_version', result: { certain: false } }],
-        })),
-      ),
-    )
-    await run('go', ['test', './...'], {
-      cwd: root,
-      env: process.env,
+    fixtures.push({
+      name: 'pending_version',
+      row: { identifier: { kind: 'Unknown' } },
+      expected: { kind: 'Unknown' },
     })
+    await mkdir(join(directory, 'version'))
+    await runCheckParity(
+      join(directory, 'version'),
+      'uuidversion',
+      group,
+      ['pending_version'],
+      fixtures,
+    )
   }, 180000)
 })

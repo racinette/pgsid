@@ -93,6 +93,25 @@ const instantConstructorZones = new Set(
     .filter((item) => isTemporalInstantConstructor(item) && item.args.length === 7)
     .map(callableIdentity),
 )
+// JSONB ordering compares object keys and strings under the database's default collation.
+const jsonbOrderingFunctions = new Set(
+  builtinCallables()
+    .filter(
+      (item) =>
+        item.kind === 'function' &&
+        item.schema === 'pg_catalog' &&
+        ['jsonb_cmp', 'jsonb_lt', 'jsonb_le', 'jsonb_gt', 'jsonb_ge'].includes(item.name) &&
+        item.args.length === 2 &&
+        item.args.every((type) => type === 'pg_catalog.jsonb'),
+    )
+    .map(callableIdentity),
+)
+const jsonbOrdering = new Set([
+  ...jsonbOrderingFunctions,
+  ...builtinCallables()
+    .filter((item) => item.kind === 'operator' && jsonbOrderingFunctions.has(item.implementation))
+    .map(callableIdentity),
+])
 const clockZoneLookups = new Set(
   builtinCallables()
     .filter(
@@ -435,6 +454,12 @@ export function checkUnknownMessage(
   if (containsSignature(expression, clockTimezoneCasts))
     message +=
       ' Time-to-timetz conversion in a variable-offset zone can also require the transaction local date.'
+  if (
+    (context.defaultCollation !== 'C' || context.serverEncoding !== 'UTF8') &&
+    containsSignature(expression, jsonbOrdering)
+  )
+    message +=
+      ' JSONB ordering requires declared database default collation C and server encoding UTF8.'
   if (context.byteaOutput === undefined && needsByteaOutput(expression))
     message += ' Binary text output can require an explicit sql.codegen.checks.byteaOutput setting.'
   if (needsAclRoleCatalog(expression))

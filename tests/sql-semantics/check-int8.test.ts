@@ -41,208 +41,199 @@ const rows: Row[] = [
   {},
 ]
 
-it.each([true, false])(
-  'preserves exact int8 values through table and domain validators (Rust=%s)',
-  async (rust) => {
-    const pg = await PGlite.create()
-    const directory = await mkdtemp(join(tmpdir(), 'pgsid-int8-validator-'))
-    try {
-      await pg.exec(`CREATE DOMAIN public.positive_bigint AS bigint CONSTRAINT positive CHECK(VALUE > 0);
+it('preserves exact int8 values through table and domain validators', async () => {
+  const pg = await PGlite.create()
+  const directory = await mkdtemp(join(tmpdir(), 'pgsid-int8-validator-'))
+  try {
+    await pg.exec(`CREATE DOMAIN public.positive_bigint AS bigint CONSTRAINT positive CHECK(VALUE > 0);
       CREATE TABLE public.int8_checks (amount bigint, other bigint, small int4, flag bool, ${Object.entries(
         definitions,
       )
         .map(([name, sql]) => `CONSTRAINT "${name}" CHECK (${sql})`)
         .join(', ')});
       CREATE TABLE int8_inputs (amount bigint, other bigint, small int4, flag bool)`)
-      const catalog = await snapshotCatalog(pg)
-      const table = catalog.tables.find((item) => item.name === 'int8_checks')!
-      const domains = catalog.domains.filter((item) => item.name === 'positive_bigint')
-      const expected: Record<string, boolean | null | undefined>[] = []
-      for (const row of rows.slice(0, -1)) {
-        await pg.exec('TRUNCATE int8_inputs')
-        await pg.query('INSERT INTO int8_inputs VALUES ($1,$2,$3,$4)', [
-          row.amount?.toString() ?? null,
-          row.other?.toString() ?? null,
-          row.small,
-          row.flag,
-        ])
-        const result: Record<string, boolean | null | undefined> = {}
-        for (const [name, sql] of Object.entries(definitions))
-          result[name] = (
-            await pg.query<{ value: boolean | null }>(`SELECT (${sql}) AS value FROM int8_inputs`)
-          ).rows[0]!.value
-        expected.push(result)
-      }
-      expected.push(Object.fromEntries(Object.keys(definitions).map((name) => [name, undefined])))
-      const typescript = renderTypescriptSchemaCheckArtifacts([table], domains, domains, {}, rust)
-      const go = renderGoSchemaCheckArtifacts(
-        [table],
-        'checks',
-        domains,
-        domains,
-        catalog,
-        parseConfigString('schema: schema.sql\nsql:\n  codegen:\n    go: {}\n'),
-        undefined,
-        'int8-production',
-        rust,
-      )
-      if (rust)
-        for (const name of Object.keys(definitions)) {
-          expect(typescript.checks).toMatch(new RegExp(`"${name}", \\(\\) => checkRustOutcome`))
-          expect(go.checks).toMatch(
-            new RegExp(
-              `"${name}", checkRustEvaluate\\(func\\(\\) EvalBool \\{\\n\\s*return checkRustOutcome`,
-            ),
-          )
-        }
-      await writeFile(join(directory, 'package.json'), '{"type":"module"}\n')
-      await writeFile(join(directory, 'checks.ts'), typescript.checks)
-      if (typescript.rustFiles)
-        for (const artifact of checkTypescriptArtifacts(typescript.rustFiles)) {
-          const path = join(directory, 'checks-rust', artifact.path)
-          await mkdir(dirname(path), { recursive: true })
-          await writeFile(path, artifact.content)
-        }
-      await run('node_modules/.bin/tsc', [
-        '--strict',
-        '--skipLibCheck',
-        '--target',
-        'es2022',
-        '--module',
-        'nodenext',
-        '--moduleResolution',
-        'nodenext',
-        '--outDir',
-        join(directory, 'js'),
-        join(directory, 'checks.ts'),
-      ]).catch((error: { message: string; signal: string; stdout: string; stderr: string }) => {
-        throw new Error(`${error.message} (${error.signal})\n${error.stdout}${error.stderr}`)
-      })
-      const generated = await import(pathToFileURL(join(directory, 'js/checks.js')).href)
-      for (const [index, row] of rows.entries()) {
-        const result = generated.evaluatePublicInt8ChecksChecks(row) as {
-          constraint: string
-          result: { certain: boolean; value?: boolean | null }
-        }[]
-        expect(
-          Object.fromEntries(
-            result.map(({ constraint, result }) => [
-              constraint,
-              result.certain ? result.value : undefined,
-            ]),
-          ),
-        ).toEqual(expected[index])
-        const domainResult = generated.evaluatePublicPositiveBigintDomainChecks(
-          Object.hasOwn(row, 'amount') ? { value: row.amount } : {},
-        )
-        const value =
-          row.amount === undefined ? undefined : row.amount === null ? null : row.amount > 0n
-        expect(domainResult[0].result).toEqual(
-          value === undefined ? { certain: false } : { certain: true, value },
-        )
-      }
-      if (rust) {
-        // int8 values are bigints, as queries send them: neither their decimal text nor a
-        // number, even a safe one, is an int8 value.
-        for (const row of rows.slice(0, -1))
-          for (const column of ['amount', 'other'] as const) {
-            if (row[column] === null || row[column] === undefined) continue
-            expect(() =>
-              generated.evaluatePublicInt8ChecksChecks({
-                ...row,
-                [column]: row[column]!.toString(),
-              }),
-            ).toThrow(TypeError)
-            if (column === 'amount')
-              expect(() =>
-                generated.evaluatePublicPositiveBigintDomainChecks({
-                  value: row.amount!.toString(),
-                }),
-              ).toThrow(TypeError)
-          }
-        for (const value of [
-          42,
-          '42',
-          9007199254740992,
-          NaN,
-          Infinity,
-          0.5,
-          'invalid',
-          '9223372036854775808',
-          '-9223372036854775809',
-          { kind: 'Value', value: 42n },
-          { kind: 'Null' },
-          { kind: 'Unknown' },
-        ]) {
-          expect(() => generated.evaluatePublicInt8ChecksChecks({ amount: value })).toThrow(
-            TypeError,
-          )
-          expect(() => generated.evaluatePublicPositiveBigintDomainChecks({ value })).toThrow(
-            TypeError,
-          )
-        }
-        // A bigint outside int8 is sent as is, and int8 input rejects it with 22003.
-        for (const value of [9223372036854775808n, -9223372036854775809n]) {
-          for (const check of generated.evaluatePublicInt8ChecksChecks({ amount: value }))
-            expect(check.result).toMatchObject({ certain: true, error: '22003' })
-          for (const check of generated.evaluatePublicPositiveBigintDomainChecks({ value }))
-            expect(check.result).toMatchObject({ certain: true, error: '22003' })
-        }
-        const positive = generated
-          .evaluatePublicInt8ChecksChecks({ amount: 42n })
-          .find((check: { constraint: string }) => check.constraint === 'positive')
-        expect(positive.result).toEqual({ certain: true, value: true })
-      }
-      await writeFile(join(directory, 'go.mod'), 'module int8-production\n\ngo 1.25\n')
-      await writeFile(join(directory, 'checks.go'), go.checks)
-      if (go.rustFiles)
-        for (const [name, source] of Object.entries(go.rustFiles)) {
-          if (!source) continue
-          const path = join(
-            directory,
-            'checkrust',
-            name === 'checks'
-              ? 'checks.go'
-              : name === 'runtime'
-                ? 'checkruntime/runtime.go'
-                : name === 'language'
-                  ? 'langruntime/runtime.go'
-                  : name === 'regex'
-                    ? 'regexengine/regex.go'
-                    : 'pg_catalog/operations.go',
-          )
-          await mkdir(dirname(path), { recursive: true })
-          await writeFile(path, source)
-        }
-      const goRows = rows.map(
-        (row) =>
-          'PublicInt8ChecksCheckInput{' +
-          Object.entries(row)
-            .map(([name, value]) => {
-              const type = name === 'small' ? 'int32' : name === 'flag' ? 'bool' : 'int64'
-              return `${name[0]!.toUpperCase() + name.slice(1)}: ${value === null ? `NullCheckValue[*${type}]()` : `KnownCheckValue(ptr(${type}(${value})))`}`
-            })
-            .join(', ') +
-          '}',
-      )
-      const assertions = expected.flatMap((row, index) =>
-        Object.entries(row).map(
-          ([name, value]) =>
-            `if result := results[${index}]["${name}"]; ${value === undefined ? 'result.Certain' : value === null ? '!result.Certain || result.Value.Valid' : `!result.Certain || !result.Value.Valid || result.Value.Value != ${value}`} {t.Fatalf("${index} ${name}: %+v",result)}`,
+    const catalog = await snapshotCatalog(pg)
+    const table = catalog.tables.find((item) => item.name === 'int8_checks')!
+    const domains = catalog.domains.filter((item) => item.name === 'positive_bigint')
+    const expected: Record<string, boolean | null | undefined>[] = []
+    for (const row of rows.slice(0, -1)) {
+      await pg.exec('TRUNCATE int8_inputs')
+      await pg.query('INSERT INTO int8_inputs VALUES ($1,$2,$3,$4)', [
+        row.amount?.toString() ?? null,
+        row.other?.toString() ?? null,
+        row.small,
+        row.flag,
+      ])
+      const result: Record<string, boolean | null | undefined> = {}
+      for (const [name, sql] of Object.entries(definitions))
+        result[name] = (
+          await pg.query<{ value: boolean | null }>(`SELECT (${sql}) AS value FROM int8_inputs`)
+        ).rows[0]!.value
+      expected.push(result)
+    }
+    expected.push(Object.fromEntries(Object.keys(definitions).map((name) => [name, undefined])))
+    const typescript = renderTypescriptSchemaCheckArtifacts([table], domains, domains, {})
+    const go = renderGoSchemaCheckArtifacts(
+      [table],
+      'checks',
+      domains,
+      domains,
+      catalog,
+      parseConfigString('schema: schema.sql\nsql:\n  codegen:\n    go: {}\n'),
+      undefined,
+      'int8-production',
+    )
+    for (const name of Object.keys(definitions)) {
+      expect(typescript.checks).toMatch(new RegExp(`"${name}", \\(\\) => checkRustOutcome`))
+      expect(go.checks).toMatch(
+        new RegExp(
+          `"${name}", checkRustEvaluate\\(func\\(\\) EvalBool \\{\\n\\s*return checkRustOutcome`,
         ),
       )
-      const domainRows = rows.map((row) =>
-        row.amount === undefined
-          ? 'PublicPositiveBigintCheckInput{}'
-          : `PublicPositiveBigintCheckInput{Value: ${row.amount === null ? 'NullCheckValue[*int64]()' : `KnownCheckValue(ptr(int64(${row.amount})))`}}`,
+    }
+    await writeFile(join(directory, 'package.json'), '{"type":"module"}\n')
+    await writeFile(join(directory, 'checks.ts'), typescript.checks)
+    if (typescript.rustFiles)
+      for (const artifact of checkTypescriptArtifacts(typescript.rustFiles)) {
+        const path = join(directory, 'checks-rust', artifact.path)
+        await mkdir(dirname(path), { recursive: true })
+        await writeFile(path, artifact.content)
+      }
+    await run('node_modules/.bin/tsc', [
+      '--strict',
+      '--skipLibCheck',
+      '--target',
+      'es2022',
+      '--module',
+      'nodenext',
+      '--moduleResolution',
+      'nodenext',
+      '--outDir',
+      join(directory, 'js'),
+      join(directory, 'checks.ts'),
+    ]).catch((error: { message: string; signal: string; stdout: string; stderr: string }) => {
+      throw new Error(`${error.message} (${error.signal})\n${error.stdout}${error.stderr}`)
+    })
+    const generated = await import(pathToFileURL(join(directory, 'js/checks.js')).href)
+    for (const [index, row] of rows.entries()) {
+      const result = generated.evaluatePublicInt8ChecksChecks(row) as {
+        constraint: string
+        result: { certain: boolean; value?: boolean | null }
+      }[]
+      expect(
+        Object.fromEntries(
+          result.map(({ constraint, result }) => [
+            constraint,
+            result.certain ? result.value : undefined,
+          ]),
+        ),
+      ).toEqual(expected[index])
+      const domainResult = generated.evaluatePublicPositiveBigintDomainChecks(
+        Object.hasOwn(row, 'amount') ? { value: row.amount } : {},
       )
-      const domainAssertions = rows.map(
-        (row, index) =>
-          `if result := domainResults[${index}]; ${row.amount === undefined ? 'result.Certain' : row.amount === null ? '!result.Certain || result.Value.Valid' : `!result.Certain || !result.Value.Valid || result.Value.Value != ${row.amount > 0n}`} {t.Fatalf("domain ${index}: %+v", result)}`,
+      const value =
+        row.amount === undefined ? undefined : row.amount === null ? null : row.amount > 0n
+      expect(domainResult[0].result).toEqual(
+        value === undefined ? { certain: false } : { certain: true, value },
       )
-      await writeFile(
-        join(directory, 'checks_test.go'),
-        `package checks
+    }
+    // int8 values are bigints, as queries send them: neither their decimal text nor a
+    // number, even a safe one, is an int8 value.
+    for (const row of rows.slice(0, -1))
+      for (const column of ['amount', 'other'] as const) {
+        if (row[column] === null || row[column] === undefined) continue
+        expect(() =>
+          generated.evaluatePublicInt8ChecksChecks({
+            ...row,
+            [column]: row[column]!.toString(),
+          }),
+        ).toThrow(TypeError)
+        if (column === 'amount')
+          expect(() =>
+            generated.evaluatePublicPositiveBigintDomainChecks({
+              value: row.amount!.toString(),
+            }),
+          ).toThrow(TypeError)
+      }
+    for (const value of [
+      42,
+      '42',
+      9007199254740992,
+      NaN,
+      Infinity,
+      0.5,
+      'invalid',
+      '9223372036854775808',
+      '-9223372036854775809',
+      { kind: 'Value', value: 42n },
+      { kind: 'Null' },
+      { kind: 'Unknown' },
+    ]) {
+      expect(() => generated.evaluatePublicInt8ChecksChecks({ amount: value })).toThrow(TypeError)
+      expect(() => generated.evaluatePublicPositiveBigintDomainChecks({ value })).toThrow(TypeError)
+    }
+    // A bigint outside int8 is sent as is, and int8 input rejects it with 22003.
+    for (const value of [9223372036854775808n, -9223372036854775809n]) {
+      for (const check of generated.evaluatePublicInt8ChecksChecks({ amount: value }))
+        expect(check.result).toMatchObject({ certain: true, error: '22003' })
+      for (const check of generated.evaluatePublicPositiveBigintDomainChecks({ value }))
+        expect(check.result).toMatchObject({ certain: true, error: '22003' })
+    }
+    const positive = generated
+      .evaluatePublicInt8ChecksChecks({ amount: 42n })
+      .find((check: { constraint: string }) => check.constraint === 'positive')
+    expect(positive.result).toEqual({ certain: true, value: true })
+
+    await writeFile(join(directory, 'go.mod'), 'module int8-production\n\ngo 1.25\n')
+    await writeFile(join(directory, 'checks.go'), go.checks)
+    if (go.rustFiles)
+      for (const [name, source] of Object.entries(go.rustFiles)) {
+        if (!source) continue
+        const path = join(
+          directory,
+          'checkrust',
+          name === 'checks'
+            ? 'checks.go'
+            : name === 'runtime'
+              ? 'checkruntime/runtime.go'
+              : name === 'language'
+                ? 'langruntime/runtime.go'
+                : name === 'regex'
+                  ? 'regexengine/regex.go'
+                  : 'pg_catalog/operations.go',
+        )
+        await mkdir(dirname(path), { recursive: true })
+        await writeFile(path, source)
+      }
+    const goRows = rows.map(
+      (row) =>
+        'PublicInt8ChecksCheckInput{' +
+        Object.entries(row)
+          .map(([name, value]) => {
+            const type = name === 'small' ? 'int32' : name === 'flag' ? 'bool' : 'int64'
+            return `${name[0]!.toUpperCase() + name.slice(1)}: ${value === null ? `NullCheckValue[*${type}]()` : `KnownCheckValue(ptr(${type}(${value})))`}`
+          })
+          .join(', ') +
+        '}',
+    )
+    const assertions = expected.flatMap((row, index) =>
+      Object.entries(row).map(
+        ([name, value]) =>
+          `if result := results[${index}]["${name}"]; ${value === undefined ? 'result.Certain' : value === null ? '!result.Certain || result.Value.Valid' : `!result.Certain || !result.Value.Valid || result.Value.Value != ${value}`} {t.Fatalf("${index} ${name}: %+v",result)}`,
+      ),
+    )
+    const domainRows = rows.map((row) =>
+      row.amount === undefined
+        ? 'PublicPositiveBigintCheckInput{}'
+        : `PublicPositiveBigintCheckInput{Value: ${row.amount === null ? 'NullCheckValue[*int64]()' : `KnownCheckValue(ptr(int64(${row.amount})))`}}`,
+    )
+    const domainAssertions = rows.map(
+      (row, index) =>
+        `if result := domainResults[${index}]; ${row.amount === undefined ? 'result.Certain' : row.amount === null ? '!result.Certain || result.Value.Valid' : `!result.Certain || !result.Value.Valid || result.Value.Value != ${row.amount > 0n}`} {t.Fatalf("domain ${index}: %+v", result)}`,
+    )
+    await writeFile(
+      join(directory, 'checks_test.go'),
+      `package checks
 import "testing"
 func ptr[T any](value T)*T{return &value}
 func TestInt8(t *testing.T){
@@ -255,15 +246,13 @@ domainResults:=[]EvalBool{}
 for _,row:=range domainRows{domainResults=append(domainResults,func() []CheckEvaluation {r, e := EvaluatePublicPositiveBigintDomainChecks(row); if e != nil {panic(e)}; return r}()[0].Result)}
 ${domainAssertions.join('\n')}
 }`,
-      )
-      await run('go', ['test', './...'], {
-        cwd: directory,
-        env: process.env,
-      })
-    } finally {
-      await pg.close()
-      await rm(directory, { recursive: true, force: true })
-    }
-  },
-  180_000,
-)
+    )
+    await run('go', ['test', './...'], {
+      cwd: directory,
+      env: process.env,
+    })
+  } finally {
+    await pg.close()
+    await rm(directory, { recursive: true, force: true })
+  }
+}, 180_000)

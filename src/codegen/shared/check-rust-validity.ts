@@ -118,13 +118,7 @@ const widths: Readonly<Record<string, number>> = {
   'pg_catalog.int8': 64,
 }
 const typeOf = (node: EvalExpression): string =>
-  node.kind === 'certain'
-    ? node.expression.type
-    : node.kind === 'call'
-      ? node.call.type
-      : node.kind === 'regex-count'
-        ? 'pg_catalog.int4'
-        : node.type
+  node.kind === 'certain' ? node.expression.type : node.kind === 'call' ? node.call.type : node.type
 const orderedElement = (type: string): boolean => {
   if (!type.startsWith('array:')) return false
   let element = arrayElementBaseType(type.slice(6))

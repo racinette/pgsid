@@ -15,6 +15,7 @@ import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-tr
 import { prepareCheckRust } from '../../src/codegen/shared/check-rust-source.js'
 import { hasUncertain } from '../../scripts/check-measurements/probes.js'
 import { parseConfigString } from '../../src/config/loader.js'
+import { importTypescriptChecks } from './check-production.js'
 
 const run = promisify(execFile)
 const definitions = {
@@ -132,148 +133,142 @@ describe('CHECK list and range validators', () => {
   })
   afterAll(async () => pg.close())
 
-  it.each([true, false])(
-    'runs PostgreSQL list and range semantics through validators (Rust=%s)',
-    async (rust) => {
-      const typescript = renderTypescriptSchemaCheckArtifacts([table], [], [], {}, rust)
-      const go = renderGoSchemaCheckArtifacts(
-        [table],
-        'checks',
-        [],
-        [],
-        catalog,
-        parseConfigString('schema: schema.sql\nsql:\n  codegen:\n    go: {}\n'),
-        undefined,
-        'predicate-production',
-        rust,
+  it('runs PostgreSQL list and range semantics through validators', async () => {
+    const typescript = renderTypescriptSchemaCheckArtifacts([table], [], [], {})
+    const go = renderGoSchemaCheckArtifacts(
+      [table],
+      'checks',
+      [],
+      [],
+      catalog,
+      parseConfigString('schema: schema.sql\nsql:\n  codegen:\n    go: {}\n'),
+      undefined,
+      'predicate-production',
+    )
+    for (const name of Object.keys(definitions)) {
+      expect(typescript.checks).toMatch(new RegExp(`"${name}", \\(\\) => checkRustOutcome`))
+      expect(go.checks).toMatch(
+        new RegExp(
+          `"${name}", checkRustEvaluate\\(func\\(\\) EvalBool \\{\\n\\s*return checkRustOutcome`,
+        ),
       )
-      if (rust) {
-        for (const name of Object.keys(definitions)) {
-          expect(typescript.checks).toMatch(new RegExp(`"${name}", \\(\\) => checkRustOutcome`))
-          expect(go.checks).toMatch(
-            new RegExp(
-              `"${name}", checkRustEvaluate\\(func\\(\\) EvalBool \\{\\n\\s*return checkRustOutcome`,
-            ),
-          )
+    }
+    const directory = await mkdtemp(join(tmpdir(), 'pgsid-predicate-validator-'))
+    try {
+      await writeFile(join(directory, 'package.json'), '{"type":"module"}\n')
+      await writeFile(join(directory, 'checks.ts'), typescript.checks)
+      if (typescript.rustFiles)
+        for (const artifact of checkTypescriptArtifacts(typescript.rustFiles)) {
+          const path = join(directory, 'checks-rust', artifact.path)
+          await mkdir(dirname(path), { recursive: true })
+          await writeFile(path, artifact.content)
         }
-      }
-      const directory = await mkdtemp(join(tmpdir(), 'pgsid-predicate-validator-'))
-      try {
-        await writeFile(join(directory, 'package.json'), '{"type":"module"}\n')
-        await writeFile(join(directory, 'checks.ts'), typescript.checks)
-        if (typescript.rustFiles)
-          for (const artifact of checkTypescriptArtifacts(typescript.rustFiles)) {
-            const path = join(directory, 'checks-rust', artifact.path)
-            await mkdir(dirname(path), { recursive: true })
-            await writeFile(path, artifact.content)
-          }
-        await run('node_modules/.bin/tsc', [
-          '--strict',
-          '--skipLibCheck',
-          '--target',
-          'es2022',
-          '--module',
-          'nodenext',
-          '--moduleResolution',
-          'nodenext',
-          '--outDir',
-          join(directory, 'js'),
-          join(directory, 'checks.ts'),
-        ])
-        const generated = await import(pathToFileURL(join(directory, 'js/checks.js')).href)
-        for (const [index, row] of rows.entries()) {
-          const results = generated.evaluatePublicPredicateChecksChecks(row) as {
-            constraint: string
-            result: { certain: boolean; value?: boolean | null; error?: string }
-          }[]
-          expect(
-            Object.fromEntries(
-              results.map(({ constraint, result }) => [
-                constraint,
-                result.certain ? (result.error ?? result.value) : undefined,
-              ]),
-            ),
-          ).toEqual(expected[index])
-        }
-        await writeFile(join(directory, 'go.mod'), 'module predicate-production\n\ngo 1.24\n')
-        await writeFile(join(directory, 'checks.go'), go.checks)
-        if (go.rustFiles)
-          for (const [name, source] of Object.entries(go.rustFiles)) {
-            if (!source) continue
-            const path = join(
-              directory,
-              'checkrust',
-              name === 'checks'
-                ? 'checks.go'
-                : name === 'runtime'
-                  ? 'checkruntime/runtime.go'
-                  : name === 'language'
-                    ? 'langruntime/runtime.go'
-                    : name === 'regex'
-                      ? 'regexengine/regex.go'
-                      : 'pg_catalog/operations.go',
-            )
-            await mkdir(dirname(path), { recursive: true })
-            await writeFile(path, source)
-          }
-        const goRows = rows.map(
-          (row) =>
-            'PublicPredicateChecksCheckInput{' +
-            Object.entries(row)
-              .map(([name, value]) => {
-                const field = name[0]!.toUpperCase() + name.slice(1)
-                const type = name === 'flag' ? 'bool' : name === 'note' ? 'string' : 'int32'
-                return `${field}: ${value === null ? `NullCheckValue[*${type}]()` : `KnownCheckValue(ptr(${type}(${JSON.stringify(value)})))`}`
-              })
-              .join(', ') +
-            '}',
-        )
-        const assertions = expected.flatMap((row, index) =>
-          Object.entries(row).map(
-            ([name, value]) =>
-              `if result := results[${index}]["${name}"]; ${value === '22003' ? '!result.Certain || result.Value.Error != "22003"' : value === undefined ? 'result.Certain' : value === null ? '!result.Certain || result.Value.Valid' : `!result.Certain || !result.Value.Valid || result.Value.Value != ${value}`} {t.Fatalf("${index} ${name}: %+v", result)}`,
+      await run('node_modules/.bin/tsc', [
+        '--strict',
+        '--skipLibCheck',
+        '--target',
+        'es2022',
+        '--module',
+        'nodenext',
+        '--moduleResolution',
+        'nodenext',
+        '--outDir',
+        join(directory, 'js'),
+        join(directory, 'checks.ts'),
+      ])
+      const generated = await import(pathToFileURL(join(directory, 'js/checks.js')).href)
+      for (const [index, row] of rows.entries()) {
+        const results = generated.evaluatePublicPredicateChecksChecks(row) as {
+          constraint: string
+          result: { certain: boolean; value?: boolean | null; error?: string }
+        }[]
+        expect(
+          Object.fromEntries(
+            results.map(({ constraint, result }) => [
+              constraint,
+              result.certain ? (result.error ?? result.value) : undefined,
+            ]),
           ),
-        )
-        await writeFile(
-          join(directory, 'checks_test.go'),
-          `package checks\nimport "testing"\nfunc ptr[T any](value T) *T {return &value}\nfunc TestPredicates(t *testing.T) {\nrows := []PublicPredicateChecksCheckInput{${goRows.join(', ')}}\nresults := []map[string]EvalBool{}\nfor _, row := range rows {values := map[string]EvalBool{}; for _, check := range func() []CheckEvaluation {r, e := EvaluatePublicPredicateChecksChecks(row); if e != nil {panic(e)}; return r}() {values[check.Constraint] = check.Result}; results = append(results,values)}\n${assertions.join('\n')}\n}`,
-        )
-        await run('go', ['test', './...'], {
-          cwd: directory,
-          env: process.env,
-        })
-      } finally {
-        await rm(directory, { recursive: true, force: true })
+        ).toEqual(expected[index])
       }
-    },
-    180_000,
-  )
+      await writeFile(join(directory, 'go.mod'), 'module predicate-production\n\ngo 1.24\n')
+      await writeFile(join(directory, 'checks.go'), go.checks)
+      if (go.rustFiles)
+        for (const [name, source] of Object.entries(go.rustFiles)) {
+          if (!source) continue
+          const path = join(
+            directory,
+            'checkrust',
+            name === 'checks'
+              ? 'checks.go'
+              : name === 'runtime'
+                ? 'checkruntime/runtime.go'
+                : name === 'language'
+                  ? 'langruntime/runtime.go'
+                  : name === 'regex'
+                    ? 'regexengine/regex.go'
+                    : 'pg_catalog/operations.go',
+          )
+          await mkdir(dirname(path), { recursive: true })
+          await writeFile(path, source)
+        }
+      const goRows = rows.map(
+        (row) =>
+          'PublicPredicateChecksCheckInput{' +
+          Object.entries(row)
+            .map(([name, value]) => {
+              const field = name[0]!.toUpperCase() + name.slice(1)
+              const type = name === 'flag' ? 'bool' : name === 'note' ? 'string' : 'int32'
+              return `${field}: ${value === null ? `NullCheckValue[*${type}]()` : `KnownCheckValue(ptr(${type}(${JSON.stringify(value)})))`}`
+            })
+            .join(', ') +
+          '}',
+      )
+      const assertions = expected.flatMap((row, index) =>
+        Object.entries(row).map(
+          ([name, value]) =>
+            `if result := results[${index}]["${name}"]; ${value === '22003' ? '!result.Certain || result.Value.Error != "22003"' : value === undefined ? 'result.Certain' : value === null ? '!result.Certain || result.Value.Valid' : `!result.Certain || !result.Value.Valid || result.Value.Value != ${value}`} {t.Fatalf("${index} ${name}: %+v", result)}`,
+        ),
+      )
+      await writeFile(
+        join(directory, 'checks_test.go'),
+        `package checks\nimport "testing"\nfunc ptr[T any](value T) *T {return &value}\nfunc TestPredicates(t *testing.T) {\nrows := []PublicPredicateChecksCheckInput{${goRows.join(', ')}}\nresults := []map[string]EvalBool{}\nfor _, row := range rows {values := map[string]EvalBool{}; for _, check := range func() []CheckEvaluation {r, e := EvaluatePublicPredicateChecksChecks(row); if e != nil {panic(e)}; return r}() {values[check.Constraint] = check.Result}; results = append(results,values)}\n${assertions.join('\n')}\n}`,
+      )
+      await run('go', ['test', './...'], {
+        cwd: directory,
+        env: process.env,
+      })
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  }, 180_000)
 
-  it('binds the membership subject once in fallback validators', async () => {
+  it('binds the membership subject once in generated validators', async () => {
     const single = {
       ...table,
       constraints: table.constraints.filter((item) => item.name === 'computed_subject'),
     }
-    const source = renderTypescriptSchemaCheckArtifacts([single], [], [], {}, false).checks
-    const ts = await import('typescript')
-    const js = ts.transpileModule(source, {
-      compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
-    }).outputText
-    const evaluate = Function(
-      'exports',
-      `${js}; return evaluatePublicPredicateChecksChecks`,
-    )({}) as (row: Row) => { result: { certain: boolean; value?: boolean | null } }[]
-    let reads = 0
-    expect(
-      evaluate({
-        get amount() {
-          reads++
-          return 0
-        },
-      })[0]!.result,
-    ).toEqual({ certain: true, value: true })
-    expect(reads).toBe(1)
-  })
+    const directory = await mkdtemp(join(tmpdir(), 'pgsid-membership-subject-'))
+    try {
+      const evaluate = (
+        await importTypescriptChecks(directory, renderTypescriptSchemaCheckArtifacts([single]))
+      ).evaluatePublicPredicateChecksChecks as (
+        row: Row,
+      ) => { result: { certain: boolean; value?: boolean | null } }[]
+      let reads = 0
+      expect(
+        evaluate({
+          get amount() {
+            reads++
+            return 0
+          },
+        })[0]!.result,
+      ).toEqual({ certain: true, value: true })
+      expect(reads).toBe(1)
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  }, 180_000)
 
   it('preserves PostgreSQL range expansion and repeated subject evaluation', async () => {
     for (const [sql, expanded] of [
@@ -307,32 +302,34 @@ describe('CHECK list and range validators', () => {
         },
       ],
     }
-    const source = renderTypescriptSchemaCheckArtifacts([single], [], [], {}, false).checks
-    const ts = await import('typescript')
-    const js = ts.transpileModule(source, {
-      compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
-    }).outputText
-    const evaluate = Function(
-      'exports',
-      `${js}; return evaluatePublicPredicateChecksChecks`,
-    )({}) as (row: Row) => { result: { certain: boolean; value?: boolean | null } }[]
-    for (const [amount, expected, expectedReads] of [
-      [0, true, 2],
-      [-2, false, 1],
-    ] as const) {
-      let reads = 0
-      expect(
-        evaluate({
-          other: 0,
-          get amount() {
-            reads++
-            return amount
-          },
-        })[0]!.result,
-      ).toEqual({ certain: true, value: expected })
-      expect(reads).toBe(expectedReads)
+    const directory = await mkdtemp(join(tmpdir(), 'pgsid-range-subject-'))
+    try {
+      const evaluate = (
+        await importTypescriptChecks(directory, renderTypescriptSchemaCheckArtifacts([single]))
+      ).evaluatePublicPredicateChecksChecks as (
+        row: Row,
+      ) => { result: { certain: boolean; value?: boolean | null } }[]
+      // The expansion evaluates the subject again, but a supplied value is read once.
+      for (const [amount, expected, expectedReads] of [
+        [0, true, 1],
+        [-2, false, 1],
+      ] as const) {
+        let reads = 0
+        expect(
+          evaluate({
+            other: 0,
+            get amount() {
+              reads++
+              return amount
+            },
+          })[0]!.result,
+        ).toEqual({ certain: true, value: expected })
+        expect(reads).toBe(expectedReads)
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true })
     }
-  })
+  }, 180_000)
 
   it('preserves existing type and collation boundaries for ranges', () => {
     const host = {

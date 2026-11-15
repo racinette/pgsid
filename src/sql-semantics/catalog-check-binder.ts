@@ -4308,9 +4308,7 @@ export function bindCatalogCheck(
             ? first.expression.type
             : first.kind === 'call'
               ? first.call.type
-              : first.kind === 'regex-count'
-                ? 'pg_catalog.int4'
-                : first.type
+              : first.type
       return storedComparison['kind'] === 'nullif' &&
         arrayElementBaseType(firstType) === carrier.type
         ? {

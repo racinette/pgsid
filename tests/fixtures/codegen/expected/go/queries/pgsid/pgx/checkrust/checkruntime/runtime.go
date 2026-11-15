@@ -24356,6 +24356,9 @@ func clockInputText(rawInput TextValue) TextValue {
 			if string(keyword) == "allballs" {
 				return MakeTextValue("2000-01-01 00:00:00+00")
 			}
+			if wordEnd > start && wordEnd < end && (text.chars[wordEnd] == '-' || text.chars[wordEnd] == '/' || text.chars[wordEnd] == '.') {
+				return TextUnresolved(ResolutionContext(unresolvedFlavor))
+			}
 			return TextValue{Kind: TextValueError, Error: MakeSqlError(clockInputSyntax)}
 		}
 		if wordEnd > start && wordDigits == end && langruntime.CheckedSubtract(wordDigits, wordEnd) < 4 {

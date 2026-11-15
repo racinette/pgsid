@@ -15,23 +15,9 @@ import {
   lowerDomainCheck,
   lowerTableCheck,
 } from '../../src/sql-semantics/catalog-checks.js'
-import { emitEvalBoolExpression } from '../../src/sql-semantics/check-expressions.js'
-import { typescriptSqlBackend } from '../../src/codegen/typescript/sql/registry.js'
-import { typescriptEvalBoolBackend } from '../../src/codegen/typescript/sql/check.js'
-import { typescriptSqlRuntime } from '../../src/codegen/typescript/sql/runtime.js'
-import { factory, identifier, printFile } from '../../src/codegen/typescript/ast.js'
-import { goSqlBackend } from '../../src/codegen/go/sql/registry.js'
-import { goEvalBoolBackend } from '../../src/codegen/go/sql/check.js'
-import { goSqlRuntime } from '../../src/codegen/go/sql/runtime.js'
-import { go, printGoFile } from '../../src/codegen/go/ast.js'
-import {
-  renderTypescriptSchemaCheckArtifacts,
-  renderTypescriptSchemaChecks,
-} from '../../src/codegen/typescript/sql/catalog-checks.js'
-import {
-  renderGoSchemaCheckArtifacts,
-  renderGoSchemaChecks,
-} from '../../src/codegen/go/sql/catalog-checks.js'
+import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
+import { renderGoSchemaCheckArtifacts } from '../../src/codegen/go/sql/catalog-checks.js'
+import { importTypescriptChecks, writeGoChecks } from './check-production.js'
 import { goNullArtifacts } from '../../src/codegen/go/nulls.js'
 import { createGoTypeContext } from '../../src/codegen/go/type-mapping.js'
 import { renderTypescriptQueryArtifacts } from '../../src/codegen/typescript/query.js'
@@ -100,7 +86,7 @@ describe('catalog CHECK lowering', () => {
 
   afterAll(async () => pg.close())
 
-  it('runs supported Rust checks and unsupported fallback checks through generated validators', async () => {
+  it('runs supported and undecided checks through generated validators', async () => {
     const catalog = await snapshotCatalog(pg)
     const table = catalog.tables.find(
       (item) => item.schema === 'public' && item.name === 'regulated',
@@ -125,11 +111,17 @@ describe('catalog CHECK lowering', () => {
     expect(typescript.checks).toContain('evalBool')
     expect(go.checks).toContain('checkRustOutcome(checkrust.EvaluateCheck')
     expect(typescript.checks).toMatch(/"email_length", \(\) => checkRustOutcome/u)
-    expect(go.checks).toMatch(/"email_length", checkRustEvaluate\(func\(\) EvalBool \{\n\s*return checkRustOutcome/u)
+    expect(go.checks).toMatch(
+      /"email_length", checkRustEvaluate\(func\(\) EvalBool \{\n\s*return checkRustOutcome/u,
+    )
     expect(typescript.checks).toMatch(/"amount_plus", \(\) => checkRustOutcome/u)
-    expect(go.checks).toMatch(/"amount_minus", checkRustEvaluate\(func\(\) EvalBool \{\n\s*return checkRustOutcome/u)
+    expect(go.checks).toMatch(
+      /"amount_minus", checkRustEvaluate\(func\(\) EvalBool \{\n\s*return checkRustOutcome/u,
+    )
     expect(typescript.checks).toMatch(/"enabled_equal", \(\) => checkRustOutcome/u)
-    expect(go.checks).toMatch(/"enabled_unequal", checkRustEvaluate\(func\(\) EvalBool \{\n\s*return checkRustOutcome/u)
+    expect(go.checks).toMatch(
+      /"enabled_unequal", checkRustEvaluate\(func\(\) EvalBool \{\n\s*return checkRustOutcome/u,
+    )
     expect(typescript.checks).toMatch(/"enabled_less", \(\) => checkRustOutcome/u)
     expect(typescript.checks).toMatch(/"negative_floor", \(\) => checkRustOutcome/u)
     expect(typescript.checks).toMatch(/"minimum_floor", \(\) => checkRustOutcome/u)
@@ -144,7 +136,11 @@ describe('catalog CHECK lowering', () => {
       'scalar_no_else',
     ]) {
       expect(typescript.checks).toMatch(new RegExp(`"${name}", \\(\\) => checkRustOutcome`))
-      expect(go.checks).toMatch(new RegExp(`"${name}", checkRustEvaluate\\(func\\(\\) EvalBool \\{\\n\\s*return checkRustOutcome`))
+      expect(go.checks).toMatch(
+        new RegExp(
+          `"${name}", checkRustEvaluate\\(func\\(\\) EvalBool \\{\\n\\s*return checkRustOutcome`,
+        ),
+      )
     }
     expect(typescript.checks).toMatch(/"id_positive", \(\) => checkRustOutcome/u)
 
@@ -499,7 +495,7 @@ func TestMixedChecks(t *testing.T) {
     ])
   })
 
-  it('preserves CASE behavior and a single scrutinee binding in fallback validators', async () => {
+  it('preserves CASE behavior and a single scrutinee read in generated validators', async () => {
     const catalog = await snapshotCatalog(pg)
     const caseTable = catalog.tables.find((item) => item.name === 'case_rust')!
     const table = {
@@ -576,24 +572,13 @@ func TestMixedChecks(t *testing.T) {
         simple_once: undefined,
       },
     ]
-    const source = renderTypescriptSchemaChecks([table])
-    const directory = await mkdtemp(join(tmpdir(), 'pgsid-case-fallback-'))
+    const directory = await mkdtemp(join(tmpdir(), 'pgsid-case-checks-'))
     try {
-      await writeFile(join(directory, 'checks.ts'), source)
-      await run('node_modules/.bin/tsc', [
-        '--strict',
-        '--noEmit',
-        '--skipLibCheck',
-        '--target',
-        'es2022',
-        '--module',
-        'esnext',
-        join(directory, 'checks.ts'),
-      ])
-      const js = ts.transpileModule(source, {
-        compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
-      }).outputText
-      const evaluate = Function('exports', `${js}; return evaluatePublicCaseRustChecks`)({}) as (
+      const generated = await importTypescriptChecks(
+        join(directory, 'typescript'),
+        renderTypescriptSchemaCheckArtifacts([table]),
+      )
+      const evaluate = generated.evaluatePublicCaseRustChecks as (
         row: Record<string, unknown>,
       ) => { constraint: string; result: { certain: boolean; value?: boolean | null } }[]
       for (const [index, row] of rows.entries()) {
@@ -606,16 +591,16 @@ func TestMixedChecks(t *testing.T) {
           ),
         ).toEqual(expected[index])
       }
-      const onceSource = renderTypescriptSchemaChecks([
-        { ...table, constraints: table.constraints.filter((item) => item.name === 'simple_once') },
-      ])
-      const onceJs = ts.transpileModule(onceSource, {
-        compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
-      }).outputText
-      const evaluateOnce = Function(
-        'exports',
-        `${onceJs}; return evaluatePublicCaseRustChecks`,
-      )({}) as typeof evaluate
+      const once = await importTypescriptChecks(
+        join(directory, 'once'),
+        renderTypescriptSchemaCheckArtifacts([
+          {
+            ...table,
+            constraints: table.constraints.filter((item) => item.name === 'simple_once'),
+          },
+        ]),
+      )
+      const evaluateOnce = once.evaluatePublicCaseRustChecks as typeof evaluate
       let reads = 0
       const input = {
         flag: false,
@@ -626,13 +611,19 @@ func TestMixedChecks(t *testing.T) {
       }
       expect(evaluateOnce(input)[0]!.result).toEqual({ certain: true, value: false })
       expect(reads).toBe(1)
-      const goSource = renderGoSchemaChecks(
-        [table],
-        'cases',
-        [],
-        [],
-        catalog,
-        parseConfigString('schema: schema.sql\nsql:\n  codegen:\n    go: {}\n'),
+      const goDirectory = join(directory, 'go')
+      await writeGoChecks(
+        goDirectory,
+        renderGoSchemaCheckArtifacts(
+          [table],
+          'cases',
+          [],
+          [],
+          catalog,
+          parseConfigString('schema: schema.sql\nsql:\n  codegen:\n    go: {}\n'),
+          undefined,
+          'case-checks',
+        ),
       )
       const goRows = rows.map(
         (row) =>
@@ -652,14 +643,13 @@ func TestMixedChecks(t *testing.T) {
             `if result := results[${index}]["${name}"]; ${value === undefined ? 'result.Certain' : value === null ? '!result.Certain || result.Value.Valid' : `!result.Certain || !result.Value.Valid || result.Value.Value != ${value}`} {t.Fatalf("${index} ${name}: %+v", result)}`,
         ),
       )
-      await writeFile(join(directory, 'go.mod'), 'module case-fallback\n\ngo 1.24\n')
-      await writeFile(join(directory, 'checks.go'), goSource)
+      await writeFile(join(goDirectory, 'go.mod'), 'module case-checks\n\ngo 1.24\n')
       await writeFile(
-        join(directory, 'checks_test.go'),
+        join(goDirectory, 'checks_test.go'),
         `package cases\nimport "testing"\nfunc ptr[T any](value T) *T {return &value}\nfunc TestCases(t *testing.T) {\nrows := []PublicCaseRustCheckInput{${goRows.join(', ')}}\nresults := []map[string]EvalBool{}\nfor _, row := range rows {values := map[string]EvalBool{}; for _, check := range func() []CheckEvaluation {r, e := EvaluatePublicCaseRustChecks(row); if e != nil {panic(e)}; return r}() {values[check.Constraint] = check.Result}; results = append(results, values)}\n${assertions.join('\n')}\n}`,
       )
       await run('go', ['test', '.'], {
-        cwd: directory,
+        cwd: goDirectory,
         env: process.env,
       }).catch((error: { stdout: string; stderr: string }) => {
         throw new Error(error.stdout + error.stderr, { cause: error })
@@ -667,7 +657,7 @@ func TestMixedChecks(t *testing.T) {
     } finally {
       await rm(directory, { recursive: true, force: true })
     }
-  })
+  }, 180_000)
 
   it('keeps a parsed but unavailable atom uncertain at the codegen boundary', async () => {
     const catalog = await snapshotCatalog(pg)
@@ -694,107 +684,85 @@ func TestMixedChecks(t *testing.T) {
       ...table,
       constraints: table.constraints.filter((item) => item.name === 'catalog_privilege'),
     }
-    const typescript = renderTypescriptSchemaChecks([unsupported])
+    const typescript = renderTypescriptSchemaCheckArtifacts([unsupported]).checks
     expect(typescript).not.toContain('function checkRawInput(')
-    const goSource = renderGoSchemaChecks(
+    const goSource = renderGoSchemaCheckArtifacts(
       [unsupported],
       'main',
       [],
       [],
       catalog,
       parseConfigString('schema: schema.sql\nsql:\n  codegen:\n    go: {}\n'),
-    )
+      undefined,
+      'unsupported-checks',
+    ).checks
     expect(goSource).not.toContain('func checkPrimitive(')
     expect(goSource).not.toContain('"reflect"')
   })
 
   it('runs a catalog regex predicate in generated TypeScript and Go', async () => {
     const catalog = await snapshotCatalog(pg)
-    const table = catalog.tables.find(
+    const regulated = catalog.tables.find(
       (item) => item.schema === 'public' && item.name === 'regulated',
     )!
-    const plan = lowerTableCheck(
-      table,
-      table.constraints.find((item) => item.name === 'email_format')!,
-    )!
-    const tsBackend = {
-      ...typescriptSqlBackend,
-      input: (name: string) =>
-        factory.createElementAccessExpression(identifier('row'), factory.createStringLiteral(name)),
+    const table = {
+      ...regulated,
+      constraints: regulated.constraints.filter((item) => item.name === 'email_format'),
     }
-    const typescript = emitEvalBoolExpression(plan.expression, tsBackend, typescriptEvalBoolBackend)
-    const tsSource = printFile([
-      ...typescriptSqlRuntime(typescript.helpers),
-      factory.createFunctionDeclaration(
-        undefined,
-        undefined,
-        'evaluate',
-        undefined,
-        [
-          factory.createParameterDeclaration(
-            undefined,
-            undefined,
-            'row',
-            undefined,
-            factory.createTypeReferenceNode('Record', [
-              factory.createKeywordTypeNode(ts.SyntaxKind.StringKeyword),
-              factory.createUnionTypeNode([
-                factory.createKeywordTypeNode(ts.SyntaxKind.StringKeyword),
-                factory.createLiteralTypeNode(factory.createNull()),
-              ]),
-            ]),
-          ),
-        ],
-        undefined,
-        factory.createBlock([factory.createReturnStatement(typescript.value.expression)], true),
-      ),
-    ])
-    const js = ts.transpileModule(tsSource, {
-      compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
-    }).outputText
-    const tsResults = Function(
-      `${js}; return ['a', 'b', null].map(value => evaluate({email:value}))`,
-    )()
-    expect(tsResults).toEqual([
-      { certain: true, value: true },
-      { certain: true, value: false },
-      { certain: true, value: null },
-    ])
-
-    const goBackend = {
-      ...goSqlBackend,
-      input: (name: string) => go.index(go.ident('row'), go.string(name)),
-    }
-    const generated = emitEvalBoolExpression(plan.expression, goBackend, goEvalBoolBackend)
-    const goSource = printGoFile({
-      package: 'main',
-      imports: [{ path: 'encoding/json' }, { path: 'os' }],
-      source: `${goSqlRuntime(generated.helpers, 'main')}
-func main() {
-  rows := []map[string]SqlText{
-    {"email": {Value: "a", Valid: true}},
-    {"email": {Value: "b", Valid: true}},
-    {"email": {}},
-  }
-  results := []EvalBool{}
-  for _, row := range rows { results = append(results, evaluate(row)) }
-  if err := json.NewEncoder(os.Stdout).Encode(results); err != nil { panic(err) }
-}`,
-      declarations: [
-        go.function(
-          'evaluate',
-          [{ names: ['row'], type: go.map(go.ident('string'), go.ident('SqlText')) }],
-          [{ type: go.ident('EvalBool') }],
-          [go.return(generated.value.expression)],
-        ),
-      ],
-    })
     const directory = await mkdtemp(join(tmpdir(), 'pgsid-catalog-check-'))
     try {
-      await writeFile(join(directory, 'go.mod'), 'module catalog-check\n\ngo 1.24\n')
-      await writeFile(join(directory, 'main.go'), goSource)
+      const generated = await importTypescriptChecks(
+        join(directory, 'typescript'),
+        renderTypescriptSchemaCheckArtifacts([table]),
+      )
+      const evaluate = generated.evaluatePublicRegulatedChecks as (
+        row: Record<string, unknown>,
+      ) => { result: { certain: boolean; value?: boolean | null } }[]
+      const tsResults = ['a', 'b', null].map((email) => evaluate({ email })[0]!.result)
+      expect(tsResults).toEqual([
+        { certain: true, value: true },
+        { certain: true, value: false },
+        { certain: true, value: null },
+      ])
+
+      const goDirectory = join(directory, 'go')
+      await writeGoChecks(
+        goDirectory,
+        renderGoSchemaCheckArtifacts(
+          [table],
+          'main',
+          [],
+          [],
+          catalog,
+          parseConfigString('schema: schema.sql\nsql:\n  codegen:\n    go: {}\n'),
+          undefined,
+          'catalog-check',
+        ),
+      )
+      await writeFile(join(goDirectory, 'go.mod'), 'module catalog-check\n\ngo 1.24\n')
+      await writeFile(
+        join(goDirectory, 'main.go'),
+        `package main
+import ("encoding/json"; "os")
+func ptr[T any](value T) *T { return &value }
+func main() {
+  rows := []PublicRegulatedCheckInput{
+    {Email: KnownCheckValue(ptr("a"))},
+    {Email: KnownCheckValue(ptr("b"))},
+    {Email: KnownCheckValue((*string)(nil))},
+  }
+  results := []EvalBool{}
+  for _, row := range rows {
+    checks, err := EvaluatePublicRegulatedChecks(row)
+    if err != nil { panic(err) }
+    results = append(results, checks[0].Result)
+  }
+  if err := json.NewEncoder(os.Stdout).Encode(results); err != nil { panic(err) }
+}
+`,
+      )
       const { stdout } = await run(process.env.PGSID_GO_BINARY ?? 'go', ['run', '.'], {
-        cwd: directory,
+        cwd: goDirectory,
         env: { ...process.env, GOCACHE: join(sharedTempDirectory, 'pgsid-sql-semantics-go-cache') },
       })
       const goResults = JSON.parse(stdout) as {
@@ -810,85 +778,88 @@ func main() {
     } finally {
       await rm(directory, { recursive: true, force: true })
     }
-  })
+  }, 180_000)
 
   it('keeps absent entity fields uncertain in both generated targets', async () => {
     const catalog = await snapshotCatalog(pg)
     const table = catalog.tables.find(
       (item) => item.schema === 'public' && item.name === 'regulated',
     )!
-    const tsSource = renderTypescriptSchemaChecks([table])
-    const js = ts.transpileModule(tsSource, {
-      compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
-    }).outputText
-    const tsResults = Function(
-      'exports',
-      `${js}; return [
-      evaluatePublicRegulatedChecks({}),
-      evaluatePublicRegulatedChecks({email: null}),
-      evaluatePublicRegulatedChecks({email: 'b'}),
-      evaluatePublicRegulatedChecks({email: 'a'}),
-      evaluatePublicRegulatedChecks({email: 'a', amount: -1}),
-      evaluatePublicRegulatedChecks({email: 'a', amount: 1}),
-      evaluatePublicRegulatedChecks({email: ''})
-    ]`,
-    )({}) as { constraint: string; result: { certain: boolean; value?: boolean | null } }[][]
-    expect(
-      tsResults.map((row) => row.find((item) => item.constraint === 'email_format')?.result),
-    ).toEqual([
-      { certain: false },
-      { certain: true, value: null },
-      { certain: true, value: false },
-      { certain: true, value: true },
-      { certain: true, value: true },
-      { certain: true, value: true },
-      { certain: true, value: false },
-    ])
-    expect(
-      tsResults.map((row) => row.find((item) => item.constraint === 'with_unknown')?.result),
-    ).toEqual([
-      { certain: false },
-      { certain: false },
-      { certain: true, value: false },
-      { certain: false },
-      { certain: true, value: false },
-      { certain: true, value: true },
-      { certain: true, value: false },
-    ])
-    expect(tsResults.at(-1)?.find((item) => item.constraint === 'email_length')?.result).toEqual({
-      certain: true,
-      value: false,
-    })
-    const evaluateExtra = Function(
-      'exports',
-      `${js}; return evaluatePublicRegulatedChecks`,
-    )({}) as (
-      row: Record<string, unknown>,
-    ) => { constraint: string; result: { certain: boolean; value?: boolean | null } }[]
-    expect(evaluateExtra({}).find((item) => item.constraint === 'enabled_guard')?.result).toEqual({
-      certain: false,
-    })
-    expect(
-      evaluateExtra({ enabled: null }).find((item) => item.constraint === 'enabled_guard')?.result,
-    ).toEqual({ certain: true, value: false })
-    expect(
-      evaluateExtra({ enabled: true }).find((item) => item.constraint === 'enabled_guard')?.result,
-    ).toEqual({ certain: true, value: true })
-    expect(
-      evaluateExtra({ id: -1n }).find((item) => item.constraint === 'id_positive')?.result,
-    ).toEqual({ certain: true, value: false })
+    const directory = await mkdtemp(join(tmpdir(), 'pgsid-entity-check-'))
+    try {
+      const generated = await importTypescriptChecks(
+        join(directory, 'typescript'),
+        renderTypescriptSchemaCheckArtifacts([table]),
+      )
+      const evaluateExtra = generated.evaluatePublicRegulatedChecks as (
+        row: Record<string, unknown>,
+      ) => { constraint: string; result: { certain: boolean; value?: boolean | null } }[]
+      const tsResults = [
+        {},
+        { email: null },
+        { email: 'b' },
+        { email: 'a' },
+        { email: 'a', amount: -1 },
+        { email: 'a', amount: 1 },
+        { email: '' },
+      ].map(evaluateExtra)
+      expect(
+        tsResults.map((row) => row.find((item) => item.constraint === 'email_format')?.result),
+      ).toEqual([
+        { certain: false },
+        { certain: true, value: null },
+        { certain: true, value: false },
+        { certain: true, value: true },
+        { certain: true, value: true },
+        { certain: true, value: true },
+        { certain: true, value: false },
+      ])
+      expect(
+        tsResults.map((row) => row.find((item) => item.constraint === 'with_unknown')?.result),
+      ).toEqual([
+        { certain: false },
+        { certain: false },
+        { certain: true, value: false },
+        { certain: false },
+        { certain: true, value: false },
+        { certain: true, value: true },
+        { certain: true, value: false },
+      ])
+      expect(tsResults.at(-1)?.find((item) => item.constraint === 'email_length')?.result).toEqual({
+        certain: true,
+        value: false,
+      })
+      expect(evaluateExtra({}).find((item) => item.constraint === 'enabled_guard')?.result).toEqual(
+        {
+          certain: false,
+        },
+      )
+      expect(
+        evaluateExtra({ enabled: null }).find((item) => item.constraint === 'enabled_guard')
+          ?.result,
+      ).toEqual({ certain: true, value: false })
+      expect(
+        evaluateExtra({ enabled: true }).find((item) => item.constraint === 'enabled_guard')
+          ?.result,
+      ).toEqual({ certain: true, value: true })
+      expect(
+        evaluateExtra({ id: -1n }).find((item) => item.constraint === 'id_positive')?.result,
+      ).toEqual({ certain: true, value: false })
 
-    const goChecks = renderGoSchemaChecks(
-      [table],
-      'main',
-      [],
-      [],
-      catalog,
-      parseConfigString('schema: schema.sql\nsql:\n  codegen:\n    go: {}\n'),
-    )
-    expect(goChecks).toMatch(/Id\s+CheckOptional\[int64\]/u)
-    expect(goChecks).toMatch(/LastName\s+CheckOptional\[\*string\]/u)
-    const goSource = `${goChecks}
+      const go = renderGoSchemaCheckArtifacts(
+        [table],
+        'main',
+        [],
+        [],
+        catalog,
+        parseConfigString('schema: schema.sql\nsql:\n  codegen:\n    go: {}\n'),
+        undefined,
+        'entity-check',
+      )
+      expect(go.checks).toMatch(/Id\s+CheckOptional\[int64\]/u)
+      expect(go.checks).toMatch(/LastName\s+CheckOptional\[\*string\]/u)
+      const goSource = `package main
+import ("encoding/json"; "os")
 func ptr[T any](value T) *T { return &value }
 func main() {
   rows := []PublicRegulatedCheckInput{
@@ -908,9 +879,9 @@ func main() {
     failures = append(failures, ValidateCheckInputs(input, EvaluatePublicRegulatedChecks) != nil)
   }
   if err := json.NewEncoder(os.Stdout).Encode(failures); err != nil { panic(err) }
-}`.replace('package main', 'package main\nimport ("encoding/json"; "os")')
-    const directory = await mkdtemp(join(tmpdir(), 'pgsid-entity-check-'))
-    try {
+}
+`
+      await writeGoChecks(directory, go)
       await writeFile(join(directory, 'go.mod'), 'module entity-check\n\ngo 1.24\n')
       await writeFile(join(directory, 'main.go'), goSource)
       const { stdout } = await run(process.env.PGSID_GO_BINARY ?? 'go', ['run', '.'], {
@@ -948,7 +919,7 @@ func main() {
     } finally {
       await rm(directory, { recursive: true, force: true })
     }
-  })
+  }, 180_000)
 
   it('types partial Go fields with the configured SQL null representation', async () => {
     const catalog = await snapshotCatalog(pg)
@@ -957,20 +928,31 @@ func main() {
       'schema: schema.sql\nsql:\n  codegen:\n    go:\n      nulls: structs\n',
     )
     const context = createGoTypeContext('example.com/typed/schema', config, catalog, 'public')
-    const checks = renderGoSchemaChecks([table], 'main', [], [], catalog, config, context)
-    expect(checks).toMatch(/Id\s+CheckOptional\[int64\]/u)
-    expect(checks).toMatch(/LastName\s+CheckOptional\[pgsid\.Null\[string\]\]/u)
+    const checks = renderGoSchemaCheckArtifacts(
+      [table],
+      'main',
+      [],
+      [],
+      catalog,
+      config,
+      context,
+      'example.com/typed',
+    )
+    expect(checks.checks).toMatch(/Id\s+CheckOptional\[int64\]/u)
+    expect(checks.checks).toMatch(/LastName\s+CheckOptional\[pgsid\.Null\[string\]\]/u)
     const handle = catalog.domains.find((item) => item.name === 'handle')!
-    const standalone = renderGoSchemaChecks(
+    const standalone = renderGoSchemaCheckArtifacts(
       [],
       'main',
       catalog.domains,
       [handle],
       catalog,
       parseConfigString('schema: schema.sql\nsql:\n  codegen:\n    go: {}\n'),
+      undefined,
+      'example.com/typed/standalone',
     )
-    expect(standalone).toMatch(/Value\s+CheckOptional\[\*string\]/u)
-    const standaloneStructs = renderGoSchemaChecks(
+    expect(standalone.checks).toMatch(/Value\s+CheckOptional\[\*string\]/u)
+    const standaloneStructs = renderGoSchemaCheckArtifacts(
       [],
       'main',
       catalog.domains,
@@ -981,8 +963,9 @@ func main() {
         importPath: 'example.com/typed/pgsid/pgx',
         nullsImportPath: 'example.com/typed/pgsid',
       },
+      'example.com/typed/standalone',
     )
-    expect(standaloneStructs).toMatch(/Value\s+CheckOptional\[pgsid\.Null\[string\]\]/u)
+    expect(standaloneStructs.checks).toMatch(/Value\s+CheckOptional\[pgsid\.Null\[string\]\]/u)
     const directory = await mkdtemp(join(tmpdir(), 'pgsid-typed-check-'))
     try {
       await mkdir(join(directory, 'pgsid'))
@@ -992,8 +975,8 @@ func main() {
         await mkdir(dirname(artifact.path), { recursive: true })
         await writeFile(artifact.path, artifact.content)
       }
-      await writeFile(join(directory, 'checks.go'), checks)
-      await writeFile(join(directory, 'standalone', 'checks.go'), standaloneStructs)
+      await writeGoChecks(directory, checks)
+      await writeGoChecks(join(directory, 'standalone'), standaloneStructs)
       await writeFile(join(directory, 'main.go'), 'package main\nfunc main() {}\n')
       await writeFile(
         join(directory, 'checks_test.go'),
@@ -1019,7 +1002,7 @@ func TestPartialCheckInputs(t *testing.T) {
     } finally {
       await rm(directory, { recursive: true, force: true })
     }
-  })
+  }, 180_000)
 
   it('validates known INSERT inputs before generated query execution', async () => {
     const catalog = await snapshotCatalog(pg)
@@ -1112,6 +1095,11 @@ func TestPartialCheckInputs(t *testing.T) {
       const typesPath = join(typesDirectory, 'types.d.ts')
       await writeFile(runtimePath, typescript.runtime!)
       await writeFile(typesPath, typescript.types!)
+      for (const artifact of checkTypescriptArtifacts(typescript.checkRustFiles!)) {
+        const path = join(typesDirectory, 'checks-rust', artifact.path)
+        await mkdir(dirname(path), { recursive: true })
+        await writeFile(path, artifact.content)
+      }
       const program = ts.createProgram([runtimePath, typesPath], {
         target: ts.ScriptTarget.ES2022,
         module: ts.ModuleKind.NodeNext,
@@ -1125,40 +1113,58 @@ func TestPartialCheckInputs(t *testing.T) {
           .getPreEmitDiagnostics(program)
           .map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')),
       ).toEqual([])
+      await writeFile(join(typesDirectory, 'package.json'), '{"type":"module"}\n')
+      await run('node_modules/.bin/tsc', [
+        '--strict',
+        '--skipLibCheck',
+        '--target',
+        'es2022',
+        '--module',
+        'nodenext',
+        '--moduleResolution',
+        'nodenext',
+        '--outDir',
+        join(typesDirectory, 'js'),
+        runtimePath,
+        typesPath,
+      ])
+      const module = {
+        exports: (await import(
+          pathToFileURL(join(typesDirectory, 'js', 'query.js')).href
+        )) as Record<string, (...args: unknown[]) => Promise<unknown>>,
+      }
+      let queries = 0
+      const db = {
+        queryText: async () => {
+          queries++
+          return { rows: [], rowCount: 1 }
+        },
+      }
+      await expect(
+        module.exports['insertRegulated']!(db, { email: 'b', amount: 1 }),
+      ).rejects.toMatchObject({
+        code: '23514',
+        constraint: 'email_format',
+      })
+      expect(queries).toBe(0)
+      await expect(
+        module.exports['insertRegulated']!(db, { email: 'a', amount: -1 }),
+      ).rejects.toMatchObject({
+        code: '23514',
+        constraint: 'amount_minus',
+      })
+      expect(queries).toBe(0)
+      await expect(
+        module.exports['insertRegulated']!(db, { email: 'a', amount: 2147483647 }),
+      ).rejects.toMatchObject({ code: '22003', message: expect.stringContaining('out of range') })
+      expect(queries).toBe(0)
+      await module.exports['insertRegulated']!(db, { email: 'a', amount: 1 })
+      expect(queries).toBe(1)
+      await module.exports['insertRegulated']!(db, { email: null, amount: 1 })
+      expect(queries).toBe(2)
     } finally {
       await rm(typesDirectory, { recursive: true, force: true })
     }
-    const module = { exports: {} as Record<string, (...args: unknown[]) => Promise<unknown>> }
-    Function('module', 'exports', compiled.outputText)(module, module.exports)
-    let queries = 0
-    const db = {
-      queryText: async () => {
-        queries++
-        return { rows: [], rowCount: 1 }
-      },
-    }
-    await expect(
-      module.exports['insertRegulated']!(db, { email: 'b', amount: 1 }),
-    ).rejects.toMatchObject({
-      code: '23514',
-      constraint: 'email_format',
-    })
-    expect(queries).toBe(0)
-    await expect(
-      module.exports['insertRegulated']!(db, { email: 'a', amount: -1 }),
-    ).rejects.toMatchObject({
-      code: '23514',
-      constraint: 'amount_minus',
-    })
-    expect(queries).toBe(0)
-    await expect(
-      module.exports['insertRegulated']!(db, { email: 'a', amount: 2147483647 }),
-    ).rejects.toMatchObject({ code: '22003', message: expect.stringContaining('out of range') })
-    expect(queries).toBe(0)
-    await module.exports['insertRegulated']!(db, { email: 'a', amount: 1 })
-    expect(queries).toBe(1)
-    await module.exports['insertRegulated']!(db, { email: null, amount: 1 })
-    expect(queries).toBe(2)
 
     const rustQuery = renderTypescriptQueryArtifacts(
       [item],

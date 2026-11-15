@@ -15,6 +15,7 @@ import {
 import {
   bindProbe,
   hasUncertain,
+  readsSessionState,
   valueRepresentation,
 } from '../../scripts/check-measurements/probes.js'
 import {
@@ -89,8 +90,7 @@ it('evaluates timezone-enabled JSONPath calls until unavailable context is reach
     for (const plan of plans)
       expect(hasUncertain(plan.expression), plan.identity.constraint).toBe(false)
     for (const [index, plan] of plans.entries())
-      if (variants[Math.floor(index / 2)]!.tz)
-        expect(hasUncertain(portableCheckAtoms(plan.expression, false))).toBe(true)
+      if (variants[Math.floor(index / 2)]!.tz) expect(readsSessionState(plan.expression)).toBe(true)
     const group = prepareCheckRustGroup(plans, {
       defaultCollation: 'C',
       defaultCtype: 'C.UTF-8',

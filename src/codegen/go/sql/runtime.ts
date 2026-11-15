@@ -1,163 +1,57 @@
-import { goBitDependencies } from './bit-runtime.js'
-import { goTextDependencies } from './text-runtime.js'
-import { goScalarDependencies } from './scalar-runtime.js'
-import { floatMathCopyright } from '../../../sql-semantics/float-math-license.js'
-import { goFloatMathDependencies } from './float-math-runtime.js'
-import { readFileSync } from 'node:fs'
-import { numericMathCopyright } from '../../../sql-semantics/numeric-math-license.js'
-import { goDecimalMathDependencies } from './decimal-math-runtime.js'
-import { goDecimalDependencies } from './decimal-runtime.js'
-import { goUuidDependencies } from './uuid-runtime.js'
-import { goEnumDependencies } from './enum-runtime.js'
-import { goArrayDependencies } from './array-runtime.js'
-import { goJsonDependencies } from './json-runtime.js'
-import { goTemporalDependencies } from './temporal-runtime.js'
-import { goCheckDependencies } from './check-runtime.js'
-import { generatedRegexEngineSource } from '../../shared/regex-engine/source.js'
-
-const dependencies: Record<string, readonly string[]> = {
-  float8WidthBucket: ['SqlFloat', 'sqlIntegerRange'],
-  SqlInteger: [],
-  SqlBoolean: [],
-  SqlFloat: [],
-  sqlIntegerInput: ['SqlInteger'],
-  sqlIntegerRange: ['SqlInteger'],
-  sqlIntegerAdd: ['SqlInteger'],
-  sqlIntegerSub: ['SqlInteger'],
-  sqlIntegerMul: ['SqlInteger'],
-  sqlIntegerNeg: ['sqlIntegerRange'],
-  sqlIntegerAbs: ['sqlIntegerNeg', 'sqlIntegerRange'],
-  sqlIntegerCompare: ['SqlInteger'],
-  sqlIntegerDiv: ['sqlIntegerRange'],
-  sqlIntegerMod: ['sqlIntegerRange'],
-  sqlIntegerMagnitude: [],
-  sqlIntegerGcdMagnitude: [],
-  sqlIntegerGcd: ['SqlInteger', 'sqlIntegerMagnitude', 'sqlIntegerGcdMagnitude'],
-  sqlIntegerLcm: ['SqlInteger', 'sqlIntegerMagnitude', 'sqlIntegerGcdMagnitude'],
-  sqlComparisonResult: ['SqlInteger', 'SqlBoolean'],
+// The SQL value and result types generated CHECK adapters share, each with what it names.
+const declarations: Record<string, { dependencies: readonly string[]; source: string }> = {
+  SqlText: {
+    dependencies: [],
+    source: 'type SqlText struct {\n\tValue string\n\tValid bool\n\tError string\n}\n',
+  },
+  SqlInteger: {
+    dependencies: [],
+    source: 'type SqlInteger struct {\n\tValue int64\n\tValid bool\n\tError string\n}\n',
+  },
+  SqlBoolean: {
+    dependencies: [],
+    source: 'type SqlBoolean struct {\n\tValue bool\n\tValid bool\n\tError string\n}\n',
+  },
+  SqlFloat: {
+    dependencies: [],
+    source: 'type SqlFloat struct {\n\tValue float64\n\tValid bool\n\tError string\n}\n',
+  },
+  EvalValue: {
+    dependencies: [],
+    source:
+      'type EvalValue[T any] struct {\n\tCertain bool\n\tValue   T\n\t// Unimplemented marks an uncertain value the local evaluator does not compute although no\n\t// database state is needed; other uncertain values need the database.\n\tUnimplemented bool\n}\n',
+  },
+  EvalBool: {
+    dependencies: ['EvalValue', 'SqlBoolean'],
+    source: 'type EvalBool = EvalValue[SqlBoolean]\n',
+  },
+  evalBoolCertain: {
+    dependencies: ['EvalBool'],
+    source:
+      'func evalBoolCertain(value SqlBoolean) EvalBool { return EvalBool{Certain: true, Value: value} }\n',
+  },
+  evalBoolUncertain: {
+    dependencies: ['EvalBool'],
+    source: 'func evalBoolUncertain() EvalBool { return EvalBool{} }\n',
+  },
+  evalBoolUnimplemented: {
+    dependencies: ['EvalBool'],
+    source: 'func evalBoolUnimplemented() EvalBool { return EvalBool{Unimplemented: true} }\n',
+  },
 }
-for (const width of ['int2', 'int4', 'int8']) {
-  dependencies[`${width}Input`] = ['sqlIntegerInput']
-  for (const name of ['Add', 'Sub', 'Mul', 'Div', 'Mod', 'Neg', 'Abs']) {
-    dependencies[`${width}${name}`] = [`sqlInteger${name}`]
-  }
-  if (width !== 'int2') {
-    dependencies[`${width}Gcd`] = ['sqlIntegerGcd']
-    dependencies[`${width}Lcm`] = ['sqlIntegerLcm']
-  }
-  dependencies[`${width}Cast`] = ['sqlIntegerRange']
-  for (const name of ['And', 'Or', 'Xor', 'Shl', 'Shr', 'Not', 'Identity'])
-    dependencies[`${width}${name}`] = ['SqlInteger']
-}
-for (const name of ['Eq', 'Ne', 'Lt', 'Le', 'Gt', 'Ge']) {
-  dependencies[`integer${name}`] = ['sqlIntegerCompare', 'sqlComparisonResult']
-}
-
-for (const name of ['Input', 'Add', 'Sub', 'Mul', 'Div', 'Neg', 'Abs', 'Identity']) {
-  dependencies[`sqlFloat${name}`] =
-    name === 'Input' || name === 'Neg' || name === 'Abs' || name === 'Identity'
-      ? ['SqlFloat']
-      : ['SqlFloat', 'sqlFloatRound']
-  for (const width of ['float4', 'float8']) dependencies[`${width}${name}`] = [`sqlFloat${name}`]
-}
-dependencies.sqlFloatRound = []
-for (const name of ['Ceil', 'Floor', 'Round', 'Trunc', 'Sign', 'Sqrt', 'Cbrt'])
-  dependencies[`float8${name}`] = ['SqlFloat']
-dependencies.sqlFloatCbrt = []
-dependencies.float8Cbrt = ['SqlFloat', 'sqlFloatCbrt']
-dependencies.sqlFloatCompare = ['SqlFloat', 'SqlInteger']
-dependencies.sqlFloatToInteger = ['SqlFloat', 'SqlInteger']
-for (const width of ['float4', 'float8']) {
-  dependencies[`${width}FromInteger`] = ['SqlFloat', 'SqlInteger']
-  dependencies[`${width}From${width === 'float4' ? 'Float8' : 'Float4'}`] = ['SqlFloat']
-}
-for (const width of ['int2', 'int4', 'int8'])
-  dependencies[`${width}FromFloat`] = ['sqlFloatToInteger']
-for (const name of ['Eq', 'Ne', 'Lt', 'Le', 'Gt', 'Ge'])
-  dependencies[`float${name}`] = ['sqlFloatCompare', 'sqlComparisonResult']
-
-Object.assign(dependencies, goScalarDependencies)
-Object.assign(dependencies, goTextDependencies)
-Object.assign(dependencies, goBitDependencies)
-Object.assign(dependencies, goDecimalDependencies)
-Object.assign(dependencies, goDecimalMathDependencies)
-Object.assign(dependencies, goFloatMathDependencies)
-Object.assign(dependencies, goUuidDependencies)
-Object.assign(dependencies, goEnumDependencies)
-Object.assign(dependencies, goArrayDependencies)
-Object.assign(dependencies, goJsonDependencies)
-Object.assign(dependencies, goTemporalDependencies)
-Object.assign(dependencies, goCheckDependencies)
 
 export function goSqlRuntime(required: readonly string[], packageName = 'pgsidsql'): string {
-  const declarations = new Map(
-    [
-      'integer',
-      'floating-point',
-      'decimal',
-      'decimal-math',
-      'float-math',
-      'scalar',
-      'text',
-      'bit',
-      'uuid',
-      'enum',
-      'array',
-      'json',
-      'temporal',
-      'temporal-extract',
-      'temporal-arithmetic',
-      'temporal-overlaps',
-      'check',
-      'regex-engine-adapter',
-    ]
-      .flatMap((asset) =>
-        readFileSync(new URL(`./assets/${asset}.go`, import.meta.url), 'utf8')
-          .split(/\n(?=type |func )/)
-          .slice(1),
-      )
-      .map((declaration) => {
-        const name = /^(?:type|func) (\w+)/.exec(declaration)![1]!
-        return [name, declaration]
-      }),
-  )
   const included = new Set<string>()
   const output: string[] = []
   const include = (name: string) => {
     if (included.has(name)) return
-    if (name === 'regexEngine') {
-      included.add(name)
-      const source = generatedRegexEngineSource('go')
-      const header = 'package generated\n\nimport "unicode/utf8"\n\n'
-      if (!source.startsWith(header)) throw new Error('Unexpected generated Go regex engine header')
-      output.push(source.slice(header.length))
-      return
-    }
-    const dependency = dependencies[name]
-    const declaration = declarations.get(name)
-    if (!dependency || !declaration) throw new Error(`Missing Go SQL helper: ${name}`)
+    const declaration = declarations[name]
+    if (!Object.hasOwn(declarations, name) || !declaration)
+      throw new Error(`Missing Go SQL helper: ${name}`)
     included.add(name)
-    for (const helper of dependency) include(helper)
-    output.push(declaration)
+    for (const dependency of declaration.dependencies) include(dependency)
+    output.push(declaration.source)
   }
   for (const name of required) include(name)
-  const body = output.join('\n')
-  const imports = [
-    'bytes',
-    'math',
-    'math/big',
-    'regexp',
-    'sort',
-    'strconv',
-    'strings',
-    'unicode/utf8',
-  ].filter((name) => body.includes(`${name.split('/').at(-1)}.`))
-  if (body.includes('decimal.')) imports.push('github.com/shopspring/decimal')
-  const copyright =
-    (included.has('SqlDecimalMath') ||
-    included.has('textLikeMatch') ||
-    included.has('similarToEscapeRaw')
-      ? '/*\n' + numericMathCopyright + '\n*/\n'
-      : '') + (included.has('sqlFloatMathBits') ? '/*\n' + floatMathCopyright + '\n*/\n' : '')
-  return `${copyright}package ${packageName}\n${imports.length ? `import (${imports.map((name) => `\n"${name}"`).join('')}\n)\n` : ''}${body}`
+  return `package ${packageName}\n${output.join('\n')}`
 }

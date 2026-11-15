@@ -1,66 +1,48 @@
 import {
   BUILTIN_ARRAY_ELEMENT_TYPES,
   arrayType,
-  enumType,
   resolveArrayPolymorphicType,
-  type SqlExpression,
 } from '../../src/sql-semantics/expressions.js'
-import { floatMathCopyright } from '../../src/sql-semantics/float-math-license.js'
-import { numericMathCopyright } from '../../src/sql-semantics/numeric-math-license.js'
 import { scalarCases } from '../fixtures/sql-semantics/operations/scalar.js'
-import { PG18_BOOLEAN } from '../../src/postgres/builtins/boolean.generated.js'
-import { bitSignatures } from '../fixtures/sql-semantics/operations/bit-signatures.js'
-import {
-  byteaAccessSignatures,
-  byteaCastSignatures,
-  byteaLengthSignatures,
-  byteaSliceSignatures,
-  byteaLikeSignatures,
-  byteaOrderSignatures,
-  internalCharComparisonSignatures,
-  nameComparisonSignatures,
-  nameLikeSignatures,
-  textSignatures,
-} from '../fixtures/sql-semantics/operations/text-signatures.js'
-import { fileURLToPath } from 'node:url'
+import { textSignatures } from '../fixtures/sql-semantics/operations/text-signatures.js'
 import { numericCases, numericStressCases } from '../fixtures/sql-semantics/operations/numeric.js'
-import { observeFloat } from '../support/postgres/observe.js'
 import { sqlSemanticsCoverage } from '../../scripts/report-sql-semantics-coverage.js'
-import { execFile } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { promisify } from 'node:util'
-import ts from 'typescript'
 import { PGlite } from '@electric-sql/pglite'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { factory, identifier, printFile } from '../../src/codegen/typescript/ast.js'
-import { typescriptSqlBackend } from '../../src/codegen/typescript/sql/registry.js'
-import { typescriptSqlRuntime } from '../../src/codegen/typescript/sql/runtime.js'
-import { go, printGoFile } from '../../src/codegen/go/ast.js'
-import { goSqlBackend } from '../../src/codegen/go/sql/registry.js'
-import { goSqlRuntime } from '../../src/codegen/go/sql/runtime.js'
-import { emitSqlExpression } from '../../src/sql-semantics/expressions.js'
 import {
   integerAdditionCases,
   integerCompositionCases,
 } from '../fixtures/sql-semantics/operations/integer-addition.js'
 import { integerOperationCases } from '../fixtures/sql-semantics/operations/integer-operations.js'
-import { PG18_NUMERIC } from '../../src/postgres/builtins/numeric.generated.js'
-import { PG18_UUID } from '../../src/postgres/builtins/uuid.generated.js'
+import { operationCheck } from '../fixtures/sql-semantics/operations/check-form.js'
 import {
-  typescriptJsonFunctions,
-  typescriptJsonOperators,
-} from '../../src/codegen/typescript/sql/json.js'
-import {
-  typescriptTemporalFunctions,
-  typescriptTemporalOperators,
-} from '../../src/codegen/typescript/sql/temporal.js'
+  deploymentOperationChecks,
+  undecidedOperationChecks,
+} from '../fixtures/sql-semantics/operations/undecided-checks.js'
 import { observeSql } from '../support/postgres/observe.js'
-import type { SqlObservation } from '../support/postgres/observe.js'
-import { sharedTempDirectory } from '../../tools/test-run-temp.js'
+import { snapshotCatalog } from '../../src/catalog/snapshot.js'
+import { lowerTableCheck } from '../../src/sql-semantics/catalog-checks.js'
+import type { EvalBoolExpression } from '../../src/sql-semantics/check-expressions.js'
+import type { EvalExpression } from '../../src/sql-semantics/eval-expressions.js'
+import {
+  emitCheckRustEvaluator,
+  type CheckExecutionContext,
+} from '../../src/codegen/shared/check-rust-evaluator.js'
+import {
+  checkRustCallableNames,
+  prepareCheckRust,
+  prepareCheckRustGroup,
+} from '../../src/codegen/shared/check-rust-source.js'
+import { transpileCheckRustFiles } from '../../src/codegen/shared/check-rust-transpile.js'
+import { typescriptSqlRuntime } from '../../src/codegen/typescript/sql/runtime.js'
+import { goSqlRuntime } from '../../src/codegen/go/sql/runtime.js'
+import { builtinMetadata } from '../../src/postgres/builtins/inventory.js'
+import { captureRegexCharacterProfile } from '../../tools/check-rust/regex-profile.js'
+import { runCheckParity } from '../../tools/check-rust/parity.js'
 
-const run = promisify(execFile)
 const standardCases = [
   ...integerAdditionCases,
   ...integerCompositionCases,
@@ -80,202 +62,231 @@ async function initializePostgres(): Promise<void> {
   for (const sql of setupSql) await pg.exec(sql)
 }
 
-function typescriptProject(fixtures = cases): string {
-  const emitted = fixtures.map((fixture) =>
-    emitSqlExpression(fixture.expression, typescriptSqlBackend),
-  )
-  const helpers = emitted.flatMap((result) => result.helpers)
-  return printFile([
-    ...typescriptSqlRuntime(helpers),
-    ...emitted.map((result, index) =>
-      factory.createFunctionDeclaration(
-        [factory.createModifier(ts.SyntaxKind.ExportKeyword)],
-        undefined,
-        identifier(`evaluate${index}`),
-        undefined,
-        [],
-        undefined,
-        factory.createBlock([factory.createReturnStatement(result.value.expression)], true),
-      ),
-    ),
-  ])
-}
+// The cases are evaluated in batches, each compiled as one evaluator.
+const batchSize = 1500
+const batches = Array.from({ length: Math.ceil(cases.length / batchSize) }, (_, index) => {
+  const from = index * batchSize,
+    to = Math.min(cases.length, (index + 1) * batchSize)
+  return [`${from} to ${to}`, from, to] as const
+})
 
-function goProject(fixtures = cases): string {
-  const emitted = fixtures.map((fixture) => emitSqlExpression(fixture.expression, goSqlBackend))
-  return printGoFile({
-    package: 'main',
-    imports: [{ path: 'encoding/json' }, { path: 'os' }, { path: 'fmt' }, { path: 'math' }],
-    source:
-      goSqlRuntime(
-        [
-          ...emitted.flatMap((result) => result.helpers),
-          'sqlDecimalText',
-          'uuidText',
-          'enumText',
-          'arrayText',
-          'jsonText',
-          'jsonbText',
-          'dateText',
-          'timeText',
-          'timestampText',
-          'intervalText',
-          'timestamptzText',
-          'timetzText',
-        ],
-        'main',
-      ) +
-      `
-      ${Array.from(
-        { length: Math.ceil(fixtures.length / 128) },
-        (_, batch) =>
-          `func evaluateBatch${batch}() []any { return []any{${emitted
-            .slice(batch * 128, (batch + 1) * 128)
-            .map((_, i) => `evaluate${batch * 128 + i}()`)
-            .join(',')}} }`,
-      ).join('\n')}
-      func evaluatedValues() []any {
-        values := make([]any, 0, ${fixtures.length})
-        ${Array.from({ length: Math.ceil(fixtures.length / 128) }, (_, batch) => `values = append(values, evaluateBatch${batch}()...)`).join('\n')}
-        return values
-      }
-      func main() {
-        results := []map[string]string{}
-        types := []string{${fixtures.map((fixture) => JSON.stringify(fixture.expression.type)).join(',')}}
-        for index, raw := range evaluatedValues() {
-          result := map[string]string{}
-          switch value := raw.(type) {
-          case SqlInteger:
-            if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
-            } else if !value.Valid { result["kind"] = "null"
-            } else { result["kind"] = "value"; result["value"] = strconv.FormatInt(value.Value, 10) }
-          case SqlText:
-            if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
-            } else if !value.Valid { result["kind"] = "null"
-            } else { result["kind"] = "value"; result["value"] = value.Value }
-          case SqlBoolean:
-            if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
-            } else if !value.Valid { result["kind"] = "null"
-            } else { result["kind"] = "value"; result["value"] = strconv.FormatBool(value.Value) }
-          case SqlDecimal:
-            if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
-            } else if !value.Valid { result["kind"] = "null"
-            } else { result["kind"] = "value"; result["value"] = sqlDecimalText(value) }
-          case SqlFloat:
-            if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
-            } else if !value.Valid { result["kind"] = "null"
-            } else {
-              result["kind"] = "float"; result["type"] = types[index]
-              if math.IsNaN(value.Value) { result["value"] = "NaN"
-              } else if math.IsInf(value.Value, 1) { result["value"] = "Infinity"
-              } else if math.IsInf(value.Value, -1) { result["value"] = "-Infinity"
-              } else if types[index] == "pg_catalog.float4" { result["value"] = fmt.Sprintf("%08x", math.Float32bits(float32(value.Value)))
-              } else { result["value"] = fmt.Sprintf("%016x", math.Float64bits(value.Value)) }
-            }
-          case SqlUuid:
-            if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
-            } else if !value.Valid { result["kind"] = "null"
-            } else { result["kind"] = "value"; result["value"] = uuidText(value).Value }
-          case SqlEnum:
-            if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
-            } else if !value.Valid { result["kind"] = "null"
-            } else { result["kind"] = "value"; result["value"] = enumText(value).Value }
-          case SqlArray:
-            if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
-            } else if !value.Valid { result["kind"] = "null"
-            } else { result["kind"] = "value"; result["value"] = arrayText(value).Value }
-          case SqlJson:
-            if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
-            } else if !value.Valid { result["kind"] = "null"
-            } else { result["kind"] = "value"; result["value"] = jsonText(value).Value }
-          case SqlJsonb:
-            if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
-            } else if !value.Valid { result["kind"] = "null"
-            } else { result["kind"] = "value"; result["value"] = jsonbText(value).Value }
-          case SqlDate:
-            if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
-            } else if !value.Valid { result["kind"] = "null"
-            } else { result["kind"] = "value"; result["value"] = dateText(value).Value }
-          case SqlTime:
-            if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
-            } else if !value.Valid { result["kind"] = "null"
-            } else { result["kind"] = "value"; result["value"] = timeText(value).Value }
-          case SqlTimestamp:
-            if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
-            } else if !value.Valid { result["kind"] = "null"
-            } else { result["kind"] = "value"; result["value"] = timestampText(value).Value }
-          case SqlInterval:
-            if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
-            } else if !value.Valid { result["kind"] = "null"
-            } else { result["kind"] = "value"; result["value"] = intervalText(value).Value }
-          case SqlTimestamptz:
-            if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
-            } else if !value.Valid { result["kind"] = "null"
-            } else { result["kind"] = "value"; result["value"] = timestamptzText(value).Value }
-          case SqlTimeTz:
-            if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
-            } else if !value.Valid { result["kind"] = "null"
-            } else { result["kind"] = "value"; result["value"] = timetzText(value).Value }
-          default: panic("unexpected SQL value type")
-          }
-          results = append(results, result)
-        }
-        if err := json.NewEncoder(os.Stdout).Encode(results); err != nil { panic(err) }
-      }`,
-    declarations: emitted.map((result, index) =>
-      go.function(
-        `evaluate${index}`,
-        [],
-        [
-          {
-            type: go.ident(
-              result.value.type === 'pg_catalog.bool'
-                ? 'SqlBoolean'
-                : /^pg_catalog.float[48]$/.test(result.value.type)
-                  ? 'SqlFloat'
-                  : result.value.type === 'pg_catalog."numeric"'
-                    ? 'SqlDecimal'
-                    : [
-                          'pg_catalog.text',
-                          'pg_catalog."varchar"',
-                          'pg_catalog.bpchar',
-                          'pg_catalog.name',
-                          'pg_catalog.bytea',
-                          'pg_catalog."bit"',
-                          'pg_catalog.varbit',
-                        ].includes(result.value.type)
-                      ? 'SqlText'
-                      : result.value.type === 'pg_catalog.uuid'
-                        ? 'SqlUuid'
-                        : result.value.type === 'pg_catalog."json"'
-                          ? 'SqlJson'
-                          : result.value.type === 'pg_catalog.jsonb'
-                            ? 'SqlJsonb'
-                            : result.value.type === 'pg_catalog.date'
-                              ? 'SqlDate'
-                              : result.value.type === 'pg_catalog."time"'
-                                ? 'SqlTime'
-                                : result.value.type === 'pg_catalog."timestamp"'
-                                  ? 'SqlTimestamp'
-                                  : result.value.type === 'pg_catalog."interval"'
-                                    ? 'SqlInterval'
-                                    : result.value.type === 'pg_catalog.timestamptz'
-                                      ? 'SqlTimestamptz'
-                                      : result.value.type === 'pg_catalog.timetz'
-                                        ? 'SqlTimeTz'
-                                        : result.value.type.startsWith('enum:')
-                                          ? 'SqlEnum'
-                                          : result.value.type.startsWith('array:')
-                                            ? 'SqlArray'
-                                            : 'SqlInteger',
-            ),
-          },
-        ],
-        [{ kind: 'return', expressions: [result.value.expression] }],
-      ),
-    ),
-  })
-}
+// Cases that each exercise one family's operations alone.
+const isolatedCaseNames = [
+  ...textSignatures.map((signature) => `text utility ${signature} 0`),
+  'text pg_catalog.bpchar CASE padding',
+  'text pg_catalog."varchar" COALESCE padding',
+  'boolean literal false',
+  'boolean and null/false',
+  'boolean or null/true',
+  'boolean not null',
+  'boolean comparison < false/true',
+  'text literal 8',
+  'text length 8',
+  'text octet_length 8',
+  'text comparison < 8/9',
+  'text comparison || 8/9',
+  'null-test pg_catalog.text 0/false',
+  'null-test pg_catalog.int4 0/true',
+  'case pg_catalog.text first match',
+  'case pg_catalog.int4 true',
+  'case pg_catalog.float4 true',
+  'case pg_catalog.float8 true',
+  'case pg_catalog."numeric" true',
+  'case pg_catalog.bool true',
+  'coalesce pg_catalog.text 1',
+  'coalesce pg_catalog.int4 1',
+  'coalesce pg_catalog.float4 1',
+  'coalesce pg_catalog.float8 1',
+  'coalesce pg_catalog."numeric" 1',
+  'coalesce pg_catalog.bool 1',
+  'uuid input 3',
+  'uuid operator < 0',
+  'uuid function eq',
+  'uuid cmp 2',
+  'uuid extract version 2',
+  'uuid from text 1',
+  'uuid to text 1',
+  'uuid null test',
+  'uuid case',
+  'uuid coalesce',
+  'enum input 3',
+  'enum operator < 0',
+  'enum declaration order differs from lexical order beta',
+  'enum from text 1',
+  'enum to text 3',
+  'enum null test',
+  'enum case',
+  'enum coalesce',
+  'array input 6',
+  'array cardinality 2',
+  'array dims 4',
+  'array lower 4/1',
+  'array comparison > 2',
+  'array contains 0',
+  'array concat 7',
+  'array subscript 5',
+  'array null test',
+  'array case',
+  'array coalesce',
+  'array slice multidimensional',
+  'array assign 1',
+  'array assign multidimensional',
+  'array append 0',
+  'array prepend 2',
+  'array scalar concat append',
+  'array position 0',
+  'array positions 1',
+  'array remove 0',
+  'array replace 1',
+  'array fill custom bounds',
+  'array trim 1',
+  'array reverse multidimensional',
+  'array sort 3',
+  'array sort multidimensional',
+  'array anycompatible int2 int4',
+  'array anycompatible int8 numeric',
+  'array anycompatible int4 float4',
+  'array anycompatible float4 float8',
+  'array anycompatible text varchar',
+  'array anycompatible varchar bpchar',
+  'json input 11',
+  'jsonb input 11',
+  'json typeof object',
+  'jsonb typeof number',
+  'json array length',
+  'json object field 0',
+  'jsonb object field text 2',
+  'json array element 3',
+  'jsonb array element on scalar',
+  'json path 2',
+  'jsonb path text 4',
+  'jsonb operator < 4',
+  'jsonb cmp 0',
+  'jsonb contains 1',
+  'jsonb exists 4',
+  'jsonb exists all 1',
+  'json from text 1',
+  'jsonb to json 2',
+  'json null test',
+  'json case',
+  'jsonb coalesce',
+  'jsonb concat 0',
+  'jsonb delete key',
+  'jsonb set replace',
+  'jsonb insert before',
+  'jsonb set_lax delete',
+  'json strip nulls',
+  'jsonb pretty object',
+  'jsonb to int4',
+  'json object pairs',
+  'to json array',
+  'json build array values',
+  'json build object values',
+  'bytea order operator:["pg_catalog","="](pg_catalog.bytea,pg_catalog.bytea) 0',
+  'bytea order function:["pg_catalog","byteacmp"](pg_catalog.bytea,pg_catalog.bytea) 3',
+  'bytea order operator:["pg_catalog","||"](pg_catalog.bytea,pg_catalog.bytea) 0',
+  'bytea length function:["pg_catalog","length"](pg_catalog.bytea) 7',
+  'bytea length function:["pg_catalog","bit_length"](pg_catalog.bytea) 3',
+  'bytea length function:["pg_catalog","bit_count"](pg_catalog.bytea) 4',
+  'bytea slice substring 2/4/2',
+  'bytea position 0',
+  'bytea overlay 2',
+  'bytea trim btrim 0',
+  'bytea reverse 3',
+  'bytea get byte 0',
+  'bytea get bit 4',
+  'bytea set byte 2',
+  'bytea set bit 1',
+  'bytea from pg_catalog.int2 3',
+  'bytea to int8 18',
+  'bytea encode 10',
+  'bytea decode 5',
+  'bit compare operator:["pg_catalog","<"](pg_catalog."bit",pg_catalog."bit") 2',
+  'bit logic operator:["pg_catalog","&"](pg_catalog."bit",pg_catalog."bit") 0',
+  'bit shift operator:["pg_catalog","<<"](pg_catalog."bit",pg_catalog.int4) 2',
+  'bit from int8 2',
+  'varbit typmod 2',
+  'date input 1',
+  'date operator < 0',
+  'date function eq',
+  'date cmp 1',
+  'date finite infinity',
+  'make date',
+  'date null test',
+  'date case',
+  'date coalesce',
+  'time input 3',
+  'time operator < 0',
+  'time cmp 1',
+  'make time',
+  'timestamp input 2',
+  'timestamp operator < 0',
+  'timestamp finite',
+  'make timestamp',
+  'timestamp coalesce',
+  'interval input 6',
+  'interval operator = 0',
+  'interval cmp 0',
+  'interval finite infinity',
+  'make interval',
+  'interval case',
+  ...[
+    'int2',
+    'int8',
+    'float4',
+    'float8',
+    'numeric',
+    'boolean',
+    'text',
+    'varchar',
+    'bpchar',
+    'uuid',
+    'enum',
+  ].flatMap((family) => [
+    `polymorphic array ${family} input`,
+    `polymorphic array ${family} ordering`,
+    `polymorphic array ${family} subscript`,
+  ]),
+  'numeric utility scale 1.2300',
+  'numeric utility min_scale 1.2300',
+  'numeric utility trim_scale 1.2300',
+  'numeric width_bucket boundary 1',
+  'float width_bucket boundary 1',
+  'float math exp 3',
+  'float math ln 3',
+  'float math log10 3',
+  'float math power 5/5',
+  'pg_catalog.float4 literal 3',
+  'pg_catalog.float4/pg_catalog.float8 / 0',
+  'pg_catalog.float4/pg_catalog.float8 = 0',
+  'pg_catalog.float8 to pg_catalog.float4 3',
+  'pg_catalog.float4 to pg_catalog.int8 0',
+  'pg_catalog.int8 to pg_catalog.float4 1',
+  'pg_catalog.int8 gcd 12/18',
+  'pg_catalog.int8 lcm 12/18',
+  'pg_catalog.int2 shift << 1/15',
+  'pg_catalog.int8 bitwise # -1/3',
+  'pg_catalog.int4 integer unary ~ -1',
+  'float8 utility round 19',
+  'float8 utility sqrt 3',
+  'float8 utility cbrt 3',
+  'float8 utility sign 14',
+  'numeric parsing: parse 1.2300',
+  'numeric finite arithmetic: add 0.1 / 0.2',
+  'numeric comparisons: eq NaN / NaN',
+  'numeric rounding: round -1.005 at 2',
+  'numeric function gcd 12.00/18.0',
+  'numeric to pg_catalog.int8 2.5',
+  'pg_catalog.float4 to numeric 0.1',
+  'numeric to pg_catalog.float4 7.038531e-26',
+  'numeric typmod 3/2 9.995',
+  'numeric math sqrt 2',
+  'numeric math power 2 / 10',
+  'numeric math exp 1',
+  'numeric math ln 2',
+  'numeric math log10 2',
+  'numeric math log 2 / 1.00000000000000000001',
+]
 
 describe('generated PostgreSQL scalar evaluation', () => {
   beforeAll(async () => {
@@ -298,583 +309,233 @@ describe('generated PostgreSQL scalar evaluation', () => {
     },
   )
 
-  it(
-    'executes the generated TypeScript against the shared cases',
-    { timeout: 120000 },
-    async () => {
-      const source = typescriptProject()
-      const output = ts.transpileModule(source, {
-        compilerOptions: {
-          target: ts.ScriptTarget.ES2022,
-          module: ts.ModuleKind.CommonJS,
-          esModuleInterop: true,
-        },
-      }).outputText
-      const script =
-        output +
-        `\n[${cases.map((_, index) => `evaluate${index}`).join(',')}].map((fn,index) => {
-      try { const value = fn(); const type = resultTypes[index]; return value === null ? { kind: 'null' } : type === 'pg_catalog.float4' || type === 'pg_catalog.float8' ? observeFloat(value,type) : { kind: 'value', value: value.toString() } }
-      catch (error) { return { kind: 'error', code: error.code } }
-    })`
-      const directory = await mkdtemp(join(tmpdir(), 'pgsid-sql-semantics-typescript-run-'))
-      try {
-        const path = join(directory, 'run.cjs'),
-          resultPath = join(directory, 'results.json')
-        await writeFile(
-          path,
-          `
-        const { runInNewContext } = require('node:vm');
-        const { createRequire } = require('node:module');
-        const { writeFileSync } = require('node:fs');
-        const results = runInNewContext(${JSON.stringify(script)}, {
-          require: createRequire(${JSON.stringify(fileURLToPath(import.meta.url))}),
-          exports: {}, observeFloat: ${observeFloat.toString()},
-          resultTypes: ${JSON.stringify(cases.map((fixture) => fixture.expression.type))}
-        });
-        writeFileSync(${JSON.stringify(resultPath)}, JSON.stringify(results));
-      `,
+  describe('through the CHECK evaluator', () => {
+    let catalogPg: PGlite
+    let context: CheckExecutionContext
+
+    // Each case becomes a stored CHECK, bound from the definition PostgreSQL keeps as a project's
+    // catalog would hold it. A case PostgreSQL rejects while defining the CHECK, such as a literal
+    // out of its type's range, is bound from its source instead.
+    const bindStored = async (
+      fixtures: readonly (typeof cases)[number][],
+      names: readonly string[],
+    ) => {
+      await catalogPg.exec(
+        'DROP TABLE IF EXISTS operation_cases; CREATE TABLE operation_cases (unused boolean)',
+      )
+      const rejected = new Set<string>()
+      for (const [index, fixture] of fixtures.entries())
+        try {
+          await catalogPg.exec(
+            `ALTER TABLE operation_cases ADD CONSTRAINT ${names[index]} CHECK (${operationCheck(fixture).sql})`,
+          )
+        } catch {
+          rejected.add(names[index]!)
+        }
+      const catalog = await snapshotCatalog(catalogPg)
+      const table = catalog.tables.find((item) => item.name === 'operation_cases')!
+      return names.map((name, index) => {
+        const plan = lowerTableCheck(
+          table,
+          rejected.has(name)
+            ? {
+                name,
+                type: 'check',
+                definition: `CHECK (${operationCheck(fixtures[index]!).sql})`,
+              }
+            : table.constraints.find((constraint) => constraint.name === name)!,
+          catalog.enums,
+          catalog.domains,
+          rejected.has(name) ? 'source' : 'stored',
+          catalog.rangeTypes,
         )
-        await run(process.execPath, [path], { timeout: 110000 })
-        const results: SqlObservation[] = JSON.parse(await readFile(resultPath, 'utf8'))
-        expect(results).toHaveLength(cases.length)
-        for (const [index, fixture] of cases.entries())
-          expect(results[index], fixture.name).toEqual(fixture.expected)
-      } finally {
-        await rm(directory, { recursive: true, force: true })
+        return plan && plan.expression.kind !== 'uncertain' ? plan.expression : null
+      })
+    }
+
+    // The settings PostgreSQL observed the cases under, as a project declares them.
+    beforeAll(async () => {
+      catalogPg = await PGlite.create()
+      await catalogPg.exec(`SET timezone = 'UTC'`)
+      for (const sql of setupSql) await catalogPg.exec(sql)
+      const setting = async (name: string) =>
+        (
+          await catalogPg.query<{ value: string }>(
+            `SELECT pg_catalog.current_setting('${name}') AS value`,
+          )
+        ).rows[0]!.value
+      expect(await setting('DateStyle')).toBe('ISO, MDY')
+      expect(await setting('IntervalStyle')).toBe('postgres')
+      expect(await setting('extra_float_digits')).toBe('1')
+      expect(await setting('client_encoding')).toBe('UTF8')
+      context = {
+        timeLocale: 'C',
+        timeZoneAbbreviations: 'Default',
+        timeZone: await setting('TimeZone'),
+        intervalStyle: 'postgres',
+        dateStyle: { format: 'ISO', order: 'MDY' },
+        byteaOutput: (await setting('bytea_output')) as 'hex',
+        defaultCollation: 'C',
+        defaultCtype: 'C.UTF-8',
+        regexCharacterProfile: await captureRegexCharacterProfile(catalogPg),
+        serverEncoding: 'UTF8',
+        arrayNulls: true,
+        nativeByteOrder: 'little',
+        maxIdentifierBytes: Number(await setting('max_identifier_length')),
+        trigonometry: 'fdlibm',
+        mathLibrary: 'musl',
+        extraFloatDigits: 1,
+        numericLocale: 'C',
+        moneyLocale: 'C',
+        xpathRecursionLimit: 5000,
+        clientEncoding: 'UTF8',
       }
-    },
-  )
+    })
 
-  it('typechecks the complete generated TypeScript project', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'pgsid-sql-semantics-typescript-'))
-    try {
-      await symlink(
-        fileURLToPath(new URL('../../node_modules', import.meta.url)),
-        join(directory, 'node_modules'),
-        'dir',
-      )
-      const path = join(directory, 'project.ts')
-      await writeFile(path, typescriptProject())
-      const program = ts.createProgram([path], {
-        strict: true,
-        noEmit: true,
-        target: ts.ScriptTarget.ES2022,
-        module: ts.ModuleKind.ESNext,
-        moduleResolution: ts.ModuleResolutionKind.Bundler,
-        esModuleInterop: true,
-        types: [],
-        lib: ['lib.es2022.d.ts'],
-        skipLibCheck: true,
-      })
-      expect(
-        ts
-          .getPreEmitDiagnostics(program)
-          .map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')),
-      ).toEqual([])
-    } finally {
-      await rm(directory, { recursive: true, force: true })
-    }
-  })
+    afterAll(async () => {
+      await catalogPg.close()
+    })
 
-  it('executes the generated Go against the shared cases', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'pgsid-sql-semantics-'))
-    try {
-      await writeFile(
-        join(directory, 'go.mod'),
-        await readFile(new URL('../fixtures/sql-semantics/projects/go.mod', import.meta.url)),
-      )
-      await writeFile(
-        join(directory, 'go.sum'),
-        await readFile(new URL('../fixtures/sql-semantics/projects/go.sum', import.meta.url)),
-      )
-      await writeFile(join(directory, 'main.go'), goProject())
-      const { stdout } = await run(process.env.PGSID_GO_BINARY ?? 'go', ['run', '.'], {
-        cwd: directory,
-        maxBuffer: 16 * 1024 * 1024,
-        timeout: 60000,
-        env: {
-          ...process.env,
-          GOCACHE: join(sharedTempDirectory, 'pgsid-sql-semantics-go-cache'),
-          GOTOOLCHAIN: 'local',
-          GOMODCACHE:
-            process.env.GOMODCACHE ?? join(sharedTempDirectory, 'pgsid-decimal-go-mod-cache'),
-          GOFLAGS: '-mod=readonly',
-        },
-      })
-      const results: SqlObservation[] = JSON.parse(stdout)
-      expect(results).toHaveLength(cases.length)
-      for (const [index, fixture] of cases.entries())
-        expect(results[index], fixture.name).toEqual(fixture.expected)
-    } finally {
-      await rm(directory, { recursive: true, force: true })
-    }
-  })
+    it.each(batches)(
+      'evaluates cases %s in every target',
+      async (_, from, to) => {
+        const batch = cases.slice(from, to)
+        const names = batch.map((_, index) => `case_${from + index}`)
+        const expressions = await bindStored(batch, names)
+        const plans: Parameters<typeof prepareCheckRustGroup>[0][number][] = []
+        const fixtures: Parameters<typeof runCheckParity>[4][number][] = []
+        const undecided: Record<string, string> = {}
+        for (const [index, fixture] of batch.entries()) {
+          const expression = expressions[index]
+          if (!expression) {
+            undecided[fixture.name] = 'unbound'
+            continue
+          }
+          const prepared = prepareCheckRust(expression, undefined, context)
+          if (prepared.kind === 'unsupported') {
+            undecided[fixture.name] = prepared.reason
+            continue
+          }
+          plans.push({
+            expression,
+            identity: {
+              schema: 'public',
+              kind: 'table',
+              owner: 'operation_cases',
+              constraint: names[index]!,
+            },
+          })
+          fixtures.push({
+            name: names[index]!,
+            row: {},
+            expected: Object.hasOwn(deploymentOperationChecks, fixture.name)
+              ? { kind: 'Unknown' }
+              : operationCheck(fixture).expected,
+          })
+        }
+        expect(undecided).toEqual(
+          Object.fromEntries(
+            batch.flatMap((fixture) =>
+              Object.hasOwn(undecidedOperationChecks, fixture.name)
+                ? [[fixture.name, undecidedOperationChecks[fixture.name]!]]
+                : [],
+            ),
+          ),
+        )
+        const directory = await mkdtemp(join(tmpdir(), 'pgsid-operation-checks-'))
+        try {
+          await runCheckParity(
+            directory,
+            'operation_checks',
+            prepareCheckRustGroup(plans, context),
+            fixtures.map((fixture) => fixture.name),
+            fixtures,
+          )
+        } finally {
+          await rm(directory, { recursive: true, force: true })
+        }
+      },
+      // The translated TypeScript takes minutes on the extreme-precision numeric cases, about
+      // 400 seconds for the square root of 1e131071 alone.
+      1_800_000,
+    )
 
-  it('compiles isolated expression programs with only their required helpers and imports', async () => {
-    const names = [
-      ...textSignatures.map((signature) => `text utility ${signature} 0`),
-      'text pg_catalog.bpchar CASE padding',
-      'text pg_catalog."varchar" COALESCE padding',
-      'boolean literal false',
-      'boolean and null/false',
-      'boolean or null/true',
-      'boolean not null',
-      'boolean comparison < false/true',
-      'text literal 8',
-      'text length 8',
-      'text octet_length 8',
-      'text comparison < 8/9',
-      'text comparison || 8/9',
-      'null-test pg_catalog.text 0/false',
-      'null-test pg_catalog.int4 0/true',
-      'case pg_catalog.text first match',
-      'case pg_catalog.int4 true',
-      'case pg_catalog.float4 true',
-      'case pg_catalog.float8 true',
-      'case pg_catalog."numeric" true',
-      'case pg_catalog.bool true',
-      'coalesce pg_catalog.text 1',
-      'coalesce pg_catalog.int4 1',
-      'coalesce pg_catalog.float4 1',
-      'coalesce pg_catalog.float8 1',
-      'coalesce pg_catalog."numeric" 1',
-      'coalesce pg_catalog.bool 1',
-      'uuid input 3',
-      'uuid operator < 0',
-      'uuid function eq',
-      'uuid cmp 2',
-      'uuid extract version 2',
-      'uuid from text 1',
-      'uuid to text 1',
-      'uuid null test',
-      'uuid case',
-      'uuid coalesce',
-      'enum input 3',
-      'enum operator < 0',
-      'enum declaration order differs from lexical order beta',
-      'enum from text 1',
-      'enum to text 3',
-      'enum null test',
-      'enum case',
-      'enum coalesce',
-      'array input 6',
-      'array cardinality 2',
-      'array dims 4',
-      'array lower 4/1',
-      'array comparison > 2',
-      'array contains 0',
-      'array concat 7',
-      'array subscript 5',
-      'array null test',
-      'array case',
-      'array coalesce',
-      'array slice multidimensional',
-      'array assign 1',
-      'array assign multidimensional',
-      'array append 0',
-      'array prepend 2',
-      'array scalar concat append',
-      'array position 0',
-      'array positions 1',
-      'array remove 0',
-      'array replace 1',
-      'array fill custom bounds',
-      'array trim 1',
-      'array reverse multidimensional',
-      'array sort 3',
-      'array sort multidimensional',
-      'array anycompatible int2 int4',
-      'array anycompatible int8 numeric',
-      'array anycompatible int4 float4',
-      'array anycompatible float4 float8',
-      'array anycompatible text varchar',
-      'array anycompatible varchar bpchar',
-      'json input 11',
-      'jsonb input 11',
-      'json typeof object',
-      'jsonb typeof number',
-      'json array length',
-      'json object field 0',
-      'jsonb object field text 2',
-      'json array element 3',
-      'jsonb array element on scalar',
-      'json path 2',
-      'jsonb path text 4',
-      'jsonb operator < 4',
-      'jsonb cmp 0',
-      'jsonb contains 1',
-      'jsonb exists 4',
-      'jsonb exists all 1',
-      'json from text 1',
-      'jsonb to json 2',
-      'json null test',
-      'json case',
-      'jsonb coalesce',
-      'jsonb concat 0',
-      'jsonb delete key',
-      'jsonb set replace',
-      'jsonb insert before',
-      'jsonb set_lax delete',
-      'json strip nulls',
-      'jsonb pretty object',
-      'jsonb to int4',
-      'json object pairs',
-      'to json array',
-      'json build array values',
-      'json build object values',
-      'bytea order operator:["pg_catalog","="](pg_catalog.bytea,pg_catalog.bytea) 0',
-      'bytea order function:["pg_catalog","byteacmp"](pg_catalog.bytea,pg_catalog.bytea) 3',
-      'bytea order operator:["pg_catalog","||"](pg_catalog.bytea,pg_catalog.bytea) 0',
-      'bytea length function:["pg_catalog","length"](pg_catalog.bytea) 7',
-      'bytea length function:["pg_catalog","bit_length"](pg_catalog.bytea) 3',
-      'bytea length function:["pg_catalog","bit_count"](pg_catalog.bytea) 4',
-      'bytea slice substring 2/4/2',
-      'bytea position 0',
-      'bytea overlay 2',
-      'bytea trim btrim 0',
-      'bytea reverse 3',
-      'bytea get byte 0',
-      'bytea get bit 4',
-      'bytea set byte 2',
-      'bytea set bit 1',
-      'bytea from pg_catalog.int2 3',
-      'bytea to int8 18',
-      'bytea encode 10',
-      'bytea decode 5',
-      'bit compare operator:["pg_catalog","<"](pg_catalog."bit",pg_catalog."bit") 2',
-      'bit logic operator:["pg_catalog","&"](pg_catalog."bit",pg_catalog."bit") 0',
-      'bit shift operator:["pg_catalog","<<"](pg_catalog."bit",pg_catalog.int4) 2',
-      'bit from int8 2',
-      'varbit typmod 2',
-      'date input 1',
-      'date operator < 0',
-      'date function eq',
-      'date cmp 1',
-      'date finite infinity',
-      'make date',
-      'date null test',
-      'date case',
-      'date coalesce',
-      'time input 3',
-      'time operator < 0',
-      'time cmp 1',
-      'make time',
-      'timestamp input 2',
-      'timestamp operator < 0',
-      'timestamp finite',
-      'make timestamp',
-      'timestamp coalesce',
-      'interval input 6',
-      'interval operator = 0',
-      'interval cmp 0',
-      'interval finite infinity',
-      'make interval',
-      'interval case',
-      ...[
-        'int2',
-        'int8',
-        'float4',
-        'float8',
-        'numeric',
-        'boolean',
-        'text',
-        'varchar',
-        'bpchar',
-        'uuid',
-        'enum',
-      ].flatMap((family) => [
-        `polymorphic array ${family} input`,
-        `polymorphic array ${family} ordering`,
-        `polymorphic array ${family} subscript`,
-      ]),
-      'numeric utility scale 1.2300',
-      'numeric utility min_scale 1.2300',
-      'numeric utility trim_scale 1.2300',
-      'numeric width_bucket boundary 1',
-      'float width_bucket boundary 1',
-      'float math exp 3',
-      'float math ln 3',
-      'float math log10 3',
-      'float math power 5/5',
-      'pg_catalog.float4 literal 3',
-      'pg_catalog.float4/pg_catalog.float8 / 0',
-      'pg_catalog.float4/pg_catalog.float8 = 0',
-      'pg_catalog.float8 to pg_catalog.float4 3',
-      'pg_catalog.float4 to pg_catalog.int8 0',
-      'pg_catalog.int8 to pg_catalog.float4 1',
-      'pg_catalog.int8 gcd 12/18',
-      'pg_catalog.int8 lcm 12/18',
-      'pg_catalog.int2 shift << 1/15',
-      'pg_catalog.int8 bitwise # -1/3',
-      'pg_catalog.int4 integer unary ~ -1',
-      'float8 utility round 19',
-      'float8 utility sqrt 3',
-      'float8 utility cbrt 3',
-      'float8 utility sign 14',
-      'numeric parsing: parse 1.2300',
-      'numeric finite arithmetic: add 0.1 / 0.2',
-      'numeric comparisons: eq NaN / NaN',
-      'numeric rounding: round -1.005 at 2',
-      'numeric function gcd 12.00/18.0',
-      'numeric to pg_catalog.int8 2.5',
-      'pg_catalog.float4 to numeric 0.1',
-      'numeric to pg_catalog.float4 7.038531e-26',
-      'numeric typmod 3/2 9.995',
-      'numeric math sqrt 2',
-      'numeric math power 2 / 10',
-      'numeric math exp 1',
-      'numeric math ln 2',
-      'numeric math log10 2',
-      'numeric math log 2 / 1.00000000000000000001',
-    ]
-    const directory = await mkdtemp(join(tmpdir(), 'pgsid-isolated-numerics-'))
-    try {
-      await symlink(
-        fileURLToPath(new URL('../../node_modules', import.meta.url)),
-        join(directory, 'node_modules'),
-        'dir',
-      )
-      await writeFile(
-        join(directory, 'go.mod'),
-        await readFile(new URL('../fixtures/sql-semantics/projects/go.mod', import.meta.url)),
-      )
-      await writeFile(
-        join(directory, 'go.sum'),
-        await readFile(new URL('../fixtures/sql-semantics/projects/go.sum', import.meta.url)),
-      )
-      const paths: string[] = []
-      for (const [index, name] of names.entries()) {
+    it('binds each isolated case and pins the evaluator it generates', async () => {
+      const fixtures = isolatedCaseNames.map((name) => {
         const fixture = standardCases.find((fixture) => fixture.name === name)
         if (!fixture) throw new Error(`Missing isolated fixture: ${name}`)
-        const typescript = emitSqlExpression(fixture.expression, typescriptSqlBackend)
-        const path = join(directory, `numeric${index}.ts`)
-        paths.push(path)
-        await writeFile(
-          path,
-          printFile([
-            ...typescriptSqlRuntime(typescript.helpers),
-            factory.createExpressionStatement(typescript.value.expression),
-          ]) + '\nexport {}\n',
-        )
-        const emitted = emitSqlExpression(fixture.expression, goSqlBackend)
-        const packagePath = join(directory, `numeric${index}`)
-        await mkdir(packagePath)
-        await writeFile(
-          join(packagePath, 'numeric.go'),
-          printGoFile({
-            package: 'numeric',
-            imports: [],
-            source: goSqlRuntime(emitted.helpers, 'numeric'),
-            declarations: [
-              go.function(
-                'Evaluate',
-                [],
-                [
-                  {
-                    type: go.ident(
-                      emitted.value.type === 'pg_catalog.bool'
-                        ? 'SqlBoolean'
-                        : /^pg_catalog.float[48]$/.test(emitted.value.type)
-                          ? 'SqlFloat'
-                          : emitted.value.type === 'pg_catalog."numeric"'
-                            ? 'SqlDecimal'
-                            : [
-                                  'pg_catalog.text',
-                                  'pg_catalog."varchar"',
-                                  'pg_catalog.bpchar',
-                                  'pg_catalog.name',
-                                  'pg_catalog.bytea',
-                                  'pg_catalog."bit"',
-                                  'pg_catalog.varbit',
-                                ].includes(emitted.value.type)
-                              ? 'SqlText'
-                              : emitted.value.type === 'pg_catalog.uuid'
-                                ? 'SqlUuid'
-                                : emitted.value.type === 'pg_catalog."json"'
-                                  ? 'SqlJson'
-                                  : emitted.value.type === 'pg_catalog.jsonb'
-                                    ? 'SqlJsonb'
-                                    : emitted.value.type === 'pg_catalog.date'
-                                      ? 'SqlDate'
-                                      : emitted.value.type === 'pg_catalog."time"'
-                                        ? 'SqlTime'
-                                        : emitted.value.type === 'pg_catalog."timestamp"'
-                                          ? 'SqlTimestamp'
-                                          : emitted.value.type === 'pg_catalog."interval"'
-                                            ? 'SqlInterval'
-                                            : emitted.value.type === 'pg_catalog.timestamptz'
-                                              ? 'SqlTimestamptz'
-                                              : emitted.value.type === 'pg_catalog.timetz'
-                                                ? 'SqlTimeTz'
-                                                : emitted.value.type.startsWith('enum:')
-                                                  ? 'SqlEnum'
-                                                  : emitted.value.type.startsWith('array:')
-                                                    ? 'SqlArray'
-                                                    : 'SqlInteger',
-                    ),
-                  },
-                ],
-                [{ kind: 'return', expressions: [emitted.value.expression] }],
-              ),
-            ],
-          }),
-        )
-      }
-      const program = ts.createProgram(paths, {
-        strict: true,
-        noEmit: true,
-        target: ts.ScriptTarget.ES2022,
-        module: ts.ModuleKind.ESNext,
-        moduleResolution: ts.ModuleResolutionKind.Bundler,
-        esModuleInterop: true,
-        types: [],
-        lib: ['lib.es2022.d.ts'],
-        skipLibCheck: true,
+        return fixture
       })
-      expect(
-        ts
-          .getPreEmitDiagnostics(program)
-          .map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')),
-      ).toEqual([])
-      await run(process.env.PGSID_GO_BINARY ?? 'go', ['test', './...'], {
-        cwd: directory,
-        timeout: 60000,
-        env: {
-          ...process.env,
-          GOCACHE: join(sharedTempDirectory, 'pgsid-sql-semantics-go-cache'),
-          GOTOOLCHAIN: 'local',
-          GOMODCACHE:
-            process.env.GOMODCACHE ?? join(sharedTempDirectory, 'pgsid-decimal-go-mod-cache'),
-          GOFLAGS: '-mod=readonly',
-        },
-      })
-    } finally {
-      await rm(directory, { recursive: true, force: true })
-    }
-  })
-
-  it('pins complete generated projects', async () => {
-    for (const [name, source] of [
-      ['typescript.ts', typescriptProject(standardCases)],
-      ['main.go', goProject(standardCases)],
-    ] as const) {
-      const path = new URL(`../fixtures/sql-semantics/projects/${name}`, import.meta.url)
-      if (process.env.UPDATE_SQL_SEMANTICS_GOLDENS === '1') await writeFile(path, source)
-      expect(await readFile(path, 'utf8')).toBe(source)
-    }
-  })
-
-  it('reports unsupported overloads and checks support declarations against fixture evidence', () => {
-    const rows = sqlSemanticsCoverage()
-    expect(() => sqlSemanticsCoverage([])).toThrow('Support without fixture evidence')
-    const supported = rows.filter((row) => row.typescript || row.go)
-    const integerTypes = new Set(['pg_catalog.int2', 'pg_catalog.int4', 'pg_catalog.int8'])
-    const expected = Object.entries(PG18_NUMERIC)
-      .filter(([, metadata]) => {
-        const floatTypes = new Set(['pg_catalog.float4', 'pg_catalog.float8'])
-        const integers = metadata.args.every((type) => integerTypes.has(type))
-        const floats = metadata.args.every((type) => floatTypes.has(type))
-        const decimals = metadata.args.some((type) => type === 'pg_catalog."numeric"')
-        const decimalFunctions = [
-          'scale',
-          'min_scale',
-          'trim_scale',
-          'width_bucket',
-          'sqrt',
-          'exp',
-          'ln',
-          'log',
-          'log10',
-          'pow',
-          'power',
-          'abs',
-          'ceil',
-          'ceiling',
-          'floor',
-          'sign',
-          'round',
-          'trunc',
-          'mod',
-          'div',
-          'gcd',
-          'lcm',
-          'numeric',
-          'int2',
-          'int4',
-          'int8',
-          'float4',
-          'float8',
-        ]
-        const primitives = metadata.args.every(
-          (type) => integerTypes.has(type) || floatTypes.has(type),
-        )
-        if (metadata.kind === 'operator') {
-          return (
-            integers ||
-            (metadata.name === '^' &&
-              (floats || metadata.args.every((type) => type === 'pg_catalog."numeric"'))) ||
-            ((floats || metadata.args.every((type) => type === 'pg_catalog."numeric"')) &&
-              ['+', '-', '*', '/', '%', '=', '<>', '<', '<=', '>', '>=', '@', '|/', '||/'].includes(
-                metadata.name,
-              ))
-          )
+      const expressions = await bindStored(
+        fixtures,
+        fixtures.map((_, index) => `isolated_${index}`),
+      )
+      const sources: string[] = []
+      for (const [index, name] of isolatedCaseNames.entries()) {
+        const expression = expressions[index]
+        if (Object.hasOwn(undecidedOperationChecks, name)) {
+          expect(expression, name).toBeNull()
+          sources.push(`// ${name}\n// ${undecidedOperationChecks[name]}\n`)
+          continue
         }
-        return (
-          metadata.kind === 'function' &&
-          ((metadata.name === 'width_bucket' && metadata.args.length === 4 && primitives) ||
-            (floats && ['exp', 'ln', 'log', 'log10', 'pow', 'power'].includes(metadata.name)) ||
-            (decimals && decimalFunctions.includes(metadata.name)) ||
-            (metadata.name === 'numeric' && primitives && metadata.args.length === 1) ||
-            (floats &&
-              metadata.args.length === 1 &&
-              ['ceil', 'ceiling', 'floor', 'round', 'trunc', 'sign', 'sqrt', 'cbrt'].includes(
-                metadata.name,
-              )) ||
-            (primitives &&
-              metadata.args.length === 1 &&
-              ['abs', 'int2', 'int4', 'int8', 'float4', 'float8'].includes(metadata.name)) ||
-            (integers &&
-              metadata.args.length === 2 &&
-              ['mod', 'gcd', 'lcm'].includes(metadata.name)))
-        )
-      })
-      .map(([signature]) => signature)
-      .sort()
-    const additional = [
-      ...Object.keys(PG18_BOOLEAN).filter((signature) => signature.startsWith('operator:')),
-      ...textSignatures,
-      ...nameLikeSignatures,
-      ...nameComparisonSignatures,
-      ...internalCharComparisonSignatures,
-      ...byteaLikeSignatures,
-      ...byteaLengthSignatures,
-      ...byteaAccessSignatures,
-      ...byteaCastSignatures,
-      ...bitSignatures,
-      ...byteaSliceSignatures,
-      ...byteaOrderSignatures,
-      ...Object.keys(PG18_UUID).filter(
-        (signature) =>
-          signature.startsWith('operator:') ||
-          /"uuid_(?:eq|ne|lt|le|gt|ge|cmp|extract_version)"/.test(signature),
-      ),
-      ...Object.keys(typescriptJsonOperators),
-      ...Object.keys(typescriptJsonFunctions),
-      ...Object.keys(typescriptTemporalOperators),
-      ...Object.keys(typescriptTemporalFunctions),
-    ]
-    expect(supported.map((row) => row.signature).sort()).toEqual(
-      [...expected, ...additional].sort(),
-    )
-    expect(supported).toHaveLength(926)
-    expect(supported.every((row) => row.typescript && row.go && row.fixtures.length > 0)).toBe(true)
-    expect(rows.some((row) => !row.typescript && !row.go && row.fixtures.length === 0)).toBe(true)
+        expect(expression, name).not.toBeNull()
+        const prepared = prepareCheckRust(expression!, undefined, context)
+        if (prepared.kind === 'unsupported') throw new Error(`${name}: ${prepared.reason}`)
+        sources.push(`// ${name}\n${prepared.evaluator.source}`)
+      }
+      // A change to what an isolated case generates, such as a callable it newly needs, is
+      // reviewed here.
+      const path = new URL('../fixtures/sql-semantics/projects/evaluators.rs', import.meta.url)
+      if (process.env.UPDATE_SQL_SEMANTICS_GOLDENS === '1')
+        await writeFile(path, sources.join('\n'))
+      expect(await readFile(path, 'utf8')).toBe(sources.join('\n'))
+    })
   })
 
-  it('preserves math licenses in generated projects', () => {
-    for (const source of [typescriptProject(), goProject()]) {
-      expect(source).toContain(floatMathCopyright)
-      expect(source).toContain(numericMathCopyright)
+  it('reports evaluator support for every catalog callable and covers it with fixture evidence', () => {
+    const rows = sqlSemanticsCoverage()
+    expect(() => sqlSemanticsCoverage(undefined, new Set())).toThrow(
+      'Fixture evidence without evaluator support',
+    )
+    const evidenced = rows.filter((row) => row.fixtures.length > 0)
+    expect(evidenced).toHaveLength(926)
+    expect(evidenced.every((row) => row.evaluator)).toBe(true)
+    expect(rows.filter((row) => row.evaluator).length).toBeGreaterThan(evidenced.length)
+    expect(rows.some((row) => !row.evaluator && row.fixtures.length === 0)).toBe(true)
+  })
+
+  it('carries the math licenses into translated evaluators', () => {
+    const plan = prepareCheckRustGroup(
+      [
+        {
+          expression: {
+            kind: 'eval-scalar',
+            expression: {
+              kind: 'null-test',
+              type: 'pg_catalog.bool',
+              negated: false,
+              operand: {
+                kind: 'call',
+                call: {
+                  kind: 'function',
+                  signature: 'function:["pg_catalog","exp"](pg_catalog.float8)',
+                  type: 'pg_catalog.float8',
+                },
+                operands: [{ kind: 'input', type: 'pg_catalog.float8', name: 'value' }],
+              },
+            },
+          },
+          identity: { schema: 'public', kind: 'table', owner: 'math', constraint: 'exponential' },
+        },
+      ],
+      { mathLibrary: 'musl' },
+    )
+    const translated = transpileCheckRustFiles(plan.source!)
+    for (const files of [translated.typescript, translated.go]) {
+      const runtime = Object.values(files).join('\n')
+      expect(runtime).toContain('Copyright (c) 2018, Arm Limited.')
+      expect(runtime).toContain('Copyright (C) 1993 by Sun Microsystems, Inc.')
+      expect(runtime).toContain('Portions Copyright (c) 1996-')
     }
   })
 
@@ -908,307 +569,6 @@ describe('generated PostgreSQL scalar evaluation', () => {
     ).toBeNull()
   })
 
-  it('rejects malformed syntax and unsupported text collations in both backends', () => {
-    const integer = { kind: 'integer', type: 'pg_catalog.int4', value: '1' } as const
-    const text = { kind: 'text', type: 'pg_catalog.text', value: 'a' } as const
-    const boolean = { kind: 'boolean', type: 'pg_catalog.bool', value: true } as const
-    const uuid = {
-      kind: 'uuid',
-      type: 'pg_catalog.uuid',
-      value: '00000000-0000-0000-0000-000000000000',
-    } as const
-    const enumDefinition = { schema: 'public', name: 'state', values: ['first', 'second'] } as const
-    const enumValue = {
-      kind: 'enum',
-      type: enumType(enumDefinition),
-      enum: enumDefinition,
-      value: 'first',
-    } as const
-    const otherEnumDefinition = {
-      schema: 'other',
-      name: 'state',
-      values: ['first', 'second'],
-    } as const
-    const otherEnumValue = {
-      kind: 'enum',
-      type: enumType(otherEnumDefinition),
-      enum: otherEnumDefinition,
-      value: 'first',
-    } as const
-    const arrayValue = {
-      kind: 'array',
-      type: arrayType('pg_catalog.int4'),
-      elementType: 'pg_catalog.int4',
-      dimensions: [2],
-      lowerBounds: [1],
-      elements: [integer, integer],
-    } as const
-    const invalid: [SqlExpression, string][] = [
-      [
-        { kind: 'boolean-logic', type: 'pg_catalog.bool', operation: 'and', operands: [boolean] },
-        'Invalid boolean',
-      ],
-      [
-        { kind: 'boolean-logic', type: 'pg_catalog.bool', operation: 'not', operands: [integer] },
-        'Invalid boolean',
-      ],
-      [{ kind: 'case', type: 'pg_catalog.int4', branches: [], otherwise: integer }, 'Invalid CASE'],
-      [
-        {
-          kind: 'case',
-          type: 'pg_catalog.int4',
-          branches: [{ when: integer, then: integer }],
-          otherwise: integer,
-        },
-        'Invalid CASE',
-      ],
-      [
-        {
-          kind: 'case',
-          type: 'pg_catalog.int4',
-          branches: [{ when: boolean, then: text }],
-          otherwise: integer,
-        },
-        'Invalid CASE',
-      ],
-      ...[0, -1, 1.5, 10485761].map(
-        (length) =>
-          [
-            {
-              kind: 'text-coercion',
-              type: 'pg_catalog.bpchar',
-              length,
-              explicit: true,
-              operand: text,
-            },
-            'Invalid text coercion',
-          ] as [SqlExpression, string],
-      ),
-      [
-        {
-          kind: 'text-coercion',
-          type: 'pg_catalog.text',
-          length: 1,
-          explicit: true,
-          operand: text,
-        },
-        'Invalid text coercion',
-      ],
-      [{ kind: 'uuid-coercion', type: 'pg_catalog.uuid', operand: uuid }, 'Invalid UUID coercion'],
-      [{ kind: 'uuid-coercion', type: 'pg_catalog.text', operand: text }, 'Invalid UUID coercion'],
-      [
-        {
-          kind: 'json-coercion',
-          type: 'pg_catalog."json"',
-          operand: { kind: 'json', type: 'pg_catalog."json"', value: '1' },
-        },
-        'Invalid JSON coercion',
-      ],
-      [
-        { kind: 'json-coercion', type: 'pg_catalog.text', operand: integer },
-        'Invalid JSON coercion',
-      ],
-      [
-        {
-          kind: 'enum-coercion',
-          type: enumType(enumDefinition),
-          enum: enumDefinition,
-          operand: enumValue,
-        },
-        'Invalid enum coercion',
-      ],
-      [
-        {
-          kind: 'enum-comparison',
-          type: 'pg_catalog.bool',
-          enum: enumDefinition,
-          operation: '=',
-          operands: [enumValue, text],
-        },
-        'Invalid enum comparison',
-      ],
-      [
-        {
-          kind: 'enum-comparison',
-          type: 'pg_catalog.bool',
-          enum: enumDefinition,
-          operation: '=',
-          operands: [enumValue, otherEnumValue],
-        },
-        'Invalid enum comparison',
-      ],
-      [
-        {
-          kind: 'enum',
-          type: enumType({ schema: 'public', name: 'bad' }),
-          enum: { schema: 'public', name: 'bad', values: ['duplicate', 'duplicate'] },
-          value: 'duplicate',
-        },
-        'Invalid enum definition',
-      ],
-      [
-        {
-          ...arrayValue,
-          dimensions: [2, 2],
-          lowerBounds: [1, 1],
-          elements: [integer, integer, integer],
-        },
-        'Invalid array literal',
-      ],
-      [{ ...arrayValue, dimensions: [2], lowerBounds: [] }, 'Invalid array literal'],
-      [
-        {
-          kind: 'array-operation',
-          type: 'pg_catalog.int4',
-          elementType: 'pg_catalog.int4',
-          operation: 'cardinality',
-          operands: [integer],
-        },
-        'Invalid array operation',
-      ],
-      [
-        {
-          kind: 'array-subscript',
-          type: 'pg_catalog.int4',
-          elementType: 'pg_catalog.int4',
-          array: arrayValue,
-          subscripts: [],
-        },
-        'Invalid array subscript',
-      ],
-      [
-        {
-          kind: 'array-slice',
-          type: arrayType('pg_catalog.int4'),
-          elementType: 'pg_catalog.int4',
-          array: arrayValue,
-          bounds: [],
-        },
-        'Invalid array slice',
-      ],
-      [
-        {
-          kind: 'array-assign',
-          type: arrayType('pg_catalog.int4'),
-          elementType: 'pg_catalog.int4',
-          array: arrayValue,
-          subscripts: [integer],
-          value: uuid,
-        },
-        'Invalid array assignment',
-      ],
-      [
-        {
-          kind: 'text-coercion',
-          type: 'pg_catalog.bpchar',
-          length: null,
-          explicit: true,
-          operand: integer,
-        },
-        'Invalid text coercion',
-      ],
-      [{ kind: 'coalesce', type: 'pg_catalog.int4', operands: [] }, 'Invalid COALESCE'],
-      [{ kind: 'coalesce', type: 'pg_catalog.int4', operands: [text] }, 'Invalid COALESCE'],
-      ...['a\0b', '\uD800', '\uDC00'].map(
-        (value) =>
-          [{ kind: 'text', type: 'pg_catalog.text', value }, 'Invalid PostgreSQL UTF8'] as [
-            SqlExpression,
-            string,
-          ],
-      ),
-      ...['a\0b', '\uD800'].map(
-        (value) =>
-          [{ kind: 'name', type: 'pg_catalog.name', value }, 'Invalid PostgreSQL UTF8'] as [
-            SqlExpression,
-            string,
-          ],
-      ),
-      ...['a\0b', '\uD800', '\uDC00'].map(
-        (value) =>
-          [
-            { kind: 'internal-char', type: 'pg_catalog."char"', value },
-            'Invalid PostgreSQL UTF8',
-          ] as [SqlExpression, string],
-      ),
-      ...['zz', 'a', 'A G'].map(
-        (value) =>
-          [{ kind: 'bytea', type: 'pg_catalog.bytea', value }, 'Invalid bytea'] as [
-            SqlExpression,
-            string,
-          ],
-      ),
-      ...['102', 'xG', 'b2', '2'].map(
-        (value) =>
-          [{ kind: 'bit', type: 'pg_catalog."bit"', value }, 'Invalid bit string'] as [
-            SqlExpression,
-            string,
-          ],
-      ),
-      [
-        {
-          kind: 'function',
-          signature: 'function:["pg_catalog","namelike"](pg_catalog.name,pg_catalog.text)',
-          type: 'pg_catalog.bool',
-          operands: [
-            { kind: 'name', type: 'pg_catalog.name', value: 'abc' },
-            { kind: 'text', type: 'pg_catalog.text', value: 'a%' },
-          ],
-        },
-        'Unsupported text collation',
-      ],
-      ...[undefined, 'en-US'].map(
-        (collation) =>
-          [
-            {
-              kind: 'operator',
-              signature: 'operator:["pg_catalog","<"](pg_catalog.text,pg_catalog.text)',
-              type: 'pg_catalog.bool',
-              operands: [text, text],
-              collation,
-            },
-            'Unsupported text collation',
-          ] as [SqlExpression, string],
-      ),
-    ]
-    for (const signature of textSignatures) {
-      const guarded =
-        /(?:"(?:bpchareq|bpcharne|bpcharlt|bpcharle|bpchargt|bpcharge|strpos|replace|split_part|starts_with|textlike|textnlike|bpcharlike|bpcharnlike|like|notlike|lower|upper|initcap|casefold|texticlike|texticnlike|bpchariclike|bpcharicnlike|~~\*|!~~\*|~~|!~~)"|^operator:.*pg_catalog.bpchar)/.test(
-          signature,
-        )
-      if (!guarded) continue
-      const fixture = standardCases.find(
-        (fixture) => fixture.name === `text utility ${signature} 0`,
-      )!
-      for (const collation of [undefined, 'en-US'])
-        invalid.push([
-          { ...fixture.expression, collation } as SqlExpression,
-          'Unsupported text collation',
-        ])
-    }
-    for (const signature of nameComparisonSignatures) {
-      const fixture = standardCases.find(
-        (candidate) => candidate.name === `name comparison ${signature} 0`,
-      )!
-      for (const collation of [undefined, 'en-US'])
-        invalid.push([
-          { ...fixture.expression, collation } as SqlExpression,
-          'Unsupported text collation',
-        ])
-    }
-    const textArrayComparison = standardCases.find(
-      (fixture) => fixture.name === 'polymorphic array text ordering',
-    )!
-    for (const collation of [undefined, 'en-US'])
-      invalid.push([
-        { ...textArrayComparison.expression, collation } as SqlExpression,
-        'Unsupported array element collation',
-      ])
-    for (const [expression, message] of invalid) {
-      expect(() => emitSqlExpression(expression, typescriptSqlBackend)).toThrow(message)
-      expect(() => emitSqlExpression(expression, goSqlBackend)).toThrow(message)
-    }
-  })
-
   it('pins PostgreSQL ragged array rejection categories', async () => {
     expect(await observeSql(pg, 'ARRAY[[1,2],[3]]::int4[]')).toEqual({
       kind: 'error',
@@ -1220,132 +580,135 @@ describe('generated PostgreSQL scalar evaluation', () => {
     })
   })
 
-  it('validates unary cast implementations against catalog links in both backends', () => {
-    for (const emit of [
-      (expression: SqlExpression) => emitSqlExpression(expression, typescriptSqlBackend),
-      (expression: SqlExpression) => emitSqlExpression(expression, goSqlBackend),
-    ]) {
-      const encoded = emit({
-        kind: 'cast',
-        signature: 'function:["pg_catalog","bytea"](pg_catalog.int4)',
-        type: 'pg_catalog.bytea',
-        operand: { kind: 'integer', type: 'pg_catalog.int4', value: '-1' },
+  it('rejects malformed expressions and leaves unsupported text collations undecided', () => {
+    const input = (type: string, name: string) =>
+      ({ kind: 'input', type, name }) as unknown as EvalExpression
+    const scalar = (expression: unknown) =>
+      ({ kind: 'eval-scalar', expression }) as EvalBoolExpression
+    const nullTest = (operand: unknown) =>
+      scalar({ kind: 'null-test', type: 'pg_catalog.bool', negated: false, operand })
+    expect(() =>
+      emitCheckRustEvaluator(
+        nullTest({
+          kind: 'boolean-logic',
+          type: 'pg_catalog.bool',
+          operation: 'and',
+          operands: [input('pg_catalog.bool', 'flag')],
+        }),
+      ),
+    ).toThrow('Expected binary Boolean operation')
+    expect(() =>
+      emitCheckRustEvaluator(
+        nullTest({
+          kind: 'case',
+          type: 'pg_catalog.int4',
+          branches: [],
+          otherwise: input('pg_catalog.int4', 'amount'),
+        }),
+      ),
+    ).toThrow('Expected a CASE branch')
+    expect(() =>
+      emitCheckRustEvaluator(
+        nullTest({
+          kind: 'certain',
+          expression: { kind: 'float', type: 'pg_catalog.float4', bits: 'xyz' },
+        }),
+      ),
+    ).toThrow('Invalid floating-point literal bits')
+    const ordering = emitCheckRustEvaluator(
+      scalar({
+        kind: 'call',
+        call: {
+          kind: 'operator',
+          signature: 'operator:["pg_catalog","<"](pg_catalog.text,pg_catalog.text)',
+          type: 'pg_catalog.bool',
+          collation: 'nondeterministic',
+        },
+        operands: [input('pg_catalog.text', 'left'), input('pg_catalog.text', 'right')],
+      }),
+    )
+    // Ordering under a nondeterministic collation waits on the deployment's collation provider.
+    expect(ordering.source).not.toMatch(/sql__pg_catalog__text_lt__/u)
+    expect(ordering.source).toMatch(/check_unknown\(\)/u)
+  })
+
+  it('evaluates unary cast implementations linked from the catalog', () => {
+    for (const [signature, type, operand] of [
+      ['function:["pg_catalog","bytea"](pg_catalog.int4)', 'pg_catalog.bytea', 'pg_catalog.int4'],
+      ['function:["pg_catalog","int4"](pg_catalog.bytea)', 'pg_catalog.int4', 'pg_catalog.bytea'],
+    ] as const) {
+      const evaluator = emitCheckRustEvaluator({
+        kind: 'eval-scalar',
+        expression: {
+          kind: 'null-test',
+          type: 'pg_catalog.bool',
+          negated: false,
+          operand: {
+            kind: 'call',
+            call: { kind: 'cast', signature, type },
+            operands: [{ kind: 'input', type: operand, name: 'value' }],
+          },
+        },
       })
-      expect(encoded.helpers).toContain('byteaFromInt4')
-      const decoded = emit({
-        kind: 'cast',
-        signature: 'function:["pg_catalog","int4"](pg_catalog.bytea)',
-        type: 'pg_catalog.int4',
-        operand: { kind: 'bytea', type: 'pg_catalog.bytea', value: 'ffffffff' },
-      })
-      expect(decoded.helpers).toContain('byteaToInt4')
+      const metadata = builtinMetadata(signature)
+      if (metadata.kind !== 'function') throw new Error(signature)
+      expect(evaluator.callables).toContain(metadata.rustName)
+      expect(checkRustCallableNames()).toContain(metadata.rustName)
     }
   })
 
   it('refuses unsupported overloads and inconsistent resolved operands', () => {
-    const literal = { kind: 'integer', type: 'pg_catalog.int4', value: '1' } as const
-    expect(() =>
-      emitSqlExpression(
-        {
-          kind: 'function',
-          signature: 'function:["pg_catalog","sin"](pg_catalog.float8)',
-          type: 'pg_catalog.float8',
-          operands: [{ kind: 'float', type: 'pg_catalog.float8', bits: '3ff0000000000000' }],
-        },
-        typescriptSqlBackend,
-      ),
-    ).toThrow('Unsupported overload')
-    expect(() =>
-      emitSqlExpression(
-        {
-          kind: 'operator',
-          signature: 'operator:["pg_catalog","+"](pg_catalog.int8,pg_catalog.int8)',
-          type: 'pg_catalog.int8',
-          operands: [literal, literal],
-        },
-        typescriptSqlBackend,
-      ),
-    ).toThrow('Operand type mismatch')
-    expect(() =>
-      emitSqlExpression(
-        {
-          kind: 'function',
-          signature: 'function:["pg_catalog","abs"](pg_catalog.int8)',
-          type: 'pg_catalog.int8',
-          operands: [literal],
-        },
-        typescriptSqlBackend,
-      ),
-    ).toThrow('Operand type mismatch')
-    expect(() =>
-      emitSqlExpression(
-        {
-          kind: 'function',
-          signature: 'function:["pg_catalog","abs"](pg_catalog.int4)',
-          type: 'pg_catalog.bool',
-          operands: [literal],
-        },
-        typescriptSqlBackend,
-      ),
-    ).toThrow('Invalid resolved expression')
-    expect(() =>
-      emitSqlExpression(
-        {
-          kind: 'function',
-          signature: 'aggregate:["pg_catalog","sum"](pg_catalog.int4)',
-          type: 'pg_catalog.int8',
-          operands: [literal],
-        },
-        typescriptSqlBackend,
-      ),
-    ).toThrow('Unsupported execution shape')
-    expect(() =>
-      emitSqlExpression(
-        {
-          kind: 'function',
-          signature: 'function:["pg_catalog","generate_series"](pg_catalog.int4,pg_catalog.int4)',
-          type: 'pg_catalog.int4',
-          operands: [literal, literal],
-        },
-        typescriptSqlBackend,
-      ),
-    ).toThrow('Unsupported execution shape')
-    expect(() =>
-      emitSqlExpression(
-        { kind: 'cast', signature: null, type: 'pg_catalog.int8', operand: literal },
-        typescriptSqlBackend,
-      ),
-    ).toThrow('Invalid relabel cast')
-    expect(() =>
-      emitSqlExpression(
-        {
-          kind: 'cast',
-          signature: 'function:["pg_catalog","abs"](pg_catalog.int4)',
-          type: 'pg_catalog.int4',
-          operand: literal,
-        },
-        typescriptSqlBackend,
-      ),
-    ).toThrow('Invalid cast function')
-    for (const bits of ['xyz', '0000000', '000000000']) {
-      expect(() =>
-        emitSqlExpression({ kind: 'float', type: 'pg_catalog.float4', bits }, typescriptSqlBackend),
-      ).toThrow('Invalid float literal bits')
-    }
-    expect(() =>
-      emitSqlExpression(
-        { kind: 'float', type: 'pg_catalog.float8', bits: '3f800000' },
-        goSqlBackend,
-      ),
-    ).toThrow('Invalid float literal bits')
-    for (const value of ['', '1.2.3', '0x10', 'NaN ', 'Infinity;']) {
-      expect(() =>
-        emitSqlExpression(
-          { kind: 'decimal', type: 'pg_catalog."numeric"', value },
-          typescriptSqlBackend,
+    const literal = {
+      kind: 'certain',
+      expression: { kind: 'integer', type: 'pg_catalog.int4', value: '1' },
+    } as const
+    const nullTest = (operand: unknown) =>
+      ({
+        kind: 'eval-scalar',
+        expression: { kind: 'null-test', type: 'pg_catalog.bool', negated: false, operand },
+      }) as EvalBoolExpression
+    const call = (kind: string, signature: string | null, type: string, operands: unknown[]) =>
+      nullTest({ kind: 'call', call: { kind, signature, type }, operands })
+    for (const [expression, message] of [
+      [
+        call(
+          'operator',
+          'operator:["pg_catalog","+"](pg_catalog.int8,pg_catalog.int8)',
+          'pg_catalog.int8',
+          [literal, literal],
         ),
-      ).toThrow('Invalid decimal literal')
-    }
+        'Unsupported Rust CHECK callable arguments',
+      ],
+      [
+        call('function', 'function:["pg_catalog","abs"](pg_catalog.int4)', 'pg_catalog.bool', [
+          literal,
+        ]),
+        'Unsupported Rust CHECK callable',
+      ],
+      [
+        call('function', 'aggregate:["pg_catalog","sum"](pg_catalog.int4)', 'pg_catalog.int8', [
+          literal,
+        ]),
+        'Unsupported Rust CHECK callable',
+      ],
+      [
+        call(
+          'function',
+          'function:["pg_catalog","generate_series"](pg_catalog.int4,pg_catalog.int4)',
+          'pg_catalog.int4',
+          [literal, literal],
+        ),
+        'Unsupported Rust CHECK callable',
+      ],
+      [call('cast', null, 'pg_catalog.int8', [literal]), 'Invalid Rust CHECK relabel cast'],
+      [
+        call('cast', 'function:["pg_catalog","abs"](pg_catalog.int4)', 'pg_catalog.int4', [
+          literal,
+        ]),
+        'Invalid Rust CHECK cast function',
+      ],
+    ] as const)
+      expect(() => emitCheckRustEvaluator(expression)).toThrow(message)
     expect(() => typescriptSqlRuntime(['missing'])).toThrow('Missing TypeScript SQL helper')
     expect(() => goSqlRuntime(['missing'])).toThrow('Missing Go SQL helper')
   })

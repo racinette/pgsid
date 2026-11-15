@@ -4,8 +4,6 @@ import { fileURLToPath } from 'node:url'
 import { resolve } from 'node:path'
 import type { EvaluationCase } from '../tests/fixtures/sql-semantics/operations/integer-addition.js'
 import { PG18_BUILTIN_GROUPS } from '../src/postgres/builtins/groups.generated.js'
-import { typescriptSqlBackend } from '../src/codegen/typescript/sql/registry.js'
-import { goSqlBackend } from '../src/codegen/go/sql/registry.js'
 import { functionNullability, operatorNullability } from '../src/sql-semantics/nullability.js'
 import {
   integerAdditionCases,
@@ -13,9 +11,10 @@ import {
 } from '../tests/fixtures/sql-semantics/operations/integer-addition.js'
 import { integerOperationCases } from '../tests/fixtures/sql-semantics/operations/integer-operations.js'
 import type { SqlExpression } from '../src/sql-semantics/expressions.js'
-import { typescriptSqlRuntime } from '../src/codegen/typescript/sql/runtime.js'
-import { goSqlRuntime } from '../src/codegen/go/sql/runtime.js'
+import { builtinMetadata } from '../src/postgres/builtins/inventory.js'
+import { checkRustCallableNames } from '../src/codegen/shared/check-rust-source.js'
 
+// Each catalog callable, whether the CHECK evaluator implements it, and the fixtures that call it.
 export function sqlSemanticsCoverage(
   fixtures: readonly EvaluationCase[] = [
     ...integerAdditionCases,
@@ -24,6 +23,7 @@ export function sqlSemanticsCoverage(
     ...numericCases,
     ...scalarCases,
   ],
+  callables: ReadonlySet<string> = checkRustCallableNames(),
 ) {
   const evidence = new Map<string, string[]>()
   const record = (expression: SqlExpression, name: string): void => {
@@ -138,31 +138,11 @@ export function sqlSemanticsCoverage(
   }
   for (const fixture of fixtures) record(fixture.expression, fixture.name)
 
-  const typescriptSupported = new Set<string>()
-  const goSupported = new Set<string>()
-  for (const [backend, runtime, supported] of [
-    [typescriptSqlBackend, typescriptSqlRuntime, typescriptSupported],
-    [goSqlBackend, goSqlRuntime, goSupported],
-  ] as const) {
-    for (const group of backend.bindings) {
-      const inventory = PG18_BUILTIN_GROUPS.find(({ domain }) => domain === group.domain)?.inventory
-      if (!inventory) throw new Error(`Unknown support domain: ${group.domain}`)
-      for (const [bindings, operator] of [
-        [group.operators, true],
-        [group.functions, false],
-      ] as const) {
-        for (const [signature, binding] of Object.entries(bindings)) {
-          if (!binding) continue
-          if (!Object.hasOwn(inventory, signature))
-            throw new Error(`Unknown support signature in ${group.domain}: ${signature}`)
-          if ((inventory[signature]!.kind === 'operator') !== operator)
-            throw new Error(`Incorrect support kind: ${signature}`)
-          if (supported.has(signature)) throw new Error(`Duplicate support signature: ${signature}`)
-          runtime(binding.helpers)
-          supported.add(signature)
-        }
-      }
-    }
+  const evaluated = (signature: string): boolean => {
+    const metadata = builtinMetadata(signature)
+    const implementation =
+      metadata.kind === 'operator' ? builtinMetadata(metadata.implementation) : metadata
+    return implementation.kind === 'function' && callables.has(implementation.rustName)
   }
 
   const rows = PG18_BUILTIN_GROUPS.flatMap(({ domain, inventory }) =>
@@ -172,15 +152,14 @@ export function sqlSemanticsCoverage(
         domain,
         signature,
         nullability: operator ? operatorNullability(signature) : functionNullability(signature),
-        typescript: typescriptSupported.has(signature),
-        go: goSupported.has(signature),
+        evaluator: evaluated(signature),
         fixtures: [...new Set(evidence.get(signature) ?? [])],
       }
     }),
   )
   for (const row of rows) {
-    if ((row.typescript || row.go) && row.fixtures.length === 0)
-      throw new Error(`Support without fixture evidence: ${row.signature}`)
+    if (row.fixtures.length > 0 && !row.evaluator)
+      throw new Error(`Fixture evidence without evaluator support: ${row.signature}`)
   }
   return rows
 }

@@ -35,11 +35,12 @@ Generated TypeScript queries share their evaluator: the queries written to one
 runtime directory have their checks lowered together, translated once, and
 pruned to what any of them calls, so a check two queries write appears once.
 
-The generator selects Rust support separately for each constraint. A
-constraint outside the supported expression or value subset retains the
-existing target evaluator. A group can therefore contain Rust and fallback
-results without changing the public row-validator API or result order.
-Fallback evaluators preserve unknown for expressions they cannot evaluate.
+The generator lowers each constraint separately. A constraint outside the
+supported expression or value subset is unknown, with the reason in its
+message, and keeps its place in the result order. An operation that waits only
+on an undeclared database setting, such as JSONB ordering without the declared
+collation, is unknown by itself, so the rest of its constraint can still
+decide.
 
 Target adapters distinguish a missing input from explicit null. Integer inputs
 must fit their PostgreSQL width before entering the Rust representation;

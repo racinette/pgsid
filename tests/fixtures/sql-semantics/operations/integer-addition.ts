@@ -1,6 +1,6 @@
 import type { IntegerType, SqlExpression } from '../../../../src/sql-semantics/expressions.js'
 import type { PG18_NUMERIC } from '../../../../src/postgres/builtins/numeric.generated.js'
-import type { OperatorSignatures } from '../../../../src/sql-semantics/signatures.js'
+import type { OperatorSignatures } from './signatures.js'
 import type { SqlObservation } from '../../../support/postgres/observe.js'
 
 export interface EvaluationCase {

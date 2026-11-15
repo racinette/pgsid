@@ -1,3 +1,11 @@
+/*
+ * Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
+ * Developed at SunSoft, a Sun Microsystems, Inc. business.
+ * Permission to use, copy, modify, and distribute this
+ * software is freely granted, provided that this notice
+ * is preserved.
+ */
+
 // sin and cos follow PostgreSQL's dsin and dcos: NaN returns NaN and an infinite argument is out
 // of range whatever the libm, and other results come from the fdlibm kernels that the trigonometry
 // setting declares as the deployment's libm. fdlibm reduces |x| and restores the sign, so sine is

@@ -1,53 +1,49 @@
-import { execFile } from 'node:child_process'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { promisify } from 'node:util'
 import { PGlite } from '@electric-sql/pglite'
-import ts from 'typescript'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { factory, identifier, printFile } from '../../src/codegen/typescript/ast.js'
-import { typescriptEvalBoolBackend } from '../../src/codegen/typescript/sql/check.js'
-import { typescriptSqlBackend } from '../../src/codegen/typescript/sql/registry.js'
-import { typescriptSqlRuntime } from '../../src/codegen/typescript/sql/runtime.js'
-import { go, printGoFile } from '../../src/codegen/go/ast.js'
-import { goEvalBoolBackend } from '../../src/codegen/go/sql/check.js'
-import { goSqlBackend } from '../../src/codegen/go/sql/registry.js'
-import { goSqlRuntime } from '../../src/codegen/go/sql/runtime.js'
+import { snapshotCatalog } from '../../src/catalog/snapshot.js'
+import type { TableInfo } from '../../src/catalog/types.js'
+import { lowerTableCheck } from '../../src/sql-semantics/catalog-checks.js'
+import { emitCheckRustEvaluator } from '../../src/codegen/shared/check-rust-evaluator.js'
 import {
-  emitEvalBoolExpression,
-  type EvalBoolExpression,
-} from '../../src/sql-semantics/check-expressions.js'
-import { emitSqlExpression, type SqlExpression } from '../../src/sql-semantics/expressions.js'
-import type { PostgresRegexOptions } from '../../src/sql-semantics/regex/options.js'
-import { parseRegexpLikeFlags } from '../../src/sql-semantics/regex/flags.js'
-import type { EvalExpression } from '../../src/sql-semantics/eval-expressions.js'
-import { numericMathCopyright } from '../../src/sql-semantics/numeric-math-license.js'
-import { sharedTempDirectory } from '../../tools/test-run-temp.js'
+  prepareCheckRust,
+  prepareCheckRustGroup,
+} from '../../src/codegen/shared/check-rust-source.js'
+import { runCheckParity, type Outcome } from '../../tools/check-rust/parity.js'
 
-const run = promisify(execFile)
+// The cases are written as expression trees; each stands for the SQL it renders to, which the
+// catalog binder then lowers as it lowers a stored CHECK.
+type Atom = { kind: string; [key: string]: unknown }
+type RegexOptions = {
+  syntax?: 'advanced' | 'extended' | 'basic' | 'literal'
+  caseSensitive?: boolean
+  expanded?: boolean
+  newline?: 'ordinary' | 'sensitive' | 'stop' | 'anchors'
+}
 
 type Expected = { certain: false } | { certain: true; value: boolean | null; error?: string }
 
 interface CheckCase {
   name: string
-  expression: EvalBoolExpression
+  expression: Atom
   expected: Expected
 }
 
-const certain = (input: boolean | null): EvalBoolExpression => ({
+const certain = (input: boolean | null): Atom => ({
   kind: 'certain',
   expression: { kind: 'boolean', type: 'pg_catalog.bool', value: input },
 })
 
-const uncertain: EvalBoolExpression = { kind: 'uncertain' }
+const uncertain: Atom = { kind: 'uncertain' }
 
 const regex = (
   subject: string | null,
   pattern: string,
-  options: PostgresRegexOptions = {},
+  options: RegexOptions = {},
   negated = false,
-): Extract<EvalBoolExpression, { kind: 'eval-regex' }> => ({
+): Atom => ({
   kind: 'eval-regex',
   subject: { kind: 'text', type: 'pg_catalog.text', value: subject },
   pattern,
@@ -59,14 +55,14 @@ const regex = (
 const dynamicRegex = (
   subject: string | null,
   pattern: string | null,
-  options: PostgresRegexOptions = {},
+  options: RegexOptions = {},
   negated = false,
-): Extract<EvalBoolExpression, { kind: 'eval-regex' }> => ({
+): Atom => ({
   ...regex(subject, '', options, negated),
   pattern: { kind: 'text', type: 'pg_catalog.text', value: pattern },
 })
 
-const text = (value: string | null): SqlExpression => ({
+const text = (value: string | null): Atom => ({
   kind: 'text',
   type: 'pg_catalog.text',
   value,
@@ -75,8 +71,8 @@ const text = (value: string | null): SqlExpression => ({
 const regexCall = (
   kind: 'operator' | 'function',
   name: string,
-  operands: readonly SqlExpression[],
-): EvalBoolExpression => ({
+  operands: readonly Atom[],
+): Atom => ({
   kind: 'eval-call',
   call: {
     kind,
@@ -87,40 +83,40 @@ const regexCall = (
   },
 })
 
-const similar = (pattern: SqlExpression, escape?: SqlExpression): SqlExpression => ({
+const similar = (pattern: Atom, escape?: Atom): Atom => ({
   kind: 'function',
   type: 'pg_catalog.text',
   signature: `function:["pg_catalog","similar_to_escape"](${escape ? 'pg_catalog.text,pg_catalog.text' : 'pg_catalog.text'})`,
   operands: escape ? [pattern, escape] : [pattern],
 })
 
-const concat = (left: SqlExpression, right: SqlExpression): SqlExpression => ({
+const concat = (left: Atom, right: Atom): Atom => ({
   kind: 'operator',
   type: 'pg_catalog.text',
   signature: 'operator:["pg_catalog","||"](pg_catalog.text,pg_catalog.text)',
   operands: [left, right],
 })
 
-const evalCertain = (expression: SqlExpression): EvalExpression => ({
+const evalCertain = (expression: Atom): Atom => ({
   kind: 'certain',
   expression,
 })
 
-const evalType = (expression: EvalExpression): string =>
+const evalType = (expression: Atom): string =>
   expression.kind === 'certain'
-    ? expression.expression.type
+    ? ((expression['expression'] as Atom)['type'] as string)
     : expression.kind === 'regex-count'
       ? 'pg_catalog.int4'
       : expression.kind === 'call'
-        ? expression.call.type
-        : expression.type
+        ? ((expression['call'] as Atom)['type'] as string)
+        : (expression['type'] as string)
 
 const evalCall = (
   kind: 'operator' | 'function',
   name: string,
   type: string,
-  operands: readonly EvalExpression[],
-): EvalExpression => ({
+  operands: readonly Atom[],
+): Atom => ({
   kind: 'call',
   call: {
     kind,
@@ -131,7 +127,7 @@ const evalCall = (
   operands,
 })
 
-const bpchar = (value: string | null): SqlExpression => ({
+const bpchar = (value: string | null): Atom => ({
   kind: 'text-coercion',
   type: 'pg_catalog.bpchar',
   length: 3,
@@ -139,13 +135,13 @@ const bpchar = (value: string | null): SqlExpression => ({
   operand: text(value),
 })
 
-const integer = (value: string): SqlExpression => ({
+const integer = (value: string): Atom => ({
   kind: 'integer',
   type: 'pg_catalog.int4',
   value,
 })
 
-const divisionByZero: EvalBoolExpression = {
+const divisionByZero: Atom = {
   kind: 'certain',
   expression: {
     kind: 'operator',
@@ -168,7 +164,7 @@ const latticeAtoms = [
   ['false', certain(false), { certain: true, value: false }],
   ['null', certain(null), { certain: true, value: null }],
   ['uncertain', uncertain, { certain: false }],
-] as const satisfies readonly (readonly [string, EvalBoolExpression, Expected])[]
+] as const satisfies readonly (readonly [string, Atom, Expected])[]
 
 const andTable: readonly (readonly Expected[])[] = [
   [
@@ -283,9 +279,13 @@ const comparisonCases: CheckCase[] = comparisons.flatMap((operation) =>
   latticeAtoms.flatMap(([leftName, left, leftExpected]) =>
     latticeAtoms.map(([rightName, right, rightExpected]) => {
       let expected: Expected
-      if (!leftExpected.certain || !rightExpected.certain) expected = { certain: false }
-      else if (leftExpected.value === null || rightExpected.value === null)
+      // Comparison is strict, so a NULL operand decides it whatever the other one holds.
+      if (
+        (leftExpected.certain && leftExpected.value === null) ||
+        (rightExpected.certain && rightExpected.value === null)
+      )
         expected = { certain: true, value: null }
+      else if (!leftExpected.certain || !rightExpected.certain) expected = { certain: false }
       else
         expected = {
           certain: true,
@@ -558,7 +558,7 @@ const partialScalarCases: CheckCase[] = [
       kind: 'eval-scalar' as const,
       expression: evalCall('operator', '=', 'pg_catalog.bool', [
         { kind: 'uncertain', type: literal.type },
-        evalCertain(literal as SqlExpression),
+        evalCertain(literal as Atom),
       ]),
     },
     expected: { certain: false } as const,
@@ -1142,7 +1142,7 @@ interface RegexCountCase extends CheckCase {
   params: (string | number | null)[]
 }
 
-const countExpression = (operands: readonly EvalExpression[]): EvalExpression => ({
+const countExpression = (operands: readonly Atom[]): Atom => ({
   kind: 'regex-count',
   signature: `function:["pg_catalog","regexp_count"](${operands.map(evalType).join(',')})`,
   collation: 'C',
@@ -1318,75 +1318,167 @@ const allCases: CheckCase[] = [
   },
 ]
 
-function typescriptProject(): string {
-  const emitted = allCases.map((fixture) =>
-    emitEvalBoolExpression(fixture.expression, typescriptSqlBackend, typescriptEvalBoolBackend),
-  )
-  return printFile([
-    ...typescriptSqlRuntime(emitted.flatMap((result) => result.helpers)),
-    ...emitted.map((result, index) =>
-      factory.createFunctionDeclaration(
-        undefined,
-        undefined,
-        identifier(`evaluate${index}`),
-        undefined,
-        [],
-        undefined,
-        factory.createBlock([factory.createReturnStatement(result.value.expression)], true),
-      ),
-    ),
-  ])
+// A column of each type an Unknown operand has; every case reads them as Unknown.
+const unknownColumns: Record<string, string> = {
+  'pg_catalog.bool': 'boolean',
+  'pg_catalog.int4': 'integer',
+  'pg_catalog.text': 'text',
+  'pg_catalog.date': 'date',
+  'pg_catalog.uuid': 'uuid',
+}
+const unknownColumn = (type = 'pg_catalog.bool'): string => {
+  if (!unknownColumns[type]) throw new Error(`No Unknown column of type ${type}`)
+  return 'unknown_' + type.slice('pg_catalog.'.length)
 }
 
-function goProject(): string {
-  const emitted = allCases.map((fixture) =>
-    emitEvalBoolExpression(fixture.expression, goSqlBackend, goEvalBoolBackend),
-  )
-  return printGoFile({
-    package: 'main',
-    imports: [{ path: 'encoding/json' }, { path: 'os' }],
-    source:
-      goSqlRuntime(
-        emitted.flatMap((result) => result.helpers),
-        'main',
-      ) +
-      `
-func main() {
-  if err := json.NewEncoder(os.Stdout).Encode([]EvalBool{${emitted.map((_, index) => `evaluate${index}()`).join(',')}}); err != nil { panic(err) }
-}`,
-    declarations: emitted.map((result, index) =>
-      go.function(
-        `evaluate${index}`,
-        [],
-        [{ type: go.ident('EvalBool') }],
-        [{ kind: 'return', expressions: [result.value.expression] }],
-      ),
-    ),
-  })
+const quote = (value: string): string => `'${value.replaceAll("'", "''")}'`
+
+const callable = (signature: string): string => {
+  const [schema, name] = JSON.parse(
+    signature.slice(signature.indexOf(':') + 1, signature.indexOf(']') + 1),
+  ) as [string, string]
+  return `${schema}.${name}`
 }
 
-function normalizeGo(value: {
-  Certain: boolean
-  Value: { Value: boolean; Valid: boolean; Error: string }
-}): Expected {
-  if (!value.Certain) return { certain: false }
-  if (value.Value.Error) return { certain: true, value: null, error: value.Value.Error }
-  return { certain: true, value: value.Value.Valid ? value.Value.Value : null }
+const regexFlags = (options: RegexOptions): string =>
+  ({ advanced: '', extended: 'e', basic: 'b', literal: 'q' })[options.syntax ?? 'advanced'] +
+  (options.caseSensitive === false ? 'i' : '') +
+  (options.expanded ? 'x' : '') +
+  { ordinary: '', sensitive: 'n', stop: 'p', anchors: 'w' }[options.newline ?? 'ordinary']
+
+function render(node: Atom): string {
+  const operands = (node['operands'] ?? []) as Atom[]
+  const value = node['value'] as string | null
+  switch (node.kind) {
+    case 'boolean':
+      return value === null ? 'NULL::boolean' : String(value)
+    case 'text':
+      return value === null ? 'NULL::text' : `${quote(value)}::text`
+    case 'integer':
+      return value === null ? 'NULL::int4' : `(${value})::int4`
+    case 'name':
+      return `${quote(value!)}::name`
+    case 'temporal':
+      return `${quote(value!)}::date`
+    case 'uuid':
+      return `${quote(value!)}::uuid`
+    case 'text-coercion':
+      return `CAST(${render(node['operand'] as Atom)} AS char(${node['length'] as number}))`
+    case 'certain':
+    case 'eval-scalar':
+      return render(node['expression'] as Atom)
+    case 'uncertain':
+      return unknownColumn(node['type'] as string | undefined)
+    case 'operator':
+    case 'function':
+    case 'call':
+    case 'regex-count': {
+      const call = (node['call'] as Atom | undefined) ?? node
+      const signature = call['signature'] as string
+      const name = callable(signature)
+      return signature.startsWith('operator:')
+        ? operands.length === 1
+          ? `(OPERATOR(${name}) ${render(operands[0]!)})`
+          : `(${render(operands[0]!)} OPERATOR(${name}) ${render(operands[1]!)})`
+        : `${name}(${operands.map(render).join(', ')})`
+    }
+    case 'eval-call':
+      return render(node['call'] as Atom)
+    case 'coalesce':
+      return `COALESCE(${operands.map(render).join(', ')})`
+    case 'case':
+    case 'eval-case':
+      return `(CASE ${(node['branches'] as { when: Atom; then: Atom }[])
+        .map((branch) => `WHEN ${render(branch.when)} THEN ${render(branch.then)}`)
+        .join(' ')} ELSE ${render(node['otherwise'] as Atom)} END)`
+    case 'null-test':
+      return `((${render(node['operand'] as Atom)}) IS ${node['negated'] ? 'NOT ' : ''}NULL)`
+    case 'boolean-logic':
+    case 'eval-boolean-logic':
+      return node['operation'] === 'not'
+        ? `(NOT ${render(operands[0]!)})`
+        : `(${render(operands[0]!)} ${(node['operation'] as string).toUpperCase()} ${render(operands[1]!)})`
+    case 'eval-test':
+      return `(${render(node['operand'] as Atom)} IS ${node['negated'] ? 'NOT ' : ''}${(node['test'] as string).toUpperCase()})`
+    case 'eval-comparison':
+      return `(${render(operands[0]!)} ${node['operation'] as string} ${render(operands[1]!)})`
+    case 'eval-regex': {
+      const pattern = node['pattern'] as string | Atom
+      return `(${node['negated'] ? 'NOT ' : ''}pg_catalog.regexp_like(${render(node['subject'] as Atom)}, ${typeof pattern === 'string' ? `${quote(pattern)}::text` : render(pattern)}, ${quote(regexFlags((node['options'] ?? {}) as RegexOptions))}))`
+    }
+  }
+  throw new Error(`Unrendered case expression: ${node.kind}`)
 }
 
-describe('generated CHECK predicate evaluation', () => {
+const outcome = (expected: Expected): Outcome =>
+  !expected.certain
+    ? { kind: 'Unknown' }
+    : expected.error
+      ? { kind: 'Error', value: { state: Number.parseInt(expected.error, 36) } }
+      : expected.value === null
+        ? { kind: 'Null' }
+        : { kind: expected.value ? 'True' : 'False' }
+
+const flagCases: RegexCallableCase[] = [
+  {
+    name: 'regexp_like applies flags in order',
+    expression: regexCall('function', 'regexp_like', [
+      text('A'),
+      text('a # comment'),
+      text('qecixn'),
+    ]),
+    expected: { certain: true, value: true },
+    sql: 'SELECT pg_catalog.regexp_like($1::text, $2::text, $3::text) AS value',
+    params: ['A', 'a # comment', 'qecixn'],
+  },
+  {
+    name: 'regexp_like later flags undo earlier ones',
+    expression: regexCall('function', 'regexp_like', [text('a b'), text('a b'), text('nxst')]),
+    expected: { certain: true, value: true },
+    sql: 'SELECT pg_catalog.regexp_like($1::text, $2::text, $3::text) AS value',
+    params: ['a b', 'a b', 'nxst'],
+  },
+  ...['g', 'z'].map((flags) => ({
+    name: `regexp_like rejects the ${flags} option`,
+    expression: regexCall('function', 'regexp_like', [text('abc'), text('abc'), text(flags)]),
+    expected: { certain: true, value: null, error: '22023' } as const,
+    sql: 'SELECT pg_catalog.regexp_like($1::text, $2::text, $3::text) AS value',
+    params: ['abc', 'abc', flags],
+  })),
+]
+
+const context = {
+  defaultCollation: 'C',
+  defaultCtype: 'C',
+  serverEncoding: 'UTF8',
+  maxIdentifierBytes: 63,
+} as const
+
+describe('CHECK predicate evaluation', () => {
   let pg: PGlite
+  let table: TableInfo
+  const bind = (sql: string) =>
+    lowerTableCheck(table, { name: 'probe', type: 'check', definition: `CHECK (${sql})` })!
+      .expression
 
   beforeAll(async () => {
     pg = await PGlite.create()
+    await pg.exec(
+      `CREATE TABLE evaluation_cases (${Object.entries(unknownColumns)
+        .map(([type, sql]) => `${unknownColumn(type)} ${sql}`)
+        .join(', ')})`,
+    )
+    table = (await snapshotCatalog(pg)).tables.find((item) => item.name === 'evaluation_cases')!
   })
 
   afterAll(async () => {
     await pg.close()
   })
 
-  it('matches PostgreSQL for catalog regex call forms', async () => {
-    for (const fixture of [...regexCallableCases, ...similarCases, ...regexCountCases]) {
+  const matchesPostgres = async (
+    fixtures: readonly (CheckCase & { sql: string; params: (string | number | null)[] })[],
+  ) => {
+    for (const fixture of fixtures) {
       let observed: { value: boolean | null } | { error: string }
       try {
         const result = await pg.query<{ value: boolean | null }>(fixture.sql, fixture.params)
@@ -1402,320 +1494,102 @@ describe('generated CHECK predicate evaluation', () => {
         expect(observed, fixture.name).toEqual({ value: fixture.expected.value })
       else expect(observed, fixture.name).toHaveProperty('value')
     }
+  }
+
+  it('matches PostgreSQL for catalog regex call forms', async () => {
+    await matchesPostgres([...regexCallableCases, ...similarCases, ...regexCountCases])
   })
 
-  it('maps regexp_like flags in order and rejects invalid options', () => {
-    expect(parseRegexpLikeFlags('qecixn')).toEqual({
-      kind: 'valid',
-      options: { syntax: 'extended', caseSensitive: false, expanded: true, newline: 'sensitive' },
-    })
-    expect(parseRegexpLikeFlags('nxst')).toEqual({
-      kind: 'valid',
-      options: { syntax: 'advanced', caseSensitive: true, expanded: false, newline: 'ordinary' },
-    })
-    expect(parseRegexpLikeFlags('g')).toEqual({ kind: 'invalid', sqlstate: '22023' })
-    expect(parseRegexpLikeFlags('z')).toEqual({ kind: 'invalid', sqlstate: '22023' })
+  it('maps regexp_like flags in order and rejects invalid options', async () => {
+    await matchesPostgres(flagCases)
   })
 
-  it('executes and typechecks the generated TypeScript evaluator', async () => {
-    const source = typescriptProject()
-    const directory = await mkdtemp(join(tmpdir(), 'pgsid-check-typescript-'))
+  it('decides every case in every target', async () => {
+    const cases = [...allCases, ...flagCases]
+    const names = cases.map((_, index) => `case_${index}`)
+    const group = prepareCheckRustGroup(
+      cases.map((fixture, index) => ({
+        expression: lowerTableCheck(table, {
+          name: names[index]!,
+          type: 'check',
+          definition: `CHECK (${render(fixture.expression)})`,
+        })!.expression,
+        identity: { schema: 'public', kind: 'table', owner: table.name, constraint: names[index]! },
+      })),
+      context,
+    )
+    for (const [index, check] of group.checks.entries())
+      expect(check.kind === 'unsupported' ? check.reason : check.kind, cases[index]!.name).toBe(
+        'supported',
+      )
+    const row = Object.fromEntries(
+      Object.keys(unknownColumns).map((type) => [
+        unknownColumn(type),
+        { kind: 'Unknown' } as const,
+      ]),
+    )
+    const directory = await mkdtemp(join(tmpdir(), 'pgsid-check-evaluation-'))
     try {
-      const path = join(directory, 'project.ts')
-      await writeFile(path, source)
-      const program = ts.createProgram([path], {
-        strict: true,
-        noEmit: true,
-        target: ts.ScriptTarget.ES2022,
-        module: ts.ModuleKind.ESNext,
-        types: [],
-        lib: ['lib.es2022.d.ts'],
-        skipLibCheck: true,
-      })
-      expect(
-        ts
-          .getPreEmitDiagnostics(program)
-          .map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')),
-      ).toEqual([])
-      const output = ts.transpileModule(source, {
-        compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
-      }).outputText
-      const result = Function(`${output}
-return [${allCases.map((_, index) => `evaluate${index}`).join(',')}].map((evaluate) => {
-  try { return evaluate() }
-  catch (error) { return { certain: true, value: null, error: error.code } }
-})`)() as Expected[]
-      expect(result).toEqual(allCases.map((fixture) => fixture.expected))
+      await runCheckParity(
+        directory,
+        'check_evaluation',
+        group,
+        names,
+        cases.map((fixture, index) => ({
+          name: names[index]!,
+          row,
+          expected: outcome(fixture.expected),
+        })),
+      )
     } finally {
       await rm(directory, { recursive: true, force: true })
     }
-  })
+  }, 360_000)
 
-  it('executes the generated Go evaluator', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'pgsid-check-go-'))
-    try {
-      await writeFile(join(directory, 'go.mod'), 'module check-evaluation\n\ngo 1.24\n')
-      await writeFile(join(directory, 'main.go'), goProject())
-      const { stdout } = await run(process.env.PGSID_GO_BINARY ?? 'go', ['run', '.'], {
-        cwd: directory,
-        env: {
-          ...process.env,
-          GOCACHE: join(sharedTempDirectory, 'pgsid-sql-semantics-go-cache'),
-          GOTOOLCHAIN: 'local',
-          GOFLAGS: '-mod=readonly',
-        },
-      })
-      const result = (JSON.parse(stdout) as Parameters<typeof normalizeGo>[0][]).map(normalizeGo)
-      expect(result).toEqual(allCases.map((fixture) => fixture.expected))
-    } finally {
-      await rm(directory, { recursive: true, force: true })
+  it('selects the regular expression engine only for evaluators that match patterns', () => {
+    const requiresRegex = (sql: string) => {
+      const prepared = prepareCheckRust(bind(sql), undefined, context)
+      if (prepared.kind !== 'supported') throw new Error(prepared.reason)
+      return prepared.evaluator.requiresRegex
     }
-  })
-
-  it('includes only the transitive helpers required by an uncertain atom', () => {
-    const typescript = emitEvalBoolExpression(
-      uncertain,
-      typescriptSqlBackend,
-      typescriptEvalBoolBackend,
-    )
-    expect(typescript.helpers).toEqual(['evalBoolUncertain'])
-    const typescriptSource = printFile(typescriptSqlRuntime(typescript.helpers))
-    expect(typescriptSource).toContain('function evalBoolUncertain')
-    expect(typescriptSource).not.toContain('function evalBoolCertain')
-    expect(typescriptSource).not.toContain('function evalBoolAnd')
-    expect(typescriptSource).not.toContain('function find(')
-
-    const goResult = emitEvalBoolExpression(uncertain, goSqlBackend, goEvalBoolBackend)
-    expect(goResult.helpers).toEqual(['evalBoolUncertain'])
-    const goSource = goSqlRuntime(goResult.helpers, 'main')
-    expect(goSource).toContain('func evalBoolUncertain')
-    expect(goSource).not.toContain('func evalBoolCertain')
-    expect(goSource).not.toContain('func Find(')
-    expect(goSource).not.toContain('func evalBoolAnd')
-  })
-
-  it('uses the generated regex engine for a constant pattern', () => {
-    const expression = regex('abc', 'abc$')
-    const typescript = emitEvalBoolExpression(
-      expression,
-      typescriptSqlBackend,
-      typescriptEvalBoolBackend,
-    )
-    const typescriptSource = printFile([
-      ...typescriptSqlRuntime(typescript.helpers),
-      factory.createExpressionStatement(typescript.value.expression),
-    ])
-    expect(typescriptSource).toContain('function find(')
-    expect(typescriptSource).toContain('function evalBoolRegexEngine(')
-    expect(typescriptSource).not.toContain('new RegExp(')
-
-    const goResult = emitEvalBoolExpression(expression, goSqlBackend, goEvalBoolBackend)
-    const goSource =
-      goSqlRuntime(goResult.helpers, 'main') +
-      printGoFile({
-        package: 'main',
-        imports: [],
-        declarations: [
-          go.function(
-            'evaluate',
-            [],
-            [{ type: go.ident('EvalBool') }],
-            [{ kind: 'return', expressions: [goResult.value.expression] }],
-          ),
-        ],
-      })
-    expect(goSource).toContain('func Find(')
-    expect(goSource).toContain('func evalBoolRegexEngine(')
-    expect(goSource).not.toContain('regexp.MustCompile(')
-  })
-
-  it('includes the generated engine for constant and dynamic patterns', () => {
-    const constant = emitEvalBoolExpression(
-      regex('abc', 'abc'),
-      typescriptSqlBackend,
-      typescriptEvalBoolBackend,
-    )
-    expect(printFile(typescriptSqlRuntime(constant.helpers))).toContain('function find(')
-    const similarConstant = emitEvalBoolExpression(
-      regexCall('operator', '~', [text('abc'), similar(text('abc'))]),
-      typescriptSqlBackend,
-      typescriptEvalBoolBackend,
-    )
-    expect(printFile(typescriptSqlRuntime(similarConstant.helpers))).toContain('function find(')
-    const similarDynamic = emitEvalBoolExpression(
-      regexCall('operator', '~', [text('abc'), similar(concat(text('a'), text('bc')))]),
-      typescriptSqlBackend,
-      typescriptEvalBoolBackend,
-    )
-    const similarDynamicSource = printFile(typescriptSqlRuntime(similarDynamic.helpers))
-    expect(similarDynamicSource).toContain('function find(')
-    expect(similarDynamicSource).toContain('function similarToEscapeDefault')
-    expect(similarDynamicSource).toContain(numericMathCopyright)
-    const goSimilarDynamic = emitEvalBoolExpression(
-      regexCall('operator', '~', [text('abc'), similar(concat(text('a'), text('bc')))]),
-      goSqlBackend,
-      goEvalBoolBackend,
-    )
-    expect(goSqlRuntime(goSimilarDynamic.helpers, 'main')).toContain(numericMathCopyright)
-    const invalidFlags = emitEvalBoolExpression(
-      regexCall('function', 'regexp_like', [text('abc'), text('abc'), text('g')]),
-      typescriptSqlBackend,
-      typescriptEvalBoolBackend,
-    )
-    expect(printFile(typescriptSqlRuntime(invalidFlags.helpers))).not.toContain('function find(')
-    const dynamic = dynamicRegex('abc', 'abc')
-    const typescript = emitEvalBoolExpression(
-      dynamic,
-      typescriptSqlBackend,
-      typescriptEvalBoolBackend,
-    )
-    expect(printFile(typescriptSqlRuntime(typescript.helpers))).toContain('function find(')
-    const goResult = emitEvalBoolExpression(dynamic, goSqlBackend, goEvalBoolBackend)
-    const goSource = goSqlRuntime(goResult.helpers, 'main')
-    expect(goSource).toContain('func Find(')
-    expect(goSource).not.toContain('regexp.MustCompile(')
-
-    const constantCount = emitEvalBoolExpression(
-      regexCountCases[0]!.expression,
-      typescriptSqlBackend,
-      typescriptEvalBoolBackend,
-    )
-    expect(printFile(typescriptSqlRuntime(constantCount.helpers))).toContain('function count(')
-    const dynamicCount = emitEvalBoolExpression(
-      regexCountCases.find((fixture) => fixture.name === 'regexp_count computed pattern')!
-        .expression,
-      typescriptSqlBackend,
-      typescriptEvalBoolBackend,
-    )
-    expect(printFile(typescriptSqlRuntime(dynamicCount.helpers))).toContain('function count(')
+    expect(requiresRegex('unknown_bool')).toBe(false)
+    expect(requiresRegex("'abc' ~ 'abc$'")).toBe(true)
+    expect(requiresRegex("unknown_text ~ 'abc$'")).toBe(true)
+    expect(requiresRegex("unknown_text ~ pg_catalog.similar_to_escape('abc')")).toBe(true)
+    expect(requiresRegex("'abc' ~ pg_catalog.similar_to_escape('a' || unknown_text)")).toBe(true)
+    expect(requiresRegex("'abc' ~ ('a' || unknown_text)")).toBe(true)
+    expect(requiresRegex("pg_catalog.regexp_count(unknown_text, 'aa') = 2")).toBe(true)
+    expect(requiresRegex("pg_catalog.regexp_count('aaaa', 'a' || unknown_text) = 2")).toBe(true)
   })
 
   it('rejects malformed incomplete expressions', () => {
+    const constant = (value: boolean) =>
+      ({
+        kind: 'certain',
+        expression: { kind: 'boolean', type: 'pg_catalog.bool', value },
+      }) as const
     expect(() =>
-      emitEvalBoolExpression(
-        {
-          kind: 'certain',
-          expression: { kind: 'text', type: 'pg_catalog.text', value: 'not boolean' },
-        },
-        typescriptSqlBackend,
-        typescriptEvalBoolBackend,
-      ),
-    ).toThrow('A certain CHECK atom must be boolean')
+      emitCheckRustEvaluator({
+        kind: 'certain',
+        expression: { kind: 'text', type: 'pg_catalog.text', value: 'not boolean' },
+      }),
+    ).toThrow('A Rust CHECK constant must be bool')
     expect(() =>
-      emitEvalBoolExpression(
-        { kind: 'eval-boolean-logic', operation: 'and', operands: [certain(true)] },
-        typescriptSqlBackend,
-        typescriptEvalBoolBackend,
-      ),
-    ).toThrow('Invalid EvalBool expression')
+      emitCheckRustEvaluator({
+        kind: 'eval-boolean-logic',
+        operation: 'and',
+        operands: [constant(true)],
+      }),
+    ).toThrow('Expected binary Boolean operation')
     expect(() =>
-      emitEvalBoolExpression(
-        { kind: 'eval-boolean-logic', operation: 'not', operands: [certain(true), certain(false)] },
-        goSqlBackend,
-        goEvalBoolBackend,
-      ),
-    ).toThrow('Invalid EvalBool expression')
+      emitCheckRustEvaluator({
+        kind: 'eval-boolean-logic',
+        operation: 'not',
+        operands: [constant(true), constant(false)],
+      }),
+    ).toThrow('Expected unary NOT')
     expect(() =>
-      emitEvalBoolExpression(
-        { kind: 'eval-case', branches: [], otherwise: certain(false) },
-        goSqlBackend,
-        goEvalBoolBackend,
-      ),
-    ).toThrow('Invalid EvalBool CASE expression')
-    expect(() =>
-      emitEvalBoolExpression(
-        {
-          kind: 'eval-regex',
-          subject: { kind: 'boolean', type: 'pg_catalog.bool', value: true },
-          pattern: 'true',
-          negated: false,
-          collation: 'C',
-        },
-        typescriptSqlBackend,
-        typescriptEvalBoolBackend,
-      ),
-    ).toThrow('A regex CHECK atom requires a C-collated text subject')
-    expect(() =>
-      emitEvalBoolExpression(
-        {
-          ...regex('value', 'value'),
-          collation: 'en_US' as 'C',
-        },
-        goSqlBackend,
-        goEvalBoolBackend,
-      ),
-    ).toThrow('A regex CHECK atom requires a C-collated text subject')
-    expect(() =>
-      emitEvalBoolExpression(
-        {
-          ...dynamicRegex('value', 'value'),
-          pattern: { kind: 'boolean', type: 'pg_catalog.bool', value: true },
-        },
-        typescriptSqlBackend,
-        typescriptEvalBoolBackend,
-      ),
-    ).toThrow('A dynamic regex CHECK pattern must have text type')
-    expect(() =>
-      emitEvalBoolExpression(
-        regexCall('function', 'regexp_count', [text('a'), text('a')]),
-        typescriptSqlBackend,
-        typescriptEvalBoolBackend,
-      ),
-    ).toThrow('Unsupported regex CHECK signature')
-    expect(() =>
-      emitEvalBoolExpression(
-        {
-          kind: 'eval-call',
-          call: {
-            kind: 'operator',
-            type: 'pg_catalog.bool',
-            signature: 'operator:["pg_catalog","~"](pg_catalog.text,pg_catalog.text)',
-            collation: 'en_US',
-            operands: [text('a'), text('a')],
-          },
-        },
-        goSqlBackend,
-        goEvalBoolBackend,
-      ),
-    ).toThrow('A regex CHECK atom requires a C-collated text subject')
-    const totalRegex = (
-      regexCall('operator', '~', [text('a'), text('a')]) as Extract<
-        EvalBoolExpression,
-        { kind: 'eval-call' }
-      >
-    ).call
-    expect(() => emitSqlExpression(totalRegex, typescriptSqlBackend)).toThrow(
-      'Unsupported overload',
-    )
-    const totalRegexpLike = (
-      regexCall('function', 'regexp_like', [text('a'), text('a')]) as Extract<
-        EvalBoolExpression,
-        { kind: 'eval-call' }
-      >
-    ).call
-    expect(() => emitSqlExpression(totalRegexpLike, goSqlBackend)).toThrow('Unsupported overload')
-    const totalRegexpCount: SqlExpression = {
-      kind: 'function',
-      type: 'pg_catalog.int4',
-      signature: 'function:["pg_catalog","regexp_count"](pg_catalog.text,pg_catalog.text)',
-      operands: [text('a'), text('a')],
-      collation: 'C',
-    }
-    expect(() => emitSqlExpression(totalRegexpCount, typescriptSqlBackend)).toThrow(
-      'Unsupported overload',
-    )
-    expect(() =>
-      emitEvalBoolExpression(
-        {
-          kind: 'eval-scalar',
-          expression: {
-            ...countExpression([evalCertain(text('a')), evalCertain(text('a'))]),
-            signature: 'function:["pg_catalog","regexp_like"](pg_catalog.text,pg_catalog.text)',
-          } as EvalExpression,
-        },
-        goSqlBackend,
-        goEvalBoolBackend,
-      ),
-    ).toThrow('Unsupported partial regex count signature')
+      emitCheckRustEvaluator({ kind: 'eval-case', branches: [], otherwise: constant(false) }),
+    ).toThrow('Expected a CASE branch')
   })
 })

@@ -249,6 +249,14 @@ fn clock_input_text(raw_input: TextValue) -> TextValue {
             if keyword == "allballs" {
                 return make_text_value("2000-01-01 00:00:00+00");
             };
+            // A word that runs into a date separator is read as a time zone name; whether the
+            // deployment's zone data knows it decides between a syntax error and an unknown zone.
+            if word_end > start
+                && word_end < end
+                && (text.chars[word_end] == '-' || text.chars[word_end] == '/' || text.chars[word_end] == '.')
+            {
+                return text_unresolved(resolution_context(unresolved_flavor));
+            };
             return TextValue::Error(make_sql_error(CLOCK_INPUT_SYNTAX));
         };
         if word_end > start && word_digits == end && word_digits - word_end < 4 {

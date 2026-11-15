@@ -16,7 +16,7 @@ import {
   type Row,
 } from '../../tools/check-rust/parity.js'
 
-it('matches C/UTF8 JSONB ordering, exact comparator values, container counts, Unicode key order and composition in every target', async () => {
+it('matches C/UTF8 JSONB ordering, exact comparator values, container counts, Unicode key order and composition in every target, and leaves only the ordering Unknown without them', async () => {
   const pg = await PGlite.create(),
     directory = await mkdtemp(join(tmpdir(), 'pgsid-jsonb-order-'))
   const context = { defaultCollation: 'C', serverEncoding: 'UTF8' } as const
@@ -76,18 +76,11 @@ it('matches C/UTF8 JSONB ordering, exact comparator values, container counts, Un
       expression: portableCheckAtoms(lowerTableCheck(table, c, [], catalog.domains)!.expression),
       identity: { schema: 'public', kind: 'table' as const, owner: table.name, constraint: c.name },
     }))
-    for (const missing of [
-      {},
-      { defaultCollation: 'C' } as const,
-      { serverEncoding: 'UTF8' } as const,
-    ]) {
+    // Without the declared collation and encoding only the ordering itself is Unknown.
+    const undeclared = prepareCheckRustGroup(plans, {})
+    for (const missing of [{ defaultCollation: 'C' } as const, { serverEncoding: 'UTF8' } as const])
       for (const [index, check] of prepareCheckRustGroup(plans, missing).checks.entries())
-        expect(check, constraints[index]!.name).toEqual({
-          kind: 'unsupported',
-          reason:
-            'JSONB ordering requires declared database default collation C and server encoding UTF8',
-        })
-    }
+        expect(check.kind, constraints[index]!.name).toBe('supported')
     const group = prepareCheckRustGroup(plans, context)
     for (const [index, check] of group.checks.entries())
       expect(
@@ -297,6 +290,30 @@ it('matches C/UTF8 JSONB ordering, exact comparator values, container counts, Un
       group,
       constraints.map((c) => c.name),
       fixtures,
+    )
+    const undecided: { name: string; row: Row; expected: Outcome }[] = []
+    for (const name of Object.keys(expressions))
+      for (const suffix of ['_raw', '_stored'])
+        undecided.push({
+          name: name + suffix,
+          row: base,
+          // Neither number has a 'selected' member, and a strict comparison of NULLs is NULL
+          // under any collation.
+          expected: { kind: name === 'extracted' ? 'True' : 'Unknown' },
+        })
+    for (const suffix of ['_raw', '_stored'])
+      undecided.push({
+        name: 'guarded' + suffix,
+        row: { ...base, bypass: known(true) },
+        expected: { kind: 'True' },
+      })
+    await mkdir(join(directory, 'undeclared'))
+    await runCheckParity(
+      join(directory, 'undeclared'),
+      'jsonb_orderings',
+      undeclared,
+      constraints.map((c) => c.name),
+      undecided,
     )
   } finally {
     await pg.close()

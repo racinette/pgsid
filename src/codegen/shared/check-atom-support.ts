@@ -30,7 +30,6 @@ import { isXmlOptionPredicate } from '../../sql-semantics/xml-callables.js'
 import { capturedEnumSupport, isOidAliasType } from '../../sql-semantics/expressions.js'
 import type { EvalBoolExpression } from '../../sql-semantics/check-expressions.js'
 import type { EvalExpression } from '../../sql-semantics/eval-expressions.js'
-import type { SqlBindingGroup } from '../../sql-semantics/signatures.js'
 import { checkRustCallableNames } from './check-rust-source.js'
 import {
   supportsJsonbConversion,
@@ -47,25 +46,13 @@ import {
 } from './check-rust-evaluator.js'
 import { builtinCast, builtinMetadata, builtinTypeIO } from '../../postgres/builtins/inventory.js'
 import { enumEqualityOperation } from '../../sql-semantics/expressions.js'
-import { goSqlBackend } from '../go/sql/registry.js'
-import { typescriptSqlBackend } from '../typescript/sql/registry.js'
-
-const signatures = <Ast>(bindings: readonly SqlBindingGroup<Ast>[]): Set<string> =>
-  new Set(
-    bindings.flatMap((group) => [
-      ...Object.keys(group.operators).filter((key) => group.operators[key] !== undefined),
-      ...Object.keys(group.functions).filter((key) => group.functions[key] !== undefined),
-    ]),
-  )
-const go = signatures(goSqlBackend.bindings)
-const typescript = signatures(typescriptSqlBackend.bindings)
 // A builtin that is not immutable reads session or database state when it runs.
 const uncertainCall = (signature: string, type: string): EvalExpression =>
   builtinMetadata(signature).volatility === 'i'
     ? { kind: 'uncertain', type }
     : { kind: 'uncertain', type, reason: 'context' }
 
-const portable = (signature: string, rustNames: ReadonlySet<string>, rust: boolean): boolean => {
+const portable = (signature: string, rustNames: ReadonlySet<string>): boolean => {
   if (enumEqualityOperation(signature) !== null) return true
   const metadata = builtinMetadata(signature)
   const implementation =
@@ -83,44 +70,36 @@ const portable = (signature: string, rustNames: ReadonlySet<string>, rust: boole
       builtinCast('pg_catalog.text', implementation.result)?.implementation === signature)
   return (
     (metadata.volatility === 'i' ||
-      (rust &&
-        implementation.kind === 'function' &&
+      (implementation.kind === 'function' &&
         capturedEnumSupport(implementation) &&
         rustNames.has(implementation.rustName)) ||
-      (rust &&
-        implementation.kind === 'function' &&
+      (implementation.kind === 'function' &&
         (isArrayStringIO(implementation) ||
           isArrayBinarySend(implementation) ||
           isRecordBinarySend(implementation) ||
           isRangeBinarySend(implementation) ||
           isMultirangeBinarySend(implementation)) &&
         rustNames.has(implementation.rustName)) ||
-      (rust &&
-        isJsonpathTimezoneCallable(implementation) &&
-        rustNames.has(implementation.rustName)) ||
-      (rust &&
-        implementation.kind === 'function' &&
+      (isJsonpathTimezoneCallable(implementation) && rustNames.has(implementation.rustName)) ||
+      (implementation.kind === 'function' &&
         (signature === builtinCast('pg_catalog.text', 'pg_catalog.xml')?.implementation ||
           signature === builtinTypeIO('pg_catalog.xml')?.send ||
           isXmlOptionPredicate(implementation)) &&
         rustNames.has(implementation.rustName)) ||
-      (rust &&
-        implementation.kind === 'function' &&
+      (implementation.kind === 'function' &&
         isCatalogVectorTypeNames(implementation) &&
         rustNames.has(implementation.rustName)) ||
-      (rust && isJsonbBuilder(implementation) && rustNames.has(implementation.rustName)) ||
-      (rust && isJsonPopulateCallable(implementation) && rustNames.has(implementation.rustName)) ||
-      (rust &&
-        (isTypeFormatCallable(implementation) || isCollationMetadataCallable(implementation)) &&
+      (isJsonbBuilder(implementation) && rustNames.has(implementation.rustName)) ||
+      (isJsonPopulateCallable(implementation) && rustNames.has(implementation.rustName)) ||
+      ((isTypeFormatCallable(implementation) || isCollationMetadataCallable(implementation)) &&
         rustNames.has(implementation.rustName)) ||
-      (rust && isTextFormatCallable(implementation) && rustNames.has(implementation.rustName)) ||
-      (rust && isTextConcatCallable(implementation) && rustNames.has(implementation.rustName)) ||
-      (rust && isNullableQuote(implementation) && rustNames.has(implementation.rustName)) ||
-      (rust && isGenericLiteralQuote(implementation) && rustNames.has(implementation.rustName)) ||
-      (rust && isJsonBuilder(implementation) && rustNames.has(implementation.rustName)) ||
-      (rust && isJsonConversion(implementation) && rustNames.has(implementation.rustName)) ||
-      (rust &&
-        implementation.kind === 'function' &&
+      (isTextFormatCallable(implementation) && rustNames.has(implementation.rustName)) ||
+      (isTextConcatCallable(implementation) && rustNames.has(implementation.rustName)) ||
+      (isNullableQuote(implementation) && rustNames.has(implementation.rustName)) ||
+      (isGenericLiteralQuote(implementation) && rustNames.has(implementation.rustName)) ||
+      (isJsonBuilder(implementation) && rustNames.has(implementation.rustName)) ||
+      (isJsonConversion(implementation) && rustNames.has(implementation.rustName)) ||
+      (implementation.kind === 'function' &&
         implementation.schema === 'pg_catalog' &&
         implementation.name === 'to_jsonb' &&
         implementation.strict &&
@@ -130,12 +109,10 @@ const portable = (signature: string, rustNames: ReadonlySet<string>, rust: boole
         implementation.args[0] === 'pg_catalog.anyelement' &&
         implementation.result === 'pg_catalog.jsonb' &&
         rustNames.has(implementation.rustName)) ||
-      (rust &&
-        implementation.kind === 'function' &&
+      (implementation.kind === 'function' &&
         isMoneyNumericConversion(implementation) &&
         rustNames.has(implementation.rustName)) ||
-      (rust &&
-        implementation.kind === 'function' &&
+      (implementation.kind === 'function' &&
         (isTemporalContextCast(implementation) ||
           isTemporalContextComparison(implementation) ||
           isTemporalLocalTimezone(implementation) ||
@@ -167,15 +144,12 @@ const portable = (signature: string, rustNames: ReadonlySet<string>, rust: boole
           }[implementation.name] &&
         implementation.result === 'pg_catalog.bytea' &&
         rustNames.has(implementation.rustName))) &&
-    ((go.has(signature) && typescript.has(signature)) ||
-      (implementation.kind === 'function' && rustNames.has(implementation.rustName)))
+    implementation.kind === 'function' &&
+    rustNames.has(implementation.rustName)
   )
 }
 
-export function portableCheckAtoms(
-  expression: EvalBoolExpression,
-  rust = true,
-): EvalBoolExpression {
+export function portableCheckAtoms(expression: EvalBoolExpression): EvalBoolExpression {
   const rustNames = checkRustCallableNames()
   const scalar = (value: EvalExpression): EvalExpression => {
     if (value.kind === 'xml-constructor') return { ...value, operands: value.operands.map(scalar) }
@@ -272,16 +246,14 @@ export function portableCheckAtoms(
               ? operand.expression.type
               : operand?.kind === 'call'
                 ? operand.call.type
-                : operand?.kind === 'regex-count'
-                  ? builtinMetadata(operand.signature).result
-                  : operand?.type
+                : operand?.type
           if (!type || !supportsJsonbConversion(type))
             return { kind: 'uncertain', type: value.call.type }
         }
       }
     }
     if (value.kind === 'call')
-      return value.call.signature !== null && portable(value.call.signature, rustNames, rust)
+      return value.call.signature !== null && portable(value.call.signature, rustNames)
         ? { ...value, operands: value.operands.map(scalar) }
         : value.call.signature !== null
           ? uncertainCall(value.call.signature, value.call.type)
@@ -301,20 +273,17 @@ export function portableCheckAtoms(
         groups: value.groups.map((group) => group.map(scalar)),
       }
     if (value.kind === 'distinct' || value.kind === 'nullif')
-      return value.comparison.signature !== null &&
-        portable(value.comparison.signature, rustNames, rust)
+      return value.comparison.signature !== null && portable(value.comparison.signature, rustNames)
         ? { ...value, operands: [scalar(value.operands[0]), scalar(value.operands[1])] }
         : { kind: 'uncertain', type: value.type }
     if (value.kind === 'minmax')
-      return value.comparison.signature !== null &&
-        portable(value.comparison.signature, rustNames, rust)
+      return value.comparison.signature !== null && portable(value.comparison.signature, rustNames)
         ? { ...value, operands: value.operands.map(scalar) }
         : { kind: 'uncertain', type: value.type }
     if (value.kind === 'row-compare')
       return value.pairs.every(
         (pair) =>
-          pair.comparison.signature !== null &&
-          portable(pair.comparison.signature, rustNames, rust),
+          pair.comparison.signature !== null && portable(pair.comparison.signature, rustNames),
       )
         ? {
             ...value,
@@ -325,13 +294,6 @@ export function portableCheckAtoms(
           }
         : { kind: 'uncertain', type: value.type }
     if (value.kind === 'null-test') {
-      if (!rust && value.operand.kind === 'input' && value.operand.type.startsWith('array:'))
-        return {
-          kind: 'input-null-test',
-          type: value.type,
-          name: value.operand.name,
-          negated: value.negated,
-        }
       return { ...value, operand: scalar(value.operand) }
     }
     if (value.kind === 'case')
@@ -347,7 +309,6 @@ export function portableCheckAtoms(
         })),
         otherwise: scalar(value.otherwise),
       }
-    if (value.kind === 'regex-count') return { ...value, operands: value.operands.map(scalar) }
     return value
   }
   const bool = (value: EvalBoolExpression): EvalBoolExpression => {
@@ -363,11 +324,6 @@ export function portableCheckAtoms(
         otherwise: bool(value.otherwise),
       }
     if (value.kind === 'eval-test') return { ...value, operand: bool(value.operand) }
-    if (value.kind === 'eval-comparison')
-      return {
-        ...value,
-        operands: value.operands.map(bool) as [EvalBoolExpression, EvalBoolExpression],
-      }
     return value
   }
   return bool(expression)

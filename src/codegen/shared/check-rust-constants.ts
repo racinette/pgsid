@@ -37,8 +37,6 @@ export function constantCheckExpression(expression: EvalBoolExpression): boolean
       ) && constantCheckExpression(expression.otherwise)
     )
   if (expression.kind === 'eval-test') return constantCheckExpression(expression.operand)
-  if (expression.kind === 'eval-comparison')
-    return expression.operands.every(constantCheckExpression)
   return false
 }
 
@@ -277,17 +275,6 @@ function prepare(expression: EvalExpression): Preparation | null {
   if (expression.kind === 'interval-literal') return constant(expression)
   if (expression.kind === 'input' || expression.kind === 'input-null-test')
     return { constant: false, null: false, expressions: [] }
-  if (expression.kind === 'regex-count')
-    return prepare({
-      kind: 'call',
-      call: {
-        kind: 'function',
-        signature: expression.signature,
-        type: 'pg_catalog.int4',
-        collation: expression.collation,
-      },
-      operands: expression.operands,
-    })
   if (expression.kind === 'nullif') {
     const operands = prepareAll(expression.operands)
     if (!operands) return null

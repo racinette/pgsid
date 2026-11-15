@@ -33,8 +33,6 @@ import {
   domainElementDefinition,
   enumType,
   isCatalogVectorType,
-  isRangeType,
-  isMultirangeType,
   isArrayLikeType,
   arrayLikeElementType,
 } from '../../../sql-semantics/expressions.js'
@@ -69,10 +67,7 @@ import {
   catalogCircleType,
   catalogBoxType,
 } from '../../../sql-semantics/catalog-check-binder.js'
-import {
-  emitEvalBoolExpression,
-  type EvalBoolExpression,
-} from '../../../sql-semantics/check-expressions.js'
+import type { EvalBoolExpression } from '../../../sql-semantics/check-expressions.js'
 import type { EvalExpression } from '../../../sql-semantics/eval-expressions.js'
 import { portableCheckAtoms } from '../../shared/check-atom-support.js'
 import { checkUnknownMessage } from '../../shared/check-diagnostics.js'
@@ -84,8 +79,6 @@ import {
 } from '../../shared/check-rust-transpile.js'
 import { exportModifier, factory, identifier, printFile } from '../ast.js'
 import { typeName } from '../type-mapping.js'
-import { typescriptEvalBoolBackend } from './check.js'
-import { typescriptSqlBackend } from './registry.js'
 import { typescriptSqlRuntime } from './runtime.js'
 import { typescriptPublicCheckInput } from './codecs.js'
 
@@ -182,22 +175,6 @@ const checkRustReadTypes: ReadonlySet<string> = new Set([
   'BoolValue',
 ])
 
-export function renderTypescriptSchemaChecks(
-  tables: readonly TableInfo[],
-  domains: readonly DomainInfo[] = [],
-  selectedDomains: readonly DomainInfo[] = domains,
-  options: {
-    typedInputs?: boolean
-    compositeTypeGraph?: CompositeTypeGraph
-    rangeTypes?: readonly RangeTypeInfo[]
-    enums?: readonly EnumInfo[]
-    executionContext?: CheckExecutionContext
-  } = {},
-): string {
-  return renderTypescriptSchemaCheckArtifacts(tables, domains, selectedDomains, options, false)
-    .checks
-}
-
 export function renderTypescriptSchemaCheckArtifacts(
   tables: readonly TableInfo[],
   domains: readonly DomainInfo[] = [],
@@ -214,7 +191,6 @@ export function renderTypescriptSchemaCheckArtifacts(
     // The evaluator's source is returned to be translated with others' rather than translated here.
     deferRust?: boolean
   } = {},
-  rust = true,
   // Set on a second pass when a value holds jsonpath parts, whose input needs the regex engine.
   regexInputs = false,
 ): {
@@ -377,30 +353,28 @@ export function renderTypescriptSchemaCheckArtifacts(
     }
     return typeMod
   }
-  const rustGroup = rust
-    ? prepareCheckRustGroup(
-        groups.flatMap((group) =>
-          group.checks.map(({ plan, source }) => ({
-            expression: portableCheckAtoms(
-              readPublicText(
-                plan.expression,
-                groupColumns(group),
-                publicText.get(group) ?? publicText.set(group, new Map()).get(group)!,
-              ),
-            ),
-            identity: {
-              schema: group.source.schema,
-              kind: group.kind,
-              owner: group.source.name,
-              constraint: plan.name,
-              declaredOn: { schema: source.schema, owner: source.name },
-            },
-          })),
+  const rustGroup = prepareCheckRustGroup(
+    groups.flatMap((group) =>
+      group.checks.map(({ plan, source }) => ({
+        expression: portableCheckAtoms(
+          readPublicText(
+            plan.expression,
+            groupColumns(group),
+            publicText.get(group) ?? publicText.set(group, new Map()).get(group)!,
+          ),
         ),
-        options.executionContext,
-        regexInputs,
-      )
-    : null
+        identity: {
+          schema: group.source.schema,
+          kind: group.kind,
+          owner: group.source.name,
+          constraint: plan.name,
+          declaredOn: { schema: source.schema, owner: source.name },
+        },
+      })),
+    ),
+    options.executionContext,
+    regexInputs,
+  )
   let jsonpathReached = false
   let rustIndex = 0
   const row = identifier('row')
@@ -604,7 +578,7 @@ export function renderTypescriptSchemaCheckArtifacts(
       wrap(prefix, helperCall(adapter, [oneFieldRow(), identifier('name'), ...extra]))
     // jsonpath's input compiles like_regex patterns, so it needs the regex engine in the evaluator.
     if (type === 'pg_catalog.jsonpath') {
-      if (!rustGroup?.requiresRegex) {
+      if (!rustGroup.requiresRegex) {
         jsonpathReached = true
         return null
       }
@@ -766,9 +740,7 @@ export function renderTypescriptSchemaCheckArtifacts(
         undecided(convert) || (typeMod >= 0 && member !== 'arrayElementFromArray')
           ? 'checkRustUndecidedElement'
           : cell(
-              runtimeCall(member, [
-                helperCall(convert, [identifier('value'), identifier('name')]),
-              ]),
+              runtimeCall(member, [helperCall(convert, [identifier('value'), identifier('name')])]),
             )
       if (compositeProfile(type)) return call('arrayElementFromComposite', compositeConverter(type))
       if (multirangeTypeProfile(type) && !isArrayLikeType(type))
@@ -882,45 +854,6 @@ export function renderTypescriptSchemaCheckArtifacts(
           : []),
       ])
     })
-  const callInput = (helper: string, name: string): ts.Expression => {
-    inputHelpers.add(helper)
-    return factory.createCallExpression(identifier(helper), undefined, [
-      row,
-      factory.createStringLiteral(name),
-    ])
-  }
-  const inputHelper = (type: string): string | null => {
-    if (type === 'pg_catalog.bool') return 'checkInputBoolean'
-    if (type === 'pg_catalog.int8') return 'checkInputInt8'
-    if (/^pg_catalog\.int[24]$/u.test(type)) return 'checkInputInteger'
-    if (/^pg_catalog\.float[48]$/u.test(type)) return 'checkInputFloat'
-    if (
-      [
-        'pg_catalog.refcursor',
-        'pg_catalog.name',
-        'pg_catalog.text',
-        'pg_catalog."varchar"',
-        'pg_catalog.bpchar',
-      ].includes(type)
-    )
-      return 'checkInputText'
-    return null
-  }
-  const backend = {
-    ...typescriptEvalBoolBackend,
-    guardInputs: (names: readonly string[], expression: ts.Expression): ts.Expression =>
-      factory.createConditionalExpression(
-        names
-          .map((name) => callInput('checkTextKnown', name))
-          .reduce((left, right) =>
-            factory.createBinaryExpression(left, ts.SyntaxKind.AmpersandAmpersandToken, right),
-          ),
-        factory.createToken(ts.SyntaxKind.QuestionToken),
-        expression,
-        factory.createToken(ts.SyntaxKind.ColonToken),
-        factory.createCallExpression(identifier('evalBoolUncertain'), undefined, []),
-      ),
-  }
   const literal = (value: unknown): ts.Expression => {
     if (typeof value === 'string') return factory.createStringLiteral(value)
     if (typeof value === 'boolean') return value ? factory.createTrue() : factory.createFalse()
@@ -958,7 +891,7 @@ export function renderTypescriptSchemaCheckArtifacts(
   const emitted = groups.map((group) => ({
     ...group,
     results: group.checks.map(({ plan }) => {
-      const prepared = rustGroup?.checks[rustIndex++]
+      const prepared = rustGroup.checks[rustIndex++]
       const unknownMessage = checkUnknownMessage(
         plan.expression,
         prepared?.kind === 'unsupported' ? prepared.reason : undefined,
@@ -1393,67 +1326,18 @@ export function renderTypescriptSchemaCheckArtifacts(
           unknownMessage,
         }
       }
-      const result = emitEvalBoolExpression(
-        portableCheckAtoms(plan.expression, false),
-        { ...typescriptSqlBackend, input: (name) => callInput('checkTextValue', name) },
-        {
-          ...backend,
-          scalar: {
-            ...backend.scalar,
-            inputNullTest: (name, negated) => {
-              const expression = callInput('checkInputNullness', name)
-              return negated
-                ? backend.scalar.logic('not', [
-                    { type: 'pg_catalog.bool', expression, effect: 'partial' },
-                  ])
-                : { expression, helpers: ['EvalValue'] }
-            },
-            input: (type, name, definition) => {
-              if (definition) {
-                inputHelpers.add('checkInputEnum')
-                return {
-                  expression: factory.createCallExpression(
-                    identifier('checkInputEnum'),
-                    undefined,
-                    [
-                      row,
-                      factory.createStringLiteral(name),
-                      factory.createStringLiteral(enumType(definition)),
-                      factory.createArrayLiteralExpression(
-                        definition.values.map((label) => factory.createStringLiteral(label)),
-                      ),
-                    ],
-                  ),
-                  helpers: ['EvalValue', 'SqlEnum', 'enumInput'],
-                }
-              }
-              if (
-                type === 'pg_catalog.point' ||
-                type === 'pg_catalog.line' ||
-                type === 'pg_catalog.lseg' ||
-                type === 'pg_catalog.box' ||
-                type === 'pg_catalog."numeric"' ||
-                isRangeType(type) ||
-                isMultirangeType(type) ||
-                type === 'pg_catalog."bit"' ||
-                type === 'pg_catalog.varbit' ||
-                type === 'pg_catalog.uuid' ||
-                type === 'pg_catalog."time"' ||
-                type === 'pg_catalog.timetz' ||
-                type === 'pg_catalog."interval"' ||
-                type === 'pg_catalog.date' ||
-                type === 'pg_catalog."timestamp"' ||
-                type === 'pg_catalog.timestamptz'
-              )
-                return backend.scalar.uncertain(type)
-              const helper = inputHelper(type)
-              if (!helper) throw new Error(`Unsupported CHECK input type: ${type}`)
-              return { expression: callInput(helper, name), helpers: ['EvalValue'] }
-            },
-          },
+      // A CHECK the evaluator declines stays undecided, with the reason in its message.
+      return {
+        value: {
+          expression: factory.createCallExpression(
+            identifier('evalBoolUnimplemented'),
+            undefined,
+            [],
+          ),
         },
-      )
-      return { ...result, unknownMessage }
+        helpers: ['evalBoolUnimplemented'],
+        unknownMessage,
+      }
     }),
   }))
   const namedImport = (names: readonly string[], module: string): ts.ImportDeclaration =>
@@ -1533,7 +1417,7 @@ export function renderTypescriptSchemaCheckArtifacts(
           )
         : undefined
     const portableInputs = new Map<string, string>(
-      rustGroup?.source
+      rustGroup.source
         ? table
           ? table.columns.flatMap((column) => {
               const type = portableValueType(column.typeName, column.typeOid)
@@ -1600,7 +1484,7 @@ export function renderTypescriptSchemaCheckArtifacts(
       undefined,
     )
   }
-  const rustStatements = rustGroup?.source
+  const rustStatements = rustGroup.source
     ? keepWithDependencies(
         [
           ...synthesizedStatements(typescriptRustAdapterSource),
@@ -1651,13 +1535,14 @@ export function renderTypescriptSchemaCheckArtifacts(
       domains,
       [...selectedDomains, ...reachedDomains],
       options,
-      rust,
       regexInputs || jsonpathReached,
     )
   const rustFiles =
-    rustGroup?.source && !options.deferRust ? transpileCheckRustTypescriptFiles(rustGroup.source) : null
+    rustGroup.source && !options.deferRust
+      ? transpileCheckRustTypescriptFiles(rustGroup.source)
+      : null
   const rustParts: CheckRustParts | null =
-    rustGroup?.source && rustGroup.evaluatorSource
+    rustGroup.source && rustGroup.evaluatorSource
       ? {
           evaluatorSource: rustGroup.evaluatorSource,
           sharedDeclarations: rustGroup.sharedDeclarations ?? [],
@@ -1667,7 +1552,7 @@ export function renderTypescriptSchemaCheckArtifacts(
       : null
   return {
     checks: printFile([
-      ...(rustGroup?.source
+      ...(rustGroup.source
         ? [
             factory.createImportDeclaration(
               undefined,
@@ -2793,15 +2678,6 @@ const synthesizedStatements = (source: string): ts.Statement[] => {
 }
 
 const checkInputHelpers: Record<string, { dependencies: readonly string[]; source: string }> = {
-  checkInputEnum: {
-    dependencies: ['checkRawInput'],
-    source: `function checkInputEnum(row: object, name: string, type: string, labels: readonly string[]): EvalValue<SqlEnum> {
-  const value = checkRawInput(row, name)
-  if (value === null) return { certain: true, value: null }
-  if (typeof value !== 'string' || !labels.includes(value)) return { certain: false }
-  return { certain: true, value: enumInput(value, type, labels) }
-}`,
-  },
   checkInputNullness: {
     dependencies: ['checkRawInput'],
     source: `function checkInputNullness(row: object, name: string): EvalValue<boolean> {
@@ -2859,13 +2735,6 @@ const checkInputHelpers: Record<string, { dependencies: readonly string[]; sourc
   if (value === null) return { certain: true, value: null }
   // int8 values are bigints, as queries send them.
   return typeof value === 'bigint' ? { certain: true, value } : { certain: false }
-}`,
-  },
-  checkInputFloat: {
-    dependencies: ['checkRawInput'],
-    source: `function checkInputFloat(row: object, name: string): EvalValue<number> {
-  const value = checkRawInput(row, name)
-  return value === null || typeof value === 'number' ? { certain: true, value } : { certain: false }
 }`,
   },
 }

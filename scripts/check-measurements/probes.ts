@@ -11,6 +11,7 @@ import {
   UnsupportedCheckRustExpression,
 } from '../../src/codegen/shared/check-rust-evaluator.js'
 import { prepareCheckRust } from '../../src/codegen/shared/check-rust-source.js'
+import { builtinMetadata } from '../../src/postgres/builtins/inventory.js'
 import { arrayElementFamily } from '../../src/codegen/shared/check-array-types.js'
 import {
   isArrayLikeType,
@@ -24,6 +25,19 @@ export function hasUncertain(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false
   if ('kind' in value && value.kind === 'uncertain') return true
   return Object.values(value).some(hasUncertain)
+}
+
+// Whether the expression calls a builtin that is not immutable, so that only declared session or
+// database settings can decide it.
+export function readsSessionState(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false
+  return Object.entries(value).some(
+    ([key, item]) =>
+      (key === 'signature' &&
+        typeof item === 'string' &&
+        builtinMetadata(item).volatility !== 'i') ||
+      readsSessionState(item),
+  )
 }
 
 export function inspectExpression(

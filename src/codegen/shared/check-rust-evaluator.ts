@@ -1212,9 +1212,7 @@ export function emitCheckRustEvaluator(
       ? operand.expression.type
       : operand.kind === 'call'
         ? operand.call.type
-        : operand.kind === 'regex-count'
-          ? 'pg_catalog.int4'
-          : operand.type
+        : operand.type
 
   const appendValidityRequirement = (
     scope: string,
@@ -3384,6 +3382,14 @@ export function emitCheckRustEvaluator(
       arrayHashPlan?: RangeArrayHashPlan,
       rangeOverride?: RangeProfile,
     ): { name: string; type: string } => {
+      // A call whose result waits on an undeclared database fact is Unknown by itself, so the
+      // rest of its CHECK can still decide.
+      const unresolvedCall = (type: string): { name: string; type: string } => {
+        prepareOpaque(1)
+        const name = fresh('value')
+        destination.push(`let ${name} = ${rustValuePrefix(rustType(type))}_unresolved(1);`)
+        return { name, type }
+      }
       if (call.kind === 'cast' && call.signature === null) {
         if (operands.length === 1 && builtinCast(operands[0]!.type, call.type)?.method === 'b') {
           const input = operands[0]!
@@ -3791,10 +3797,7 @@ export function emitCheckRustEvaluator(
         implementation.args.every((type) => type === 'pg_catalog.jsonb') &&
         (executionContext.defaultCollation !== 'C' || executionContext.serverEncoding !== 'UTF8')
       )
-        throw new UnsupportedCheckRustExpression(
-          'JSONB ordering requires declared database default collation C and server encoding UTF8',
-          true,
-        )
+        return unresolvedCall(call.type)
       const jsonbConversion =
         implementation.kind === 'function' &&
         implementation.schema === 'pg_catalog' &&
@@ -4038,10 +4041,7 @@ export function emitCheckRustEvaluator(
         !defaultTextCtype &&
         !declaredTextCollation
       )
-        throw new UnsupportedCheckRustExpression(
-          `Unsupported Rust CHECK text collation: ${call.signature}`,
-          true,
-        )
+        return unresolvedCall(call.type)
       rustType(call.type)
       if (
         enumCall &&
@@ -10159,7 +10159,9 @@ export function emitCheckRustEvaluator(
       bindings.push(...branches.value)
       return { name, type: node.type }
     }
-    throw new UnsupportedCheckRustExpression(`Unsupported Rust CHECK scalar: ${node.kind}`)
+    throw new UnsupportedCheckRustExpression(
+      `Unsupported Rust CHECK scalar: ${(node as { kind: string }).kind}`,
+    )
   }
 
   type Emitted = { lines: string[]; name: string; inputs: Set<string> }
@@ -10405,46 +10407,9 @@ export function emitCheckRustEvaluator(
         inputs: new Set(),
       }
     }
-    if (node.kind === 'eval-regex') {
-      if (
-        node.subject.kind !== 'input' ||
-        node.subject.type !== 'pg_catalog.text' ||
-        node.negated ||
-        node.collation !== 'C' ||
-        (node.options?.syntax ?? 'advanced') !== 'advanced' ||
-        (node.options?.caseSensitive ?? true) !== true ||
-        (node.options?.expanded ?? false) !== false ||
-        (node.options?.newline ?? 'ordinary') !== 'ordinary' ||
-        node.flags !== undefined ||
-        node.invalidFlags === true
-      )
-        throw new UnsupportedCheckRustExpression('Unsupported Rust CHECK regex expression')
-      const subject = input(node.subject.name, node.subject.type)
-      const pattern = node.pattern
-      if (
-        typeof pattern !== 'string' &&
-        (pattern.kind !== 'input' || pattern.type !== 'pg_catalog.text')
-      )
-        throw new UnsupportedCheckRustExpression('Unsupported Rust CHECK regex pattern')
-      const patternInput = typeof pattern === 'string' ? null : input(pattern.name, pattern.type)
-      const used = new Set(patternInput ? [subject.name, patternInput.name] : [subject.name])
-      const patternName = patternInput?.rustName ?? fresh('pattern')
-      const result = fresh('regex_result')
-      const name = fresh('regex_outcome')
-      requiresRegex = true
-      return {
-        lines: [
-          ...(typeof pattern === 'string'
-            ? [`let ${patternName} = make_text_value(${rustStringLiteral(pattern)});`]
-            : []),
-          `let ${result} = eval_regex(${subject.rustName}.clone(), ${patternName}.clone());`,
-          `let ${name} = check_from_bool(${result});`,
-        ],
-        name,
-        inputs: used,
-      }
-    }
-    throw new UnsupportedCheckRustExpression(`Unsupported Rust CHECK expression: ${node.kind}`)
+    throw new UnsupportedCheckRustExpression(
+      `Unsupported Rust CHECK expression: ${(node as { kind: string }).kind}`,
+    )
   }
 
   const validityStart = fresh('expression_validity_start')

@@ -1,8 +1,5 @@
 import { PG18_NUMERIC } from '../../../../src/postgres/builtins/numeric.generated.js'
-import type {
-  FunctionSignatures,
-  OperatorSignatures,
-} from '../../../../src/sql-semantics/signatures.js'
+import type { FunctionSignatures, OperatorSignatures } from './signatures.js'
 import type { IntegerType, SqlExpression } from '../../../../src/sql-semantics/expressions.js'
 import type { SqlObservation } from '../../../support/postgres/observe.js'
 import { integer, integerWidths } from './integer-addition.js'
