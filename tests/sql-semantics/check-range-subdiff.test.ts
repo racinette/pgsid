@@ -543,7 +543,7 @@ it('preserves strict partial states, constant preparation and lazy runtime dista
         make_bool_value(true)
       }`
       group
-        .source!.modules.find((m) => m.name === 'pg_catalog')!
+        .source!.modules.find((m) => m.name === 'checks')!
         .files.push({ path: `tests/distance_state_${index}.rs`, source })
       const entry = checkRustEntryName({
         schema: 'public',

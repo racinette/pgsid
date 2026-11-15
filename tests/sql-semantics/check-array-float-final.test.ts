@@ -376,7 +376,7 @@ it('retains partial floating states, known NULL guards and supplied NaN payloads
       'pub fn evaluate_check(mode:Int4Value,operation:Int4Value,expected:Int8Value)->CheckOutcome{let result=float_final_probe(mode,operation,expected);check_from_bool(result)}'
     const source = assembleCheckRust({ source: evaluatorSource, callables: [] })
     source.modules
-      .find((m) => m.name === 'pg_catalog')!
+      .find((m) => m.name === 'checks')!
       .files.push({
         path: 'test/float_final_probe.rs',
         source: String.raw`

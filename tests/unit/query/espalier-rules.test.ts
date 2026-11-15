@@ -123,7 +123,7 @@ describe('Espalier query-fixture rule', () => {
     ).length
     expect(foundCodes.filter((code) => code === 'world_rung_reach')).toHaveLength(1)
     expect(foundCodes.filter((code) => code === 'world_rung_reach_detail')).toHaveLength(worldCount)
-  })
+  }, 180_000)
 
   it('accepts a fully declared grouped contract', async () => {
     await expect(codes(GROUPED)).resolves.toEqual([])

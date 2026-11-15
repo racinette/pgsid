@@ -279,7 +279,7 @@ it('retains exact scalar cells and owned JSONB arenas when constructing flattene
       callables: ['sql__pg_catalog__cardinality__m1rn'],
     })
     source.modules
-      .find((module) => module.name === 'pg_catalog')!
+      .find((module) => module.name === 'checks')!
       .files.push({
         path: 'test/array_constructor_payload.rs',
         source: String.raw`

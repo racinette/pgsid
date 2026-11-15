@@ -572,7 +572,7 @@ it('preserves partial nested cells, safe quantified recovery, incoming errors an
       }
     })
     group
-      .source!.modules.find((module) => module.name === 'pg_catalog')!
+      .source!.modules.find((module) => module.name === 'checks')!
       .files.push({ path: 'test/partial_nested_comparisons.rs', source: bodies.join('\n') })
     group.source!.modules.find((module) => module.name === 'checks')!.files[0]!.source +=
       '\n' + wrappers.join('\n')

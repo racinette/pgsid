@@ -299,7 +299,7 @@ it('preserves explicit and missing storage facets, partial state words, strict s
         'pub fn evaluate_check(mode:Int4Value,operation:Int4Value)->CheckOutcome{let result=integer_state_probe(mode,operation);check_from_bool(result)}',
       source = assembleCheckRust({ source: evaluatorSource, callables: [] })
     source.modules
-      .find((module) => module.name === 'pg_catalog')!
+      .find((module) => module.name === 'checks')!
       .files.push({
         path: 'test/integer_state_probe.rs',
         source: String.raw`

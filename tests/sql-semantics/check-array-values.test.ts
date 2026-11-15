@@ -807,7 +807,7 @@ it('owns typed flattened array values, bounds, NULL elements and metadata in eve
     })
     expect(source.modules.some((module) => module.name === 'regex_engine')).toBe(false)
     source.modules
-      .find((module) => module.name === 'pg_catalog')!
+      .find((module) => module.name === 'checks')!
       .files.push({ path: 'test/array_values.rs', source: probe + carrierProbe + ownershipProbe })
     const inputs = ['shape', 'count', 'family', 'dimension', 'expected'].map((name) => ({
       name,

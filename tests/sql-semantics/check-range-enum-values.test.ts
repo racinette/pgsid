@@ -173,7 +173,7 @@ it('owns enum range label context through input, output, sets and multiranges wi
       evaluatorSource = `pub fn ${entryName}(mode:Int4Value)->CheckOutcome {let result=enum_range_values_probe(mode);check_from_bool(result)}`,
       source = assembleCheckRust({ source: evaluatorSource, callables: [] })
     source.modules
-      .find((module) => module.name === 'pg_catalog')!
+      .find((module) => module.name === 'checks')!
       .files.push({
         path: 'tests/enum_range_values.rs',
         source: `

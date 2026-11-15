@@ -23,7 +23,11 @@ export const checkRustRuntimeDirectory = '/tmp/pgsid-check-rust-runtime'
 
 const ownershipMarker = '.pgsid-check-rust-runtime'
 const crateName = 'pgsid_parity_runtime'
-const keptVariants = 16
+// Each selection of optional families is kept twice, as a compiled library and as a
+// translation, and a suite whose probe extends the runtime adds a pair of its own. Keeping fewer
+// than the shared pairs plus those of the suites running alongside evicts variants about to be
+// reused, and a translation rebuilt under load blocks its worker for most of a minute.
+const keptVariants = 32
 const run = promisify(execFile)
 
 // An exploratory origin report, never a gate: the runtime records the call site of every helper

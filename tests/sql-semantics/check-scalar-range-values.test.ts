@@ -289,7 +289,7 @@ it('reuses represented scalar range backends for exact bounds, constructors, rel
       })
       .join('\n')
     source.modules
-      .find((module) => module.name === 'pg_catalog')!
+      .find((module) => module.name === 'checks')!
       .files.push({
         path: 'tests/scalar_range_values.rs',
         source: `

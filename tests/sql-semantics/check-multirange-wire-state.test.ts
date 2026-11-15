@@ -151,7 +151,7 @@ it('keeps successful unknown hashes out of planning errors and preserves strict 
     const checks = group.source!.modules.find((m) => m.name === 'checks')!
     checks.files[0]!.source = group.evaluatorSource!
     group
-      .source!.modules.find((m) => m.name === 'pg_catalog')!
+      .source!.modules.find((m) => m.name === 'checks')!
       .files.push({
         path: 'tests/multi_wire_state.rs',
         source: `

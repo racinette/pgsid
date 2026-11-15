@@ -193,7 +193,7 @@ it('owns selected dimensions and nested JSONB graphs independently of the origin
       callables: ['sql__pg_catalog__array_larger__9l3m', 'sql__pg_catalog__array_smaller__xp88'],
     })
     source.modules
-      .find((m) => m.name === 'pg_catalog')!
+      .find((m) => m.name === 'checks')!
       .files.push({
         path: 'test/array_extrema_owned.rs',
         source: String.raw`

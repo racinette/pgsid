@@ -366,7 +366,7 @@ it('retains nested output partial states and propagates declared JSONB encoding 
         }
       })
       group
-        .source!.modules.find((module) => module.name === 'pg_catalog')!
+        .source!.modules.find((module) => module.name === 'checks')!
         .files.push({ path: 'test/nested_output_context.rs', source: helpers.join('\n') })
       group.source!.modules.find((module) => module.name === 'checks')!.files[0]!.source +=
         '\n' + wrappers.join('\n')

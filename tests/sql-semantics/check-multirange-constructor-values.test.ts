@@ -184,7 +184,7 @@ it('retains exact canonical members and numeric scales for every builtin multira
         callables: constructors.map((c) => c.rustName),
       })
     source.modules
-      .find((m) => m.name === 'pg_catalog')!
+      .find((m) => m.name === 'checks')!
       .files.push({ path: 'tests/multirange_constructor_probe.rs', source: exactProbe })
     const group: ReturnType<typeof prepareCheckRustGroup> = {
       source,
@@ -229,7 +229,7 @@ it('preserves constructor states, shape error order, partial bounds and independ
     const evaluatorSource = `pub fn ${entryName}(mode:Int4Value)->CheckOutcome {let result=multirange_construct_state_probe(mode);check_from_bool(result)}`
     const source = assembleCheckRust({ source: evaluatorSource, callables: [] })
     source.modules
-      .find((m) => m.name === 'pg_catalog')!
+      .find((m) => m.name === 'checks')!
       .files.push({
         path: 'tests/multirange_constructor_states.rs',
         source: String.raw`

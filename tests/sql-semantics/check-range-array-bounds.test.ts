@@ -513,7 +513,7 @@ it('owns typed array bounds through range construction, relations, sets and mult
     const enumSample = spanSource(await readSpan(profiles[5]!, '[{z},{a}]'))
     context(profiles[5]!, true)
     source.modules
-      .find((m) => m.name === 'pg_catalog')!
+      .find((m) => m.name === 'checks')!
       .files.push({
         path: 'tests/array_bound_ranges.rs',
         source: `

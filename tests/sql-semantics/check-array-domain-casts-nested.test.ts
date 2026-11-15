@@ -423,7 +423,7 @@ it('casts already-coerced nested domain arrays after source constraints change w
       }
     })
     group
-      .source!.modules.find((module) => module.name === 'pg_catalog')!
+      .source!.modules.find((module) => module.name === 'checks')!
       .files.push({ path: 'test/nested_cast_inputs.rs', source: bodies.join('\n') })
     group.source!.modules.find((module) => module.name === 'checks')!.files[0]!.source +=
       '\n' + wrappers.join('\n')

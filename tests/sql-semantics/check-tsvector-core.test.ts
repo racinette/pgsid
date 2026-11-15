@@ -161,7 +161,7 @@ it.each([true, false])(
         evaluatorSource = checks.map((c) => c.source).join('\n'),
         source = assembleCheckRust({ source: evaluatorSource, callables: [] })
       source.modules
-        .find((m) => m.name === 'pg_catalog')!
+        .find((m) => m.name === 'checks')!
         .files.push({ path: 'test/tsvector_core.rs', source: comparisonHelpers })
       const group: ReturnType<typeof prepareCheckRustGroup> = {
           source,
@@ -388,7 +388,7 @@ it('retains tsvector ownership, validates logical payloads and separates compara
           .join('\n'),
       source = assembleCheckRust({ source: evaluatorSource, callables: [] })
     source.modules
-      .find((m) => m.name === 'pg_catalog')!
+      .find((m) => m.name === 'checks')!
       .files.push({
         path: 'test/tsvector_model.rs',
         source:

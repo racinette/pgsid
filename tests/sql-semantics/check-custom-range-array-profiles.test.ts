@@ -229,7 +229,7 @@ it('attaches compiled custom range profiles throughout owned arrays while preser
     const evaluatorSource = entries.join('\n'),
       source = assembleCheckRust({ source: evaluatorSource, callables: [] })
     source.modules
-      .find((m) => m.name === 'pg_catalog')!
+      .find((m) => m.name === 'checks')!
       .files.push({ path: 'tests/custom_range_array_profile.rs', source: probe })
     const group: ReturnType<typeof prepareCheckRustGroup> = {
         source,
@@ -550,7 +550,7 @@ pub fn profile_state_case(mode:Int4Value)->BoolValue {
       evaluatorSource = `pub fn ${entryName}(mode:Int4Value)->CheckOutcome {let value=profile_state_case(mode);check_from_bool(value)}`,
       source = assembleCheckRust({ source: evaluatorSource, callables: [] })
     source.modules
-      .find((m) => m.name === 'pg_catalog')!
+      .find((m) => m.name === 'checks')!
       .files.push({ path: 'tests/custom_range_array_profile_state.rs', source: edgeProbe })
     const group: ReturnType<typeof prepareCheckRustGroup> = {
       source,

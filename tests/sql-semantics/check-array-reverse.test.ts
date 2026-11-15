@@ -345,7 +345,7 @@ it('keeps unknown cells in known reversed positions and owns nested snapshots', 
         'pub fn evaluate_check()->CheckOutcome {let result=array_reverse_partial_probe();check_from_bool(result)}',
       source = assembleCheckRust({ source: evaluatorSource, callables: [] })
     source.modules
-      .find((module) => module.name === 'pg_catalog')!
+      .find((module) => module.name === 'checks')!
       .files.push({
         path: 'test/array_reverse.rs',
         source: String.raw`

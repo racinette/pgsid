@@ -278,7 +278,7 @@ it('parses owned raw tsquery trees with native text, node count, wire, error and
     const evaluatorSource = checks.map((c) => c.source).join('\n'),
       source = assembleCheckRust({ source: evaluatorSource, callables: [] })
     source.modules
-      .find((m) => m.name === 'pg_catalog')!
+      .find((m) => m.name === 'checks')!
       .files.push({ path: 'test/tsquery_core.rs', source: helpers + testInput + payloadHelper })
     const group: ReturnType<typeof prepareCheckRustGroup> = {
       source,

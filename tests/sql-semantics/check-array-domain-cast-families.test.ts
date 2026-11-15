@@ -126,7 +126,7 @@ it('preserves every represented array element carrier and dimensions through dom
     group.source!.modules.find((module) => module.name === 'checks')!.files[0]!.source +=
       '\n' + wrappers.join('\n')
     group
-      .source!.modules.find((module) => module.name === 'pg_catalog')!
+      .source!.modules.find((module) => module.name === 'checks')!
       .files.push({
         path: 'test/domain_families.rs',
         source:

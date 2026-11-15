@@ -287,7 +287,7 @@ it('detaches JSONB subtree nodes and characters before retaining array elements 
       callables: ['sql__pg_catalog__jsonb_eq__tfah'],
     })
     source.modules
-      .find((module) => module.name === 'pg_catalog')!
+      .find((module) => module.name === 'checks')!
       .files.push({
         path: 'test/json_array_owned.rs',
         source: `

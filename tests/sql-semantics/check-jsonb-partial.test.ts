@@ -460,7 +460,7 @@ pub fn ${helpers[10]}(maximum:Int8Value)->CheckOutcome {
     ],
   })
   source.modules
-    .find((module) => module.name === 'pg_catalog')!
+    .find((module) => module.name === 'checks')!
     .files.push({ path: 'test/jsonb_partial_bounds.rs', source: helperSource })
   const group: ReturnType<typeof prepareCheckRustGroup> = {
     source,

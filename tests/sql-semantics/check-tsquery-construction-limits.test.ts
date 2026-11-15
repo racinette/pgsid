@@ -138,7 +138,7 @@ it('checks rebuilt right-first pool offsets at the native limit while preserving
     const evaluatorSource = entries.map((e) => e.source).join('\n'),
       source = assembleCheckRust({ source: evaluatorSource, callables: [] })
     source.modules
-      .find((m) => m.name === 'pg_catalog')!
+      .find((m) => m.name === 'checks')!
       .files.push({ path: 'test/tsquery_pool.rs', source: helpers })
     const group: ReturnType<typeof prepareCheckRustGroup> = {
       source,

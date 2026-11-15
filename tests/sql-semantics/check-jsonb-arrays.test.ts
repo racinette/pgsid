@@ -329,7 +329,7 @@ it('transfers large conversion cursors without per-cell buffer copies and preser
         'pub fn evaluate_check()->CheckOutcome {let result=jsonb_array_owned_probe();check_from_bool(result)}',
       source = assembleCheckRust({ source: evaluatorSource, callables: [] })
     source.modules
-      .find((module) => module.name === 'pg_catalog')!
+      .find((module) => module.name === 'checks')!
       .files.push({
         path: 'test/jsonb_array_owned.rs',
         source: String.raw`

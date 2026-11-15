@@ -379,7 +379,7 @@ it('serializes already rendered box elements with semicolon delimiters and indep
 pub fn ${ownershipEntry}()->CheckOutcome {let result=array_output_owner_probe();check_from_bool(result)}`
     const source = assembleCheckRust({ source: evaluatorSource, callables: [] })
     source.modules
-      .find((module) => module.name === 'pg_catalog')!
+      .find((module) => module.name === 'checks')!
       .files.push({
         path: 'test/array_output.rs',
         source: String.raw`

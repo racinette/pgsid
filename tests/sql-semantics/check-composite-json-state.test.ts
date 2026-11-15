@@ -13,7 +13,7 @@ it('preserves strict record JSON states, eager field errors, stopped conversions
   const evaluatorSource = `pub fn evaluate_check(mode:Int4Value)->CheckOutcome{let value=json_record_state_probe(mode);check_from_bool(value)}`
   const source = assembleCheckRust({ source: evaluatorSource, callables: [] })
   source.modules
-    .find((m) => m.name === 'pg_catalog')!
+    .find((m) => m.name === 'checks')!
     .files.push({
       path: 'tests/json_record_states.rs',
       source: `

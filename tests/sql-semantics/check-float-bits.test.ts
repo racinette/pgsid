@@ -229,7 +229,7 @@ ${singlePatterns.map((bits) => `println!("{} {}", single_roundtrip(${bits}), wid
 }`
     const source = assembleCheckRust({ source: evaluatorSource, callables: [] })
     source.modules
-      .find((module) => module.name === 'checkruntime')!
+      .find((module) => module.name === 'checks')!
       .files.push({
         path: 'float_bits_check_smoke.rs',
         source:

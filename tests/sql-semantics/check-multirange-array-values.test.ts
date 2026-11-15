@@ -162,7 +162,7 @@ it('retains exact owned multirange cells inside bounded arrays and array-valued 
     const evaluatorSource = entries.join('\n'),
       source = assembleCheckRust({ source: evaluatorSource, callables: [] })
     source.modules
-      .find((m) => m.name === 'pg_catalog')!
+      .find((m) => m.name === 'checks')!
       .files.push({ path: 'tests/multi_array_probe.rs', source: multirangeExactProbe + probe })
     const group: ReturnType<typeof prepareCheckRustGroup> = {
       source,
@@ -308,7 +308,7 @@ it('preserves recursive multirange cell snapshots, partial members, malformed in
       '(mode:Int4Value)->CheckOutcome {let result=multi_array_state_probe(mode);check_from_bool(result)}'
     const source = assembleCheckRust({ source: evaluatorSource, callables: [] })
     source.modules
-      .find((m) => m.name === 'pg_catalog')!
+      .find((m) => m.name === 'checks')!
       .files.push({
         path: 'tests/multi_array_state.rs',
         source:

@@ -535,7 +535,7 @@ CREATE TYPE ranges_span AS RANGE(subtype=int4range,multirange_type_name=ranges_s
       evaluatorSource = `pub fn ${entryName}(mode:Int4Value)->CheckOutcome {let result=nested_probe(mode);check_from_bool(result)}`
     const source = assembleCheckRust({ source: evaluatorSource, callables: [] })
     source.modules
-      .find((m) => m.name === 'pg_catalog')!
+      .find((m) => m.name === 'checks')!
       .files.push({
         path: 'tests/nested_bound_ranges.rs',
         source: `

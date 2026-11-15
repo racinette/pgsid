@@ -293,7 +293,7 @@ it('matches exact multirange algebra and hull payloads through function/operator
       .source!.modules.find((m) => m.name === 'checks')!
       .files.push({ path: 'tests/multirange_set_exact_entries.rs', source: entries.join('\n') })
     group
-      .source!.modules.find((m) => m.name === 'pg_catalog')!
+      .source!.modules.find((m) => m.name === 'checks')!
       .files.push({ path: 'tests/multirange_set_exact_probe.rs', source: exactProbe })
     await runCheckParity(directory, 'multirangesets', group, names, fixtures)
     expect(pairs).toBeGreaterThan(1500)

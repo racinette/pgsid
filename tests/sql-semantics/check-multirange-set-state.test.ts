@@ -178,7 +178,7 @@ it('preserves strict algebra states, empty identities, partial hulls and indepen
     const evaluatorSource = entries.join('\n'),
       source = assembleCheckRust({ source: evaluatorSource, callables: [] })
     source.modules
-      .find((m) => m.name === 'pg_catalog')!
+      .find((m) => m.name === 'checks')!
       .files.push({ path: 'tests/multirange_set_state_probe.rs', source: probe })
     await runCheckParity(
       directory,

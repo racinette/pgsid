@@ -567,7 +567,7 @@ fn record_multirange_count(input:MultirangeValue,expected:i32)->BoolValue{
           .join('\n')}BoolValue::Unknown}`,
     )
     source.modules
-      .find((m) => m.name === 'pg_catalog')!
+      .find((m) => m.name === 'checks')!
       .files.push({
         path: 'tests/composite_range_values.rs',
         source:

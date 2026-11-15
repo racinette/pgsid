@@ -220,7 +220,7 @@ it('retains array-valued domain cells through columns, constructors, metadata, f
       }
     })
     group
-      .source!.modules.find((module) => module.name === 'pg_catalog')!
+      .source!.modules.find((module) => module.name === 'checks')!
       .files.push({ path: 'test/nested_domain_cells.rs', source: helperBodies.join('\n') })
     group.source!.modules.find((module) => module.name === 'checks')!.files[0]!.source +=
       '\n' + wrappers.join('\n')
@@ -389,7 +389,7 @@ it('retains independently shaped array-valued domains at two nominal levels over
       }
     })
     group
-      .source!.modules.find((module) => module.name === 'pg_catalog')!
+      .source!.modules.find((module) => module.name === 'checks')!
       .files.push({ path: 'test/nested_profiles.rs', source: bodies.join('\n') })
     group.source!.modules.find((module) => module.name === 'checks')!.files[0]!.source +=
       '\n' + wrappers.join('\n')

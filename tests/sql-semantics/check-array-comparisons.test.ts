@@ -637,7 +637,7 @@ it('preserves decisive prefixes, unknown cells and independent nested comparison
       'pub fn evaluate_check()->CheckOutcome {let result=array_comparison_owned_probe();check_from_bool(result)}'
     const source = assembleCheckRust({ source: evaluatorSource, callables: [] })
     source.modules
-      .find((module) => module.name === 'pg_catalog')!
+      .find((module) => module.name === 'checks')!
       .files.push({
         path: 'test/array_comparisons.rs',
         source: String.raw`

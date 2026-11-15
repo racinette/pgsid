@@ -165,7 +165,7 @@ it('evaluates SQL-coerced scalar-domain arrays through raw and stored CHECKs in 
     group.source!.modules.find((module) => module.name === 'checks')!.files[0]!.source +=
       '\n' + wrappers.join('\n')
     group
-      .source!.modules.find((module) => module.name === 'pg_catalog')!
+      .source!.modules.find((module) => module.name === 'checks')!
       .files.push({
         path: 'test/domain_array.rs',
         source: String.raw`

@@ -183,7 +183,7 @@ it('retains or reconstructs actual PostgreSQL NULL bitmaps independently of logi
       requiresRegex: false,
     })
     source.modules
-      .find((m) => m.name === 'pg_catalog')!
+      .find((m) => m.name === 'checks')!
       .files.push({ path: 'test/bitmap_probe.rs', source: probe })
     const group: ReturnType<typeof prepareCheckRustGroup> = {
       source,

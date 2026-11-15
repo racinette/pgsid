@@ -253,7 +253,7 @@ pub fn composite_probe(mode:Int4Value)->BoolValue {if let Int4Value::Value(n)=mo
     const evaluatorSource = `pub fn ${entryName}(mode:Int4Value)->CheckOutcome {let result=composite_probe(mode);check_from_bool(result)}`
     const source = assembleCheckRust({ source: evaluatorSource, callables: [] })
     source.modules
-      .find((m) => m.name === 'pg_catalog')!
+      .find((m) => m.name === 'checks')!
       .files.push({ path: 'tests/composite_values.rs', source: helperSource })
     const group: ReturnType<typeof prepareCheckRustGroup> = {
       source,

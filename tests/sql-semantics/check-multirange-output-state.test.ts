@@ -65,7 +65,7 @@ it('preserves output state precedence, reached member errors, partial bounds and
       callables: ['sql__pg_catalog__texteq__aet8'],
     })
     source.modules
-      .find((m) => m.name === 'pg_catalog')!
+      .find((m) => m.name === 'checks')!
       .files.push({ path: 'tests/multirange_output_state_probe.rs', source: probe })
     const group: ReturnType<typeof prepareCheckRustGroup> = {
       source,

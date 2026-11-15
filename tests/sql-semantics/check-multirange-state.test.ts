@@ -21,7 +21,7 @@ it('preserves multirange partial bounds, ordered errors, nominal validation and 
     const evaluatorSource = `pub fn ${entryName}(mode:Int4Value)->CheckOutcome {let value=multirange_state_probe(mode);check_from_bool(value)}`
     const source = assembleCheckRust({ source: evaluatorSource, callables: [] })
     source.modules
-      .find((m) => m.name === 'pg_catalog')!
+      .find((m) => m.name === 'checks')!
       .files.push({
         path: 'tests/multirange_state_probe.rs',
         source: String.raw`

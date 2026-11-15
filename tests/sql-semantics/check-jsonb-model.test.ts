@@ -56,7 +56,7 @@ it('normalizes JSONB logical values with shared JSON grammar/decoding, exact num
     .join('\n')
   const source = assembleCheckRust({ source: evaluatorSource, callables: [equal, kind] })
   source.modules
-    .find((m) => m.name === 'checkruntime')!
+    .find((m) => m.name === 'checks')!
     .files.push({
       path: 'test/jsonb_snapshots.rs',
       source: `

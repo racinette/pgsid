@@ -46,7 +46,7 @@ it('quotes logical range bounds like PostgreSQL and preserves omitted bounds, pa
       callables: ['sql__pg_catalog__texteq__aet8'],
     })
     source.modules
-      .find((m) => m.name === 'pg_catalog')!
+      .find((m) => m.name === 'checks')!
       .files.push({
         path: 'tests/range_output_probe.rs',
         source: `

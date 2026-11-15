@@ -139,7 +139,7 @@ it('retains whole-array domain ownership, partial shape knowledge, already-coerc
     group.evaluatorSource += '\n' + wrappers.join('\n')
     group.checks = checks
     group
-      .source!.modules.find((module) => module.name === 'pg_catalog')!
+      .source!.modules.find((module) => module.name === 'checks')!
       .files.push({
         path: 'test/owned_array_domains.rs',
         source: String.raw`

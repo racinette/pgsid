@@ -21,7 +21,7 @@ it('retains owned partial range results, reached bounds and strict argument-erro
     const evaluatorSource = `pub fn ${entry}() -> CheckOutcome { let result = range_core_state_probe(); check_from_bool(result) }`
     const source = assembleCheckRust({ source: evaluatorSource, callables: [] })
     source.modules
-      .find((m) => m.name === 'pg_catalog')!
+      .find((m) => m.name === 'checks')!
       .files.push({
         path: 'tests/range_core_state.rs',
         source: `

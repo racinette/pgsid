@@ -195,7 +195,7 @@ pub fn ${ownershipEntry}()->CheckOutcome {let result=array_text_ownership_probe(
       callables: ['sql__pg_catalog__cardinality__m1rn'],
     })
     source.modules
-      .find((module) => module.name === 'pg_catalog')!
+      .find((module) => module.name === 'checks')!
       .files.push({ path: 'test/array_text.rs', source: probe })
     const inputs = ['source', 'expected', 'index', 'mode', 'nulls'].map((name) => ({
       name,

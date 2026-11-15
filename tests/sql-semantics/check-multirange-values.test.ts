@@ -80,7 +80,7 @@ it('retains SQL-coerced multirange members and structural CHECK outcomes in Rust
         callables: multirangeMetadataNames.map((name) => multirangeMetadata(name).rustName),
       })
     source.modules
-      .find((m) => m.name === 'pg_catalog')!
+      .find((m) => m.name === 'checks')!
       .files.push({ path: 'tests/multirange_value_probe.rs', source: multirangeProbe })
     const group: ReturnType<typeof prepareCheckRustGroup> = {
       source,

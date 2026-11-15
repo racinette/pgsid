@@ -473,7 +473,7 @@ it('demonstrates session-dependent tied representations and independently owns m
         'pub fn evaluate_check()->CheckOutcome {let result=array_sort_owned_probe();check_from_bool(result)}',
       source = assembleCheckRust({ source: evaluatorSource, callables: [] })
     source.modules
-      .find((module) => module.name === 'pg_catalog')!
+      .find((module) => module.name === 'checks')!
       .files.push({
         path: 'test/array_sort_owned.rs',
         source: String.raw`

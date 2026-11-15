@@ -226,7 +226,7 @@ it('preserves unknown fill cells, strict trim states, eager errors and native-co
         'pub fn evaluate_check()->CheckOutcome {let result=array_fill_trim_partial_probe();check_from_bool(result)}',
       source = assembleCheckRust({ source: evaluatorSource, callables: [] })
     source.modules
-      .find((module) => module.name === 'pg_catalog')!
+      .find((module) => module.name === 'checks')!
       .files.push({
         path: 'test/array_fill_trim.rs',
         source: String.raw`
