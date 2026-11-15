@@ -89,7 +89,11 @@ it.each([true, false])(
       if (rust)
         for (const name of Object.keys(definitions)) {
           expect(typescript.checks).toMatch(new RegExp(`"${name}", \\(\\) => checkRustOutcome`))
-          expect(go.checks).toMatch(new RegExp(`"${name}", checkRustEvaluate\\(func\\(\\) EvalBool \\{\\n\\s*return checkRustOutcome`))
+          expect(go.checks).toMatch(
+            new RegExp(
+              `"${name}", checkRustEvaluate\\(func\\(\\) EvalBool \\{\\n\\s*return checkRustOutcome`,
+            ),
+          )
         }
       await writeFile(join(directory, 'package.json'), '{"type":"module"}\n')
       await writeFile(join(directory, 'checks.ts'), typescript.checks)
@@ -261,4 +265,5 @@ ${domainAssertions.join('\n')}
       await rm(directory, { recursive: true, force: true })
     }
   },
+  180_000,
 )

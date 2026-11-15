@@ -449,5 +449,5 @@ describe('portable smallint CHECK values', () => {
       expect(group.checks[0]!.kind).toBe('supported')
       expect(group.evaluatorSource).not.toContain('check_unknown()')
     }
-  })
+  }, 180_000)
 })

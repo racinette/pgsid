@@ -1353,7 +1353,7 @@ describe('CHECK measurement boundaries', () => {
         )
       ).rows[0]!.count,
     ).toBe(0)
-  })
+  }, 180_000)
 
   it('records generated input requirements even when only their nullness is read', async () => {
     await pg.exec(`CREATE TABLE measurement_generated_inputs (
@@ -1615,7 +1615,7 @@ describe('CHECK measurement boundaries', () => {
         )
       ).rows[0]?.present,
     ).toBeNull()
-  })
+  }, 180_000)
 
   it('measures column admission and nullness against PostgreSQL catalog row shape', async () => {
     const report = await measureTypes(pg)

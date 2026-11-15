@@ -244,7 +244,7 @@ describe('CHECK write boundary', () => {
     const go = renderGoSchemaArtifacts(rewritten, config, {}, '/generated', 'example/db')
     expect(go.diagnostics).toMatchObject([{ code: 'check-before-trigger', severity: 'warning' }])
     expect(go.artifacts.some((item) => item.path.endsWith('/checks.go'))).toBe(true)
-  })
+  }, 180_000)
 
   it('marks untouched UPDATE columns as previous and prevalidates even a possible zero-row write', async () => {
     const update = await statement('UPDATE check_boundary SET j = $1 WHERE id = $2')

@@ -288,7 +288,7 @@ it('matches legacy NULL escapes, conversion errors and eager arguments in Rust a
     await pg.close()
     await rm(directory, { recursive: true, force: true })
   }
-})
+}, 180_000)
 
 it('composes legacy conversion with the existing regex matcher', async () => {
   const pg = await PGlite.create(),

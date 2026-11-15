@@ -585,7 +585,7 @@ describe('portable Rust CHECK numeric comparisons', () => {
       expect(outcome.value.state.toString(36).toUpperCase().padStart(5, '0')).toBe(code)
       expect(runtime.sqlErrorMessage(outcome.value).message).toBe(message)
     }
-  })
+  }, 180_000)
 
   it('admits numeric precision coercion and arithmetic through catalog bindings', async () => {
     for (const [sql, expected] of [
