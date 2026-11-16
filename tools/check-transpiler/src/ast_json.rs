@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 
 use serde_json::{json, Value};
 use syn::punctuated::Punctuated;
+use syn::spanned::Spanned;
 use syn::{BinOp, Expr, Fields, FnArg, Item, Pat, ReturnType, Stmt, Type, Visibility};
 
 use crate::{
@@ -238,6 +239,28 @@ pub(crate) fn check_item_types(items: &[Item], sets: &TypeSets) -> Result<()> {
     Ok(())
 }
 
+thread_local! {
+    static LOCATIONS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+// Records source positions on serialized nodes while `f` runs, for tools that report findings
+// by line. Translation never asks for them, so its AST is unchanged.
+pub(crate) fn with_locations<T>(f: impl FnOnce() -> T) -> T {
+    LOCATIONS.with(|locations| locations.set(true));
+    let result = f();
+    LOCATIONS.with(|locations| locations.set(false));
+    result
+}
+
+fn located(mut value: Value, node: &impl Spanned) -> Result<Value> {
+    if LOCATIONS.with(|locations| locations.get()) {
+        let start = node.span().start();
+        value["line"] = json!(start.line);
+        value["column"] = json!(start.column + 1);
+    }
+    Ok(value)
+}
+
 fn segments(path: &syn::Path) -> Vec<String> {
     path.segments
         .iter()
@@ -246,6 +269,10 @@ fn segments(path: &syn::Path) -> Vec<String> {
 }
 
 fn ty(value: &Type) -> Result<Value> {
+    located(type_node(value)?, value)
+}
+
+fn type_node(value: &Type) -> Result<Value> {
     match value {
         Type::Slice(slice) => Ok(json!({ "kind": "slice", "inner": ty(&slice.elem)? })),
         Type::Reference(reference) => Ok(json!({
@@ -401,6 +428,10 @@ fn if_expr(node: &syn::ExprIf) -> Result<Value> {
 }
 
 fn expr(value: &Expr) -> Result<Value> {
+    located(expr_node(value)?, value)
+}
+
+fn expr_node(value: &Expr) -> Result<Value> {
     if let Some((input, operation, _, _)) = crate::syntax::float_bits(value) {
         return Ok(json!({"kind":"float-bits","operation":operation,"value":expr(input)?}));
     }
@@ -556,7 +587,15 @@ fn expr(value: &Expr) -> Result<Value> {
 }
 
 fn block(value: &syn::Block) -> Result<Vec<Value>> {
-    value.stmts.iter().map(|statement| match statement {
+    value
+        .stmts
+        .iter()
+        .map(|statement| located(statement_node(statement)?, statement))
+        .collect()
+}
+
+fn statement_node(statement: &Stmt) -> Result<Value> {
+    match statement {
         Stmt::Local(local) => {
             let (name, mutable) = pattern_ident(&local.pat)?;
             let mut result = json!({
@@ -575,10 +614,14 @@ fn block(value: &syn::Block) -> Result<Vec<Value>> {
             "value": expr(expression)?,
         })),
         _ => Err("statement is outside the AST contract".into()),
-    }).collect()
+    }
 }
 
 pub(crate) fn item(value: &Item) -> Result<Value> {
+    located(item_node(value)?, value)
+}
+
+fn item_node(value: &Item) -> Result<Value> {
     match value {
         Item::Const(node) => Ok(json!({
             "kind": "constant",

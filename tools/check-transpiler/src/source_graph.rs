@@ -1,5 +1,5 @@
 use crate::{
-    ast_json::{item, validate_against, validate_file},
+    ast_json::{item, validate_against, validate_file, with_locations},
     facts::Facts,
     syntax,
     validate::Result,
@@ -11,12 +11,22 @@ use syn::visit::{self, Visit};
 // A graph either validates whole, optionally recording its facts ("emitFacts"), or adds
 // modules to a graph validated earlier, given that graph's facts ("runtimeFacts"). The
 // second form returns only the added modules and their items; appended to the earlier
-// output they are what parsing the combined graph returns.
+// output they are what parsing the combined graph returns. Dialect checks read a graph's
+// syntax alone ("validate": false) and the source position of each node ("locations").
 pub fn parse(source: &str) -> Result<String> {
     let graph: Value = serde_json::from_str(source).map_err(|error| error.to_string())?;
     if graph["schemaVersion"] != 1 {
         return Err("unsupported source graph version".into());
     }
+    if graph["locations"] == true {
+        with_locations(|| parse_graph(&graph))
+    } else {
+        parse_graph(&graph)
+    }
+}
+
+fn parse_graph(graph: &Value) -> Result<String> {
+    let validate = graph["validate"] != false;
     let modules = graph["modules"]
         .as_array()
         .ok_or("source graph requires modules")?;
@@ -27,6 +37,9 @@ pub fn parse(source: &str) -> Result<String> {
     let emit_facts = graph["emitFacts"] == true;
     if emit_facts && cached.is_some() {
         return Err("a graph linked against runtime facts cannot record facts".into());
+    }
+    if !validate && (emit_facts || cached.is_some()) {
+        return Err("a graph read without validation has no facts".into());
     }
     let mut module_names = BTreeSet::new();
     for module in cached
@@ -60,7 +73,9 @@ pub fn parse(source: &str) -> Result<String> {
             let path = source["path"].as_str().ok_or("file requires path")?;
             let text = source["source"].as_str().ok_or("file requires source")?;
             let file = syn::parse_file(text).map_err(|error| format!("{path}: {error}"))?;
-            syntax::check(&file).map_err(|error| format!("{path}: {error}"))?;
+            if validate {
+                syntax::check(&file).map_err(|error| format!("{path}: {error}"))?;
+            }
             let mut serialized = Vec::new();
             for declaration in &file.items {
                 let value = item(declaration)?;
@@ -92,13 +107,16 @@ pub fn parse(source: &str) -> Result<String> {
     };
     match cached {
         Some(facts) => validate_against(&linked, facts)?,
-        None => validate_file(&linked)?,
+        None if validate => validate_file(&linked)?,
+        None => {}
     }
     let mut items = Vec::new();
     for (name, path, dependencies, file, serialized) in parsed {
         for (declaration, mut value) in file.items.iter().zip(serialized) {
-            check_dependencies(declaration, name, dependencies, &owners)
-                .map_err(|error| format!("{path}: {error}"))?;
+            if validate {
+                check_dependencies(declaration, name, dependencies, &owners)
+                    .map_err(|error| format!("{path}: {error}"))?;
+            }
             value["module"] = json!(name);
             value["sourceFile"] = json!(path);
             items.push(value);
@@ -456,5 +474,53 @@ mod tests {
             assert!(parse(&shadow_graph(source, &[])).unwrap_err().contains("without a dependency"), "{source}");
             assert!(parse(&shadow_graph(source, &["regex_engine"])).is_ok(), "{source}");
         }
+    }
+
+    #[test]
+    fn records_source_positions_only_when_asked() {
+        let mut graph: serde_json::Value = serde_json::from_str(&modules(&["pg_catalog"])).unwrap();
+        graph["modules"][1]["files"][1]["source"] =
+            serde_json::json!("pub fn positive(value: Value) -> bool {\n    value.number > 0\n}");
+        let plain: serde_json::Value =
+            serde_json::from_str(&parse(&graph.to_string()).unwrap()).unwrap();
+        assert!(!plain.to_string().contains("\"line\""));
+        graph["locations"] = serde_json::json!(true);
+        let located: serde_json::Value =
+            serde_json::from_str(&parse(&graph.to_string()).unwrap()).unwrap();
+        let positive = &located["items"][2];
+        assert_eq!(
+            (&positive["line"], &positive["column"]),
+            (&serde_json::json!(1), &serde_json::json!(1))
+        );
+        let statement = &positive["body"][0];
+        assert_eq!(
+            (&statement["line"], &statement["column"]),
+            (&serde_json::json!(2), &serde_json::json!(5))
+        );
+        assert_eq!(statement["value"]["right"]["line"], 2);
+        assert_eq!(statement["value"]["right"]["column"], 20);
+        assert_eq!(positive["parameters"][0]["type"]["column"], 24);
+        // Translation reads the same graph without positions afterwards.
+        graph["locations"] = serde_json::json!(false);
+        assert_eq!(parse(&graph.to_string()).unwrap(), plain.to_string());
+    }
+
+    #[test]
+    fn reads_syntax_without_validating_when_asked() {
+        let mut graph: serde_json::Value = serde_json::from_str(&modules(&[])).unwrap();
+        graph["modules"][1]["files"][1]["source"] =
+            serde_json::json!("pub fn positive(value: Value) -> bool { missing(value) * 2.5f64 }");
+        assert!(parse(&graph.to_string()).is_err());
+        graph["validate"] = serde_json::json!(false);
+        let document: serde_json::Value =
+            serde_json::from_str(&parse(&graph.to_string()).unwrap()).unwrap();
+        assert_eq!(
+            document["items"][2]["body"][0]["value"]["operator"],
+            "multiply"
+        );
+        graph["emitFacts"] = serde_json::json!(true);
+        assert!(parse(&graph.to_string())
+            .unwrap_err()
+            .contains("without validation"));
     }
 }
