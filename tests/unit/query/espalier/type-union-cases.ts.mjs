@@ -1,3 +1,3 @@
 export const description = 'purpose-built type-union query expectations'
-export const rule = ''
+export const guidance = ''
 export async function lint() {}

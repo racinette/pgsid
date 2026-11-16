@@ -2,7 +2,6 @@
 
 # pgsid query analysis tests — `worlds/`
 
-
 Each directory is one database world. Query worlds test independently declared
 query contracts and may also provide CHECK INSERT cases. A schema marked
 `-- @world checks` defines a focused CHECK world with no query fixtures.
@@ -306,22 +305,22 @@ shared one spends the isolation that made the finding legible, and grows the
 shared world on behalf of everyone who never needed it.
 <!-- espalier adopt: end /worlds/AGENTS.md -->
 
-
 ## Project layout
 
     worlds/
-    └─ [world]/           (zero or more matching directories)
+    └─ [world]/ 0+
        │
-       ├─ check-seed.sql  independent INSERT cases for generated CHECK evaluator
-       │                  parity (required)
+       ├─ check-seed.sql ❗  independent INSERT cases for generated CHECK
+       │                     evaluator parity
        │
-       ├─ data.sql        the witness rows for one isolated database world
-       │                  (required)
+       ├─ data.sql ❗        the witness rows for one isolated database world
        │
-       ├─ schema.sql      the schema of one isolated database world (required)
+       ├─ schema.sql ❗      the schema of one isolated database world
        │
-       └─ [fixture].sql   a hand-authored query with an independently stated
-                          contract (zero or more matching files)
+       └─ [fixture].sql 0+   a hand-authored query with an independently stated
+                             contract
+
+❗ marks a named file or directory that must exist; one without it may be absent. A count after a pattern, such as `0+` or `1+`, is the fewest matching names that must exist.
 
 ## `[world]/check-seed.sql` — independent INSERT cases for generated CHECK evaluator parity
 
@@ -373,7 +372,9 @@ but it cannot replace these independent expectations.
 
 Reference implementation: worlds/001_shipping/legs-outer.sql
 
-## rung-reach
+## Constraints
+
+### rung-reach
 
 Together, paths matching `*/*.sql` under `worlds/` must follow this rule.
 
@@ -387,7 +388,7 @@ rung measurements. Admission ordinals still cover all worlds.
 Presence-group and joint-parameter mechanisms do not emit column-trace
 conclusions and are outside this constraint.
 
-## world-health
+### world-health
 
 Together, paths matching `*/*.sql` under `worlds/` must follow this rule.
 

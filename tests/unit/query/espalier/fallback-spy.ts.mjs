@@ -1,3 +1,3 @@
 export const description = 'a catalog fallback-call recorder'
-export const rule = ''
+export const guidance = ''
 export async function lint() {}

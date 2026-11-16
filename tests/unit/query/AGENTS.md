@@ -2,7 +2,6 @@
 
 # pgsid query analysis tests
 
-
 This directory combines several distinct sources of evidence for pgsid's query
 analysis. Keep their policies local: a hand-authored contract, a mechanically
 generated query, and an upstream corpus do not have the same authoring rules.
@@ -21,85 +20,82 @@ TypeScript harnesses at this level orchestrate and compare those corpora. Read
 the nearest generated `AGENTS.md` before changing a corpus: provenance and
 whether a file may be authored by hand are directory-local facts.
 
-
 ## Project layout
 
     ./
-    ├─ fixture-data/                  builders for the shared fixture corpus
-    │                                 data states
+    ├─ fixture-data/                     builders for the shared fixture corpus
+    │                                    data states
     │
-    ├─ fixtures/                      hand-authored query contracts over the
-    │                                 shared fixture schema
+    ├─ fixtures/                         hand-authored query contracts over the
+    │                                    shared fixture schema
     │
-    ├─ generated/                     mechanical query generation and its
-    │                                 PostgreSQL-judged gates
+    ├─ generated/                        mechanical query generation and its
+    │                                    PostgreSQL-judged gates
     │
-    ├─ pg-regress/                    replay adapters for PostgreSQL's
-    │                                 regression-test corpus
+    ├─ pg-regress/                       replay adapters for PostgreSQL's
+    │                                    regression-test corpus
     │
-    ├─ sqlc-corpus/                   a pinned sqlc corpus with pgsid-owned
-    │                                 witness adjudications
+    ├─ sqlc-corpus/                      a pinned sqlc corpus with pgsid-owned
+    │                                    witness adjudications
     │
-    ├─ value-lineage/                 hand-authored value-lineage contracts over
-    │                                 one focused schema
+    ├─ value-lineage/                    hand-authored value-lineage contracts
+    │                                    over one focused schema
     │
-    ├─ worlds/                        hand-authored database worlds for query
-    │                                 and CHECK testing
+    ├─ worlds/                           hand-authored database worlds for query
+    │                                    and CHECK testing
     │
-    ├─ catalog-features.ts            the catalog capability classification
-    │                                 shared by census and generation (required)
+    ├─ catalog-features.ts ❗            the catalog capability classification
+    │                                    shared by census and generation
     │
-    ├─ catalog-spy.ts                 a recording catalog wrapper for capability
-    │                                 coverage (required)
+    ├─ catalog-spy.ts ❗                 a recording catalog wrapper for
+    │                                    capability coverage
     │
-    ├─ delegate-types.ts              the PostgreSQL-backed reference
-    │                                 type-delegation adapter (required)
+    ├─ delegate-types.ts ❗              the PostgreSQL-backed reference
+    │                                    type-delegation adapter
     │
-    ├─ explain-instrument.ts          shared raw-AST and EXPLAIN-plan comparison
-    │                                 instrumentation (required)
+    ├─ explain-instrument.ts ❗          shared raw-AST and EXPLAIN-plan
+    │                                    comparison instrumentation
     │
-    ├─ fallback-spy.ts                a catalog fallback-call recorder
-    │                                 (required)
+    ├─ fallback-spy.ts ❗                a catalog fallback-call recorder
     │
-    ├─ fixture-args.ts                shared fixture directives, bindings, and
-    │                                 rejection witnesses (required)
+    ├─ fixture-args.ts ❗                shared fixture directives, bindings,
+    │                                    and rejection witnesses
     │
-    ├─ fixture-catalog.ts             shared fixture catalog and search-path
-    │                                 helpers (required)
+    ├─ fixture-catalog.ts ❗             shared fixture catalog and search-path
+    │                                    helpers
     │
-    ├─ grammar-sampler.ts             a parse-only SQL grammar sampler
-    │                                 (required)
+    ├─ grammar-sampler.ts ❗             a parse-only SQL grammar sampler
     │
-    ├─ killable-evaluator.ts          the time-bounded parent for isolated
-    │                                 PGlite evaluation (required)
+    ├─ killable-evaluator.ts ❗          the time-bounded parent for isolated
+    │                                    PGlite evaluation
     │
-    ├─ killable-evaluator.worker.mjs  the process-isolated PGlite evaluator
-    │                                 worker (required)
+    ├─ killable-evaluator.worker.mjs ❗  the process-isolated PGlite evaluator
+    │                                    worker
     │
-    ├─ probe-values.ts                builtin probe setup and compatibility
-    │                                 exports for shared PostgreSQL inputs
-    │                                 (required)
+    ├─ probe-values.ts ❗                builtin probe setup and compatibility
+    │                                    exports for shared PostgreSQL inputs
     │
-    ├─ rung-cooccurrence.ts           the isolated-world query-rung interaction
-    │                                 measurement harness (required)
+    ├─ rung-cooccurrence.ts ❗           the isolated-world query-rung
+    │                                    interaction measurement harness
     │
-    ├─ rung-extractor.ts              the source-derived trace-decision
-    │                                 inventory parser (required)
+    ├─ rung-extractor.ts ❗              the source-derived trace-decision
+    │                                    inventory parser
     │
-    ├─ sqlc-corpus.ts                 the sqlc corpus loader and adjudication
-    │                                 registry (required)
+    ├─ sqlc-corpus.ts ❗                 the sqlc corpus loader and adjudication
+    │                                    registry
     │
-    ├─ type-union-cases.ts            purpose-built type-union query
-    │                                 expectations (required)
+    ├─ type-union-cases.ts ❗            purpose-built type-union query
+    │                                    expectations
     │
-    ├─ type-unions.ts                 PostgreSQL-backed type-union test
-    │                                 instrumentation (required)
+    ├─ type-unions.ts ❗                 PostgreSQL-backed type-union test
+    │                                    instrumentation
     │
-    ├─ world-purpose.ts               the declared query or CHECK purpose of an
-    │                                 isolated world (required)
+    ├─ world-purpose.ts ❗               the declared query or CHECK purpose of
+    │                                    an isolated world
     │
-    └─ [test].test.ts                 an executable query-analysis test suite
-                                      (zero or more matching files)
+    └─ [test].test.ts 0+                 an executable query-analysis test suite
+
+❗ marks a named file or directory that must exist; one without it may be absent. A count after a pattern, such as `0+` or `1+`, is the fewest matching names that must exist.
 
 ## `killable-evaluator.worker.mjs` — the process-isolated PGlite evaluator worker
 
@@ -152,7 +148,7 @@ Use this loop:
    starts empty; use --with or --with-optional to include optional files.
 4. Review the created source, complete any placeholders, and make the remaining
    change within the structure established for the task.
-5. Run `espalier lint` and follow the rule text attached to each finding.
+5. Run `espalier lint` and follow the guidance text attached to each finding.
 6. Run `espalier build`, review and include any generated guidance changes,
    then run `espalier build --check` immediately before committing.
 
@@ -173,14 +169,16 @@ naming distinct roles. Keep fixed parts of a repeated structure static. For
 example, `messages/languages/[language].ts` varies the language while keeping
 its architectural location explicit.
 
-A feature task can require architecture changes even when it does not mention
-rule files. Before changing the architecture, explain the gap in the current
-structure, present the reasonable placement options and their tradeoffs, and
-recommend an approach. Get agreement on that approach before changing
-architectural policy in rules, guidance, or configuration. A feature request authorizes
-implementing the feature; it does not by itself settle its architectural
-design. Raise a missing architectural role before placing the work in a
-catch-all.
+A feature task can require changes to the espalier even when it does not
+mention rule files. When a change follows directly from the task, such as the
+declaration a new member needs or a rule for a file the task names, make it as
+part of the task and say so when reporting the work. When the design is open,
+because several places or roles are reasonable or an existing rule would
+require or permit something different, explain the gap, present the options
+and their tradeoffs, recommend one, and get agreement before changing rules,
+guidance, or configuration. A feature request authorizes implementing the
+feature; it does not by itself settle an open architectural design. Raise a
+missing architectural role before placing the work in a catch-all.
 
 Include changes to constraint selectors, exclusions, and requiredness in that
 discussion. Explain which files become permitted, required, checked, or

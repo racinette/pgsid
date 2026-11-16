@@ -2,7 +2,6 @@
 
 # pgsid query analysis tests — `fixtures/`
 
-
 These fixtures are independently authored regression contracts over the shared
 schema and data states. Their inline annotations state expected engine results
 and the PostgreSQL-backed suites adjudicate those expectations.
@@ -189,17 +188,16 @@ Any corner value used to convict must join `probe-values.ts`, or the standing
 probe cannot re-find what you found.
 <!-- espalier adopt: end /fixtures/AGENTS.md -->
 
-
 ## Project layout
 
     fixtures/
-    ├─ data/          materialized SQL states for the shared fixture schema
+    ├─ data/             materialized SQL states for the shared fixture schema
     │
-    ├─ schema.sql     the shared schema for hand-authored query fixtures
-    │                 (required)
+    ├─ schema.sql ❗     the shared schema for hand-authored query fixtures
     │
-    └─ [fixture].sql  a hand-authored query contract over the shared schema
-                      (zero or more matching files)
+    └─ [fixture].sql 0+  a hand-authored query contract over the shared schema
+
+❗ marks a named file or directory that must exist; one without it may be absent. A count after a pattern, such as `0+` or `1+`, is the fewest matching names that must exist.
 
 ## `schema.sql` — the shared schema for hand-authored query fixtures
 

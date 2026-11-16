@@ -4,7 +4,7 @@ export const description = 'a hand-authored query with an independently stated c
 
 export const referenceImplementation = 'worlds/001_shipping/legs-outer.sql'
 
-export const rule = `Contain exactly one SQL statement and state all four
+export const guidance = `Contain exactly one SQL statement and state all four
 nullable contract channels for it:
 
 - annotate every output expression inline with \`@notNull\`, \`@nullable\`, or

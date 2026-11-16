@@ -2,7 +2,6 @@
 
 # pgsid query analysis tests — `sqlc-corpus/`
 
-
 This is a borrowed corpus vendored from sqlc's PostgreSQL end-to-end testdata.
 Read PROVENANCE.md before refreshing it. Upstream schema, query, config, and
 expected files remain attributable to the pinned sqlc release.
@@ -11,19 +10,21 @@ The exceptions are explicit: per-case data.sql and adjudication.json, and the
 root tickets/ directory, are pgsid-owned. A refresh must preserve them and must
 not blur borrowed expectations with conclusions adjudicated against PostgreSQL.
 
-
 ## Project layout
 
     sqlc-corpus/
-    ├─ cases/         one directory per borrowed sqlc PostgreSQL case
+    ├─ cases/            one directory per borrowed sqlc PostgreSQL case
     │
-    ├─ tickets/       pgsid-owned upstream issue drafts from sqlc adjudications
+    ├─ tickets/          pgsid-owned upstream issue drafts from sqlc
+    │                    adjudications
     │
-    ├─ LICENSE        the verbatim license accompanying the borrowed sqlc corpus
-    │                 (required)
+    ├─ LICENSE ❗        the verbatim license accompanying the borrowed sqlc
+    │                    corpus
     │
-    └─ PROVENANCE.md  the source pin, ownership boundary, and refresh procedure
-                      (required)
+    └─ PROVENANCE.md ❗  the source pin, ownership boundary, and refresh
+                         procedure
+
+❗ marks a named file or directory that must exist; one without it may be absent.
 
 ## `LICENSE` — the verbatim license accompanying the borrowed sqlc corpus
 

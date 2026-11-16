@@ -2,18 +2,17 @@
 
 # pgsid query analysis tests — `value-lineage/dml/`
 
-
 These fixtures define the write-boundary shapes the value-lineage analyzer must
 eventually interpret. Keep each query executable by PostgreSQL and pin its root,
 projected column order, and the syntax features that make its row-image contract
 distinct.
 
-
 ## Project layout
 
     value-lineage/dml/
-    └─ [fixture].sql  a DML value-lineage shape contract (zero or more matching
-                      files)
+    └─ [fixture].sql 0+  a DML value-lineage shape contract
+
+A count after a pattern, such as `0+` or `1+`, is the fewest matching names that must exist.
 
 ## `[fixture].sql` — a DML value-lineage shape contract
 

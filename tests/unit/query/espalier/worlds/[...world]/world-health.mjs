@@ -8,7 +8,7 @@ const { worldPurpose } = await tsImport('../../../world-purpose.ts', import.meta
 export const aggregate = true
 export const targets = ['*/*.sql']
 
-export const rule = `Keep the isolated-world corpus structurally healthy as a
+export const guidance = `Keep the isolated-world corpus structurally healthy as a
 whole. Query worlds must meet the table, constraint, key, and live-schema floors;
 query worlds must keep their query-shape proportions and composition
 ratchets, with one surplus composition unit per additional world. Report every

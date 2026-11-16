@@ -8,7 +8,7 @@ const { combineRungSources, measureRungReach, pairMembers } =
 export const aggregate = true
 export const targets = ['*/*.sql']
 
-export const rule = `Require every query world to exercise at least nine
+export const guidance = `Require every query world to exercise at least nine
 query-analysis decision rungs and eighteen rung pairs. Across the worlds, the
 distinct pair union must contain at least eighteen pairs plus four for every
 world after the first, and each later world must itself add four pairs beyond

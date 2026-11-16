@@ -2,17 +2,16 @@
 
 # pgsid query analysis tests — `fixtures/data/`
 
-
 Each file materializes one named data state used by the shared hand-authored
 corpus. Change these states as witness infrastructure: a row should expose a
 contract arm, not merely add volume.
 
-
 ## Project layout
 
     fixtures/data/
-    └─ [state].sql  one SQL data state for shared-schema fixtures (zero or more
-                    matching files)
+    └─ [state].sql 0+  one SQL data state for shared-schema fixtures
+
+A count after a pattern, such as `0+` or `1+`, is the fewest matching names that must exist.
 
 ## `[state].sql` — one SQL data state for shared-schema fixtures
 

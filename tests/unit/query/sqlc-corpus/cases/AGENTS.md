@@ -2,7 +2,6 @@
 
 # pgsid query analysis tests — `sqlc-corpus/cases/`
 
-
 Every case keeps sqlc's schema, query, configuration, and extracted expected
 IR verdicts together. Optional pgsid-owned data.sql supplies executable witness
 rows; optional adjudication.json records conclusions about observed
@@ -12,30 +11,28 @@ Do not edit an upstream-owned file to make pgsid pass. Fix the engine, record a
 PostgreSQL-backed adjudication, or refresh the pinned corpus according to the
 root provenance document.
 
-
 ## Project layout
 
     sqlc-corpus/cases/
-    └─ [case]/               (zero or more matching directories)
+    └─ [case]/ 0+
        │
        ├─ adjudication.json  an optional PostgreSQL-backed disposition of sqlc
-       │                     and pgsid disagreements (optional)
+       │                     and pgsid disagreements
        │
        ├─ data.sql           optional pgsid-owned witness rows for one borrowed
-       │                     case (optional)
+       │                     case
        │
-       ├─ expected.json      sqlc's extracted per-query inference verdicts
-       │                     (required)
+       ├─ expected.json ❗   sqlc's extracted per-query inference verdicts
        │
-       ├─ query.sql          the query vendored with one sqlc test case
-       │                     (required)
+       ├─ query.sql ❗       the query vendored with one sqlc test case
        │
-       ├─ schema.sql         the schema vendored with one sqlc test case
-       │                     (required)
+       ├─ schema.sql ❗      the schema vendored with one sqlc test case
        │
-       ├─ sqlc.json          an optional sqlc case configuration (optional)
+       ├─ sqlc.json          an optional sqlc case configuration
        │
-       └─ sqlc.yaml          an optional sqlc case configuration (optional)
+       └─ sqlc.yaml          an optional sqlc case configuration
+
+❗ marks a named file or directory that must exist; one without it may be absent. A count after a pattern, such as `0+` or `1+`, is the fewest matching names that must exist.
 
 ## `[case]/adjudication.json` — an optional PostgreSQL-backed disposition of sqlc and pgsid disagreements
 

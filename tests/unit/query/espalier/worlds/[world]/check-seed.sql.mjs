@@ -2,7 +2,7 @@ import { parse } from 'libpg-query'
 
 export const description = 'independent INSERT cases for generated CHECK evaluator parity'
 
-export const rule = `Write independent, single-row INSERT VALUES statements with explicit
+export const guidance = `Write independent, single-row INSERT VALUES statements with explicit
 column lists and constant inputs. Use literals, casts, and row/array constructors
 whose fields or elements are constant;
 fixed interval timezone conversions may construct SQL-coerced temporal values

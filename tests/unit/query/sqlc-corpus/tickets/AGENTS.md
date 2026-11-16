@@ -2,16 +2,15 @@
 
 # pgsid query analysis tests — `sqlc-corpus/tickets/`
 
-
 These drafts turn adjudicated sqlc disagreements into reproducible upstream
 reports. They are pgsid-owned analysis, not part of the vendored sqlc corpus.
-
 
 ## Project layout
 
     sqlc-corpus/tickets/
-    └─ [ticket].md  an upstream issue draft backed by a corpus adjudication
-                    (zero or more matching files)
+    └─ [ticket].md 0+  an upstream issue draft backed by a corpus adjudication
+
+A count after a pattern, such as `0+` or `1+`, is the fewest matching names that must exist.
 
 ## `[ticket].md` — an upstream issue draft backed by a corpus adjudication
 

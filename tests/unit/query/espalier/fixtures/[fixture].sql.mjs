@@ -1,6 +1,6 @@
 export const description = 'a hand-authored query contract over the shared schema'
 
-export const rule = [
+export const guidance = [
   'State both non-flat nullability channels explicitly:',
   '',
   '- list every output presence group with -- @null-group N[*],M[*][,…], or',

@@ -2,7 +2,6 @@
 
 # pgsid query analysis tests — `generated/`
 
-
 This directory contains the generator and the suites that consume its corpus.
 The corpus is produced mechanically from explicit structural axes; generated
 queries are not hand-authored fixtures and must not acquire copied engine
@@ -12,15 +11,14 @@ PostgreSQL remains the answer key. Change an axis, constructor, or survival
 expectation in the generator source and let the suites regenerate the corpus.
 Do not solve a generated failure by special-casing one emitted query.
 
-
 ## Project layout
 
     generated/
-    ├─ [source].test.ts  an executable generated-corpus gate (zero or more
-    │                    matching files)
+    ├─ [source].test.ts 0+  an executable generated-corpus gate
     │
-    └─ [source].ts       generated-corpus machinery (zero or more matching
-                         files)
+    └─ [source].ts 0+       generated-corpus machinery
+
+A count after a pattern, such as `0+` or `1+`, is the fewest matching names that must exist.
 
 ## `[source].test.ts` — an executable generated-corpus gate
 

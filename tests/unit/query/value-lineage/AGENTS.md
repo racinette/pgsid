@@ -2,7 +2,6 @@
 
 # pgsid query analysis tests — `value-lineage/`
 
-
 Each fixture isolates one transformation or composition rule. Keep the schema
 small and stable so fixture changes describe lineage behavior rather than
 unrelated catalog differences.
@@ -11,16 +10,16 @@ The `dml/` tier composes transformations across write assignments, row images,
 and data-modifying CTEs. Its fixtures may deliberately combine several syntax
 features when their interaction is the contract under test.
 
-
 ## Project layout
 
     value-lineage/
-    ├─ dml/           hand-authored DML value-lineage shape contracts
+    ├─ dml/              hand-authored DML value-lineage shape contracts
     │
-    ├─ schema.sql     the shared schema for value-lineage fixtures (required)
+    ├─ schema.sql ❗     the shared schema for value-lineage fixtures
     │
-    └─ [fixture].sql  a focused value-lineage query contract (zero or more
-                      matching files)
+    └─ [fixture].sql 0+  a focused value-lineage query contract
+
+❗ marks a named file or directory that must exist; one without it may be absent. A count after a pattern, such as `0+` or `1+`, is the fewest matching names that must exist.
 
 ## `schema.sql` — the shared schema for value-lineage fixtures
 

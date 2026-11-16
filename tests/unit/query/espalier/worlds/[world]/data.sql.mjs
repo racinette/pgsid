@@ -1,6 +1,6 @@
 export const description = 'the witness rows for one isolated database world'
 
-export const rule = `Seed rows chosen to exercise the world's claims. Include
+export const guidance = `Seed rows chosen to exercise the world's claims. Include
 both sides of every output presence union whenever the schema can produce them;
 volume is not a substitute for a discriminating row.`
 

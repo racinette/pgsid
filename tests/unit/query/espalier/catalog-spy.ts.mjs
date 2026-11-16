@@ -1,3 +1,3 @@
 export const description = 'a recording catalog wrapper for capability coverage'
-export const rule = ''
+export const guidance = ''
 export async function lint() {}

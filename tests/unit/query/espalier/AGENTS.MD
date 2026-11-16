@@ -10,28 +10,28 @@ writes the rules.
 
 You change the architecture by adding or editing rules here. A nested
 `AGENTS.MD` beside a group of rules is a local note for those rules, not
-another copy of this page. Exclude tooling directories such as `.claude/` and `.codex/` explicitly
-with `skip` when they live beside the rules.
+another copy of this page.
 
 ## Agree on the architecture
 
-Read `build.guidanceMode` in this Espalier's configuration before changing
-architectural policy. The default, `evolving`, invites identifying gaps and
-proposing changes for agreement. In `fixed` mode, ordinary feature work uses
-the existing architecture: report a missing path and role, and pause the
-affected work until architecture work is explicitly authorized. Do not hide
-the gap in a catch-all or change the mode to bypass that boundary. Each nested
-Espalier uses its own setting.
+Check whether a module you are about to change is locked: its own `locked`
+export, or else the nearest enclosing directory module's, decides it, and
+`espalier explain <path>` reports it. A change to what a locked module
+declares needs explicit authorization naming that change, however obvious it
+is: report the path and role the work needs and pause that part of the work.
+Do not hide the gap in a catch-all, and never add, remove or change a `locked`
+export without authorization. `espalier help locks` has the details. Creating
+declared files and regenerating guidance with `create` and `build` remain
+ordinary development operations everywhere. A file under a ❄️, until a ☀️, is
+frozen: never edit, rename or delete it; add a new file where the contract
+admits one. A collection under a 📪, until a 📬, is sealed: never add a file to
+it or remove one from it without authorization.
 
-Explicitly authorized architecture work can proceed in either mode using the
-review process below. Follow the project's own protected-path and commit
-requirements. Creating declared files and regenerating guidance with `create`
-and `build` remain ordinary development operations.
-
-Before changing architectural policy in rules, guidance, or configuration,
-explain the gap, present reasonable options and their tradeoffs, and recommend
-an approach. Get agreement before implementing it. A feature request does not
-by itself settle the architectural design. Include changes to constraint
+In unlocked modules, a change that follows directly from the task, such as the
+declaration a new member needs, is part of the task: make it and report it.
+When the design is open, explain the gap, present reasonable options and their
+tradeoffs, and recommend an approach. Get agreement before implementing it. A
+feature request does not by itself settle an open architectural design. Include changes to constraint
 selectors, exclusions, and requiredness: explain which files become permitted,
 required, checked, or excluded, and which existing guarantees would be removed.
 A more specific node or a moved file can bypass checks without editing them.
@@ -113,12 +113,14 @@ one `.mjs` file, called a rule file.
 **`ESPALIER.mjs` describes the directory.** It exports a short `description`
 and `guidance`; either may be a string or a sync/async function returning a
 string. Each function receives its own isolated context with the resolved
-config, authored pattern, concrete path when known, and inherited captures.
+config, authored pattern, concrete path when known, inherited captures, and
+whether the directory is locked.
 It runs once per declaration during compilation, before lint workers start.
-`fold = true` folds the subtree's documents into its ancestor.
+`fold = true` folds the subtree's documents into its ancestor; `literalName`
+and `abstract` are described below.
 Keep structural exports stable;
 compute prose from explicit inputs. Leave the module out when it has nothing
-to say and declares no named instance.
+to say and declares no instance, literal name, or abstract contract.
 
 **A structural rule file names the repository file it governs, with `.mjs`
 appended.** The name can be literal, such as `main.ts.mjs`, or contain a
@@ -152,6 +154,43 @@ A literal leaf such as `main.{ts,tsx}.mjs` cannot list alternatives: it would
 not say which file is required. Write separate literal rules if both are
 required.
 
+Alternatives may appear anywhere in a dynamic name, and an empty one makes a
+part optional. Keep files that belong together under one rule this way, so
+one grouping can judge them, rather than splitting them across sibling rules:
+
+```text
+[num=00000][ord=00]_[table=a+].[kind={tables,indexes,grants}]{,.[role=a+]}.sql.mjs
+```
+
+`role` is captured only when the name has it, and is absent otherwise.
+
+A placeholder can constrain the text it accepts. `[name=mask]` pictures the
+text one character at a time. A lowercase character means lowercase and a
+capital capitals: `a` and `A` are a letter, `x` and `X` a letter or digit, `h`
+and `H` a hex digit, `k` and `K` a letter, digit or `-`, and `s` and `S` the
+same with `_`. `l` is a letter and `w` a letter or digit of either case. `0` is
+a digit, `#` an optional digit, and `-` or `_` itself. `+` repeats the element
+before it one or more times, `(n)` exactly n times, and `(m..n)`, `(m..)` and
+`(..n)` between m and n times, at least m, or at most n. `[name={a,b}]` accepts
+exactly the listed names. `[name@kebab]`, `[name@snake]`, `[NAME@KEBAB]`,
+`[NAME@SNAKE]`, `[name@camel]` and `[Name@Pascal]` accept a name in that case
+style; capitals may run together, as in `HTMLParser`.
+
+```text
+[seq=0(6)]_[name=x+].tables.sql.mjs   000100_init.tables.sql; not abc_init.tables.sql
+[at=0(14)]_[name].rb.mjs              a fourteen-digit timestamp
+[v=0(2..4)].md.mjs                    two to four digits
+[kind={tables,views}].sql.mjs         tables.sql and views.sql only
+[Name@Pascal].tsx.mjs                 SubmitButton.tsx; not submit-button.tsx
+```
+
+A mask describes shape, not meaning; whether fourteen digits are a valid date
+is for `lint`. A masked placeholder matches a strict subset of a bare one, so
+`[seq=0+]_[name].tables.sql.mjs` beside the padded rule owns the unpadded
+migrations. Two captures in one name must be separated by text neither can
+absorb: `[a]_[b].ts.mjs` is rejected, because `a_b_c.ts` splits two ways,
+while `[a=0+]_[b].ts.mjs` is accepted.
+
 A literal filename wins over a placeholder in the same directory. Both rule
 files below match `SubmitButton.tsx`, but `SubmitButton.tsx.mjs` owns it:
 
@@ -176,6 +215,14 @@ Distinct prefixes such as `a-[name]/` and `b-[name]/` are disjoint and may
 both sit beside a broad fallback. A directory placeholder and a file
 placeholder may coexist, because they match different kinds of path.
 
+A real path whose name holds brackets, such as a Next.js `app/[slug]/`
+route or `pages/[id].tsx`, is declared by a module at that name exporting
+`literalName = true`: on `ESPALIER.mjs` for the directory, on the rule module
+for the file. The name is then static text, required by default, and may
+declare `instanceOf` to inherit a dynamic sibling's contract. Globs and ignore
+files read brackets as character classes; escape a literal name there, as
+`\[slug\]/`.
+
 `{provider}` repeats the text captured by `[provider]` earlier in the same
 path:
 
@@ -189,7 +236,43 @@ without an earlier `[provider]` is an error.
 
 Once resolved, `{provider}.ts` names one file and wins over a placeholder
 sibling such as `[name].ts`. A literal filename still takes precedence over
-both.
+both. A name holding both a placeholder and a back-reference, such as
+`[step]_{feature}.sql`, matches many files, but only ones tied to its
+instance: it wins over plain placeholder siblings and is compared only with
+other such names. The order is literal, `{provider}.ts`,
+`[step]_{feature}.sql`, then `[name].ts`.
+
+A dynamic rule can state an obligation over several of its files at once by
+exporting `groups`. Each grouping names the captures whose shared values
+identify a group, and may describe what one group is, state the guidance for
+the group, and lint each group with its members:
+
+```js
+export const groups = {
+  set: {
+    by: ["num", "group"],
+    description: "a migration set",
+    guidance: "Steps are numbered from 01 with no gaps.",
+    async lint({ captures, matches, emit }) { /* one group at a time */ },
+  },
+};
+```
+
+Groups are per directory and never empty. Use a grouping when the invariant is
+about the files together — numbering, completeness, agreement — and a per-file
+`lint` when each file can be judged alone. A grouping that needs every file in
+the directory lists no captures: `by: []`.
+
+When one group has a purpose of its own, such as the migration set that
+creates the users table, declare it rather than writing that into each file.
+The declaring module sits beside the rule, at the rule's name with the
+grouping's captures written as values, `0001[ord=00]_users.sql.mjs`. It
+exports `instanceOf` naming the rule, and may export `description`,
+`guidance` and `lint`, or only freeze or seal that group. A grouping with `abstract: true` requires every group to be
+declared. A named directory instance can declare a group in its own
+directory, holding only its files, and its restated rule can add to an
+inherited grouping by naming it without `by`. `espalier help instances` has
+the how-to.
 
 **A per-file constraint does not own files.** It checks files already owned
 by structural rules. Its path contains `[...name]`, which matches any depth
@@ -243,17 +326,19 @@ which paths either selector can reach. `aggregate = true` changes only whether
 Files such as `AGENTS.MD` can live beside the rules when the config’s
 `skip` list excludes them from compilation. `espalier init` sets this up
 for common agent instruction files, `.git`, and `.gitkeep`. Dot-prefixed names
-are ordinary paths. Exclude tooling directories explicitly with `skip`; an
-excluded directory may contain modules and `ESPALIER.mjs` without compiling them.
+are ordinary paths. `skip` uses gitignore syntax. Exclude tooling directories
+such as `.claude/` and `.codex/` explicitly with it; an excluded directory may
+contain modules and `ESPALIER.mjs` without compiling them.
 
 `espalier help matching` is the rest of this grammar.
 
 ## The rule file
 
-Every rule file exports `rule`, the written requirements, and `lint`, the
-function that checks them. A structural rule file also exports
-`description`, a short phrase describing what the governed file is.
-A constraint may export `description` to briefly summarize its requirement.
+A rule file usually exports `guidance`, the written requirements, and `lint`, the
+function that checks them. A structural rule file usually also exports
+`description`, a short phrase describing what the governed file is, and a
+constraint may export one to briefly summarize its requirement. Every export is
+optional: a file's name already declares its path.
 
 A structural rule file has this shape; the check’s implementation is omitted
 here.
@@ -261,7 +346,7 @@ here.
 ```js
 export const description = "a button component";
 
-export const rule = `\`components/buttons/SubmitButton.tsx\` default-exports
+export const guidance = `\`components/buttons/SubmitButton.tsx\` default-exports
 a function named \`SubmitButton\` and provides a named export for the interface
 \`SubmitButtonProps\`.`;
 
@@ -270,17 +355,17 @@ export async function lint({ read, emit }) {
 }
 ```
 
-`rule` states the requirements in Markdown. Its text appears in generated
+`guidance` states the requirements in Markdown. Its text appears in generated
 guidance, `explain`, and reported issues. Write it for someone about to
 create or change the governed files.
 
-`rule` may also be a synchronous or asynchronous function returning Markdown.
+`guidance` may also be a synchronous or asynchronous function returning Markdown.
 `description` likewise accepts a function returning its short label, with the
 same context and timing. Each callback receives its own isolated
-`{ config, pattern, path, captures }`: a resolved config snapshot,
+`{ config, pattern, path, captures, locked }`: a resolved config snapshot,
 the authored declaration without `.mjs`, a concrete structural path when known
-(null for constraints or unbound dynamic paths), and known named-instance
-captures. Keep these callbacks deterministic and free of side effects. Espalier
+(null for constraints or unbound dynamic paths), known named-instance
+captures, and whether the declaring module is locked. Keep these callbacks deterministic and free of side effects. Espalier
 renders each once per authored declaration during compilation, then uses the
 same text for build, explain, and findings. Per-file lint and template callbacks
 instead receive the concrete target's context. Inherited base prose keeps its
@@ -291,7 +376,7 @@ See `espalier help types` for details and the `RuleGuidanceContext` type.
 - Per-file: name the kind of file and what each must or must not contain.
 - Aggregate: name the group and the conditions it must satisfy.
 
-Template literals are convenient for multiline rule prose and apostrophes.
+Template literals are convenient for multiline guidance and apostrophes.
 Escape embedded backticks and literal `${...}` sequences as JavaScript requires.
 
 A diagnostic can refer to a specific location with wording such as
@@ -332,7 +417,7 @@ import { createTemplate } from "espalier";
 
 export const description = "local feature notes";
 export const optional = true;
-export const rule = `Start with a level-one heading. Describe this feature's
+export const guidance = `Start with a level-one heading. Describe this feature's
 purpose, domain decisions, and maintenance considerations. Read these notes
 when working in this feature. They supplement the shared feature contract;
 they do not authorize changing or weakening it.`;
@@ -350,7 +435,7 @@ export async function lint({ read, emit }) {
 
 Use `espalier create src/features/example-feature/AGENTS.md` for an existing feature,
 or `espalier create src/features/example-feature --with AGENTS.md` when creating it.
-The generated shared document lists the optional leaf and renders its rule,
+The generated shared document lists the optional leaf and renders its guidance,
 so readers can discover the notes. `explain` names their structural owner;
 `lint` checks them like other governed source.
 
@@ -453,6 +538,8 @@ the demonstration's product requirements.
   supplied file context.
 - Use `runAggregate` to test an aggregate with a supplied set of matches,
   including an empty set.
+- Use `runGroup` to test a grouping's `lint`, or a declared group's, with a
+  supplied set of members.
 - Use `check` to test rules against a repository, including matching,
   ownership, and scoped runs. A scoped aggregate still receives its full
   selected set.
@@ -479,7 +566,16 @@ Use dynamic nodes for a repeated architectural role, and named instances to
 explain concrete domain responsibilities without copying its checks. A static
 directory exports `instanceOf = "../[group]"` from `ESPALIER.mjs`; a named file
 exports `instanceOf = "[module].ts.mjs"` to specialize a matching dynamic leaf
-in its inherited directory. These references name contracts, not JS imports.
+in its inherited directory. So may a file named by back-references, such as
+`[feature]/{feature}.ts.mjs`, where its value is one the contract admits; a
+directory named by a back-reference cannot be an instance. These references name contracts, not JS imports.
+
+A dynamic rule module, or a dynamic directory's `ESPALIER.mjs`, may export
+`abstract = true` to refuse anonymous members: every path it admits must then
+be declared as an instance, `espalier lint` reports one that is not as
+`undeclared_instance`, and `espalier create` refuses to make it. Use it where
+the set of members is itself part of the architecture, such as the providers
+a system integrates with. `espalier help instances` has the how-to.
 
 Every inherited check still runs. Local rules add checks and domain guidance;
 they cannot admit unsupported paths, remove required members, or suppress base

@@ -2,7 +2,6 @@
 
 # pgsid query analysis tests — `fixture-data/`
 
-
 This directory defines the reusable database states against which the
 hand-authored shared-schema fixtures are executed. It is infrastructure for
 witnessing contracts, not a query corpus and not a place for expected
@@ -12,12 +11,12 @@ Keep state construction deterministic and make each state's purpose legible:
 empty, sparse, dense, uniform, and generated states exist to expose different
 routes to NULL rather than to approximate production volume.
 
-
 ## Project layout
 
     fixture-data/
-    └─ [source].ts  a shared fixture-data state builder (zero or more matching
-                    files)
+    └─ [source].ts 0+  a shared fixture-data state builder
+
+A count after a pattern, such as `0+` or `1+`, is the fewest matching names that must exist.
 
 ## `[source].ts` — a shared fixture-data state builder
 

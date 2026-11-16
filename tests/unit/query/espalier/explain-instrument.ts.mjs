@@ -1,3 +1,3 @@
 export const description = 'shared raw-AST and EXPLAIN-plan comparison instrumentation'
-export const rule = ''
+export const guidance = ''
 export async function lint() {}

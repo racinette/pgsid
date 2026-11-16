@@ -1,6 +1,6 @@
 export const description = 'the schema of one isolated database world'
 
-export const rule = `Define the complete schema needed by this world. Keep it
+export const guidance = `Define the complete schema needed by this world. Keep it
 independent of every other world and use domain names a reviewer can understand
 without decoding a synthetic test vocabulary. A schema marked -- @world checks
 belongs to CHECK evaluator testing; an unmarked schema belongs to query analysis.`

@@ -1,3 +1,3 @@
 export const description = 'the sqlc corpus loader and adjudication registry'
-export const rule = ''
+export const guidance = ''
 export async function lint() {}
