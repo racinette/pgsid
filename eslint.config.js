@@ -48,16 +48,12 @@ export default tseslint.config(
       'scripts/check-measurements/**/*.ts',
       'tools/check-rust-timezones/**/*.ts',
       'tools/check-rust/regex-profile.ts',
-      'tools/regex-transpiler/smoke/engine_check.ts',
     ],
     extends: [tseslint.configs.base],
     languageOptions: {
       parserOptions: {
         projectService: {
-          allowDefaultProject: [
-            'src/codegen/shared/regex-engine/engine.ts',
-            'tools/regex-transpiler/smoke/engine_check.ts',
-          ],
+          allowDefaultProject: [],
         },
         tsconfigRootDir: import.meta.dirname,
       },

@@ -20,10 +20,5 @@
     "types": ["node", "vitest/globals"]
   },
   "include": ["src", "tests", "scripts", "tools/check-rust-timezones/**/*.ts"],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "tests/fixtures/codegen/**",
-    "src/codegen/shared/regex-engine/engine.ts"
-  ]
+  "exclude": ["node_modules", "dist", "tests/fixtures/codegen/**"]
 }

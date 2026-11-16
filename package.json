@@ -12,7 +12,7 @@
     "language-server": "tsx src/language-server-bin.ts",
     "build": "pnpm check-rust:build-wasm && tsup",
     "typecheck": "tsc --noEmit",
-    "regex-engine:check": "bash tools/regex-transpiler/check.sh",
+    "regex-engine:check": "node crates/regex-engine/conformance/materialize-stress-fixtures.mjs --check && node crates/regex-engine/conformance/materialize-targeted-postgres-fixtures.mjs --check && cargo test --locked --manifest-path crates/regex-engine/Cargo.toml && vitest run tests/sql-semantics/regex-engine.test.ts",
     "check-rust:timezones": "pnpm check-rust:build-wasm && node --import tsx tools/check-rust-timezones/check.ts",
     "check-rust:check": "bash tools/check-rust/check.sh",
     "check-rust:fast": "bash tools/check-rust/check-fast.sh",

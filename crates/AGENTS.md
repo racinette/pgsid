@@ -14,8 +14,9 @@ translated.
 ## Project layout
 
     ./
-    ├─ check-evaluator/               value wrappers, runtime semantics and
-    │                                 PostgreSQL operations for CHECKs
+    ├─ check-evaluator/                          value wrappers, runtime
+    │                                            semantics and PostgreSQL
+    │                                            operations for CHECKs
     │  │
     │  ├─ src/
     │  │  ├─ operations/
@@ -24,50 +25,108 @@ translated.
     │  │  │     ├─ jsonpath_tables.generated.rs ❗
     │  │  │     │  JSONPath parser tables generated from the JSONPath grammar
     │  │  │     │
-    │  │  │     └─ [operation].rs 0+  PostgreSQL operations of the transpiled
-    │  │  │                           `pg_catalog` module
+    │  │  │     └─ [operation].rs 0+             PostgreSQL operations of the
+    │  │  │                                      transpiled `pg_catalog` module
     │  │  │
-    │  │  ├─ jsonpath_grammar.rs ❗   the JSONPath grammar the JSONPath table
-    │  │  │                           generator reads
+    │  │  ├─ jsonpath_grammar.rs ❗              the JSONPath grammar the
+    │  │  │                                      JSONPath table generator reads
     │  │  │
-    │  │  ├─ lib.rs ❗                the native crate root, which includes each
-    │  │  │                           transpiled file into its module
+    │  │  ├─ lib.rs ❗                           the native crate root, which
+    │  │  │                                      includes each transpiled file
+    │  │  │                                      into its module
     │  │  │
-    │  │  └─ [source].rs 0+           runtime semantics of the transpiled
-    │  │                              `checkruntime` module
+    │  │  └─ [source].rs 0+                      runtime semantics of the
+    │  │                                         transpiled `checkruntime`
+    │  │                                         module
     │  │
     │  ├─ tests/
     │  │  │
-    │  │  └─ [test].rs 0+             a native integration test of the evaluator
-    │  │                              crate
+    │  │  └─ [test].rs 0+                        a native integration test of
+    │  │                                         the evaluator crate
     │  │
-    │  ├─ AGENTS.md ❗                working rules for the CHECK evaluator
+    │  ├─ AGENTS.md ❗                           working rules for the CHECK
+    │  │                                         evaluator
     │  │
-    │  ├─ Cargo.lock ❗               the CHECK evaluator lockfile
+    │  ├─ Cargo.lock ❗                          the CHECK evaluator lockfile
     │  │
-    │  ├─ Cargo.toml ❗               the CHECK evaluator crate manifest
+    │  ├─ Cargo.toml ❗                          the CHECK evaluator crate
+    │  │                                         manifest
     │  │
-    │  ├─ THIRD-PARTY-NOTICES ❗      notices for third-party code the evaluator
-    │  │                              transcribes
+    │  ├─ THIRD-PARTY-NOTICES ❗                 notices for third-party code
+    │  │                                         the evaluator transcribes
     │  │
-    │  └─ build.rs ❗                 the native build script that generates the
-    │                                 Unicode and time zone tables
+    │  └─ build.rs ❗                            the native build script that
+    │                                            generates the Unicode and time
+    │                                            zone tables
     │
-    ├─ regex-engine/                  the PostgreSQL regex engine
+    ├─ regex-engine/                             the PostgreSQL regex engine
+    │  │
+    │  ├─ conformance/                           stored PostgreSQL regex
+    │  │                                         observations and their
+    │  │                                         generators
+    │  │  │
+    │  │  ├─ extract-postgres.mjs ❗             extracts the regex test cases
+    │  │  │                                      of a PostgreSQL source tree's
+    │  │  │                                      regression tests
+    │  │  │
+    │  │  ├─ materialize-postgres-fixtures.mjs ❗
+    │  │  │  observes the extracted cases in PGlite and writes their fixtures
+    │  │  │
+    │  │  ├─ materialize-stress-fixtures.mjs ❗  derives the stress, position,
+    │  │  │                                      boundary and classification
+    │  │  │                                      cases and records their PGlite
+    │  │  │                                      observations
+    │  │  │
+    │  │  ├─ materialize-targeted-postgres-fixtures.mjs ❗
+    │  │  │  records PGlite observations of the targeted regex cases
+    │  │  │
+    │  │  ├─ postgres-extracted.json ❗          the regex test cases extracted
+    │  │  │                                      from PostgreSQL's regression
+    │  │  │                                      tests
+    │  │  │
+    │  │  ├─ postgres-fixtures.json ❗           PGlite observations of
+    │  │  │                                      PostgreSQL's own regex test
+    │  │  │                                      cases
+    │  │  │
+    │  │  ├─ regex-syntax-patterns.json ❗       regex syntax forms the targeted
+    │  │  │                                      cases cover
+    │  │  │
+    │  │  ├─ stress-boundary-fixtures.json ❗    PGlite observations of the
+    │  │  │                                      derived subject-boundary cases
+    │  │  │
+    │  │  ├─ stress-classification-fixtures.json ❗
+    │  │  │  PGlite observations of the derived character-classification cases
+    │  │  │
+    │  │  ├─ stress-fixtures.json ❗             PGlite observations of the
+    │  │  │                                      derived stress cases
+    │  │  │
+    │  │  ├─ stress-position-fixtures.json ❗    PGlite observations of the
+    │  │  │                                      derived start-position cases
+    │  │  │
+    │  │  └─ targeted-postgres-fixtures.json ❗  PGlite observations of the
+    │  │                                         targeted regex cases
     │  │
     │  ├─ src/
     │  │  │
-    │  │  └─ lib.rs ❗                the regex engine, linked as the transpiled
-    │  │                              `regex_engine` module
+    │  │  └─ lib.rs ❗                           the regex engine, linked as the
+    │  │                                         transpiled `regex_engine`
+    │  │                                         module
     │  │
-    │  ├─ AGENTS.md ❗                working rules for the regex engine
+    │  ├─ tests/
+    │  │  │
+    │  │  └─ [test].rs 0+                        a native test of the engine
+    │  │                                         against stored observations and
+    │  │                                         its own cases
     │  │
-    │  ├─ Cargo.lock ❗               the regex engine lockfile
+    │  ├─ AGENTS.md ❗                           working rules for the regex
+    │  │                                         engine
     │  │
-    │  └─ Cargo.toml ❗               the regex engine crate manifest
+    │  ├─ Cargo.lock ❗                          the regex engine lockfile
+    │  │
+    │  └─ Cargo.toml ❗                          the regex engine crate manifest
     │
-    └─ check-sources.json ❗          the manifest of modules the CHECK
-                                      transpiler links
+    └─ check-sources.json ❗                     the manifest of modules the
+                                                 CHECK transpiler links
 
 ❗ marks a named file or directory that must exist; one without it may be absent. A count after a pattern, such as `0+` or `1+`, is the fewest matching names that must exist.
 
@@ -110,6 +169,13 @@ The manifest lists the file under the module the crate root includes it in.
 ### `jsonpath_tables.generated.rs` — JSONPath parser tables generated from the JSONPath grammar
 
 Regenerate this file from the grammar; do not edit it.
+
+## `regex-engine/conformance/` — stored PostgreSQL regex observations and their generators
+
+The observations are the engine's behavioral oracle, recorded from PostgreSQL
+through PGlite. Change a case by changing its generator and regenerating. The
+stress and targeted generators take `--check`, which confirms their stored
+files still reproduce.
 
 ## `regex-engine/src/`
 

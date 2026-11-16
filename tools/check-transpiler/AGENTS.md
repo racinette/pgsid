@@ -2,8 +2,7 @@
 
 This tool owns the Rust-to-Go and Rust-to-TypeScript lowering used by CHECK
 constraints. The root `AGENTS.md` also applies. Keep the parser, AST contract,
-and both target emitters in this directory. A change here must not require a
-change to the regex transpiler unless the regex engine itself changes.
+and both target emitters in this directory.
 
 - The generated CHECK evaluator fragment is checked by the narrower CHECK
   dialect checker before it is added to the source graph. Keep that
