@@ -24,12 +24,15 @@ jobs:
       - run: node node_modules/eslint/bin/eslint.js .
       # The report is written synchronously and is large enough to fail with EAGAIN on the runner's non-blocking stdout.
       - run: |
-          for command in lint 'build --check'; do
-            status=0
-            node node_modules/espalier/dist/src/cli.js $command --config tests/unit/query/espalier.config.yaml \
-              --out "$RUNNER_TEMP/espalier-${command%% *}.txt" || status=$?
-            cat "$RUNNER_TEMP/espalier-${command%% *}.txt"
-            [ "$status" -eq 0 ] || exit "$status"
+          for config in tests/unit/query crates; do
+            for command in lint 'build --check'; do
+              status=0
+              report="$RUNNER_TEMP/espalier-${config//\//-}-${command%% *}.txt"
+              node node_modules/espalier/dist/src/cli.js $command --config "$config/espalier.config.yaml" \
+                --out "$report" || status=$?
+              cat "$report"
+              [ "$status" -eq 0 ] || exit "$status"
+            done
           done
       - run: >-
           node node_modules/prettier/bin/prettier.cjs --check . --ignore-path .gitignore

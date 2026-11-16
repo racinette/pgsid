@@ -19,3 +19,7 @@ tools/regex-transpiler/conformance/postgres-fixtures.json
 tests/fixtures/check-native-hash.json
 tests/fixtures/check-scalar-hash.json
 tests/fixtures/check-array-hash.json
+
+# Espalier owns the byte-for-byte form of its generated guidance.
+crates/AGENTS.md
+crates/espalier/AGENTS.MD

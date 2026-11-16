@@ -1,0 +1,17 @@
+name: pgsid crates
+
+root: espalier
+
+ignoreFiles: []
+
+skip:
+  - AGENTS.MD
+  - AGENTS.md
+  - CLAUDE.md
+  - .git
+  - .gitkeep
+
+addons: ../tools/check-transpiler/dialects/addons.mjs
+
+build:
+  filename: AGENTS.md

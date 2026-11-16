@@ -1,0 +1,56 @@
+# Version control metadata. Remove an entry to govern it explicitly.
+.git
+.hg/
+.svn/
+
+# Repository metadata. Tracked on purpose, and dictated by the tool that reads
+# them rather than by this project's architecture.
+.gitignore
+.gitattributes
+.gitmodules
+.mailmap
+.git-blame-ignore-revs
+.editorconfig
+.dockerignore
+.tool-versions
+
+# Continuous integration.
+.github/
+.gitlab/
+.gitlab-ci.yml
+.circleci/
+.buildkite/
+.travis.yml
+azure-pipelines.yml
+Jenkinsfile
+.drone.yml
+.woodpecker.yml
+
+# Licence and legal.
+LICENSE
+LICENSE.*
+LICENCE
+LICENCE.*
+COPYING
+NOTICE
+AUTHORS
+CONTRIBUTORS
+
+# Editor, agent and operating system files. These defaults are editable.
+.vscode/
+.idea/
+.fleet/
+.zed/
+.claude/
+.cursor/
+.windsurf/
+.continue/
+.codeium/
+.aider*
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Cargo build output.
+*/target/

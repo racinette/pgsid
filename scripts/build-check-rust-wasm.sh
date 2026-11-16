@@ -24,57 +24,17 @@ bash "$repo_dir/scripts/build-tinygo-wasm.sh" \
 node --input-type=module - "$repo_dir" "$asset_dir" /tmp/pgsid-check-timezone-data/tables.rs /tmp/pgsid-check-unicode-data/tables.rs <<'JS'
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
 const [repo, assets, timezoneTables, unicodeTables] = process.argv.slice(2)
-const read = path => ({ path, source: readFileSync(`${repo}/${path}`, 'utf8') })
-const schema = 'crates/check-evaluator/src/operations/pg_catalog'
-const files = readdirSync(`${repo}/${schema}`).filter(name => name.endsWith('.rs')).sort()
-writeFileSync(`${assets}/check-rust-sources.json`, JSON.stringify({
-  schemaVersion: 1,
-  modules: [
-    { name: 'regex_engine', dependencies: [], files: [read('crates/regex-engine/src/lib.rs')] },
-    { name: 'checkruntime', dependencies: [], files: [
-      read('crates/check-evaluator/src/values.rs'),
-      read('crates/check-evaluator/src/numeric.rs'),
-      read('crates/check-evaluator/src/network.rs'),
-      read('crates/check-evaluator/src/mac.rs'),
-      read('crates/check-evaluator/src/uuid.rs'),
-      read('crates/check-evaluator/src/json_syntax.rs'),
-      read('crates/check-evaluator/src/json_read.rs'),
-      read('crates/check-evaluator/src/json_array_paths.rs'),
-      read('crates/check-evaluator/src/json_format.rs'),
-      read('crates/check-evaluator/src/jsonb.rs'),
-      read('crates/check-evaluator/src/jsonb_build.rs'),
-      read('crates/check-evaluator/src/jsonb_array.rs'),
-      read('crates/check-evaluator/src/jsonb_storage.rs'),
-      read('crates/check-evaluator/src/jsonpath.rs'),
-      read('crates/check-evaluator/src/jsonpath_storage.rs'),
-      read('crates/check-evaluator/src/array_elements.rs'),
-      read('crates/check-evaluator/src/composite.rs'),
-      read('crates/check-evaluator/src/composite_text.rs'),
-      read('crates/check-evaluator/src/range.rs'),
-      read('crates/check-evaluator/src/multirange.rs'),
-      read('crates/check-evaluator/src/domain.rs'),
-      read('crates/check-evaluator/src/array.rs'),
-      read('crates/check-evaluator/src/array_storage.rs'),
-      read('crates/check-evaluator/src/array_quantifier.rs'),
-      read('crates/check-evaluator/src/bit.rs'),
-      read('crates/check-evaluator/src/hash.rs'),
-      read('crates/check-evaluator/src/text_builder.rs'),
-      { path: 'generated/unicode_tables.rs', source: readFileSync(unicodeTables, 'utf8') },
-      read('crates/check-evaluator/src/unicode.rs'),
-      read('crates/check-evaluator/src/date.rs'),
-      read('crates/check-evaluator/src/timestamp.rs'),
-      read('crates/check-evaluator/src/timestamptz.rs'),
-      read('crates/check-evaluator/src/time.rs'),
-      read('crates/check-evaluator/src/interval.rs'),
-      read('crates/check-evaluator/src/logic.rs'),
-      read('crates/check-evaluator/src/constants.rs'),
-    ] },
-    { name: 'pg_catalog', dependencies: ['checkruntime', 'regex_engine'], files: [
-      ...files.map(name => read(`${schema}/${name}`)),
-      { path: 'generated/timezone_tables.rs', source: readFileSync(timezoneTables, 'utf8') },
-    ] },
-  ],
-}, null, 2) + '\n')
+const { checkSourceGraph } = await import(`${repo}/tools/check-transpiler/dialects/source-graph.mjs`)
+const crates = `${repo}/crates`
+const graph = await checkSourceGraph(JSON.parse(readFileSync(`${crates}/check-sources.json`, 'utf8')), {
+  list: directory => readdirSync(`${crates}/${directory}`).map(name => `${directory}/${name}`),
+  read: path => readFileSync(`${crates}/${path}`, 'utf8'),
+  generated: {
+    'unicode_tables.rs': readFileSync(unicodeTables, 'utf8'),
+    'timezone_tables.rs': readFileSync(timezoneTables, 'utf8'),
+  },
+})
+writeFileSync(`${assets}/check-rust-sources.json`, JSON.stringify(graph, null, 2) + '\n')
 JS
 rm -f "$asset_dir/check-rust-integer.rs" "$asset_dir/check-rust-regex.rs" "$asset_dir/check-rust-regex-operation.rs"
 cp "$repo_dir/tools/check-transpiler/typescript/runtime-prelude.ts" \

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repo_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-timezone_build_dir=/tmp/pgsid-check-timezone-data
+timezone_build_dir=${1:-/tmp/pgsid-check-timezone-data}
 rm -rf "$timezone_build_dir/tzif"
 mkdir -p "$timezone_build_dir/tzif"
 "${ZIC:-zic}" -d "$timezone_build_dir/tzif" "$repo_dir/vendor/postgresql-timezone/tzdata.zi"

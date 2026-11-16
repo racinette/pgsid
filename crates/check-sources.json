@@ -1,0 +1,65 @@
+{
+  "modules": [
+    {
+      "name": "regex_engine",
+      "dependencies": [],
+      "files": ["regex-engine/src/lib.rs"]
+    },
+    {
+      "name": "checkruntime",
+      "dependencies": [],
+      "files": [
+        "check-evaluator/src/values.rs",
+        "check-evaluator/src/numeric.rs",
+        "check-evaluator/src/network.rs",
+        "check-evaluator/src/mac.rs",
+        "check-evaluator/src/uuid.rs",
+        "check-evaluator/src/json_syntax.rs",
+        "check-evaluator/src/json_read.rs",
+        "check-evaluator/src/json_array_paths.rs",
+        "check-evaluator/src/json_format.rs",
+        "check-evaluator/src/jsonb.rs",
+        "check-evaluator/src/jsonb_build.rs",
+        "check-evaluator/src/jsonb_array.rs",
+        "check-evaluator/src/jsonb_storage.rs",
+        "check-evaluator/src/jsonpath.rs",
+        "check-evaluator/src/jsonpath_storage.rs",
+        "check-evaluator/src/array_elements.rs",
+        "check-evaluator/src/composite.rs",
+        "check-evaluator/src/composite_text.rs",
+        "check-evaluator/src/range.rs",
+        "check-evaluator/src/multirange.rs",
+        "check-evaluator/src/domain.rs",
+        "check-evaluator/src/array.rs",
+        "check-evaluator/src/array_storage.rs",
+        "check-evaluator/src/array_quantifier.rs",
+        "check-evaluator/src/bit.rs",
+        "check-evaluator/src/hash.rs",
+        "check-evaluator/src/text_builder.rs",
+        {
+          "generated": "unicode_tables.rs"
+        },
+        "check-evaluator/src/unicode.rs",
+        "check-evaluator/src/date.rs",
+        "check-evaluator/src/timestamp.rs",
+        "check-evaluator/src/timestamptz.rs",
+        "check-evaluator/src/time.rs",
+        "check-evaluator/src/interval.rs",
+        "check-evaluator/src/logic.rs",
+        "check-evaluator/src/constants.rs"
+      ]
+    },
+    {
+      "name": "pg_catalog",
+      "dependencies": ["checkruntime", "regex_engine"],
+      "files": [
+        {
+          "directory": "check-evaluator/src/operations/pg_catalog"
+        },
+        {
+          "generated": "timezone_tables.rs"
+        }
+      ]
+    }
+  ]
+}
