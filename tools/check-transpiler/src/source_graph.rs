@@ -1,11 +1,13 @@
 use crate::{
     ast_json::{item, validate_against, validate_file, with_locations},
+    checked_item,
     facts::Facts,
     syntax,
     validate::Result,
 };
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
+use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
 
 // A graph either validates whole, optionally recording its facts ("emitFacts"), or adds
@@ -27,6 +29,7 @@ pub fn parse(source: &str) -> Result<String> {
 
 fn parse_graph(graph: &Value) -> Result<String> {
     let validate = graph["validate"] != false;
+    checked_item::leave();
     let modules = graph["modules"]
         .as_array()
         .ok_or("source graph requires modules")?;
@@ -53,6 +56,7 @@ fn parse_graph(graph: &Value) -> Result<String> {
         }
     }
     let mut parsed = Vec::new();
+    let mut sources = BTreeMap::new();
     let mut owners = cached
         .as_ref()
         .map_or_else(BTreeMap::new, |facts| facts.owners.clone());
@@ -74,11 +78,11 @@ fn parse_graph(graph: &Value) -> Result<String> {
             let text = source["source"].as_str().ok_or("file requires source")?;
             let file = syn::parse_file(text).map_err(|error| format!("{path}: {error}"))?;
             if validate {
-                syntax::check(&file).map_err(|error| format!("{path}: {error}"))?;
+                syntax::check(&file).map_err(|error| at_checked_item(path, error))?;
             }
             let mut serialized = Vec::new();
             for declaration in &file.items {
-                let value = item(declaration)?;
+                let value = item(declaration).map_err(|error| at_item(path, declaration, error))?;
                 let symbol = value["name"].as_str().unwrap().to_string();
                 if owners
                     .insert(
@@ -92,6 +96,7 @@ fn parse_graph(graph: &Value) -> Result<String> {
                 {
                     return Err(format!("duplicate linked symbol {symbol} in {path}"));
                 }
+                sources.insert(symbol, path);
                 serialized.push(value);
             }
             parsed.push((name, path, dependencies, file, serialized));
@@ -105,9 +110,16 @@ fn parse_graph(graph: &Value) -> Result<String> {
             .flat_map(|(_, _, _, file, _)| file.items.iter().cloned())
             .collect(),
     };
+    let linked_failure = |error: String| match checked_item::take() {
+        Some((name, line, column)) => match sources.get(&name) {
+            Some(path) => format!("{path}:{line}:{column}: {error}"),
+            None => error,
+        },
+        None => error,
+    };
     match cached {
-        Some(facts) => validate_against(&linked, facts)?,
-        None if validate => validate_file(&linked)?,
+        Some(facts) => validate_against(&linked, facts).map_err(linked_failure)?,
+        None if validate => validate_file(&linked).map_err(linked_failure)?,
         None => {}
     }
     let mut items = Vec::new();
@@ -115,7 +127,7 @@ fn parse_graph(graph: &Value) -> Result<String> {
         for (declaration, mut value) in file.items.iter().zip(serialized) {
             if validate {
                 check_dependencies(declaration, name, dependencies, &owners)
-                    .map_err(|error| format!("{path}: {error}"))?;
+                    .map_err(|error| at_item(path, declaration, error))?;
             }
             value["module"] = json!(name);
             value["sourceFile"] = json!(path);
@@ -131,6 +143,19 @@ fn parse_graph(graph: &Value) -> Result<String> {
         document["facts"] = Facts::collect(&linked.items, modules, owners)?.to_json();
     }
     serde_json::to_string(&document).map_err(|error| error.to_string())
+}
+
+// A rejection names its file, and the line and column of the item when one is known.
+fn at_item(path: &str, declaration: &syn::Item, error: String) -> String {
+    let start = declaration.span().start();
+    format!("{path}:{}:{}: {error}", start.line, start.column + 1)
+}
+
+fn at_checked_item(path: &str, error: String) -> String {
+    match checked_item::take() {
+        Some((_, line, column)) => format!("{path}:{line}:{column}: {error}"),
+        None => format!("{path}: {error}"),
+    }
 }
 
 fn check_dependencies(
@@ -522,5 +547,25 @@ mod tests {
         assert!(parse(&graph.to_string())
             .unwrap_err()
             .contains("without validation"));
+    }
+
+    #[test]
+    fn rejections_name_the_file_and_item_position() {
+        let mut graph: serde_json::Value = serde_json::from_str(&modules(&["pg_catalog"])).unwrap();
+        graph["modules"][1]["files"][1]["source"] =
+            serde_json::json!("pub fn other() -> bool { true }\n\npub fn positive(value: Value) -> bool { missing(value) }");
+        assert_eq!(
+            parse(&graph.to_string()).unwrap_err(),
+            "positive.rs:3:1: unknown function missing"
+        );
+        graph["modules"][1]["files"][1]["source"] =
+            serde_json::json!("\nconst LIMIT: usize = 0xff;");
+        assert!(parse(&graph.to_string())
+            .unwrap_err()
+            .starts_with("positive.rs:2:1: "));
+        let undeclared = modules(&[]);
+        assert!(parse(&undeclared)
+            .unwrap_err()
+            .starts_with("evaluator.rs:1:1: "));
     }
 }

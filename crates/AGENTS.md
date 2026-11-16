@@ -91,7 +91,8 @@ follow this rule.
 The modules the manifest names link into one graph the CHECK transpiler
 accepts: its syntax, types and ownership, and each module referring only to the
 modules it declares. The generated tables link in as the asset build produces
-them. A rejection names its file when the transpiler reports one.
+them. A rejection is reported at the item the transpiler stopped at, or on the
+manifest when no single item failed.
 
 ## `check-evaluator/src/`
 

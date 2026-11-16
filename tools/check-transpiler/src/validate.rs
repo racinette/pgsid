@@ -99,6 +99,7 @@ pub fn inspect(file: &syn::File) -> Result<()> {
     let mut equality = BTreeSet::new();
     let mut enums: BTreeMap<String, Vec<Option<String>>> = BTreeMap::new();
     for item in &file.items {
+        crate::checked_item::enter(item);
         match item {
             Item::Const(item) => {
                 type_name(&item.ty)?;
@@ -165,7 +166,9 @@ pub fn inspect(file: &syn::File) -> Result<()> {
             _ => return Err("top-level Rust item is outside the subset".into()),
         }
     }
+    crate::checked_item::leave();
     for item in &file.items {
+        crate::checked_item::enter(item);
         match item {
             Item::Struct(structure) => {
                 let name = structure.ident.to_string();
@@ -213,6 +216,7 @@ pub fn inspect(file: &syn::File) -> Result<()> {
             _ => {}
         }
     }
+    crate::checked_item::leave();
     Ok(())
 }
 
@@ -989,6 +993,7 @@ pub fn check_operations(file: &syn::File) -> Result<()> {
 // files extend those cached from another without changing the result.
 pub(crate) fn collect_semantics(items: &[Item], semantics: &mut Semantics) -> Result<()> {
     for item in items {
+        crate::checked_item::enter(item);
         match item {
             Item::Struct(structure) => {
                 let name = structure.ident.to_string();
@@ -1058,6 +1063,7 @@ pub(crate) fn collect_semantics(items: &[Item], semantics: &mut Semantics) -> Re
             _ => {}
         }
     }
+    crate::checked_item::leave();
     Ok(())
 }
 
@@ -1082,6 +1088,7 @@ fn check_clone_types(items: &[Item], semantics: &Semantics) -> Result<()> {
     // Public adapters construct and read exported payloads, so every type they reach must be
     // public too; a private one would surface as a name callers cannot use.
     for item in items {
+        crate::checked_item::enter(item);
         let (name, public) = match item {
             Item::Struct(structure) => (&structure.ident, matches!(structure.vis, syn::Visibility::Public(_))),
             Item::Enum(enumeration) => (&enumeration.ident, matches!(enumeration.vis, syn::Visibility::Public(_))),
@@ -1091,6 +1098,7 @@ fn check_clone_types(items: &[Item], semantics: &Semantics) -> Result<()> {
             return Err(format!("exported value payload reaches private type {name}"));
         }
     }
+    crate::checked_item::leave();
     for name in &semantics.clone {
         let supported = |ty: &String| scalar(ty) || semantics.copy.contains(ty);
         let owned_record = items.iter().any(|item| {
@@ -1128,11 +1136,13 @@ fn check_clone_types(items: &[Item], semantics: &Semantics) -> Result<()> {
 
 pub(crate) fn collect_constants(items: &[Item], constants: &mut Bindings) -> Result<()> {
     for item in items {
+        crate::checked_item::enter(item);
         if let Item::Const(value) = item {
             let ty = type_name(&value.ty)?;
             constants.insert(value.ident.to_string(), Binding { ty, mutable: false });
         }
     }
+    crate::checked_item::leave();
     Ok(())
 }
 
@@ -1142,6 +1152,7 @@ pub(crate) fn check_operation_items(
     semantics: &mut Semantics,
 ) -> Result<()> {
     for item in items {
+        crate::checked_item::enter(item);
         if let Item::Const(constant) = item {
             if let Type::Reference(reference) = &*constant.ty {
                 if let Type::Slice(slice) = &*reference.elem {
@@ -1236,5 +1247,6 @@ pub(crate) fn check_operation_items(
             }
         }
     }
+    crate::checked_item::leave();
     Ok(())
 }

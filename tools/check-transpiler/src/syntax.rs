@@ -614,6 +614,7 @@ fn block(block: &syn::Block, function_body: bool) -> Result {
 pub fn check(file: &syn::File) -> Result {
     no_attrs(&file.attrs)?;
     for item in &file.items {
+        crate::checked_item::enter(item);
         match item {
             Item::Const(node) => {
                 no_attrs(&node.attrs)?;
@@ -704,6 +705,7 @@ pub fn check(file: &syn::File) -> Result {
             _ => return Err("top-level item is outside the syntax subset".into()),
         }
     }
+    crate::checked_item::leave();
     Ok(())
 }
 

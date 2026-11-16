@@ -186,6 +186,7 @@ fn check_types(file: &syn::File) -> Result<()> {
 
 pub(crate) fn check_item_types(items: &[Item], sets: &TypeSets) -> Result<()> {
     for item in items {
+        crate::checked_item::enter(item);
         match item {
             Item::Const(node) => {
                 if !matches!(&*node.ty, Type::Reference(reference) if matches!(&*reference.elem, Type::Slice(_)))
@@ -236,6 +237,7 @@ pub(crate) fn check_item_types(items: &[Item], sets: &TypeSets) -> Result<()> {
             _ => unreachable!(),
         }
     }
+    crate::checked_item::leave();
     Ok(())
 }
 
