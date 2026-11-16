@@ -15,7 +15,7 @@ function run(command, args) {
 
 // Built from the transpiler's current source, so a lint judges the dialect translation accepts
 // now rather than whichever parser asset was built last.
-function parserWasm() {
+export function parserWasm() {
   const target = '/tmp/pgsid-check-rust-transpiler-target'
   run('cargo', [
     'build',

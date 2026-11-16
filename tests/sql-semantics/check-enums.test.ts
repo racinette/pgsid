@@ -14,6 +14,7 @@ import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
 import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
 import { writeCheckRustSources } from '../../tools/check-rust/sources.js'
+import { assertEvaluatorDialect } from '../../tools/check-transpiler/typescript/evaluator-dialect.js'
 import { renderGoCheckTests, type GoCheckCase } from './check-codegen.js'
 import { builtinCallables } from '../../src/postgres/builtins/inventory.js'
 import { callableIdentity } from '../../src/postgres/builtins/catalog.js'
@@ -369,20 +370,7 @@ describe('catalog enum CHECKs', () => {
     if (prepared.kind !== 'supported') throw new Error(prepared.reason)
     const native = join(directory, 'native')
     await mkdir(native)
-    await writeFile(join(native, 'evaluator.rs'), prepared.evaluator.source)
-    await run(
-      'cargo',
-      [
-        'run',
-        '--quiet',
-        '--locked',
-        '--manifest-path',
-        'tools/check-rust-dialect/Cargo.toml',
-        '--',
-        join(native, 'evaluator.rs'),
-      ],
-      { env: { ...process.env, CARGO_TARGET_DIR: '/tmp/pgsid-check-rust-dialect-target' } },
-    )
+    await assertEvaluatorDialect(prepared.evaluator.source)
     writeCheckRustSources(join(native, 'engine.rs'), prepared.source)
     await run('rustc', [
       '--edition=2021',

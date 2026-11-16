@@ -14,7 +14,7 @@ use syn::visit::{self, Visit};
 // modules to a graph validated earlier, given that graph's facts ("runtimeFacts"). The
 // second form returns only the added modules and their items; appended to the earlier
 // output they are what parsing the combined graph returns. Dialect checks read a graph's
-// syntax alone ("validate": false), the source position of each node ("locations"), and the
+// syntax alone ("validate": false, or "syntax" to check each file's syntax), the source position of each node ("locations"), and the
 // types validation inferred where a dialect restricts a construct by type ("inferredTypes").
 pub fn parse(source: &str) -> Result<String> {
     let graph: Value = serde_json::from_str(source).map_err(|error| error.to_string())?;
@@ -29,7 +29,8 @@ pub fn parse(source: &str) -> Result<String> {
 }
 
 fn parse_graph(graph: &Value) -> Result<String> {
-    let validate = graph["validate"] != false;
+    let syntax_only = graph["validate"] == "syntax";
+    let validate = graph["validate"] != false && !syntax_only;
     checked_item::leave();
     let modules = graph["modules"]
         .as_array()
@@ -78,7 +79,7 @@ fn parse_graph(graph: &Value) -> Result<String> {
             let path = source["path"].as_str().ok_or("file requires path")?;
             let text = source["source"].as_str().ok_or("file requires source")?;
             let file = syn::parse_file(text).map_err(|error| format!("{path}: {error}"))?;
-            if validate {
+            if validate || syntax_only {
                 syntax::check(&file).map_err(|error| at_checked_item(path, error))?;
             }
             let mut serialized = Vec::new();
@@ -555,6 +556,13 @@ mod tests {
             document["items"][2]["body"][0]["value"]["operator"],
             "multiply"
         );
+        graph["validate"] = serde_json::json!("syntax");
+        assert!(parse(&graph.to_string()).is_ok());
+        graph["modules"][1]["files"][1]["source"] =
+            serde_json::json!("pub fn positive(value: Value) -> bool { missing(&mut value) }");
+        assert!(parse(&graph.to_string()).is_err());
+        graph["validate"] = serde_json::json!(false);
+        assert!(parse(&graph.to_string()).is_ok());
         graph["emitFacts"] = serde_json::json!(true);
         assert!(parse(&graph.to_string())
             .unwrap_err()

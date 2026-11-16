@@ -9,8 +9,7 @@ cd "$repo_dir"
 node --import tsx scripts/generate-builtin-inventory.ts --check
 cargo test --locked --manifest-path crates/check-evaluator/Cargo.toml
 node --import tsx tools/check-rust-spike/generate.ts "$artifact_dir/check.rs" "$artifact_dir/evaluator.rs"
-cargo test --locked --manifest-path tools/check-rust-dialect/Cargo.toml
-cargo run --quiet --locked --manifest-path tools/check-rust-dialect/Cargo.toml -- "$artifact_dir/evaluator.rs"
+node tools/check-transpiler/dialects/evaluator-dialect.mjs "$artifact_dir/evaluator.rs"
 rustc --edition 2021 --crate-name check_spike --crate-type lib "$artifact_dir/check.rs" -o "$artifact_dir/libcheck_spike.rlib"
 rustc --edition 2021 --test tools/check-rust-spike/rust_test.rs --extern check_spike="$artifact_dir/libcheck_spike.rlib" -o "$artifact_dir/rust-test"
 "$artifact_dir/rust-test"

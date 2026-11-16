@@ -24,7 +24,7 @@ jobs:
       - run: node node_modules/eslint/bin/eslint.js .
       # The report is written synchronously and is large enough to fail with EAGAIN on the runner's non-blocking stdout.
       - run: |
-          for config in tests/unit/query crates; do
+          for config in tests/unit/query crates tests/fixtures/sql-semantics/projects; do
             for command in lint 'build --check'; do
               status=0
               report="$RUNNER_TEMP/espalier-${config//\//-}-${command%% *}.txt"

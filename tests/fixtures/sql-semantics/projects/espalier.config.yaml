@@ -1,0 +1,17 @@
+name: generated project goldens
+
+root: espalier
+
+ignoreFiles: []
+
+skip:
+  - AGENTS.MD
+  - AGENTS.md
+  - CLAUDE.md
+  - .git
+  - .gitkeep
+
+addons: ../../../../tools/check-transpiler/dialects/parser-addon.mjs
+
+build:
+  filename: AGENTS.md

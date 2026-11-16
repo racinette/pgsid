@@ -6,6 +6,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
+import { assertEvaluatorDialect } from '../../tools/check-transpiler/typescript/evaluator-dialect.js'
 import { assembleCheckRust } from '../../src/codegen/shared/check-rust-source.js'
 import {
   checkTypescriptArtifacts,
@@ -262,16 +263,7 @@ it('preserves SQL-coerced range shapes, exact bounds, owned snapshots and struct
           `pub fn ${entries[i]}(input: RangeValue) -> CheckOutcome { let value = ${m.rustName}(input); check_from_bool(value) }`,
       )
       .join('\n')
-    await writeFile(join(directory, 'evaluators.rs'), evaluator)
-    await run('cargo', [
-      'run',
-      '--quiet',
-      '--locked',
-      '--manifest-path',
-      'tools/check-rust-dialect/Cargo.toml',
-      '--',
-      join(directory, 'evaluators.rs'),
-    ])
+    await assertEvaluatorDialect(evaluator)
     const source = assembleCheckRust({
       source: evaluator,
       callables: metadata.map((m) => m.rustName),

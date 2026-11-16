@@ -41,6 +41,7 @@ import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import type { prepareCheckRustGroup } from '../../src/codegen/shared/check-rust-source.js'
+import { assertEvaluatorDialect } from '../check-transpiler/typescript/evaluator-dialect.js'
 import { writeCheckRustSources } from './sources.js'
 import {
   checkRustRuntimeLibrary,
@@ -117,15 +118,7 @@ export async function runCheckParity(
   const runtimeLibrary = await checkRustRuntimeLibrary(group.source)
   await writeFile(join(directory, 'checks.rs'), linkedCheckRustRoot(group.source) + '\n')
   const split = await checkRustTranslation(group.source, `${goParityModule}/pg_catalog`)
-  await run('cargo', [
-    'run',
-    '--quiet',
-    '--locked',
-    '--manifest-path',
-    'tools/check-rust-dialect/Cargo.toml',
-    '--',
-    join(directory, 'evaluators.rs'),
-  ])
+  await assertEvaluatorDialect(group.evaluatorSource)
   const entries = new Map(
     names.map((name, index) => {
       const check = group.checks[index]!

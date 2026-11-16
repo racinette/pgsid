@@ -35,7 +35,8 @@ export default tseslint.config(
       'node_modules/**',
       // Producer output compared byte for byte. A finding here is fixed by regenerating.
       'tests/fixtures/codegen/**',
-      'tests/fixtures/sql-semantics/projects/**',
+      'tests/fixtures/sql-semantics/projects/*',
+      '!tests/fixtures/sql-semantics/projects/espalier/',
     ],
   },
   {

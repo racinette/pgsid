@@ -20,7 +20,6 @@ src/codegen/go/assets/check-ts-prelude.ts
 tools/regex-transpiler/target/
 tools/check-transpiler/target/
 tools/check-catalog-grammar/target/
-tools/check-rust-dialect/target/
 tools/check-timezone-data/target/
 tools/check-unicode-data/target/
 crates/regex-engine/target/
