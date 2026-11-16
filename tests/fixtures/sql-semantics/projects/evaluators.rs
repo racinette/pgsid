@@ -5797,7 +5797,7 @@ pub fn evaluate_check() -> CheckOutcome {
             strict_call_null_42 = or_finish(strict_call_null_42, strict_argument_state_45);
             let mut strict_call_49: ByteaValue = bytea_null();
             if case_guard_takes(strict_call_null_42) == false {
-                let value_46 = text_wire_context(constant_argument_39.clone(), false);
+                let value_46 = text_wire_context(constant_argument_39.clone(), true);
                 let array_value_nullness_47 = bytea_is_null(value_46.clone());
                 let array_value_validity_48 = array_value_validity(array_value_nullness_47, false);
                 expression_validity_1 = array_validity_finish(expression_validity_1, array_value_validity_48);
@@ -22920,7 +22920,7 @@ pub fn evaluate_check() -> CheckOutcome {
             strict_call_null_39 = or_finish(strict_call_null_39, strict_argument_state_42);
             let mut strict_call_46: ByteaValue = bytea_null();
             if case_guard_takes(strict_call_null_39) == false {
-                let value_43 = text_wire_context(constant_argument_36.clone(), false);
+                let value_43 = text_wire_context(constant_argument_36.clone(), true);
                 let array_value_nullness_44 = bytea_is_null(value_43.clone());
                 let array_value_validity_45 = array_value_validity(array_value_nullness_44, false);
                 expression_validity_1 = array_validity_finish(expression_validity_1, array_value_validity_45);
@@ -26590,47 +26590,53 @@ pub fn evaluate_check() -> CheckOutcome {
 
 // numeric typmod 3/2 9.995
 pub fn evaluate_check() -> CheckOutcome {
-    let mut prepared_operand_18: NumericValue = numeric_unknown();
-    let preparation_start_22 = make_bool_value(true);
-    let mut constant_preparation: CheckOutcome = check_from_bool(preparation_start_22);
-    let value_2 = make_numeric_value("9.995");
-    let prepared_value_nullness_3 = numeric_is_null(value_2.clone());
+    let mut numeric_literal_8: NumericValue = numeric_unknown();
+    let mut prepared_operand_22: NumericValue = numeric_unknown();
+    let preparation_start_26 = make_bool_value(true);
+    let mut constant_preparation: CheckOutcome = check_from_bool(preparation_start_26);
+    let value_2 = make_text_value("9.995");
+    let prepared_value_nullness_3 = text_is_null(value_2.clone());
     let prepared_value_state_4 = array_value_validity(prepared_value_nullness_3, false);
     constant_preparation = constant_finish(constant_preparation, prepared_value_state_4);
-    let value_5 = make_int4_value(196614);
-    let prepared_value_nullness_6 = int4_is_null(value_5);
+    let value_5 = scalar_numeric_from_text(value_2.clone());
+    let prepared_value_nullness_6 = numeric_is_null(value_5.clone());
     let prepared_value_state_7 = array_value_validity(prepared_value_nullness_6, false);
     constant_preparation = constant_finish(constant_preparation, prepared_value_state_7);
-    let strict_call_start_9 = make_bool_value(false);
-    let mut strict_call_null_8: CheckOutcome = check_from_bool(strict_call_start_9);
-    let strict_argument_null_10 = numeric_is_null(value_2.clone());
-    let strict_argument_state_11 = check_from_bool(strict_argument_null_10);
-    strict_call_null_8 = or_finish(strict_call_null_8, strict_argument_state_11);
-    let strict_argument_null_12 = int4_is_null(value_5);
-    let strict_argument_state_13 = check_from_bool(strict_argument_null_12);
-    strict_call_null_8 = or_finish(strict_call_null_8, strict_argument_state_13);
-    let mut strict_call_15: NumericValue = numeric_null();
-    if case_guard_takes(strict_call_null_8) == false {
-        let value_14 = sql__pg_catalog__numeric__879l(value_2.clone(), value_5);
-        strict_call_15 = value_14.clone();
+    numeric_literal_8 = value_5;
+    let value_9 = make_int4_value(196614);
+    let prepared_value_nullness_10 = int4_is_null(value_9);
+    let prepared_value_state_11 = array_value_validity(prepared_value_nullness_10, false);
+    constant_preparation = constant_finish(constant_preparation, prepared_value_state_11);
+    let strict_call_start_13 = make_bool_value(false);
+    let mut strict_call_null_12: CheckOutcome = check_from_bool(strict_call_start_13);
+    let strict_argument_null_14 = numeric_is_null(numeric_literal_8.clone());
+    let strict_argument_state_15 = check_from_bool(strict_argument_null_14);
+    strict_call_null_12 = or_finish(strict_call_null_12, strict_argument_state_15);
+    let strict_argument_null_16 = int4_is_null(value_9);
+    let strict_argument_state_17 = check_from_bool(strict_argument_null_16);
+    strict_call_null_12 = or_finish(strict_call_null_12, strict_argument_state_17);
+    let mut strict_call_19: NumericValue = numeric_null();
+    if case_guard_takes(strict_call_null_12) == false {
+        let value_18 = sql__pg_catalog__numeric__879l(numeric_literal_8.clone(), value_9);
+        strict_call_19 = value_18.clone();
     };
-    let prepared_value_nullness_16 = numeric_is_null(strict_call_15.clone());
-    let prepared_value_state_17 = array_value_validity(prepared_value_nullness_16, false);
-    constant_preparation = constant_finish(constant_preparation, prepared_value_state_17);
-    prepared_operand_18 = strict_call_15.clone();
-    let mut prepared_result_23: CheckOutcome = constant_preparation;
+    let prepared_value_nullness_20 = numeric_is_null(strict_call_19.clone());
+    let prepared_value_state_21 = array_value_validity(prepared_value_nullness_20, false);
+    constant_preparation = constant_finish(constant_preparation, prepared_value_state_21);
+    prepared_operand_22 = strict_call_19.clone();
+    let mut prepared_result_27: CheckOutcome = constant_preparation;
     if case_guard_stops(constant_preparation) == false {
         let expression_validity_start_0 = make_bool_value(true);
         let mut expression_validity_1: CheckOutcome = check_from_bool(expression_validity_start_0);
-        let value_19 = numeric_is_null(prepared_operand_18.clone());
-        let scalar_result_20 = check_from_bool(value_19);
-        let mut validated_expression_21: CheckOutcome = scalar_result_20;
+        let value_23 = numeric_is_null(prepared_operand_22.clone());
+        let scalar_result_24 = check_from_bool(value_23);
+        let mut validated_expression_25: CheckOutcome = scalar_result_24;
         if case_guard_stops(expression_validity_1) {
-            validated_expression_21 = array_validity_result(expression_validity_1, validated_expression_21);
+            validated_expression_25 = array_validity_result(expression_validity_1, validated_expression_25);
         };
-        prepared_result_23 = validated_expression_21;
+        prepared_result_27 = validated_expression_25;
     }
-    prepared_result_23
+    prepared_result_27
 }
 
 // numeric math sqrt 2
