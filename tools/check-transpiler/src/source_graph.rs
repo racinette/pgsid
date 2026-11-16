@@ -2,7 +2,7 @@ use crate::{
     ast_json::{item, validate_against, validate_file, with_locations},
     checked_item,
     facts::Facts,
-    syntax,
+    inferred, syntax,
     validate::Result,
 };
 use serde_json::{json, Value};
@@ -14,7 +14,8 @@ use syn::visit::{self, Visit};
 // modules to a graph validated earlier, given that graph's facts ("runtimeFacts"). The
 // second form returns only the added modules and their items; appended to the earlier
 // output they are what parsing the combined graph returns. Dialect checks read a graph's
-// syntax alone ("validate": false) and the source position of each node ("locations").
+// syntax alone ("validate": false), the source position of each node ("locations"), and the
+// types validation inferred where a dialect restricts a construct by type ("inferredTypes").
 pub fn parse(source: &str) -> Result<String> {
     let graph: Value = serde_json::from_str(source).map_err(|error| error.to_string())?;
     if graph["schemaVersion"] != 1 {
@@ -117,11 +118,13 @@ fn parse_graph(graph: &Value) -> Result<String> {
         },
         None => error,
     };
-    match cached {
-        Some(facts) => validate_against(&linked, facts).map_err(linked_failure)?,
-        None if validate => validate_file(&linked).map_err(linked_failure)?,
-        None => {}
-    }
+    let (validated, inferred) =
+        inferred::recording(graph["inferredTypes"] == true, || match cached {
+            Some(facts) => validate_against(&linked, facts),
+            None if validate => validate_file(&linked),
+            None => Ok(()),
+        });
+    validated.map_err(linked_failure)?;
     let mut items = Vec::new();
     for (name, path, dependencies, file, serialized) in parsed {
         for (declaration, mut value) in file.items.iter().zip(serialized) {
@@ -139,6 +142,15 @@ fn parse_graph(graph: &Value) -> Result<String> {
         .map(|module| json!({ "name": module["name"], "dependencies": module["dependencies"] }))
         .collect::<Vec<_>>();
     let mut document = json!({ "schemaVersion": 1, "modules": modules, "items": items });
+    if graph["inferredTypes"] == true {
+        document["inferredTypes"] = inferred
+            .into_iter()
+            .map(|(construct, ty, item, line, column)| {
+                json!({ "construct": construct, "type": ty, "path": sources.get(&item),
+                    "line": line, "column": column })
+            })
+            .collect();
+    }
     if emit_facts {
         document["facts"] = Facts::collect(&linked.items, modules, owners)?.to_json();
     }
@@ -567,5 +579,26 @@ mod tests {
         assert!(parse(&undeclared)
             .unwrap_err()
             .starts_with("evaluator.rs:1:1: "));
+    }
+
+    #[test]
+    fn reports_inferred_types_only_when_asked() {
+        let source = "#[derive(Clone, Copy)] pub struct Span { pub start: usize }\n#[derive(Clone, Copy)] pub enum Found { Span(Span), Nothing }\npub fn f(found: Found, fallback: Span) -> usize {\n    let mut span = fallback;\n    if let Found::Span(inner) = found { span = inner; }\n    span.start\n}";
+        let mut graph = serde_json::json!({ "schemaVersion": 1, "modules": [
+            { "name": "engine", "dependencies": [], "files": [{ "path": "engine.rs", "source": source }] }
+        ] });
+        let plain: serde_json::Value =
+            serde_json::from_str(&parse(&graph.to_string()).unwrap()).unwrap();
+        assert!(plain.get("inferredTypes").is_none());
+        graph["inferredTypes"] = serde_json::json!(true);
+        let document: serde_json::Value =
+            serde_json::from_str(&parse(&graph.to_string()).unwrap()).unwrap();
+        assert_eq!(
+            document["inferredTypes"],
+            serde_json::json!([
+                { "construct": "binding assignment", "type": "Span", "path": "engine.rs", "line": 5, "column": 41 },
+                { "construct": "if-let payload", "type": "Span", "path": "engine.rs", "line": 5, "column": 12 }
+            ])
+        );
     }
 }

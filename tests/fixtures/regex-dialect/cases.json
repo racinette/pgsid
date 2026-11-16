@@ -1,0 +1,462 @@
+[
+  {
+    "source": "pub fn f(value: i64) -> i64 { value }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f() -> f64 { 1.5f64 }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: f64) -> f64 { value.sqrt() }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: f64) -> f64 { value.abs() }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: i32) -> i32 { value.abs() }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: f64) -> f64 { value.ln() }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: u16) -> usize { value as usize }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f() -> String { String::new() }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: &str) -> String { value.to_owned() }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: String) -> usize { let text = value.as_str(); 0 }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f() -> usize { let mut text = String::new(); text.push_str(\"a\"); 0 }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f() -> i64 { 5i64 }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(left: i32, right: i32) -> i32 { left * right }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(left: i32, right: i32) -> i32 { left / right }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(left: i32, right: i32) -> i32 { left % right }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(left: usize, right: usize) -> usize { left * right }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: char) -> i32 { value as i32 }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: i32) -> i64 { value as i64 }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: i64) -> i32 { value as i32 }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: usize) -> i32 { value as i32 }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: i32) -> f64 { value as f64 }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: i32) -> usize { usize::try_from(value).unwrap_or(0) }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: &str) -> f64 { value.parse::<f64>().unwrap_or(0.0f64) }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: i32) -> char { char::from_u32(value as u32).unwrap_or(' ') }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: f64) -> i64 { value.to_bits() as i64 }",
+    "accepted": false
+  },
+  {
+    "source": "const TABLE: &[usize] = &[1, 2, 3]; pub fn f() -> usize { TABLE[0] }",
+    "accepted": false
+  },
+  {
+    "source": "const NAMES: &[&str] = &[\"a\"]; pub fn f() -> usize { 0 }",
+    "accepted": false
+  },
+  {
+    "source": "#[derive(Clone)] pub struct Span { pub start: usize } pub fn f(value: Span) -> usize { value.start }",
+    "accepted": false
+  },
+  {
+    "source": "#[derive(Clone)] pub enum Mode { Run, Stop } pub fn f(value: Mode) -> bool { true }",
+    "accepted": false
+  },
+  {
+    "source": "#[derive(Clone, Copy)] pub enum Mode { Run, Stop } pub fn f(value: Mode) -> bool { true }",
+    "accepted": true
+  },
+  {
+    "source": "#[derive(Clone, Copy)] pub enum Found { Number(i32), Nothing } pub fn f(value: Found) -> bool { if let Found::Number(_) = value { return true; } false }",
+    "accepted": false
+  },
+  {
+    "source": "#[derive(Clone, Copy)] pub enum Found { Number(i32), Nothing } pub fn f(value: Found) -> bool { if let Found::Nothing = value { return true; } false }",
+    "accepted": false
+  },
+  {
+    "source": "#[derive(Clone, Copy)] pub enum Found { Number(i32), Nothing } pub fn f(value: Found) -> i32 { if let Found::Number(n) = value { return n; } 0 }",
+    "accepted": true
+  },
+  {
+    "source": "pub enum Words { Value(Vec<char>) } pub fn f(value: Words) -> bool { if let Words::Value(chars) = value { return chars.len() > 0; } false }",
+    "accepted": false
+  },
+  {
+    "source": "#[derive(Clone, Copy)] pub struct Span { pub start: usize } #[derive(Clone, Copy)] pub enum Found { Span(Span), Nothing } pub fn f(value: Found) -> usize { if let Found::Span(s) = value { return s.start; } 0 }",
+    "accepted": true
+  },
+  {
+    "source": "#[derive(Clone, Copy)] pub struct Span { pub start: usize } pub fn f(value: Span, other: Span) -> usize { let mut current = value; current = other; current.start }",
+    "accepted": false
+  },
+  {
+    "source": "#[derive(Clone)] pub struct Span { pub start: usize } pub fn f(value: Span, other: Span) -> usize { let mut current = value; current = other; current.start }",
+    "accepted": false
+  },
+  {
+    "source": "#[derive(Clone, Copy)] pub enum Mode { Run, Stop } pub fn f(value: Mode) -> Mode { let mut selected = value; selected = Mode::Stop; selected }",
+    "accepted": true
+  },
+  {
+    "source": "#[derive(Clone)] pub enum Mode { Run, Stop } pub fn f(value: Mode) -> bool { let mut selected = value; selected = Mode::Stop; true }",
+    "accepted": false
+  },
+  {
+    "source": "#[derive(Clone, Copy)] pub enum Mode { Run, Stop } pub fn f() -> usize { let mut modes: Vec<Mode> = Vec::new(); modes.push(Mode::Run); modes[0] = Mode::Stop; modes.len() }",
+    "accepted": false
+  },
+  {
+    "source": "#[derive(Clone, Copy)] pub enum Mode { Run, Stop } pub fn f() -> usize { let modes: Vec<Mode> = Vec::new(); modes.len() }",
+    "accepted": false
+  },
+  {
+    "source": "#[derive(Clone, Copy)] pub struct Span { pub start: usize } pub fn f() -> usize { let mut spans: Vec<Span> = Vec::new(); spans.push(Span { start: 1 }); spans[0] = Span { start: 2 }; spans.len() }",
+    "accepted": true
+  },
+  {
+    "source": "#[derive(Clone)] pub struct Span { pub start: usize } pub fn f() -> usize { let spans: Vec<Span> = Vec::new(); spans.len() }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f() -> usize { let values: Vec<i32> = Vec::new(); values.len() }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f() -> usize { let values: Vec<u32> = Vec::new(); values.len() }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f() -> usize { let values: Vec<bool> = Vec::new(); values.len() }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: &[usize]) -> usize { value.len() }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(left: i32, right: i32) -> i32 { left - right + 1 }",
+    "accepted": true
+  },
+  {
+    "source": "pub fn f(value: i32) -> i32 { -value }",
+    "accepted": true
+  },
+  {
+    "source": "pub fn f(left: usize, right: usize) -> bool { left < right }",
+    "accepted": true
+  },
+  {
+    "source": "pub fn f(value: char) -> char { value.to_ascii_lowercase() }",
+    "accepted": true
+  },
+  {
+    "source": "pub fn f() -> usize { let mut characters: Vec<char> = Vec::new(); characters.push('a'); characters.len() }",
+    "accepted": true
+  },
+  {
+    "source": "const X: usize = 0xff;",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f() -> bool { b\"a\" == b\"a\" }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f() -> bool { c\"a\" == c\"a\" }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: usize) -> u32 { value as u32 }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: char) -> usize { value as usize }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: i32) -> usize { value as usize }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: Vec<i32>) -> i32 { 1 }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: &char) -> bool { 1 == 1 }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: i32<'static>) -> bool { true }",
+    "accepted": false
+  },
+  {
+    "source": "enum Maybe { Empty, Number(i32) } pub fn f(value: Maybe) -> bool { if let Maybe::Empty(x) = value { return true; } false }",
+    "accepted": false
+  },
+  {
+    "source": "enum Maybe { Empty, Number(i32) } pub fn f(value: Maybe) -> bool { if let Other::Number(x) = value { return true; } false }",
+    "accepted": false
+  },
+  {
+    "source": "enum Maybe { Empty, Number(i32) } pub fn f(value: Maybe) -> bool { if let Maybe::Number(value) = value { return true; } false }",
+    "accepted": false
+  },
+  {
+    "source": "enum Words { Value(Vec<char>) } pub fn f(value: Words) -> bool { if let Words::Value(chars) = value { return chars.len() > 0; } false }",
+    "accepted": false
+  },
+  {
+    "source": "struct State { position: usize } pub fn f(value: &mut State) -> usize { value.position }",
+    "accepted": false
+  },
+  {
+    "source": "struct State { position: usize } pub fn f(value: &State) -> &State { value }",
+    "accepted": false
+  },
+  {
+    "source": "struct State { position: usize } pub fn f(value: State) -> usize { let borrowed = &value; borrowed.position }",
+    "accepted": false
+  },
+  {
+    "source": "struct State { position: usize } pub fn f(value: State) -> usize { let borrowed: &State = &value; borrowed.position }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: &Vec<usize>) -> usize { value.len() }",
+    "accepted": false
+  },
+  {
+    "source": "enum State { Ready } pub fn f(value: &State) -> bool { true }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: &str) -> usize { value.len() }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: &str, flag: bool) -> usize { if flag { return 1; } else { let length = value.len(); return length; } }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: &str, first: bool, second: bool) -> usize { if first { return 1; } else if second { let length = value.len(); return length; } else { return 3; } }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: &str) -> &str { value.to_ascii_lowercase() }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(a: Vec<char>, b: Vec<char>) -> bool { a == b }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(a: char, b: char) -> bool { a < b }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(a: &str, b: &str) -> bool { a < b }",
+    "accepted": false
+  },
+  {
+    "source": "enum Outcome { Found(usize), NoMatch } pub fn f() -> Outcome { Outcome::Other(1) }",
+    "accepted": false
+  },
+  {
+    "source": "enum Outcome { Found(usize), NoMatch } pub fn f() -> Outcome { Outcome::NoMatch(1) }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f() -> usize { missing() }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: usize) -> usize { value } pub fn g() -> usize { f() }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: bool) -> bool { value } pub fn g() -> bool { f(1) }",
+    "accepted": false
+  },
+  {
+    "source": "struct Span { start: usize } pub fn f(value: Span) -> Span { value.start += 1; value }",
+    "accepted": false
+  },
+  {
+    "source": "struct Span { start: usize } pub fn f(value: Span) -> Span { let copy = value; copy.start += 1; copy }",
+    "accepted": false
+  },
+  {
+    "source": "enum Mode { Run, Stop } pub fn f(value: Mode) -> Mode { let mut selected = value; selected = Mode::Stop; selected }",
+    "accepted": false
+  },
+  {
+    "source": "#[derive(Clone, Copy)] enum Mode { Run, Stop } pub fn f(value: Mode) -> Mode { let selected = value; selected = Mode::Stop; selected }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f() -> usize { let positions: Vec<usize> = Vec::new(); positions.push(1); positions.len() }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f() -> usize { let positions: Vec<usize> = Vec::new(); positions[0] = 1; positions.len() }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f() -> Vec<usize> { Vec::new() }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f() -> usize { let mut positions = Vec::new(); positions.push(1); positions.len() }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f() -> usize { let mut positions: Vec<usize> = Vec::new(); positions.push(false); positions.len() }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f() -> usize { let mut positions: Vec<usize> = Vec::new(); positions[false] = 1; positions.len() }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f() -> usize { let mut positions: Vec<usize> = Vec::new(); positions[0] = false; positions.len() }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f() -> usize { let mut positions: Vec<usize> = Vec::new(); positions = Vec::new(); positions.len() }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f() -> usize { let characters: Vec<char> = Vec::new(); characters.push('a'); characters.len() }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f() -> usize { let mut characters: Vec<char> = Vec::new(); characters.push(1); characters.len() }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f() -> usize { let mut characters: Vec<char> = Vec::new(); characters[0] = 1; characters.len() }",
+    "accepted": false
+  },
+  {
+    "source": "struct State { position: usize } pub fn f(states: Vec<State>) -> usize { states.len() }",
+    "accepted": false
+  },
+  {
+    "source": "#[derive(Clone, Copy)] struct State { position: usize } pub fn f() -> usize { let mut states: Vec<State> = Vec::new(); states.push(1); states.len() }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: usize) -> usize { -value }",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(left: i32, right: u32) -> i32 { left + right }",
+    "accepted": false
+  },
+  {
+    "source": "const TOO_LARGE: usize = 2147483648;",
+    "accepted": false
+  },
+  {
+    "source": "pub fn f(value: char) -> bool { value == '😀' }",
+    "accepted": true
+  },
+  {
+    "source": "pub fn f(value: &str) -> bool { value == r\"housed\" }",
+    "accepted": true
+  },
+  {
+    "source": "pub fn f(value: &str) -> bool { value == \"\" }",
+    "accepted": true
+  },
+  {
+    "source": "pub fn f(value: char) -> u32 { value as u32 }",
+    "accepted": true
+  },
+  {
+    "source": "pub fn f(value: u32) -> usize { value as usize }",
+    "accepted": true
+  },
+  {
+    "source": "enum Maybe { Empty, Number(i32) } pub fn f(value: Maybe) -> bool { if let Maybe::Number(x) = value { return x > 0; } false }",
+    "accepted": true
+  },
+  {
+    "source": "struct State { position: usize } fn read(value: &State) -> usize { value.position } pub fn f(value: State) -> usize { read(&value) }",
+    "accepted": true
+  },
+  {
+    "source": "pub fn f(value: usize) -> usize { value } pub fn g() -> usize { f(1) }",
+    "accepted": true
+  },
+  {
+    "source": "#[derive(Clone, Copy)] enum Mode { Run, Stop } pub fn f(value: Mode) -> Mode { let mut selected = value; selected = Mode::Stop; selected }",
+    "accepted": true
+  },
+  {
+    "source": "#[derive(Clone, Copy)] struct State { position: usize } pub fn f() -> usize { let mut states: Vec<State> = Vec::new(); states.push(State { position: 1 }); states[0] = State { position: 2 }; states[0].position }",
+    "accepted": true
+  },
+  {
+    "source": "#[derive(Clone, Copy)] struct State { position: usize } pub fn f() -> usize { let states: Vec<State> = Vec::new(); states.len() }",
+    "accepted": true
+  },
+  {
+    "source": "pub fn f(value: i32) -> i32 { value + 1 }",
+    "accepted": true
+  }
+]

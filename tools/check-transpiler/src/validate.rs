@@ -366,6 +366,7 @@ fn check_if_methods(branch: &syn::ExprIf, locals: &Bindings, semantics: &Semanti
         if !shared_owned_payload(&payload, semantics, &mut BTreeMap::new(), 0) {
             return Err("if-let payload needs shared value semantics".into());
         }
+        crate::inferred::record("if-let payload", &payload, pattern);
         if infer_expr_type(&binding.expr, locals, semantics)?.as_deref() != Some(&name) {
             return Err("if-let source type differs from its enum pattern".into());
         }
@@ -855,6 +856,12 @@ fn infer_expr_type(
         Expr::Assign(assign) => {
             let destination = infer_expr_type(&assign.left, locals, semantics)?
                 .ok_or("assignment destination has no shared type")?;
+            let target = if matches!(&*assign.left, Expr::Index(_)) {
+                "element assignment"
+            } else {
+                "binding assignment"
+            };
+            crate::inferred::record(target, &destination, &assign.left);
             let source = infer_expr_type(&assign.right, locals, semantics)?
                 .ok_or("assignment source has no shared type")?;
             match &*assign.left {

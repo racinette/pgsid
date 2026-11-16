@@ -111,6 +111,32 @@ The manifest lists the file under the module the crate root includes it in.
 
 Regenerate this file from the grammar; do not edit it.
 
+## `regex-engine/src/`
+
+### Constraints
+
+#### regex-dialect — the regex engine dialect
+
+Each file with exactly `.rs` as its extension under `regex-engine/src/` must
+follow this rule.
+
+The regex engine keeps to a narrower dialect than the rest of the transpiled
+graph, so its translation needs no floating-point, wide-integer, owned-text or
+table support. Widening it is a decision about the engine, made in this rule.
+
+- Values are `usize`, `u32`, `i32`, `bool`, `char` and borrowed `&str`;
+  vectors hold `char`, `usize` or `Copy` records; records and enums derive
+  `Clone` and `Copy` together or neither.
+- No `i64`, `f64`, `u16` or `String`, no slices, tables or array
+  literals, no float or `i64` literals, and no float bit conversions.
+- Arithmetic is addition, subtraction and negation; casts go from `char` to
+  `u32` and from `u32` to `usize`.
+- No owned-text or float methods (`to_owned`, `as_str`, `clone`,
+  `push_str`, `abs`, `ln`, `log10`, `sqrt`), no `String::new`, and no
+  conversion idioms (`usize::try_from`, `parse::<f64>`, `char::from_u32`).
+- An `if let` binds the payload of its variant, which is a scalar or a `Copy`
+  type; only scalar and `Copy` enum bindings are reassigned.
+
 ## Other repository paths
 
 These paths are part of the repository but serve specific purposes outside the project layout. Use them only for the purpose stated here.

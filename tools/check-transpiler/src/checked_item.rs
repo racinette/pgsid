@@ -28,3 +28,7 @@ pub(crate) fn leave() {
 pub(crate) fn take() -> Option<(String, usize, usize)> {
     CHECKED.with(|checked| checked.borrow_mut().take())
 }
+
+pub(crate) fn current() -> Option<String> {
+    CHECKED.with(|checked| checked.borrow().as_ref().map(|(name, _, _)| name.clone()))
+}
