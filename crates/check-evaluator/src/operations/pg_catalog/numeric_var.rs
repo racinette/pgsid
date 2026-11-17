@@ -35,7 +35,7 @@ struct NumericVar {
     sign: i32,
     weight: i32,
     dscale: i32,
-    digits: Vec<NumericWireDigit>,
+    digits: Vec<usize>,
 }
 
 // A result, or the numeric overflow PostgreSQL raises while computing it.
@@ -65,7 +65,7 @@ struct NumericVarWide {
 }
 
 fn numeric_var_zero(dscale: i32) -> NumericVar {
-    let digits: Vec<NumericWireDigit> = Vec::new();
+    let digits: Vec<usize> = Vec::new();
     NumericVar {
         sign: 1,
         weight: 0,
@@ -82,14 +82,14 @@ fn numeric_var_digit(value: &NumericVar, index: i32) -> i32 {
     if index < 0 || index >= numeric_var_count(value) {
         return 0;
     }
-    value.digits[usize::try_from(index).unwrap_or(0)].value
+    (value.digits[usize::try_from(index).unwrap_or(0)] as i32)
 }
 
-fn numeric_var_zeros(count: i32) -> Vec<NumericWireDigit> {
-    let mut digits: Vec<NumericWireDigit> = Vec::new();
+fn numeric_var_zeros(count: i32) -> Vec<usize> {
+    let mut digits: Vec<usize> = Vec::new();
     let mut index: i32 = 0;
     while index < count {
-        digits.push(NumericWireDigit { value: 0 });
+        digits.push(0);
         index = index + 1;
     }
     digits
@@ -118,7 +118,7 @@ fn numeric_var_from_work(work: &NumericWork) -> NumericVar {
     // zeros complete the last one.
     let mut leading = weight * NUMERIC_VAR_DEC_DIGITS + NUMERIC_VAR_DEC_DIGITS - 1 - work.weight;
     let mut emitted: i32 = 0;
-    let mut digits: Vec<NumericWireDigit> = Vec::new();
+    let mut digits: Vec<usize> = Vec::new();
     let mut value: i32 = 0;
     let mut index: usize = 0;
     while index < characters.len() || emitted % NUMERIC_VAR_DEC_DIGITS != 0 {
@@ -132,7 +132,7 @@ fn numeric_var_from_work(work: &NumericWork) -> NumericVar {
         value = value * 10 + decimal;
         emitted = emitted + 1;
         if emitted % NUMERIC_VAR_DEC_DIGITS == 0 {
-            digits.push(NumericWireDigit { value: value });
+            digits.push(usize::try_from(value).unwrap_or(0));
             value = 0;
         };
     }
@@ -153,7 +153,7 @@ fn numeric_work_from_var(value: &NumericVar) -> NumericWork {
     let mut weight = value.weight * NUMERIC_VAR_DEC_DIGITS + NUMERIC_VAR_DEC_DIGITS - 1;
     let mut index: usize = 0;
     while index < value.digits.len() {
-        let mut word = value.digits[index].value;
+        let mut word = (value.digits[index] as i32);
         let mut place: i32 = 1000;
         while place > 0 {
             let digit = word / place;
@@ -200,15 +200,13 @@ fn numeric_var_from_i64(value: i64) -> NumericVar {
         sign = -1;
         magnitude = 0i64 - value;
     }
-    let mut reversed: Vec<NumericWireDigit> = Vec::new();
+    let mut reversed: Vec<usize> = Vec::new();
     while magnitude > 0i64 {
         let next = magnitude / 10000i64;
-        reversed.push(NumericWireDigit {
-            value: (magnitude - next * 10000i64) as i32,
-        });
+        reversed.push(usize::try_from((magnitude - next * 10000i64) as i32).unwrap_or(0));
         magnitude = next;
     }
-    let mut digits: Vec<NumericWireDigit> = Vec::new();
+    let mut digits: Vec<usize> = Vec::new();
     let mut index = reversed.len();
     while index > 0 {
         index = index - 1;
@@ -229,15 +227,15 @@ fn numeric_var_from_i64(value: i64) -> NumericVar {
 fn numeric_var_strip(value: NumericVar) -> NumericVar {
     let mut weight = value.weight;
     let mut start: usize = 0;
-    while start < value.digits.len() && value.digits[start].value == 0 {
+    while start < value.digits.len() && (value.digits[start] as i32) == 0 {
         start += 1;
         weight = weight - 1;
     }
     let mut end = value.digits.len();
-    while end > start && value.digits[end - 1].value == 0 {
+    while end > start && (value.digits[end - 1] as i32) == 0 {
         end = end - 1;
     }
-    let mut digits: Vec<NumericWireDigit> = Vec::new();
+    let mut digits: Vec<usize> = Vec::new();
     let mut index = start;
     while index < end {
         digits.push(value.digits[index]);
@@ -257,7 +255,7 @@ fn numeric_var_strip(value: NumericVar) -> NumericVar {
 }
 
 fn numeric_var_shifted(value: &NumericVar, places: i32) -> NumericVar {
-    let mut digits: Vec<NumericWireDigit> = Vec::new();
+    let mut digits: Vec<usize> = Vec::new();
     let mut index: usize = 0;
     while index < value.digits.len() {
         digits.push(value.digits[index]);
@@ -385,7 +383,7 @@ fn numeric_var_add_abs(left: &NumericVar, right: &NumericVar) -> NumericVar {
             digit = digit - NUMERIC_VAR_NBASE;
             carry = 1;
         }
-        digits[usize::try_from(i).unwrap_or(0)] = NumericWireDigit { value: digit };
+        digits[usize::try_from(i).unwrap_or(0)] = usize::try_from(digit).unwrap_or(0);
         i = i - 1;
     }
     numeric_var_strip(NumericVar {
@@ -430,7 +428,7 @@ fn numeric_var_sub_abs(left: &NumericVar, right: &NumericVar) -> NumericVar {
             digit = digit + NUMERIC_VAR_NBASE;
             borrow = -1;
         }
-        digits[usize::try_from(i).unwrap_or(0)] = NumericWireDigit { value: digit };
+        digits[usize::try_from(i).unwrap_or(0)] = usize::try_from(digit).unwrap_or(0);
         i = i - 1;
     }
     numeric_var_strip(NumericVar {
@@ -496,24 +494,22 @@ fn numeric_var_round(value: NumericVar, rscale: i32) -> NumericVar {
         let mut position = ndigits;
         let mut carry: i32 = 0;
         if di == 0 {
-            if digits[usize::try_from(ndigits).unwrap_or(0)].value >= NUMERIC_VAR_HALF_NBASE {
+            if (digits[usize::try_from(ndigits).unwrap_or(0)] as i32) >= NUMERIC_VAR_HALF_NBASE {
                 carry = 1;
             }
         } else {
             position = position - 1;
             let last = usize::try_from(position).unwrap_or(0);
             let mut pow10 = numeric_var_round_power(di);
-            let extra = digits[last].value % pow10;
-            digits[last] = NumericWireDigit {
-                value: digits[last].value - extra,
-            };
+            let extra = (digits[last] as i32) % pow10;
+            digits[last] = usize::try_from((digits[last] as i32) - extra).unwrap_or(0);
             if extra >= pow10 / 2 {
-                pow10 = pow10 + digits[last].value;
+                pow10 = pow10 + (digits[last] as i32);
                 if pow10 >= NUMERIC_VAR_NBASE {
                     pow10 = pow10 - NUMERIC_VAR_NBASE;
                     carry = 1;
                 }
-                digits[last] = NumericWireDigit { value: pow10 };
+                digits[last] = usize::try_from(pow10).unwrap_or(0);
             };
         };
         while carry > 0 {
@@ -524,22 +520,20 @@ fn numeric_var_round(value: NumericVar, rscale: i32) -> NumericVar {
                 carry = 0;
             } else {
                 let at = usize::try_from(position).unwrap_or(0);
-                carry = carry + digits[at].value;
+                carry = carry + (digits[at] as i32);
                 if carry >= NUMERIC_VAR_NBASE {
-                    digits[at] = NumericWireDigit {
-                        value: carry - NUMERIC_VAR_NBASE,
-                    };
+                    digits[at] = usize::try_from(carry - NUMERIC_VAR_NBASE).unwrap_or(0);
                     carry = 1;
                 } else {
-                    digits[at] = NumericWireDigit { value: carry };
+                    digits[at] = usize::try_from(carry).unwrap_or(0);
                     carry = 0;
                 };
             };
         }
     }
-    let mut rounded: Vec<NumericWireDigit> = Vec::new();
+    let mut rounded: Vec<usize> = Vec::new();
     if leading > 0 {
-        rounded.push(NumericWireDigit { value: leading });
+        rounded.push(usize::try_from(leading).unwrap_or(0));
     }
     let end = usize::try_from(kept).unwrap_or(0);
     let mut index: usize = 0;
@@ -571,13 +565,11 @@ fn numeric_var_trunc(value: NumericVar, rscale: i32) -> NumericVar {
         if di > 0 {
             let last = usize::try_from(ndigits - 1).unwrap_or(0);
             let pow10 = numeric_var_round_power(di);
-            let extra = digits[last].value % pow10;
-            digits[last] = NumericWireDigit {
-                value: digits[last].value - extra,
-            };
+            let extra = (digits[last] as i32) % pow10;
+            digits[last] = usize::try_from((digits[last] as i32) - extra).unwrap_or(0);
         }
     }
-    let mut truncated: Vec<NumericWireDigit> = Vec::new();
+    let mut truncated: Vec<usize> = Vec::new();
     let end = usize::try_from(kept).unwrap_or(0);
     let mut index: usize = 0;
     while index < end {
@@ -642,16 +634,12 @@ fn numeric_var_mul(left: &NumericVar, right: &NumericVar, rscale: i32) -> Numeri
     // Pair p of the product covers result digits 2p and 2p + 1; its high digit product
     // carries into digit 2p - 1, so slot s + 1 holds result digit s and slot 0 the carry.
     let mut slots = numeric_var_zeros(res_ndigits + 1);
-    let mut high: Vec<NumericWireDigit> = Vec::new();
-    let mut low: Vec<NumericWireDigit> = Vec::new();
+    let mut high: Vec<usize> = Vec::new();
+    let mut low: Vec<usize> = Vec::new();
     let mut i2: i32 = 0;
     while i2 < var2ndigitpairs {
-        high.push(NumericWireDigit {
-            value: numeric_var_digit(right, 2 * i2),
-        });
-        low.push(NumericWireDigit {
-            value: numeric_var_digit(right, 2 * i2 + 1),
-        });
+        high.push(usize::try_from(numeric_var_digit(right, 2 * i2)).unwrap_or(0));
+        low.push(usize::try_from(numeric_var_digit(right, 2 * i2 + 1)).unwrap_or(0));
         i2 = i2 + 1;
     }
     // A row adds at most two digit products to a slot, so ten rows stay below the 32-bit
@@ -668,13 +656,13 @@ fn numeric_var_mul(left: &NumericVar, right: &NumericVar, rscale: i32) -> Numeri
                 let mut slot = slots.len();
                 while slot > 0 {
                     slot = slot - 1;
-                    let mut digit = slots[slot].value + carry;
+                    let mut digit = (slots[slot] as i32) + carry;
                     carry = 0;
                     if slot > 0 && digit >= NUMERIC_VAR_NBASE {
                         carry = digit / NUMERIC_VAR_NBASE;
                         digit = digit - carry * NUMERIC_VAR_NBASE;
                     }
-                    slots[slot] = NumericWireDigit { value: digit };
+                    slots[slot] = usize::try_from(digit).unwrap_or(0);
                 }
                 rows = 0;
             }
@@ -687,18 +675,13 @@ fn numeric_var_mul(left: &NumericVar, right: &NumericVar, rscale: i32) -> Numeri
             let base = usize::try_from(2 * (i1 + pair_offset)).unwrap_or(0);
             let mut index: usize = 0;
             while index < limit {
-                let c = high[index].value;
-                let d = low[index].value;
+                let c = (high[index] as i32);
+                let d = (low[index] as i32);
                 let at = base + index + index;
-                slots[at] = NumericWireDigit {
-                    value: slots[at].value + a * c,
-                };
-                slots[at + 1] = NumericWireDigit {
-                    value: slots[at + 1].value + a * d + b * c,
-                };
-                slots[at + 2] = NumericWireDigit {
-                    value: slots[at + 2].value + b * d,
-                };
+                slots[at] = usize::try_from((slots[at] as i32) + a * c).unwrap_or(0);
+                slots[at + 1] =
+                    usize::try_from((slots[at + 1] as i32) + a * d + b * c).unwrap_or(0);
+                slots[at + 2] = usize::try_from((slots[at + 2] as i32) + b * d).unwrap_or(0);
                 index += 1;
             }
         }
@@ -709,17 +692,17 @@ fn numeric_var_mul(left: &NumericVar, right: &NumericVar, rscale: i32) -> Numeri
     let mut slot = slots.len();
     while slot > 0 {
         slot = slot - 1;
-        let mut digit = slots[slot].value + carry;
+        let mut digit = (slots[slot] as i32) + carry;
         carry = 0;
         if slot > 0 && digit >= NUMERIC_VAR_NBASE {
             carry = digit / NUMERIC_VAR_NBASE;
             digit = digit - carry * NUMERIC_VAR_NBASE;
         }
-        slots[slot] = NumericWireDigit { value: digit };
+        slots[slot] = usize::try_from(digit).unwrap_or(0);
     }
-    let mut digits: Vec<NumericWireDigit> = Vec::new();
+    let mut digits: Vec<usize> = Vec::new();
     let mut weight = res_weight;
-    if slots[0].value != 0 {
+    if (slots[0] as i32) != 0 {
         digits.push(slots[0]);
         weight = weight + 1;
     }
@@ -737,7 +720,9 @@ fn numeric_var_mul(left: &NumericVar, right: &NumericVar, rscale: i32) -> Numeri
     numeric_var_strip(numeric_var_round(product, rscale))
 }
 
-// PostgreSQL's mul_var_short computes the exact product; so does schoolbook multiplication.
+// PostgreSQL's mul_var_short: the exact product of a multiplier of at most six digits,
+// computed in one pass from the last digit with a running carry. Each column sums at most six
+// digit products, so it stays within 32 bits.
 fn numeric_var_mul_exact(left: &NumericVar, right: &NumericVar) -> NumericVar {
     let var1ndigits = numeric_var_count(left);
     let var2ndigits = numeric_var_count(right);
@@ -745,59 +730,52 @@ fn numeric_var_mul_exact(left: &NumericVar, right: &NumericVar) -> NumericVar {
     if left.sign != right.sign {
         res_sign = -1;
     }
-    let mut slots = numeric_var_zeros(var1ndigits + var2ndigits);
-    let mut rows: i32 = 0;
-    let mut i1 = var1ndigits - 1;
-    while i1 >= 0 {
-        let a = numeric_var_digit(left, i1);
-        if a != 0 {
-            if rows == 20 {
-                // Carries leave every slot but the first holding one NBASE digit.
-                let mut carry: i32 = 0;
-                let mut slot = slots.len();
-                while slot > 0 {
-                    slot = slot - 1;
-                    let mut digit = slots[slot].value + carry;
-                    carry = 0;
-                    if slot > 0 && digit >= NUMERIC_VAR_NBASE {
-                        carry = digit / NUMERIC_VAR_NBASE;
-                        digit = digit - carry * NUMERIC_VAR_NBASE;
-                    }
-                    slots[slot] = NumericWireDigit { value: digit };
-                }
-                rows = 0;
-            }
-            rows = rows + 1;
-            let base = usize::try_from(i1 + 1).unwrap_or(0);
-            let mut index: usize = 0;
-            while index < right.digits.len() {
-                slots[base + index] = NumericWireDigit {
-                    value: slots[base + index].value + a * right.digits[index].value,
-                };
-                index += 1;
-            }
-        }
-        i1 = i1 - 1;
-    }
-    // Carries leave every slot but the first holding one NBASE digit.
+    let res_ndigits = var1ndigits + var2ndigits;
+    // Least significant digit first, so the result's zeros can be dropped while it is copied
+    // into place.
+    let mut reversed: Vec<usize> = Vec::new();
     let mut carry: i32 = 0;
-    let mut slot = slots.len();
-    while slot > 0 {
-        slot = slot - 1;
-        let mut digit = slots[slot].value + carry;
-        carry = 0;
-        if slot > 0 && digit >= NUMERIC_VAR_NBASE {
-            carry = digit / NUMERIC_VAR_NBASE;
-            digit = digit - carry * NUMERIC_VAR_NBASE;
+    let mut k = res_ndigits - 1;
+    while k >= 1 {
+        let mut term = carry;
+        let mut i1 = k - var2ndigits;
+        if i1 < 0 {
+            i1 = 0;
         }
-        slots[slot] = NumericWireDigit { value: digit };
+        while i1 < var1ndigits && i1 <= k - 1 {
+            term = term + numeric_var_digit(left, i1) * numeric_var_digit(right, k - 1 - i1);
+            i1 = i1 + 1;
+        }
+        reversed.push(usize::try_from(term % NUMERIC_VAR_NBASE).unwrap_or(0));
+        carry = term / NUMERIC_VAR_NBASE;
+        k = k - 1;
     }
-    numeric_var_strip(NumericVar {
+    reversed.push(usize::try_from(carry).unwrap_or(0));
+    let mut low: usize = 0;
+    while low < reversed.len() && reversed[low] == 0 {
+        low += 1;
+    }
+    let mut high = reversed.len();
+    while high > low && reversed[high - 1] == 0 {
+        high = high - 1;
+    }
+    let dscale = left.dscale + right.dscale;
+    if high == low {
+        return numeric_var_zero(dscale);
+    }
+    let mut digits: Vec<usize> = Vec::new();
+    let mut index = high;
+    while index > low {
+        index = index - 1;
+        digits.push(reversed[index]);
+    }
+    let dropped = (reversed.len() - high) as i32;
+    NumericVar {
         sign: res_sign,
-        weight: left.weight + right.weight + 1,
-        dscale: left.dscale + right.dscale,
-        digits: slots,
-    })
+        weight: left.weight + right.weight + 1 - dropped,
+        dscale: dscale,
+        digits: digits,
+    }
 }
 
 // Short division by a divisor of one or two NBASE digits. PostgreSQL keeps a 32-bit carry
@@ -834,15 +812,13 @@ fn numeric_var_div_int(
     if divisor < 0i64 {
         divisor = 0i64 - divisor;
     }
-    let mut digits: Vec<NumericWireDigit> = Vec::new();
+    let mut digits: Vec<usize> = Vec::new();
     let mut carry: i64 = 0i64;
     let mut i: i32 = 0;
     while i < res_ndigits {
         let digit = numeric_var_digit(value, i) as i64;
         carry = carry * 10000i64 + digit;
-        digits.push(NumericWireDigit {
-            value: (carry / divisor) as i32,
-        });
+        digits.push(usize::try_from((carry / divisor) as i32).unwrap_or(0));
         carry = carry % divisor;
         i = i + 1;
     }
@@ -933,15 +909,13 @@ fn numeric_var_div_exact(
     }
     let divisor_end = usize::try_from(var2ndigits).unwrap_or(0);
     // The first divisor digit must be at least NBASE / 2; scale both operands to make it so.
-    if divisor[1].value < NUMERIC_VAR_HALF_NBASE {
-        let d = NUMERIC_VAR_NBASE / (divisor[1].value + 1);
+    if (divisor[1] as i32) < NUMERIC_VAR_HALF_NBASE {
+        let d = NUMERIC_VAR_NBASE / ((divisor[1] as i32) + 1);
         let mut carry: i32 = 0;
         let mut i = divisor_end;
         while i > 0 {
-            carry = carry + divisor[i].value * d;
-            divisor[i] = NumericWireDigit {
-                value: carry % NUMERIC_VAR_NBASE,
-            };
+            carry = carry + (divisor[i] as i32) * d;
+            divisor[i] = usize::try_from(carry % NUMERIC_VAR_NBASE).unwrap_or(0);
             carry = carry / NUMERIC_VAR_NBASE;
             i = i - 1;
         }
@@ -949,30 +923,28 @@ fn numeric_var_div_exact(
         let mut j = usize::try_from(var1ndigits).unwrap_or(0) + 1;
         while j > 0 {
             j = j - 1;
-            carry = carry + dividend[j].value * d;
-            dividend[j] = NumericWireDigit {
-                value: carry % NUMERIC_VAR_NBASE,
-            };
+            carry = carry + (dividend[j] as i32) * d;
+            dividend[j] = usize::try_from(carry % NUMERIC_VAR_NBASE).unwrap_or(0);
             carry = carry / NUMERIC_VAR_NBASE;
         }
     }
-    let divisor1 = divisor[1].value;
-    let divisor2 = divisor[2].value;
-    let mut res_digits: Vec<NumericWireDigit> = Vec::new();
+    let divisor1 = (divisor[1] as i32);
+    let divisor2 = (divisor[2] as i32);
+    let mut res_digits: Vec<usize> = Vec::new();
     let res_end = usize::try_from(res_ndigits).unwrap_or(0);
     let mut j: usize = 0;
     while j < res_end {
-        let next2digits = dividend[j].value * NUMERIC_VAR_NBASE + dividend[j + 1].value;
+        let next2digits = (dividend[j] as i32) * NUMERIC_VAR_NBASE + (dividend[j + 1] as i32);
         let mut qhat: i32 = 0;
         if next2digits != 0 {
-            if dividend[j].value == divisor1 {
+            if (dividend[j] as i32) == divisor1 {
                 qhat = NUMERIC_VAR_NBASE - 1;
             } else {
                 qhat = next2digits / divisor1;
             }
             // Knuth proves the estimate is then exact or one too large.
             while divisor2 * qhat
-                > (next2digits - qhat * divisor1) * NUMERIC_VAR_NBASE + dividend[j + 2].value
+                > (next2digits - qhat * divisor1) * NUMERIC_VAR_NBASE + (dividend[j + 2] as i32)
             {
                 qhat = qhat - 1;
             }
@@ -981,11 +953,10 @@ fn numeric_var_div_exact(
                 let mut i = divisor_end + 1;
                 while i > 0 {
                     i = i - 1;
-                    let tmp_result = dividend[j + i].value - borrow - divisor[i].value * qhat;
+                    let tmp_result = (dividend[j + i] as i32) - borrow - (divisor[i] as i32) * qhat;
                     borrow = (NUMERIC_VAR_NBASE - 1 - tmp_result) / NUMERIC_VAR_NBASE;
-                    dividend[j + i] = NumericWireDigit {
-                        value: tmp_result + borrow * NUMERIC_VAR_NBASE,
-                    };
+                    dividend[j + i] =
+                        usize::try_from(tmp_result + borrow * NUMERIC_VAR_NBASE).unwrap_or(0);
                 }
                 if borrow != 0 {
                     // qhat was one too large: add the divisor back once.
@@ -994,21 +965,20 @@ fn numeric_var_div_exact(
                     i = divisor_end + 1;
                     while i > 0 {
                         i = i - 1;
-                        carry = carry + dividend[j + i].value + divisor[i].value;
+                        carry = carry + (dividend[j + i] as i32) + (divisor[i] as i32);
                         if carry >= NUMERIC_VAR_NBASE {
-                            dividend[j + i] = NumericWireDigit {
-                                value: carry - NUMERIC_VAR_NBASE,
-                            };
+                            dividend[j + i] =
+                                usize::try_from(carry - NUMERIC_VAR_NBASE).unwrap_or(0);
                             carry = 1;
                         } else {
-                            dividend[j + i] = NumericWireDigit { value: carry };
+                            dividend[j + i] = usize::try_from(carry).unwrap_or(0);
                             carry = 0;
                         };
                     }
                 };
             };
         }
-        res_digits.push(NumericWireDigit { value: qhat });
+        res_digits.push(usize::try_from(qhat).unwrap_or(0));
         j += 1;
     }
     let quotient = NumericVar {
@@ -1199,12 +1169,8 @@ fn numeric_var_div_approximate(
         carry = numeric_var_wide_carry(newdig);
         newdig = newdig - carry * 100000000i64;
         let pair = newdig as i32;
-        digits[index + index] = NumericWireDigit {
-            value: pair / NUMERIC_VAR_NBASE,
-        };
-        digits[index + index + 1] = NumericWireDigit {
-            value: pair % NUMERIC_VAR_NBASE,
-        };
+        digits[index + index] = usize::try_from(pair / NUMERIC_VAR_NBASE).unwrap_or(0);
+        digits[index + index + 1] = usize::try_from(pair % NUMERIC_VAR_NBASE).unwrap_or(0);
         j = j - 1;
     }
     let quotient = NumericVar {

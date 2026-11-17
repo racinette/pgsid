@@ -137,6 +137,11 @@ export function checkedChars(value: string[]): string[] {
         throw new RangeError('vector outside shared numeric range');
     return Array.from(value, checkedChar);
 }
+export function checkedIndices(value: number[]): number[] {
+    if (value.length > MAX_SHARED_INDEX)
+        throw new RangeError('vector outside shared numeric range');
+    return Array.from(value, checkedIndex);
+}
 export function checkedStructs<T>(value: T[], copyValue: (entry: T) => T): T[] {
     checkedIndex(value.length);
     return Array.from(value, copyValue);

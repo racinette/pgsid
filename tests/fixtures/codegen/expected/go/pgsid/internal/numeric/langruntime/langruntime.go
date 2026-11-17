@@ -212,6 +212,17 @@ func CheckedChars(value []rune) []rune {
 	return result
 }
 
+func CheckedIndices(value []int) []int {
+	if len(value) > MaxSharedIndex {
+		panic("vector outside shared numeric range")
+	}
+	result := make([]int, len(value))
+	for index, position := range value {
+		result[index] = CheckedIndex(position)
+	}
+	return result
+}
+
 func CheckedStructs[T any](value []T, copyValue func(T) T) []T {
 	CheckedIndex(len(value))
 	result := make([]T, len(value))

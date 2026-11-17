@@ -175,12 +175,10 @@ fn numeric_square_root_part(arg: &NumericVar, start: i32, blen: i32) -> NumericV
     if start >= count {
         return numeric_var_zero(0);
     }
-    let mut digits: Vec<NumericWireDigit> = Vec::new();
+    let mut digits: Vec<usize> = Vec::new();
     let mut index = start;
     while index < start + blen && index < count {
-        digits.push(NumericWireDigit {
-            value: numeric_var_digit(arg, index),
-        });
+        digits.push(usize::try_from(numeric_var_digit(arg, index)).unwrap_or(0));
         index = index + 1;
     }
     numeric_var_strip(NumericVar {
