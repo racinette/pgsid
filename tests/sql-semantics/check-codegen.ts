@@ -132,7 +132,11 @@ export function renderGoCheckTests(
       go.assign(
         [input],
         // The evaluator's own values go to the unexported input the public one is converted to.
-        [go.composite(go.ident(internalGoName(goName(table.schema + '_' + table.name) + 'CheckInput')))],
+        [
+          go.composite(
+            go.ident(internalGoName(goName(table.schema + '_' + table.name) + 'CheckInput')),
+          ),
+        ],
       ),
     ]
     for (const column of table.columns) {
@@ -703,9 +707,12 @@ export function renderGoCheckTests(
       go.assign(
         [actualResults, go.ident('err')],
         [
-          go.call(go.ident(internalGoName('Evaluate' + goName(table.schema + '_' + table.name) + 'Checks')), [
-            input,
-          ]),
+          go.call(
+            go.ident(
+              internalGoName('Evaluate' + goName(table.schema + '_' + table.name) + 'Checks'),
+            ),
+            [input],
+          ),
         ],
       ),
       go.if(go.notEqual(go.ident('err'), go.ident('nil')), [

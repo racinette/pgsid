@@ -19,8 +19,10 @@ export interface RustTypeContext {
 }
 
 // The module a schema's types are declared in.
-export const rustSchemaModule = (schema: string, context: Pick<RustTypeContext, 'modules'>): string =>
-  context.modules?.[schema] ?? rustFieldName(schema)
+export const rustSchemaModule = (
+  schema: string,
+  context: Pick<RustTypeContext, 'modules'>,
+): string => context.modules?.[schema] ?? rustFieldName(schema)
 
 const rootPath = (context: RustTypeContext): string[] =>
   context.root ? [...context.root] : Array.from({ length: context.depth }, () => 'super')
@@ -124,7 +126,11 @@ const relative = (context: RustTypeContext, ...path: string[]): RustType =>
   rust.path(...rootPath(context), ...path)
 
 // The generated values module, from the code's place.
-export const rustValues = (context: RustTypeContext, name: string, ...generics: RustType[]): RustType => ({
+export const rustValues = (
+  context: RustTypeContext,
+  name: string,
+  ...generics: RustType[]
+): RustType => ({
   kind: 'path',
   path: [...rootPath(context), 'pgsid', name],
   ...(generics.length ? { generics } : {}),
@@ -132,7 +138,11 @@ export const rustValues = (context: RustTypeContext, name: string, ...generics: 
 
 // A type the generated schema modules declare: by name in its own module, else through its
 // schema's module.
-export const rustDeclaredType = (schema: string, name: string, context: RustTypeContext): RustType =>
+export const rustDeclaredType = (
+  schema: string,
+  name: string,
+  context: RustTypeContext,
+): RustType =>
   schema === context.schema
     ? rust.path(rustTypeName(name))
     : relative(context, rustSchemaModule(schema, context), rustTypeName(name))
@@ -156,7 +166,8 @@ export function resolveRustType(
   const parts = (unmodified.match(/(?:"(?:[^"]|"")*"|[^."])+/gu) ?? []).map((part) =>
     part.startsWith('"') ? part.slice(1, -1).replaceAll('""', '"') : part,
   )
-  const [schema, name] = parts.length > 1 ? [parts[0], parts.slice(1).join('.')] : [undefined, parts[0]!]
+  const [schema, name] =
+    parts.length > 1 ? [parts[0], parts.slice(1).join('.')] : [undefined, parts[0]!]
   // An unqualified name is the type of the first schema on the search path that has one, as the
   // server names a type it would find there unqualified.
   const visible =
@@ -167,7 +178,8 @@ export function resolveRustType(
       ),
     )
   const matches = (item: { schema: string; name: string; oid?: number }) =>
-    (typeOid !== undefined && item.oid === typeOid) || (item.name === name && item.schema === visible)
+    (typeOid !== undefined && item.oid === typeOid) ||
+    (item.name === name && item.schema === visible)
   const domain = catalog.domains.find(matches)
   if (domain) return rustDeclaredType(domain.schema, domain.name, context)
   const enumeration = catalog.enums.find(matches)
@@ -212,7 +224,9 @@ export function resolveRustColumnType(
 ): RustType {
   if (dimensions === undefined || !column.typeName.endsWith('[]'))
     return resolveRustType(column.typeName, catalog, context, column.typeOid)
-  const counts = [...new Set(typeof dimensions === 'number' ? [dimensions] : dimensions)].sort((left, right) => left - right)
+  const counts = [...new Set(typeof dimensions === 'number' ? [dimensions] : dimensions)].sort(
+    (left, right) => left - right,
+  )
   const element = rust.option(resolveRustType(column.typeName.slice(0, -2), catalog, context))
   if (counts.length > 1) return rustValues(context, `Array${counts.join('Or')}`, element)
   if (counts[0] === 1) return rust.vec(element)

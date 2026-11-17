@@ -55,7 +55,9 @@ export function renderGoRowGroups(
   const value = (column: number): GoExpression => {
     if (!nullable(column)) return local(column)
     if (columns.structs) return go.selector(local(column), 'V')
-    return columns.scanned[column]!.kind === 'pointer' ? go.dereference(local(column)) : local(column)
+    return columns.scanned[column]!.kind === 'pointer'
+      ? go.dereference(local(column))
+      : local(column)
   }
   const literal = (test: Extract<RowGroupTest, { kind: 'value' }>): GoExpression =>
     test.literal === 'string'
@@ -138,9 +140,7 @@ export function renderGoRowGroups(
                 field.nullable ? local(field.column) : value(field.column),
               ),
             ),
-            ...nested.map((inner) =>
-              go.keyValue(inner.field, go.ident(`inner${inner.field}`)),
-            ),
+            ...nested.map((inner) => go.keyValue(inner.field, go.ident(`inner${inner.field}`))),
           ]),
           go.ident('nil'),
         ),

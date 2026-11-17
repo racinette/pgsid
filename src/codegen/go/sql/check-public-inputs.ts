@@ -560,7 +560,11 @@ export function goCheckBaseOid(
   domains: readonly DomainInfo[],
 ): number | undefined {
   let oid = typeOid
-  for (let domain = domains.find((item) => item.oid === oid), seen = new Set<number>(); domain && !seen.has(domain.oid); domain = domains.find((item) => item.oid === oid)) {
+  for (
+    let domain = domains.find((item) => item.oid === oid), seen = new Set<number>();
+    domain && !seen.has(domain.oid);
+    domain = domains.find((item) => item.oid === oid)
+  ) {
     seen.add(domain.oid)
     oid = domain.baseTypeOid
   }
@@ -651,7 +655,10 @@ export function goCheckPublicConversion(
               go.ident(call.module === 'runtime' ? 'checkruntime' : 'pg_catalog'),
               goCallable(call.callable),
             ),
-            [go.call(go.ident('checkPublicText'), [read(go.ident('value'))]), ...call.args.map(literal)],
+            [
+              go.call(go.ident('checkPublicText'), [read(go.ident('value'))]),
+              ...call.args.map(literal),
+            ],
           ),
         ),
       ],

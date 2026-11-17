@@ -287,7 +287,9 @@ fn main() {}
         timeout: 900_000,
         maxBuffer: 64 * 1024 * 1024,
       }).catch((error: { stdout?: string; stderr?: string }) => {
-        throw new Error(`Generated Rust failed to compile:\n${error.stdout}\n${error.stderr}`, { cause: error })
+        throw new Error(`Generated Rust failed to compile:\n${error.stdout}\n${error.stderr}`, {
+          cause: error,
+        })
       })
     },
     1_000_000,

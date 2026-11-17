@@ -41,7 +41,11 @@ export function splitRustItems(source: string): RustSourceItem[] {
   const finish = (end: number) => {
     const text = source.slice(start, end).trim()
     if (text) {
-      const keyword = tokens.findIndex((token) => ['fn', 'struct', 'enum', 'const', 'static', 'type', 'trait', 'union', 'mod'].includes(token))
+      const keyword = tokens.findIndex((token) =>
+        ['fn', 'struct', 'enum', 'const', 'static', 'type', 'trait', 'union', 'mod'].includes(
+          token,
+        ),
+      )
       const name = keyword >= 0 ? (tokens[keyword + 1] ?? null) : null
       for (const item of bound) if (!called.has(item) && item !== name) names.delete(item)
       items.push({ name, text, names })
@@ -78,7 +82,10 @@ export function splitRustItems(source: string): RustSourceItem[] {
       index = end + close.length
       continue
     }
-    if (char === '"' || (char === 'b' && next === '"' && !/[A-Za-z0-9_]/u.test(source[index - 1] ?? ''))) {
+    if (
+      char === '"' ||
+      (char === 'b' && next === '"' && !/[A-Za-z0-9_]/u.test(source[index - 1] ?? ''))
+    ) {
       index += char === 'b' ? 2 : 1
       while (source[index] !== '"') index += source[index] === '\\' ? 2 : 1
       index++
@@ -86,7 +93,9 @@ export function splitRustItems(source: string): RustSourceItem[] {
     }
     if (char === "'") {
       // A character literal, or a lifetime, which is an identifier after the quote.
-      const literal = /^'(?:\\(?:u\{[0-9A-Fa-f]+\}|x[0-9A-Fa-f]{2}|.)|[^\\'])'/u.exec(source.slice(index, index + 12))
+      const literal = /^'(?:\\(?:u\{[0-9A-Fa-f]+\}|x[0-9A-Fa-f]{2}|.)|[^\\'])'/u.exec(
+        source.slice(index, index + 12),
+      )
       index += literal ? literal[0].length : 1
       continue
     }
@@ -115,7 +124,10 @@ export function splitRustItems(source: string): RustSourceItem[] {
       // A path, a call or a struct after `let` is a pattern naming an outside item.
       const after = /^\s*(::|:|\(|\{)?/u.exec(source.slice(index, index + 64))![1]
       if (after === '(') called.add(word[0])
-      if (after === ':' || (after === undefined && ['let', 'for', 'mut'].includes(previous) && word[0] !== 'self'))
+      if (
+        after === ':' ||
+        (after === undefined && ['let', 'for', 'mut'].includes(previous) && word[0] !== 'self')
+      )
         bound.add(word[0])
       previous = word[0]
       continue
@@ -131,13 +143,13 @@ let maintained: RustSourceModule[] | undefined
 
 // The evaluator's maintained modules, each file split once per process.
 export function rustEvaluatorModules(): readonly RustSourceModule[] {
-  maintained ??= (JSON.parse(checkRustAsset('check-rust-sources.json').toString('utf8')) as CheckRustSource).modules.map(
-    (module) => ({
-      name: module.name,
-      dependencies: module.dependencies,
-      items: module.files.flatMap((file) => splitRustItems(file.source)),
-    }),
-  )
+  maintained ??= (
+    JSON.parse(checkRustAsset('check-rust-sources.json').toString('utf8')) as CheckRustSource
+  ).modules.map((module) => ({
+    name: module.name,
+    dependencies: module.dependencies,
+    items: module.files.flatMap((file) => splitRustItems(file.source)),
+  }))
   return maintained
 }
 
@@ -189,7 +201,9 @@ export function pruneRustEvaluator(
     const items = module.items.filter((_, index) => kept.get(module.name)!.has(index))
     if (!items.length) return []
     const uses = module.dependencies
-      .filter((dependency) => byName.get(dependency)!.items.some((_, index) => kept.get(dependency)!.has(index)))
+      .filter((dependency) =>
+        byName.get(dependency)!.items.some((_, index) => kept.get(dependency)!.has(index)),
+      )
       .map((dependency) => `use super::${dependency}::*;\n`)
       .join('')
     const unnamed = module.items.filter((item) => !item.name)
@@ -216,6 +230,9 @@ export function rustEvaluatorArtifacts(
         .map((module) => `pub mod ${module.name};\n`)
         .join('')}`,
     },
-    ...modules.map((module) => ({ path: join(directory, `${module.name}.rs`), content: module.source })),
+    ...modules.map((module) => ({
+      path: join(directory, `${module.name}.rs`),
+      content: module.source,
+    })),
   ]
 }

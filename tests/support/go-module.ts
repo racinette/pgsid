@@ -8,7 +8,10 @@ const fixture = new URL('../fixtures/codegen/project/', import.meta.url)
 export async function writeGoModule(directory: string, module: string): Promise<void> {
   await writeFile(
     join(directory, 'go.mod'),
-    (await readFile(new URL('go.mod', fixture), 'utf8')).replace(/^module .*$/mu, `module ${module}`),
+    (await readFile(new URL('go.mod', fixture), 'utf8')).replace(
+      /^module .*$/mu,
+      `module ${module}`,
+    ),
   )
   await copyFile(new URL('go.sum', fixture), join(directory, 'go.sum'))
 }

@@ -290,13 +290,22 @@ export function renderTypescriptQueryArtifacts(
     ? [
         factory.createImportDeclaration(
           undefined,
-          factory.createImportClause(false, undefined, factory.createNamedImports([factory.createImportSpecifier(false, undefined, factory.createIdentifier('z'))])),
+          factory.createImportClause(
+            false,
+            undefined,
+            factory.createNamedImports([
+              factory.createImportSpecifier(false, undefined, factory.createIdentifier('z')),
+            ]),
+          ),
           factory.createStringLiteral('zod/v4'),
         ),
       ]
     : []
   const zodHelpers = rendered.some((query) => query.zod.accepts)
-    ? parsedHelpers().filter((statement) => ts.isFunctionDeclaration(statement) && statement.name?.text === 'pgsidAccepts')
+    ? parsedHelpers().filter(
+        (statement) =>
+          ts.isFunctionDeclaration(statement) && statement.name?.text === 'pgsidAccepts',
+      )
     : []
   const runtime = withTypescriptJsonValue(
     printFile([
@@ -816,51 +825,63 @@ const renderQuery = (
   // An enum's labels, which a zod field takes as its literals.
   const enumLiterals = (type: string | undefined): OutputLiterals | undefined => {
     const labels = options.catalog?.enums.find((item) =>
-      [`${item.schema}.${item.name}`, item.name, `"${item.schema}"."${item.name}"`, `${item.schema}."${item.name}"`].includes(type ?? ''),
+      [
+        `${item.schema}.${item.name}`,
+        item.name,
+        `"${item.schema}"."${item.name}"`,
+        `${item.schema}."${item.name}"`,
+      ].includes(type ?? ''),
     )?.values
     return labels ? { kind: 'string', values: labels } : undefined
   }
   // zod schemas of the parameters and the row, where the project asks for them.
-  const zodSchemas = config.sql.codegen?.typescript?.queries.zod && options.emitRuntime !== false
-    ? [
-        ...(analysis.contract.params.length
-          ? [
-              queryZodSchema(
-                `${functionName}ParamsSchema`,
-                `${queryName}Params`,
-                analysis.contract.params.map((param, index) => {
-                  const name = analysis.query.definition.parameters.find((item) => item.index === index + 1)?.name
-                  return {
-                    key: name ?? index,
-                    codec: parameterCodecs[index]!,
-                    base: parameterBases[index]!,
-                    notNull: param.notNull,
-                    literals: parameterCases?.literals[index] ?? enumLiterals(parameterTypes[index]),
-                  }
-                }),
-                analysis.query.definition.parameters.length === 0,
-              ),
-            ]
-          : []),
-        ...(analysis.query.definition.command === 'one' || analysis.query.definition.command === 'many'
-          ? [
-              queryZodSchema(
-                `${functionName}RowSchema`,
-                `${queryName}Row`,
-                outputCodecs.map(({ name, codec }, index) => ({
-                  key: name,
-                  codec,
-                  base: baseTypes[index]!,
-                  notNull: analysis.contract.outputs[index]?.notNull ?? false,
-                  alwaysNull: analysis.contract.outputs[index]?.alwaysNull ?? false,
-                  literals: analysis.contract.outputCases?.literals[index] ?? enumLiterals(outputTypes[index]),
-                })),
-                false,
-              ),
-            ]
-          : []),
-      ]
-    : []
+  const zodSchemas =
+    config.sql.codegen?.typescript?.queries.zod && options.emitRuntime !== false
+      ? [
+          ...(analysis.contract.params.length
+            ? [
+                queryZodSchema(
+                  `${functionName}ParamsSchema`,
+                  `${queryName}Params`,
+                  analysis.contract.params.map((param, index) => {
+                    const name = analysis.query.definition.parameters.find(
+                      (item) => item.index === index + 1,
+                    )?.name
+                    return {
+                      key: name ?? index,
+                      codec: parameterCodecs[index]!,
+                      base: parameterBases[index]!,
+                      notNull: param.notNull,
+                      literals:
+                        parameterCases?.literals[index] ?? enumLiterals(parameterTypes[index]),
+                    }
+                  }),
+                  analysis.query.definition.parameters.length === 0,
+                ),
+              ]
+            : []),
+          ...(analysis.query.definition.command === 'one' ||
+          analysis.query.definition.command === 'many'
+            ? [
+                queryZodSchema(
+                  `${functionName}RowSchema`,
+                  `${queryName}Row`,
+                  outputCodecs.map(({ name, codec }, index) => ({
+                    key: name,
+                    codec,
+                    base: baseTypes[index]!,
+                    notNull: analysis.contract.outputs[index]?.notNull ?? false,
+                    alwaysNull: analysis.contract.outputs[index]?.alwaysNull ?? false,
+                    literals:
+                      analysis.contract.outputCases?.literals[index] ??
+                      enumLiterals(outputTypes[index]),
+                  })),
+                  false,
+                ),
+              ]
+            : []),
+        ]
+      : []
   const runtimeDeclarations: ts.Statement[] = [
     ...zodSchemas.map((schema) => schema.statement),
     factory.createVariableStatement(

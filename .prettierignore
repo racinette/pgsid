@@ -18,6 +18,8 @@ crates/regex-engine/conformance/postgres-fixtures.json
 tests/fixtures/check-native-hash.json
 tests/fixtures/check-scalar-hash.json
 tests/fixtures/check-array-hash.json
+src/codegen/go/assets/go-numeric.json
+src/codegen/go/assets/typescript-numeric.json
 
 # Espalier owns the byte-for-byte form of its generated guidance.
 crates/AGENTS.md

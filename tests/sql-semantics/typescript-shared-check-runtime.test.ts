@@ -56,64 +56,82 @@ const files = async (directory: string): Promise<string[]> =>
     .map((entry) => relative(directory, join(entry.parentPath, entry.name)))
     .sort()
 
-it(
-  'translates one CHECK evaluator per runtime directory, shared by its queries',
-  async () => {
-    const built = await buildProject({ baseDirectory: root })
-    expect(built.state.diagnostics).toEqual([])
-    const items = await files(join(root, 'generated/runtime/items'))
-    // No query carries an evaluator of its own.
-    expect(items.filter((path) => path.includes('check-rust'))).toEqual(
-      expect.arrayContaining(['pgsid/check-rust/checks.ts', 'pgsid/check-rust/checkruntime/runtime.ts']),
-    )
-    expect(items.some((path) => /^[A-Za-z]+\.check-rust/u.test(path))).toBe(false)
-    // A table's check both queries write is declared once.
-    const checks = await readFile(join(root, 'generated/runtime/items/pgsid/check-rust/checks.ts'), 'utf8')
-    const declared = [...checks.matchAll(/export function (\w+)/gu)].map((match) => match[1])
-    expect(new Set(declared).size).toBe(declared.length)
-    expect(declared.filter((name) => /ItemsItemsNameCheck/u.test(name!)).length).toBe(1)
-    expect((await files(join(root, 'generated/runtime/tags'))).filter((path) => path.includes('check-rust'))).toContain(
+it('translates one CHECK evaluator per runtime directory, shared by its queries', async () => {
+  const built = await buildProject({ baseDirectory: root })
+  expect(built.state.diagnostics).toEqual([])
+  const items = await files(join(root, 'generated/runtime/items'))
+  // No query carries an evaluator of its own.
+  expect(items.filter((path) => path.includes('check-rust'))).toEqual(
+    expect.arrayContaining([
       'pgsid/check-rust/checks.ts',
-    )
-    // The numeric module computes with the directory's evaluator, pruned for it too; a directory
-    // without checks has the numeric module's evaluator alone, in the same place.
-    expect(items.filter((path) => path.startsWith('pgsid/numeric'))).toEqual(['pgsid/numeric.ts'])
-    expect(await readFile(join(root, 'generated/runtime/items/pgsid/numeric.ts'), 'utf8')).toContain(
-      '"./check-rust/pg_catalog/operations.js"',
-    )
-    const prices = await files(join(root, 'generated/runtime/prices'))
-    expect(prices.filter((path) => path.startsWith('pgsid/numeric'))).toEqual(['pgsid/numeric.ts'])
-    expect(prices).toContain('pgsid/check-rust/pg_catalog/operations.ts')
-    expect(prices).not.toContain('pgsid/check-rust/checks.ts')
-    for (const directory of ['items', 'prices']) {
-      const { numeric } = (await import(join(root, 'generated/runtime', directory, 'pgsid/numeric.ts'))) as {
-        numeric(text: string): { add(other: unknown): { toString(): string }; div(other: unknown): unknown }
+      'pgsid/check-rust/checkruntime/runtime.ts',
+    ]),
+  )
+  expect(items.some((path) => /^[A-Za-z]+\.check-rust/u.test(path))).toBe(false)
+  // A table's check both queries write is declared once.
+  const checks = await readFile(
+    join(root, 'generated/runtime/items/pgsid/check-rust/checks.ts'),
+    'utf8',
+  )
+  const declared = [...checks.matchAll(/export function (\w+)/gu)].map((match) => match[1])
+  expect(new Set(declared).size).toBe(declared.length)
+  expect(declared.filter((name) => /ItemsItemsNameCheck/u.test(name!)).length).toBe(1)
+  expect(
+    (await files(join(root, 'generated/runtime/tags'))).filter((path) =>
+      path.includes('check-rust'),
+    ),
+  ).toContain('pgsid/check-rust/checks.ts')
+  // The numeric module computes with the directory's evaluator, pruned for it too; a directory
+  // without checks has the numeric module's evaluator alone, in the same place.
+  expect(items.filter((path) => path.startsWith('pgsid/numeric'))).toEqual(['pgsid/numeric.ts'])
+  expect(await readFile(join(root, 'generated/runtime/items/pgsid/numeric.ts'), 'utf8')).toContain(
+    '"./check-rust/pg_catalog/operations.js"',
+  )
+  const prices = await files(join(root, 'generated/runtime/prices'))
+  expect(prices.filter((path) => path.startsWith('pgsid/numeric'))).toEqual(['pgsid/numeric.ts'])
+  expect(prices).toContain('pgsid/check-rust/pg_catalog/operations.ts')
+  expect(prices).not.toContain('pgsid/check-rust/checks.ts')
+  for (const directory of ['items', 'prices']) {
+    const { numeric } = (await import(
+      join(root, 'generated/runtime', directory, 'pgsid/numeric.ts')
+    )) as {
+      numeric(text: string): {
+        add(other: unknown): { toString(): string }
+        div(other: unknown): unknown
       }
-      expect(numeric('0.1').add(numeric('0.2')).toString(), directory).toBe('0.3')
-      expect(() => numeric('1').div(numeric('0')), directory).toThrow(/division by zero/u)
     }
+    expect(numeric('0.1').add(numeric('0.2')).toString(), directory).toBe('0.3')
+    expect(() => numeric('1').div(numeric('0')), directory).toThrow(/division by zero/u)
+  }
 
-    const { fromPglite } = (await import(join(root, 'generated/runtime/items/pgsid/queryable.ts'))) as {
-      fromPglite(db: PGlite): unknown
-    }
-    const queryable = fromPglite(db)
-    const add = (await import(join(root, 'generated/runtime/items/AddItem.ts'))) as {
-      addItem(db: unknown, params: Record<string, unknown>): Promise<unknown>
-    }
-    const rename = (await import(join(root, 'generated/runtime/items/RenameItem.ts'))) as {
-      renameItem(db: unknown, params: Record<string, unknown>): Promise<unknown>
-    }
-    const refused = (work: Promise<unknown>) =>
-      work.then(
-        () => null,
-        (error: { code?: string; constraint?: string; message?: string }) => (error.code ? `${error.code} ${error.constraint}` : String(error.message)),
-      )
-    expect(await refused(rename.renameItem(queryable, { id: 1, name: 'too long' }))).toBe('23514 items_name_check')
-    const { numeric } = (await import(join(root, 'generated/runtime/items/pgsid/numeric.ts'))) as {
-      numeric(text: string): unknown
-    }
-    expect(await refused(add.addItem(queryable, { id: 1, price: numeric('2'), name: 'abcdef' }))).toBe('23514 items_name_check')
-    expect(await refused(add.addItem(queryable, { id: 1, price: numeric('-2'), name: 'abc' }))).toBe('23514 items_price_check')
-  },
-  300_000,
-)
+  const { fromPglite } = (await import(
+    join(root, 'generated/runtime/items/pgsid/queryable.ts')
+  )) as {
+    fromPglite(db: PGlite): unknown
+  }
+  const queryable = fromPglite(db)
+  const add = (await import(join(root, 'generated/runtime/items/AddItem.ts'))) as {
+    addItem(db: unknown, params: Record<string, unknown>): Promise<unknown>
+  }
+  const rename = (await import(join(root, 'generated/runtime/items/RenameItem.ts'))) as {
+    renameItem(db: unknown, params: Record<string, unknown>): Promise<unknown>
+  }
+  const refused = (work: Promise<unknown>) =>
+    work.then(
+      () => null,
+      (error: { code?: string; constraint?: string; message?: string }) =>
+        error.code ? `${error.code} ${error.constraint}` : String(error.message),
+    )
+  expect(await refused(rename.renameItem(queryable, { id: 1, name: 'too long' }))).toBe(
+    '23514 items_name_check',
+  )
+  const { numeric } = (await import(join(root, 'generated/runtime/items/pgsid/numeric.ts'))) as {
+    numeric(text: string): unknown
+  }
+  expect(
+    await refused(add.addItem(queryable, { id: 1, price: numeric('2'), name: 'abcdef' })),
+  ).toBe('23514 items_name_check')
+  expect(await refused(add.addItem(queryable, { id: 1, price: numeric('-2'), name: 'abc' }))).toBe(
+    '23514 items_price_check',
+  )
+}, 300_000)

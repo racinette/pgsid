@@ -17,13 +17,26 @@ export const nullStruct = (
   type: GoExpression,
 ): GoExpression => go.index(go.selector(go.ident('pgsid'), kind), type)
 export const runtimeSource = (
-  name: 'null.go' | 'null-pgx.go' | 'validation.go' | 'array.go' | 'temporal.go' | 'range.go' | 'json.go' | 'null-alias.go' | 'dimensions.go' | 'time.go' | 'geometry.go' | 'tsvector.go',
+  name:
+    | 'null.go'
+    | 'null-pgx.go'
+    | 'validation.go'
+    | 'array.go'
+    | 'temporal.go'
+    | 'range.go'
+    | 'json.go'
+    | 'null-alias.go'
+    | 'dimensions.go'
+    | 'time.go'
+    | 'geometry.go'
+    | 'tsvector.go',
 ): string => {
   const source = new URL(`./assets/${name}`, import.meta.url)
   return readFileSync(existsSync(source) ? source : new URL(`./${name}`, import.meta.url), 'utf8')
 }
 // The null wrappers' own package, beneath the pgsid package, which names the same types.
-export const goNullWrappersImportPath = (nullsImportPath: string): string => `${nullsImportPath}/null`
+export const goNullWrappersImportPath = (nullsImportPath: string): string =>
+  `${nullsImportPath}/null`
 export const goNullArtifacts = (
   directory: string,
   nullsImportPath: string,
@@ -88,7 +101,11 @@ export const goValueArtifacts = (
     .sort()
     .map((name) => ({
       path: join(directory, `${name.toLowerCase()}.go`),
-      content: printGoFile({ package: 'pgsid', imports: [], declarations: goArrayUnionDeclarations(name) }),
+      content: printGoFile({
+        package: 'pgsid',
+        imports: [],
+        declarations: goArrayUnionDeclarations(name),
+      }),
     })),
 ]
 
@@ -109,9 +126,13 @@ const goArrayUnionDeclarations = (name: string): GoDeclaration[] => {
       .slice('Array'.length)
       .split('Or')
       .map((count) =>
-        go.function(method, [{ type: element }], [], [], [
-          { type: go.index(go.ident(`D${count}`), element) },
-        ]),
+        go.function(
+          method,
+          [{ type: element }],
+          [],
+          [],
+          [{ type: go.index(go.ident(`D${count}`), element) }],
+        ),
       ),
   ]
 }

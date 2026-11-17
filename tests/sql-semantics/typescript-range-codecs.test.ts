@@ -100,7 +100,10 @@ const comparable = (row: unknown) => {
   if (!exact || exact.empty) return row
   const text = (bound: { value: unknown; inclusive: boolean } | null) =>
     bound && { ...bound, value: String(bound.value) }
-  return { ...(row as object), exact: { ...exact, lower: text(exact.lower), upper: text(exact.upper) } }
+  return {
+    ...(row as object),
+    exact: { ...exact, lower: text(exact.lower), upper: text(exact.upper) },
+  }
 }
 
 let root: string

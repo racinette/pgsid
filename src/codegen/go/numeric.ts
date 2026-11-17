@@ -31,8 +31,9 @@ export type GoNumericFile = { path: string; content: string }
 
 // The evaluator files the numeric value reaches, translated and pruned when the asset is built.
 export function goNumericFiles(): GoNumericFile[] {
-  return (JSON.parse(checkRustAsset('go-numeric.json').toString('utf8')) as { files: GoNumericFile[] })
-    .files
+  return (
+    JSON.parse(checkRustAsset('go-numeric.json').toString('utf8')) as { files: GoNumericFile[] }
+  ).files
 }
 
 // The numeric value in the pgsid package, with the evaluator files it calls beneath it, internal

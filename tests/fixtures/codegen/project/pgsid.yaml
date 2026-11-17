@@ -61,7 +61,12 @@ sql:
         out:
           queries: generated/go/queries
     rust:
-      schema: { outDir: generated/rust/schema, module: crate::db, names: { billing.extra: billing_dot_extra } }
+      schema:
+        {
+          outDir: generated/rust/schema,
+          module: crate::db,
+          names: { billing.extra: billing_dot_extra },
+        }
       queries:
         out:
           queries: generated/rust/queries

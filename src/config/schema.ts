@@ -306,10 +306,21 @@ export const rustCodegenSchema = z
         outDir: z.string(),
         module: z
           .string()
-          .regex(/^crate(?:::[A-Za-z_][A-Za-z0-9_]*)*$/u, 'Rust schema module must be a path from crate')
+          .regex(
+            /^crate(?:::[A-Za-z_][A-Za-z0-9_]*)*$/u,
+            'Rust schema module must be a path from crate',
+          )
           .optional(),
         names: z
-          .record(z.string(), z.string().regex(/^[a-z_][a-z0-9_]*$/u, 'Rust schema module names must be lowercase identifiers'))
+          .record(
+            z.string(),
+            z
+              .string()
+              .regex(
+                /^[a-z_][a-z0-9_]*$/u,
+                'Rust schema module names must be lowercase identifiers',
+              ),
+          )
           .default({}),
       })
       .strict()

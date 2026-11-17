@@ -51,7 +51,10 @@ export const rustNumericRoots = [
 
 const source = (name: string): string => {
   const asset = new URL(`./assets/values/${name}`, import.meta.url)
-  return readFileSync(existsSync(asset) ? asset : new URL(`./values/${name}`, import.meta.url), 'utf8')
+  return readFileSync(
+    existsSync(asset) ? asset : new URL(`./values/${name}`, import.meta.url),
+    'utf8',
+  )
 }
 
 /**
@@ -75,12 +78,16 @@ export const rustValueArtifacts = (
   ].sort()
   const values =
     needs.evaluator === true ||
-    contents.some((content) => /\bpgsid::(?:Numeric|Tsvector|Tsquery|Xml|Jsonpath|Aclitem)\b/u.test(content))
+    contents.some((content) =>
+      /\bpgsid::(?:Numeric|Tsvector|Tsquery|Xml|Jsonpath|Aclitem)\b/u.test(content),
+    )
   // What generated code calls in the evaluator, besides the values.
   const called = contents.flatMap((content) =>
-    [...content.matchAll(/\bevaluator::(checkruntime|pg_catalog|checks)::([A-Za-z_][A-Za-z0-9_]*)/gu)].map(
-      (match) => `${match[1]}::${match[2]}`,
-    ),
+    [
+      ...content.matchAll(
+        /\bevaluator::(checkruntime|pg_catalog|checks)::([A-Za-z_][A-Za-z0-9_]*)/gu,
+      ),
+    ].map((match) => `${match[1]}::${match[2]}`),
   )
   const evaluator = values || called.length > 0
   return [
@@ -154,7 +161,10 @@ function dimensionUnion(name: string): RustItem[] {
         ),
       ),
     )
-  const typeParameter = { pattern: rust.binding('ty'), type: rust.ref(rust.path('postgres_types', 'Type')) }
+  const typeParameter = {
+    pattern: rust.binding('ty'),
+    type: rust.ref(rust.path('postgres_types', 'Type')),
+  }
   const accepts = (trait: RustType) => ({
     kind: 'fn' as const,
     name: 'accepts',
@@ -170,7 +180,11 @@ function dimensionUnion(name: string): RustItem[] {
       ),
     ],
   })
-  const fromSql: RustType = { kind: 'path', path: ['postgres_types', 'FromSql'], generics: [{ kind: 'lifetime', name: 'a' }] }
+  const fromSql: RustType = {
+    kind: 'path',
+    path: ['postgres_types', 'FromSql'],
+    generics: [{ kind: 'lifetime', name: 'a' }],
+  }
   const toSql = rust.path('postgres_types', 'ToSql')
   return [
     {
@@ -187,21 +201,34 @@ function dimensionUnion(name: string): RustItem[] {
     },
     {
       kind: 'impl',
-      generics: [{ name: 'a', lifetime: true }, { name: 'T', bounds: [fromSql] }],
+      generics: [
+        { name: 'a', lifetime: true },
+        { name: 'T', bounds: [fromSql] },
+      ],
       trait: fromSql,
       type: self,
       items: [
         {
           kind: 'fn',
           name: 'from_sql',
-          parameters: [typeParameter, { pattern: rust.binding('raw'), type: rust.ref({ kind: 'slice', type: rust.path('u8') }, 'a') }],
+          parameters: [
+            typeParameter,
+            {
+              pattern: rust.binding('raw'),
+              type: rust.ref({ kind: 'slice', type: rust.path('u8') }, 'a'),
+            },
+          ],
           result: rust.generic('Result', rust.path('Self'), boxError),
           body: [
             {
               kind: 'let',
               pattern: { kind: 'tuple', items: [rust.binding('lengths'), rust.binding('values')] },
               value: rust.try(
-                rust.call({ kind: 'path', path: ['super', 'dims', 'read'], generics: [t] }, rust.ident('ty'), rust.ident('raw')),
+                rust.call(
+                  { kind: 'path', path: ['super', 'dims', 'read'], generics: [t] },
+                  rust.ident('ty'),
+                  rust.ident('raw'),
+                ),
               ),
             },
             rust.return({
@@ -249,16 +276,30 @@ function dimensionUnion(name: string): RustItem[] {
           kind: 'fn',
           name: 'to_sql',
           receiver: '&self',
-          parameters: [typeParameter, { pattern: rust.binding('out'), type: { kind: 'reference', mutable: true, type: rust.path('bytes', 'BytesMut') } }],
+          parameters: [
+            typeParameter,
+            {
+              pattern: rust.binding('out'),
+              type: { kind: 'reference', mutable: true, type: rust.path('bytes', 'BytesMut') },
+            },
+          ],
           result: rust.generic('Result', rust.path('postgres_types', 'IsNull'), boxError),
           body: [
             rust.return({
               kind: 'match',
               value: rust.ident('self'),
               arms: counts.map((count) => ({
-                pattern: { kind: 'tuple-struct', path: ['Self', `D${count}`], items: [rust.binding('value')] },
+                pattern: {
+                  kind: 'tuple-struct',
+                  path: ['Self', `D${count}`],
+                  items: [rust.binding('value')],
+                },
                 body: rust.call(
-                  { kind: 'path', path: ['super', 'dims', 'unshape'], generics: [t, nested(count)] },
+                  {
+                    kind: 'path',
+                    path: ['super', 'dims', 'unshape'],
+                    generics: [t, nested(count)],
+                  },
                   rust.ident('ty'),
                   rust.ident('value'),
                   rust.ident('out'),

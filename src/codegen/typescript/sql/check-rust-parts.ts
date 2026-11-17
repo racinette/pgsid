@@ -11,7 +11,9 @@ export function combineCheckRustParts(parts: readonly CheckRustParts[]): CheckRu
   for (const part of parts)
     for (const item of splitRustItems(part.evaluatorSource))
       if (!entries.has(item.name ?? item.text)) entries.set(item.name ?? item.text, item.text)
-  const declarations = new Map(parts.flatMap((part) => part.sharedDeclarations.map((item) => [item.name, item] as const)))
+  const declarations = new Map(
+    parts.flatMap((part) => part.sharedDeclarations.map((item) => [item.name, item] as const)),
+  )
   return assembleCheckRust({
     source: [...entries.values()].join('\n\n'),
     callables: [...new Set(parts.flatMap((part) => part.callables))],

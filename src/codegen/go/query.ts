@@ -422,15 +422,15 @@ const renderQuery = (
   assertUniqueFields(outputFields, analysis.query.name, 'output')
   const outputs = analysis.contract.outputs
   const model = rowGroups({
-      names: outputNames,
-      notNull: outputNames.map((_, index) => outputs[index]?.notNull ?? false),
-      presence: analysis.contract.outputPresenceGroups,
-      cases: analysis.contract.outputCases,
-      relations: outputRelations(
-        analysis.query.definition.stmt,
-        outputNames.map((_, index) => outputs[index]?.origins?.[0]?.table ?? null),
-      ),
-    })
+    names: outputNames,
+    notNull: outputNames.map((_, index) => outputs[index]?.notNull ?? false),
+    presence: analysis.contract.outputPresenceGroups,
+    cases: analysis.contract.outputCases,
+    relations: outputRelations(
+      analysis.query.definition.stmt,
+      outputNames.map((_, index) => outputs[index]?.origins?.[0]?.table ?? null),
+    ),
+  })
   // A group's columns leave the flat row, so only the columns left reserve their names.
   const grouped = new Set(model.flatMap((group) => group.columns))
   const groups = renderGoRowGroups(

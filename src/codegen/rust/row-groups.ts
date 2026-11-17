@@ -44,7 +44,8 @@ type Test = { pattern: RustPattern; guard?: RustExpression; value: string }
 export function rustRowGroupTestable(group: RowGroup, columns: RustRowGroupColumns): boolean {
   return group.members.every(
     (member) =>
-      (member.test.kind !== 'value' || columns.value(member.test.column, member.test.value, 'probe') !== null) &&
+      (member.test.kind !== 'value' ||
+        columns.value(member.test.column, member.test.value, 'probe') !== null) &&
       member.groups.every((inner) => rustRowGroupTestable(inner, columns)),
   )
 }
@@ -89,7 +90,10 @@ export function renderRustRowGroups(
       case 'present':
         return result
       case 'value':
-        result.set(test.column, { ...columns.value(test.column, test.value, local(test.column))!, value: test.value })
+        result.set(test.column, {
+          ...columns.value(test.column, test.value, local(test.column))!,
+          value: test.value,
+        })
         return result
       case 'other':
         result.set(test.column, 'set')
@@ -131,7 +135,9 @@ export function renderRustRowGroups(
     let exhausted = false
     for (const member of group.members) {
       const variant = unique(variants, memberName(member), '')
-      const memberFields = new Set(member.fields.map((item) => rustFieldName(columns.names[item.column]!)))
+      const memberFields = new Set(
+        member.fields.map((item) => rustFieldName(columns.names[item.column]!)),
+      )
       const nested = member.groups.map((inner) => {
         const field = unique(memberFields, rustFieldName(inner.name), '_group')
         const innerType = unique(taken, `${typeName}${variant}${rustTypeName(inner.name)}`, 'Group')
@@ -146,7 +152,9 @@ export function renderRustRowGroups(
                 items: [
                   ...member.fields.map((field) => ({
                     name: rustFieldName(columns.names[field.column]!),
-                    type: field.nullable ? rust.option(columns.set[field.column]!) : columns.set[field.column]!,
+                    type: field.nullable
+                      ? rust.option(columns.set[field.column]!)
+                      : columns.set[field.column]!,
                   })),
                   ...nested.map((inner) => ({ name: inner.field, type: rust.path(inner.type) })),
                 ],
@@ -159,7 +167,8 @@ export function renderRustRowGroups(
       if (!tests) continue
       // A field that cannot be NULL is read from its column only where the column is set.
       for (const field of member.fields)
-        if (!field.nullable && nullable(field.column) && !tests.has(field.column)) tests.set(field.column, 'set')
+        if (!field.nullable && nullable(field.column) && !tests.has(field.column))
+          tests.set(field.column, 'set')
       const bound = new Set([
         ...member.fields.map((field) => field.column),
         ...member.groups.flatMap((inner) => inner.columns),
@@ -167,7 +176,9 @@ export function renderRustRowGroups(
       const guards: RustExpression[] = []
       const patterns = group.columns.map((column): RustPattern => {
         const test = tests.get(column)
-        const binding: RustPattern = bound.has(column) ? rust.binding(local(column)) : { kind: 'wild' }
+        const binding: RustPattern = bound.has(column)
+          ? rust.binding(local(column))
+          : { kind: 'wild' }
         const wrap = (inner: RustPattern): RustPattern =>
           nullable(column) ? { kind: 'tuple-struct', path: ['Some'], items: [inner] } : inner
         if (test === undefined) return binding
@@ -179,7 +190,7 @@ export function renderRustRowGroups(
       // A nested group reads the locals of its columns whole.
       const whole = (column: number): RustExpression => {
         const test = tests.get(column)
-        return nullable(column) && (test === 'set' || (typeof test === 'object'))
+        return nullable(column) && (test === 'set' || typeof test === 'object')
           ? rust.call(rust.ident('Some'), rust.ident(local(column)))
           : rust.ident(local(column))
       }
@@ -196,7 +207,12 @@ export function renderRustRowGroups(
       }
       const pattern: RustPattern = { kind: 'tuple', items: patterns }
       const guard = guards.length
-        ? guards.reduce((left, right): RustExpression => ({ kind: 'binary', operator: '&&', left, right }))
+        ? guards.reduce((left, right): RustExpression => ({
+            kind: 'binary',
+            operator: '&&',
+            left,
+            right,
+          }))
         : undefined
       arms.push({
         pattern,
@@ -217,7 +233,8 @@ export function renderRustRowGroups(
         )
       exhausted = rows
         ? rows.length === 0
-        : !guards.length && patterns.every((pattern) => pattern.kind === 'wild' || pattern.kind === 'ident')
+        : !guards.length &&
+          patterns.every((pattern) => pattern.kind === 'wild' || pattern.kind === 'ident')
     }
     const fallback = {
       pattern: { kind: 'wild' } as RustPattern,
@@ -242,7 +259,12 @@ export function renderRustRowGroups(
   const fields = groups.map((group) => {
     const name = unique(fieldNames, rustFieldName(group.name), '_group')
     const type = unique(taken, `${queryName}${rustTypeName(group.name)}`, 'Group')
-    return { group, name, type: rust.path(type), value: render(group, type)((column) => rust.ident(local(column))) }
+    return {
+      group,
+      name,
+      type: rust.path(type),
+      value: render(group, type)((column) => rust.ident(local(column))),
+    }
   })
   return { fields, items }
 }

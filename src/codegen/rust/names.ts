@@ -58,4 +58,5 @@ export const uniqueNames = (names: readonly string[]): string[] => {
 }
 
 // The variant of each label of a PostgreSQL enum.
-export const rustEnumVariants = (labels: readonly string[]): string[] => uniqueNames(labels.map(rustTypeName))
+export const rustEnumVariants = (labels: readonly string[]): string[] =>
+  uniqueNames(labels.map(rustTypeName))

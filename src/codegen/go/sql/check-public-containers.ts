@@ -32,7 +32,6 @@ import { goName } from '../names.js'
 import { go, type GoDeclaration, type GoExpression, type GoStatement } from '../ast.js'
 import { goCallable } from './check-public-inputs.js'
 
-
 const runtime = (name: string) => go.selector(go.ident('checkruntime'), name)
 const operations = (name: string) => go.selector(go.ident('pg_catalog'), name)
 const literal = (value: boolean | number): GoExpression =>
@@ -177,7 +176,9 @@ export function createGoCheckPublicContainers(options: GoCheckPublicContainerOpt
     helpers.add('checkPublicText')
     if (input.module === 'operations') packages.add('operations')
     return go.call(
-      input.module === 'runtime' ? runtime(goCallable(input.callable)) : operations(goCallable(input.callable)),
+      input.module === 'runtime'
+        ? runtime(goCallable(input.callable))
+        : operations(goCallable(input.callable)),
       [go.call(go.ident('checkPublicText'), [text]), ...input.args.map(literal)],
     )
   }
@@ -191,7 +192,10 @@ export function createGoCheckPublicContainers(options: GoCheckPublicContainerOpt
     }
     const wrap = (read: GoExpression | null) => {
       const modified = read && typeModified(type, typeMod, read)
-      return modified && go.call(runtime(`ArrayElementFrom${valueType.slice(0, -'Value'.length)}`), [modified])
+      return (
+        modified &&
+        go.call(runtime(`ArrayElementFrom${valueType.slice(0, -'Value'.length)}`), [modified])
+      )
     }
     const text = () => {
       helpers.add('checkPublicCell')
@@ -389,7 +393,8 @@ export function createGoCheckPublicContainers(options: GoCheckPublicContainerOpt
           return undecidedFor('ArrayElement')
         return cellBody(go.call(runtime(member), [go.call(go.ident(convert), [cell])]))
       }
-      if (compositeProfile(type)) return container('ArrayElementFromComposite', compositeConverter(type))
+      if (compositeProfile(type))
+        return container('ArrayElementFromComposite', compositeConverter(type))
       if (multirangeTypeProfile(type) && !isArrayLikeType(type))
         return container('ArrayElementFromMultirange', multirangeConverter(type))
       if (rangeTypeProfile(type) && !isArrayLikeType(type))
@@ -401,31 +406,39 @@ export function createGoCheckPublicContainers(options: GoCheckPublicContainerOpt
   // An array's type modifier is its elements': array input reads each element through the
   // coercion an assignment uses, which refuses a value too long where an explicit cast cuts it.
   const arrayConverter = (type: string, counts: readonly number[] = [1], typeMod = -1): string =>
-    define(`array\0${counts.join(',')}\0${typeMod}\0${type}`, 'checkPublicArray', 'ArrayValue', () => {
-      const item = arrayLikeElementType(type)!
-      const convert = elementConverter(item, typeMod)
-      if (undecided(convert)) return undecidedFor('ArrayValue')
-      helpers.add('checkPublicArray')
-      const array = go.call(go.ident('checkPublicArray'), [
-        value,
-        go.composite(go.slice(go.ident('int')), counts.map((count) => go.number(count))),
-        go.string(arrayElementIdentity(item)),
-        go.number(arrayElementFamily(item)!),
-        go.ident(convert),
-      ])
-      // Composite elements are checked against their type plan, as stored composites are.
-      return [
-        go.return(
-          compositeProfile(item)
-            ? go.call(runtime('ArrayFromCoercedCompositePlan'), [
-                array,
-                go.string(arrayElementIdentity(item)),
-                options.compositeContext(item),
-              ])
-            : array,
-        ),
-      ]
-    })
+    define(
+      `array\0${counts.join(',')}\0${typeMod}\0${type}`,
+      'checkPublicArray',
+      'ArrayValue',
+      () => {
+        const item = arrayLikeElementType(type)!
+        const convert = elementConverter(item, typeMod)
+        if (undecided(convert)) return undecidedFor('ArrayValue')
+        helpers.add('checkPublicArray')
+        const array = go.call(go.ident('checkPublicArray'), [
+          value,
+          go.composite(
+            go.slice(go.ident('int')),
+            counts.map((count) => go.number(count)),
+          ),
+          go.string(arrayElementIdentity(item)),
+          go.number(arrayElementFamily(item)!),
+          go.ident(convert),
+        ])
+        // Composite elements are checked against their type plan, as stored composites are.
+        return [
+          go.return(
+            compositeProfile(item)
+              ? go.call(runtime('ArrayFromCoercedCompositePlan'), [
+                  array,
+                  go.string(arrayElementIdentity(item)),
+                  options.compositeContext(item),
+                ])
+              : array,
+          ),
+        ]
+      },
+    )
   const compositeConverter = (type: string): string =>
     define(`composite\0${type}`, 'checkPublicComposite', 'CompositeValue', () => {
       const profile = compositeProfile(type)
@@ -561,7 +574,11 @@ export function createGoCheckPublicContainers(options: GoCheckPublicContainerOpt
             options.boundContext(type),
           ])
         : labels
-          ? go.call(operations('RangeConstructDefined'), [...identity, ...bounds, ...labelArguments])
+          ? go.call(operations('RangeConstructDefined'), [
+              ...identity,
+              ...bounds,
+              ...labelArguments,
+            ])
           : go.call(operations('RangeConstructWithSupport'), [...identity, ...bounds])
       return [
         go.return(
@@ -642,7 +659,9 @@ export function createGoCheckPublicContainers(options: GoCheckPublicContainerOpt
           ),
           go.if(go.notEqual(go.ident('err'), go.ident('nil')), [
             go.return(
-              go.call(go.index(go.ident('checkRustInvalid'), go.slice(go.ident('CheckEvaluation')))),
+              go.call(
+                go.index(go.ident('checkRustInvalid'), go.slice(go.ident('CheckEvaluation'))),
+              ),
               go.ident('false'),
             ),
           ]),

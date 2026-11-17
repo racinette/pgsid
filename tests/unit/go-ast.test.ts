@@ -8,10 +8,7 @@ describe('Go AST bridge', () => {
         package: 'db',
         imports: [{ path: 'example.com/app/pgsid', alias: 'pgsid' }],
         declarations: [
-          go.alias(
-            'Span',
-            go.index(go.selector(go.ident('pgsid'), 'Range'), go.ident('int32')),
-          ),
+          go.alias('Span', go.index(go.selector(go.ident('pgsid'), 'Range'), go.ident('int32'))),
           go.type('Count', go.ident('int32')),
         ],
       }),

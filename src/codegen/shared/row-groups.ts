@@ -244,7 +244,9 @@ function caseMembers(
 }
 
 interface TargetNode {
-  ResTarget?: { val?: { ColumnRef?: { fields?: { String?: { sval?: string }; A_Star?: unknown }[] } } }
+  ResTarget?: {
+    val?: { ColumnRef?: { fields?: { String?: { sval?: string }; A_Star?: unknown }[] } }
+  }
 }
 
 /**
@@ -256,15 +258,23 @@ export function outputRelations(
   statement: unknown,
   tables: readonly (string | null)[],
 ): (string | null)[] {
-  const body = statement as Record<string, { targetList?: TargetNode[]; returningList?: TargetNode[]; op?: string }>
+  const body = statement as Record<
+    string,
+    { targetList?: TargetNode[]; returningList?: TargetNode[]; op?: string }
+  >
   const node =
-    body['SelectStmt'] ?? body['InsertStmt'] ?? body['UpdateStmt'] ?? body['DeleteStmt'] ?? body['MergeStmt']
+    body['SelectStmt'] ??
+    body['InsertStmt'] ??
+    body['UpdateStmt'] ??
+    body['DeleteStmt'] ??
+    body['MergeStmt']
   const list = node?.targetList ?? node?.returningList
   const fields = list?.map((target) => target.ResTarget?.val?.ColumnRef?.fields)
   const starred = fields?.some((items) => items?.some((item) => 'A_Star' in item))
   return tables.map((table, index) => {
     const qualified = !starred && list?.length === tables.length ? fields?.[index] : undefined
-    const qualifier = qualified && qualified.length >= 2 ? qualified.at(-2)?.String?.sval : undefined
+    const qualifier =
+      qualified && qualified.length >= 2 ? qualified.at(-2)?.String?.sval : undefined
     return qualifier ?? table
   })
 }

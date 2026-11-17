@@ -29,7 +29,10 @@ export function createRustCodegenTarget(
   const schemaOutDir = target.schema ? resolve(baseDirectory, target.schema.outDir) : undefined
   const excluded = picomatch(target.queries.exclude, { dot: true })
   const routes = Object.entries(target.queries.out)
-    .map(([source, output]) => ({ source: normalizePath(source).replace(/^\.$|\/$/gu, ''), output }))
+    .map(([source, output]) => ({
+      source: normalizePath(source).replace(/^\.$|\/$/gu, ''),
+      output,
+    }))
     .sort((left, right) => right.source.length - left.source.length)
   const queries = routes.length > 0
   const error = (queryId: string, message: string): CodegenRenderResult => ({
@@ -38,7 +41,9 @@ export function createRustCodegenTarget(
   })
   let root: string[] | Error | undefined
   try {
-    root = schemaOutDir ? (target.schema?.module?.split('::') ?? discoverModulePath(schemaOutDir)) : undefined
+    root = schemaOutDir
+      ? (target.schema?.module?.split('::') ?? discoverModulePath(schemaOutDir))
+      : undefined
   } catch (cause) {
     root = cause instanceof Error ? cause : new Error(String(cause))
   }
@@ -56,7 +61,11 @@ export function createRustCodegenTarget(
     },
     renderQueries(analyses, route): CodegenRenderResult {
       const queryId = analyses[0]?.query.id ?? '<queries>'
-      if (!options.catalog || !root) return error(queryId, 'Rust queries name the generated schema tree, so they need sql.codegen.rust.schema')
+      if (!options.catalog || !root)
+        return error(
+          queryId,
+          'Rust queries name the generated schema tree, so they need sql.codegen.rust.schema',
+        )
       if (root instanceof Error) return error(queryId, root.message)
       const path = route.outputs.find((output) => output.kind === 'types')!.path
       const rendered = renderRustQueryModule(analyses, options.catalog, config, root)
@@ -91,15 +100,30 @@ export function createRustCodegenTarget(
 }
 
 // A query file's module: its path under the route's output, named as its file normalized.
-const outputFor = (path: string, routes: readonly OutputRoute[], baseDirectory: string): CodegenOutput | undefined => {
-  const route = routes.find(({ source }) => source === '' || path === source || path.startsWith(`${source}/`))
+const outputFor = (
+  path: string,
+  routes: readonly OutputRoute[],
+  baseDirectory: string,
+): CodegenOutput | undefined => {
+  const route = routes.find(
+    ({ source }) => source === '' || path === source || path.startsWith(`${source}/`),
+  )
   if (!route) return undefined
-  const tail = route.source === '' ? path : path === route.source ? posix.basename(path) : path.slice(route.source.length + 1)
+  const tail =
+    route.source === ''
+      ? path
+      : path === route.source
+        ? posix.basename(path)
+        : path.slice(route.source.length + 1)
   const directory = posix.dirname(tail)
   const file = `${normalizeQueryName(posix.basename(tail).replace(/\.sql$/u, ''))}.rs`
   return {
     kind: 'types',
-    path: resolve(baseDirectory, normalizePath(route.output), directory === '.' ? file : posix.join(directory, file)),
+    path: resolve(
+      baseDirectory,
+      normalizePath(route.output),
+      directory === '.' ? file : posix.join(directory, file),
+    ),
   }
 }
 
@@ -113,8 +137,7 @@ const discoverModulePath = (outputDirectory: string): string[] => {
   for (let directory = outputDirectory; ; directory = dirname(directory)) {
     if (existsSync(join(directory, 'Cargo.toml'))) {
       const tail = relative(join(directory, 'src'), outputDirectory)
-      if (tail === '' || tail.startsWith('..') || isAbsolute(tail))
-        break
+      if (tail === '' || tail.startsWith('..') || isAbsolute(tail)) break
       return ['crate', ...tail.split(sep)]
     }
     if (dirname(directory) === directory) break

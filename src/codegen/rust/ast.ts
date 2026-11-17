@@ -18,7 +18,12 @@ export type RustPattern =
   | { kind: 'wild' }
   | { kind: 'path'; path: string[] }
   | { kind: 'tuple-struct'; path: string[]; items: RustPattern[] }
-  | { kind: 'struct'; path: string[]; fields: { name: string; pattern?: RustPattern }[]; rest?: boolean }
+  | {
+      kind: 'struct'
+      path: string[]
+      fields: { name: string; pattern?: RustPattern }[]
+      rest?: boolean
+    }
   | { kind: 'tuple'; items: RustPattern[] }
   | { kind: 'literal'; value: RustExpression }
   | { kind: 'or'; items: RustPattern[] }
@@ -31,10 +36,21 @@ export type RustExpression =
   | { kind: 'bool'; value: boolean }
   | { kind: 'char'; value: string }
   | { kind: 'call'; callee: RustExpression; arguments: RustExpression[] }
-  | { kind: 'method'; receiver: RustExpression; name: string; generics?: RustType[]; arguments: RustExpression[] }
+  | {
+      kind: 'method'
+      receiver: RustExpression
+      name: string
+      generics?: RustType[]
+      arguments: RustExpression[]
+    }
   | { kind: 'field'; receiver: RustExpression; name: string }
   | { kind: 'index'; receiver: RustExpression; index: RustExpression }
-  | { kind: 'struct'; path: string[]; fields: { name: string; value?: RustExpression }[]; base?: RustExpression }
+  | {
+      kind: 'struct'
+      path: string[]
+      fields: { name: string; value?: RustExpression }[]
+      base?: RustExpression
+    }
   | { kind: 'tuple'; items: RustExpression[] }
   | { kind: 'array'; items: RustExpression[] }
   | { kind: 'macro'; name: string; arguments: RustExpression[]; delimiter?: '(' | '[' }
@@ -43,18 +59,50 @@ export type RustExpression =
   | { kind: 'cast'; value: RustExpression; type: RustType }
   | { kind: 'try'; value: RustExpression }
   | { kind: 'await'; value: RustExpression }
-  | { kind: 'closure'; parameters: { pattern: RustPattern; type?: RustType }[]; body: RustExpression; move?: boolean }
-  | { kind: 'block'; statements: RustStatement[]; unsafe?: boolean; async?: boolean; move?: boolean }
-  | { kind: 'if'; condition: RustExpression; then: RustStatement[]; else?: RustStatement[] | RustExpression }
-  | { kind: 'if-let'; pattern: RustPattern; value: RustExpression; then: RustStatement[]; else?: RustStatement[] }
-  | { kind: 'match'; value: RustExpression; arms: { pattern: RustPattern; guard?: RustExpression; body: RustExpression }[] }
+  | {
+      kind: 'closure'
+      parameters: { pattern: RustPattern; type?: RustType }[]
+      body: RustExpression
+      move?: boolean
+    }
+  | {
+      kind: 'block'
+      statements: RustStatement[]
+      unsafe?: boolean
+      async?: boolean
+      move?: boolean
+    }
+  | {
+      kind: 'if'
+      condition: RustExpression
+      then: RustStatement[]
+      else?: RustStatement[] | RustExpression
+    }
+  | {
+      kind: 'if-let'
+      pattern: RustPattern
+      value: RustExpression
+      then: RustStatement[]
+      else?: RustStatement[]
+    }
+  | {
+      kind: 'match'
+      value: RustExpression
+      arms: { pattern: RustPattern; guard?: RustExpression; body: RustExpression }[]
+    }
   | { kind: 'return'; value?: RustExpression }
   | { kind: 'range'; from?: RustExpression; to?: RustExpression; inclusive?: boolean }
   | { kind: 'paren'; value: RustExpression }
   | { kind: 'qualified'; type: RustType; trait: RustType; name: string }
 
 export type RustStatement =
-  | { kind: 'let'; pattern: RustPattern; type?: RustType; value?: RustExpression; else?: RustStatement[] }
+  | {
+      kind: 'let'
+      pattern: RustPattern
+      type?: RustType
+      value?: RustExpression
+      else?: RustStatement[]
+    }
   | { kind: 'expression'; value: RustExpression; semicolon?: boolean }
   | { kind: 'item'; item: RustItem }
   | { kind: 'for'; pattern: RustPattern; iterable: RustExpression; body: RustStatement[] }
@@ -125,9 +173,29 @@ export type RustItem =
       attributes?: RustAttribute[]
     }
   | RustFunction
-  | { kind: 'type'; name: string; visibility?: RustVisibility; generics?: RustGeneric[]; type: RustType; doc?: string }
-  | { kind: 'const'; name: string; visibility?: RustVisibility; type: RustType; value: RustExpression; doc?: string }
-  | { kind: 'mod'; name: string; visibility?: RustVisibility; items?: RustItem[]; attributes?: RustAttribute[] }
+  | {
+      kind: 'type'
+      name: string
+      visibility?: RustVisibility
+      generics?: RustGeneric[]
+      type: RustType
+      doc?: string
+    }
+  | {
+      kind: 'const'
+      name: string
+      visibility?: RustVisibility
+      type: RustType
+      value: RustExpression
+      doc?: string
+    }
+  | {
+      kind: 'mod'
+      name: string
+      visibility?: RustVisibility
+      items?: RustItem[]
+      attributes?: RustAttribute[]
+    }
 
 export const rust = {
   path: (...path: string[]): RustType => ({ kind: 'path', path }),
@@ -146,20 +214,31 @@ export const rust = {
   ident: (name: string): RustExpression => ({ kind: 'path', path: [name] }),
   expressionPath: (...path: string[]): RustExpression => ({ kind: 'path', path }),
   string: (value: string): RustExpression => ({ kind: 'string', value }),
-  number: (value: number | bigint | string): RustExpression => ({ kind: 'number', value: String(value) }),
+  number: (value: number | bigint | string): RustExpression => ({
+    kind: 'number',
+    value: String(value),
+  }),
   bool: (value: boolean): RustExpression => ({ kind: 'bool', value }),
   call: (callee: RustExpression, ...arguments_: RustExpression[]): RustExpression => ({
     kind: 'call',
     callee,
     arguments: arguments_,
   }),
-  method: (receiver: RustExpression, name: string, ...arguments_: RustExpression[]): RustExpression => ({
+  method: (
+    receiver: RustExpression,
+    name: string,
+    ...arguments_: RustExpression[]
+  ): RustExpression => ({
     kind: 'method',
     receiver,
     name,
     arguments: arguments_,
   }),
-  field: (receiver: RustExpression, name: string): RustExpression => ({ kind: 'field', receiver, name }),
+  field: (receiver: RustExpression, name: string): RustExpression => ({
+    kind: 'field',
+    receiver,
+    name,
+  }),
   try: (value: RustExpression): RustExpression => ({ kind: 'try', value }),
   await: (value: RustExpression): RustExpression => ({ kind: 'await', value }),
   ref_: (operand: RustExpression): RustExpression => ({ kind: 'unary', operator: '&', operand }),
@@ -179,17 +258,66 @@ export const rust = {
     value,
     semicolon,
   }),
-  return: (value: RustExpression): RustStatement => ({ kind: 'expression', value, semicolon: false }),
+  return: (value: RustExpression): RustStatement => ({
+    kind: 'expression',
+    value,
+    semicolon: false,
+  }),
   binding: (name: string): RustPattern => ({ kind: 'ident', name }),
   derive: (...names: string[]): RustAttribute => ({ path: 'derive', arguments: names }),
 }
 
 const KEYWORDS = new Set([
-  'as', 'async', 'await', 'box', 'break', 'const', 'continue', 'crate', 'dyn', 'else', 'enum',
-  'extern', 'false', 'fn', 'for', 'gen', 'if', 'impl', 'in', 'let', 'loop', 'match', 'mod', 'move',
-  'mut', 'pub', 'ref', 'return', 'static', 'struct', 'super', 'trait', 'true', 'try', 'type',
-  'unsafe', 'use', 'where', 'while', 'yield', 'abstract', 'become', 'do', 'final', 'macro',
-  'override', 'priv', 'typeof', 'unsized', 'virtual',
+  'as',
+  'async',
+  'await',
+  'box',
+  'break',
+  'const',
+  'continue',
+  'crate',
+  'dyn',
+  'else',
+  'enum',
+  'extern',
+  'false',
+  'fn',
+  'for',
+  'gen',
+  'if',
+  'impl',
+  'in',
+  'let',
+  'loop',
+  'match',
+  'mod',
+  'move',
+  'mut',
+  'pub',
+  'ref',
+  'return',
+  'static',
+  'struct',
+  'super',
+  'trait',
+  'true',
+  'try',
+  'type',
+  'unsafe',
+  'use',
+  'where',
+  'while',
+  'yield',
+  'abstract',
+  'become',
+  'do',
+  'final',
+  'macro',
+  'override',
+  'priv',
+  'typeof',
+  'unsized',
+  'virtual',
 ])
 const RESERVED_RAW = new Set(['crate', 'self', 'Self', 'super'])
 
@@ -200,7 +328,9 @@ export function rustIdentifier(name: string): string {
   return KEYWORDS.has(name) ? `r#${name}` : name
 }
 const segment = (name: string): string =>
-  ['crate', 'self', 'Self', 'super'].includes(name) || /^'/u.test(name) ? name : rustIdentifier(name)
+  ['crate', 'self', 'Self', 'super'].includes(name) || /^'/u.test(name)
+    ? name
+    : rustIdentifier(name)
 const pathText = (path: string[]): string => path.map(segment).join('::')
 
 export function printRustType(type: RustType): string {
@@ -240,7 +370,9 @@ function printPattern(pattern: RustPattern): string {
       return `${pathText(pattern.path)}(${pattern.items.map(printPattern).join(', ')})`
     case 'struct': {
       const fields = pattern.fields.map((field) =>
-        field.pattern ? `${rustIdentifier(field.name)}: ${printPattern(field.pattern)}` : rustIdentifier(field.name),
+        field.pattern
+          ? `${rustIdentifier(field.name)}: ${printPattern(field.pattern)}`
+          : rustIdentifier(field.name),
       )
       if (pattern.rest) fields.push('..')
       return `${pathText(pattern.path)} { ${fields.join(', ')} }`
@@ -300,7 +432,9 @@ function printExpression(expression: RustExpression, depth: number): string {
       return `${printExpression(expression.receiver, depth)}[${printExpression(expression.index, depth)}]`
     case 'struct': {
       const fields = expression.fields.map((field) =>
-        field.value ? `${rustIdentifier(field.name)}: ${printExpression(field.value, depth + 1)}` : rustIdentifier(field.name),
+        field.value
+          ? `${rustIdentifier(field.name)}: ${printExpression(field.value, depth + 1)}`
+          : rustIdentifier(field.name),
       )
       if (expression.base) fields.push(`..${printExpression(expression.base, depth + 1)}`)
       if (!fields.length) return `${pathText(expression.path)} {}`
@@ -326,7 +460,10 @@ function printExpression(expression: RustExpression, depth: number): string {
       return `${printExpression(expression.value, depth)}.await`
     case 'closure':
       return `${expression.move ? 'move ' : ''}|${expression.parameters
-        .map((parameter) => `${printPattern(parameter.pattern)}${parameter.type ? `: ${printRustType(parameter.type)}` : ''}`)
+        .map(
+          (parameter) =>
+            `${printPattern(parameter.pattern)}${parameter.type ? `: ${printRustType(parameter.type)}` : ''}`,
+        )
         .join(', ')}| ${printExpression(expression.body, depth)}`
     case 'block':
       return `${expression.unsafe ? 'unsafe ' : ''}${expression.async ? 'async ' : ''}${expression.move ? 'move ' : ''}${printBlock(expression.statements, depth)}`
@@ -375,7 +512,10 @@ function printStatement(statement: RustStatement, depth: number): string {
 
 function printAttributes(attributes: RustAttribute[] | undefined, depth: number): string {
   return (attributes ?? [])
-    .map((attribute) => `${indentation(depth)}#[${attribute.path}${attribute.arguments ? `(${attribute.arguments.join(', ')})` : ''}]\n`)
+    .map(
+      (attribute) =>
+        `${indentation(depth)}#[${attribute.path}${attribute.arguments ? `(${attribute.arguments.join(', ')})` : ''}]\n`,
+    )
     .join('')
 }
 function printDoc(doc: string | undefined, depth: number): string {
@@ -397,21 +537,31 @@ function printGenerics(generics: RustGeneric[] | undefined): string {
     )
     .join(', ')}>`
 }
-function printWhere(where: { type: RustType; bounds: RustType[] }[] | undefined, depth: number): string {
+function printWhere(
+  where: { type: RustType; bounds: RustType[] }[] | undefined,
+  depth: number,
+): string {
   if (!where?.length) return ''
   return `\nwhere\n${where
-    .map((clause) => `${indentation(depth + 1)}${printRustType(clause.type)}: ${clause.bounds.map(printRustType).join(' + ')},`)
+    .map(
+      (clause) =>
+        `${indentation(depth + 1)}${printRustType(clause.type)}: ${clause.bounds.map(printRustType).join(' + ')},`,
+    )
     .join('\n')}\n${indentation(depth)}`
 }
 function printField(field: RustField, depth: number, tuple: boolean): string {
   const text = `${visibility(field.visibility)}${field.name && !tuple ? `${rustIdentifier(field.name)}: ` : ''}${printRustType(field.type)}`
-  return tuple ? text : `${printDoc(field.doc, depth)}${printAttributes(field.attributes, depth)}${indentation(depth)}${text},`
+  return tuple
+    ? text
+    : `${printDoc(field.doc, depth)}${printAttributes(field.attributes, depth)}${indentation(depth)}${text},`
 }
 
 function printFunction(item: RustFunction, depth: number): string {
   const parameters = [
     ...(item.receiver ? [item.receiver] : []),
-    ...item.parameters.map((parameter) => `${printPattern(parameter.pattern)}: ${printRustType(parameter.type)}`),
+    ...item.parameters.map(
+      (parameter) => `${printPattern(parameter.pattern)}: ${printRustType(parameter.type)}`,
+    ),
   ]
   const where = printWhere(item.where, depth)
   return `${printDoc(item.doc, depth)}${printAttributes(item.attributes, depth)}${indentation(depth)}${visibility(item.visibility)}${item.async ? 'async ' : ''}fn ${rustIdentifier(item.name)}${printGenerics(item.generics)}(${parameters.join(', ')})${item.result ? ` -> ${printRustType(item.result)}` : ''}${where}${item.body ? `${where ? '' : ' '}${printBlock(item.body, depth)}` : ';'}`
@@ -475,9 +625,19 @@ export function printRustFile(
   const uses = items.filter((item) => item.kind === 'use')
   const rest = items.filter((item) => item.kind !== 'use')
   const inner = innerAttributes
-    .map((attribute) => `#![${attribute.path}${attribute.arguments ? `(${attribute.arguments.join(', ')})` : ''}]\n`)
+    .map(
+      (attribute) =>
+        `#![${attribute.path}${attribute.arguments ? `(${attribute.arguments.join(', ')})` : ''}]\n`,
+    )
     .join('')
-  return `${header ? `${header.split('\n').map((line) => `//${line ? ` ${line}` : ''}`).join('\n')}\n\n` : ''}${inner ? `${inner}\n` : ''}${[
+  return `${
+    header
+      ? `${header
+          .split('\n')
+          .map((line) => `//${line ? ` ${line}` : ''}`)
+          .join('\n')}\n\n`
+      : ''
+  }${inner ? `${inner}\n` : ''}${[
     uses.map((item) => printItem(item)).join('\n'),
     ...rest.map((item) => printItem(item)),
   ]

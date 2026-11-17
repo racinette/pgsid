@@ -3,10 +3,22 @@ import type { CatalogSnapshot, DomainInfo, TableInfo } from '../../catalog/types
 import type { Config } from '../../config/schema.js'
 import { catalogCheckGroups, type CatalogCheckGroup } from '../../sql-semantics/catalog-checks.js'
 import { portableCheckAtoms } from '../shared/check-atom-support.js'
-import { checkRustTextInput, checkRustValueType, type CheckExecutionContext } from '../shared/check-rust-evaluator.js'
+import {
+  checkRustTextInput,
+  checkRustValueType,
+  type CheckExecutionContext,
+} from '../shared/check-rust-evaluator.js'
 import { prepareCheckRustGroup } from '../shared/check-rust-source.js'
 import { checkTypeModifierCoercion } from '../shared/check-type-modifiers.js'
-import { printItem, rust, type RustExpression, type RustItem, type RustPattern, type RustStatement, type RustType } from './ast.js'
+import {
+  printItem,
+  rust,
+  type RustExpression,
+  type RustItem,
+  type RustPattern,
+  type RustStatement,
+  type RustType,
+} from './ast.js'
 import { splitRustItems, type RustSourceModule } from './evaluator.js'
 import { createRustCheckContainers, type RustCheckContainers } from './check-containers.js'
 import { isCatalogVectorType } from '../../sql-semantics/expressions.js'
@@ -22,7 +34,10 @@ type PreparedCheck = Prepared['checks'][number]
 type Input = Extract<PreparedCheck, { kind: 'supported' }>['inputs'][number]
 
 export interface RustCheckPlan {
-  groups: readonly { group: CatalogCheckGroup; checks: readonly { owner: string; constraint: string; prepared: PreparedCheck }[] }[]
+  groups: readonly {
+    group: CatalogCheckGroup
+    checks: readonly { owner: string; constraint: string; prepared: PreparedCheck }[]
+  }[]
   context: CheckExecutionContext
   containers: RustCheckContainers
   /** The evaluator's checks module, once every generated check has named its converters. */
@@ -48,16 +63,29 @@ export function planRustChecks(
     literalDomain,
     domainChecks: (domain) =>
       groups_
-        .find(({ group }) => group.kind === 'domain' && group.source.schema === domain.schema && group.source.name === domain.name)
+        .find(
+          ({ group }) =>
+            group.kind === 'domain' &&
+            group.source.schema === domain.schema &&
+            group.source.name === domain.name,
+        )
         ?.checks.map((check) => check.owner),
     scalar: (type, rustType, base, values) => {
-      const definition = type.startsWith('enum:') ? (JSON.parse(type.slice('enum:'.length)) as [string, string]) : null
-      const enumeration = definition && catalog.enums.find((item) => item.schema === definition[0] && item.name === definition[1])
+      const definition = type.startsWith('enum:')
+        ? (JSON.parse(type.slice('enum:'.length)) as [string, string])
+        : null
+      const enumeration =
+        definition &&
+        catalog.enums.find((item) => item.schema === definition[0] && item.name === definition[1])
       return payload(
         { name: '', type, rustName: '', rustType, ...(enumeration ? { enum: enumeration } : {}) },
         rustType,
         base,
-        { values, catalog, enumType: (schema, name) => rustDeclaredType(schema, name, { depth: 3 }) },
+        {
+          values,
+          catalog,
+          enumType: (schema, name) => rustDeclaredType(schema, name, { depth: 3 }),
+        },
         context,
         0,
       )
@@ -87,13 +115,13 @@ export function planRustChecks(
   const prepared = prepareCheckRustGroup(flat, context)
   let index = 0
   groups_ = groups.map((group) => ({
-      group,
-      checks: group.checks.map(({ plan, source }) => ({
-        owner: `${source.schema}.${source.name}`,
-        constraint: plan.name,
-        prepared: prepared.checks[index++]!,
-      })),
-    }))
+    group,
+    checks: group.checks.map(({ plan, source }) => ({
+      owner: `${source.schema}.${source.name}`,
+      constraint: plan.name,
+      prepared: prepared.checks[index++]!,
+    })),
+  }))
   return {
     context,
     groups: groups_,
@@ -126,7 +154,13 @@ export interface RustCheckSubject {
   /** Where the values module and the evaluator are, from the generated code. */
   values: readonly string[]
   /** The public type of an input, set, and the access to its base value. */
-  input: (name: string) => { type: RustType; access: RustBaseAccess; typeMod: number; baseOid: number; counts?: readonly number[] } | null
+  input: (name: string) => {
+    type: RustType
+    access: RustBaseAccess
+    typeMod: number
+    baseOid: number
+    counts?: readonly number[]
+  } | null
   /** A PostgreSQL enum's Rust type. */
   enumType: (schema: string, name: string) => RustType
   catalog: CatalogSnapshot
@@ -147,12 +181,17 @@ export function payload(
   context: CheckExecutionContext,
   baseOid: number,
 ): RustExpression | null {
-  const evaluator = (module: string, name: string) => path(...subject.values, 'evaluator', module, name)
-  const checks = (name: string, ...args: RustExpression[]) => rust.call(evaluator('checks', name), ...args)
+  const evaluator = (module: string, name: string) =>
+    path(...subject.values, 'evaluator', module, name)
+  const checks = (name: string, ...args: RustExpression[]) =>
+    rust.call(evaluator('checks', name), ...args)
   const reference = rust.ref_(base)
   const text = (value: RustExpression) => checks('text', rust.ref_(value))
   const shown = rust.method(base, 'to_string')
-  const textInput = (call: { module: 'operations' | 'runtime'; callable: string; args: (boolean | number)[] } | null, value: RustExpression) =>
+  const textInput = (
+    call: { module: 'operations' | 'runtime'; callable: string; args: (boolean | number)[] } | null,
+    value: RustExpression,
+  ) =>
     call
       ? rust.call(
           evaluator(call.module === 'runtime' ? 'checkruntime' : 'pg_catalog', call.callable),
@@ -176,7 +215,8 @@ export function payload(
       return checks('float8', reference)
     case 'TextValue':
       if (input.type === 'pg_catalog.name') return checks('name_text', reference)
-      if (input.type === 'pg_catalog.refcursor') return checks('refcursor_text', rust.ref_(rust.field(base, '0')))
+      if (input.type === 'pg_catalog.refcursor')
+        return checks('refcursor_text', rust.ref_(rust.field(base, '0')))
       return checks('text', reference)
     case 'NumericValue':
       return checks('numeric', reference)
@@ -227,7 +267,13 @@ export function payload(
     case 'OidValue':
       return checks(baseOid === 26 ? 'oid' : 'oid_alias', reference)
     case 'NetworkValue':
-      return rust.call(evaluator('checkruntime', input.type === 'pg_catalog.cidr' ? 'cidr_from_text' : 'network_from_text'), text(shown))
+      return rust.call(
+        evaluator(
+          'checkruntime',
+          input.type === 'pg_catalog.cidr' ? 'cidr_from_text' : 'network_from_text',
+        ),
+        text(shown),
+      )
     case 'MacaddrValue':
       return rust.call(evaluator('checkruntime', 'macaddr_from_text'), text(shown))
     case 'Macaddr8Value':
@@ -236,9 +282,20 @@ export function payload(
       return rust.call(evaluator('checkruntime', 'bit_from_text'), text(shown))
     case 'JsonValue':
     case 'JsonbValue':
-      return textInput(checkRustTextInput(rustType === 'JsonValue' ? 'pg_catalog."json"' : 'pg_catalog.jsonb', context), rust.method(base, 'text'))
+      return textInput(
+        checkRustTextInput(
+          rustType === 'JsonValue' ? 'pg_catalog."json"' : 'pg_catalog.jsonb',
+          context,
+        ),
+        rust.method(base, 'text'),
+      )
     case 'JsonpathValue':
-      return rust.call(evaluator('pg_catalog', 'jsonpath_from_text'), text(shown), rust.bool(context.defaultCollation === 'C'), rust.bool(utf8))
+      return rust.call(
+        evaluator('pg_catalog', 'jsonpath_from_text'),
+        text(shown),
+        rust.bool(context.defaultCollation === 'C'),
+        rust.bool(utf8),
+      )
     case 'XmlValue':
       return textInput(checkRustTextInput('pg_catalog.xml', context), shown)
     case 'TsvectorValue':
@@ -273,21 +330,24 @@ export function payload(
       return null
     case 'EnumValue': {
       const definition = input.enum
-      const enumeration = definition && subject.catalog.enums.find((item) => item.schema === definition.schema && item.name === definition.name)
+      const enumeration =
+        definition &&
+        subject.catalog.enums.find(
+          (item) => item.schema === definition.schema && item.name === definition.name,
+        )
       if (!definition || !enumeration) return null
       const variants = rustEnumVariants(enumeration.values)
-      const enumPath = (subject.enumType(enumeration.schema, enumeration.name) as { path: string[] }).path
-      return checks(
-        'enumeration',
-        {
-          kind: 'match',
-          value: base,
-          arms: enumeration.values.map((label, index) => ({
-            pattern: { kind: 'path', path: [...enumPath, variants[index]!] } as RustPattern,
-            body: rust.number(definition.values.indexOf(label)),
-          })),
-        },
-      )
+      const enumPath = (
+        subject.enumType(enumeration.schema, enumeration.name) as { path: string[] }
+      ).path
+      return checks('enumeration', {
+        kind: 'match',
+        value: base,
+        arms: enumeration.values.map((label, index) => ({
+          pattern: { kind: 'path', path: [...enumPath, variants[index]!] } as RustPattern,
+          body: rust.number(definition.values.indexOf(label)),
+        })),
+      })
     }
   }
   return null
@@ -319,24 +379,30 @@ export function rustCheckItems(
   const runtime = (name: string) => [...subject.values, 'evaluator', 'checkruntime', name]
   const inputs = [
     ...new Map(
-      checks.flatMap((check) => (check.prepared.kind === 'supported' ? check.prepared.inputs : [])).map((input) => [input.name, input]),
+      checks
+        .flatMap((check) => (check.prepared.kind === 'supported' ? check.prepared.inputs : []))
+        .map((input) => [input.name, input]),
     ).values(),
   ]
   // A table's input is its struct's field; a domain's is its value.
   const field = (name: string): RustExpression =>
-    owner.kind === 'table' ? rust.ref_(rust.field(rust.ident('self'), owner.fields.get(name)!.field)) : rust.ref_(rust.ident('value'))
+    owner.kind === 'table'
+      ? rust.ref_(rust.field(rust.ident('self'), owner.fields.get(name)!.field))
+      : rust.ref_(rust.ident('value'))
   const read = (input: Input, rustType: string): RustExpression | null => {
     const found = subject.input(input.name)
     if (!found) return null
     const base = found.access(rust.ident('value'))
     // A container goes through its converter, which applies the type modifier itself.
     const container =
-      ['ArrayValue', 'RangeValue', 'MultirangeValue', 'CompositeValue'].includes(rustType) && !isCatalogVectorType(input.type)
+      ['ArrayValue', 'RangeValue', 'MultirangeValue', 'CompositeValue'].includes(rustType) &&
+      !isCatalogVectorType(input.type)
     const convert =
       container &&
       subject.containers.input(input.type, found.typeMod, found.counts ?? [1], rustType)
     const converted = container
-      ? convert && rust.call(path(...subject.values, 'evaluator', 'checks', convert), rust.ref_(base))
+      ? convert &&
+        rust.call(path(...subject.values, 'evaluator', 'checks', convert), rust.ref_(base))
       : payload(input, rustType, base, subject, context, found.baseOid)
     if (!converted) return null
     let value: RustExpression = rust.call(
@@ -355,7 +421,9 @@ export function rustCheckItems(
             path(...subject.values, 'evaluator', 'pg_catalog', coercion.callable),
             value,
             rust.call(path(...runtime('make_int4_value')), rust.number(found.typeMod)),
-            ...(coercion.explicit ? [rust.call(path(...runtime('make_bool_value')), rust.bool(false))] : []),
+            ...(coercion.explicit
+              ? [rust.call(path(...runtime('make_bool_value')), rust.bool(false))]
+              : []),
           )
         : path(...runtime(rustType), 'Unknown')
     }
@@ -366,11 +434,28 @@ export function rustCheckItems(
     value: rust.ref_(value),
     arms: [
       {
-        pattern: { kind: 'tuple-struct', path: [...runtime(rustType), 'Error'], items: [rust.binding('error')] },
-        body: rust.call(rust.ident('Some'), rust.call(rust.ident('Some'), { kind: 'unary', operator: '*', operand: rust.ident('error') })),
+        pattern: {
+          kind: 'tuple-struct',
+          path: [...runtime(rustType), 'Error'],
+          items: [rust.binding('error')],
+        },
+        body: rust.call(
+          rust.ident('Some'),
+          rust.call(rust.ident('Some'), {
+            kind: 'unary',
+            operator: '*',
+            operand: rust.ident('error'),
+          }),
+        ),
       },
       {
-        pattern: { kind: 'or', items: [{ kind: 'path', path: [...runtime(rustType), 'Unknown'] }, { kind: 'path', path: [...runtime(rustType), 'Unimplemented'] }] },
+        pattern: {
+          kind: 'or',
+          items: [
+            { kind: 'path', path: [...runtime(rustType), 'Unknown'] },
+            { kind: 'path', path: [...runtime(rustType), 'Unimplemented'] },
+          ],
+        },
         body: rust.call(rust.ident('Some'), rust.ident('None')),
       },
       { pattern: { kind: 'wild' }, body: rust.ident('None') },
@@ -383,18 +468,43 @@ export function rustCheckItems(
       fields: [{ name: 'reason', value: rust.method(rust.string(reason), 'to_owned') }],
     })
     const evaluated = (result: RustExpression) =>
-      rust.call(valueExpression('evaluator', 'checks', 'evaluation'), rust.string(check.owner), rust.string(check.constraint), result)
+      rust.call(
+        valueExpression('evaluator', 'checks', 'evaluation'),
+        rust.string(check.owner),
+        rust.string(check.constraint),
+        result,
+      )
     if (check.prepared.kind === 'unsupported') return evaluated(undecided(check.prepared.reason))
     const statements: RustStatement[] = []
     const faults: RustExpression[] = []
     for (const input of check.prepared.inputs) {
-      const valueType = input.nullness ? checkRustValueType(input.enum ? `enum:${JSON.stringify([input.enum.schema, input.enum.name])}` : input.type) : input.rustType
+      const valueType = input.nullness
+        ? checkRustValueType(
+            input.enum
+              ? `enum:${JSON.stringify([input.enum.schema, input.enum.name])}`
+              : input.type,
+          )
+        : input.rustType
       const value = read(input, valueType)
-      if (!value) return evaluated(undecided(`Rust CHECK evaluation does not read values of type ${input.type}.`))
+      if (!value)
+        return evaluated(
+          undecided(`Rust CHECK evaluation does not read values of type ${input.type}.`),
+        )
       // A NULL test reads the value too: a value the server's input refuses fails the check.
-      statements.push(rust.let(input.rustName, input.nullness ? rust.call(valueExpression('evaluator', 'checks', 'nullness'), field(input.name)) : value))
+      statements.push(
+        rust.let(
+          input.rustName,
+          input.nullness
+            ? rust.call(valueExpression('evaluator', 'checks', 'nullness'), field(input.name))
+            : value,
+        ),
+      )
       faults.push(
-        rust.call(valueExpression('evaluator', 'checks', 'supplied'), field(input.name), fault(valueType, input.nullness ? value : rust.ident(input.rustName))),
+        rust.call(
+          valueExpression('evaluator', 'checks', 'supplied'),
+          field(input.name),
+          fault(valueType, input.nullness ? value : rust.ident(input.rustName)),
+        ),
       )
     }
     const entry = check.prepared.diagnosticEntryName ?? check.prepared.entryName
@@ -402,13 +512,20 @@ export function rustCheckItems(
       rust.let('faults', { kind: 'array', items: faults }),
       rust.return(
         rust.call(
-          valueExpression('evaluator', 'checks', check.prepared.diagnosticEntryName ? 'decide_diagnosed' : 'decide'),
+          valueExpression(
+            'evaluator',
+            'checks',
+            check.prepared.diagnosticEntryName ? 'decide_diagnosed' : 'decide',
+          ),
           rust.ref_(rust.ident('faults')),
           {
             kind: 'closure',
             move: true,
             parameters: [],
-            body: rust.call(valueExpression('evaluator', 'checks', entry), ...check.prepared.inputs.map((input) => rust.ident(input.rustName))),
+            body: rust.call(
+              valueExpression('evaluator', 'checks', entry),
+              ...check.prepared.inputs.map((input) => rust.ident(input.rustName)),
+            ),
           },
         ),
       ),
@@ -431,7 +548,14 @@ export function rustCheckItems(
     receiver: '&self' as const,
     parameters: [],
     result: rust.generic('Result', { kind: 'tuple', items: [] }, values('CheckError')),
-    body: [rust.return(rust.call(valueExpression('validate_checks'), rust.method(rust.ident('self'), name === 'validate' ? 'evaluate' : 'evaluate_checks')))],
+    body: [
+      rust.return(
+        rust.call(
+          valueExpression('validate_checks'),
+          rust.method(rust.ident('self'), name === 'validate' ? 'evaluate' : 'evaluate_checks'),
+        ),
+      ),
+    ],
   })
   const evaluations = rust.macro('vec', ...checks.map(evaluation))
   if (owner.kind === 'domain')
@@ -445,7 +569,12 @@ export function rustCheckItems(
             name: 'check_value',
             visibility: 'pub',
             doc: `Evaluates the CHECKs of ${owner.domain.schema}.${owner.domain.name} on a value, which may be NULL or unknown.`,
-            parameters: [{ pattern: rust.binding('value'), type: rust.generic([...subject.values, 'CheckValue'], rust.ref(rust.path('Self'))) }],
+            parameters: [
+              {
+                pattern: rust.binding('value'),
+                type: rust.generic([...subject.values, 'CheckValue'], rust.ref(rust.path('Self'))),
+              },
+            ],
             result: rust.vec(evaluationType),
             body: [rust.return(evaluations)],
           },
@@ -453,26 +582,40 @@ export function rustCheckItems(
             ...evaluate,
             name: 'evaluate_checks',
             doc: `Evaluates the CHECKs of ${owner.domain.schema}.${owner.domain.name} on the value.`,
-            body: [rust.return(rust.call(path('Self', 'check_value'), rust.call(valueExpression('CheckValue', 'Value'), rust.ident('self'))))],
+            body: [
+              rust.return(
+                rust.call(
+                  path('Self', 'check_value'),
+                  rust.call(valueExpression('CheckValue', 'Value'), rust.ident('self')),
+                ),
+              ),
+            ],
           },
-          validate('validate_checks', 'The first CHECK of the domain the value fails, as the server would report it.'),
+          validate(
+            'validate_checks',
+            'The first CHECK of the domain the value fails, as the server would report it.',
+          ),
         ],
       },
     ]
   const { table } = owner
   if (!checks.length && !owner.domains.length) return []
   const name = `${owner.row}CheckInput`
-  const names = [...new Set([...owner.domains.map((item) => item.column), ...inputs.map((input) => input.name)])]
+  const names = [
+    ...new Set([...owner.domains.map((item) => item.column), ...inputs.map((input) => input.name)]),
+  ]
   const columns = table.columns
     .filter((column) => names.includes(column.name))
-    .map((column) => ({ field: owner.fields.get(column.name)!, type: subject.input(column.name)?.type }))
+    .map((column) => ({
+      field: owner.fields.get(column.name)!,
+      type: subject.input(column.name)?.type,
+    }))
   // A domain column's own CHECKs come first, as the server checks a value as it reads it.
-  const domainEvaluations = owner.domains.map(
-    (item): RustExpression =>
-      rust.call(
-        path(...(item.type as { path: string[] }).path, 'check_value'),
-        rust.method(rust.field(rust.ident('self'), owner.fields.get(item.column)!.field), 'as_ref'),
-      ),
+  const domainEvaluations = owner.domains.map((item): RustExpression =>
+    rust.call(
+      path(...(item.type as { path: string[] }).path, 'check_value'),
+      rust.method(rust.field(rust.ident('self'), owner.fields.get(item.column)!.field), 'as_ref'),
+    ),
   )
   return [
     {
@@ -503,7 +646,10 @@ export function rustCheckItems(
               domainEvaluations.length
                 ? rust.method(
                     rust.method(
-                      rust.method(rust.macro('vec', ...domainEvaluations, evaluations), 'into_iter'),
+                      rust.method(
+                        rust.macro('vec', ...domainEvaluations, evaluations),
+                        'into_iter',
+                      ),
                       'flatten',
                     ),
                     'collect',
@@ -512,7 +658,10 @@ export function rustCheckItems(
             ),
           ],
         },
-        validate('validate', 'The first CHECK of the table the columns fail, as the server would report it.'),
+        validate(
+          'validate',
+          'The first CHECK of the table the columns fail, as the server would report it.',
+        ),
       ],
     },
     {
@@ -530,7 +679,10 @@ export function rustCheckItems(
               kind: 'struct',
               path: ['Self'],
               fields: columns.map((column) => {
-                const value = rust.method(rust.field(rust.ident('row'), column.field.field), 'clone')
+                const value = rust.method(
+                  rust.field(rust.ident('row'), column.field.field),
+                  'clone',
+                )
                 return {
                   name: column.field.field,
                   value: column.field.nullable

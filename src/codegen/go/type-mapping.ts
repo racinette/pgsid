@@ -39,7 +39,11 @@ export interface GoTypeContext {
 
 // A context that reaches the pgsid package and nothing else.
 export const localGoTypeContext = (context: GoTypeContext | undefined): GoTypeContext | undefined =>
-  context && { importPath: context.importPath, nullsImportPath: context.nullsImportPath, localNames: true }
+  context && {
+    importPath: context.importPath,
+    nullsImportPath: context.nullsImportPath,
+    localNames: true,
+  }
 
 export interface ResolvedGoType {
   type: GoExpression
@@ -194,7 +198,9 @@ export function resolveGoPgType(
     mappings[pgType] ?? mappings[base] ?? mappings[unmodified] ?? mappings[`pg_catalog.${alias}`]
   if (mapping) {
     const resolved = mapped(mapping)
-    return array ? arrayType(resolved, config, dimensions ?? 1, dimensions !== undefined, context) : resolved
+    return array
+      ? arrayType(resolved, config, dimensions ?? 1, dimensions !== undefined, context)
+      : resolved
   }
   const visibleSchema =
     catalog && !unmodified.includes('.')
@@ -223,7 +229,8 @@ export function resolveGoPgType(
   } else if (composite) {
     resolved = namedType(composite.name, composite.schema, context)
   } else if (range) {
-    if (!context?.nullsImportPath) throw new Error(`Go ${unqualified} values require an import path context`)
+    if (!context?.nullsImportPath)
+      throw new Error(`Go ${unqualified} values require an import path context`)
     const subtype = resolveGoPgType(range.subtype, config, catalog, undefined, undefined, context)
     resolved = {
       type: go.index(
@@ -235,7 +242,8 @@ export function resolveGoPgType(
   } else if (alias === 'json' || alias === 'jsonb') {
     resolved = jsonContainer({ type: go.ident('any'), imports: [] }, context)
   } else if (Object.hasOwn(pgsidTypes, alias)) {
-    if (!context?.nullsImportPath) throw new Error(`Go ${alias} values require an import path context`)
+    if (!context?.nullsImportPath)
+      throw new Error(`Go ${alias} values require an import path context`)
     resolved = {
       type: go.selector(go.ident('pgsid'), pgsidTypes[alias]!),
       imports: [{ path: context.nullsImportPath, as: 'pgsid' }],
@@ -243,7 +251,9 @@ export function resolveGoPgType(
   } else {
     resolved = mapped(defaultTypes[alias] ?? defaultTypes[unmodified] ?? { type: 'any' })
   }
-  return array ? arrayType(resolved, config, dimensions ?? 1, dimensions !== undefined, context) : resolved
+  return array
+    ? arrayType(resolved, config, dimensions ?? 1, dimensions !== undefined, context)
+    : resolved
 }
 
 function arrayType(

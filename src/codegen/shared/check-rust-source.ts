@@ -212,7 +212,9 @@ export function prepareCheckRustGroup(
     supported.flatMap((item) => item.sharedDeclarations.map((d) => [d.name, d] as const)),
   )
   const evaluatorSource = supported.length ? supported.map((item) => item.source).join('\n') : null
-  const callables = [...new Set([...supported.flatMap((item) => item.callables), ...inputCallables])]
+  const callables = [
+    ...new Set([...supported.flatMap((item) => item.callables), ...inputCallables]),
+  ]
   return {
     callables,
     checks: prepared.map((item) =>

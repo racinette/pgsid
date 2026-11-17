@@ -93,7 +93,12 @@ export function createCodegenTargets(
             schema,
             name,
             relkind,
-            columns: columns.map(({ name, typeOid, typeName, notNull }) => ({ name, typeOid, typeName, notNull })),
+            columns: columns.map(({ name, typeOid, typeName, notNull }) => ({
+              name,
+              typeOid,
+              typeName,
+              notNull,
+            })),
           })) ?? null,
         ]),
       ),

@@ -53,7 +53,9 @@ export function queryZodSchema(
             factory.createIndexedAccessTypeNode(
               factory.createTypeReferenceNode(typeName),
               factory.createLiteralTypeNode(
-                typeof item.key === 'number' ? factory.createNumericLiteral(item.key) : factory.createStringLiteral(item.key),
+                typeof item.key === 'number'
+                  ? factory.createNumericLiteral(item.key)
+                  : factory.createStringLiteral(item.key),
               ),
             ),
           ]),
@@ -77,13 +79,20 @@ export function queryZodSchema(
                   [],
                   undefined,
                   undefined,
-                  encodeExpression(item.codec, value, factory.createStringLiteral(String(item.key))),
+                  encodeExpression(
+                    item.codec,
+                    value,
+                    factory.createStringLiteral(String(item.key)),
+                  ),
                 ),
               ]),
             ),
           ),
           factory.createObjectLiteralExpression([
-            factory.createPropertyAssignment('error', factory.createStringLiteral(`Expected a value for ${item.key}`)),
+            factory.createPropertyAssignment(
+              'error',
+              factory.createStringLiteral(`Expected a value for ${item.key}`),
+            ),
           ]),
         ],
       )
@@ -95,14 +104,22 @@ export function queryZodSchema(
     ? method(z('tuple', [factory.createArrayLiteralExpression(fields.map(field))]), 'readonly')
     : z('object', [
         factory.createObjectLiteralExpression(
-          fields.map((item) => factory.createPropertyAssignment(factory.createStringLiteral(String(item.key)), field(item))),
+          fields.map((item) =>
+            factory.createPropertyAssignment(
+              factory.createStringLiteral(String(item.key)),
+              field(item),
+            ),
+          ),
           true,
         ),
       ])
   return {
     statement: factory.createVariableStatement(
       [exportModifier],
-      factory.createVariableDeclarationList([factory.createVariableDeclaration(name, undefined, undefined, schema)], ts.NodeFlags.Const),
+      factory.createVariableDeclarationList(
+        [factory.createVariableDeclaration(name, undefined, undefined, schema)],
+        ts.NodeFlags.Const,
+      ),
     ),
     encoders,
     accepts,

@@ -130,12 +130,15 @@ describe('zod v4 query schemas', () => {
       total: 5n,
       note: null,
     }
-    const issues = (schema: Schema, value: unknown) => schema.safeParse(value).error?.issues.map((issue) => issue.path.join('.')) ?? []
+    const issues = (schema: Schema, value: unknown) =>
+      schema.safeParse(value).error?.issues.map((issue) => issue.path.join('.')) ?? []
     expect(issues(add.addPaymentParamsSchema, params)).toEqual([])
     expect(issues(add.addPaymentParamsSchema, { ...params, status: 'other' })).toEqual(['status'])
     expect(issues(add.addPaymentParamsSchema, { ...params, amount: '12.50' })).toEqual(['amount'])
     expect(issues(add.addPaymentParamsSchema, { ...params, total: 5 })).toEqual(['total'])
-    expect(issues(add.addPaymentParamsSchema, { ...params, paid_at: 'not a date' })).toEqual(['paid_at'])
+    expect(issues(add.addPaymentParamsSchema, { ...params, paid_at: 'not a date' })).toEqual([
+      'paid_at',
+    ])
     expect(issues(get.getPaymentParamsSchema, [1])).toEqual([])
     expect(issues(get.getPaymentParamsSchema, ['1'])).toEqual(['0'])
     // A row the query reads is a row its schema accepts.
@@ -143,6 +146,8 @@ describe('zod v4 query schemas', () => {
     await add.addPayment(queryable, params)
     const row = await get.getPayment(queryable, 1)
     expect(issues(get.getPaymentRowSchema, row)).toEqual([])
-    expect(issues(get.getPaymentRowSchema, { ...(row as object), kind: 'refunded' })).toEqual(['kind'])
+    expect(issues(get.getPaymentRowSchema, { ...(row as object), kind: 'refunded' })).toEqual([
+      'kind',
+    ])
   }, 120_000)
 })

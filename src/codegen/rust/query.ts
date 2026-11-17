@@ -4,8 +4,24 @@ import type { QueryAnalysisItem } from '../../query-analysis.js'
 import { interpretValueLineage, type ValueLineage } from '../../query/value-lineage.js'
 import { planArrayDimensionInputs, resolveArrayDimensions } from '../shared/array-dimensions.js'
 import { outputRelations, rowGroups } from '../shared/row-groups.js'
-import { printRustFile, printRustType, rust, type RustExpression, type RustField, type RustItem, type RustPattern, type RustType } from './ast.js'
-import { assertUniqueRustNames, GeneratedRustNameCollisionError, rustEnumVariants, rustFieldName, rustTypeName, uniqueNames } from './names.js'
+import {
+  printRustFile,
+  printRustType,
+  rust,
+  type RustExpression,
+  type RustField,
+  type RustItem,
+  type RustPattern,
+  type RustType,
+} from './ast.js'
+import {
+  assertUniqueRustNames,
+  GeneratedRustNameCollisionError,
+  rustEnumVariants,
+  rustFieldName,
+  rustTypeName,
+  uniqueNames,
+} from './names.js'
 import { renderRustRowGroups, rustRowGroupLocal, rustRowGroupTestable } from './row-groups.js'
 import { literalBase, literalItems, literalVariant } from './schema.js'
 import {
@@ -17,7 +33,12 @@ import {
 } from './type-mapping.js'
 
 export interface RustQueryDiagnostic {
-  code: 'duplicate-output-name' | 'generated-name-collision' | 'invalid-type-mapping' | 'output-type-shape' | 'parameter-type-shape'
+  code:
+    | 'duplicate-output-name'
+    | 'generated-name-collision'
+    | 'invalid-type-mapping'
+    | 'output-type-shape'
+    | 'parameter-type-shape'
   severity: 'error'
   queryId: string
   message: string
@@ -40,7 +61,10 @@ export function renderRustQueryModule(
   )
   try {
     assertUniqueRustNames(
-      ordered.map((item) => ({ source: item.query.name, generated: rustFieldName(item.query.name) })),
+      ordered.map((item) => ({
+        source: item.query.name,
+        generated: rustFieldName(item.query.name),
+      })),
       'query',
     )
   } catch (error) {
@@ -69,7 +93,10 @@ export function renderRustQueryModule(
       items.push(...queryItems(analysis, catalog, config, context, taken, diagnostics))
     } catch (error) {
       diagnostics.push({
-        code: error instanceof GeneratedRustNameCollisionError ? 'generated-name-collision' : 'invalid-type-mapping',
+        code:
+          error instanceof GeneratedRustNameCollisionError
+            ? 'generated-name-collision'
+            : 'invalid-type-mapping',
         severity: 'error',
         queryId: analysis.query.id,
         message: error instanceof Error ? error.message : String(error),
@@ -109,7 +136,10 @@ function queryItems(
   const name = rustTypeName(analysis.query.name)
   const items: RustItem[] = []
   const claim = (type: string) => {
-    if (taken.has(type)) throw new GeneratedRustNameCollisionError(`Query ${analysis.query.name} generates ${type} twice`)
+    if (taken.has(type))
+      throw new GeneratedRustNameCollisionError(
+        `Query ${analysis.query.name} generates ${type} twice`,
+      )
     taken.add(type)
     return type
   }
@@ -123,8 +153,16 @@ function queryItems(
     doc: `The SQL of ${analysis.query.name}.`,
   })
 
-  const parameterTypes = positional(analysis, analysis.description?.parameterTypes, analysis.contract.params.length, 'parameter-type-shape', diagnostics)
-  const named = new Map(analysis.query.definition.parameters.map((parameter) => [parameter.index, parameter.name]))
+  const parameterTypes = positional(
+    analysis,
+    analysis.description?.parameterTypes,
+    analysis.contract.params.length,
+    'parameter-type-shape',
+    diagnostics,
+  )
+  const named = new Map(
+    analysis.query.definition.parameters.map((parameter) => [parameter.index, parameter.name]),
+  )
   const arrayInputs = planArrayDimensionInputs(analysis.writeLineage ?? [], mappings, catalog)
   const parameters = analysis.contract.params.map((parameter, index) => {
     const type = parameterTypes[index] ?? 'unknown'
@@ -135,17 +173,26 @@ function queryItems(
         const declared = resolveArrayDimensions(destination, mappings)!.dimensions
         return typeof declared === 'number' ? [declared] : declared
       })
-      const common = [...counts[0]!].filter((count) => counts.every((allowed) => allowed.includes(count))).sort((a, b) => a - b)
-      if (!common.length) throw new Error(`Conflicting array dimension mappings for parameter $${index + 1}`)
+      const common = [...counts[0]!]
+        .filter((count) => counts.every((allowed) => allowed.includes(count)))
+        .sort((a, b) => a - b)
+      if (!common.length)
+        throw new Error(`Conflicting array dimension mappings for parameter $${index + 1}`)
       dimensions = common.length > 1 ? common : common[0]!
     }
     return {
       field: rustFieldName(named.get(index + 1) ?? `param_${index + 1}`),
       source: named.get(index + 1) ?? `param_${index + 1}`,
-      type: nullableRustType(resolveRustColumnType({ typeName: type, typeOid: 0 }, dimensions, catalog, context), parameter.notNull),
+      type: nullableRustType(
+        resolveRustColumnType({ typeName: type, typeOid: 0 }, dimensions, catalog, context),
+        parameter.notNull,
+      ),
     }
   })
-  assertUniqueRustNames(parameters.map((item) => ({ source: item.source, generated: item.field })), `parameter in query ${analysis.query.name}`)
+  assertUniqueRustNames(
+    parameters.map((item) => ({ source: item.source, generated: item.field })),
+    `parameter in query ${analysis.query.name}`,
+  )
   const paramsName = `${name}Params`
   if (parameters.length)
     items.push({
@@ -154,7 +201,10 @@ function queryItems(
       visibility: 'pub',
       attributes: [rust.derive('Debug', 'Clone', 'PartialEq')],
       doc: `The parameters of ${analysis.query.name}.`,
-      fields: { kind: 'struct', items: parameters.map((item) => ({ name: item.field, type: item.type, visibility: 'pub' })) },
+      fields: {
+        kind: 'struct',
+        items: parameters.map((item) => ({ name: item.field, type: item.type, visibility: 'pub' })),
+      },
     })
 
   const queryError = rust.path(...values(context, 'QueryError'))
@@ -168,7 +218,9 @@ function queryItems(
           rust.ident(sqlName),
           rust.ref_({
             kind: 'array',
-            items: parameters.map((item) => rust.ref_(rust.field(rust.ident('params'), item.field))),
+            items: parameters.map((item) =>
+              rust.ref_(rust.field(rust.ident('params'), item.field)),
+            ),
           }),
         ),
       ),
@@ -180,22 +232,42 @@ function queryItems(
     async: true,
     doc,
     parameters: [
-      { pattern: rust.binding('client'), type: rust.ref({ kind: 'impl', bounds: [rust.path('tokio_postgres', 'GenericClient')] }) },
-      ...(parameters.length ? [{ pattern: rust.binding('params'), type: rust.ref(rust.path(paramsName)) }] : []),
+      {
+        pattern: rust.binding('client'),
+        type: rust.ref({ kind: 'impl', bounds: [rust.path('tokio_postgres', 'GenericClient')] }),
+      },
+      ...(parameters.length
+        ? [{ pattern: rust.binding('params'), type: rust.ref(rust.path(paramsName)) }]
+        : []),
     ],
     result: rust.generic('Result', result, queryError),
-    body: body.map((expression, index) => (index === body.length - 1 ? rust.return(expression) : rust.expression(expression))),
+    body: body.map((expression, index) =>
+      index === body.length - 1 ? rust.return(expression) : rust.expression(expression),
+    ),
   })
   if (command === 'exec') {
-    items.push(functionItem({ kind: 'tuple', items: [] }, [call('execute'), rust.call(rust.ident('Ok'), { kind: 'tuple', items: [] })], `Runs ${analysis.query.name}.`))
+    items.push(
+      functionItem(
+        { kind: 'tuple', items: [] },
+        [call('execute'), rust.call(rust.ident('Ok'), { kind: 'tuple', items: [] })],
+        `Runs ${analysis.query.name}.`,
+      ),
+    )
     return items
   }
   if (command === 'execrows') {
-    items.push(functionItem(rust.path('u64'), [rust.call(rust.ident('Ok'), call('execute'))], `Runs ${analysis.query.name} and returns the number of rows it affected.`))
+    items.push(
+      functionItem(
+        rust.path('u64'),
+        [rust.call(rust.ident('Ok'), call('execute'))],
+        `Runs ${analysis.query.name} and returns the number of rows it affected.`,
+      ),
+    )
     return items
   }
 
-  const outputNames = analysis.description?.columns ?? analysis.contract.outputs.map((output) => output.name)
+  const outputNames =
+    analysis.description?.columns ?? analysis.contract.outputs.map((output) => output.name)
   const duplicate = outputNames.find((item, index) => outputNames.indexOf(item) !== index)
   if (duplicate !== undefined) {
     diagnostics.push({
@@ -206,7 +278,13 @@ function queryItems(
     })
     return items
   }
-  const outputTypes = positional(analysis, analysis.description?.columnTypes, outputNames.length, 'output-type-shape', diagnostics)
+  const outputTypes = positional(
+    analysis,
+    analysis.description?.columnTypes,
+    outputNames.length,
+    'output-type-shape',
+    diagnostics,
+  )
   const lineage = analysis.rawLineage?.map((output) => interpretValueLineage(output.value))
   const outputs = analysis.contract.outputs
   const notNull = outputNames.map((_, index) => outputs[index]?.notNull ?? false)
@@ -217,7 +295,10 @@ function queryItems(
     // A column read as it is has the column's own type, such as its domain, which the server
     // describes as the base type.
     const type = resolveRustColumnType(
-      storedColumn(lineage?.[index], catalog) ?? { typeName: outputTypes[index] ?? 'unknown', typeOid: 0 },
+      storedColumn(lineage?.[index], catalog) ?? {
+        typeName: outputTypes[index] ?? 'unknown',
+        typeOid: 0,
+      },
       dimensions,
       catalog,
       context,
@@ -226,19 +307,36 @@ function queryItems(
     const base = literals && literalBase(type, literals)
     if (!literals || !base) return type
     const enumName = claim(`${name}${rustTypeName(column)}`)
-    const variants = uniqueNames(literals.values.map((value) => literalVariant(value, literals.kind)))
-    literalEnums.set(index, { name: enumName, variants: new Map(literals.values.map((value, item) => [value, variants[item]!])) })
-    items.push(...literalItems(enumName, base, literals, `column ${column} of ${analysis.query.name}`))
+    const variants = uniqueNames(
+      literals.values.map((value) => literalVariant(value, literals.kind)),
+    )
+    literalEnums.set(index, {
+      name: enumName,
+      variants: new Map(literals.values.map((value, item) => [value, variants[item]!])),
+    })
+    items.push(
+      ...literalItems(enumName, base, literals, `column ${column} of ${analysis.query.name}`),
+    )
     return rust.path(enumName)
   })
   const fieldNames = outputNames.map((column) => rustFieldName(column))
-  assertUniqueRustNames(outputNames.map((column, index) => ({ source: column, generated: fieldNames[index]! })), `output in query ${analysis.query.name}`)
+  assertUniqueRustNames(
+    outputNames.map((column, index) => ({ source: column, generated: fieldNames[index]! })),
+    `output in query ${analysis.query.name}`,
+  )
 
   const enumOf = (type: RustType) =>
-    catalog.enums.find((item) => printRustType(rustDeclaredType(item.schema, item.name, context)) === printRustType(type))
+    catalog.enums.find(
+      (item) =>
+        printRustType(rustDeclaredType(item.schema, item.name, context)) === printRustType(type),
+    )
   // How a discriminant's value is matched: an enum by its variant, an integer or boolean by its
   // literal, text and floats by comparison. Other types are not tested, and their groups stay flat.
-  const valueTest = (column: number, value: string, binding: string): { pattern: RustPattern; guard?: RustExpression } | null => {
+  const valueTest = (
+    column: number,
+    value: string,
+    binding: string,
+  ): { pattern: RustPattern; guard?: RustExpression } | null => {
     const literalEnum = literalEnums.get(column)
     if (literalEnum) {
       const variant = literalEnum.variants.get(value)
@@ -249,7 +347,14 @@ function queryItems(
     const enumeration = enumOf(type)
     if (enumeration) {
       const index = enumeration.values.indexOf(value)
-      return index < 0 ? null : { pattern: { kind: 'path', path: [...type.path, rustEnumVariants(enumeration.values)[index]!] } }
+      return index < 0
+        ? null
+        : {
+            pattern: {
+              kind: 'path',
+              path: [...type.path, rustEnumVariants(enumeration.values)[index]!],
+            },
+          }
     }
     if (type.path.length !== 1) return null
     const guard = (right: RustExpression) => ({
@@ -260,14 +365,20 @@ function queryItems(
       case 'i16':
       case 'i32':
       case 'i64':
-        return /^-?\d+$/u.test(value) ? { pattern: { kind: 'literal', value: rust.number(value) } } : null
+        return /^-?\d+$/u.test(value)
+          ? { pattern: { kind: 'literal', value: rust.number(value) } }
+          : null
       case 'bool':
-        return value === 'true' || value === 'false' ? { pattern: { kind: 'literal', value: rust.bool(value === 'true') } } : null
+        return value === 'true' || value === 'false'
+          ? { pattern: { kind: 'literal', value: rust.bool(value === 'true') } }
+          : null
       case 'String':
         return guard(rust.string(value))
       case 'f32':
       case 'f64':
-        return /^-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?$/u.test(value) ? guard(rust.number(/[.eE]/u.test(value) ? value : `${value}.0`)) : null
+        return /^-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?$/u.test(value)
+          ? guard(rust.number(/[.eE]/u.test(value) ? value : `${value}.0`))
+          : null
       default:
         return null
     }
@@ -313,7 +424,12 @@ function queryItems(
   const rowFields: (RustField & { value: RustExpression })[] = outputNames.flatMap((_, index) => [
     ...groups.fields
       .filter((field) => field.group.columns[0] === index)
-      .map((field) => ({ name: field.name, type: field.type, visibility: 'pub' as const, value: field.value })),
+      .map((field) => ({
+        name: field.name,
+        type: field.type,
+        visibility: 'pub' as const,
+        value: field.value,
+      })),
     ...(grouped.has(index)
       ? []
       : [
@@ -344,7 +460,9 @@ function queryItems(
           name: 'from_row',
           visibility: 'pub',
           doc: 'Reads a row of the query, by position.',
-          parameters: [{ pattern: rust.binding('row'), type: rust.ref(rust.path('tokio_postgres', 'Row')) }],
+          parameters: [
+            { pattern: rust.binding('row'), type: rust.ref(rust.path('tokio_postgres', 'Row')) },
+          ],
           result: rust.generic('Result', rust.path('Self'), queryError),
           body: [
             ...[...grouped]
@@ -394,7 +512,10 @@ function queryItems(
   return items
 }
 
-const storedColumn = (value: ValueLineage | undefined, catalog: CatalogSnapshot): ColumnInfo | undefined => {
+const storedColumn = (
+  value: ValueLineage | undefined,
+  catalog: CatalogSnapshot,
+): ColumnInfo | undefined => {
   if (value?.kind === 'row-absence') return storedColumn(value.origin, catalog)
   if (value?.kind !== 'column') return undefined
   const column = value.column
@@ -424,11 +545,14 @@ const positional = (
 // Every set of dimension counts a query may name: the sets the mappings declare and the counts
 // shared between them, which a parameter written to several columns takes.
 export const rustDimensionUnions = (config: Config): string[] => {
-  const declared = Object.values(config.sql.codegen?.rust?.mappings.column ?? {}).flatMap((mapping) =>
-    typeof mapping.dimensions === 'number' ? [] : [[...new Set(mapping.dimensions)].sort((a, b) => a - b)],
+  const declared = Object.values(config.sql.codegen?.rust?.mappings.column ?? {}).flatMap(
+    (mapping) =>
+      typeof mapping.dimensions === 'number'
+        ? []
+        : [[...new Set(mapping.dimensions)].sort((a, b) => a - b)],
   )
   const sets = new Map(declared.map((set) => [set.join(','), set]))
-  for (let changed = true; changed; ) {
+  for (let changed = true; changed;) {
     changed = false
     for (const left of [...sets.values()])
       for (const right of [...sets.values()]) {

@@ -183,12 +183,22 @@ it('ships of the evaluator only the modules and items the numeric value reaches'
   const modules = pruneRustEvaluator(rustNumericRoots)
   expect(modules.map((module) => module.name)).toEqual(['checkruntime', 'pg_catalog'])
   const declared = (module: string) =>
-    new Set([...modules.find((item) => item.name === module)!.source.matchAll(/^(?:pub )?fn ([a-z0-9_]+)/gmu)].map((match) => match[1]))
+    new Set(
+      [
+        ...modules
+          .find((item) => item.name === module)!
+          .source.matchAll(/^(?:pub )?fn ([a-z0-9_]+)/gmu),
+      ].map((match) => match[1]),
+    )
   for (const root of rustNumericRoots) {
     const [module, name] = root.split('::')
     expect(declared(module!).has(name)).toBe(true)
   }
   // Text search input and the regular expression engine are reached by no numeric operation.
   expect(declared('pg_catalog').has('tsvector_from_text_context')).toBe(false)
-  expect(modules.find((item) => item.name === 'pg_catalog')!.source.startsWith('use super::checkruntime::*;\n')).toBe(true)
+  expect(
+    modules
+      .find((item) => item.name === 'pg_catalog')!
+      .source.startsWith('use super::checkruntime::*;\n'),
+  ).toBe(true)
 })

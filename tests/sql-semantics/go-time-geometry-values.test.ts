@@ -16,7 +16,8 @@ CREATE TABLE shapes (
   route path, outline polygon, ring circle, words tsvector, transaction xid, spots point[]
 );
 `
-const columns = 'id, clock, zone, spot, ray, segment, area, route, outline, ring, words, transaction, spots'
+const columns =
+  'id, clock, zone, spot, ray, segment, area, route, outline, ring, words, transaction, spots'
 const queries = `-- name: InsertShape :exec
 INSERT INTO shapes (${columns}) VALUES (@id, @clock, @zone, @spot, @ray, @segment, @area, @route, @outline, @ring, @words, @transaction, @spots);
 -- name: GetShape :one

@@ -1,4 +1,7 @@
-import { checkTypescriptArtifacts, transpileCheckRustTypescriptFiles } from '../shared/check-rust-transpile.js'
+import {
+  checkTypescriptArtifacts,
+  transpileCheckRustTypescriptFiles,
+} from '../shared/check-rust-transpile.js'
 import { combineCheckRustParts } from './sql/check-rust-parts.js'
 import picomatch from 'picomatch'
 import ts from 'typescript'
@@ -247,7 +250,10 @@ export function createTypescriptCodegenTarget(
                 ? [{ kind: 'runtime', path: runtime, content: rendered.runtime }]
                 : []),
             ],
-            checkRust: runtime && rendered.checkRustParts ? { parts: rendered.checkRustParts, consumer: rendered.runtime ?? '' } : null,
+            checkRust:
+              runtime && rendered.checkRustParts
+                ? { parts: rendered.checkRustParts, consumer: rendered.runtime ?? '' }
+                : null,
             usesNumeric: Boolean(runtime && rendered.usesNumeric),
             diagnostics: rendered.diagnostics,
           }
@@ -259,10 +265,17 @@ export function createTypescriptCodegenTarget(
         const sharedCheckRust =
           runtimeDirectory && checkRust.length
             ? checkTypescriptArtifacts(
-                transpileCheckRustTypescriptFiles(combineCheckRustParts(checkRust.map((item) => item.parts))),
+                transpileCheckRustTypescriptFiles(
+                  combineCheckRustParts(checkRust.map((item) => item.parts)),
+                ),
                 [
-                  ...checkRust.map((item) => ({ source: item.consumer, prefix: './pgsid/check-rust/' })),
-                  ...(usesNumeric ? [{ source: typescriptNumericModule, prefix: './check-rust/' }] : []),
+                  ...checkRust.map((item) => ({
+                    source: item.consumer,
+                    prefix: './pgsid/check-rust/',
+                  })),
+                  ...(usesNumeric
+                    ? [{ source: typescriptNumericModule, prefix: './check-rust/' }]
+                    : []),
                 ],
               ).map((artifact) => ({
                 kind: 'runtime' as const,

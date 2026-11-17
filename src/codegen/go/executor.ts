@@ -190,9 +190,7 @@ export function goExecutorDeclaration(
   ]
   const query = (method: string) => go.call(go.selector(member('q', 'db'), method), args)
   const scanTarget = (item: GoField, index: number) => {
-    const target = go.address(
-      grouped.has(index) ? local(index) : member('row', item.names![0]!),
-    )
+    const target = go.address(grouped.has(index) ? local(index) : member('row', item.names![0]!))
     if (item.arrayValidation)
       return go.call(go.index(member('pgsidpgx', 'ArrayTarget'), item.arrayValidation.element), [
         target,

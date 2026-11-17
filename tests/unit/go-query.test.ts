@@ -239,7 +239,10 @@ describe('renderGoQueryArtifacts', () => {
           expect(result.types).toMatch(
             new RegExp(`${name}\\s+pgsid\\.Null\\[pgsid\\.JSON\\[jsonschemas\\.Payload\\]\\]`),
           )
-        else expect(result.types).toMatch(new RegExp(`${name}\\s+\\*pgsid\\.JSON\\[jsonschemas\\.Payload\\]`))
+        else
+          expect(result.types).toMatch(
+            new RegExp(`${name}\\s+\\*pgsid\\.JSON\\[jsonschemas\\.Payload\\]`),
+          )
       }
       expect(result.types).not.toContain('json:"name')
     },

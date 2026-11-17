@@ -338,7 +338,10 @@ it.skipIf(!goAvailable)(
   'ships the evaluator files the numeric value reaches as the asset build prunes them',
   async () => {
     expect(
-      await readFile(new URL('../../src/codegen/go/assets/go-numeric.json', import.meta.url), 'utf8'),
+      await readFile(
+        new URL('../../src/codegen/go/assets/go-numeric.json', import.meta.url),
+        'utf8',
+      ),
     ).toBe(buildGoNumericAsset())
   },
   300_000,
