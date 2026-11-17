@@ -3,10 +3,17 @@
   "private": true,
   "type": "module",
   "version": "0.0.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/racinette/pgsid.git"
+  },
   "bin": {
     "pgsid": "dist/bin.js",
     "pgsid-language-server": "dist/language-server-bin.js"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "dev": "tsx src/bin.ts",
     "language-server": "tsx src/language-server-bin.ts",
