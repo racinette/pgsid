@@ -10,6 +10,11 @@ export async function servePglite(db: PGlite): Promise<{ port: number; close(): 
   const server = net.createServer((socket) => {
     sockets.add(socket)
     socket.on('close', () => sockets.delete(socket))
+    // A client process that exits without Terminate, with a reply still in flight, resets the
+    // connection; that ends its session like Terminate does. Any other socket error is a failure.
+    socket.on('error', (error: NodeJS.ErrnoException) => {
+      if (error.code !== 'ECONNRESET' && error.code !== 'EPIPE') throw error
+    })
     let buffer = Buffer.alloc(0)
     let started = false
     socket.on('data', (chunk) => {
@@ -68,7 +73,7 @@ export async function servePglite(db: PGlite): Promise<{ port: number; close(): 
 // The reply without the ReadyForQuery messages beyond `ready` that directly follow an error.
 function trimReady(reply: Buffer, ready: number): Buffer {
   const messages: Buffer[] = []
-  for (let offset = 0; offset + 5 <= reply.length; ) {
+  for (let offset = 0; offset + 5 <= reply.length;) {
     const length = reply.readUInt32BE(offset + 1) + 1
     messages.push(reply.subarray(offset, offset + length))
     offset += length
