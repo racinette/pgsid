@@ -325,6 +325,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/numeric_size.rs");
     include!("operations/pg_catalog/numeric_bucket.rs");
     include!("operations/pg_catalog/numeric_factorial.rs");
+    include!("operations/pg_catalog/numeric_var.rs");
     include!("operations/pg_catalog/numeric_sqrt.rs");
     include!("operations/pg_catalog/numeric_logarithm.rs");
     include!("operations/pg_catalog/numeric_logarithm_base.rs");

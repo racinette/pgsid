@@ -106,6 +106,38 @@
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
  */
 
+/*
+ * PostgreSQL Database Management System
+ * (also known as Postgres, formerly known as Postgres95)
+ *
+ * Portions Copyright (c) 1996-2026, PostgreSQL Global Development Group
+ *
+ * Portions Copyright (c) 1994, The Regents of the University of California
+ *
+ * Permission to use, copy, modify, and distribute this software and its
+ * documentation for any purpose, without fee, and without a written agreement
+ * is hereby granted, provided that the above copyright notice and this
+ * paragraph and the following two paragraphs appear in all copies.
+ *
+ * IN NO EVENT SHALL THE UNIVERSITY OF CALIFORNIA BE LIABLE TO ANY PARTY FOR
+ * DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, INCLUDING
+ * LOST PROFITS, ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS
+ * DOCUMENTATION, EVEN IF THE UNIVERSITY OF CALIFORNIA HAS BEEN ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ *
+ * THE UNIVERSITY OF CALIFORNIA SPECIFICALLY DISCLAIMS ANY WARRANTIES,
+ * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
+ * AND FITNESS FOR A PARTICULAR PURPOSE.  THE SOFTWARE PROVIDED HEREUNDER IS
+ * ON AN "AS IS" BASIS, AND THE UNIVERSITY OF CALIFORNIA HAS NO OBLIGATIONS TO
+ * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
+ */
+
+// PostgreSQL's NumericVar, so its numeric algorithms port as written: base-NBASE digits,
+// most significant first, the weight of the first digit, and the display scale. A zero has
+// no digits. The digit primitives follow the 32-bit forms PostgreSQL used before its 64-bit
+// accumulators; both compute the same exact integers, and 32-bit limbs keep the translated
+// targets on plain numbers.
+
 // Portions Copyright (c) 1999-2025, PostgreSQL Global Development Group.
 
 /*
@@ -55044,140 +55076,151 @@ func PgSizePrettyAxtn(input checkruntime.NumericValue) checkruntime.TextValue {
 
 const numericSqrtInvalidArgument = 3452595
 
-func numericSquareRootScaled(work numericWork, scale int) numericWork {
+func numericSquareRootScaled(work numericWork, rscale int) numericWork {
 	work = copynumericWork(work)
-	scale = langruntime.CheckedI32(scale)
-	weight := langruntime.CheckedSignedDivide(work.weight, 2)
-	if langruntime.CheckedSignedRemainder(work.weight, 2) < 0 {
-		weight = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(weight, 1))
+	rscale = langruntime.CheckedI32(rscale)
+	arg := numericVarFromWork(&work)
+	argNdigits := numericVarCount(&arg)
+	if argNdigits == 0 {
+		zero := numericVarZero(rscale)
+		return numericWorkFromVar(&zero)
 	}
-	characters := []rune(work.digits)
-	inputIndex := 0
-	root := []numericWireDigit{}
-	langruntime.CheckedAdd(len(root), 1)
-	root = append(root, copynumericWireDigit(numericWireDigit{value: 0}))
-	remainder := []numericWireDigit{}
-	langruntime.CheckedAdd(len(remainder), 1)
-	remainder = append(remainder, copynumericWireDigit(numericWireDigit{value: 0}))
-	remainderLength := 1
-	coefficient := langruntime.NewTextBuffer("")
-	position := weight
-	for position >= langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(0, scale), 1) && work.sign != 0 {
-		pair := 0
-		sourcePosition := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(position, 2), 1)
-		step := 0
-		for step < 2 {
-			pair = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(pair, 10))
-			if sourcePosition <= work.weight && inputIndex < len(characters) {
-				pair = langruntime.CheckedI32(langruntime.CheckedSignedAdd(pair, numericWireDecimalDigit(characters[inputIndex])))
-				inputIndex = langruntime.CheckedAdd(inputIndex, 1)
-			}
-			sourcePosition = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(sourcePosition, 1))
-			step = langruntime.CheckedI32(langruntime.CheckedSignedAdd(step, 1))
-		}
-		carry := pair
-		cursor := 0
-		for cursor < remainderLength {
-			word := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(remainder[cursor].value, 100), carry)
-			remainder[cursor] = copynumericWireDigit(numericWireDigit{value: langruntime.CheckedSignedRemainder(word, 10000)})
-			carry = langruntime.CheckedI32(langruntime.CheckedSignedDivide(word, 10000))
-			cursor = langruntime.CheckedAdd(cursor, 1)
-		}
-		if carry > 0 {
-			if remainderLength == len(remainder) {
-				langruntime.CheckedAdd(len(remainder), 1)
-				remainder = append(remainder, copynumericWireDigit(numericWireDigit{value: carry}))
-			} else {
-				remainder[remainderLength] = copynumericWireDigit(numericWireDigit{value: carry})
-			}
-			remainderLength = langruntime.CheckedAdd(remainderLength, 1)
-		}
-		digit := 9
-		searching := true
-		for searching {
-			candidate := []numericWireDigit{}
-			carry = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(digit, digit))
-			cursor = langruntime.CheckedIndex(0)
-			for cursor < len(root) {
-				word := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(root[cursor].value, (langruntime.CheckedSignedMultiply(20, digit))), carry)
-				langruntime.CheckedAdd(len(candidate), 1)
-				candidate = append(candidate, copynumericWireDigit(numericWireDigit{value: langruntime.CheckedSignedRemainder(word, 10000)}))
-				carry = langruntime.CheckedI32(langruntime.CheckedSignedDivide(word, 10000))
-				cursor = langruntime.CheckedAdd(cursor, 1)
-			}
-			if carry > 0 {
-				langruntime.CheckedAdd(len(candidate), 1)
-				candidate = append(candidate, copynumericWireDigit(numericWireDigit{value: carry}))
-			}
-			candidateLength := len(candidate)
-			for candidateLength > 1 && candidate[langruntime.CheckedSubtract(candidateLength, 1)].value == 0 {
-				candidateLength = langruntime.CheckedIndex(langruntime.CheckedSubtract(candidateLength, 1))
-			}
-			order := 0
-			if remainderLength < candidateLength {
-				order = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
-			}
-			if remainderLength > candidateLength {
-				order = langruntime.CheckedI32(1)
-			}
-			cursor = langruntime.CheckedIndex(candidateLength)
-			for order == 0 && cursor > 0 {
-				cursor = langruntime.CheckedIndex(langruntime.CheckedSubtract(cursor, 1))
-				if remainder[cursor].value < candidate[cursor].value {
-					order = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
-				}
-				if remainder[cursor].value > candidate[cursor].value {
-					order = langruntime.CheckedI32(1)
-				}
-			}
-			if order >= 0 {
-				borrow := 0
-				cursor = langruntime.CheckedIndex(0)
-				for cursor < remainderLength {
-					word := langruntime.CheckedSignedSubtract(remainder[cursor].value, borrow)
-					if cursor < candidateLength {
-						word = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(word, candidate[cursor].value))
-					}
-					borrow = langruntime.CheckedI32(0)
-					if word < 0 {
-						word = langruntime.CheckedI32(langruntime.CheckedSignedAdd(word, 10000))
-						borrow = langruntime.CheckedI32(1)
-					}
-					remainder[cursor] = copynumericWireDigit(numericWireDigit{value: word})
-					cursor = langruntime.CheckedAdd(cursor, 1)
-				}
-				for remainderLength > 1 && remainder[langruntime.CheckedSubtract(remainderLength, 1)].value == 0 {
-					remainderLength = langruntime.CheckedIndex(langruntime.CheckedSubtract(remainderLength, 1))
-				}
-				searching = false
-			} else {
-				digit = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(digit, 1))
-			}
-		}
-		carry = langruntime.CheckedI32(digit)
-		cursor = langruntime.CheckedIndex(0)
-		for cursor < len(root) {
-			word := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(root[cursor].value, 10), carry)
-			root[cursor] = copynumericWireDigit(numericWireDigit{value: langruntime.CheckedSignedRemainder(word, 10000)})
-			carry = langruntime.CheckedI32(langruntime.CheckedSignedDivide(word, 10000))
-			cursor = langruntime.CheckedAdd(cursor, 1)
-		}
-		if carry > 0 {
-			langruntime.CheckedAdd(len(root), 1)
-			root = append(root, copynumericWireDigit(numericWireDigit{value: carry}))
-		}
-		coefficient = append(coefficient, string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(digit, 48)), '0')))...)
-		if inputIndex >= len(characters) && remainderLength == 1 && remainder[0].value == 0 {
-			position = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(0, scale), 1))
-		}
-		position = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(position, 1))
+	resWeight := langruntime.CheckedSignedDivide(arg.weight, 2)
+	if arg.weight < 0 {
+		resWeight = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, (langruntime.CheckedSignedAdd(langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(0, arg.weight), 1)), 2), 1))))
 	}
-	sign := 1
-	if string(coefficient) == "" {
-		sign = langruntime.CheckedI32(0)
-		weight = langruntime.CheckedI32(0)
+	resNdigits := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(resWeight, 1), langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(0, rscale), 1)), numericVarDecDigits))
+	if langruntime.CheckedSignedAdd(rscale, 1) >= 0 {
+		resNdigits = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(resWeight, 1), langruntime.CheckedSignedDivide((langruntime.CheckedSignedAdd(rscale, numericVarDecDigits)), numericVarDecDigits)))
 	}
-	return numericWorkRounded(numericWork{valid: true, special: 1, sign: sign, weight: weight, scale: scale, digits: string(coefficient)}, scale, 1)
+	if resNdigits < 1 {
+		resNdigits = langruntime.CheckedI32(1)
+	}
+	srcNdigits := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(arg.weight, 1), langruntime.CheckedSignedMultiply((langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(resNdigits, resWeight), 1)), 2))
+	if srcNdigits < 1 {
+		srcNdigits = langruntime.CheckedI32(1)
+	}
+	ndigits := []numericWireDigit{}
+	langruntime.CheckedAdd(len(ndigits), 1)
+	ndigits = append(ndigits, copynumericWireDigit(numericWireDigit{value: srcNdigits}))
+	step := 0
+	for srcNdigits > 4 {
+		blen := langruntime.CheckedSignedDivide(srcNdigits, 4)
+		if langruntime.CheckedSignedMultiply(blen, 4) == srcNdigits && numericVarDigit(&arg, 0) < langruntime.CheckedSignedDivide(numericVarNbase, 4) {
+			blen = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(blen, 1))
+		}
+		srcNdigits = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(srcNdigits, langruntime.CheckedSignedMultiply(2, blen)))
+		step = langruntime.CheckedI32(langruntime.CheckedSignedAdd(step, 1))
+		langruntime.CheckedAdd(len(ndigits), 1)
+		ndigits = append(ndigits, copynumericWireDigit(numericWireDigit{value: srcNdigits}))
+	}
+	argInt64 := int64(langruntime.CheckedI32(numericVarDigit(&arg, 0)))
+	srcIdx := 1
+	for srcIdx < srcNdigits {
+		digit := int64(langruntime.CheckedI32(numericVarDigit(&arg, srcIdx)))
+		argInt64 = langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(argInt64, int64(10000)), digit)
+		srcIdx = langruntime.CheckedI32(langruntime.CheckedSignedAdd(srcIdx, 1))
+	}
+	high := int(int32((langruntime.CheckedI64Divide(argInt64, int64(100000000)))))
+	low := int(int32((langruntime.CheckedI64Remainder(argInt64, int64(100000000)))))
+	estimate := langruntime.F64Add(langruntime.F64Multiply((float64(high)), float64(100000000.0)), (float64(low)))
+	sInt64 := int64(langruntime.CheckedI32((langruntime.F64ToI32(langruntime.F64Sqrt(estimate)))))
+	rInt64 := langruntime.CheckedI64Subtract(argInt64, langruntime.CheckedI64Multiply(sInt64, sInt64))
+	for rInt64 < int64(0) || rInt64 > langruntime.CheckedI64Multiply(int64(2), sInt64) {
+		sInt64 = langruntime.CheckedI64Divide((langruntime.CheckedI64Add(sInt64, langruntime.CheckedI64Divide(argInt64, sInt64))), int64(2))
+		rInt64 = langruntime.CheckedI64Subtract(argInt64, langruntime.CheckedI64Multiply(sInt64, sInt64))
+	}
+	step = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(step, 1))
+	for step >= 0 && ndigits[langruntime.IndexFromI32(step, 0)].value <= 8 {
+		srcNdigits = langruntime.CheckedI32(ndigits[langruntime.IndexFromI32(step, 0)].value)
+		blen := langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(srcNdigits, srcIdx)), 2)
+		a0 := 0
+		a1 := 0
+		b := 1
+		i := 0
+		for i < blen {
+			b = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(b, numericVarNbase))
+			a1 = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(a1, numericVarNbase), numericVarDigit(&arg, srcIdx)))
+			srcIdx = langruntime.CheckedI32(langruntime.CheckedSignedAdd(srcIdx, 1))
+			i = langruntime.CheckedI32(langruntime.CheckedSignedAdd(i, 1))
+		}
+		i = langruntime.CheckedI32(0)
+		for i < blen {
+			a0 = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(a0, numericVarNbase), numericVarDigit(&arg, srcIdx)))
+			srcIdx = langruntime.CheckedI32(langruntime.CheckedSignedAdd(srcIdx, 1))
+			i = langruntime.CheckedI32(langruntime.CheckedSignedAdd(i, 1))
+		}
+		bInt64 := int64(langruntime.CheckedI32(b))
+		a1Int64 := int64(langruntime.CheckedI32(a1))
+		a0Int64 := int64(langruntime.CheckedI32(a0))
+		numer := langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(rInt64, bInt64), a1Int64)
+		denom := langruntime.CheckedI64Multiply(int64(2), sInt64)
+		q := langruntime.CheckedI64Divide(numer, denom)
+		u := langruntime.CheckedI64Subtract(numer, langruntime.CheckedI64Multiply(q, denom))
+		sInt64 = langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(sInt64, bInt64), q)
+		rInt64 = langruntime.CheckedI64Subtract(langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(u, bInt64), a0Int64), langruntime.CheckedI64Multiply(q, q))
+		if rInt64 < int64(0) {
+			rInt64 = langruntime.CheckedI64Add(rInt64, sInt64)
+			sInt64 = langruntime.CheckedI64Subtract(sInt64, int64(1))
+			rInt64 = langruntime.CheckedI64Add(rInt64, sInt64)
+		}
+		step = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(step, 1))
+	}
+	one := numericVarFromI64(int64(1))
+	sVar := numericVarFromI64(sInt64)
+	rVar := numericVarZero(0)
+	if step >= 0 {
+		rVar = copynumericVar(numericVarFromI64(rInt64))
+	}
+	for step >= 0 {
+		srcNdigits = langruntime.CheckedI32(ndigits[langruntime.IndexFromI32(step, 0)].value)
+		blen := langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(srcNdigits, srcIdx)), 2)
+		a1Var := numericSquareRootPart(&arg, srcIdx, blen)
+		srcIdx = langruntime.CheckedI32(langruntime.CheckedSignedAdd(srcIdx, blen))
+		a0Var := numericSquareRootPart(&arg, srcIdx, blen)
+		srcIdx = langruntime.CheckedI32(langruntime.CheckedSignedAdd(srcIdx, blen))
+		rScaled := numericVarShifted(&rVar, blen)
+		numer := numericVarAdd(&rScaled, &a1Var)
+		denom := numericVarAdd(&sVar, &sVar)
+		division := numericVarDivMod(&numer, &denom)
+		remainder := copynumericVar(division.remainder)
+		qVar := division.quotient
+		uScaled := numericVarShifted(&remainder, blen)
+		uVar := numericVarAdd(&uScaled, &a0Var)
+		sScaled := numericVarShifted(&sVar, blen)
+		sVar = copynumericVar(numericVarAdd(&sScaled, &qVar))
+		square := numericVarMul(&qVar, &qVar, 0)
+		if step > 0 {
+			rVar = copynumericVar(numericVarSub(&uVar, &square))
+			if rVar.sign < 0 {
+				rVar = copynumericVar(numericVarAdd(&rVar, &sVar))
+				sVar = copynumericVar(numericVarSub(&sVar, &one))
+				rVar = copynumericVar(numericVarAdd(&rVar, &sVar))
+			}
+		} else if numericVarCmp(&uVar, &square) < 0 {
+			sVar = copynumericVar(numericVarSub(&sVar, &one))
+		}
+		step = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(step, 1))
+	}
+	root := numericVar{sign: 1, weight: resWeight, dscale: sVar.dscale, digits: sVar.digits}
+	rounded := numericVarStrip(numericVarRound(root, rscale))
+	return numericWorkFromVar(&rounded)
+}
+func numericSquareRootPart(arg *numericVar, start int, blen int) numericVar {
+	start = langruntime.CheckedI32(start)
+	blen = langruntime.CheckedI32(blen)
+	count := numericVarCount(arg)
+	if start >= count {
+		return numericVarZero(0)
+	}
+	digits := []numericWireDigit{}
+	index := start
+	for index < langruntime.CheckedSignedAdd(start, blen) && index < count {
+		langruntime.CheckedAdd(len(digits), 1)
+		digits = append(digits, copynumericWireDigit(numericWireDigit{value: numericVarDigit(arg, index)}))
+		index = langruntime.CheckedI32(langruntime.CheckedSignedAdd(index, 1))
+	}
+	return numericVarStrip(numericVar{sign: 1, weight: langruntime.CheckedSignedSubtract(blen, 1), dscale: 0, digits: digits})
 }
 func numericSquareRoot(work numericWork) checkruntime.NumericValue {
 	work = copynumericWork(work)
@@ -55322,6 +55365,763 @@ func Numeric879l(input checkruntime.NumericValue, modifier checkruntime.Int4Valu
 		}
 	}
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
+}
+
+type numericVar struct {
+	sign   int
+	weight int
+	dscale int
+	digits []numericWireDigit
+}
+
+func copynumericVar(value numericVar) numericVar {
+	return numericVar{sign: langruntime.CheckedI32(value.sign), weight: langruntime.CheckedI32(value.weight), dscale: langruntime.CheckedI32(value.dscale), digits: langruntime.CheckedStructs(value.digits, copynumericWireDigit)}
+}
+
+type numericVarDivision struct {
+	quotient  numericVar
+	remainder numericVar
+}
+
+func copynumericVarDivision(value numericVarDivision) numericVarDivision {
+	return numericVarDivision{quotient: copynumericVar(value.quotient), remainder: copynumericVar(value.remainder)}
+}
+
+const numericVarNbase = 10000
+const numericVarHalfNbase = 5000
+const numericVarDecDigits = 4
+const numericVarMulGuardDigits = 2
+const numericVarIntMax = 2147483647
+
+func numericVarZero(dscale int) numericVar {
+	dscale = langruntime.CheckedI32(dscale)
+	digits := []numericWireDigit{}
+	return numericVar{sign: 1, weight: 0, dscale: dscale, digits: digits}
+}
+func numericVarCount(value *numericVar) int {
+	return int(int32(len(value.digits)))
+}
+func numericVarDigit(value *numericVar, index int) int {
+	index = langruntime.CheckedI32(index)
+	if index < 0 || index >= numericVarCount(value) {
+		return 0
+	}
+	return value.digits[langruntime.IndexFromI32(index, 0)].value
+}
+func numericVarZeros(count int) []numericWireDigit {
+	count = langruntime.CheckedI32(count)
+	digits := []numericWireDigit{}
+	index := 0
+	for index < count {
+		langruntime.CheckedAdd(len(digits), 1)
+		digits = append(digits, copynumericWireDigit(numericWireDigit{value: 0}))
+		index = langruntime.CheckedI32(langruntime.CheckedSignedAdd(index, 1))
+	}
+	return digits
+}
+func numericVarRoundPower(decimals int) int {
+	decimals = langruntime.CheckedI32(decimals)
+	if decimals == 1 {
+		return 1000
+	}
+	if decimals == 2 {
+		return 100
+	}
+	return 10
+}
+func numericVarFromWork(work *numericWork) numericVar {
+	if work.sign == 0 {
+		return numericVarZero(work.scale)
+	}
+	characters := []rune(work.digits)
+	weight := langruntime.CheckedSignedDivide(work.weight, numericVarDecDigits)
+	if langruntime.CheckedSignedRemainder(work.weight, numericVarDecDigits) < 0 {
+		weight = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(weight, 1))
+	}
+	leading := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(weight, numericVarDecDigits), numericVarDecDigits), 1), work.weight)
+	emitted := 0
+	digits := []numericWireDigit{}
+	value := 0
+	index := 0
+	for index < len(characters) || langruntime.CheckedSignedRemainder(emitted, numericVarDecDigits) != 0 {
+		decimal := 0
+		if leading > 0 {
+			leading = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(leading, 1))
+		} else if index < len(characters) {
+			decimal = langruntime.CheckedI32(numericWireDecimalDigit(characters[index]))
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		value = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(value, 10), decimal))
+		emitted = langruntime.CheckedI32(langruntime.CheckedSignedAdd(emitted, 1))
+		if langruntime.CheckedSignedRemainder(emitted, numericVarDecDigits) == 0 {
+			langruntime.CheckedAdd(len(digits), 1)
+			digits = append(digits, copynumericWireDigit(numericWireDigit{value: value}))
+			value = langruntime.CheckedI32(0)
+		}
+	}
+	return numericVarStrip(numericVar{sign: work.sign, weight: weight, dscale: work.scale, digits: digits})
+}
+func numericWorkFromVar(value *numericVar) numericWork {
+	scale := value.dscale
+	if scale < 0 {
+		scale = langruntime.CheckedI32(0)
+	}
+	decimals := langruntime.NewTextBuffer("")
+	weight := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(value.weight, numericVarDecDigits), numericVarDecDigits), 1)
+	index := 0
+	for index < len(value.digits) {
+		word := value.digits[index].value
+		place := 1000
+		for place > 0 {
+			digit := langruntime.CheckedSignedDivide(word, place)
+			word = langruntime.CheckedI32(langruntime.CheckedSignedRemainder(word, place))
+			if string(decimals) == "" && digit == 0 {
+				weight = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(weight, 1))
+			} else {
+				decimals = append(decimals, string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(digit, 48)), '0')))...)
+			}
+			place = langruntime.CheckedI32(langruntime.CheckedSignedDivide(place, 10))
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	characters := []rune(string(decimals))
+	end := len(characters)
+	for end > 0 && characters[langruntime.CheckedSubtract(end, 1)] == '0' {
+		end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
+	}
+	digits := langruntime.NewTextBuffer("")
+	index = langruntime.CheckedIndex(0)
+	for index < end {
+		digits = append(digits, string(langruntime.CheckedChar(characters[index]))...)
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	sign := value.sign
+	if end == 0 {
+		sign = langruntime.CheckedI32(0)
+		weight = langruntime.CheckedI32(0)
+	}
+	return numericWork{valid: true, special: 1, sign: sign, weight: weight, scale: scale, digits: string(digits)}
+}
+func numericVarFromI64(value int64) numericVar {
+	sign := 1
+	magnitude := value
+	if value < int64(0) {
+		sign = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+		magnitude = langruntime.CheckedI64Subtract(int64(0), value)
+	}
+	reversed := []numericWireDigit{}
+	for magnitude > int64(0) {
+		next := langruntime.CheckedI64Divide(magnitude, int64(10000))
+		langruntime.CheckedAdd(len(reversed), 1)
+		reversed = append(reversed, copynumericWireDigit(numericWireDigit{value: int(int32((langruntime.CheckedI64Subtract(magnitude, langruntime.CheckedI64Multiply(next, int64(10000))))))}))
+		magnitude = next
+	}
+	digits := []numericWireDigit{}
+	index := len(reversed)
+	for index > 0 {
+		index = langruntime.CheckedIndex(langruntime.CheckedSubtract(index, 1))
+		langruntime.CheckedAdd(len(digits), 1)
+		digits = append(digits, copynumericWireDigit(reversed[index]))
+	}
+	count := int(int32(len(digits)))
+	if count == 0 {
+		return numericVarZero(0)
+	}
+	return numericVar{sign: sign, weight: langruntime.CheckedSignedSubtract(count, 1), dscale: 0, digits: digits}
+}
+func numericVarStrip(value numericVar) numericVar {
+	value = copynumericVar(value)
+	weight := value.weight
+	start := 0
+	for start < len(value.digits) && value.digits[start].value == 0 {
+		start = langruntime.CheckedAdd(start, 1)
+		weight = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(weight, 1))
+	}
+	end := len(value.digits)
+	for end > start && value.digits[langruntime.CheckedSubtract(end, 1)].value == 0 {
+		end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
+	}
+	digits := []numericWireDigit{}
+	index := start
+	for index < end {
+		langruntime.CheckedAdd(len(digits), 1)
+		digits = append(digits, copynumericWireDigit(value.digits[index]))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	sign := value.sign
+	if end == start {
+		sign = langruntime.CheckedI32(1)
+		weight = langruntime.CheckedI32(0)
+	}
+	return numericVar{sign: sign, weight: weight, dscale: value.dscale, digits: digits}
+}
+func numericVarShifted(value *numericVar, places int) numericVar {
+	places = langruntime.CheckedI32(places)
+	digits := []numericWireDigit{}
+	index := 0
+	for index < len(value.digits) {
+		langruntime.CheckedAdd(len(digits), 1)
+		digits = append(digits, copynumericWireDigit(value.digits[index]))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return numericVar{sign: value.sign, weight: langruntime.CheckedSignedAdd(value.weight, places), dscale: value.dscale, digits: digits}
+}
+func numericVarCmpAbs(left *numericVar, right *numericVar) int {
+	leftCount := numericVarCount(left)
+	rightCount := numericVarCount(right)
+	leftWeight := left.weight
+	rightWeight := right.weight
+	i1 := 0
+	i2 := 0
+	for leftWeight > rightWeight && i1 < leftCount {
+		if numericVarDigit(left, i1) != 0 {
+			return 1
+		}
+		i1 = langruntime.CheckedI32(langruntime.CheckedSignedAdd(i1, 1))
+		leftWeight = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(leftWeight, 1))
+	}
+	for rightWeight > leftWeight && i2 < rightCount {
+		if numericVarDigit(right, i2) != 0 {
+			return langruntime.CheckedSignedNegate(1)
+		}
+		i2 = langruntime.CheckedI32(langruntime.CheckedSignedAdd(i2, 1))
+		rightWeight = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(rightWeight, 1))
+	}
+	if leftWeight == rightWeight {
+		for i1 < leftCount && i2 < rightCount {
+			stat := langruntime.CheckedSignedSubtract(numericVarDigit(left, i1), numericVarDigit(right, i2))
+			i1 = langruntime.CheckedI32(langruntime.CheckedSignedAdd(i1, 1))
+			i2 = langruntime.CheckedI32(langruntime.CheckedSignedAdd(i2, 1))
+			if stat > 0 {
+				return 1
+			}
+			if stat < 0 {
+				return langruntime.CheckedSignedNegate(1)
+			}
+		}
+	}
+	for i1 < leftCount {
+		if numericVarDigit(left, i1) != 0 {
+			return 1
+		}
+		i1 = langruntime.CheckedI32(langruntime.CheckedSignedAdd(i1, 1))
+	}
+	for i2 < rightCount {
+		if numericVarDigit(right, i2) != 0 {
+			return langruntime.CheckedSignedNegate(1)
+		}
+		i2 = langruntime.CheckedI32(langruntime.CheckedSignedAdd(i2, 1))
+	}
+	return 0
+}
+func numericVarCmp(left *numericVar, right *numericVar) int {
+	if numericVarCount(left) == 0 {
+		if numericVarCount(right) == 0 {
+			return 0
+		}
+		if right.sign < 0 {
+			return 1
+		}
+		return langruntime.CheckedSignedNegate(1)
+	}
+	if numericVarCount(right) == 0 {
+		if left.sign > 0 {
+			return 1
+		}
+		return langruntime.CheckedSignedNegate(1)
+	}
+	if left.sign > 0 {
+		if right.sign < 0 {
+			return 1
+		}
+		return numericVarCmpAbs(left, right)
+	}
+	if right.sign > 0 {
+		return langruntime.CheckedSignedNegate(1)
+	}
+	return numericVarCmpAbs(right, left)
+}
+func numericVarAddAbs(left *numericVar, right *numericVar) numericVar {
+	leftCount := numericVarCount(left)
+	rightCount := numericVarCount(right)
+	resWeight := left.weight
+	if right.weight > resWeight {
+		resWeight = langruntime.CheckedI32(right.weight)
+	}
+	resWeight = langruntime.CheckedI32(langruntime.CheckedSignedAdd(resWeight, 1))
+	resDscale := left.dscale
+	if right.dscale > resDscale {
+		resDscale = langruntime.CheckedI32(right.dscale)
+	}
+	rscale1 := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(leftCount, left.weight), 1)
+	rscale2 := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(rightCount, right.weight), 1)
+	resRscale := rscale1
+	if rscale2 > resRscale {
+		resRscale = langruntime.CheckedI32(rscale2)
+	}
+	resNdigits := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(resRscale, resWeight), 1)
+	if resNdigits <= 0 {
+		resNdigits = langruntime.CheckedI32(1)
+	}
+	digits := numericVarZeros(resNdigits)
+	i1 := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(resRscale, left.weight), 1)
+	i2 := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(resRscale, right.weight), 1)
+	carry := 0
+	i := langruntime.CheckedSignedSubtract(resNdigits, 1)
+	for i >= 0 {
+		i1 = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(i1, 1))
+		i2 = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(i2, 1))
+		carry = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(carry, numericVarDigit(left, i1)), numericVarDigit(right, i2)))
+		digit := carry
+		carry = langruntime.CheckedI32(0)
+		if digit >= numericVarNbase {
+			digit = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(digit, numericVarNbase))
+			carry = langruntime.CheckedI32(1)
+		}
+		digits[langruntime.IndexFromI32(i, 0)] = copynumericWireDigit(numericWireDigit{value: digit})
+		i = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(i, 1))
+	}
+	return numericVarStrip(numericVar{sign: 1, weight: resWeight, dscale: resDscale, digits: digits})
+}
+func numericVarSubAbs(left *numericVar, right *numericVar) numericVar {
+	leftCount := numericVarCount(left)
+	rightCount := numericVarCount(right)
+	resWeight := left.weight
+	resDscale := left.dscale
+	if right.dscale > resDscale {
+		resDscale = langruntime.CheckedI32(right.dscale)
+	}
+	rscale1 := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(leftCount, left.weight), 1)
+	rscale2 := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(rightCount, right.weight), 1)
+	resRscale := rscale1
+	if rscale2 > resRscale {
+		resRscale = langruntime.CheckedI32(rscale2)
+	}
+	resNdigits := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(resRscale, resWeight), 1)
+	if resNdigits <= 0 {
+		resNdigits = langruntime.CheckedI32(1)
+	}
+	digits := numericVarZeros(resNdigits)
+	i1 := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(resRscale, left.weight), 1)
+	i2 := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(resRscale, right.weight), 1)
+	borrow := 0
+	i := langruntime.CheckedSignedSubtract(resNdigits, 1)
+	for i >= 0 {
+		i1 = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(i1, 1))
+		i2 = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(i2, 1))
+		borrow = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(borrow, numericVarDigit(left, i1)), numericVarDigit(right, i2)))
+		digit := borrow
+		borrow = langruntime.CheckedI32(0)
+		if digit < 0 {
+			digit = langruntime.CheckedI32(langruntime.CheckedSignedAdd(digit, numericVarNbase))
+			borrow = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+		}
+		digits[langruntime.IndexFromI32(i, 0)] = copynumericWireDigit(numericWireDigit{value: digit})
+		i = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(i, 1))
+	}
+	return numericVarStrip(numericVar{sign: 1, weight: resWeight, dscale: resDscale, digits: digits})
+}
+func numericVarSigned(value numericVar, sign int) numericVar {
+	value = copynumericVar(value)
+	sign = langruntime.CheckedI32(sign)
+	return numericVar{sign: sign, weight: value.weight, dscale: value.dscale, digits: value.digits}
+}
+func numericVarSum(left *numericVar, right *numericVar, rightSign int) numericVar {
+	rightSign = langruntime.CheckedI32(rightSign)
+	dscale := left.dscale
+	if right.dscale > dscale {
+		dscale = langruntime.CheckedI32(right.dscale)
+	}
+	if left.sign == rightSign {
+		return numericVarSigned(numericVarAddAbs(left, right), left.sign)
+	}
+	order := numericVarCmpAbs(left, right)
+	if order == 0 {
+		return numericVarZero(dscale)
+	}
+	if order > 0 {
+		return numericVarSigned(numericVarSubAbs(left, right), left.sign)
+	}
+	return numericVarSigned(numericVarSubAbs(right, left), rightSign)
+}
+func numericVarAdd(left *numericVar, right *numericVar) numericVar {
+	return numericVarSum(left, right, right.sign)
+}
+func numericVarSub(left *numericVar, right *numericVar) numericVar {
+	return numericVarSum(left, right, langruntime.CheckedSignedSubtract(0, right.sign))
+}
+func numericVarRound(value numericVar, rscale int) numericVar {
+	value = copynumericVar(value)
+	rscale = langruntime.CheckedI32(rscale)
+	sign := value.sign
+	weight := value.weight
+	digits := value.digits
+	di := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply((langruntime.CheckedSignedAdd(weight, 1)), numericVarDecDigits), rscale)
+	if di < 0 {
+		return numericVarZero(rscale)
+	}
+	ndigits := langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(di, numericVarDecDigits), 1)), numericVarDecDigits)
+	di = langruntime.CheckedI32(langruntime.CheckedSignedRemainder(di, numericVarDecDigits))
+	kept := int(int32(len(digits)))
+	leading := 0
+	if ndigits < kept || (ndigits == kept && di > 0) {
+		kept = langruntime.CheckedI32(ndigits)
+		position := ndigits
+		carry := 0
+		if di == 0 {
+			if digits[langruntime.IndexFromI32(ndigits, 0)].value >= numericVarHalfNbase {
+				carry = langruntime.CheckedI32(1)
+			}
+		} else {
+			position = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(position, 1))
+			last := langruntime.IndexFromI32(position, 0)
+			pow10 := numericVarRoundPower(di)
+			extra := langruntime.CheckedSignedRemainder(digits[last].value, pow10)
+			digits[last] = copynumericWireDigit(numericWireDigit{value: langruntime.CheckedSignedSubtract(digits[last].value, extra)})
+			if extra >= langruntime.CheckedSignedDivide(pow10, 2) {
+				pow10 = langruntime.CheckedI32(langruntime.CheckedSignedAdd(pow10, digits[last].value))
+				if pow10 >= numericVarNbase {
+					pow10 = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(pow10, numericVarNbase))
+					carry = langruntime.CheckedI32(1)
+				}
+				digits[last] = copynumericWireDigit(numericWireDigit{value: pow10})
+			}
+		}
+		for carry > 0 {
+			position = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(position, 1))
+			if position < 0 {
+				leading = langruntime.CheckedI32(carry)
+				weight = langruntime.CheckedI32(langruntime.CheckedSignedAdd(weight, 1))
+				carry = langruntime.CheckedI32(0)
+			} else {
+				at := langruntime.IndexFromI32(position, 0)
+				carry = langruntime.CheckedI32(langruntime.CheckedSignedAdd(carry, digits[at].value))
+				if carry >= numericVarNbase {
+					digits[at] = copynumericWireDigit(numericWireDigit{value: langruntime.CheckedSignedSubtract(carry, numericVarNbase)})
+					carry = langruntime.CheckedI32(1)
+				} else {
+					digits[at] = copynumericWireDigit(numericWireDigit{value: carry})
+					carry = langruntime.CheckedI32(0)
+				}
+			}
+		}
+	}
+	rounded := []numericWireDigit{}
+	if leading > 0 {
+		langruntime.CheckedAdd(len(rounded), 1)
+		rounded = append(rounded, copynumericWireDigit(numericWireDigit{value: leading}))
+	}
+	end := langruntime.IndexFromI32(kept, 0)
+	index := 0
+	for index < end {
+		langruntime.CheckedAdd(len(rounded), 1)
+		rounded = append(rounded, copynumericWireDigit(digits[index]))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return numericVar{sign: sign, weight: weight, dscale: rscale, digits: rounded}
+}
+func numericVarTrunc(value numericVar, rscale int) numericVar {
+	value = copynumericVar(value)
+	rscale = langruntime.CheckedI32(rscale)
+	sign := value.sign
+	weight := value.weight
+	digits := value.digits
+	di := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply((langruntime.CheckedSignedAdd(weight, 1)), numericVarDecDigits), rscale)
+	if di <= 0 {
+		return numericVarZero(rscale)
+	}
+	ndigits := langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(di, numericVarDecDigits), 1)), numericVarDecDigits)
+	kept := int(int32(len(digits)))
+	if ndigits <= kept {
+		kept = langruntime.CheckedI32(ndigits)
+		di = langruntime.CheckedI32(langruntime.CheckedSignedRemainder(di, numericVarDecDigits))
+		if di > 0 {
+			last := langruntime.IndexFromI32(langruntime.CheckedSignedSubtract(ndigits, 1), 0)
+			pow10 := numericVarRoundPower(di)
+			extra := langruntime.CheckedSignedRemainder(digits[last].value, pow10)
+			digits[last] = copynumericWireDigit(numericWireDigit{value: langruntime.CheckedSignedSubtract(digits[last].value, extra)})
+		}
+	}
+	truncated := []numericWireDigit{}
+	end := langruntime.IndexFromI32(kept, 0)
+	index := 0
+	for index < end {
+		langruntime.CheckedAdd(len(truncated), 1)
+		truncated = append(truncated, copynumericWireDigit(digits[index]))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return numericVar{sign: sign, weight: weight, dscale: rscale, digits: truncated}
+}
+func numericVarMul(left *numericVar, right *numericVar, rscale int) numericVar {
+	rscale = langruntime.CheckedI32(rscale)
+	if numericVarCount(left) > numericVarCount(right) {
+		return numericVarMul(right, left, rscale)
+	}
+	var1ndigits := numericVarCount(left)
+	var2ndigits := numericVarCount(right)
+	if var1ndigits == 0 || var2ndigits == 0 {
+		return numericVarZero(rscale)
+	}
+	resSign := 1
+	if left.sign != right.sign {
+		resSign = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+	}
+	resWeight := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(left.weight, right.weight), 2)
+	resNdigits := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(var1ndigits, var2ndigits), 1)
+	maxdigits := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(resWeight, 1), langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(rscale, numericVarDecDigits), 1)), numericVarDecDigits)), numericVarMulGuardDigits)
+	if maxdigits < resNdigits {
+		resNdigits = langruntime.CheckedI32(maxdigits)
+	}
+	if resNdigits < 3 {
+		return numericVarZero(rscale)
+	}
+	dig := numericVarZeros(resNdigits)
+	normalizeLimit := langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(numericVarIntMax, langruntime.CheckedSignedDivide(numericVarIntMax, numericVarNbase))), (langruntime.CheckedSignedSubtract(numericVarNbase, 1)))
+	maxdig := 0
+	i1 := langruntime.CheckedSignedSubtract(var1ndigits, 1)
+	if langruntime.CheckedSignedSubtract(resNdigits, 3) < i1 {
+		i1 = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(resNdigits, 3))
+	}
+	for i1 >= 0 {
+		var1digit := numericVarDigit(left, i1)
+		if var1digit != 0 {
+			maxdig = langruntime.CheckedI32(langruntime.CheckedSignedAdd(maxdig, var1digit))
+			if maxdig > normalizeLimit {
+				carry := 0
+				i := langruntime.CheckedSignedSubtract(resNdigits, 1)
+				for i >= 0 {
+					at := langruntime.IndexFromI32(i, 0)
+					newdig := langruntime.CheckedSignedAdd(dig[at].value, carry)
+					carry = langruntime.CheckedI32(0)
+					if newdig >= numericVarNbase {
+						carry = langruntime.CheckedI32(langruntime.CheckedSignedDivide(newdig, numericVarNbase))
+						newdig = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(newdig, langruntime.CheckedSignedMultiply(carry, numericVarNbase)))
+					}
+					dig[at] = copynumericWireDigit(numericWireDigit{value: newdig})
+					i = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(i, 1))
+				}
+				maxdig = langruntime.CheckedI32(langruntime.CheckedSignedAdd(1, var1digit))
+			}
+			i2limit := var2ndigits
+			if langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(resNdigits, i1), 2) < i2limit {
+				i2limit = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(resNdigits, i1), 2))
+			}
+			offset := langruntime.IndexFromI32(langruntime.CheckedSignedAdd(i1, 2), 0)
+			limit := langruntime.IndexFromI32(i2limit, 0)
+			i2 := 0
+			for i2 < limit {
+				dig[langruntime.CheckedAdd(offset, i2)] = copynumericWireDigit(numericWireDigit{value: langruntime.CheckedSignedAdd(dig[langruntime.CheckedAdd(offset, i2)].value, langruntime.CheckedSignedMultiply(var1digit, right.digits[i2].value))})
+				i2 = langruntime.CheckedAdd(i2, 1)
+			}
+		}
+		i1 = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(i1, 1))
+	}
+	carry := 0
+	i := langruntime.CheckedSignedSubtract(resNdigits, 1)
+	for i >= 0 {
+		at := langruntime.IndexFromI32(i, 0)
+		newdig := langruntime.CheckedSignedAdd(dig[at].value, carry)
+		carry = langruntime.CheckedI32(0)
+		if newdig >= numericVarNbase {
+			carry = langruntime.CheckedI32(langruntime.CheckedSignedDivide(newdig, numericVarNbase))
+			newdig = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(newdig, langruntime.CheckedSignedMultiply(carry, numericVarNbase)))
+		}
+		dig[at] = copynumericWireDigit(numericWireDigit{value: newdig})
+		i = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(i, 1))
+	}
+	rounded := numericVarRound(numericVar{sign: resSign, weight: resWeight, dscale: rscale, digits: dig}, rscale)
+	return numericVarStrip(rounded)
+}
+func numericVarDivInt(value *numericVar, ival int, ivalWeight int, rscale int, round bool) numericVar {
+	ival = langruntime.CheckedI32(ival)
+	ivalWeight = langruntime.CheckedI32(ivalWeight)
+	rscale = langruntime.CheckedI32(rscale)
+	varNdigits := numericVarCount(value)
+	if varNdigits == 0 {
+		return numericVarZero(rscale)
+	}
+	resSign := 1
+	if value.sign > 0 {
+		if ival < 0 {
+			resSign = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+		}
+	} else if ival > 0 {
+		resSign = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+	}
+	resWeight := langruntime.CheckedSignedSubtract(value.weight, ivalWeight)
+	resNdigits := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(resWeight, 1), langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(rscale, numericVarDecDigits), 1)), numericVarDecDigits))
+	if resNdigits < 1 {
+		resNdigits = langruntime.CheckedI32(1)
+	}
+	if round {
+		resNdigits = langruntime.CheckedI32(langruntime.CheckedSignedAdd(resNdigits, 1))
+	}
+	divisor := int64(langruntime.CheckedI32(ival))
+	if divisor < int64(0) {
+		divisor = langruntime.CheckedI64Subtract(int64(0), divisor)
+	}
+	digits := []numericWireDigit{}
+	carry := int64(0)
+	i := 0
+	for i < resNdigits {
+		digit := int64(langruntime.CheckedI32(numericVarDigit(value, i)))
+		carry = langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(carry, int64(10000)), digit)
+		langruntime.CheckedAdd(len(digits), 1)
+		digits = append(digits, copynumericWireDigit(numericWireDigit{value: int(int32((langruntime.CheckedI64Divide(carry, divisor))))}))
+		carry = langruntime.CheckedI64Remainder(carry, divisor)
+		i = langruntime.CheckedI32(langruntime.CheckedSignedAdd(i, 1))
+	}
+	quotient := numericVar{sign: resSign, weight: resWeight, dscale: rscale, digits: digits}
+	if round {
+		return numericVarStrip(numericVarRound(quotient, rscale))
+	}
+	return numericVarStrip(numericVarTrunc(quotient, rscale))
+}
+func numericVarDiv(left *numericVar, right *numericVar, rscale int, round bool) numericVar {
+	rscale = langruntime.CheckedI32(rscale)
+	var1ndigits := numericVarCount(left)
+	var2ndigits := numericVarCount(right)
+	if var2ndigits <= 2 {
+		idivisor := numericVarDigit(right, 0)
+		idivisorWeight := right.weight
+		if var2ndigits == 2 {
+			idivisor = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(idivisor, numericVarNbase), numericVarDigit(right, 1)))
+			idivisorWeight = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(idivisorWeight, 1))
+		}
+		if right.sign < 0 {
+			idivisor = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, idivisor))
+		}
+		return numericVarDivInt(left, idivisor, idivisorWeight, rscale, round)
+	}
+	if var1ndigits == 0 {
+		return numericVarZero(rscale)
+	}
+	resSign := 1
+	if left.sign != right.sign {
+		resSign = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+	}
+	resWeight := langruntime.CheckedSignedSubtract(left.weight, right.weight)
+	resNdigits := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(resWeight, 1), langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(rscale, numericVarDecDigits), 1)), numericVarDecDigits))
+	if resNdigits < 1 {
+		resNdigits = langruntime.CheckedI32(1)
+	}
+	if round {
+		resNdigits = langruntime.CheckedI32(langruntime.CheckedSignedAdd(resNdigits, 1))
+	}
+	divNdigits := langruntime.CheckedSignedAdd(resNdigits, var2ndigits)
+	if var1ndigits > divNdigits {
+		divNdigits = langruntime.CheckedI32(var1ndigits)
+	}
+	dividend := numericVarZeros(langruntime.CheckedSignedAdd(divNdigits, 1))
+	divisor := numericVarZeros(langruntime.CheckedSignedAdd(var2ndigits, 1))
+	index := 0
+	for index < len(left.digits) {
+		dividend[langruntime.CheckedAdd(index, 1)] = copynumericWireDigit(left.digits[index])
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	index = langruntime.CheckedIndex(0)
+	for index < len(right.digits) {
+		divisor[langruntime.CheckedAdd(index, 1)] = copynumericWireDigit(right.digits[index])
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	divisorEnd := langruntime.IndexFromI32(var2ndigits, 0)
+	if divisor[1].value < numericVarHalfNbase {
+		d := langruntime.CheckedSignedDivide(numericVarNbase, (langruntime.CheckedSignedAdd(divisor[1].value, 1)))
+		carry := 0
+		i := divisorEnd
+		for i > 0 {
+			carry = langruntime.CheckedI32(langruntime.CheckedSignedAdd(carry, langruntime.CheckedSignedMultiply(divisor[i].value, d)))
+			divisor[i] = copynumericWireDigit(numericWireDigit{value: langruntime.CheckedSignedRemainder(carry, numericVarNbase)})
+			carry = langruntime.CheckedI32(langruntime.CheckedSignedDivide(carry, numericVarNbase))
+			i = langruntime.CheckedIndex(langruntime.CheckedSubtract(i, 1))
+		}
+		carry = langruntime.CheckedI32(0)
+		j := langruntime.CheckedAdd(langruntime.IndexFromI32(var1ndigits, 0), 1)
+		for j > 0 {
+			j = langruntime.CheckedIndex(langruntime.CheckedSubtract(j, 1))
+			carry = langruntime.CheckedI32(langruntime.CheckedSignedAdd(carry, langruntime.CheckedSignedMultiply(dividend[j].value, d)))
+			dividend[j] = copynumericWireDigit(numericWireDigit{value: langruntime.CheckedSignedRemainder(carry, numericVarNbase)})
+			carry = langruntime.CheckedI32(langruntime.CheckedSignedDivide(carry, numericVarNbase))
+		}
+	}
+	divisor1 := divisor[1].value
+	divisor2 := divisor[2].value
+	resDigits := []numericWireDigit{}
+	resEnd := langruntime.IndexFromI32(resNdigits, 0)
+	j := 0
+	for j < resEnd {
+		next2digits := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(dividend[j].value, numericVarNbase), dividend[langruntime.CheckedAdd(j, 1)].value)
+		qhat := 0
+		if next2digits != 0 {
+			if dividend[j].value == divisor1 {
+				qhat = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(numericVarNbase, 1))
+			} else {
+				qhat = langruntime.CheckedI32(langruntime.CheckedSignedDivide(next2digits, divisor1))
+			}
+			for langruntime.CheckedSignedMultiply(divisor2, qhat) > langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply((langruntime.CheckedSignedSubtract(next2digits, langruntime.CheckedSignedMultiply(qhat, divisor1))), numericVarNbase), dividend[langruntime.CheckedAdd(j, 2)].value) {
+				qhat = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(qhat, 1))
+			}
+			if qhat > 0 {
+				borrow := 0
+				i := langruntime.CheckedAdd(divisorEnd, 1)
+				for i > 0 {
+					i = langruntime.CheckedIndex(langruntime.CheckedSubtract(i, 1))
+					tmpResult := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(dividend[langruntime.CheckedAdd(j, i)].value, borrow), langruntime.CheckedSignedMultiply(divisor[i].value, qhat))
+					borrow = langruntime.CheckedI32(langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(numericVarNbase, 1), tmpResult)), numericVarNbase))
+					dividend[langruntime.CheckedAdd(j, i)] = copynumericWireDigit(numericWireDigit{value: langruntime.CheckedSignedAdd(tmpResult, langruntime.CheckedSignedMultiply(borrow, numericVarNbase))})
+				}
+				if borrow != 0 {
+					qhat = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(qhat, 1))
+					carry := 0
+					i = langruntime.CheckedIndex(langruntime.CheckedAdd(divisorEnd, 1))
+					for i > 0 {
+						i = langruntime.CheckedIndex(langruntime.CheckedSubtract(i, 1))
+						carry = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(carry, dividend[langruntime.CheckedAdd(j, i)].value), divisor[i].value))
+						if carry >= numericVarNbase {
+							dividend[langruntime.CheckedAdd(j, i)] = copynumericWireDigit(numericWireDigit{value: langruntime.CheckedSignedSubtract(carry, numericVarNbase)})
+							carry = langruntime.CheckedI32(1)
+						} else {
+							dividend[langruntime.CheckedAdd(j, i)] = copynumericWireDigit(numericWireDigit{value: carry})
+							carry = langruntime.CheckedI32(0)
+						}
+					}
+				}
+			}
+		}
+		langruntime.CheckedAdd(len(resDigits), 1)
+		resDigits = append(resDigits, copynumericWireDigit(numericWireDigit{value: qhat}))
+		j = langruntime.CheckedAdd(j, 1)
+	}
+	quotient := numericVar{sign: resSign, weight: resWeight, dscale: rscale, digits: resDigits}
+	if round {
+		return numericVarStrip(numericVarRound(quotient, rscale))
+	}
+	return numericVarStrip(numericVarTrunc(quotient, rscale))
+}
+func numericVarDivMod(left *numericVar, right *numericVar) numericVarDivision {
+	one := numericVarFromI64(int64(1))
+	q := numericVarDiv(left, right, 0, false)
+	product := numericVarMul(right, &q, right.dscale)
+	r := numericVarSub(left, &product)
+	for numericVarCount(&r) != 0 && r.sign != left.sign {
+		if left.sign == right.sign {
+			q = copynumericVar(numericVarSub(&q, &one))
+			r = copynumericVar(numericVarAdd(&r, right))
+		} else {
+			q = copynumericVar(numericVarAdd(&q, &one))
+			r = copynumericVar(numericVarSub(&r, right))
+		}
+	}
+	for numericVarCmpAbs(&r, right) >= 0 {
+		if left.sign == right.sign {
+			q = copynumericVar(numericVarAdd(&q, &one))
+			r = copynumericVar(numericVarSub(&r, right))
+		} else {
+			q = copynumericVar(numericVarSub(&q, &one))
+			r = copynumericVar(numericVarAdd(&r, right))
+		}
+	}
+	return numericVarDivision{quotient: q, remainder: r}
 }
 
 const numericSupportRangeError = 3452547

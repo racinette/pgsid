@@ -26,149 +26,172 @@
 
 const NUMERIC_SQRT_INVALID_ARGUMENT: u32 = 3452595;
 
-fn numeric_square_root_scaled(work: NumericWork, scale: i32) -> NumericWork {
-    let mut weight = work.weight / 2;
-    if work.weight % 2 < 0 {
-        weight = weight - 1;
+// PostgreSQL's sqrt_var: Paul Zimmermann's Karatsuba square root, computed iteratively over
+// NBASE digits and rounded to rscale, which may be negative. Callers reject negative inputs.
+fn numeric_square_root_scaled(work: NumericWork, rscale: i32) -> NumericWork {
+    let arg = numeric_var_from_work(&work);
+    let arg_ndigits = numeric_var_count(&arg);
+    if arg_ndigits == 0 {
+        let zero = numeric_var_zero(rscale);
+        return numeric_work_from_var(&zero);
     }
-    let characters: Vec<char> = work.digits.chars().collect();
-    let mut input_index: usize = 0;
-    let mut root: Vec<NumericWireDigit> = Vec::new();
-    root.push(NumericWireDigit { value: 0 });
-    let mut remainder: Vec<NumericWireDigit> = Vec::new();
-    remainder.push(NumericWireDigit { value: 0 });
-    let mut remainder_length: usize = 1;
-    let mut coefficient = String::new();
-    let mut position = weight;
-    while position >= 0 - scale - 1 && work.sign != 0 {
-        let mut pair: i32 = 0;
-        let mut source_position = position * 2 + 1;
-        let mut step: i32 = 0;
-        while step < 2 {
-            pair = pair * 10;
-            if source_position <= work.weight && input_index < characters.len() {
-                pair = pair + numeric_wire_decimal_digit(characters[input_index]);
-                input_index += 1;
-            }
-            source_position = source_position - 1;
-            step = step + 1;
-        }
-        let mut carry = pair;
-        let mut cursor: usize = 0;
-        while cursor < remainder_length {
-            let word = remainder[cursor].value * 100 + carry;
-            remainder[cursor] = NumericWireDigit {
-                value: word % 10000,
-            };
-            carry = word / 10000;
-            cursor += 1;
-        }
-        if carry > 0 {
-            if remainder_length == remainder.len() {
-                remainder.push(NumericWireDigit { value: carry });
-            } else {
-                remainder[remainder_length] = NumericWireDigit { value: carry };
-            };
-            remainder_length += 1;
-        }
-        let mut digit: i32 = 9;
-        let mut searching = true;
-        while searching {
-            let mut candidate: Vec<NumericWireDigit> = Vec::new();
-            carry = digit * digit;
-            cursor = 0;
-            while cursor < root.len() {
-                let word = root[cursor].value * (20 * digit) + carry;
-                candidate.push(NumericWireDigit {
-                    value: word % 10000,
-                });
-                carry = word / 10000;
-                cursor += 1;
-            }
-            if carry > 0 {
-                candidate.push(NumericWireDigit { value: carry });
-            }
-            let mut candidate_length = candidate.len();
-            while candidate_length > 1 && candidate[candidate_length - 1].value == 0 {
-                candidate_length = candidate_length - 1;
-            }
-            let mut order: i32 = 0;
-            if remainder_length < candidate_length {
-                order = -1;
-            }
-            if remainder_length > candidate_length {
-                order = 1;
-            }
-            cursor = candidate_length;
-            while order == 0 && cursor > 0 {
-                cursor = cursor - 1;
-                if remainder[cursor].value < candidate[cursor].value {
-                    order = -1;
-                }
-                if remainder[cursor].value > candidate[cursor].value {
-                    order = 1;
-                }
-            }
-            if order >= 0 {
-                let mut borrow: i32 = 0;
-                cursor = 0;
-                while cursor < remainder_length {
-                    let mut word = remainder[cursor].value - borrow;
-                    if cursor < candidate_length {
-                        word = word - candidate[cursor].value;
-                    }
-                    borrow = 0;
-                    if word < 0 {
-                        word = word + 10000;
-                        borrow = 1;
-                    }
-                    remainder[cursor] = NumericWireDigit { value: word };
-                    cursor += 1;
-                }
-                while remainder_length > 1 && remainder[remainder_length - 1].value == 0 {
-                    remainder_length = remainder_length - 1;
-                }
-                searching = false;
-            } else {
-                digit = digit - 1;
-            };
-        }
-        carry = digit;
-        cursor = 0;
-        while cursor < root.len() {
-            let word = root[cursor].value * 10 + carry;
-            root[cursor] = NumericWireDigit {
-                value: word % 10000,
-            };
-            carry = word / 10000;
-            cursor += 1;
-        }
-        if carry > 0 {
-            root.push(NumericWireDigit { value: carry });
-        }
-        coefficient.push(char::from_u32((digit + 48) as u32).unwrap_or('0'));
-        if input_index >= characters.len() && remainder_length == 1 && remainder[0].value == 0 {
-            position = 0 - scale - 1;
-        }
-        position = position - 1;
+    // The result weight is half the input weight, rounded towards minus infinity.
+    let mut res_weight = arg.weight / 2;
+    if arg.weight < 0 {
+        res_weight = 0 - ((0 - arg.weight - 1) / 2 + 1);
     }
-    let mut sign: i32 = 1;
-    if coefficient == String::new() {
-        sign = 0;
-        weight = 0;
+    // At least one decimal digit beyond rscale ensures correct rounding.
+    let mut res_ndigits = res_weight + 1 - (0 - rscale - 1) / NUMERIC_VAR_DEC_DIGITS;
+    if rscale + 1 >= 0 {
+        res_ndigits = res_weight + 1 + (rscale + NUMERIC_VAR_DEC_DIGITS) / NUMERIC_VAR_DEC_DIGITS;
     }
-    numeric_work_rounded(
-        NumericWork {
-            valid: true,
-            special: 1,
-            sign: sign,
-            weight: weight,
-            scale: scale,
-            digits: coefficient,
-        },
-        scale,
-        1,
-    )
+    if res_ndigits < 1 {
+        res_ndigits = 1;
+    }
+    let mut src_ndigits = arg.weight + 1 + (res_ndigits - res_weight - 1) * 2;
+    if src_ndigits < 1 {
+        src_ndigits = 1;
+    }
+    // The input digits used by the end of each iteration, outermost first. Each inner square
+    // root takes the input written as a3*b^3 + a2*b^2 + a1*b + a0 with a3 >= b/4.
+    let mut ndigits: Vec<NumericWireDigit> = Vec::new();
+    ndigits.push(NumericWireDigit { value: src_ndigits });
+    let mut step: i32 = 0;
+    while src_ndigits > 4 {
+        let mut blen = src_ndigits / 4;
+        if blen * 4 == src_ndigits && numeric_var_digit(&arg, 0) < NUMERIC_VAR_NBASE / 4 {
+            blen = blen - 1;
+        }
+        src_ndigits = src_ndigits - 2 * blen;
+        step = step + 1;
+        ndigits.push(NumericWireDigit { value: src_ndigits });
+    }
+    // The innermost root of at most four NBASE digits, estimated in double precision and
+    // corrected by Newton's method. The root of four NBASE digits fits in 32 bits.
+    let mut arg_int64 = numeric_var_digit(&arg, 0) as i64;
+    let mut src_idx: i32 = 1;
+    while src_idx < src_ndigits {
+        let digit = numeric_var_digit(&arg, src_idx) as i64;
+        arg_int64 = arg_int64 * 10000i64 + digit;
+        src_idx = src_idx + 1;
+    }
+    // Both halves and the high half's scaled value are exact doubles, so their sum rounds the
+    // input once, as a direct conversion would.
+    let high = (arg_int64 / 100000000i64) as i32;
+    let low = (arg_int64 % 100000000i64) as i32;
+    let estimate = (high as f64) * 100000000.0f64 + (low as f64);
+    let mut s_int64 = (estimate.sqrt() as i32) as i64;
+    let mut r_int64 = arg_int64 - s_int64 * s_int64;
+    while r_int64 < 0i64 || r_int64 > 2i64 * s_int64 {
+        s_int64 = (s_int64 + arg_int64 / s_int64) / 2i64;
+        r_int64 = arg_int64 - s_int64 * s_int64;
+    }
+    // Iterations whose result still fits in 64 bits.
+    step = step - 1;
+    while step >= 0 && ndigits[usize::try_from(step).unwrap_or(0)].value <= 8 {
+        src_ndigits = ndigits[usize::try_from(step).unwrap_or(0)].value;
+        let blen = (src_ndigits - src_idx) / 2;
+        let mut a0: i32 = 0;
+        let mut a1: i32 = 0;
+        let mut b: i32 = 1;
+        let mut i: i32 = 0;
+        while i < blen {
+            b = b * NUMERIC_VAR_NBASE;
+            a1 = a1 * NUMERIC_VAR_NBASE + numeric_var_digit(&arg, src_idx);
+            src_idx = src_idx + 1;
+            i = i + 1;
+        }
+        i = 0;
+        while i < blen {
+            a0 = a0 * NUMERIC_VAR_NBASE + numeric_var_digit(&arg, src_idx);
+            src_idx = src_idx + 1;
+            i = i + 1;
+        }
+        let b_int64 = b as i64;
+        let a1_int64 = a1 as i64;
+        let a0_int64 = a0 as i64;
+        // (q, u) = DivRem(r*b + a1, 2*s); s = s*b + q; r = u*b + a0 - q^2
+        let numer = r_int64 * b_int64 + a1_int64;
+        let denom = 2i64 * s_int64;
+        let q = numer / denom;
+        let u = numer - q * denom;
+        s_int64 = s_int64 * b_int64 + q;
+        r_int64 = u * b_int64 + a0_int64 - q * q;
+        if r_int64 < 0i64 {
+            // s is too large by one.
+            r_int64 = r_int64 + s_int64;
+            s_int64 = s_int64 - 1i64;
+            r_int64 = r_int64 + s_int64;
+        }
+        step = step - 1;
+    }
+    let one = numeric_var_from_i64(1i64);
+    let mut s_var = numeric_var_from_i64(s_int64);
+    let mut r_var = numeric_var_zero(0);
+    if step >= 0 {
+        r_var = numeric_var_from_i64(r_int64);
+    }
+    while step >= 0 {
+        src_ndigits = ndigits[usize::try_from(step).unwrap_or(0)].value;
+        let blen = (src_ndigits - src_idx) / 2;
+        let a1_var = numeric_square_root_part(&arg, src_idx, blen);
+        src_idx = src_idx + blen;
+        let a0_var = numeric_square_root_part(&arg, src_idx, blen);
+        src_idx = src_idx + blen;
+        let r_scaled = numeric_var_shifted(&r_var, blen);
+        let numer = numeric_var_add(&r_scaled, &a1_var);
+        let denom = numeric_var_add(&s_var, &s_var);
+        let division = numeric_var_div_mod(&numer, &denom);
+        let remainder = division.remainder.clone();
+        let q_var = division.quotient;
+        let u_scaled = numeric_var_shifted(&remainder, blen);
+        let u_var = numeric_var_add(&u_scaled, &a0_var);
+        let s_scaled = numeric_var_shifted(&s_var, blen);
+        s_var = numeric_var_add(&s_scaled, &q_var);
+        let square = numeric_var_mul(&q_var, &q_var, 0);
+        if step > 0 {
+            r_var = numeric_var_sub(&u_var, &square);
+            if r_var.sign < 0 {
+                r_var = numeric_var_add(&r_var, &s_var);
+                s_var = numeric_var_sub(&s_var, &one);
+                r_var = numeric_var_add(&r_var, &s_var);
+            };
+        } else if numeric_var_cmp(&u_var, &square) < 0 {
+            // The last remainder matters only for its sign.
+            s_var = numeric_var_sub(&s_var, &one);
+        }
+        step = step - 1;
+    }
+    let root = NumericVar {
+        sign: 1,
+        weight: res_weight,
+        dscale: s_var.dscale,
+        digits: s_var.digits,
+    };
+    let rounded = numeric_var_strip(numeric_var_round(root, rscale));
+    numeric_work_from_var(&rounded)
+}
+
+// blen input digits from start, as an integer; digits past the input are zeros.
+fn numeric_square_root_part(arg: &NumericVar, start: i32, blen: i32) -> NumericVar {
+    let count = numeric_var_count(arg);
+    if start >= count {
+        return numeric_var_zero(0);
+    }
+    let mut digits: Vec<NumericWireDigit> = Vec::new();
+    let mut index = start;
+    while index < start + blen && index < count {
+        digits.push(NumericWireDigit {
+            value: numeric_var_digit(arg, index),
+        });
+        index = index + 1;
+    }
+    numeric_var_strip(NumericVar {
+        sign: 1,
+        weight: blen - 1,
+        dscale: 0,
+        digits: digits,
+    })
 }
 
 fn numeric_square_root(work: NumericWork) -> NumericValue {

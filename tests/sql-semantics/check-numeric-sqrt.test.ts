@@ -125,6 +125,15 @@ const sampleSql = (type: string): string[] =>
     '0e-16383',
     '1e131070',
     '1e-1001',
+    // Roots longer than a few NBASE digits take the iterative steps on numeric digits.
+    '99999999999999999999',
+    '100000000000000000001',
+    '2e16001',
+    '7e8000',
+    '3e-9001',
+    '2.' + '7182818284590452353602874713526624977572470936999595749669676277'.repeat(16),
+    '9'.repeat(1000) + '.' + '9'.repeat(1000),
+    '0.' + '0'.repeat(500) + '123456789'.repeat(40),
     ...Array.from(
       { length: 80 },
       (_, index) => String((index + 1) * 7919) + '.' + String((index + 1) * 15485863),
