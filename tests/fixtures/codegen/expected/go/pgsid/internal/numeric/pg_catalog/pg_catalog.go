@@ -132,10 +132,10 @@
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
  */
 
-// PostgreSQL's numeric algorithms on NumericVar. Where PostgreSQL computes an exact result,
-// any exact method yields the same digits, so these routines use PostgreSQL's 32-bit forms and
-// keep the translated targets on plain numbers. Where it approximates, by truncating a product
-// or estimating a quotient, they reproduce PostgreSQL's arithmetic step for step.
+// PostgreSQL's numeric algorithms on NumericVar. Where PostgreSQL computes an exact product or
+// quotient, any exact method yields the same digits, so these routines hand it to the digit
+// kernels. Where it approximates, by truncating a product or estimating a quotient, they
+// reproduce PostgreSQL's arithmetic step for step.
 
 // A result, the numeric overflow PostgreSQL raises while computing it, or a result that
 // depends on the deployment's math library.
@@ -1776,9 +1776,11 @@ func numericVarMul(left *checkruntime.NumericVar, right *checkruntime.NumericVar
 	resWeight := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(left.Weight, right.Weight), 1), langruntime.CheckedSignedMultiply(2, resNdigitpairs)), resNdigits), langruntime.CheckedSignedRemainder(var1ndigits, 2)), langruntime.CheckedSignedRemainder(var2ndigits, 2))
 	maxdigits := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(resWeight, 1), langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(rscale, numericVarDecDigits), 1)), numericVarDecDigits)), numericVarMulGuardDigits)
 	maxdigitpairs := langruntime.CheckedSignedAdd(langruntime.CheckedSignedDivide(maxdigits, 2), 1)
-	if maxdigitpairs < resNdigitpairs {
-		resNdigitpairs = langruntime.CheckedI32(maxdigitpairs)
+	if maxdigitpairs >= resNdigitpairs {
+		product := numericVarDigitsProduct(left, right)
+		return numericVarStrip(numericVarRound(product, rscale))
 	}
+	resNdigitpairs = langruntime.CheckedI32(maxdigitpairs)
 	resNdigits = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(2, resNdigitpairs))
 	if resNdigitpairs <= pairOffset {
 		return numericVarZero(rscale)
@@ -1870,100 +1872,28 @@ func numericVarMul(left *checkruntime.NumericVar, right *checkruntime.NumericVar
 	return numericVarStrip(numericVarRound(product, rscale))
 }
 func numericVarMulExact(left *checkruntime.NumericVar, right *checkruntime.NumericVar) checkruntime.NumericVar {
-	var1ndigits := numericVarCount(left)
-	var2ndigits := numericVarCount(right)
+	return numericVarStrip(numericVarDigitsProduct(left, right))
+}
+func numericVarDigitsCopy(value *checkruntime.NumericVar) []int {
+	digits := []int{}
+	index := 0
+	for index < len(value.Digits) {
+		langruntime.CheckedAdd(len(digits), 1)
+		digits = append(digits, langruntime.CheckedIndex(value.Digits[index]))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return digits
+}
+func numericVarDigitsProduct(left *checkruntime.NumericVar, right *checkruntime.NumericVar) checkruntime.NumericVar {
 	resSign := 1
 	if left.Sign != right.Sign {
 		resSign = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
 	}
-	resNdigits := langruntime.CheckedSignedAdd(var1ndigits, var2ndigits)
-	reversed := []int{}
-	carry := 0
-	k := langruntime.CheckedSignedSubtract(resNdigits, 1)
-	for k >= 1 {
-		term := carry
-		i1 := langruntime.CheckedSignedSubtract(k, var2ndigits)
-		if i1 < 0 {
-			i1 = langruntime.CheckedI32(0)
-		}
-		for i1 < var1ndigits && i1 <= langruntime.CheckedSignedSubtract(k, 1) {
-			term = langruntime.CheckedI32(langruntime.CheckedSignedAdd(term, langruntime.CheckedSignedMultiply(numericVarDigit(left, i1), numericVarDigit(right, langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(k, 1), i1)))))
-			i1 = langruntime.CheckedI32(langruntime.CheckedSignedAdd(i1, 1))
-		}
-		langruntime.CheckedAdd(len(reversed), 1)
-		reversed = append(reversed, langruntime.CheckedIndex(langruntime.IndexFromI32(langruntime.CheckedSignedRemainder(term, numericVarNbase), 0)))
-		carry = langruntime.CheckedI32(langruntime.CheckedSignedDivide(term, numericVarNbase))
-		k = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(k, 1))
-	}
-	langruntime.CheckedAdd(len(reversed), 1)
-	reversed = append(reversed, langruntime.CheckedIndex(langruntime.IndexFromI32(carry, 0)))
-	low := 0
-	for low < len(reversed) && reversed[low] == 0 {
-		low = langruntime.CheckedAdd(low, 1)
-	}
-	high := len(reversed)
-	for high > low && reversed[langruntime.CheckedSubtract(high, 1)] == 0 {
-		high = langruntime.CheckedIndex(langruntime.CheckedSubtract(high, 1))
-	}
-	dscale := langruntime.CheckedSignedAdd(left.Dscale, right.Dscale)
-	if high == low {
-		return numericVarZero(dscale)
-	}
-	digits := []int{}
-	index := high
-	for index > low {
-		index = langruntime.CheckedIndex(langruntime.CheckedSubtract(index, 1))
-		langruntime.CheckedAdd(len(digits), 1)
-		digits = append(digits, langruntime.CheckedIndex(reversed[index]))
-	}
-	dropped := int(int32((langruntime.CheckedSubtract(len(reversed), high))))
-	return checkruntime.NumericVar{Sign: resSign, Weight: langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(left.Weight, right.Weight), 1), dropped), Dscale: dscale, Digits: digits}
+	first := numericVarDigitsCopy(left)
+	second := numericVarDigitsCopy(right)
+	return checkruntime.NumericVar{Sign: resSign, Weight: langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(left.Weight, right.Weight), 1), Dscale: langruntime.CheckedSignedAdd(left.Dscale, right.Dscale), Digits: checkruntime.DigitsProduct(first, second)}
 }
-func numericVarDivInt(value *checkruntime.NumericVar, ival int, ivalWeight int, rscale int, round bool) checkruntime.NumericVar {
-	ival = langruntime.CheckedI32(ival)
-	ivalWeight = langruntime.CheckedI32(ivalWeight)
-	rscale = langruntime.CheckedI32(rscale)
-	varNdigits := numericVarCount(value)
-	if varNdigits == 0 {
-		return numericVarZero(rscale)
-	}
-	resSign := 1
-	if value.Sign > 0 {
-		if ival < 0 {
-			resSign = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
-		}
-	} else if ival > 0 {
-		resSign = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
-	}
-	resWeight := langruntime.CheckedSignedSubtract(value.Weight, ivalWeight)
-	resNdigits := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(resWeight, 1), langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(rscale, numericVarDecDigits), 1)), numericVarDecDigits))
-	if resNdigits < 1 {
-		resNdigits = langruntime.CheckedI32(1)
-	}
-	if round {
-		resNdigits = langruntime.CheckedI32(langruntime.CheckedSignedAdd(resNdigits, 1))
-	}
-	divisor := int64(langruntime.CheckedI32(ival))
-	if divisor < int64(0) {
-		divisor = langruntime.CheckedI64Subtract(int64(0), divisor)
-	}
-	digits := []int{}
-	carry := int64(0)
-	i := 0
-	for i < resNdigits {
-		digit := int64(langruntime.CheckedI32(numericVarDigit(value, i)))
-		carry = langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(carry, int64(10000)), digit)
-		langruntime.CheckedAdd(len(digits), 1)
-		digits = append(digits, langruntime.CheckedIndex(langruntime.IndexFromI32(int(int32((langruntime.CheckedI64Divide(carry, divisor)))), 0)))
-		carry = langruntime.CheckedI64Remainder(carry, divisor)
-		i = langruntime.CheckedI32(langruntime.CheckedSignedAdd(i, 1))
-	}
-	quotient := checkruntime.NumericVar{Sign: resSign, Weight: resWeight, Dscale: rscale, Digits: digits}
-	if round {
-		return numericVarStrip(numericVarRound(quotient, rscale))
-	}
-	return numericVarStrip(numericVarTrunc(quotient, rscale))
-}
+
 func numericVarDiv(left *checkruntime.NumericVar, right *checkruntime.NumericVar, rscale int, round bool, exact bool) checkruntime.NumericVar {
 	rscale = langruntime.CheckedI32(rscale)
 	if exact || numericVarCount(right) <= langruntime.CheckedSignedMultiply(2, (langruntime.CheckedSignedAdd(numericVarDivGuardDigits, 2))) || numericVarCount(left) == 0 {
@@ -1975,18 +1905,6 @@ func numericVarDivExact(left *checkruntime.NumericVar, right *checkruntime.Numer
 	rscale = langruntime.CheckedI32(rscale)
 	var1ndigits := numericVarCount(left)
 	var2ndigits := numericVarCount(right)
-	if var2ndigits <= 2 {
-		idivisor := numericVarDigit(right, 0)
-		idivisorWeight := right.Weight
-		if var2ndigits == 2 {
-			idivisor = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(idivisor, numericVarNbase), numericVarDigit(right, 1)))
-			idivisorWeight = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(idivisorWeight, 1))
-		}
-		if right.Sign < 0 {
-			idivisor = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, idivisor))
-		}
-		return numericVarDivInt(left, idivisor, idivisorWeight, rscale, round)
-	}
 	if var1ndigits == 0 {
 		return numericVarZero(rscale)
 	}
@@ -2002,91 +1920,29 @@ func numericVarDivExact(left *checkruntime.NumericVar, right *checkruntime.Numer
 	if round {
 		resNdigits = langruntime.CheckedI32(langruntime.CheckedSignedAdd(resNdigits, 1))
 	}
-	divNdigits := langruntime.CheckedSignedAdd(resNdigits, var2ndigits)
-	if var1ndigits > divNdigits {
-		divNdigits = langruntime.CheckedI32(var1ndigits)
+	low := langruntime.CheckedSignedAdd(langruntime.CheckedSignedSubtract(resWeight, resNdigits), 1)
+	shift := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract((langruntime.CheckedSignedAdd(langruntime.CheckedSignedSubtract(left.Weight, var1ndigits), 1)), (langruntime.CheckedSignedAdd(langruntime.CheckedSignedSubtract(right.Weight, var2ndigits), 1))), low)
+	dividend := []int{}
+	kept := var1ndigits
+	if shift < 0 {
+		kept = langruntime.CheckedI32(langruntime.CheckedSignedAdd(var1ndigits, shift))
 	}
-	dividend := numericVarZeros(langruntime.CheckedSignedAdd(divNdigits, 1))
-	divisor := numericVarZeros(langruntime.CheckedSignedAdd(var2ndigits, 1))
 	index := 0
-	for index < len(left.Digits) {
-		dividend[langruntime.CheckedAdd(index, 1)] = langruntime.CheckedIndex(left.Digits[index])
-		index = langruntime.CheckedAdd(index, 1)
+	for index < kept {
+		langruntime.CheckedAdd(len(dividend), 1)
+		dividend = append(dividend, langruntime.CheckedIndex(left.Digits[langruntime.IndexFromI32(index, 0)]))
+		index = langruntime.CheckedI32(langruntime.CheckedSignedAdd(index, 1))
 	}
-	index = langruntime.CheckedIndex(0)
-	for index < len(right.Digits) {
-		divisor[langruntime.CheckedAdd(index, 1)] = langruntime.CheckedIndex(right.Digits[index])
-		index = langruntime.CheckedAdd(index, 1)
+	index = langruntime.CheckedI32(0)
+	for index < shift {
+		langruntime.CheckedAdd(len(dividend), 1)
+		dividend = append(dividend, langruntime.CheckedIndex(0))
+		index = langruntime.CheckedI32(langruntime.CheckedSignedAdd(index, 1))
 	}
-	divisorEnd := langruntime.IndexFromI32(var2ndigits, 0)
-	if (int(int32(divisor[1]))) < numericVarHalfNbase {
-		d := langruntime.CheckedSignedDivide(numericVarNbase, (langruntime.CheckedSignedAdd((int(int32(divisor[1]))), 1)))
-		carry := 0
-		i := divisorEnd
-		for i > 0 {
-			carry = langruntime.CheckedI32(langruntime.CheckedSignedAdd(carry, langruntime.CheckedSignedMultiply((int(int32(divisor[i]))), d)))
-			divisor[i] = langruntime.CheckedIndex(langruntime.IndexFromI32(langruntime.CheckedSignedRemainder(carry, numericVarNbase), 0))
-			carry = langruntime.CheckedI32(langruntime.CheckedSignedDivide(carry, numericVarNbase))
-			i = langruntime.CheckedIndex(langruntime.CheckedSubtract(i, 1))
-		}
-		carry = langruntime.CheckedI32(0)
-		j := langruntime.CheckedAdd(langruntime.IndexFromI32(var1ndigits, 0), 1)
-		for j > 0 {
-			j = langruntime.CheckedIndex(langruntime.CheckedSubtract(j, 1))
-			carry = langruntime.CheckedI32(langruntime.CheckedSignedAdd(carry, langruntime.CheckedSignedMultiply((int(int32(dividend[j]))), d)))
-			dividend[j] = langruntime.CheckedIndex(langruntime.IndexFromI32(langruntime.CheckedSignedRemainder(carry, numericVarNbase), 0))
-			carry = langruntime.CheckedI32(langruntime.CheckedSignedDivide(carry, numericVarNbase))
-		}
-	}
-	divisor1 := (int(int32(divisor[1])))
-	divisor2 := (int(int32(divisor[2])))
-	resDigits := []int{}
-	resEnd := langruntime.IndexFromI32(resNdigits, 0)
-	j := 0
-	for j < resEnd {
-		next2digits := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply((int(int32(dividend[j]))), numericVarNbase), (int(int32(dividend[langruntime.CheckedAdd(j, 1)]))))
-		qhat := 0
-		if next2digits != 0 {
-			if (int(int32(dividend[j]))) == divisor1 {
-				qhat = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(numericVarNbase, 1))
-			} else {
-				qhat = langruntime.CheckedI32(langruntime.CheckedSignedDivide(next2digits, divisor1))
-			}
-			for langruntime.CheckedSignedMultiply(divisor2, qhat) > langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply((langruntime.CheckedSignedSubtract(next2digits, langruntime.CheckedSignedMultiply(qhat, divisor1))), numericVarNbase), (int(int32(dividend[langruntime.CheckedAdd(j, 2)])))) {
-				qhat = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(qhat, 1))
-			}
-			if qhat > 0 {
-				borrow := 0
-				i := langruntime.CheckedAdd(divisorEnd, 1)
-				for i > 0 {
-					i = langruntime.CheckedIndex(langruntime.CheckedSubtract(i, 1))
-					tmpResult := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract((int(int32(dividend[langruntime.CheckedAdd(j, i)]))), borrow), langruntime.CheckedSignedMultiply((int(int32(divisor[i]))), qhat))
-					borrow = langruntime.CheckedI32(langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(numericVarNbase, 1), tmpResult)), numericVarNbase))
-					dividend[langruntime.CheckedAdd(j, i)] = langruntime.CheckedIndex(langruntime.IndexFromI32(langruntime.CheckedSignedAdd(tmpResult, langruntime.CheckedSignedMultiply(borrow, numericVarNbase)), 0))
-				}
-				if borrow != 0 {
-					qhat = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(qhat, 1))
-					carry := 0
-					i = langruntime.CheckedIndex(langruntime.CheckedAdd(divisorEnd, 1))
-					for i > 0 {
-						i = langruntime.CheckedIndex(langruntime.CheckedSubtract(i, 1))
-						carry = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(carry, (int(int32(dividend[langruntime.CheckedAdd(j, i)])))), (int(int32(divisor[i])))))
-						if carry >= numericVarNbase {
-							dividend[langruntime.CheckedAdd(j, i)] = langruntime.CheckedIndex(langruntime.IndexFromI32(langruntime.CheckedSignedSubtract(carry, numericVarNbase), 0))
-							carry = langruntime.CheckedI32(1)
-						} else {
-							dividend[langruntime.CheckedAdd(j, i)] = langruntime.CheckedIndex(langruntime.IndexFromI32(carry, 0))
-							carry = langruntime.CheckedI32(0)
-						}
-					}
-				}
-			}
-		}
-		langruntime.CheckedAdd(len(resDigits), 1)
-		resDigits = append(resDigits, langruntime.CheckedIndex(langruntime.IndexFromI32(qhat, 0)))
-		j = langruntime.CheckedAdd(j, 1)
-	}
-	quotient := checkruntime.NumericVar{Sign: resSign, Weight: resWeight, Dscale: rscale, Digits: resDigits}
+	divisor := numericVarDigitsCopy(right)
+	digits := checkruntime.DigitsQuotient(dividend, divisor)
+	count := int(int32(len(digits)))
+	quotient := checkruntime.NumericVar{Sign: resSign, Weight: langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(low, count), 1), Dscale: rscale, Digits: digits}
 	if round {
 		return numericVarStrip(numericVarRound(quotient, rscale))
 	}

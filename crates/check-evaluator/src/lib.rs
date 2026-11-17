@@ -3,6 +3,7 @@ pub use pgsid_regex_engine::*;
 pub mod checkruntime {
     include!("values.rs");
     include!("numeric.rs");
+    include!("kernels.rs");
     include!("network.rs");
     include!("mac.rs");
     include!("uuid.rs");

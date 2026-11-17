@@ -765,6 +765,12 @@ export function numericText(value: NumericVar): string {
     }
     return output;
 }
+export function digitsProduct(left: number[], right: number[]): number[] {
+    return langruntime.kernelDigitsProduct(left, right);
+}
+export function digitsQuotient(dividend: number[], divisor: number[]): number[] {
+    return langruntime.kernelDigitsQuotient(dividend, divisor);
+}
 interface JsonSyntaxSource {
     characters: string[];
 }

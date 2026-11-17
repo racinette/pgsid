@@ -677,10 +677,18 @@ func (g *generator) goItem(value *node) []ast.Decl {
 		g.locals, g.localTypes = make(map[string]string), make(map[string]*node)
 		parameters := make([]*ast.Field, 0, len(value.cold().Parameters))
 		body := make([]ast.Stmt, 0, len(value.cold().Body)+len(value.cold().Parameters))
+		inputs := make([]ast.Expr, 0, len(value.cold().Parameters))
 		for _, parameter := range value.cold().Parameters {
 			name := casedName(parameter.Name, false)
 			g.locals[parameter.Name], g.localTypes[parameter.Name] = name, parameter.Type
 			parameters = append(parameters, &ast.Field{Names: []*ast.Ident{goIdent(name)}, Type: g.goType(parameter.Type)})
+			inputs = append(inputs, goIdent(name))
+		}
+		// The language runtime implements each kernel natively and only reads its inputs.
+		if value.cold().Kernel {
+			g.locals, g.localTypes = nil, nil
+			native := "Kernel" + casedName(value.cold().Name, true)
+			return []ast.Decl{goFunction(g.name(value.cold().Name), parameters, g.goType(value.cold().ReturnType), []ast.Stmt{&ast.ReturnStmt{Results: []ast.Expr{goCall(native, inputs...)}}})}
 		}
 		for _, parameter := range value.cold().Parameters {
 			if value.cold().Visibility == "crate" {

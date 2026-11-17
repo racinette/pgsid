@@ -773,6 +773,12 @@ func NumericText(value *NumericVar) string {
 	}
 	return string(output)
 }
+func DigitsProduct(left []int, right []int) []int {
+	return langruntime.KernelDigitsProduct(left, right)
+}
+func DigitsQuotient(dividend []int, divisor []int) []int {
+	return langruntime.KernelDigitsQuotient(dividend, divisor)
+}
 
 type jsonSyntaxSource struct {
 	characters []rune

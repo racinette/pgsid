@@ -11,6 +11,7 @@
       "files": [
         "check-evaluator/src/values.rs",
         "check-evaluator/src/numeric.rs",
+        { "kernels": "check-evaluator/src/kernels.rs" },
         "check-evaluator/src/network.rs",
         "check-evaluator/src/mac.rs",
         "check-evaluator/src/uuid.rs",

@@ -31,6 +31,10 @@ translated.
     │  │  ├─ jsonpath_grammar.rs ❗              the JSONPath grammar the
     │  │  │                                      JSONPath table generator reads
     │  │  │
+    │  │  ├─ kernels.rs ❗                       exact digit arithmetic each
+    │  │  │                                      translated target runs with its
+    │  │  │                                      own big integers
+    │  │  │
     │  │  ├─ lib.rs ❗                           the native crate root, which
     │  │  │                                      includes each transpiled file
     │  │  │                                      into its module
@@ -134,7 +138,8 @@ translated.
 
 Names each transpiled module, the modules it may reference, and its files in
 order. A file entry is a path relative to this directory, a `directory` whose
-`.rs` files join in name order, or a `generated` table the asset build produces.
+`.rs` files join in name order, a `generated` table the asset build produces,
+or a `kernels` file whose functions each target implements natively.
 
 A module the evaluator's crate root declares lists exactly the files the root
 includes into it, and in the root's order unless a directory supplies them. Any
@@ -159,6 +164,19 @@ manifest when no single item failed.
 
 Input to the JSONPath table generator, never compiled. Change the grammar here
 and regenerate the tables rather than editing them.
+
+### `kernels.rs` — exact digit arithmetic each translated target runs with its own big integers
+
+Functions here compute integer results with exactly one correct value, such as
+the product or truncated quotient of base-10000 digit vectors, so every correct
+implementation returns the same digits. The Rust bodies are the reference and
+run natively; the Go and TypeScript language runtimes implement each function
+by hand with their own big integers, and translation calls those instead of the
+Rust body. Nothing that depends on PostgreSQL's behaviour, floating point or a
+setting belongs here: such code stays in the operations, translated from one
+source. Each function is public, takes and returns digit vectors, has a
+counterpart under the same name in both language runtimes, and is compared
+across all three by the kernel equivalence suite.
 
 ### `[source].rs` — runtime semantics of the transpiled `checkruntime` module
 

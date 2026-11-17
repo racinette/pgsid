@@ -43,6 +43,7 @@ type NodeDetail struct {
 	SourceFile     string      `json:"sourceFile,omitempty"`
 	Name           string      `json:"name"`
 	Visibility     string      `json:"visibility"`
+	Kernel         bool        `json:"kernel,omitempty"`
 	Derives        []string    `json:"derives"`
 	ReturnType     *node       `json:"returnType"`
 	TargetType     *node       `json:"targetType"`

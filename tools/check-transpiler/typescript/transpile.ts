@@ -78,6 +78,7 @@ type Item =
       parameters: { name: string; mutable: boolean; type: TypeNode }[]
       returnType: TypeNode
       body: Stmt[]
+      kernel?: boolean
     }
 
 type Document = {
@@ -1121,6 +1122,24 @@ class Transpiler {
           const parameters = item.parameters.map((item) =>
             parameter(locals.bind(item.name, this.path(item.type)), this.type(item.type)),
           )
+          if (item.kernel) {
+            // The language runtime implements each kernel natively and only reads its inputs.
+            const name = this.names.get(item.name)!
+            const native = `kernel${name[0]!.toUpperCase()}${name.slice(1)}`
+            const inputs = item.parameters.map((parameter) =>
+              identifier(locals.get(parameter.name)!.name),
+            )
+            declarations.push(
+              this.function(
+                name,
+                parameters,
+                this.type(item.returnType),
+                [f.createReturnStatement(call(native, ...inputs))],
+                item.visibility,
+              ),
+            )
+            break
+          }
           const body: ts.Statement[] = []
           for (const parameter of item.parameters) {
             if (item.visibility === 'crate') continue

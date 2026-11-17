@@ -132,10 +132,10 @@
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
  */
 
-// PostgreSQL's numeric algorithms on NumericVar. Where PostgreSQL computes an exact result,
-// any exact method yields the same digits, so these routines use PostgreSQL's 32-bit forms and
-// keep the translated targets on plain numbers. Where it approximates, by truncating a product
-// or estimating a quotient, they reproduce PostgreSQL's arithmetic step for step.
+// PostgreSQL's numeric algorithms on NumericVar. Where PostgreSQL computes an exact product or
+// quotient, any exact method yields the same digits, so these routines hand it to the digit
+// kernels. Where it approximates, by truncating a product or estimating a quotient, they
+// reproduce PostgreSQL's arithmetic step for step.
 
 // A result, the numeric overflow PostgreSQL raises while computing it, or a result that
 // depends on the deployment's math library.

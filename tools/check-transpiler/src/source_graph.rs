@@ -28,6 +28,30 @@ pub fn parse(source: &str) -> Result<String> {
     }
 }
 
+// A kernel is a public function from digit vectors to a digit vector: each target implements it
+// natively, so its signature is all the targets share.
+fn kernel_contract(declaration: &syn::Item) -> Result<()> {
+    let syn::Item::Fn(function) = declaration else {
+        return Err("a kernels file declares only functions".into());
+    };
+    if !matches!(function.vis, syn::Visibility::Public(_)) {
+        return Err("a kernel function is public".into());
+    }
+    let digits: syn::Type = syn::parse_quote!(Vec<usize>);
+    for input in &function.sig.inputs {
+        let syn::FnArg::Typed(argument) = input else {
+            return Err("a kernel function takes no receiver".into());
+        };
+        if *argument.ty != digits {
+            return Err("a kernel function takes digit vectors".into());
+        }
+    }
+    match &function.sig.output {
+        syn::ReturnType::Type(_, output) if **output == digits => Ok(()),
+        _ => Err("a kernel function returns a digit vector".into()),
+    }
+}
+
 fn parse_graph(graph: &Value) -> Result<String> {
     let syntax_only = graph["validate"] == "syntax";
     let validate = graph["validate"] != false && !syntax_only;
@@ -78,13 +102,20 @@ fn parse_graph(graph: &Value) -> Result<String> {
         for source in module["files"].as_array().ok_or("module requires files")? {
             let path = source["path"].as_str().ok_or("file requires path")?;
             let text = source["source"].as_str().ok_or("file requires source")?;
+            let kernels = source["kernels"] == true;
             let file = syn::parse_file(text).map_err(|error| format!("{path}: {error}"))?;
             if validate || syntax_only {
                 syntax::check(&file).map_err(|error| at_checked_item(path, error))?;
             }
             let mut serialized = Vec::new();
             for declaration in &file.items {
-                let value = item(declaration).map_err(|error| at_item(path, declaration, error))?;
+                let mut value =
+                    item(declaration).map_err(|error| at_item(path, declaration, error))?;
+                if kernels {
+                    kernel_contract(declaration)
+                        .map_err(|error| at_item(path, declaration, error))?;
+                    value["kernel"] = json!(true);
+                }
                 let symbol = value["name"].as_str().unwrap().to_string();
                 if owners
                     .insert(
@@ -339,6 +370,34 @@ mod tests {
                 { "path": "positive.rs", "source": "pub fn positive(value: Value) -> bool { value.number > 0 }" }
             ] }
         ] }).to_string()
+    }
+
+    #[test]
+    fn marks_kernels_and_holds_them_to_digit_vector_signatures() {
+        let graph = |source: &str| {
+            serde_json::json!({ "schemaVersion": 1, "modules": [
+                { "name": "checkruntime", "dependencies": [], "files": [
+                    { "path": "kernels.rs", "kernels": true, "source": source }
+                ] }
+            ] })
+            .to_string()
+        };
+        let accepted = "pub fn digits(left: Vec<usize>, right: Vec<usize>) -> Vec<usize> { left }";
+        let document: serde_json::Value =
+            serde_json::from_str(&parse(&graph(accepted)).unwrap()).unwrap();
+        assert_eq!(document["items"][0]["kernel"], true);
+        for rejected in [
+            "fn digits(left: Vec<usize>) -> Vec<usize> { left }",
+            "pub fn digits(left: Vec<usize>, scale: i32) -> Vec<usize> { left }",
+            "pub fn digits(left: Vec<usize>) -> i32 { 0 }",
+            "#[derive(Clone)] pub struct Digits { pub values: Vec<usize> }",
+            "pub const BASE: i32 = 10000;",
+        ] {
+            assert!(parse(&graph(rejected)).is_err(), "{rejected}");
+        }
+        let ordinary = modules(&["pg_catalog"]);
+        let document: serde_json::Value = serde_json::from_str(&parse(&ordinary).unwrap()).unwrap();
+        assert!(document["items"][0].get("kernel").is_none());
     }
 
     #[test]

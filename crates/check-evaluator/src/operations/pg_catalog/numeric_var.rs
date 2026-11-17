@@ -24,10 +24,10 @@
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
  */
 
-// PostgreSQL's numeric algorithms on NumericVar. Where PostgreSQL computes an exact result,
-// any exact method yields the same digits, so these routines use PostgreSQL's 32-bit forms and
-// keep the translated targets on plain numbers. Where it approximates, by truncating a product
-// or estimating a quotient, they reproduce PostgreSQL's arithmetic step for step.
+// PostgreSQL's numeric algorithms on NumericVar. Where PostgreSQL computes an exact product or
+// quotient, any exact method yields the same digits, so these routines hand it to the digit
+// kernels. Where it approximates, by truncating a product or estimating a quotient, they
+// reproduce PostgreSQL's arithmetic step for step.
 
 // A result, the numeric overflow PostgreSQL raises while computing it, or a result that
 // depends on the deployment's math library.
@@ -619,9 +619,12 @@ fn numeric_var_mul(left: &NumericVar, right: &NumericVar, rscale: i32) -> Numeri
         + (rscale + NUMERIC_VAR_DEC_DIGITS - 1) / NUMERIC_VAR_DEC_DIGITS
         + NUMERIC_VAR_MUL_GUARD_DIGITS;
     let maxdigitpairs = maxdigits / 2 + 1;
-    if maxdigitpairs < res_ndigitpairs {
-        res_ndigitpairs = maxdigitpairs;
+    if maxdigitpairs >= res_ndigitpairs {
+        // Every pair product is kept, so the sum is the exact product.
+        let product = numeric_var_digits_product(left, right);
+        return numeric_var_strip(numeric_var_round(product, rscale));
     }
+    res_ndigitpairs = maxdigitpairs;
     res_ndigits = 2 * res_ndigitpairs;
     if res_ndigitpairs <= pair_offset {
         return numeric_var_zero(rscale);
@@ -721,61 +724,35 @@ fn numeric_var_mul(left: &NumericVar, right: &NumericVar, rscale: i32) -> Numeri
     numeric_var_strip(numeric_var_round(product, rscale))
 }
 
-// PostgreSQL's mul_var_short: the exact product of a multiplier of at most six digits,
-// computed in one pass from the last digit with a running carry. Each column sums at most six
-// digit products, so it stays within 32 bits.
+// PostgreSQL's mul_var_short: the exact product of a multiplier of at most six digits.
 fn numeric_var_mul_exact(left: &NumericVar, right: &NumericVar) -> NumericVar {
-    let var1ndigits = numeric_var_count(left);
-    let var2ndigits = numeric_var_count(right);
+    numeric_var_strip(numeric_var_digits_product(left, right))
+}
+
+fn numeric_var_digits_copy(value: &NumericVar) -> Vec<usize> {
+    let mut digits: Vec<usize> = Vec::new();
+    let mut index: usize = 0;
+    while index < value.digits.len() {
+        digits.push(value.digits[index]);
+        index += 1;
+    }
+    digits
+}
+
+// The exact product, its first digit at the weight one above the operands' weights summed and
+// its display scale the sum of theirs.
+fn numeric_var_digits_product(left: &NumericVar, right: &NumericVar) -> NumericVar {
     let mut res_sign: i32 = 1;
     if left.sign != right.sign {
         res_sign = -1;
     }
-    let res_ndigits = var1ndigits + var2ndigits;
-    // Least significant digit first, so the result's zeros can be dropped while it is copied
-    // into place.
-    let mut reversed: Vec<usize> = Vec::new();
-    let mut carry: i32 = 0;
-    let mut k = res_ndigits - 1;
-    while k >= 1 {
-        let mut term = carry;
-        let mut i1 = k - var2ndigits;
-        if i1 < 0 {
-            i1 = 0;
-        }
-        while i1 < var1ndigits && i1 <= k - 1 {
-            term = term + numeric_var_digit(left, i1) * numeric_var_digit(right, k - 1 - i1);
-            i1 = i1 + 1;
-        }
-        reversed.push(usize::try_from(term % NUMERIC_VAR_NBASE).unwrap_or(0));
-        carry = term / NUMERIC_VAR_NBASE;
-        k = k - 1;
-    }
-    reversed.push(usize::try_from(carry).unwrap_or(0));
-    let mut low: usize = 0;
-    while low < reversed.len() && reversed[low] == 0 {
-        low += 1;
-    }
-    let mut high = reversed.len();
-    while high > low && reversed[high - 1] == 0 {
-        high = high - 1;
-    }
-    let dscale = left.dscale + right.dscale;
-    if high == low {
-        return numeric_var_zero(dscale);
-    }
-    let mut digits: Vec<usize> = Vec::new();
-    let mut index = high;
-    while index > low {
-        index = index - 1;
-        digits.push(reversed[index]);
-    }
-    let dropped = (reversed.len() - high) as i32;
+    let first = numeric_var_digits_copy(left);
+    let second = numeric_var_digits_copy(right);
     NumericVar {
         sign: res_sign,
-        weight: left.weight + right.weight + 1 - dropped,
-        dscale: dscale,
-        digits: digits,
+        weight: left.weight + right.weight + 1,
+        dscale: left.dscale + right.dscale,
+        digits: digits_product(first, second),
     }
 }
 
@@ -854,7 +831,8 @@ fn numeric_var_div(
     numeric_var_div_approximate(left, right, rscale, round)
 }
 
-// Knuth's algorithm D, figured to exactly rscale fractional digits.
+// The exact quotient to rscale fractional digits: the integer quotient of the operands' digits,
+// the dividend shifted so that its last digit falls on the last NBASE digit to compute.
 fn numeric_var_div_exact(
     left: &NumericVar,
     right: &NumericVar,
@@ -863,18 +841,6 @@ fn numeric_var_div_exact(
 ) -> NumericVar {
     let var1ndigits = numeric_var_count(left);
     let var2ndigits = numeric_var_count(right);
-    if var2ndigits <= 2 {
-        let mut idivisor = numeric_var_digit(right, 0);
-        let mut idivisor_weight = right.weight;
-        if var2ndigits == 2 {
-            idivisor = idivisor * NUMERIC_VAR_NBASE + numeric_var_digit(right, 1);
-            idivisor_weight = idivisor_weight - 1;
-        }
-        if right.sign < 0 {
-            idivisor = 0 - idivisor;
-        }
-        return numeric_var_div_int(left, idivisor, idivisor_weight, rscale, round);
-    }
     if var1ndigits == 0 {
         return numeric_var_zero(rscale);
     }
@@ -891,102 +857,31 @@ fn numeric_var_div_exact(
     if round {
         res_ndigits = res_ndigits + 1;
     }
-    let mut div_ndigits = res_ndigits + var2ndigits;
-    if var1ndigits > div_ndigits {
-        div_ndigits = var1ndigits;
+    let low = res_weight - res_ndigits + 1;
+    let shift = (left.weight - var1ndigits + 1) - (right.weight - var2ndigits + 1) - low;
+    let mut dividend: Vec<usize> = Vec::new();
+    let mut kept = var1ndigits;
+    if shift < 0 {
+        kept = var1ndigits + shift;
     }
-    // Index zero of both arrays is a spare digit, as in Knuth's notation.
-    let mut dividend = numeric_var_zeros(div_ndigits + 1);
-    let mut divisor = numeric_var_zeros(var2ndigits + 1);
-    let mut index: usize = 0;
-    while index < left.digits.len() {
-        dividend[index + 1] = left.digits[index];
-        index += 1;
+    let mut index: i32 = 0;
+    while index < kept {
+        dividend.push(left.digits[usize::try_from(index).unwrap_or(0)]);
+        index = index + 1;
     }
     index = 0;
-    while index < right.digits.len() {
-        divisor[index + 1] = right.digits[index];
-        index += 1;
+    while index < shift {
+        dividend.push(0);
+        index = index + 1;
     }
-    let divisor_end = usize::try_from(var2ndigits).unwrap_or(0);
-    // The first divisor digit must be at least NBASE / 2; scale both operands to make it so.
-    if (divisor[1] as i32) < NUMERIC_VAR_HALF_NBASE {
-        let d = NUMERIC_VAR_NBASE / ((divisor[1] as i32) + 1);
-        let mut carry: i32 = 0;
-        let mut i = divisor_end;
-        while i > 0 {
-            carry = carry + (divisor[i] as i32) * d;
-            divisor[i] = usize::try_from(carry % NUMERIC_VAR_NBASE).unwrap_or(0);
-            carry = carry / NUMERIC_VAR_NBASE;
-            i = i - 1;
-        }
-        carry = 0;
-        let mut j = usize::try_from(var1ndigits).unwrap_or(0) + 1;
-        while j > 0 {
-            j = j - 1;
-            carry = carry + (dividend[j] as i32) * d;
-            dividend[j] = usize::try_from(carry % NUMERIC_VAR_NBASE).unwrap_or(0);
-            carry = carry / NUMERIC_VAR_NBASE;
-        }
-    }
-    let divisor1 = (divisor[1] as i32);
-    let divisor2 = (divisor[2] as i32);
-    let mut res_digits: Vec<usize> = Vec::new();
-    let res_end = usize::try_from(res_ndigits).unwrap_or(0);
-    let mut j: usize = 0;
-    while j < res_end {
-        let next2digits = (dividend[j] as i32) * NUMERIC_VAR_NBASE + (dividend[j + 1] as i32);
-        let mut qhat: i32 = 0;
-        if next2digits != 0 {
-            if (dividend[j] as i32) == divisor1 {
-                qhat = NUMERIC_VAR_NBASE - 1;
-            } else {
-                qhat = next2digits / divisor1;
-            }
-            // Knuth proves the estimate is then exact or one too large.
-            while divisor2 * qhat
-                > (next2digits - qhat * divisor1) * NUMERIC_VAR_NBASE + (dividend[j + 2] as i32)
-            {
-                qhat = qhat - 1;
-            }
-            if qhat > 0 {
-                let mut borrow: i32 = 0;
-                let mut i = divisor_end + 1;
-                while i > 0 {
-                    i = i - 1;
-                    let tmp_result = (dividend[j + i] as i32) - borrow - (divisor[i] as i32) * qhat;
-                    borrow = (NUMERIC_VAR_NBASE - 1 - tmp_result) / NUMERIC_VAR_NBASE;
-                    dividend[j + i] =
-                        usize::try_from(tmp_result + borrow * NUMERIC_VAR_NBASE).unwrap_or(0);
-                }
-                if borrow != 0 {
-                    // qhat was one too large: add the divisor back once.
-                    qhat = qhat - 1;
-                    let mut carry: i32 = 0;
-                    i = divisor_end + 1;
-                    while i > 0 {
-                        i = i - 1;
-                        carry = carry + (dividend[j + i] as i32) + (divisor[i] as i32);
-                        if carry >= NUMERIC_VAR_NBASE {
-                            dividend[j + i] =
-                                usize::try_from(carry - NUMERIC_VAR_NBASE).unwrap_or(0);
-                            carry = 1;
-                        } else {
-                            dividend[j + i] = usize::try_from(carry).unwrap_or(0);
-                            carry = 0;
-                        };
-                    }
-                };
-            };
-        }
-        res_digits.push(usize::try_from(qhat).unwrap_or(0));
-        j += 1;
-    }
+    let divisor = numeric_var_digits_copy(right);
+    let digits = digits_quotient(dividend, divisor);
+    let count = digits.len() as i32;
     let quotient = NumericVar {
         sign: res_sign,
-        weight: res_weight,
+        weight: low + count - 1,
         dscale: rscale,
-        digits: res_digits,
+        digits: digits,
     };
     if round {
         return numeric_var_strip(numeric_var_round(quotient, rscale));

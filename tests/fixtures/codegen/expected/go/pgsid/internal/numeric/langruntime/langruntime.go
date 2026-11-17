@@ -2,7 +2,9 @@ package langruntime
 
 import (
 	"math"
+	"math/big"
 
+	"strings"
 	"unicode/utf8"
 )
 
@@ -248,4 +250,96 @@ func F64ToI32(value float64) int {
 		return -2147483648
 	}
 	return int(math.Trunc(value))
+}
+
+func kernelDigitsToBig(digits []int) *big.Int {
+	value := new(big.Int)
+	if len(digits) == 0 {
+		return value
+	}
+	text := make([]byte, 0, len(digits)*4)
+	for _, digit := range digits {
+		text = append(text, byte('0'+digit/1000), byte('0'+digit/100%10), byte('0'+digit/10%10), byte('0'+digit%10))
+	}
+	value.SetString(string(text), 10)
+	return value
+}
+
+func kernelDigitsFromBig(value *big.Int, length int) []int {
+	digits := make([]int, length)
+	if value.Sign() == 0 {
+		return digits
+	}
+	text := value.Text(10)
+	if len(text) > length*4 {
+		panic("kernel result exceeds its digits")
+	}
+	text = strings.Repeat("0", length*4-len(text)) + text
+	for index := range digits {
+		group := text[index*4 : index*4+4]
+		digits[index] = int(group[0]-'0')*1000 + int(group[1]-'0')*100 + int(group[2]-'0')*10 + int(group[3]-'0')
+	}
+	return digits
+}
+
+const kernelShortDigits = 32
+
+func kernelShortProduct(long []int, short []int) []int {
+	product := make([]int, len(long)+len(short))
+	for row := len(short) - 1; row >= 0; row-- {
+		factor := short[row]
+		if factor == 0 {
+			continue
+		}
+		carry := 0
+		for column := len(long) - 1; column >= 0; column-- {
+			at := row + column + 1
+			value := product[at] + factor*long[column] + carry
+			carry = value / 10000
+			product[at] = value - carry*10000
+		}
+		for at := row; carry > 0; at-- {
+			value := product[at] + carry
+			carry = value / 10000
+			product[at] = value - carry*10000
+		}
+	}
+	return product
+}
+
+func KernelDigitsProduct(left []int, right []int) []int {
+	if len(left) <= kernelShortDigits || len(right) <= kernelShortDigits {
+		if len(left) < len(right) {
+			return kernelShortProduct(right, left)
+		}
+		return kernelShortProduct(left, right)
+	}
+	product := new(big.Int).Mul(kernelDigitsToBig(left), kernelDigitsToBig(right))
+	return kernelDigitsFromBig(product, len(left)+len(right))
+}
+
+func KernelDigitsQuotient(dividend []int, divisor []int) []int {
+	first := 0
+	for first < len(divisor) && divisor[first] == 0 {
+		first++
+	}
+	if first == len(divisor) {
+		return make([]int, len(dividend))
+	}
+	if len(divisor)-first <= 2 {
+		single := 0
+		for _, digit := range divisor[first:] {
+			single = single*10000 + digit
+		}
+		quotient := make([]int, len(dividend))
+		carry := 0
+		for index, digit := range dividend {
+			value := carry*10000 + digit
+			quotient[index] = value / single
+			carry = value - quotient[index]*single
+		}
+		return quotient
+	}
+	quotient := new(big.Int).Quo(kernelDigitsToBig(dividend), kernelDigitsToBig(divisor))
+	return kernelDigitsFromBig(quotient, len(dividend))
 }

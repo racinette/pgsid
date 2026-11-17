@@ -2,7 +2,8 @@ export const description = 'the manifest of modules the CHECK transpiler links'
 export const guidance = `
 Names each transpiled module, the modules it may reference, and its files in
 order. A file entry is a path relative to this directory, a \`directory\` whose
-\`.rs\` files join in name order, or a \`generated\` table the asset build produces.
+\`.rs\` files join in name order, a \`generated\` table the asset build produces,
+or a \`kernels\` file whose functions each target implements natively.
 
 A module the evaluator's crate root declares lists exactly the files the root
 includes into it, and in the root's order unless a directory supplies them. Any
@@ -36,6 +37,7 @@ async function listedFiles(entries, files) {
   const listed = []
   for (const entry of entries) {
     if (typeof entry === 'string') listed.push(entry)
+    else if (entry.kernels) listed.push(entry.kernels)
     else if (entry.directory) listed.push(...[...(await files(`${entry.directory}/*.rs`))].sort())
     else listed.push(`generated:${entry.generated}`)
   }

@@ -280,3 +280,82 @@ function f32ToI32Bits(value: number): number {
   view.setFloat32(0, checkedF64(value))
   return view.getInt32(0)
 }
+
+// The kernels' exact base-10000 digit arithmetic on BigInt. Digits are most significant first,
+// and results keep the lengths the Rust reference implementation returns.
+function kernelDigitsToBigInt(digits: number[]): bigint {
+  if (digits.length === 0) return 0n
+  const groups = new Array<string>(digits.length)
+  for (let index = 0; index < digits.length; index++)
+    groups[index] = String(checkedIndex(digits[index]!)).padStart(4, '0')
+  return BigInt(groups.join(''))
+}
+function kernelDigitsFromBigInt(value: bigint, length: number): number[] {
+  const digits = new Array<number>(length).fill(0)
+  if (value === 0n) return digits
+  const text = value.toString()
+  if (text.length > length * 4) throw new RangeError('kernel result exceeds its digits')
+  const padded = text.padStart(length * 4, '0')
+  for (let index = 0; index < length; index++)
+    digits[index] = Number(padded.slice(index * 4, index * 4 + 4))
+  return digits
+}
+// A short operand is multiplied or divided digit by digit, which costs less than converting a
+// long operand to and from BigInt.
+const KERNEL_SHORT_DIGITS = 32
+function kernelShortProduct(long: number[], short: number[]): number[] {
+  const product = new Array<number>(long.length + short.length).fill(0)
+  for (let row = short.length - 1; row >= 0; row--) {
+    const factor = short[row]!
+    if (factor === 0) continue
+    let carry = 0
+    for (let column = long.length - 1; column >= 0; column--) {
+      const at = row + column + 1
+      const value = product[at]! + factor * long[column]! + carry
+      carry = Math.floor(value / 10000)
+      product[at] = value - carry * 10000
+    }
+    let at = row
+    while (carry > 0) {
+      const value = product[at]! + carry
+      carry = Math.floor(value / 10000)
+      product[at] = value - carry * 10000
+      at--
+    }
+  }
+  return product
+}
+function kernelDigitsProduct(left: number[], right: number[]): number[] {
+  if (Math.min(left.length, right.length) <= KERNEL_SHORT_DIGITS)
+    return left.length < right.length
+      ? kernelShortProduct(right, left)
+      : kernelShortProduct(left, right)
+  return kernelDigitsFromBigInt(
+    kernelDigitsToBigInt(left) * kernelDigitsToBigInt(right),
+    left.length + right.length,
+  )
+}
+function kernelDigitsQuotient(dividend: number[], divisor: number[]): number[] {
+  let first = 0
+  while (first < divisor.length && divisor[first] === 0) first++
+  if (first === divisor.length) return new Array<number>(dividend.length).fill(0)
+  if (divisor.length - first <= 2) {
+    // A divisor below 10^8 keeps every partial remainder within exact double arithmetic.
+    let single = 0
+    for (let index = first; index < divisor.length; index++)
+      single = single * 10000 + divisor[index]!
+    const quotient = new Array<number>(dividend.length)
+    let carry = 0
+    for (let index = 0; index < dividend.length; index++) {
+      const value = carry * 10000 + dividend[index]!
+      const digit = Math.floor(value / single)
+      quotient[index] = digit
+      carry = value - digit * single
+    }
+    return quotient
+  }
+  return kernelDigitsFromBigInt(
+    kernelDigitsToBigInt(dividend) / kernelDigitsToBigInt(divisor),
+    dividend.length,
+  )
+}
