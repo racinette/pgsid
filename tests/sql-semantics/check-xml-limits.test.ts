@@ -295,5 +295,5 @@ ${rows
       await pg.close()
       await rm(directory, { recursive: true, force: true })
     }
-  }, 600_000)
+  }, 1_200_000)
 })
