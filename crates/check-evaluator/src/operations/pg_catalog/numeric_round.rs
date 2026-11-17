@@ -1,3 +1,43 @@
+// PostgreSQL's numeric_round, numeric_trunc, numeric_ceil and numeric_floor: mode 1 rounds,
+// 0 truncates, 2 takes the ceiling and 3 the floor. Scales are clamped as PostgreSQL clamps
+// them, and a negative scale displays no fractional digits.
+fn numeric_round_value(work: NumericWork, requested: i32, mode: i32) -> NumericValue {
+    if work.valid == false {
+        return numeric_unresolved(0);
+    }
+    if work.special != 1 {
+        return NumericValue::Value(numeric_work_text(work));
+    }
+    let arg = numeric_var_from_work(&work);
+    if mode == 2 {
+        return numeric_var_result(numeric_var_ceil(&arg));
+    }
+    if mode == 3 {
+        return numeric_var_result(numeric_var_floor(&arg));
+    }
+    let mut scale = requested;
+    let mut minimum: i32 = -131072;
+    if mode == 1 {
+        minimum = minimum - 1;
+    }
+    if scale < minimum {
+        scale = minimum;
+    }
+    if scale > 16383 {
+        scale = 16383;
+    }
+    let mut result = numeric_var_zero(0);
+    if mode == 1 {
+        result = numeric_var_round(arg, scale);
+    } else {
+        result = numeric_var_trunc(arg, scale);
+    };
+    if scale < 0 {
+        result = numeric_var_rescaled(result, 0);
+    }
+    numeric_var_result(result)
+}
+
 pub fn sql__pg_catalog__ceil__8geh(input: NumericValue) -> NumericValue {
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = input { unresolved_flavor = 1; };
@@ -8,7 +48,7 @@ if input == NumericValue::Null { return NumericValue::Null; }
 if let NumericValue::Value(value) = input {
 let work = numeric_work_from_value(value.as_str());
 if work.valid == false { return numeric_unresolved(unresolved_flavor); }
-return numeric_work_round(work, 0, 2);
+return numeric_round_value(work, 0, 2);
 }
 numeric_unresolved(unresolved_flavor)
 }
@@ -23,7 +63,7 @@ if input == NumericValue::Null { return NumericValue::Null; }
 if let NumericValue::Value(value) = input {
 let work = numeric_work_from_value(value.as_str());
 if work.valid == false { return numeric_unresolved(unresolved_flavor); }
-return numeric_work_round(work, 0, 2);
+return numeric_round_value(work, 0, 2);
 }
 numeric_unresolved(unresolved_flavor)
 }
@@ -38,7 +78,7 @@ if input == NumericValue::Null { return NumericValue::Null; }
 if let NumericValue::Value(value) = input {
 let work = numeric_work_from_value(value.as_str());
 if work.valid == false { return numeric_unresolved(unresolved_flavor); }
-return numeric_work_round(work, 0, 3);
+return numeric_round_value(work, 0, 3);
 }
 numeric_unresolved(unresolved_flavor)
 }
@@ -53,7 +93,7 @@ if input == NumericValue::Null { return NumericValue::Null; }
 if let NumericValue::Value(value) = input {
 let work = numeric_work_from_value(value.as_str());
 if work.valid == false { return numeric_unresolved(unresolved_flavor); }
-return numeric_work_round(work, 0, 1);
+return numeric_round_value(work, 0, 1);
 }
 numeric_unresolved(unresolved_flavor)
 }
@@ -71,7 +111,7 @@ if input == NumericValue::Null || scale == Int4Value::Null { return NumericValue
 if let NumericValue::Value(value) = input {
 let work = numeric_work_from_value(value.as_str());
 if work.valid == false { return numeric_unresolved(unresolved_flavor); }
-if let Int4Value::Value(precision) = scale { return numeric_work_round(work, precision, 1); }
+if let Int4Value::Value(precision) = scale { return numeric_round_value(work, precision, 1); }
 }
 numeric_unresolved(unresolved_flavor)
 }
@@ -86,7 +126,7 @@ if input == NumericValue::Null { return NumericValue::Null; }
 if let NumericValue::Value(value) = input {
 let work = numeric_work_from_value(value.as_str());
 if work.valid == false { return numeric_unresolved(unresolved_flavor); }
-return numeric_work_round(work, 0, 0);
+return numeric_round_value(work, 0, 0);
 }
 numeric_unresolved(unresolved_flavor)
 }
@@ -104,7 +144,7 @@ if input == NumericValue::Null || scale == Int4Value::Null { return NumericValue
 if let NumericValue::Value(value) = input {
 let work = numeric_work_from_value(value.as_str());
 if work.valid == false { return numeric_unresolved(unresolved_flavor); }
-if let Int4Value::Value(precision) = scale { return numeric_work_round(work, precision, 0); }
+if let Int4Value::Value(precision) = scale { return numeric_round_value(work, precision, 0); }
 }
 numeric_unresolved(unresolved_flavor)
 }

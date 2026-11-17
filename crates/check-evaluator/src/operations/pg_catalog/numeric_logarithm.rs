@@ -27,108 +27,80 @@
 const NUMERIC_LOG_INVALID_ARGUMENT: u32 = 3452594;
 const NUMERIC_LN_TEN_ESTIMATE: f64 = 2.302585092994046f64;
 
-fn numeric_math_group_weight(work: NumericWork) -> i32 {
-    let mut group = work.weight / 4;
-    if work.weight % 4 < 0 {
-        group = group - 1;
+// PostgreSQL's estimate_ln_dweight: the decimal weight of ln(value), exact near one and
+// estimated in double precision elsewhere.
+fn numeric_var_ln_dweight(value: &NumericVar) -> i32 {
+    if value.sign < 0 {
+        return 0;
     }
-    group
+    let one = numeric_var_from_i64(1i64);
+    let zero_point_nine = numeric_var_from_text("0.9");
+    let one_point_one = numeric_var_from_text("1.1");
+    if numeric_var_cmp(value, &zero_point_nine) >= 0 && numeric_var_cmp(value, &one_point_one) <= 0 {
+        let x = numeric_var_sub(value, &one);
+        if numeric_var_count(&x) > 0 {
+            let leading = numeric_var_digit(&x, 0) as f64;
+            return x.weight * NUMERIC_VAR_DEC_DIGITS + (leading.log10() as i32);
+        }
+        return 0;
+    }
+    if numeric_var_count(value) > 0 {
+        let mut digits = numeric_var_digit(value, 0);
+        let mut dweight = value.weight * NUMERIC_VAR_DEC_DIGITS;
+        if numeric_var_count(value) > 1 {
+            digits = digits * NUMERIC_VAR_NBASE + numeric_var_digit(value, 1);
+            dweight = dweight - NUMERIC_VAR_DEC_DIGITS;
+        }
+        let ln_value = (digits as f64).ln() + (dweight as f64) * NUMERIC_LN_TEN_ESTIMATE;
+        return ln_value.abs().log10() as i32;
+    }
+    0
 }
 
-fn numeric_logarithm_weight(work: NumericWork) -> i32 {
-    let lower = numeric_work_from_value("0.9");
-    let upper = numeric_work_from_value("1.1");
-    if numeric_work_magnitude(work.clone(), lower) >= 0
-        && numeric_work_magnitude(work.clone(), upper) <= 0
-    {
-        let difference = numeric_work_sum(work, numeric_work_from_value("1"), true);
-        if difference.sign == 0 {
-            return 0;
-        }
-        return difference.weight;
+// PostgreSQL's ln_var: square roots bring the argument within 0.9 and 1.1, then the series
+// ln(x) = 2 * atanh((x - 1) / (x + 1)) runs to rscale, and the factor restores the roots.
+fn numeric_var_ln(arg: &NumericVar, rscale: i32) -> NumericVar {
+    let one = numeric_var_from_i64(1i64);
+    let two = numeric_var_from_i64(2i64);
+    let zero_point_nine = numeric_var_from_text("0.9");
+    let one_point_one = numeric_var_from_text("1.1");
+    let mut x = numeric_var_shifted(arg, 0);
+    let mut fact = numeric_var_from_i64(2i64);
+    let mut nsqrt: i32 = 0;
+    while numeric_var_cmp(&x, &zero_point_nine) <= 0 {
+        let local_rscale = rscale - x.weight * NUMERIC_VAR_DEC_DIGITS / 2 + 8;
+        x = numeric_var_sqrt(&x, local_rscale);
+        fact = numeric_var_mul(&fact, &two, 0);
+        nsqrt = nsqrt + 1;
     }
-    let group_weight = numeric_math_group_weight(work.clone());
-    let mut width = work.weight - group_weight * 4 + 1;
-    let mut exponent = group_weight * 4;
-    let characters: Vec<char> = work.digits.chars().collect();
-    let mut index: usize = 0;
-    let mut leading: i32 = 0;
-    while width > 0 {
-        leading = leading * 10;
-        if index < characters.len() {
-            leading = leading + numeric_wire_decimal_digit(characters[index]);
-            index += 1;
-        }
-        width = width - 1;
+    while numeric_var_cmp(&x, &one_point_one) >= 0 {
+        let local_rscale = rscale - x.weight * NUMERIC_VAR_DEC_DIGITS / 2 + 8;
+        x = numeric_var_sqrt(&x, local_rscale);
+        fact = numeric_var_mul(&fact, &two, 0);
+        nsqrt = nsqrt + 1;
     }
-    if index < characters.len() {
-        width = 4;
-        exponent = exponent - 4;
-        while width > 0 {
-            leading = leading * 10;
-            if index < characters.len() {
-                leading = leading + numeric_wire_decimal_digit(characters[index]);
-                index += 1;
-            }
-            width = width - 1;
-        }
-    }
-    let coefficient = leading as f64;
-    let decimal_weight = exponent as f64;
-    let estimate = coefficient.ln() + decimal_weight * NUMERIC_LN_TEN_ESTIMATE;
-    estimate.abs().log10() as i32
-}
-
-fn numeric_logarithm_work(input: NumericWork, scale: i32) -> NumericWork {
-    let one = numeric_work_from_value("1");
-    let lower = numeric_work_from_value("0.9");
-    let upper = numeric_work_from_value("1.1");
-    let mut work = input;
-    let mut roots: i32 = 0;
-    let mut factor: i32 = 2;
-    while numeric_work_magnitude(work.clone(), lower.clone()) <= 0 {
-        let local_scale = scale - numeric_math_group_weight(work.clone()) * 2 + 8;
-        work = numeric_square_root_scaled(work, local_scale);
-        factor = factor * 2;
-        roots = roots + 1;
-    }
-    while numeric_work_magnitude(work.clone(), upper.clone()) >= 0 {
-        let local_scale = scale - numeric_math_group_weight(work.clone()) * 2 + 8;
-        work = numeric_square_root_scaled(work, local_scale);
-        factor = factor * 2;
-        roots = roots + 1;
-    }
-    let extra = ((roots + 1) as f64 * 0.301029995663981f64) as i32;
-    let local_scale = scale + extra + 8;
-    let numerator = numeric_work_sum(work.clone(), one.clone(), true);
-    let denominator = numeric_work_sum(work, one, false);
-    let quotient = numeric_division_work(numerator, denominator, local_scale, true);
-    let mut result = numeric_work_rounded(quotient, local_scale, 1);
-    let mut term = result.clone();
-    let product = numeric_work_product(result.clone(), result.clone());
-    let square = numeric_work_rounded(product, local_scale, 1);
-    let mut divisor: i32 = 1;
+    let local_rscale = rscale + (((nsqrt + 1) as f64) * 0.301029995663981f64) as i32 + 8;
+    let numerator = numeric_var_sub(&x, &one);
+    let denominator = numeric_var_add(&x, &one);
+    let mut result = numeric_var_div(&numerator, &denominator, local_rscale, true, false);
+    let mut xx = numeric_var_shifted(&result, 0);
+    let square = numeric_var_mul(&result, &result, local_rscale);
+    let mut ni: i32 = 1;
     let mut advancing = true;
     while advancing {
-        divisor = divisor + 2;
-        let product = numeric_work_product(term, square.clone());
-        term = numeric_work_rounded(product, local_scale, 1);
-        let denominator = numeric_work_from_value(text_number(divisor, 10).as_str());
-        let quotient = numeric_division_work(term.clone(), denominator, local_scale, true);
-        let element = numeric_work_rounded(quotient, local_scale, 1);
-        if element.sign == 0 {
+        ni = ni + 2;
+        xx = numeric_var_mul(&xx, &square, local_rscale);
+        let elem = numeric_var_div_int(&xx, ni, 0, local_rscale, true);
+        if numeric_var_count(&elem) == 0 {
             advancing = false;
         } else {
-            result = numeric_work_sum(result, element.clone(), false);
-            if numeric_math_group_weight(element)
-                < numeric_math_group_weight(result.clone()) - local_scale * 2 / 4
-            {
+            result = numeric_var_add(&result, &elem);
+            if elem.weight < result.weight - local_rscale * 2 / NUMERIC_VAR_DEC_DIGITS {
                 advancing = false;
             }
         };
     }
-    let multiplier = numeric_work_from_value(text_number(factor, 10).as_str());
-    numeric_work_rounded(numeric_work_product(result, multiplier), scale, 1)
+    numeric_var_mul(&result, &fact, rscale)
 }
 
 pub fn sql__pg_catalog__numeric_ln__okv6(input: NumericValue) -> NumericValue {
@@ -155,17 +127,18 @@ pub fn sql__pg_catalog__numeric_ln__okv6(input: NumericValue) -> NumericValue {
         if work.special != 1 {
             return NumericValue::Value(numeric_work_text(work));
         }
-        let mut scale = 16 - numeric_logarithm_weight(work.clone());
-        if scale < work.scale {
-            scale = work.scale;
+        let arg = numeric_var_from_work(&work);
+        let mut rscale = NUMERIC_VAR_MIN_SIG_DIGITS - numeric_var_ln_dweight(&arg);
+        if rscale < arg.dscale {
+            rscale = arg.dscale;
         }
-        if scale < 0 {
-            scale = 0;
+        if rscale < 0 {
+            rscale = 0;
         }
-        if scale > 1000 {
-            scale = 1000;
+        if rscale > NUMERIC_VAR_MAX_DISPLAY_SCALE {
+            rscale = NUMERIC_VAR_MAX_DISPLAY_SCALE;
         }
-        return NumericValue::Value(numeric_work_text(numeric_logarithm_work(work, scale)));
+        return numeric_var_result(numeric_var_ln(&arg, rscale));
     }
     numeric_unresolved(unresolved_flavor)
 }

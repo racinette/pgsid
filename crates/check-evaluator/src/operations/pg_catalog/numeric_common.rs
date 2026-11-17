@@ -1,16 +1,31 @@
-fn numeric_common_work(work: NumericWork, scale: i32) -> NumericWork {
-    let mut sign = work.sign;
-    if sign < 0 {
-        sign = 1;
+// PostgreSQL's gcd_var: Euclid's algorithm on the larger magnitude first, skipping the
+// modulo when the magnitudes are equal or the smaller one is zero.
+fn numeric_common_gcd(left: &NumericVar, right: &NumericVar) -> NumericVar {
+    let mut res_dscale = left.dscale;
+    if right.dscale > res_dscale {
+        res_dscale = right.dscale;
     }
-    NumericWork {
-        valid: work.valid,
-        special: work.special,
-        sign: sign,
-        weight: work.weight,
-        scale: scale,
-        digits: work.digits,
+    let cmp = numeric_var_cmp_abs(left, right);
+    let mut larger = numeric_var_shifted(left, 0);
+    let mut smaller = numeric_var_shifted(right, 0);
+    if cmp < 0 {
+        larger = numeric_var_shifted(right, 0);
+        smaller = numeric_var_shifted(left, 0);
     }
+    if cmp == 0 || numeric_var_count(&smaller) == 0 {
+        return numeric_var_signed(numeric_var_rescaled(larger, res_dscale), 1);
+    }
+    let mut searching = true;
+    while searching {
+        let remainder = numeric_var_mod(&larger, &smaller);
+        if numeric_var_count(&remainder) == 0 {
+            searching = false;
+        } else {
+            larger = smaller;
+            smaller = remainder;
+        };
+    }
+    numeric_var_signed(numeric_var_rescaled(smaller, res_dscale), 1)
 }
 
 fn numeric_common(left: NumericValue, right: NumericValue, multiple: bool) -> NumericValue {
@@ -41,54 +56,22 @@ fn numeric_common(left: NumericValue, right: NumericValue, multiple: bool) -> Nu
             if a.special != 1 || b.special != 1 {
                 return NumericValue::Value("NaN".to_owned());
             }
-            let mut scale = a.scale;
-            if scale < b.scale {
-                scale = b.scale;
+            let arg1 = numeric_var_from_work(&a);
+            let arg2 = numeric_var_from_work(&b);
+            let mut dscale = arg1.dscale;
+            if arg2.dscale > dscale {
+                dscale = arg2.dscale;
             }
-            if multiple && (a.sign == 0 || b.sign == 0) {
-                return NumericValue::Value(numeric_work_text(numeric_common_work(
-                    numeric_work_from_value("0"),
-                    scale,
-                )));
+            if multiple == false {
+                return numeric_var_result(numeric_common_gcd(&arg1, &arg2));
             }
-            let mut dividend = numeric_work_text(numeric_common_work(a.clone(), scale));
-            let mut divisor = numeric_work_text(numeric_common_work(b.clone(), scale));
-            let mut active = b.sign != 0;
-            while active {
-                let remainder = numeric_division(
-                    make_numeric_value(dividend.as_str()),
-                    make_numeric_value(divisor.as_str()),
-                    2,
-                );
-                if let NumericValue::Error(error) = remainder {
-                    return NumericValue::Error(error);
-                }
-                let mut condition_flavor_66_16: i32 = unresolved_flavor; if let NumericValue::Unknown = remainder { if condition_flavor_66_16 < 1 { condition_flavor_66_16 = 1; }; }; if let NumericValue::Unimplemented = remainder { condition_flavor_66_16 = 2; }; if remainder == NumericValue::Unknown || remainder == NumericValue::Unimplemented {
-                    return numeric_unresolved(condition_flavor_66_16);
-                }
-                dividend = divisor.clone();
-                if let NumericValue::Value(value) = remainder {
-                    let layout = numeric_parts(value.as_str());
-                    active = layout.sign != 0;
-                    divisor = value;
-                }
+            if numeric_var_count(&arg1) == 0 || numeric_var_count(&arg2) == 0 {
+                return numeric_var_result(numeric_var_zero(dscale));
             }
-            if multiple {
-                let quotient =
-                    numeric_division_work(a, numeric_work_from_value(dividend.as_str()), 0, false);
-                let product = numeric_work_multiply(quotient, b);
-                if let NumericValue::Value(value) = product {
-                    return NumericValue::Value(numeric_work_text(numeric_common_work(
-                        numeric_work_from_value(value.as_str()),
-                        scale,
-                    )));
-                }
-                return product;
-            }
-            return NumericValue::Value(numeric_work_text(numeric_common_work(
-                numeric_work_from_value(dividend.as_str()),
-                scale,
-            )));
+            let divisor = numeric_common_gcd(&arg1, &arg2);
+            let quotient = numeric_var_div(&arg1, &divisor, 0, false, true);
+            let product = numeric_var_mul(&arg2, &quotient, arg2.dscale);
+            return numeric_var_result(numeric_var_signed(numeric_var_rescaled(product, dscale), 1));
         }
     }
     numeric_unresolved(unresolved_flavor)

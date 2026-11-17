@@ -1,174 +1,46 @@
-fn numeric_division_scale(left: NumericWork, right: NumericWork) -> i32 {
-    let mut first_weight: i32 = 0;
-    let mut second_weight: i32 = 0;
-    let mut first_digit: i32 = 0;
-    let mut second_digit: i32 = 0;
-    let first: Vec<char> = left.digits.chars().collect();
-    let second: Vec<char> = right.digits.chars().collect();
-    if left.sign != 0 {
-        first_weight = left.weight / 4;
-        let mut width = left.weight % 4;
-        if width < 0 {
-            first_weight = first_weight - 1;
-            width = width + 4;
+// PostgreSQL's select_div_scale: at least NUMERIC_MIN_SIG_DIGITS significant digits, and no
+// fewer fractional digits than either input displays.
+fn numeric_division_scale(left: &NumericVar, right: &NumericVar) -> i32 {
+    let mut weight1: i32 = 0;
+    let mut firstdigit1: i32 = 0;
+    let mut i: i32 = 0;
+    while i < numeric_var_count(left) {
+        firstdigit1 = numeric_var_digit(left, i);
+        if firstdigit1 != 0 {
+            weight1 = left.weight - i;
+            i = numeric_var_count(left);
         }
-        width = width + 1;
-        let mut index: usize = 0;
-        while width > 0 {
-            first_digit = first_digit * 10;
-            if index < first.len() {
-                first_digit = first_digit + numeric_wire_decimal_digit(first[index]);
-            }
-            index += 1;
-            width = width - 1;
+        i = i + 1;
+    }
+    let mut weight2: i32 = 0;
+    let mut firstdigit2: i32 = 0;
+    i = 0;
+    while i < numeric_var_count(right) {
+        firstdigit2 = numeric_var_digit(right, i);
+        if firstdigit2 != 0 {
+            weight2 = right.weight - i;
+            i = numeric_var_count(right);
         }
+        i = i + 1;
     }
-    if right.sign != 0 {
-        second_weight = right.weight / 4;
-        let mut width = right.weight % 4;
-        if width < 0 {
-            second_weight = second_weight - 1;
-            width = width + 4;
-        }
-        width = width + 1;
-        let mut index: usize = 0;
-        while width > 0 {
-            second_digit = second_digit * 10;
-            if index < second.len() {
-                second_digit = second_digit + numeric_wire_decimal_digit(second[index]);
-            }
-            index += 1;
-            width = width - 1;
-        }
+    let mut qweight = weight1 - weight2;
+    if firstdigit1 <= firstdigit2 {
+        qweight = qweight - 1;
     }
-    let mut quotient_weight = first_weight - second_weight;
-    if first_digit <= second_digit {
-        quotient_weight = quotient_weight - 1;
+    let mut rscale = NUMERIC_VAR_MIN_SIG_DIGITS - qweight * NUMERIC_VAR_DEC_DIGITS;
+    if rscale < left.dscale {
+        rscale = left.dscale;
     }
-    let mut scale = 16 - quotient_weight * 4;
-    if scale < left.scale {
-        scale = left.scale;
+    if rscale < right.dscale {
+        rscale = right.dscale;
     }
-    if scale < right.scale {
-        scale = right.scale;
+    if rscale < 0 {
+        rscale = 0;
     }
-    if scale < 0 {
-        scale = 0;
+    if rscale > NUMERIC_VAR_MAX_DISPLAY_SCALE {
+        rscale = NUMERIC_VAR_MAX_DISPLAY_SCALE;
     }
-    if scale > 1000 {
-        scale = 1000;
-    }
-    scale
-}
-
-fn numeric_division_work(
-    left: NumericWork,
-    right: NumericWork,
-    scale: i32,
-    rounding: bool,
-) -> NumericWork {
-    let first: Vec<char> = left.digits.chars().collect();
-    let second: Vec<char> = right.digits.chars().collect();
-    let mut denominator: Vec<NumericWireDigit> = Vec::new();
-    let mut remainder: Vec<NumericWireDigit> = Vec::new();
-    remainder.push(NumericWireDigit { value: 0 });
-    let mut second_exponent = right.weight + 1;
-    let mut index: usize = 0;
-    while index < second.len() {
-        denominator.push(NumericWireDigit {
-            value: numeric_wire_decimal_digit(second[index]),
-        });
-        remainder.push(NumericWireDigit { value: 0 });
-        second_exponent = second_exponent - 1;
-        index += 1;
-    }
-    let mut position = left.weight - second_exponent;
-    let mut boundary = 0 - scale;
-    if rounding {
-        boundary = boundary - 1;
-    }
-    let mut coefficient = String::new();
-    let mut weight: i32 = 0;
-    let mut sign: i32 = 0;
-    index = 0;
-    while position >= boundary && left.sign != 0 {
-        let mut cursor: usize = 0;
-        while cursor + 1 < remainder.len() {
-            remainder[cursor] = remainder[cursor + 1];
-            cursor += 1;
-        }
-        let mut digit: i32 = 0;
-        if index < first.len() {
-            digit = numeric_wire_decimal_digit(first[index]);
-        }
-        remainder[cursor] = NumericWireDigit { value: digit };
-        index += 1;
-        let mut quotient: i32 = 0;
-        let mut subtract = true;
-        while subtract {
-            subtract = remainder[0].value != 0;
-            if subtract == false {
-                let mut order: i32 = 0;
-                cursor = 0;
-                while cursor < denominator.len() && order == 0 {
-                    if remainder[cursor + 1].value < denominator[cursor].value {
-                        order = -1;
-                    }
-                    if remainder[cursor + 1].value > denominator[cursor].value {
-                        order = 1;
-                    }
-                    cursor += 1;
-                }
-                subtract = order >= 0;
-            }
-            if subtract {
-                let mut borrow: i32 = 0;
-                cursor = denominator.len();
-                while cursor > 0 {
-                    let mut difference =
-                        remainder[cursor].value - denominator[cursor - 1].value - borrow;
-                    borrow = 0;
-                    if difference < 0 {
-                        difference = difference + 10;
-                        borrow = 1;
-                    }
-                    remainder[cursor] = NumericWireDigit { value: difference };
-                    cursor = cursor - 1;
-                }
-                remainder[0] = NumericWireDigit {
-                    value: remainder[0].value - borrow,
-                };
-                quotient = quotient + 1;
-            }
-        }
-        if quotient != 0 && sign == 0 {
-            sign = left.sign * right.sign;
-            weight = position;
-        }
-        if sign != 0 {
-            coefficient.push(char::from_u32((quotient + 48) as u32).unwrap_or('0'));
-        }
-        let mut nonzero = false;
-        cursor = 0;
-        while cursor < remainder.len() {
-            if remainder[cursor].value != 0 {
-                nonzero = true;
-            }
-            cursor += 1;
-        }
-        if index >= first.len() && nonzero == false {
-            position = boundary;
-        }
-        position = position - 1;
-    }
-    NumericWork {
-        valid: true,
-        special: 1,
-        sign: sign,
-        weight: weight,
-        scale: scale,
-        digits: coefficient,
-    }
+    rscale
 }
 
 fn numeric_division(left: NumericValue, right: NumericValue, mode: i32) -> NumericValue {
@@ -221,26 +93,19 @@ fn numeric_division(left: NumericValue, right: NumericValue, mode: i32) -> Numer
                 }
                 return NumericValue::Value("0".to_owned());
             }
+            let dividend = numeric_var_from_work(&a);
+            let divisor = numeric_var_from_work(&b);
             if mode == 2 {
-                let quotient = numeric_division_work(a.clone(), b.clone(), 0, false);
-                let product = numeric_work_multiply(quotient, b);
-                if let NumericValue::Value(multiplied) = product {
-                    return numeric_work_add(a, numeric_work_from_value(multiplied.as_str()), true);
-                }
-                return product;
+                let result = numeric_var_mod(&dividend, &divisor);
+                return numeric_var_result(result);
             }
-            let mut scale: i32 = 0;
-            let mut rounding = false;
-            if mode == 0 {
-                scale = numeric_division_scale(a.clone(), b.clone());
-                rounding = true;
+            if mode == 1 {
+                let result = numeric_var_div(&dividend, &divisor, 0, false, true);
+                return numeric_var_result(result);
             }
-            let quotient = numeric_division_work(a, b, scale, rounding);
-            let mut round_mode: i32 = 0;
-            if rounding {
-                round_mode = 1;
-            }
-            return numeric_work_round(quotient, scale, round_mode);
+            let rscale = numeric_division_scale(&dividend, &divisor);
+            let result = numeric_var_div(&dividend, &divisor, rscale, true, true);
+            return numeric_var_result(result);
         }
     }
     numeric_unresolved(unresolved_flavor)

@@ -44,37 +44,40 @@ fn numeric_base_logarithm(base: NumericWork, input: NumericWork) -> NumericValue
     if input.special == 2 {
         return NumericValue::Value("Infinity".to_owned());
     }
-    let base_weight = numeric_logarithm_weight(base.clone());
-    let input_weight = numeric_logarithm_weight(input.clone());
-    let result_weight = input_weight - base_weight;
-    let mut scale = 16 - result_weight;
-    if scale < base.scale {
-        scale = base.scale;
+    // PostgreSQL's log_var: ln(num) / ln(base), each logarithm figured to the precision
+    // the quotient needs.
+    let base_var = numeric_var_from_work(&base);
+    let num_var = numeric_var_from_work(&input);
+    let ln_base_dweight = numeric_var_ln_dweight(&base_var);
+    let ln_num_dweight = numeric_var_ln_dweight(&num_var);
+    let result_dweight = ln_num_dweight - ln_base_dweight;
+    let mut rscale = NUMERIC_VAR_MIN_SIG_DIGITS - result_dweight;
+    if rscale < base_var.dscale {
+        rscale = base_var.dscale;
     }
-    if scale < input.scale {
-        scale = input.scale;
+    if rscale < num_var.dscale {
+        rscale = num_var.dscale;
     }
-    if scale < 0 {
-        scale = 0;
+    if rscale < 0 {
+        rscale = 0;
     }
-    if scale > 1000 {
-        scale = 1000;
+    if rscale > NUMERIC_VAR_MAX_DISPLAY_SCALE {
+        rscale = NUMERIC_VAR_MAX_DISPLAY_SCALE;
     }
-    let mut base_scale = scale + result_weight - base_weight + 8;
-    if base_scale < 0 {
-        base_scale = 0;
+    let mut ln_base_rscale = rscale + result_dweight - ln_base_dweight + 8;
+    if ln_base_rscale < 0 {
+        ln_base_rscale = 0;
     }
-    let mut input_scale = scale + result_weight - input_weight + 8;
-    if input_scale < 0 {
-        input_scale = 0;
+    let mut ln_num_rscale = rscale + result_dweight - ln_num_dweight + 8;
+    if ln_num_rscale < 0 {
+        ln_num_rscale = 0;
     }
-    let denominator = numeric_logarithm_work(base, base_scale);
-    let numerator = numeric_logarithm_work(input, input_scale);
-    if denominator.sign == 0 {
+    let ln_base = numeric_var_ln(&base_var, ln_base_rscale);
+    let ln_num = numeric_var_ln(&num_var, ln_num_rscale);
+    if numeric_var_count(&ln_base) == 0 {
         return NumericValue::Error(make_sql_error(SQLSTATE_DIVISION_BY_ZERO));
     }
-    let quotient = numeric_division_work(numerator, denominator, scale, true);
-    numeric_work_round(quotient, scale, 1)
+    numeric_var_result(numeric_var_div(&ln_num, &ln_base, rscale, true, false))
 }
 
 pub fn sql__pg_catalog__numeric_log__8gwh(left: NumericValue, right: NumericValue) -> NumericValue {

@@ -28,12 +28,10 @@ const NUMERIC_SQRT_INVALID_ARGUMENT: u32 = 3452595;
 
 // PostgreSQL's sqrt_var: Paul Zimmermann's Karatsuba square root, computed iteratively over
 // NBASE digits and rounded to rscale, which may be negative. Callers reject negative inputs.
-fn numeric_square_root_scaled(work: NumericWork, rscale: i32) -> NumericWork {
-    let arg = numeric_var_from_work(&work);
-    let arg_ndigits = numeric_var_count(&arg);
+fn numeric_var_sqrt(arg: &NumericVar, rscale: i32) -> NumericVar {
+    let arg_ndigits = numeric_var_count(arg);
     if arg_ndigits == 0 {
-        let zero = numeric_var_zero(rscale);
-        return numeric_work_from_var(&zero);
+        return numeric_var_zero(rscale);
     }
     // The result weight is half the input weight, rounded towards minus infinity.
     let mut res_weight = arg.weight / 2;
@@ -59,7 +57,7 @@ fn numeric_square_root_scaled(work: NumericWork, rscale: i32) -> NumericWork {
     let mut step: i32 = 0;
     while src_ndigits > 4 {
         let mut blen = src_ndigits / 4;
-        if blen * 4 == src_ndigits && numeric_var_digit(&arg, 0) < NUMERIC_VAR_NBASE / 4 {
+        if blen * 4 == src_ndigits && numeric_var_digit(arg, 0) < NUMERIC_VAR_NBASE / 4 {
             blen = blen - 1;
         }
         src_ndigits = src_ndigits - 2 * blen;
@@ -68,10 +66,10 @@ fn numeric_square_root_scaled(work: NumericWork, rscale: i32) -> NumericWork {
     }
     // The innermost root of at most four NBASE digits, estimated in double precision and
     // corrected by Newton's method. The root of four NBASE digits fits in 32 bits.
-    let mut arg_int64 = numeric_var_digit(&arg, 0) as i64;
+    let mut arg_int64 = numeric_var_digit(arg, 0) as i64;
     let mut src_idx: i32 = 1;
     while src_idx < src_ndigits {
-        let digit = numeric_var_digit(&arg, src_idx) as i64;
+        let digit = numeric_var_digit(arg, src_idx) as i64;
         arg_int64 = arg_int64 * 10000i64 + digit;
         src_idx = src_idx + 1;
     }
@@ -97,13 +95,13 @@ fn numeric_square_root_scaled(work: NumericWork, rscale: i32) -> NumericWork {
         let mut i: i32 = 0;
         while i < blen {
             b = b * NUMERIC_VAR_NBASE;
-            a1 = a1 * NUMERIC_VAR_NBASE + numeric_var_digit(&arg, src_idx);
+            a1 = a1 * NUMERIC_VAR_NBASE + numeric_var_digit(arg, src_idx);
             src_idx = src_idx + 1;
             i = i + 1;
         }
         i = 0;
         while i < blen {
-            a0 = a0 * NUMERIC_VAR_NBASE + numeric_var_digit(&arg, src_idx);
+            a0 = a0 * NUMERIC_VAR_NBASE + numeric_var_digit(arg, src_idx);
             src_idx = src_idx + 1;
             i = i + 1;
         }
@@ -134,9 +132,9 @@ fn numeric_square_root_scaled(work: NumericWork, rscale: i32) -> NumericWork {
     while step >= 0 {
         src_ndigits = ndigits[usize::try_from(step).unwrap_or(0)].value;
         let blen = (src_ndigits - src_idx) / 2;
-        let a1_var = numeric_square_root_part(&arg, src_idx, blen);
+        let a1_var = numeric_square_root_part(arg, src_idx, blen);
         src_idx = src_idx + blen;
-        let a0_var = numeric_square_root_part(&arg, src_idx, blen);
+        let a0_var = numeric_square_root_part(arg, src_idx, blen);
         src_idx = src_idx + blen;
         let r_scaled = numeric_var_shifted(&r_var, blen);
         let numer = numeric_var_add(&r_scaled, &a1_var);
@@ -168,8 +166,7 @@ fn numeric_square_root_scaled(work: NumericWork, rscale: i32) -> NumericWork {
         dscale: s_var.dscale,
         digits: s_var.digits,
     };
-    let rounded = numeric_var_strip(numeric_var_round(root, rscale));
-    numeric_work_from_var(&rounded)
+    numeric_var_strip(numeric_var_round(root, rscale))
 }
 
 // blen input digits from start, as an integer; digits past the input are zeros.
@@ -194,23 +191,22 @@ fn numeric_square_root_part(arg: &NumericVar, start: i32, blen: i32) -> NumericV
     })
 }
 
+// PostgreSQL's numeric_sqrt: at least NUMERIC_MIN_SIG_DIGITS significant digits, and no
+// fewer fractional digits than the input displays.
 fn numeric_square_root(work: NumericWork) -> NumericValue {
-    let mut group_weight = work.weight / 4;
-    if work.weight % 4 < 0 {
-        group_weight = group_weight - 1;
+    let arg = numeric_var_from_work(&work);
+    let sweight = arg.weight * NUMERIC_VAR_DEC_DIGITS / 2 + 1;
+    let mut rscale = NUMERIC_VAR_MIN_SIG_DIGITS - sweight;
+    if rscale < arg.dscale {
+        rscale = arg.dscale;
     }
-    let mut scale = 15 - group_weight * 2;
-    if scale < work.scale {
-        scale = work.scale;
+    if rscale < 0 {
+        rscale = 0;
     }
-    if scale < 0 {
-        scale = 0;
+    if rscale > NUMERIC_VAR_MAX_DISPLAY_SCALE {
+        rscale = NUMERIC_VAR_MAX_DISPLAY_SCALE;
     }
-    if scale > 1000 {
-        scale = 1000;
-    }
-    let rounded = numeric_square_root_scaled(work, scale);
-    NumericValue::Value(numeric_work_text(rounded))
+    numeric_var_result(numeric_var_sqrt(&arg, rscale))
 }
 
 pub fn sql__pg_catalog__numeric_sqrt__t0uy(input: NumericValue) -> NumericValue {

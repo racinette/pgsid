@@ -459,278 +459,6 @@ pub fn sql__pg_catalog__numeric_eq__fw7r(left: NumericValue, right: NumericValue
     bool_unresolved(unresolved_flavor)
 }
 
-fn numeric_work_magnitude(left: NumericWork, right: NumericWork) -> i32 {
-    if left.sign == 0 {
-        if right.sign == 0 {
-            return 0;
-        }
-        return -1;
-    }
-    if right.sign == 0 {
-        return 1;
-    }
-    if left.weight < right.weight {
-        return -1;
-    }
-    if left.weight > right.weight {
-        return 1;
-    }
-    let first: Vec<char> = left.digits.chars().collect();
-    let second: Vec<char> = right.digits.chars().collect();
-    let mut index: usize = 0;
-    while index < first.len() || index < second.len() {
-        let mut a: i32 = 0;
-        let mut b: i32 = 0;
-        if index < first.len() {
-            a = numeric_wire_decimal_digit(first[index]);
-        }
-        if index < second.len() {
-            b = numeric_wire_decimal_digit(second[index]);
-        }
-        if a < b {
-            return -1;
-        }
-        if a > b {
-            return 1;
-        }
-        index += 1;
-    }
-    0
-}
-
-fn numeric_work_sum(left: NumericWork, right: NumericWork, subtract: bool) -> NumericWork {
-    let mut scale = left.scale;
-    if right.scale > scale {
-        scale = right.scale;
-    }
-    let mut sign = left.sign;
-    let mut other_sign = right.sign;
-    if subtract {
-        other_sign = 0 - other_sign;
-    }
-    let adding = sign == other_sign;
-    let mut swap = false;
-    if adding == false {
-        let order = numeric_work_magnitude(left.clone(), right.clone());
-        if order < 0 {
-            swap = true;
-            sign = other_sign;
-        }
-        if order == 0 {
-            sign = 0;
-        }
-    }
-    let mut weight = left.weight;
-    if right.weight > weight {
-        weight = right.weight;
-    }
-    weight = weight + 1;
-    let first: Vec<char> = left.digits.chars().collect();
-    let second: Vec<char> = right.digits.chars().collect();
-    let mut a_index: usize = 0;
-    let mut b_index: usize = 0;
-    let mut a_digits: Vec<NumericWireDigit> = Vec::new();
-    let mut b_digits: Vec<NumericWireDigit> = Vec::new();
-    let mut position = weight;
-    while position >= 0 - scale {
-        let mut a: i32 = 0;
-        let mut b: i32 = 0;
-        if position <= left.weight && a_index < first.len() {
-            a = numeric_wire_decimal_digit(first[a_index]);
-            a_index += 1;
-        }
-        if position <= right.weight && b_index < second.len() {
-            b = numeric_wire_decimal_digit(second[b_index]);
-            b_index += 1;
-        }
-        a_digits.push(NumericWireDigit { value: a });
-        b_digits.push(NumericWireDigit { value: b });
-        position = position - 1;
-    }
-    let mut result: Vec<NumericWireDigit> = Vec::new();
-    let mut index: usize = 0;
-    while index < a_digits.len() {
-        result.push(NumericWireDigit { value: 0 });
-        index += 1;
-    }
-    let mut carry: i32 = 0;
-    while index > 0 {
-        index = index - 1;
-        let mut a = a_digits[index].value;
-        let mut b = b_digits[index].value;
-        if swap {
-            a = b_digits[index].value;
-            b = a_digits[index].value;
-        }
-        let mut digit = a + b + carry;
-        if adding {
-            carry = digit / 10;
-            digit = digit % 10;
-        } else {
-            digit = a - b - carry;
-            carry = 0;
-            if digit < 0 {
-                digit = digit + 10;
-                carry = 1;
-            }
-        };
-        result[index] = NumericWireDigit { value: digit };
-    }
-    let mut end = result.len();
-    while end > 0 && result[end - 1].value == 0 {
-        end = end - 1;
-    }
-    let mut start: usize = 0;
-    while start < end && result[start].value == 0 {
-        start += 1;
-        weight = weight - 1;
-    }
-    let mut digits = String::new();
-    index = start;
-    while index < end {
-        digits.push(char::from_u32((result[index].value + 48) as u32).unwrap_or('0'));
-        index += 1;
-    }
-    if start == end {
-        sign = 0;
-        weight = 0;
-    }
-    NumericWork {
-        valid: true,
-        special: 1,
-        sign: sign,
-        weight: weight,
-        scale: scale,
-        digits: digits,
-    }
-}
-
-fn numeric_work_add(left: NumericWork, right: NumericWork, subtract: bool) -> NumericValue {
-    let work = numeric_work_sum(left, right, subtract);
-    if work.weight > 131071 {
-        return NumericValue::Error(make_sql_error(NUMERIC_SUPPORT_RANGE_ERROR));
-    }
-    NumericValue::Value(numeric_work_text(work))
-}
-
-fn numeric_product_words(characters: Vec<char>) -> Vec<NumericWireDigit> {
-    let mut words: Vec<NumericWireDigit> = Vec::new();
-    let mut end = characters.len();
-    while end > 0 {
-        let mut value: i32 = 0;
-        let mut factor: i32 = 1;
-        let mut width: i32 = 0;
-        while end > 0 && width < 4 {
-            end = end - 1;
-            value = value + numeric_wire_decimal_digit(characters[end]) * factor;
-            factor = factor * 10;
-            width = width + 1;
-        }
-        words.push(NumericWireDigit { value: value });
-    }
-    words
-}
-
-fn numeric_work_product(left: NumericWork, right: NumericWork) -> NumericWork {
-    let scale = left.scale + right.scale;
-    let sign = left.sign * right.sign;
-    let first: Vec<char> = left.digits.chars().collect();
-    let second: Vec<char> = right.digits.chars().collect();
-    let mut a_count: i32 = 0;
-    let mut b_count: i32 = 0;
-    let mut index: usize = 0;
-    while index < first.len() {
-        a_count = a_count + 1;
-        index += 1;
-    }
-    index = 0;
-    while index < second.len() {
-        b_count = b_count + 1;
-        index += 1;
-    }
-    let a = numeric_product_words(first);
-    let b = numeric_product_words(second);
-    let mut result: Vec<NumericWireDigit> = Vec::new();
-    index = 0;
-    while index < a.len() + b.len() + 1 {
-        result.push(NumericWireDigit { value: 0 });
-        index += 1;
-    }
-    let mut a_index: usize = 0;
-    while a_index < a.len() {
-        let mut b_index: usize = 0;
-        let mut carry: i32 = 0;
-        while b_index < b.len() {
-            let offset = a_index + b_index;
-            let product = a[a_index].value * b[b_index].value + result[offset].value + carry;
-            result[offset] = NumericWireDigit {
-                value: product % 10000,
-            };
-            carry = product / 10000;
-            b_index += 1;
-        }
-        let mut offset = a_index + b_index;
-        while carry > 0 {
-            let word = result[offset].value + carry;
-            result[offset] = NumericWireDigit {
-                value: word % 10000,
-            };
-            carry = word / 10000;
-            offset += 1;
-        }
-        a_index += 1;
-    }
-    let mut end = result.len();
-    while end > 0 && result[end - 1].value == 0 {
-        end = end - 1;
-    }
-    let mut coefficient = String::new();
-    let mut count: i32 = 0;
-    while end > 0 {
-        end = end - 1;
-        let mut word = result[end].value;
-        let mut place: i32 = 1000;
-        while place > 0 {
-            let digit = word / place;
-            word = word % place;
-            if coefficient != String::new() || digit != 0 {
-                coefficient.push(char::from_u32((digit + 48) as u32).unwrap_or('0'));
-                count = count + 1;
-            }
-            place = place / 10;
-        }
-    }
-    let mut weight = left.weight + right.weight + count - a_count - b_count + 1;
-    let characters: Vec<char> = coefficient.chars().collect();
-    end = characters.len();
-    while end > 0 && characters[end - 1] == '0' {
-        end = end - 1;
-    }
-    let mut digits = String::new();
-    index = 0;
-    while index < end {
-        digits.push(characters[index]);
-        index += 1;
-    }
-    if sign == 0 {
-        weight = 0;
-    }
-    NumericWork {
-        valid: true,
-        special: 1,
-        sign: sign,
-        weight: weight,
-        scale: scale,
-        digits: digits,
-    }
-}
-
-fn numeric_work_multiply(left: NumericWork, right: NumericWork) -> NumericValue {
-    let work = numeric_work_product(left, right);
-    let scale = work.scale;
-    numeric_work_round(work, scale, 1)
-}
-
 fn numeric_arithmetic(left: NumericValue, right: NumericValue, mode: i32) -> NumericValue {
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = left { unresolved_flavor = 1; };
@@ -797,10 +525,22 @@ fn numeric_arithmetic(left: NumericValue, right: NumericValue, mode: i32) -> Num
                 }
                 return make_numeric_value("Infinity");
             }
+            let left_var = numeric_var_from_work(&first);
+            let right_var = numeric_var_from_work(&second);
             if mode == 2 {
-                return numeric_work_multiply(first, second);
+                let rscale = left_var.dscale + right_var.dscale;
+                let product = numeric_var_mul(&left_var, &right_var, rscale);
+                if product.dscale > 16383 {
+                    return numeric_var_result(numeric_var_round(product, 16383));
+                }
+                return numeric_var_result(product);
             }
-            return numeric_work_add(first, second, mode == 1);
+            if mode == 1 {
+                let result = numeric_var_sub(&left_var, &right_var);
+                return numeric_var_result(result);
+            }
+            let result = numeric_var_add(&left_var, &right_var);
+            return numeric_var_result(result);
         }
     }
     numeric_unresolved(unresolved_flavor)
@@ -818,177 +558,49 @@ pub fn sql__pg_catalog__numeric_mul__bj4l(left: NumericValue, right: NumericValu
     numeric_arithmetic(left, right, 2)
 }
 
-fn numeric_division_scale(left: NumericWork, right: NumericWork) -> i32 {
-    let mut first_weight: i32 = 0;
-    let mut second_weight: i32 = 0;
-    let mut first_digit: i32 = 0;
-    let mut second_digit: i32 = 0;
-    let first: Vec<char> = left.digits.chars().collect();
-    let second: Vec<char> = right.digits.chars().collect();
-    if left.sign != 0 {
-        first_weight = left.weight / 4;
-        let mut width = left.weight % 4;
-        if width < 0 {
-            first_weight = first_weight - 1;
-            width = width + 4;
+// PostgreSQL's select_div_scale: at least NUMERIC_MIN_SIG_DIGITS significant digits, and no
+// fewer fractional digits than either input displays.
+fn numeric_division_scale(left: &NumericVar, right: &NumericVar) -> i32 {
+    let mut weight1: i32 = 0;
+    let mut firstdigit1: i32 = 0;
+    let mut i: i32 = 0;
+    while i < numeric_var_count(left) {
+        firstdigit1 = numeric_var_digit(left, i);
+        if firstdigit1 != 0 {
+            weight1 = left.weight - i;
+            i = numeric_var_count(left);
         }
-        width = width + 1;
-        let mut index: usize = 0;
-        while width > 0 {
-            first_digit = first_digit * 10;
-            if index < first.len() {
-                first_digit = first_digit + numeric_wire_decimal_digit(first[index]);
-            }
-            index += 1;
-            width = width - 1;
+        i = i + 1;
+    }
+    let mut weight2: i32 = 0;
+    let mut firstdigit2: i32 = 0;
+    i = 0;
+    while i < numeric_var_count(right) {
+        firstdigit2 = numeric_var_digit(right, i);
+        if firstdigit2 != 0 {
+            weight2 = right.weight - i;
+            i = numeric_var_count(right);
         }
+        i = i + 1;
     }
-    if right.sign != 0 {
-        second_weight = right.weight / 4;
-        let mut width = right.weight % 4;
-        if width < 0 {
-            second_weight = second_weight - 1;
-            width = width + 4;
-        }
-        width = width + 1;
-        let mut index: usize = 0;
-        while width > 0 {
-            second_digit = second_digit * 10;
-            if index < second.len() {
-                second_digit = second_digit + numeric_wire_decimal_digit(second[index]);
-            }
-            index += 1;
-            width = width - 1;
-        }
+    let mut qweight = weight1 - weight2;
+    if firstdigit1 <= firstdigit2 {
+        qweight = qweight - 1;
     }
-    let mut quotient_weight = first_weight - second_weight;
-    if first_digit <= second_digit {
-        quotient_weight = quotient_weight - 1;
+    let mut rscale = NUMERIC_VAR_MIN_SIG_DIGITS - qweight * NUMERIC_VAR_DEC_DIGITS;
+    if rscale < left.dscale {
+        rscale = left.dscale;
     }
-    let mut scale = 16 - quotient_weight * 4;
-    if scale < left.scale {
-        scale = left.scale;
+    if rscale < right.dscale {
+        rscale = right.dscale;
     }
-    if scale < right.scale {
-        scale = right.scale;
+    if rscale < 0 {
+        rscale = 0;
     }
-    if scale < 0 {
-        scale = 0;
+    if rscale > NUMERIC_VAR_MAX_DISPLAY_SCALE {
+        rscale = NUMERIC_VAR_MAX_DISPLAY_SCALE;
     }
-    if scale > 1000 {
-        scale = 1000;
-    }
-    scale
-}
-
-fn numeric_division_work(
-    left: NumericWork,
-    right: NumericWork,
-    scale: i32,
-    rounding: bool,
-) -> NumericWork {
-    let first: Vec<char> = left.digits.chars().collect();
-    let second: Vec<char> = right.digits.chars().collect();
-    let mut denominator: Vec<NumericWireDigit> = Vec::new();
-    let mut remainder: Vec<NumericWireDigit> = Vec::new();
-    remainder.push(NumericWireDigit { value: 0 });
-    let mut second_exponent = right.weight + 1;
-    let mut index: usize = 0;
-    while index < second.len() {
-        denominator.push(NumericWireDigit {
-            value: numeric_wire_decimal_digit(second[index]),
-        });
-        remainder.push(NumericWireDigit { value: 0 });
-        second_exponent = second_exponent - 1;
-        index += 1;
-    }
-    let mut position = left.weight - second_exponent;
-    let mut boundary = 0 - scale;
-    if rounding {
-        boundary = boundary - 1;
-    }
-    let mut coefficient = String::new();
-    let mut weight: i32 = 0;
-    let mut sign: i32 = 0;
-    index = 0;
-    while position >= boundary && left.sign != 0 {
-        let mut cursor: usize = 0;
-        while cursor + 1 < remainder.len() {
-            remainder[cursor] = remainder[cursor + 1];
-            cursor += 1;
-        }
-        let mut digit: i32 = 0;
-        if index < first.len() {
-            digit = numeric_wire_decimal_digit(first[index]);
-        }
-        remainder[cursor] = NumericWireDigit { value: digit };
-        index += 1;
-        let mut quotient: i32 = 0;
-        let mut subtract = true;
-        while subtract {
-            subtract = remainder[0].value != 0;
-            if subtract == false {
-                let mut order: i32 = 0;
-                cursor = 0;
-                while cursor < denominator.len() && order == 0 {
-                    if remainder[cursor + 1].value < denominator[cursor].value {
-                        order = -1;
-                    }
-                    if remainder[cursor + 1].value > denominator[cursor].value {
-                        order = 1;
-                    }
-                    cursor += 1;
-                }
-                subtract = order >= 0;
-            }
-            if subtract {
-                let mut borrow: i32 = 0;
-                cursor = denominator.len();
-                while cursor > 0 {
-                    let mut difference =
-                        remainder[cursor].value - denominator[cursor - 1].value - borrow;
-                    borrow = 0;
-                    if difference < 0 {
-                        difference = difference + 10;
-                        borrow = 1;
-                    }
-                    remainder[cursor] = NumericWireDigit { value: difference };
-                    cursor = cursor - 1;
-                }
-                remainder[0] = NumericWireDigit {
-                    value: remainder[0].value - borrow,
-                };
-                quotient = quotient + 1;
-            }
-        }
-        if quotient != 0 && sign == 0 {
-            sign = left.sign * right.sign;
-            weight = position;
-        }
-        if sign != 0 {
-            coefficient.push(char::from_u32((quotient + 48) as u32).unwrap_or('0'));
-        }
-        let mut nonzero = false;
-        cursor = 0;
-        while cursor < remainder.len() {
-            if remainder[cursor].value != 0 {
-                nonzero = true;
-            }
-            cursor += 1;
-        }
-        if index >= first.len() && nonzero == false {
-            position = boundary;
-        }
-        position = position - 1;
-    }
-    NumericWork {
-        valid: true,
-        special: 1,
-        sign: sign,
-        weight: weight,
-        scale: scale,
-        digits: coefficient,
-    }
+    rscale
 }
 
 fn numeric_division(left: NumericValue, right: NumericValue, mode: i32) -> NumericValue {
@@ -1041,26 +653,19 @@ fn numeric_division(left: NumericValue, right: NumericValue, mode: i32) -> Numer
                 }
                 return NumericValue::Value("0".to_owned());
             }
+            let dividend = numeric_var_from_work(&a);
+            let divisor = numeric_var_from_work(&b);
             if mode == 2 {
-                let quotient = numeric_division_work(a.clone(), b.clone(), 0, false);
-                let product = numeric_work_multiply(quotient, b);
-                if let NumericValue::Value(multiplied) = product {
-                    return numeric_work_add(a, numeric_work_from_value(multiplied.as_str()), true);
-                }
-                return product;
+                let result = numeric_var_mod(&dividend, &divisor);
+                return numeric_var_result(result);
             }
-            let mut scale: i32 = 0;
-            let mut rounding = false;
-            if mode == 0 {
-                scale = numeric_division_scale(a.clone(), b.clone());
-                rounding = true;
+            if mode == 1 {
+                let result = numeric_var_div(&dividend, &divisor, 0, false, true);
+                return numeric_var_result(result);
             }
-            let quotient = numeric_division_work(a, b, scale, rounding);
-            let mut round_mode: i32 = 0;
-            if rounding {
-                round_mode = 1;
-            }
-            return numeric_work_round(quotient, scale, round_mode);
+            let rscale = numeric_division_scale(&dividend, &divisor);
+            let result = numeric_var_div(&dividend, &divisor, rscale, true, true);
+            return numeric_var_result(result);
         }
     }
     numeric_unresolved(unresolved_flavor)
@@ -1137,6 +742,46 @@ return NumericValue::Value("0".to_owned());
 numeric_unresolved(unresolved_flavor)
 }
 
+// PostgreSQL's numeric_round, numeric_trunc, numeric_ceil and numeric_floor: mode 1 rounds,
+// 0 truncates, 2 takes the ceiling and 3 the floor. Scales are clamped as PostgreSQL clamps
+// them, and a negative scale displays no fractional digits.
+fn numeric_round_value(work: NumericWork, requested: i32, mode: i32) -> NumericValue {
+    if work.valid == false {
+        return numeric_unresolved(0);
+    }
+    if work.special != 1 {
+        return NumericValue::Value(numeric_work_text(work));
+    }
+    let arg = numeric_var_from_work(&work);
+    if mode == 2 {
+        return numeric_var_result(numeric_var_ceil(&arg));
+    }
+    if mode == 3 {
+        return numeric_var_result(numeric_var_floor(&arg));
+    }
+    let mut scale = requested;
+    let mut minimum: i32 = -131072;
+    if mode == 1 {
+        minimum = minimum - 1;
+    }
+    if scale < minimum {
+        scale = minimum;
+    }
+    if scale > 16383 {
+        scale = 16383;
+    }
+    let mut result = numeric_var_zero(0);
+    if mode == 1 {
+        result = numeric_var_round(arg, scale);
+    } else {
+        result = numeric_var_trunc(arg, scale);
+    };
+    if scale < 0 {
+        result = numeric_var_rescaled(result, 0);
+    }
+    numeric_var_result(result)
+}
+
 pub fn sql__pg_catalog__round__otcq(input: NumericValue, scale: Int4Value) -> NumericValue {
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = input { unresolved_flavor = 1; };
@@ -1150,7 +795,7 @@ if input == NumericValue::Null || scale == Int4Value::Null { return NumericValue
 if let NumericValue::Value(value) = input {
 let work = numeric_work_from_value(value.as_str());
 if work.valid == false { return numeric_unresolved(unresolved_flavor); }
-if let Int4Value::Value(precision) = scale { return numeric_work_round(work, precision, 1); }
+if let Int4Value::Value(precision) = scale { return numeric_round_value(work, precision, 1); }
 }
 numeric_unresolved(unresolved_flavor)
 }
@@ -1168,7 +813,7 @@ if input == NumericValue::Null || scale == Int4Value::Null { return NumericValue
 if let NumericValue::Value(value) = input {
 let work = numeric_work_from_value(value.as_str());
 if work.valid == false { return numeric_unresolved(unresolved_flavor); }
-if let Int4Value::Value(precision) = scale { return numeric_work_round(work, precision, 0); }
+if let Int4Value::Value(precision) = scale { return numeric_round_value(work, precision, 0); }
 }
 numeric_unresolved(unresolved_flavor)
 }
@@ -1216,6 +861,1267 @@ fn numeric_wire_scale(input: &str) -> i32 {
         return 0;
     }
     scale
+}
+
+/*
+ * PostgreSQL Database Management System
+ * (also known as Postgres, formerly known as Postgres95)
+ *
+ * Portions Copyright (c) 1996-2026, PostgreSQL Global Development Group
+ *
+ * Portions Copyright (c) 1994, The Regents of the University of California
+ *
+ * Permission to use, copy, modify, and distribute this software and its
+ * documentation for any purpose, without fee, and without a written agreement
+ * is hereby granted, provided that the above copyright notice and this
+ * paragraph and the following two paragraphs appear in all copies.
+ *
+ * IN NO EVENT SHALL THE UNIVERSITY OF CALIFORNIA BE LIABLE TO ANY PARTY FOR
+ * DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, INCLUDING
+ * LOST PROFITS, ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS
+ * DOCUMENTATION, EVEN IF THE UNIVERSITY OF CALIFORNIA HAS BEEN ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ *
+ * THE UNIVERSITY OF CALIFORNIA SPECIFICALLY DISCLAIMS ANY WARRANTIES,
+ * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
+ * AND FITNESS FOR A PARTICULAR PURPOSE.  THE SOFTWARE PROVIDED HEREUNDER IS
+ * ON AN "AS IS" BASIS, AND THE UNIVERSITY OF CALIFORNIA HAS NO OBLIGATIONS TO
+ * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
+ */
+
+// PostgreSQL's NumericVar, so its numeric algorithms port as written: base-NBASE digits,
+// most significant first, the weight of the first digit, and the display scale. A zero has
+// no digits. Where PostgreSQL computes an exact result, any exact method yields the same
+// digits, so these routines use PostgreSQL's 32-bit forms and keep the translated targets on
+// plain numbers. Where it approximates, by truncating a product or estimating a quotient, they
+// reproduce PostgreSQL's arithmetic step for step.
+#[derive(Clone)]
+struct NumericVar {
+    sign: i32,
+    weight: i32,
+    dscale: i32,
+    digits: Vec<NumericWireDigit>,
+}
+
+const NUMERIC_VAR_NBASE: i32 = 10000;
+
+const NUMERIC_VAR_HALF_NBASE: i32 = 5000;
+
+const NUMERIC_VAR_DEC_DIGITS: i32 = 4;
+
+const NUMERIC_VAR_MUL_GUARD_DIGITS: i32 = 2;
+
+const NUMERIC_VAR_DIV_GUARD_DIGITS: i32 = 4;
+
+const NUMERIC_VAR_MIN_SIG_DIGITS: i32 = 16;
+
+const NUMERIC_VAR_MAX_DISPLAY_SCALE: i32 = 1000;
+
+#[derive(Clone, Copy)]
+struct NumericVarWide {
+    value: i64,
+}
+
+fn numeric_var_zero(dscale: i32) -> NumericVar {
+    let digits: Vec<NumericWireDigit> = Vec::new();
+    NumericVar {
+        sign: 1,
+        weight: 0,
+        dscale: dscale,
+        digits: digits,
+    }
+}
+
+fn numeric_var_count(value: &NumericVar) -> i32 {
+    value.digits.len() as i32
+}
+
+fn numeric_var_digit(value: &NumericVar, index: i32) -> i32 {
+    if index < 0 || index >= numeric_var_count(value) {
+        return 0;
+    }
+    value.digits[usize::try_from(index).unwrap_or(0)].value
+}
+
+fn numeric_var_zeros(count: i32) -> Vec<NumericWireDigit> {
+    let mut digits: Vec<NumericWireDigit> = Vec::new();
+    let mut index: i32 = 0;
+    while index < count {
+        digits.push(NumericWireDigit { value: 0 });
+        index = index + 1;
+    }
+    digits
+}
+
+fn numeric_var_round_power(decimals: i32) -> i32 {
+    if decimals == 1 {
+        return 1000;
+    }
+    if decimals == 2 {
+        return 100;
+    }
+    10
+}
+
+fn numeric_var_from_work(work: &NumericWork) -> NumericVar {
+    if work.sign == 0 {
+        return numeric_var_zero(work.scale);
+    }
+    let characters: Vec<char> = work.digits.chars().collect();
+    let mut weight = work.weight / NUMERIC_VAR_DEC_DIGITS;
+    if work.weight % NUMERIC_VAR_DEC_DIGITS < 0 {
+        weight = weight - 1;
+    }
+    // Leading zeros place the first decimal digit within the first NBASE digit, and trailing
+    // zeros complete the last one.
+    let mut leading = weight * NUMERIC_VAR_DEC_DIGITS + NUMERIC_VAR_DEC_DIGITS - 1 - work.weight;
+    let mut emitted: i32 = 0;
+    let mut digits: Vec<NumericWireDigit> = Vec::new();
+    let mut value: i32 = 0;
+    let mut index: usize = 0;
+    while index < characters.len() || emitted % NUMERIC_VAR_DEC_DIGITS != 0 {
+        let mut decimal: i32 = 0;
+        if leading > 0 {
+            leading = leading - 1;
+        } else if index < characters.len() {
+            decimal = numeric_wire_decimal_digit(characters[index]);
+            index += 1;
+        }
+        value = value * 10 + decimal;
+        emitted = emitted + 1;
+        if emitted % NUMERIC_VAR_DEC_DIGITS == 0 {
+            digits.push(NumericWireDigit { value: value });
+            value = 0;
+        };
+    }
+    numeric_var_strip(NumericVar {
+        sign: work.sign,
+        weight: weight,
+        dscale: work.scale,
+        digits: digits,
+    })
+}
+
+fn numeric_work_from_var(value: &NumericVar) -> NumericWork {
+    let mut scale = value.dscale;
+    if scale < 0 {
+        scale = 0;
+    }
+    let mut decimals = String::new();
+    let mut weight = value.weight * NUMERIC_VAR_DEC_DIGITS + NUMERIC_VAR_DEC_DIGITS - 1;
+    let mut index: usize = 0;
+    while index < value.digits.len() {
+        let mut word = value.digits[index].value;
+        let mut place: i32 = 1000;
+        while place > 0 {
+            let digit = word / place;
+            word = word % place;
+            if decimals == String::new() && digit == 0 {
+                weight = weight - 1;
+            } else {
+                decimals.push(char::from_u32((digit + 48) as u32).unwrap_or('0'));
+            }
+            place = place / 10;
+        }
+        index += 1;
+    }
+    let characters: Vec<char> = decimals.chars().collect();
+    let mut end = characters.len();
+    while end > 0 && characters[end - 1] == '0' {
+        end = end - 1;
+    }
+    let mut digits = String::new();
+    index = 0;
+    while index < end {
+        digits.push(characters[index]);
+        index += 1;
+    }
+    let mut sign = value.sign;
+    if end == 0 {
+        sign = 0;
+        weight = 0;
+    }
+    NumericWork {
+        valid: true,
+        special: 1,
+        sign: sign,
+        weight: weight,
+        scale: scale,
+        digits: digits,
+    }
+}
+
+fn numeric_var_from_i64(value: i64) -> NumericVar {
+    let mut sign: i32 = 1;
+    let mut magnitude = value;
+    if value < 0i64 {
+        sign = -1;
+        magnitude = 0i64 - value;
+    }
+    let mut reversed: Vec<NumericWireDigit> = Vec::new();
+    while magnitude > 0i64 {
+        let next = magnitude / 10000i64;
+        reversed.push(NumericWireDigit {
+            value: (magnitude - next * 10000i64) as i32,
+        });
+        magnitude = next;
+    }
+    let mut digits: Vec<NumericWireDigit> = Vec::new();
+    let mut index = reversed.len();
+    while index > 0 {
+        index = index - 1;
+        digits.push(reversed[index]);
+    }
+    let count = digits.len() as i32;
+    if count == 0 {
+        return numeric_var_zero(0);
+    }
+    NumericVar {
+        sign: sign,
+        weight: count - 1,
+        dscale: 0,
+        digits: digits,
+    }
+}
+
+fn numeric_var_strip(value: NumericVar) -> NumericVar {
+    let mut weight = value.weight;
+    let mut start: usize = 0;
+    while start < value.digits.len() && value.digits[start].value == 0 {
+        start += 1;
+        weight = weight - 1;
+    }
+    let mut end = value.digits.len();
+    while end > start && value.digits[end - 1].value == 0 {
+        end = end - 1;
+    }
+    let mut digits: Vec<NumericWireDigit> = Vec::new();
+    let mut index = start;
+    while index < end {
+        digits.push(value.digits[index]);
+        index += 1;
+    }
+    let mut sign = value.sign;
+    if end == start {
+        sign = 1;
+        weight = 0;
+    }
+    NumericVar {
+        sign: sign,
+        weight: weight,
+        dscale: value.dscale,
+        digits: digits,
+    }
+}
+
+fn numeric_var_shifted(value: &NumericVar, places: i32) -> NumericVar {
+    let mut digits: Vec<NumericWireDigit> = Vec::new();
+    let mut index: usize = 0;
+    while index < value.digits.len() {
+        digits.push(value.digits[index]);
+        index += 1;
+    }
+    NumericVar {
+        sign: value.sign,
+        weight: value.weight + places,
+        dscale: value.dscale,
+        digits: digits,
+    }
+}
+
+fn numeric_var_cmp_abs(left: &NumericVar, right: &NumericVar) -> i32 {
+    let left_count = numeric_var_count(left);
+    let right_count = numeric_var_count(right);
+    let mut left_weight = left.weight;
+    let mut right_weight = right.weight;
+    let mut i1: i32 = 0;
+    let mut i2: i32 = 0;
+    while left_weight > right_weight && i1 < left_count {
+        if numeric_var_digit(left, i1) != 0 {
+            return 1;
+        }
+        i1 = i1 + 1;
+        left_weight = left_weight - 1;
+    }
+    while right_weight > left_weight && i2 < right_count {
+        if numeric_var_digit(right, i2) != 0 {
+            return -1;
+        }
+        i2 = i2 + 1;
+        right_weight = right_weight - 1;
+    }
+    if left_weight == right_weight {
+        while i1 < left_count && i2 < right_count {
+            let stat = numeric_var_digit(left, i1) - numeric_var_digit(right, i2);
+            i1 = i1 + 1;
+            i2 = i2 + 1;
+            if stat > 0 {
+                return 1;
+            }
+            if stat < 0 {
+                return -1;
+            };
+        }
+    }
+    while i1 < left_count {
+        if numeric_var_digit(left, i1) != 0 {
+            return 1;
+        }
+        i1 = i1 + 1;
+    }
+    while i2 < right_count {
+        if numeric_var_digit(right, i2) != 0 {
+            return -1;
+        }
+        i2 = i2 + 1;
+    }
+    0
+}
+
+fn numeric_var_cmp(left: &NumericVar, right: &NumericVar) -> i32 {
+    if numeric_var_count(left) == 0 {
+        if numeric_var_count(right) == 0 {
+            return 0;
+        }
+        if right.sign < 0 {
+            return 1;
+        }
+        return -1;
+    }
+    if numeric_var_count(right) == 0 {
+        if left.sign > 0 {
+            return 1;
+        }
+        return -1;
+    }
+    if left.sign > 0 {
+        if right.sign < 0 {
+            return 1;
+        }
+        return numeric_var_cmp_abs(left, right);
+    }
+    if right.sign > 0 {
+        return -1;
+    }
+    numeric_var_cmp_abs(right, left)
+}
+
+fn numeric_var_add_abs(left: &NumericVar, right: &NumericVar) -> NumericVar {
+    let left_count = numeric_var_count(left);
+    let right_count = numeric_var_count(right);
+    let mut res_weight = left.weight;
+    if right.weight > res_weight {
+        res_weight = right.weight;
+    }
+    res_weight = res_weight + 1;
+    let mut res_dscale = left.dscale;
+    if right.dscale > res_dscale {
+        res_dscale = right.dscale;
+    }
+    let rscale1 = left_count - left.weight - 1;
+    let rscale2 = right_count - right.weight - 1;
+    let mut res_rscale = rscale1;
+    if rscale2 > res_rscale {
+        res_rscale = rscale2;
+    }
+    let mut res_ndigits = res_rscale + res_weight + 1;
+    if res_ndigits <= 0 {
+        res_ndigits = 1;
+    }
+    let mut digits = numeric_var_zeros(res_ndigits);
+    let mut i1 = res_rscale + left.weight + 1;
+    let mut i2 = res_rscale + right.weight + 1;
+    let mut carry: i32 = 0;
+    let mut i = res_ndigits - 1;
+    while i >= 0 {
+        i1 = i1 - 1;
+        i2 = i2 - 1;
+        carry = carry + numeric_var_digit(left, i1) + numeric_var_digit(right, i2);
+        let mut digit = carry;
+        carry = 0;
+        if digit >= NUMERIC_VAR_NBASE {
+            digit = digit - NUMERIC_VAR_NBASE;
+            carry = 1;
+        }
+        digits[usize::try_from(i).unwrap_or(0)] = NumericWireDigit { value: digit };
+        i = i - 1;
+    }
+    numeric_var_strip(NumericVar {
+        sign: 1,
+        weight: res_weight,
+        dscale: res_dscale,
+        digits: digits,
+    })
+}
+
+// The caller orders the operands so that the left magnitude is at least the right.
+fn numeric_var_sub_abs(left: &NumericVar, right: &NumericVar) -> NumericVar {
+    let left_count = numeric_var_count(left);
+    let right_count = numeric_var_count(right);
+    let res_weight = left.weight;
+    let mut res_dscale = left.dscale;
+    if right.dscale > res_dscale {
+        res_dscale = right.dscale;
+    }
+    let rscale1 = left_count - left.weight - 1;
+    let rscale2 = right_count - right.weight - 1;
+    let mut res_rscale = rscale1;
+    if rscale2 > res_rscale {
+        res_rscale = rscale2;
+    }
+    let mut res_ndigits = res_rscale + res_weight + 1;
+    if res_ndigits <= 0 {
+        res_ndigits = 1;
+    }
+    let mut digits = numeric_var_zeros(res_ndigits);
+    let mut i1 = res_rscale + left.weight + 1;
+    let mut i2 = res_rscale + right.weight + 1;
+    let mut borrow: i32 = 0;
+    let mut i = res_ndigits - 1;
+    while i >= 0 {
+        i1 = i1 - 1;
+        i2 = i2 - 1;
+        borrow = borrow + numeric_var_digit(left, i1) - numeric_var_digit(right, i2);
+        let mut digit = borrow;
+        borrow = 0;
+        if digit < 0 {
+            digit = digit + NUMERIC_VAR_NBASE;
+            borrow = -1;
+        }
+        digits[usize::try_from(i).unwrap_or(0)] = NumericWireDigit { value: digit };
+        i = i - 1;
+    }
+    numeric_var_strip(NumericVar {
+        sign: 1,
+        weight: res_weight,
+        dscale: res_dscale,
+        digits: digits,
+    })
+}
+
+fn numeric_var_signed(value: NumericVar, sign: i32) -> NumericVar {
+    NumericVar {
+        sign: sign,
+        weight: value.weight,
+        dscale: value.dscale,
+        digits: value.digits,
+    }
+}
+
+// PostgreSQL's add_var and sub_var share their cases: subtraction adds the right operand
+// with its sign reversed.
+fn numeric_var_sum(left: &NumericVar, right: &NumericVar, right_sign: i32) -> NumericVar {
+    let mut dscale = left.dscale;
+    if right.dscale > dscale {
+        dscale = right.dscale;
+    }
+    if left.sign == right_sign {
+        return numeric_var_signed(numeric_var_add_abs(left, right), left.sign);
+    }
+    let order = numeric_var_cmp_abs(left, right);
+    if order == 0 {
+        return numeric_var_zero(dscale);
+    }
+    if order > 0 {
+        return numeric_var_signed(numeric_var_sub_abs(left, right), left.sign);
+    }
+    numeric_var_signed(numeric_var_sub_abs(right, left), right_sign)
+}
+
+fn numeric_var_add(left: &NumericVar, right: &NumericVar) -> NumericVar {
+    numeric_var_sum(left, right, right.sign)
+}
+
+fn numeric_var_sub(left: &NumericVar, right: &NumericVar) -> NumericVar {
+    numeric_var_sum(left, right, 0 - right.sign)
+}
+
+fn numeric_var_round(value: NumericVar, rscale: i32) -> NumericVar {
+    let sign = value.sign;
+    let mut weight = value.weight;
+    let mut digits = value.digits;
+    let mut di = (weight + 1) * NUMERIC_VAR_DEC_DIGITS + rscale;
+    if di < 0 {
+        return numeric_var_zero(rscale);
+    }
+    let ndigits = (di + NUMERIC_VAR_DEC_DIGITS - 1) / NUMERIC_VAR_DEC_DIGITS;
+    di = di % NUMERIC_VAR_DEC_DIGITS;
+    let mut kept = digits.len() as i32;
+    // A carry out of the kept digits becomes a new leading digit.
+    let mut leading: i32 = 0;
+    if ndigits < kept || (ndigits == kept && di > 0) {
+        kept = ndigits;
+        let mut position = ndigits;
+        let mut carry: i32 = 0;
+        if di == 0 {
+            if digits[usize::try_from(ndigits).unwrap_or(0)].value >= NUMERIC_VAR_HALF_NBASE {
+                carry = 1;
+            }
+        } else {
+            position = position - 1;
+            let last = usize::try_from(position).unwrap_or(0);
+            let mut pow10 = numeric_var_round_power(di);
+            let extra = digits[last].value % pow10;
+            digits[last] = NumericWireDigit {
+                value: digits[last].value - extra,
+            };
+            if extra >= pow10 / 2 {
+                pow10 = pow10 + digits[last].value;
+                if pow10 >= NUMERIC_VAR_NBASE {
+                    pow10 = pow10 - NUMERIC_VAR_NBASE;
+                    carry = 1;
+                }
+                digits[last] = NumericWireDigit { value: pow10 };
+            };
+        };
+        while carry > 0 {
+            position = position - 1;
+            if position < 0 {
+                leading = carry;
+                weight = weight + 1;
+                carry = 0;
+            } else {
+                let at = usize::try_from(position).unwrap_or(0);
+                carry = carry + digits[at].value;
+                if carry >= NUMERIC_VAR_NBASE {
+                    digits[at] = NumericWireDigit {
+                        value: carry - NUMERIC_VAR_NBASE,
+                    };
+                    carry = 1;
+                } else {
+                    digits[at] = NumericWireDigit { value: carry };
+                    carry = 0;
+                };
+            };
+        }
+    }
+    let mut rounded: Vec<NumericWireDigit> = Vec::new();
+    if leading > 0 {
+        rounded.push(NumericWireDigit { value: leading });
+    }
+    let end = usize::try_from(kept).unwrap_or(0);
+    let mut index: usize = 0;
+    while index < end {
+        rounded.push(digits[index]);
+        index += 1;
+    }
+    NumericVar {
+        sign: sign,
+        weight: weight,
+        dscale: rscale,
+        digits: rounded,
+    }
+}
+
+fn numeric_var_trunc(value: NumericVar, rscale: i32) -> NumericVar {
+    let sign = value.sign;
+    let weight = value.weight;
+    let mut digits = value.digits;
+    let mut di = (weight + 1) * NUMERIC_VAR_DEC_DIGITS + rscale;
+    if di <= 0 {
+        return numeric_var_zero(rscale);
+    }
+    let ndigits = (di + NUMERIC_VAR_DEC_DIGITS - 1) / NUMERIC_VAR_DEC_DIGITS;
+    let mut kept = digits.len() as i32;
+    if ndigits <= kept {
+        kept = ndigits;
+        di = di % NUMERIC_VAR_DEC_DIGITS;
+        if di > 0 {
+            let last = usize::try_from(ndigits - 1).unwrap_or(0);
+            let pow10 = numeric_var_round_power(di);
+            let extra = digits[last].value % pow10;
+            digits[last] = NumericWireDigit {
+                value: digits[last].value - extra,
+            };
+        }
+    }
+    let mut truncated: Vec<NumericWireDigit> = Vec::new();
+    let end = usize::try_from(kept).unwrap_or(0);
+    let mut index: usize = 0;
+    while index < end {
+        truncated.push(digits[index]);
+        index += 1;
+    }
+    NumericVar {
+        sign: sign,
+        weight: weight,
+        dscale: rscale,
+        digits: truncated,
+    }
+}
+
+// PostgreSQL's mul_var. A product that needs more fractional digits than rscale plus guard
+// digits is truncated: PostgreSQL multiplies pairs of NBASE digits and keeps only the pair
+// products that land within the computed digits, so the same pair products are summed here,
+// each split into its four digit products to stay within 32 bits.
+fn numeric_var_mul(left: &NumericVar, right: &NumericVar, rscale: i32) -> NumericVar {
+    if numeric_var_count(left) > numeric_var_count(right) {
+        return numeric_var_mul(right, left, rscale);
+    }
+    let var1ndigits = numeric_var_count(left);
+    let var2ndigits = numeric_var_count(right);
+    if var1ndigits == 0 {
+        return numeric_var_zero(rscale);
+    }
+    if var1ndigits <= 6 && rscale == left.dscale + right.dscale {
+        return numeric_var_mul_exact(left, right);
+    }
+    let mut res_sign: i32 = 1;
+    if left.sign != right.sign {
+        res_sign = -1;
+    }
+    let mut var1ndigitpairs = (var1ndigits + 1) / 2;
+    let mut var2ndigitpairs = (var2ndigits + 1) / 2;
+    let mut res_ndigits = var1ndigits + var2ndigits;
+    let mut res_ndigitpairs = res_ndigits / 2 + 1;
+    let pair_offset = res_ndigitpairs - var1ndigitpairs - var2ndigitpairs + 1;
+    let res_weight = left.weight + right.weight + 1 + 2 * res_ndigitpairs
+        - res_ndigits
+        - var1ndigits % 2
+        - var2ndigits % 2;
+    let maxdigits = res_weight
+        + 1
+        + (rscale + NUMERIC_VAR_DEC_DIGITS - 1) / NUMERIC_VAR_DEC_DIGITS
+        + NUMERIC_VAR_MUL_GUARD_DIGITS;
+    let maxdigitpairs = maxdigits / 2 + 1;
+    if maxdigitpairs < res_ndigitpairs {
+        res_ndigitpairs = maxdigitpairs;
+    }
+    res_ndigits = 2 * res_ndigitpairs;
+    if res_ndigitpairs <= pair_offset {
+        return numeric_var_zero(rscale);
+    }
+    if res_ndigitpairs - pair_offset < var1ndigitpairs {
+        var1ndigitpairs = res_ndigitpairs - pair_offset;
+    }
+    if res_ndigitpairs - pair_offset < var2ndigitpairs {
+        var2ndigitpairs = res_ndigitpairs - pair_offset;
+    }
+    // Pair p of the product covers result digits 2p and 2p + 1; its high digit product
+    // carries into digit 2p - 1, so slot s + 1 holds result digit s and slot 0 the carry.
+    let mut slots = numeric_var_zeros(res_ndigits + 1);
+    let mut high: Vec<NumericWireDigit> = Vec::new();
+    let mut low: Vec<NumericWireDigit> = Vec::new();
+    let mut i2: i32 = 0;
+    while i2 < var2ndigitpairs {
+        high.push(NumericWireDigit {
+            value: numeric_var_digit(right, 2 * i2),
+        });
+        low.push(NumericWireDigit {
+            value: numeric_var_digit(right, 2 * i2 + 1),
+        });
+        i2 = i2 + 1;
+    }
+    // A row adds at most two digit products to a slot, so ten rows stay below the 32-bit
+    // maximum together with a normalised digit and its incoming carry.
+    let mut rows: i32 = 0;
+    let mut i1 = var1ndigitpairs - 1;
+    while i1 >= 0 {
+        let a = numeric_var_digit(left, 2 * i1);
+        let b = numeric_var_digit(left, 2 * i1 + 1);
+        if a != 0 || b != 0 {
+            if rows == 10 {
+                // Carries leave every slot but the first holding one NBASE digit.
+                let mut carry: i32 = 0;
+                let mut slot = slots.len();
+                while slot > 0 {
+                    slot = slot - 1;
+                    let mut digit = slots[slot].value + carry;
+                    carry = 0;
+                    if slot > 0 && digit >= NUMERIC_VAR_NBASE {
+                        carry = digit / NUMERIC_VAR_NBASE;
+                        digit = digit - carry * NUMERIC_VAR_NBASE;
+                    }
+                    slots[slot] = NumericWireDigit { value: digit };
+                }
+                rows = 0;
+            }
+            rows = rows + 1;
+            let mut i2limit = var2ndigitpairs;
+            if res_ndigitpairs - i1 - pair_offset < i2limit {
+                i2limit = res_ndigitpairs - i1 - pair_offset;
+            }
+            let limit = usize::try_from(i2limit).unwrap_or(0);
+            let base = usize::try_from(2 * (i1 + pair_offset)).unwrap_or(0);
+            let mut index: usize = 0;
+            while index < limit {
+                let c = high[index].value;
+                let d = low[index].value;
+                let at = base + index + index;
+                slots[at] = NumericWireDigit {
+                    value: slots[at].value + a * c,
+                };
+                slots[at + 1] = NumericWireDigit {
+                    value: slots[at + 1].value + a * d + b * c,
+                };
+                slots[at + 2] = NumericWireDigit {
+                    value: slots[at + 2].value + b * d,
+                };
+                index += 1;
+            }
+        }
+        i1 = i1 - 1;
+    }
+    // Carries leave every slot but the first holding one NBASE digit.
+    let mut carry: i32 = 0;
+    let mut slot = slots.len();
+    while slot > 0 {
+        slot = slot - 1;
+        let mut digit = slots[slot].value + carry;
+        carry = 0;
+        if slot > 0 && digit >= NUMERIC_VAR_NBASE {
+            carry = digit / NUMERIC_VAR_NBASE;
+            digit = digit - carry * NUMERIC_VAR_NBASE;
+        }
+        slots[slot] = NumericWireDigit { value: digit };
+    }
+    let mut digits: Vec<NumericWireDigit> = Vec::new();
+    let mut weight = res_weight;
+    if slots[0].value != 0 {
+        digits.push(slots[0]);
+        weight = weight + 1;
+    }
+    let mut index: usize = 1;
+    while index < slots.len() {
+        digits.push(slots[index]);
+        index += 1;
+    }
+    let product = NumericVar {
+        sign: res_sign,
+        weight: weight,
+        dscale: rscale,
+        digits: digits,
+    };
+    numeric_var_strip(numeric_var_round(product, rscale))
+}
+
+// PostgreSQL's mul_var_short computes the exact product; so does schoolbook multiplication.
+fn numeric_var_mul_exact(left: &NumericVar, right: &NumericVar) -> NumericVar {
+    let var1ndigits = numeric_var_count(left);
+    let var2ndigits = numeric_var_count(right);
+    let mut res_sign: i32 = 1;
+    if left.sign != right.sign {
+        res_sign = -1;
+    }
+    let mut slots = numeric_var_zeros(var1ndigits + var2ndigits);
+    let mut rows: i32 = 0;
+    let mut i1 = var1ndigits - 1;
+    while i1 >= 0 {
+        let a = numeric_var_digit(left, i1);
+        if a != 0 {
+            if rows == 20 {
+                // Carries leave every slot but the first holding one NBASE digit.
+                let mut carry: i32 = 0;
+                let mut slot = slots.len();
+                while slot > 0 {
+                    slot = slot - 1;
+                    let mut digit = slots[slot].value + carry;
+                    carry = 0;
+                    if slot > 0 && digit >= NUMERIC_VAR_NBASE {
+                        carry = digit / NUMERIC_VAR_NBASE;
+                        digit = digit - carry * NUMERIC_VAR_NBASE;
+                    }
+                    slots[slot] = NumericWireDigit { value: digit };
+                }
+                rows = 0;
+            }
+            rows = rows + 1;
+            let base = usize::try_from(i1 + 1).unwrap_or(0);
+            let mut index: usize = 0;
+            while index < right.digits.len() {
+                slots[base + index] = NumericWireDigit {
+                    value: slots[base + index].value + a * right.digits[index].value,
+                };
+                index += 1;
+            }
+        }
+        i1 = i1 - 1;
+    }
+    // Carries leave every slot but the first holding one NBASE digit.
+    let mut carry: i32 = 0;
+    let mut slot = slots.len();
+    while slot > 0 {
+        slot = slot - 1;
+        let mut digit = slots[slot].value + carry;
+        carry = 0;
+        if slot > 0 && digit >= NUMERIC_VAR_NBASE {
+            carry = digit / NUMERIC_VAR_NBASE;
+            digit = digit - carry * NUMERIC_VAR_NBASE;
+        }
+        slots[slot] = NumericWireDigit { value: digit };
+    }
+    numeric_var_strip(NumericVar {
+        sign: res_sign,
+        weight: left.weight + right.weight + 1,
+        dscale: left.dscale + right.dscale,
+        digits: slots,
+    })
+}
+
+// Short division by a divisor of one or two NBASE digits. PostgreSQL keeps a 32-bit carry
+// when the divisor allows it; one 64-bit carry serves every divisor.
+fn numeric_var_div_int(
+    value: &NumericVar,
+    ival: i32,
+    ival_weight: i32,
+    rscale: i32,
+    round: bool,
+) -> NumericVar {
+    let var_ndigits = numeric_var_count(value);
+    if var_ndigits == 0 {
+        return numeric_var_zero(rscale);
+    }
+    let mut res_sign: i32 = 1;
+    if value.sign > 0 {
+        if ival < 0 {
+            res_sign = -1;
+        };
+    } else if ival > 0 {
+        res_sign = -1;
+    }
+    let res_weight = value.weight - ival_weight;
+    let mut res_ndigits =
+        res_weight + 1 + (rscale + NUMERIC_VAR_DEC_DIGITS - 1) / NUMERIC_VAR_DEC_DIGITS;
+    if res_ndigits < 1 {
+        res_ndigits = 1;
+    }
+    if round {
+        res_ndigits = res_ndigits + 1;
+    }
+    let mut divisor = ival as i64;
+    if divisor < 0i64 {
+        divisor = 0i64 - divisor;
+    }
+    let mut digits: Vec<NumericWireDigit> = Vec::new();
+    let mut carry: i64 = 0i64;
+    let mut i: i32 = 0;
+    while i < res_ndigits {
+        let digit = numeric_var_digit(value, i) as i64;
+        carry = carry * 10000i64 + digit;
+        digits.push(NumericWireDigit {
+            value: (carry / divisor) as i32,
+        });
+        carry = carry % divisor;
+        i = i + 1;
+    }
+    let quotient = NumericVar {
+        sign: res_sign,
+        weight: res_weight,
+        dscale: rscale,
+        digits: digits,
+    };
+    if round {
+        return numeric_var_strip(numeric_var_round(quotient, rscale));
+    }
+    numeric_var_strip(numeric_var_trunc(quotient, rscale))
+}
+
+// PostgreSQL's div_var, to rscale fractional digits, rounded or truncated. An inexact
+// quotient estimates its digits as PostgreSQL does whenever the divisor is long enough for
+// PostgreSQL to take that path. Callers never divide by zero.
+fn numeric_var_div(
+    left: &NumericVar,
+    right: &NumericVar,
+    rscale: i32,
+    round: bool,
+    exact: bool,
+) -> NumericVar {
+    if exact
+        || numeric_var_count(right) <= 2 * (NUMERIC_VAR_DIV_GUARD_DIGITS + 2)
+        || numeric_var_count(left) == 0
+    {
+        return numeric_var_div_exact(left, right, rscale, round);
+    }
+    numeric_var_div_approximate(left, right, rscale, round)
+}
+
+// Knuth's algorithm D, figured to exactly rscale fractional digits.
+fn numeric_var_div_exact(
+    left: &NumericVar,
+    right: &NumericVar,
+    rscale: i32,
+    round: bool,
+) -> NumericVar {
+    let var1ndigits = numeric_var_count(left);
+    let var2ndigits = numeric_var_count(right);
+    if var2ndigits <= 2 {
+        let mut idivisor = numeric_var_digit(right, 0);
+        let mut idivisor_weight = right.weight;
+        if var2ndigits == 2 {
+            idivisor = idivisor * NUMERIC_VAR_NBASE + numeric_var_digit(right, 1);
+            idivisor_weight = idivisor_weight - 1;
+        }
+        if right.sign < 0 {
+            idivisor = 0 - idivisor;
+        }
+        return numeric_var_div_int(left, idivisor, idivisor_weight, rscale, round);
+    }
+    if var1ndigits == 0 {
+        return numeric_var_zero(rscale);
+    }
+    let mut res_sign: i32 = 1;
+    if left.sign != right.sign {
+        res_sign = -1;
+    }
+    let res_weight = left.weight - right.weight;
+    let mut res_ndigits =
+        res_weight + 1 + (rscale + NUMERIC_VAR_DEC_DIGITS - 1) / NUMERIC_VAR_DEC_DIGITS;
+    if res_ndigits < 1 {
+        res_ndigits = 1;
+    }
+    if round {
+        res_ndigits = res_ndigits + 1;
+    }
+    let mut div_ndigits = res_ndigits + var2ndigits;
+    if var1ndigits > div_ndigits {
+        div_ndigits = var1ndigits;
+    }
+    // Index zero of both arrays is a spare digit, as in Knuth's notation.
+    let mut dividend = numeric_var_zeros(div_ndigits + 1);
+    let mut divisor = numeric_var_zeros(var2ndigits + 1);
+    let mut index: usize = 0;
+    while index < left.digits.len() {
+        dividend[index + 1] = left.digits[index];
+        index += 1;
+    }
+    index = 0;
+    while index < right.digits.len() {
+        divisor[index + 1] = right.digits[index];
+        index += 1;
+    }
+    let divisor_end = usize::try_from(var2ndigits).unwrap_or(0);
+    // The first divisor digit must be at least NBASE / 2; scale both operands to make it so.
+    if divisor[1].value < NUMERIC_VAR_HALF_NBASE {
+        let d = NUMERIC_VAR_NBASE / (divisor[1].value + 1);
+        let mut carry: i32 = 0;
+        let mut i = divisor_end;
+        while i > 0 {
+            carry = carry + divisor[i].value * d;
+            divisor[i] = NumericWireDigit {
+                value: carry % NUMERIC_VAR_NBASE,
+            };
+            carry = carry / NUMERIC_VAR_NBASE;
+            i = i - 1;
+        }
+        carry = 0;
+        let mut j = usize::try_from(var1ndigits).unwrap_or(0) + 1;
+        while j > 0 {
+            j = j - 1;
+            carry = carry + dividend[j].value * d;
+            dividend[j] = NumericWireDigit {
+                value: carry % NUMERIC_VAR_NBASE,
+            };
+            carry = carry / NUMERIC_VAR_NBASE;
+        }
+    }
+    let divisor1 = divisor[1].value;
+    let divisor2 = divisor[2].value;
+    let mut res_digits: Vec<NumericWireDigit> = Vec::new();
+    let res_end = usize::try_from(res_ndigits).unwrap_or(0);
+    let mut j: usize = 0;
+    while j < res_end {
+        let next2digits = dividend[j].value * NUMERIC_VAR_NBASE + dividend[j + 1].value;
+        let mut qhat: i32 = 0;
+        if next2digits != 0 {
+            if dividend[j].value == divisor1 {
+                qhat = NUMERIC_VAR_NBASE - 1;
+            } else {
+                qhat = next2digits / divisor1;
+            }
+            // Knuth proves the estimate is then exact or one too large.
+            while divisor2 * qhat
+                > (next2digits - qhat * divisor1) * NUMERIC_VAR_NBASE + dividend[j + 2].value
+            {
+                qhat = qhat - 1;
+            }
+            if qhat > 0 {
+                let mut borrow: i32 = 0;
+                let mut i = divisor_end + 1;
+                while i > 0 {
+                    i = i - 1;
+                    let tmp_result = dividend[j + i].value - borrow - divisor[i].value * qhat;
+                    borrow = (NUMERIC_VAR_NBASE - 1 - tmp_result) / NUMERIC_VAR_NBASE;
+                    dividend[j + i] = NumericWireDigit {
+                        value: tmp_result + borrow * NUMERIC_VAR_NBASE,
+                    };
+                }
+                if borrow != 0 {
+                    // qhat was one too large: add the divisor back once.
+                    qhat = qhat - 1;
+                    let mut carry: i32 = 0;
+                    i = divisor_end + 1;
+                    while i > 0 {
+                        i = i - 1;
+                        carry = carry + dividend[j + i].value + divisor[i].value;
+                        if carry >= NUMERIC_VAR_NBASE {
+                            dividend[j + i] = NumericWireDigit {
+                                value: carry - NUMERIC_VAR_NBASE,
+                            };
+                            carry = 1;
+                        } else {
+                            dividend[j + i] = NumericWireDigit { value: carry };
+                            carry = 0;
+                        };
+                    }
+                };
+            };
+        }
+        res_digits.push(NumericWireDigit { value: qhat });
+        j += 1;
+    }
+    let quotient = NumericVar {
+        sign: res_sign,
+        weight: res_weight,
+        dscale: rscale,
+        digits: res_digits,
+    };
+    if round {
+        return numeric_var_strip(numeric_var_round(quotient, rscale));
+    }
+    numeric_var_strip(numeric_var_trunc(quotient, rscale))
+}
+
+// The exact double nearest a 64-bit integer, as a C conversion gives: the parts are exact
+// doubles, so their sum rounds once.
+fn numeric_var_wide_double(value: i64) -> f64 {
+    let high = value / 4294967296i64;
+    let rest = value - high * 4294967296i64;
+    let middle = rest / 65536i64;
+    let low = rest - middle * 65536i64;
+    let upper = (high as i32) as f64;
+    let lower = ((middle as i32) as f64) * 65536.0f64 + ((low as i32) as f64);
+    upper * 4294967296.0f64 + lower
+}
+
+// PostgreSQL truncates a negative estimate towards zero and then subtracts one.
+fn numeric_var_quotient_digit(estimate: f64) -> i32 {
+    if estimate >= 0.0f64 {
+        return estimate as i32;
+    }
+    (estimate as i32) - 1
+}
+
+// Splits a carry out of a base-NBASE^2 digit, rounding towards minus infinity.
+fn numeric_var_wide_carry(digit: i64) -> i64 {
+    if digit < 0i64 {
+        return 0i64 - ((0i64 - digit - 1i64) / 100000000i64) - 1i64;
+    }
+    if digit >= 100000000i64 {
+        return digit / 100000000i64;
+    }
+    0i64
+}
+
+// PostgreSQL's inexact div_var: base-NBASE^2 digits with 64-bit accumulators, quotient digits
+// estimated in double precision from the leading two dividend and divisor digits, carries
+// propagated only when an accumulator could overflow, and rscale plus guard digits computed
+// without correcting the estimates.
+fn numeric_var_div_approximate(
+    left: &NumericVar,
+    right: &NumericVar,
+    rscale: i32,
+    round: bool,
+) -> NumericVar {
+    let var1ndigits = numeric_var_count(left);
+    let var2ndigits = numeric_var_count(right);
+    let mut res_sign: i32 = 1;
+    if left.sign != right.sign {
+        res_sign = -1;
+    }
+    let res_weight = left.weight - right.weight + 1;
+    let mut res_ndigits =
+        res_weight + 1 + (rscale + NUMERIC_VAR_DEC_DIGITS - 1) / NUMERIC_VAR_DEC_DIGITS;
+    if res_ndigits < 1 {
+        res_ndigits = 1;
+    }
+    if round {
+        res_ndigits = res_ndigits + 1;
+    }
+    res_ndigits = res_ndigits + NUMERIC_VAR_DIV_GUARD_DIGITS;
+    let mut var1ndigitpairs = (var1ndigits + 1) / 2;
+    let mut var2ndigitpairs = (var2ndigits + 1) / 2;
+    let res_ndigitpairs = (res_ndigits + 1) / 2;
+    let div_ndigitpairs = res_ndigitpairs;
+    if div_ndigitpairs < var1ndigitpairs {
+        var1ndigitpairs = div_ndigitpairs;
+    }
+    if div_ndigitpairs < var2ndigitpairs {
+        var2ndigitpairs = div_ndigitpairs;
+    }
+    // One spare dividend digit lets every step read and write the digit after it.
+    let mut dividend: Vec<NumericVarWide> = Vec::new();
+    let mut i: i32 = 0;
+    while i <= div_ndigitpairs {
+        let mut pair: i64 = 0i64;
+        if i < var1ndigitpairs {
+            let first = numeric_var_digit(left, 2 * i) as i64;
+            let second = numeric_var_digit(left, 2 * i + 1) as i64;
+            pair = first * 10000i64 + second;
+        }
+        dividend.push(NumericVarWide { value: pair });
+        i = i + 1;
+    }
+    let mut divisor: Vec<NumericVarWide> = Vec::new();
+    i = 0;
+    while i < var2ndigitpairs {
+        let first = numeric_var_digit(right, 2 * i) as i64;
+        let second = numeric_var_digit(right, 2 * i + 1) as i64;
+        divisor.push(NumericVarWide {
+            value: first * 10000i64 + second,
+        });
+        i = i + 1;
+    }
+    let mut fdivisor = numeric_var_wide_double(divisor[0].value) * 100000000.0f64;
+    if var2ndigitpairs > 1 {
+        fdivisor = fdivisor + numeric_var_wide_double(divisor[1].value);
+    }
+    let fdivisorinverse = 1.0f64 / fdivisor;
+    let limit =
+        (9223372036854775807i64 - 9223372036854775807i64 / 100000000i64 - 1i64) / 99999999i64;
+    let mut maxdiv: i64 = 1i64;
+    let mut qi: i32 = 0;
+    while qi < res_ndigitpairs {
+        let at = usize::try_from(qi).unwrap_or(0);
+        let mut fdividend = numeric_var_wide_double(dividend[at].value) * 100000000.0f64;
+        fdividend = fdividend + numeric_var_wide_double(dividend[at + 1].value);
+        let mut qdigit = numeric_var_quotient_digit(fdividend * fdivisorinverse);
+        if qdigit != 0 {
+            let mut magnitude = qdigit as i64;
+            if magnitude < 0i64 {
+                magnitude = 0i64 - magnitude;
+            }
+            maxdiv = maxdiv + magnitude;
+            if maxdiv > limit {
+                let mut carry: i64 = 0i64;
+                let mut j = qi + var2ndigitpairs - 2;
+                if div_ndigitpairs - 1 < j {
+                    j = div_ndigitpairs - 1;
+                }
+                while j > qi {
+                    let index = usize::try_from(j).unwrap_or(0);
+                    let mut newdig = dividend[index].value + carry;
+                    carry = numeric_var_wide_carry(newdig);
+                    newdig = newdig - carry * 100000000i64;
+                    dividend[index] = NumericVarWide { value: newdig };
+                    j = j - 1;
+                }
+                dividend[at] = NumericVarWide {
+                    value: dividend[at].value + carry,
+                };
+                maxdiv = 1i64;
+                fdividend = numeric_var_wide_double(dividend[at].value) * 100000000.0f64;
+                fdividend = fdividend + numeric_var_wide_double(dividend[at + 1].value);
+                qdigit = numeric_var_quotient_digit(fdividend * fdivisorinverse);
+                magnitude = qdigit as i64;
+                if magnitude < 0i64 {
+                    magnitude = 0i64 - magnitude;
+                }
+                maxdiv = maxdiv + magnitude;
+            }
+            if qdigit != 0 {
+                let mut istop = var2ndigitpairs;
+                if div_ndigitpairs - qi < istop {
+                    istop = div_ndigitpairs - qi;
+                }
+                let stop = usize::try_from(istop).unwrap_or(0);
+                let wide_qdigit = qdigit as i64;
+                let mut k: usize = 0;
+                while k < stop {
+                    dividend[at + k] = NumericVarWide {
+                        value: dividend[at + k].value - wide_qdigit * divisor[k].value,
+                    };
+                    k += 1;
+                }
+            };
+        }
+        // PostgreSQL folds this digit into the next one and relies on a cancelling overflow
+        // when the product leaves 64 bits; splitting the next digit avoids the overflow.
+        let current = dividend[at].value;
+        let next = dividend[at + 1].value;
+        let next_high = next / 100000000i64;
+        let next_low = next - next_high * 100000000i64;
+        dividend[at + 1] = NumericVarWide {
+            value: (current + next_high) * 100000000i64 + next_low,
+        };
+        dividend[at] = NumericVarWide {
+            value: qdigit as i64,
+        };
+        qi = qi + 1;
+    }
+    let mut digits = numeric_var_zeros(2 * res_ndigitpairs);
+    let mut carry: i64 = 0i64;
+    let mut j = res_ndigitpairs - 1;
+    while j >= 0 {
+        let index = usize::try_from(j).unwrap_or(0);
+        let mut newdig = dividend[index].value + carry;
+        carry = numeric_var_wide_carry(newdig);
+        newdig = newdig - carry * 100000000i64;
+        let pair = newdig as i32;
+        digits[index + index] = NumericWireDigit {
+            value: pair / NUMERIC_VAR_NBASE,
+        };
+        digits[index + index + 1] = NumericWireDigit {
+            value: pair % NUMERIC_VAR_NBASE,
+        };
+        j = j - 1;
+    }
+    let quotient = NumericVar {
+        sign: res_sign,
+        weight: res_weight,
+        dscale: rscale,
+        digits: digits,
+    };
+    if round {
+        return numeric_var_strip(numeric_var_round(quotient, rscale));
+    }
+    numeric_var_strip(numeric_var_trunc(quotient, rscale))
+}
+
+// PostgreSQL's mod_var: x - trunc(x / y) * y.
+fn numeric_var_mod(left: &NumericVar, right: &NumericVar) -> NumericVar {
+    let quotient = numeric_var_div(left, right, 0, false, true);
+    let product = numeric_var_mul(right, &quotient, right.dscale);
+    numeric_var_sub(left, &product)
+}
+
+// PostgreSQL's make_result: the stored weight and display scale must fit their header fields.
+fn numeric_var_result(value: NumericVar) -> NumericValue {
+    let stripped = numeric_var_strip(value);
+    if (numeric_var_count(&stripped) > 0 && (stripped.weight > 32767 || stripped.weight < -32768))
+        || stripped.dscale > 16383
+    {
+        return NumericValue::Error(make_sql_error(NUMERIC_SUPPORT_RANGE_ERROR));
+    }
+    NumericValue::Value(numeric_work_text(numeric_work_from_var(&stripped)))
+}
+
+fn numeric_var_rescaled(value: NumericVar, dscale: i32) -> NumericVar {
+    NumericVar {
+        sign: value.sign,
+        weight: value.weight,
+        dscale: dscale,
+        digits: value.digits,
+    }
+}
+
+// PostgreSQL's ceil_var and floor_var: truncate, then step away from zero when the
+// argument lay beyond the truncation in that direction.
+fn numeric_var_ceil(value: &NumericVar) -> NumericVar {
+    let one = numeric_var_from_i64(1i64);
+    let truncated = numeric_var_trunc(numeric_var_shifted(value, 0), 0);
+    if value.sign > 0 && numeric_var_cmp(value, &truncated) != 0 {
+        return numeric_var_add(&truncated, &one);
+    }
+    truncated
+}
+
+fn numeric_var_floor(value: &NumericVar) -> NumericVar {
+    let one = numeric_var_from_i64(1i64);
+    let truncated = numeric_var_trunc(numeric_var_shifted(value, 0), 0);
+    if value.sign < 0 && numeric_var_cmp(value, &truncated) != 0 {
+        return numeric_var_sub(&truncated, &one);
+    }
+    truncated
 }
 
 const NUMERIC_SUPPORT_RANGE_ERROR: u32 = 3452547;
@@ -1338,118 +2244,6 @@ fn numeric_work_text(work: NumericWork) -> String {
         output.push_str(numeric_work_zeros(positions).as_str());
     }
     output
-}
-
-fn numeric_work_rounded(work: NumericWork, scale: i32, mode: i32) -> NumericWork {
-    let original: Vec<char> = work.digits.chars().collect();
-    let boundary = 0 - scale;
-    let mut digits: Vec<char> = Vec::new();
-    let mut position = work.weight;
-    let mut index: usize = 0;
-    while index < original.len() && position >= boundary {
-        digits.push(original[index]);
-        index += 1;
-        position = position - 1;
-    }
-    let mut increase = false;
-    if index < original.len() {
-        if mode == 1 && position == boundary - 1 && numeric_wire_decimal_digit(original[index]) >= 5
-        {
-            increase = true;
-        }
-        if mode == 2 && work.sign > 0 {
-            increase = true;
-        }
-        if mode == 3 && work.sign < 0 {
-            increase = true;
-        }
-    }
-    let mut weight = work.weight;
-    let mut leading_carry = false;
-    if increase {
-        if digits.len() == 0 {
-            digits.push('1');
-            weight = boundary;
-        } else {
-            let mut carry = true;
-            let mut cursor = digits.len();
-            let symbols: Vec<char> = "0123456789".chars().collect();
-            while cursor > 0 && carry {
-                cursor = cursor - 1;
-                if digits[cursor] == '9' {
-                    digits[cursor] = '0';
-                } else {
-                    let mut symbol: usize = 0;
-                    while symbols[symbol] != digits[cursor] {
-                        symbol += 1;
-                    }
-                    digits[cursor] = symbols[symbol + 1];
-                    carry = false;
-                };
-            }
-            if carry {
-                leading_carry = true;
-                weight = weight + 1;
-            }
-        };
-    }
-    let mut end = digits.len();
-    while end > 0 && digits[end - 1] == '0' {
-        end = end - 1;
-    }
-    let mut coefficient = String::new();
-    let mut cursor: usize = 0;
-    if leading_carry {
-        coefficient.push('1');
-    } else {
-        while cursor < end {
-            coefficient.push(digits[cursor]);
-            cursor += 1;
-        }
-    };
-    let mut sign = work.sign;
-    if end == 0 && leading_carry == false {
-        sign = 0;
-        weight = 0;
-    }
-    let mut output_scale = scale;
-    if output_scale < 0 {
-        output_scale = 0;
-    }
-    NumericWork {
-        valid: true,
-        special: 1,
-        sign: sign,
-        weight: weight,
-        scale: output_scale,
-        digits: coefficient,
-    }
-}
-
-fn numeric_work_round(work: NumericWork, requested: i32, mode: i32) -> NumericValue {
-    let unresolved_flavor: i32 = 0;
-    if work.valid == false {
-        return numeric_unresolved(unresolved_flavor);
-    }
-    if work.special != 1 {
-        return NumericValue::Value(numeric_work_text(work));
-    }
-    let mut scale = requested;
-    let mut minimum: i32 = -131072;
-    if mode == 1 {
-        minimum = minimum - 1;
-    }
-    if scale < minimum {
-        scale = minimum;
-    }
-    if scale > 16383 {
-        scale = 16383;
-    }
-    let rounded = numeric_work_rounded(work, scale, mode);
-    if rounded.weight > 131071 {
-        return NumericValue::Error(make_sql_error(NUMERIC_SUPPORT_RANGE_ERROR));
-    }
-    NumericValue::Value(numeric_work_text(rounded))
 }
 
 const SCALAR_INPUT_INVALID: u32 = 3484946;

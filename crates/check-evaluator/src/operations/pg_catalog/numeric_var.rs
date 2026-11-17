@@ -26,15 +26,23 @@
 
 // PostgreSQL's NumericVar, so its numeric algorithms port as written: base-NBASE digits,
 // most significant first, the weight of the first digit, and the display scale. A zero has
-// no digits. The digit primitives follow the 32-bit forms PostgreSQL used before its 64-bit
-// accumulators; both compute the same exact integers, and 32-bit limbs keep the translated
-// targets on plain numbers.
+// no digits. Where PostgreSQL computes an exact result, any exact method yields the same
+// digits, so these routines use PostgreSQL's 32-bit forms and keep the translated targets on
+// plain numbers. Where it approximates, by truncating a product or estimating a quotient, they
+// reproduce PostgreSQL's arithmetic step for step.
 #[derive(Clone)]
 struct NumericVar {
     sign: i32,
     weight: i32,
     dscale: i32,
     digits: Vec<NumericWireDigit>,
+}
+
+// A result, or the numeric overflow PostgreSQL raises while computing it.
+#[derive(Clone)]
+struct NumericVarOutcome {
+    overflow: bool,
+    value: NumericVar,
 }
 
 #[derive(Clone)]
@@ -47,7 +55,14 @@ const NUMERIC_VAR_NBASE: i32 = 10000;
 const NUMERIC_VAR_HALF_NBASE: i32 = 5000;
 const NUMERIC_VAR_DEC_DIGITS: i32 = 4;
 const NUMERIC_VAR_MUL_GUARD_DIGITS: i32 = 2;
-const NUMERIC_VAR_INT_MAX: i32 = 2147483647;
+const NUMERIC_VAR_DIV_GUARD_DIGITS: i32 = 4;
+const NUMERIC_VAR_MIN_SIG_DIGITS: i32 = 16;
+const NUMERIC_VAR_MAX_DISPLAY_SCALE: i32 = 1000;
+
+#[derive(Clone, Copy)]
+struct NumericVarWide {
+    value: i64,
+}
 
 fn numeric_var_zero(dscale: i32) -> NumericVar {
     let digits: Vec<NumericWireDigit> = Vec::new();
@@ -577,101 +592,212 @@ fn numeric_var_trunc(value: NumericVar, rscale: i32) -> NumericVar {
     }
 }
 
+// PostgreSQL's mul_var. A product that needs more fractional digits than rscale plus guard
+// digits is truncated: PostgreSQL multiplies pairs of NBASE digits and keeps only the pair
+// products that land within the computed digits, so the same pair products are summed here,
+// each split into its four digit products to stay within 32 bits.
 fn numeric_var_mul(left: &NumericVar, right: &NumericVar, rscale: i32) -> NumericVar {
-    // The shorter operand drives the outer loop.
     if numeric_var_count(left) > numeric_var_count(right) {
         return numeric_var_mul(right, left, rscale);
     }
     let var1ndigits = numeric_var_count(left);
     let var2ndigits = numeric_var_count(right);
-    if var1ndigits == 0 || var2ndigits == 0 {
+    if var1ndigits == 0 {
         return numeric_var_zero(rscale);
+    }
+    if var1ndigits <= 6 && rscale == left.dscale + right.dscale {
+        return numeric_var_mul_exact(left, right);
     }
     let mut res_sign: i32 = 1;
     if left.sign != right.sign {
         res_sign = -1;
     }
-    let res_weight = left.weight + right.weight + 2;
-    let mut res_ndigits = var1ndigits + var2ndigits + 1;
+    let mut var1ndigitpairs = (var1ndigits + 1) / 2;
+    let mut var2ndigitpairs = (var2ndigits + 1) / 2;
+    let mut res_ndigits = var1ndigits + var2ndigits;
+    let mut res_ndigitpairs = res_ndigits / 2 + 1;
+    let pair_offset = res_ndigitpairs - var1ndigitpairs - var2ndigitpairs + 1;
+    let res_weight = left.weight + right.weight + 1 + 2 * res_ndigitpairs
+        - res_ndigits
+        - var1ndigits % 2
+        - var2ndigits % 2;
     let maxdigits = res_weight
         + 1
         + (rscale + NUMERIC_VAR_DEC_DIGITS - 1) / NUMERIC_VAR_DEC_DIGITS
         + NUMERIC_VAR_MUL_GUARD_DIGITS;
-    if maxdigits < res_ndigits {
-        res_ndigits = maxdigits;
+    let maxdigitpairs = maxdigits / 2 + 1;
+    if maxdigitpairs < res_ndigitpairs {
+        res_ndigitpairs = maxdigitpairs;
     }
-    if res_ndigits < 3 {
+    res_ndigits = 2 * res_ndigitpairs;
+    if res_ndigitpairs <= pair_offset {
         return numeric_var_zero(rscale);
     }
-    // Accumulated columns stay below the 32-bit maximum: maxdig bounds every column divided
-    // by NBASE - 1, and carries are propagated before it could pass that bound.
-    let mut dig = numeric_var_zeros(res_ndigits);
-    let normalize_limit =
-        (NUMERIC_VAR_INT_MAX - NUMERIC_VAR_INT_MAX / NUMERIC_VAR_NBASE) / (NUMERIC_VAR_NBASE - 1);
-    let mut maxdig: i32 = 0;
-    let mut i1 = var1ndigits - 1;
-    if res_ndigits - 3 < i1 {
-        i1 = res_ndigits - 3;
+    if res_ndigitpairs - pair_offset < var1ndigitpairs {
+        var1ndigitpairs = res_ndigitpairs - pair_offset;
     }
+    if res_ndigitpairs - pair_offset < var2ndigitpairs {
+        var2ndigitpairs = res_ndigitpairs - pair_offset;
+    }
+    // Pair p of the product covers result digits 2p and 2p + 1; its high digit product
+    // carries into digit 2p - 1, so slot s + 1 holds result digit s and slot 0 the carry.
+    let mut slots = numeric_var_zeros(res_ndigits + 1);
+    let mut high: Vec<NumericWireDigit> = Vec::new();
+    let mut low: Vec<NumericWireDigit> = Vec::new();
+    let mut i2: i32 = 0;
+    while i2 < var2ndigitpairs {
+        high.push(NumericWireDigit {
+            value: numeric_var_digit(right, 2 * i2),
+        });
+        low.push(NumericWireDigit {
+            value: numeric_var_digit(right, 2 * i2 + 1),
+        });
+        i2 = i2 + 1;
+    }
+    // A row adds at most two digit products to a slot, so ten rows stay below the 32-bit
+    // maximum together with a normalised digit and its incoming carry.
+    let mut rows: i32 = 0;
+    let mut i1 = var1ndigitpairs - 1;
     while i1 >= 0 {
-        let var1digit = numeric_var_digit(left, i1);
-        if var1digit != 0 {
-            maxdig = maxdig + var1digit;
-            if maxdig > normalize_limit {
+        let a = numeric_var_digit(left, 2 * i1);
+        let b = numeric_var_digit(left, 2 * i1 + 1);
+        if a != 0 || b != 0 {
+            if rows == 10 {
+                // Carries leave every slot but the first holding one NBASE digit.
                 let mut carry: i32 = 0;
-                let mut i = res_ndigits - 1;
-                while i >= 0 {
-                    let at = usize::try_from(i).unwrap_or(0);
-                    let mut newdig = dig[at].value + carry;
+                let mut slot = slots.len();
+                while slot > 0 {
+                    slot = slot - 1;
+                    let mut digit = slots[slot].value + carry;
                     carry = 0;
-                    if newdig >= NUMERIC_VAR_NBASE {
-                        carry = newdig / NUMERIC_VAR_NBASE;
-                        newdig = newdig - carry * NUMERIC_VAR_NBASE;
+                    if slot > 0 && digit >= NUMERIC_VAR_NBASE {
+                        carry = digit / NUMERIC_VAR_NBASE;
+                        digit = digit - carry * NUMERIC_VAR_NBASE;
                     }
-                    dig[at] = NumericWireDigit { value: newdig };
-                    i = i - 1;
+                    slots[slot] = NumericWireDigit { value: digit };
                 }
-                maxdig = 1 + var1digit;
+                rows = 0;
             }
-            let mut i2limit = var2ndigits;
-            if res_ndigits - i1 - 2 < i2limit {
-                i2limit = res_ndigits - i1 - 2;
+            rows = rows + 1;
+            let mut i2limit = var2ndigitpairs;
+            if res_ndigitpairs - i1 - pair_offset < i2limit {
+                i2limit = res_ndigitpairs - i1 - pair_offset;
             }
-            let offset = usize::try_from(i1 + 2).unwrap_or(0);
             let limit = usize::try_from(i2limit).unwrap_or(0);
-            let mut i2: usize = 0;
-            while i2 < limit {
-                dig[offset + i2] = NumericWireDigit {
-                    value: dig[offset + i2].value + var1digit * right.digits[i2].value,
+            let base = usize::try_from(2 * (i1 + pair_offset)).unwrap_or(0);
+            let mut index: usize = 0;
+            while index < limit {
+                let c = high[index].value;
+                let d = low[index].value;
+                let at = base + index + index;
+                slots[at] = NumericWireDigit {
+                    value: slots[at].value + a * c,
                 };
-                i2 += 1;
+                slots[at + 1] = NumericWireDigit {
+                    value: slots[at + 1].value + a * d + b * c,
+                };
+                slots[at + 2] = NumericWireDigit {
+                    value: slots[at + 2].value + b * d,
+                };
+                index += 1;
             }
         }
         i1 = i1 - 1;
     }
+    // Carries leave every slot but the first holding one NBASE digit.
     let mut carry: i32 = 0;
-    let mut i = res_ndigits - 1;
-    while i >= 0 {
-        let at = usize::try_from(i).unwrap_or(0);
-        let mut newdig = dig[at].value + carry;
+    let mut slot = slots.len();
+    while slot > 0 {
+        slot = slot - 1;
+        let mut digit = slots[slot].value + carry;
         carry = 0;
-        if newdig >= NUMERIC_VAR_NBASE {
-            carry = newdig / NUMERIC_VAR_NBASE;
-            newdig = newdig - carry * NUMERIC_VAR_NBASE;
+        if slot > 0 && digit >= NUMERIC_VAR_NBASE {
+            carry = digit / NUMERIC_VAR_NBASE;
+            digit = digit - carry * NUMERIC_VAR_NBASE;
         }
-        dig[at] = NumericWireDigit { value: newdig };
-        i = i - 1;
+        slots[slot] = NumericWireDigit { value: digit };
     }
-    let rounded = numeric_var_round(
-        NumericVar {
-            sign: res_sign,
-            weight: res_weight,
-            dscale: rscale,
-            digits: dig,
-        },
-        rscale,
-    );
-    numeric_var_strip(rounded)
+    let mut digits: Vec<NumericWireDigit> = Vec::new();
+    let mut weight = res_weight;
+    if slots[0].value != 0 {
+        digits.push(slots[0]);
+        weight = weight + 1;
+    }
+    let mut index: usize = 1;
+    while index < slots.len() {
+        digits.push(slots[index]);
+        index += 1;
+    }
+    let product = NumericVar {
+        sign: res_sign,
+        weight: weight,
+        dscale: rscale,
+        digits: digits,
+    };
+    numeric_var_strip(numeric_var_round(product, rscale))
+}
+
+// PostgreSQL's mul_var_short computes the exact product; so does schoolbook multiplication.
+fn numeric_var_mul_exact(left: &NumericVar, right: &NumericVar) -> NumericVar {
+    let var1ndigits = numeric_var_count(left);
+    let var2ndigits = numeric_var_count(right);
+    let mut res_sign: i32 = 1;
+    if left.sign != right.sign {
+        res_sign = -1;
+    }
+    let mut slots = numeric_var_zeros(var1ndigits + var2ndigits);
+    let mut rows: i32 = 0;
+    let mut i1 = var1ndigits - 1;
+    while i1 >= 0 {
+        let a = numeric_var_digit(left, i1);
+        if a != 0 {
+            if rows == 20 {
+                // Carries leave every slot but the first holding one NBASE digit.
+                let mut carry: i32 = 0;
+                let mut slot = slots.len();
+                while slot > 0 {
+                    slot = slot - 1;
+                    let mut digit = slots[slot].value + carry;
+                    carry = 0;
+                    if slot > 0 && digit >= NUMERIC_VAR_NBASE {
+                        carry = digit / NUMERIC_VAR_NBASE;
+                        digit = digit - carry * NUMERIC_VAR_NBASE;
+                    }
+                    slots[slot] = NumericWireDigit { value: digit };
+                }
+                rows = 0;
+            }
+            rows = rows + 1;
+            let base = usize::try_from(i1 + 1).unwrap_or(0);
+            let mut index: usize = 0;
+            while index < right.digits.len() {
+                slots[base + index] = NumericWireDigit {
+                    value: slots[base + index].value + a * right.digits[index].value,
+                };
+                index += 1;
+            }
+        }
+        i1 = i1 - 1;
+    }
+    // Carries leave every slot but the first holding one NBASE digit.
+    let mut carry: i32 = 0;
+    let mut slot = slots.len();
+    while slot > 0 {
+        slot = slot - 1;
+        let mut digit = slots[slot].value + carry;
+        carry = 0;
+        if slot > 0 && digit >= NUMERIC_VAR_NBASE {
+            carry = digit / NUMERIC_VAR_NBASE;
+            digit = digit - carry * NUMERIC_VAR_NBASE;
+        }
+        slots[slot] = NumericWireDigit { value: digit };
+    }
+    numeric_var_strip(NumericVar {
+        sign: res_sign,
+        weight: left.weight + right.weight + 1,
+        dscale: left.dscale + right.dscale,
+        digits: slots,
+    })
 }
 
 // Short division by a divisor of one or two NBASE digits. PostgreSQL keeps a 32-bit carry
@@ -732,9 +858,32 @@ fn numeric_var_div_int(
     numeric_var_strip(numeric_var_trunc(quotient, rscale))
 }
 
-// Knuth's algorithm D, figured to exactly rscale fractional digits. Callers never divide by
-// zero: the square root divides by twice a positive partial root.
-fn numeric_var_div(left: &NumericVar, right: &NumericVar, rscale: i32, round: bool) -> NumericVar {
+// PostgreSQL's div_var, to rscale fractional digits, rounded or truncated. An inexact
+// quotient estimates its digits as PostgreSQL does whenever the divisor is long enough for
+// PostgreSQL to take that path. Callers never divide by zero.
+fn numeric_var_div(
+    left: &NumericVar,
+    right: &NumericVar,
+    rscale: i32,
+    round: bool,
+    exact: bool,
+) -> NumericVar {
+    if exact
+        || numeric_var_count(right) <= 2 * (NUMERIC_VAR_DIV_GUARD_DIGITS + 2)
+        || numeric_var_count(left) == 0
+    {
+        return numeric_var_div_exact(left, right, rscale, round);
+    }
+    numeric_var_div_approximate(left, right, rscale, round)
+}
+
+// Knuth's algorithm D, figured to exactly rscale fractional digits.
+fn numeric_var_div_exact(
+    left: &NumericVar,
+    right: &NumericVar,
+    rscale: i32,
+    round: bool,
+) -> NumericVar {
     let var1ndigits = numeric_var_count(left);
     let var2ndigits = numeric_var_count(right);
     if var2ndigits <= 2 {
@@ -874,10 +1023,206 @@ fn numeric_var_div(left: &NumericVar, right: &NumericVar, rscale: i32, round: bo
     numeric_var_strip(numeric_var_trunc(quotient, rscale))
 }
 
+// The exact double nearest a 64-bit integer, as a C conversion gives: the parts are exact
+// doubles, so their sum rounds once.
+fn numeric_var_wide_double(value: i64) -> f64 {
+    let high = value / 4294967296i64;
+    let rest = value - high * 4294967296i64;
+    let middle = rest / 65536i64;
+    let low = rest - middle * 65536i64;
+    let upper = (high as i32) as f64;
+    let lower = ((middle as i32) as f64) * 65536.0f64 + ((low as i32) as f64);
+    upper * 4294967296.0f64 + lower
+}
+
+// PostgreSQL truncates a negative estimate towards zero and then subtracts one.
+fn numeric_var_quotient_digit(estimate: f64) -> i32 {
+    if estimate >= 0.0f64 {
+        return estimate as i32;
+    }
+    (estimate as i32) - 1
+}
+
+// Splits a carry out of a base-NBASE^2 digit, rounding towards minus infinity.
+fn numeric_var_wide_carry(digit: i64) -> i64 {
+    if digit < 0i64 {
+        return 0i64 - ((0i64 - digit - 1i64) / 100000000i64) - 1i64;
+    }
+    if digit >= 100000000i64 {
+        return digit / 100000000i64;
+    }
+    0i64
+}
+
+// PostgreSQL's inexact div_var: base-NBASE^2 digits with 64-bit accumulators, quotient digits
+// estimated in double precision from the leading two dividend and divisor digits, carries
+// propagated only when an accumulator could overflow, and rscale plus guard digits computed
+// without correcting the estimates.
+fn numeric_var_div_approximate(
+    left: &NumericVar,
+    right: &NumericVar,
+    rscale: i32,
+    round: bool,
+) -> NumericVar {
+    let var1ndigits = numeric_var_count(left);
+    let var2ndigits = numeric_var_count(right);
+    let mut res_sign: i32 = 1;
+    if left.sign != right.sign {
+        res_sign = -1;
+    }
+    let res_weight = left.weight - right.weight + 1;
+    let mut res_ndigits =
+        res_weight + 1 + (rscale + NUMERIC_VAR_DEC_DIGITS - 1) / NUMERIC_VAR_DEC_DIGITS;
+    if res_ndigits < 1 {
+        res_ndigits = 1;
+    }
+    if round {
+        res_ndigits = res_ndigits + 1;
+    }
+    res_ndigits = res_ndigits + NUMERIC_VAR_DIV_GUARD_DIGITS;
+    let mut var1ndigitpairs = (var1ndigits + 1) / 2;
+    let mut var2ndigitpairs = (var2ndigits + 1) / 2;
+    let res_ndigitpairs = (res_ndigits + 1) / 2;
+    let div_ndigitpairs = res_ndigitpairs;
+    if div_ndigitpairs < var1ndigitpairs {
+        var1ndigitpairs = div_ndigitpairs;
+    }
+    if div_ndigitpairs < var2ndigitpairs {
+        var2ndigitpairs = div_ndigitpairs;
+    }
+    // One spare dividend digit lets every step read and write the digit after it.
+    let mut dividend: Vec<NumericVarWide> = Vec::new();
+    let mut i: i32 = 0;
+    while i <= div_ndigitpairs {
+        let mut pair: i64 = 0i64;
+        if i < var1ndigitpairs {
+            let first = numeric_var_digit(left, 2 * i) as i64;
+            let second = numeric_var_digit(left, 2 * i + 1) as i64;
+            pair = first * 10000i64 + second;
+        }
+        dividend.push(NumericVarWide { value: pair });
+        i = i + 1;
+    }
+    let mut divisor: Vec<NumericVarWide> = Vec::new();
+    i = 0;
+    while i < var2ndigitpairs {
+        let first = numeric_var_digit(right, 2 * i) as i64;
+        let second = numeric_var_digit(right, 2 * i + 1) as i64;
+        divisor.push(NumericVarWide {
+            value: first * 10000i64 + second,
+        });
+        i = i + 1;
+    }
+    let mut fdivisor = numeric_var_wide_double(divisor[0].value) * 100000000.0f64;
+    if var2ndigitpairs > 1 {
+        fdivisor = fdivisor + numeric_var_wide_double(divisor[1].value);
+    }
+    let fdivisorinverse = 1.0f64 / fdivisor;
+    let limit =
+        (9223372036854775807i64 - 9223372036854775807i64 / 100000000i64 - 1i64) / 99999999i64;
+    let mut maxdiv: i64 = 1i64;
+    let mut qi: i32 = 0;
+    while qi < res_ndigitpairs {
+        let at = usize::try_from(qi).unwrap_or(0);
+        let mut fdividend = numeric_var_wide_double(dividend[at].value) * 100000000.0f64;
+        fdividend = fdividend + numeric_var_wide_double(dividend[at + 1].value);
+        let mut qdigit = numeric_var_quotient_digit(fdividend * fdivisorinverse);
+        if qdigit != 0 {
+            let mut magnitude = qdigit as i64;
+            if magnitude < 0i64 {
+                magnitude = 0i64 - magnitude;
+            }
+            maxdiv = maxdiv + magnitude;
+            if maxdiv > limit {
+                let mut carry: i64 = 0i64;
+                let mut j = qi + var2ndigitpairs - 2;
+                if div_ndigitpairs - 1 < j {
+                    j = div_ndigitpairs - 1;
+                }
+                while j > qi {
+                    let index = usize::try_from(j).unwrap_or(0);
+                    let mut newdig = dividend[index].value + carry;
+                    carry = numeric_var_wide_carry(newdig);
+                    newdig = newdig - carry * 100000000i64;
+                    dividend[index] = NumericVarWide { value: newdig };
+                    j = j - 1;
+                }
+                dividend[at] = NumericVarWide {
+                    value: dividend[at].value + carry,
+                };
+                maxdiv = 1i64;
+                fdividend = numeric_var_wide_double(dividend[at].value) * 100000000.0f64;
+                fdividend = fdividend + numeric_var_wide_double(dividend[at + 1].value);
+                qdigit = numeric_var_quotient_digit(fdividend * fdivisorinverse);
+                magnitude = qdigit as i64;
+                if magnitude < 0i64 {
+                    magnitude = 0i64 - magnitude;
+                }
+                maxdiv = maxdiv + magnitude;
+            }
+            if qdigit != 0 {
+                let mut istop = var2ndigitpairs;
+                if div_ndigitpairs - qi < istop {
+                    istop = div_ndigitpairs - qi;
+                }
+                let stop = usize::try_from(istop).unwrap_or(0);
+                let wide_qdigit = qdigit as i64;
+                let mut k: usize = 0;
+                while k < stop {
+                    dividend[at + k] = NumericVarWide {
+                        value: dividend[at + k].value - wide_qdigit * divisor[k].value,
+                    };
+                    k += 1;
+                }
+            };
+        }
+        // PostgreSQL folds this digit into the next one and relies on a cancelling overflow
+        // when the product leaves 64 bits; splitting the next digit avoids the overflow.
+        let current = dividend[at].value;
+        let next = dividend[at + 1].value;
+        let next_high = next / 100000000i64;
+        let next_low = next - next_high * 100000000i64;
+        dividend[at + 1] = NumericVarWide {
+            value: (current + next_high) * 100000000i64 + next_low,
+        };
+        dividend[at] = NumericVarWide {
+            value: qdigit as i64,
+        };
+        qi = qi + 1;
+    }
+    let mut digits = numeric_var_zeros(2 * res_ndigitpairs);
+    let mut carry: i64 = 0i64;
+    let mut j = res_ndigitpairs - 1;
+    while j >= 0 {
+        let index = usize::try_from(j).unwrap_or(0);
+        let mut newdig = dividend[index].value + carry;
+        carry = numeric_var_wide_carry(newdig);
+        newdig = newdig - carry * 100000000i64;
+        let pair = newdig as i32;
+        digits[index + index] = NumericWireDigit {
+            value: pair / NUMERIC_VAR_NBASE,
+        };
+        digits[index + index + 1] = NumericWireDigit {
+            value: pair % NUMERIC_VAR_NBASE,
+        };
+        j = j - 1;
+    }
+    let quotient = NumericVar {
+        sign: res_sign,
+        weight: res_weight,
+        dscale: rscale,
+        digits: digits,
+    };
+    if round {
+        return numeric_var_strip(numeric_var_round(quotient, rscale));
+    }
+    numeric_var_strip(numeric_var_trunc(quotient, rscale))
+}
+
 // The truncated integer quotient and the remainder, precise to the divisor's scale.
 fn numeric_var_div_mod(left: &NumericVar, right: &NumericVar) -> NumericVarDivision {
     let one = numeric_var_from_i64(1i64);
-    let mut q = numeric_var_div(left, right, 0, false);
+    let mut q = numeric_var_div(left, right, 0, false, true);
     let product = numeric_var_mul(right, &q, right.dscale);
     let mut r = numeric_var_sub(left, &product);
     while numeric_var_count(&r) != 0 && r.sign != left.sign {
@@ -902,4 +1247,84 @@ fn numeric_var_div_mod(left: &NumericVar, right: &NumericVar) -> NumericVarDivis
         quotient: q,
         remainder: r,
     }
+}
+
+// PostgreSQL's mod_var: x - trunc(x / y) * y.
+fn numeric_var_mod(left: &NumericVar, right: &NumericVar) -> NumericVar {
+    let quotient = numeric_var_div(left, right, 0, false, true);
+    let product = numeric_var_mul(right, &quotient, right.dscale);
+    numeric_var_sub(left, &product)
+}
+
+// PostgreSQL's make_result: the stored weight and display scale must fit their header fields.
+fn numeric_var_result(value: NumericVar) -> NumericValue {
+    let stripped = numeric_var_strip(value);
+    if (numeric_var_count(&stripped) > 0 && (stripped.weight > 32767 || stripped.weight < -32768))
+        || stripped.dscale > 16383
+    {
+        return NumericValue::Error(make_sql_error(NUMERIC_SUPPORT_RANGE_ERROR));
+    }
+    NumericValue::Value(numeric_work_text(numeric_work_from_var(&stripped)))
+}
+
+fn numeric_var_rescaled(value: NumericVar, dscale: i32) -> NumericVar {
+    NumericVar {
+        sign: value.sign,
+        weight: value.weight,
+        dscale: dscale,
+        digits: value.digits,
+    }
+}
+
+// PostgreSQL's numericvar_to_double_no_overflow: the decimal text read as a double, which
+// becomes an infinity when it is out of range.
+fn numeric_var_to_double(value: &NumericVar) -> f64 {
+    let text = numeric_work_text(numeric_work_from_var(value));
+    text.as_str().parse::<f64>().unwrap_or(0.0f64)
+}
+
+fn numeric_var_from_text(text: &str) -> NumericVar {
+    let work = numeric_work_from_value(text);
+    numeric_var_from_work(&work)
+}
+
+fn numeric_var_succeeded(value: NumericVar) -> NumericVarOutcome {
+    NumericVarOutcome {
+        overflow: false,
+        value: value,
+    }
+}
+
+fn numeric_var_overflow() -> NumericVarOutcome {
+    NumericVarOutcome {
+        overflow: true,
+        value: numeric_var_zero(0),
+    }
+}
+
+fn numeric_var_outcome_result(outcome: NumericVarOutcome) -> NumericValue {
+    if outcome.overflow {
+        return NumericValue::Error(make_sql_error(NUMERIC_SUPPORT_RANGE_ERROR));
+    }
+    numeric_var_result(outcome.value)
+}
+
+// PostgreSQL's ceil_var and floor_var: truncate, then step away from zero when the
+// argument lay beyond the truncation in that direction.
+fn numeric_var_ceil(value: &NumericVar) -> NumericVar {
+    let one = numeric_var_from_i64(1i64);
+    let truncated = numeric_var_trunc(numeric_var_shifted(value, 0), 0);
+    if value.sign > 0 && numeric_var_cmp(value, &truncated) != 0 {
+        return numeric_var_add(&truncated, &one);
+    }
+    truncated
+}
+
+fn numeric_var_floor(value: &NumericVar) -> NumericVar {
+    let one = numeric_var_from_i64(1i64);
+    let truncated = numeric_var_trunc(numeric_var_shifted(value, 0), 0);
+    if value.sign < 0 && numeric_var_cmp(value, &truncated) != 0 {
+        return numeric_var_sub(&truncated, &one);
+    }
+    truncated
 }

@@ -134,9 +134,10 @@
 
 // PostgreSQL's NumericVar, so its numeric algorithms port as written: base-NBASE digits,
 // most significant first, the weight of the first digit, and the display scale. A zero has
-// no digits. The digit primitives follow the 32-bit forms PostgreSQL used before its 64-bit
-// accumulators; both compute the same exact integers, and 32-bit limbs keep the translated
-// targets on plain numbers.
+// no digits. Where PostgreSQL computes an exact result, any exact method yields the same
+// digits, so these routines use PostgreSQL's 32-bit forms and keep the translated targets on
+// plain numbers. Where it approximates, by truncating a product or estimating a quotient, they
+// reproduce PostgreSQL's arithmetic step for step.
 
 // Portions Copyright (c) 1999-2025, PostgreSQL Global Development Group.
 
@@ -704,268 +705,6 @@ export function numericEqFw7r(left: checkruntime.NumericValue, right: checkrunti
     }
     return checkruntime.boolUnresolved(unresolvedFlavor);
 }
-function numericWorkMagnitude(left: NumericWork, right: NumericWork): number {
-    left = copyNumericWork(left);
-    right = copyNumericWork(right);
-    if (left.sign === 0) {
-        if (right.sign === 0) {
-            return 0;
-        }
-        return langruntime.checkedSignedNegate(1);
-    }
-    if (right.sign === 0) {
-        return 1;
-    }
-    if (left.weight < right.weight) {
-        return langruntime.checkedSignedNegate(1);
-    }
-    if (left.weight > right.weight) {
-        return 1;
-    }
-    const first: string[] = Array.from(left.digits);
-    const second: string[] = Array.from(right.digits);
-    let index: number = 0;
-    while (index < first.length || index < second.length) {
-        let a: number = 0;
-        let b: number = 0;
-        if (index < first.length) {
-            a = langruntime.checkedI32(numericWireDecimalDigit(langruntime.indexChar(first, langruntime.checkedIndex(index))));
-        }
-        if (index < second.length) {
-            b = langruntime.checkedI32(numericWireDecimalDigit(langruntime.indexChar(second, langruntime.checkedIndex(index))));
-        }
-        if (a < b) {
-            return langruntime.checkedSignedNegate(1);
-        }
-        if (a > b) {
-            return 1;
-        }
-        index = langruntime.checkedAdd(index, 1);
-    }
-    return 0;
-}
-function numericWorkSum(left: NumericWork, right: NumericWork, subtract: boolean): NumericWork {
-    left = copyNumericWork(left);
-    right = copyNumericWork(right);
-    subtract = langruntime.checkedBool(subtract);
-    let scale: number = left.scale;
-    if (right.scale > scale) {
-        scale = langruntime.checkedI32(right.scale);
-    }
-    let sign: number = left.sign;
-    let otherSign: number = right.sign;
-    if (subtract) {
-        otherSign = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, otherSign));
-    }
-    const adding: boolean = sign === otherSign;
-    let swap: boolean = false;
-    if (adding === false) {
-        const order: number = numericWorkMagnitude(copyNumericWork(left), copyNumericWork(right));
-        if (order < 0) {
-            swap = langruntime.checkedBool(true);
-            sign = langruntime.checkedI32(otherSign);
-        }
-        if (order === 0) {
-            sign = langruntime.checkedI32(0);
-        }
-    }
-    let weight: number = left.weight;
-    if (right.weight > weight) {
-        weight = langruntime.checkedI32(right.weight);
-    }
-    weight = langruntime.checkedI32(langruntime.checkedSignedAdd(weight, 1));
-    const first: string[] = Array.from(left.digits);
-    const second: string[] = Array.from(right.digits);
-    let aIndex: number = 0;
-    let bIndex: number = 0;
-    let aDigits: NumericWireDigit[] = [];
-    let bDigits: NumericWireDigit[] = [];
-    let position: number = weight;
-    while (position >= langruntime.checkedSignedSubtract(0, scale)) {
-        let a: number = 0;
-        let b: number = 0;
-        if (position <= left.weight && aIndex < first.length) {
-            a = langruntime.checkedI32(numericWireDecimalDigit(langruntime.indexChar(first, langruntime.checkedIndex(aIndex))));
-            aIndex = langruntime.checkedAdd(aIndex, 1);
-        }
-        if (position <= right.weight && bIndex < second.length) {
-            b = langruntime.checkedI32(numericWireDecimalDigit(langruntime.indexChar(second, langruntime.checkedIndex(bIndex))));
-            bIndex = langruntime.checkedAdd(bIndex, 1);
-        }
-        langruntime.pushStruct(aDigits, { value: a }, copyNumericWireDigit);
-        langruntime.pushStruct(bDigits, { value: b }, copyNumericWireDigit);
-        position = langruntime.checkedI32(langruntime.checkedSignedSubtract(position, 1));
-    }
-    let result: NumericWireDigit[] = [];
-    let index: number = 0;
-    while (index < aDigits.length) {
-        langruntime.pushStruct(result, { value: 0 }, copyNumericWireDigit);
-        index = langruntime.checkedAdd(index, 1);
-    }
-    let carry: number = 0;
-    while (index > 0) {
-        index = langruntime.checkedIndex(langruntime.checkedSubtract(index, 1));
-        let a: number = langruntime.indexStruct(aDigits, langruntime.checkedIndex(index), copyNumericWireDigit).value;
-        let b: number = langruntime.indexStruct(bDigits, langruntime.checkedIndex(index), copyNumericWireDigit).value;
-        if (swap) {
-            a = langruntime.checkedI32(langruntime.indexStruct(bDigits, langruntime.checkedIndex(index), copyNumericWireDigit).value);
-            b = langruntime.checkedI32(langruntime.indexStruct(aDigits, langruntime.checkedIndex(index), copyNumericWireDigit).value);
-        }
-        let digit: number = langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(a, b), carry);
-        if (adding) {
-            carry = langruntime.checkedI32(langruntime.checkedSignedDivide(digit, 10));
-            digit = langruntime.checkedI32(langruntime.checkedSignedRemainder(digit, 10));
-        }
-        else {
-            digit = langruntime.checkedI32(langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(a, b), carry));
-            carry = langruntime.checkedI32(0);
-            if (digit < 0) {
-                digit = langruntime.checkedI32(langruntime.checkedSignedAdd(digit, 10));
-                carry = langruntime.checkedI32(1);
-            }
-        }
-        result[langruntime.checkedIndexIn(result, index)] = copyNumericWireDigit({ value: digit });
-    }
-    let end: number = result.length;
-    while (end > 0 && langruntime.indexStruct(result, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1)), copyNumericWireDigit).value === 0) {
-        end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
-    }
-    let start: number = 0;
-    while (start < end && langruntime.indexStruct(result, langruntime.checkedIndex(start), copyNumericWireDigit).value === 0) {
-        start = langruntime.checkedAdd(start, 1);
-        weight = langruntime.checkedI32(langruntime.checkedSignedSubtract(weight, 1));
-    }
-    let digits: string = "";
-    index = langruntime.checkedIndex(start);
-    while (index < end) {
-        digits = digits + langruntime.checkedChar(langruntime.characterFromI32((langruntime.checkedSignedAdd(langruntime.indexStruct(result, langruntime.checkedIndex(index), copyNumericWireDigit).value, 48)), "0"));
-        index = langruntime.checkedAdd(index, 1);
-    }
-    if (start === end) {
-        sign = langruntime.checkedI32(0);
-        weight = langruntime.checkedI32(0);
-    }
-    return { valid: true, special: 1, sign: sign, weight: weight, scale: scale, digits: digits };
-}
-function numericWorkAdd(left: NumericWork, right: NumericWork, subtract: boolean): checkruntime.NumericValue {
-    left = copyNumericWork(left);
-    right = copyNumericWork(right);
-    subtract = langruntime.checkedBool(subtract);
-    const work: NumericWork = numericWorkSum(left, right, subtract);
-    if (work.weight > 131071) {
-        return { kind: "Error", value: checkruntime.makeSqlError(numericSupportRangeError) };
-    }
-    return { kind: "Value", value: numericWorkText(work) };
-}
-function numericProductWords(characters: string[]): NumericWireDigit[] {
-    characters = langruntime.checkedChars(characters);
-    let words: NumericWireDigit[] = [];
-    let end: number = characters.length;
-    while (end > 0) {
-        let value: number = 0;
-        let factor: number = 1;
-        let width: number = 0;
-        while (end > 0 && width < 4) {
-            end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
-            value = langruntime.checkedI32(langruntime.checkedSignedAdd(value, langruntime.checkedSignedMultiply(numericWireDecimalDigit(langruntime.indexChar(characters, langruntime.checkedIndex(end))), factor)));
-            factor = langruntime.checkedI32(langruntime.checkedSignedMultiply(factor, 10));
-            width = langruntime.checkedI32(langruntime.checkedSignedAdd(width, 1));
-        }
-        langruntime.pushStruct(words, { value: value }, copyNumericWireDigit);
-    }
-    return words;
-}
-function numericWorkProduct(left: NumericWork, right: NumericWork): NumericWork {
-    left = copyNumericWork(left);
-    right = copyNumericWork(right);
-    const scale: number = langruntime.checkedSignedAdd(left.scale, right.scale);
-    const sign: number = langruntime.checkedSignedMultiply(left.sign, right.sign);
-    const first: string[] = Array.from(left.digits);
-    const second: string[] = Array.from(right.digits);
-    let aCount: number = 0;
-    let bCount: number = 0;
-    let index: number = 0;
-    while (index < first.length) {
-        aCount = langruntime.checkedI32(langruntime.checkedSignedAdd(aCount, 1));
-        index = langruntime.checkedAdd(index, 1);
-    }
-    index = langruntime.checkedIndex(0);
-    while (index < second.length) {
-        bCount = langruntime.checkedI32(langruntime.checkedSignedAdd(bCount, 1));
-        index = langruntime.checkedAdd(index, 1);
-    }
-    const a: NumericWireDigit[] = numericProductWords(first);
-    const b: NumericWireDigit[] = numericProductWords(second);
-    let result: NumericWireDigit[] = [];
-    index = langruntime.checkedIndex(0);
-    while (index < langruntime.checkedAdd(langruntime.checkedAdd(a.length, b.length), 1)) {
-        langruntime.pushStruct(result, { value: 0 }, copyNumericWireDigit);
-        index = langruntime.checkedAdd(index, 1);
-    }
-    let aIndex: number = 0;
-    while (aIndex < a.length) {
-        let bIndex: number = 0;
-        let carry: number = 0;
-        while (bIndex < b.length) {
-            const offset: number = langruntime.checkedAdd(aIndex, bIndex);
-            const product: number = langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(langruntime.indexStruct(a, langruntime.checkedIndex(aIndex), copyNumericWireDigit).value, langruntime.indexStruct(b, langruntime.checkedIndex(bIndex), copyNumericWireDigit).value), langruntime.indexStruct(result, langruntime.checkedIndex(offset), copyNumericWireDigit).value), carry);
-            result[langruntime.checkedIndexIn(result, offset)] = copyNumericWireDigit({ value: langruntime.checkedSignedRemainder(product, 10000) });
-            carry = langruntime.checkedI32(langruntime.checkedSignedDivide(product, 10000));
-            bIndex = langruntime.checkedAdd(bIndex, 1);
-        }
-        let offset: number = langruntime.checkedAdd(aIndex, bIndex);
-        while (carry > 0) {
-            const word: number = langruntime.checkedSignedAdd(langruntime.indexStruct(result, langruntime.checkedIndex(offset), copyNumericWireDigit).value, carry);
-            result[langruntime.checkedIndexIn(result, offset)] = copyNumericWireDigit({ value: langruntime.checkedSignedRemainder(word, 10000) });
-            carry = langruntime.checkedI32(langruntime.checkedSignedDivide(word, 10000));
-            offset = langruntime.checkedAdd(offset, 1);
-        }
-        aIndex = langruntime.checkedAdd(aIndex, 1);
-    }
-    let end: number = result.length;
-    while (end > 0 && langruntime.indexStruct(result, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1)), copyNumericWireDigit).value === 0) {
-        end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
-    }
-    let coefficient: string = "";
-    let count: number = 0;
-    while (end > 0) {
-        end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
-        let word: number = langruntime.indexStruct(result, langruntime.checkedIndex(end), copyNumericWireDigit).value;
-        let place: number = 1000;
-        while (place > 0) {
-            const digit: number = langruntime.checkedSignedDivide(word, place);
-            word = langruntime.checkedI32(langruntime.checkedSignedRemainder(word, place));
-            if (!(coefficient === "") || !(digit === 0)) {
-                coefficient = coefficient + langruntime.checkedChar(langruntime.characterFromI32((langruntime.checkedSignedAdd(digit, 48)), "0"));
-                count = langruntime.checkedI32(langruntime.checkedSignedAdd(count, 1));
-            }
-            place = langruntime.checkedI32(langruntime.checkedSignedDivide(place, 10));
-        }
-    }
-    let weight: number = langruntime.checkedSignedAdd(langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(left.weight, right.weight), count), aCount), bCount), 1);
-    const characters: string[] = Array.from(coefficient);
-    end = langruntime.checkedIndex(characters.length);
-    while (end > 0 && langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1))) === "0") {
-        end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
-    }
-    let digits: string = "";
-    index = langruntime.checkedIndex(0);
-    while (index < end) {
-        digits = digits + langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(index)));
-        index = langruntime.checkedAdd(index, 1);
-    }
-    if (sign === 0) {
-        weight = langruntime.checkedI32(0);
-    }
-    return { valid: true, special: 1, sign: sign, weight: weight, scale: scale, digits: digits };
-}
-function numericWorkMultiply(left: NumericWork, right: NumericWork): checkruntime.NumericValue {
-    left = copyNumericWork(left);
-    right = copyNumericWork(right);
-    const work: NumericWork = numericWorkProduct(left, right);
-    const scale: number = work.scale;
-    return numericWorkRound(work, scale, 1);
-}
 function numericArithmetic(left: checkruntime.NumericValue, right: checkruntime.NumericValue, mode: number): checkruntime.NumericValue {
     mode = langruntime.checkedI32(mode);
     let unresolvedFlavor: number = 0;
@@ -1060,10 +799,22 @@ function numericArithmetic(left: checkruntime.NumericValue, right: checkruntime.
                 }
                 return checkruntime.makeNumericValue("Infinity");
             }
+            const leftVar: NumericVar = numericVarFromWork(first);
+            const rightVar: NumericVar = numericVarFromWork(second);
             if (mode === 2) {
-                return numericWorkMultiply(first, second);
+                const rscale: number = langruntime.checkedSignedAdd(leftVar.dscale, rightVar.dscale);
+                const product: NumericVar = numericVarMul(leftVar, rightVar, rscale);
+                if (product.dscale > 16383) {
+                    return numericVarResult(numericVarRound(product, 16383));
+                }
+                return numericVarResult(product);
             }
-            return numericWorkAdd(first, second, mode === 1);
+            if (mode === 1) {
+                const result: NumericVar = numericVarSub(leftVar, rightVar);
+                return numericVarResult(result);
+            }
+            const result: NumericVar = numericVarAdd(leftVar, rightVar);
+            return numericVarResult(result);
         }
     }
     return checkruntime.numericUnresolved(unresolvedFlavor);
@@ -1077,165 +828,47 @@ export function numericSubYs09(left: checkruntime.NumericValue, right: checkrunt
 export function numericMulBj4l(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.NumericValue {
     return numericArithmetic(left, right, 2);
 }
-function numericDivisionScale(left: NumericWork, right: NumericWork): number {
-    left = copyNumericWork(left);
-    right = copyNumericWork(right);
-    let firstWeight: number = 0;
-    let secondWeight: number = 0;
-    let firstDigit: number = 0;
-    let secondDigit: number = 0;
-    const first: string[] = Array.from(left.digits);
-    const second: string[] = Array.from(right.digits);
-    if (!(left.sign === 0)) {
-        firstWeight = langruntime.checkedI32(langruntime.checkedSignedDivide(left.weight, 4));
-        let width: number = langruntime.checkedSignedRemainder(left.weight, 4);
-        if (width < 0) {
-            firstWeight = langruntime.checkedI32(langruntime.checkedSignedSubtract(firstWeight, 1));
-            width = langruntime.checkedI32(langruntime.checkedSignedAdd(width, 4));
+function numericDivisionScale(left: NumericVar, right: NumericVar): number {
+    let weight1: number = 0;
+    let firstdigit1: number = 0;
+    let i: number = 0;
+    while (i < numericVarCount(left)) {
+        firstdigit1 = langruntime.checkedI32(numericVarDigit(left, i));
+        if (!(firstdigit1 === 0)) {
+            weight1 = langruntime.checkedI32(langruntime.checkedSignedSubtract(left.weight, i));
+            i = langruntime.checkedI32(numericVarCount(left));
         }
-        width = langruntime.checkedI32(langruntime.checkedSignedAdd(width, 1));
-        let index: number = 0;
-        while (width > 0) {
-            firstDigit = langruntime.checkedI32(langruntime.checkedSignedMultiply(firstDigit, 10));
-            if (index < first.length) {
-                firstDigit = langruntime.checkedI32(langruntime.checkedSignedAdd(firstDigit, numericWireDecimalDigit(langruntime.indexChar(first, langruntime.checkedIndex(index)))));
-            }
-            index = langruntime.checkedAdd(index, 1);
-            width = langruntime.checkedI32(langruntime.checkedSignedSubtract(width, 1));
-        }
+        i = langruntime.checkedI32(langruntime.checkedSignedAdd(i, 1));
     }
-    if (!(right.sign === 0)) {
-        secondWeight = langruntime.checkedI32(langruntime.checkedSignedDivide(right.weight, 4));
-        let width: number = langruntime.checkedSignedRemainder(right.weight, 4);
-        if (width < 0) {
-            secondWeight = langruntime.checkedI32(langruntime.checkedSignedSubtract(secondWeight, 1));
-            width = langruntime.checkedI32(langruntime.checkedSignedAdd(width, 4));
+    let weight2: number = 0;
+    let firstdigit2: number = 0;
+    i = langruntime.checkedI32(0);
+    while (i < numericVarCount(right)) {
+        firstdigit2 = langruntime.checkedI32(numericVarDigit(right, i));
+        if (!(firstdigit2 === 0)) {
+            weight2 = langruntime.checkedI32(langruntime.checkedSignedSubtract(right.weight, i));
+            i = langruntime.checkedI32(numericVarCount(right));
         }
-        width = langruntime.checkedI32(langruntime.checkedSignedAdd(width, 1));
-        let index: number = 0;
-        while (width > 0) {
-            secondDigit = langruntime.checkedI32(langruntime.checkedSignedMultiply(secondDigit, 10));
-            if (index < second.length) {
-                secondDigit = langruntime.checkedI32(langruntime.checkedSignedAdd(secondDigit, numericWireDecimalDigit(langruntime.indexChar(second, langruntime.checkedIndex(index)))));
-            }
-            index = langruntime.checkedAdd(index, 1);
-            width = langruntime.checkedI32(langruntime.checkedSignedSubtract(width, 1));
-        }
+        i = langruntime.checkedI32(langruntime.checkedSignedAdd(i, 1));
     }
-    let quotientWeight: number = langruntime.checkedSignedSubtract(firstWeight, secondWeight);
-    if (firstDigit <= secondDigit) {
-        quotientWeight = langruntime.checkedI32(langruntime.checkedSignedSubtract(quotientWeight, 1));
+    let qweight: number = langruntime.checkedSignedSubtract(weight1, weight2);
+    if (firstdigit1 <= firstdigit2) {
+        qweight = langruntime.checkedI32(langruntime.checkedSignedSubtract(qweight, 1));
     }
-    let scale: number = langruntime.checkedSignedSubtract(16, langruntime.checkedSignedMultiply(quotientWeight, 4));
-    if (scale < left.scale) {
-        scale = langruntime.checkedI32(left.scale);
+    let rscale: number = langruntime.checkedSignedSubtract(numericVarMinSigDigits, langruntime.checkedSignedMultiply(qweight, numericVarDecDigits));
+    if (rscale < left.dscale) {
+        rscale = langruntime.checkedI32(left.dscale);
     }
-    if (scale < right.scale) {
-        scale = langruntime.checkedI32(right.scale);
+    if (rscale < right.dscale) {
+        rscale = langruntime.checkedI32(right.dscale);
     }
-    if (scale < 0) {
-        scale = langruntime.checkedI32(0);
+    if (rscale < 0) {
+        rscale = langruntime.checkedI32(0);
     }
-    if (scale > 1000) {
-        scale = langruntime.checkedI32(1000);
+    if (rscale > numericVarMaxDisplayScale) {
+        rscale = langruntime.checkedI32(numericVarMaxDisplayScale);
     }
-    return scale;
-}
-function numericDivisionWork(left: NumericWork, right: NumericWork, scale: number, rounding: boolean): NumericWork {
-    left = copyNumericWork(left);
-    right = copyNumericWork(right);
-    scale = langruntime.checkedI32(scale);
-    rounding = langruntime.checkedBool(rounding);
-    const first: string[] = Array.from(left.digits);
-    const second: string[] = Array.from(right.digits);
-    let denominator: NumericWireDigit[] = [];
-    let remainder: NumericWireDigit[] = [];
-    langruntime.pushStruct(remainder, { value: 0 }, copyNumericWireDigit);
-    let secondExponent: number = langruntime.checkedSignedAdd(right.weight, 1);
-    let index: number = 0;
-    while (index < second.length) {
-        langruntime.pushStruct(denominator, { value: numericWireDecimalDigit(langruntime.indexChar(second, langruntime.checkedIndex(index))) }, copyNumericWireDigit);
-        langruntime.pushStruct(remainder, { value: 0 }, copyNumericWireDigit);
-        secondExponent = langruntime.checkedI32(langruntime.checkedSignedSubtract(secondExponent, 1));
-        index = langruntime.checkedAdd(index, 1);
-    }
-    let position: number = langruntime.checkedSignedSubtract(left.weight, secondExponent);
-    let boundary: number = langruntime.checkedSignedSubtract(0, scale);
-    if (rounding) {
-        boundary = langruntime.checkedI32(langruntime.checkedSignedSubtract(boundary, 1));
-    }
-    let coefficient: string = "";
-    let weight: number = 0;
-    let sign: number = 0;
-    index = langruntime.checkedIndex(0);
-    while (position >= boundary && !(left.sign === 0)) {
-        let cursor: number = 0;
-        while (langruntime.checkedAdd(cursor, 1) < remainder.length) {
-            remainder[langruntime.checkedIndexIn(remainder, cursor)] = copyNumericWireDigit(langruntime.indexStruct(remainder, langruntime.checkedIndex(langruntime.checkedAdd(cursor, 1)), copyNumericWireDigit));
-            cursor = langruntime.checkedAdd(cursor, 1);
-        }
-        let digit: number = 0;
-        if (index < first.length) {
-            digit = langruntime.checkedI32(numericWireDecimalDigit(langruntime.indexChar(first, langruntime.checkedIndex(index))));
-        }
-        remainder[langruntime.checkedIndexIn(remainder, cursor)] = copyNumericWireDigit({ value: digit });
-        index = langruntime.checkedAdd(index, 1);
-        let quotient: number = 0;
-        let subtract: boolean = true;
-        while (subtract) {
-            subtract = langruntime.checkedBool(!(langruntime.indexStruct(remainder, langruntime.checkedIndex(0), copyNumericWireDigit).value === 0));
-            if (subtract === false) {
-                let order: number = 0;
-                cursor = langruntime.checkedIndex(0);
-                while (cursor < denominator.length && order === 0) {
-                    if (langruntime.indexStruct(remainder, langruntime.checkedIndex(langruntime.checkedAdd(cursor, 1)), copyNumericWireDigit).value < langruntime.indexStruct(denominator, langruntime.checkedIndex(cursor), copyNumericWireDigit).value) {
-                        order = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
-                    }
-                    if (langruntime.indexStruct(remainder, langruntime.checkedIndex(langruntime.checkedAdd(cursor, 1)), copyNumericWireDigit).value > langruntime.indexStruct(denominator, langruntime.checkedIndex(cursor), copyNumericWireDigit).value) {
-                        order = langruntime.checkedI32(1);
-                    }
-                    cursor = langruntime.checkedAdd(cursor, 1);
-                }
-                subtract = langruntime.checkedBool(order >= 0);
-            }
-            if (subtract) {
-                let borrow: number = 0;
-                cursor = langruntime.checkedIndex(denominator.length);
-                while (cursor > 0) {
-                    let difference: number = langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(langruntime.indexStruct(remainder, langruntime.checkedIndex(cursor), copyNumericWireDigit).value, langruntime.indexStruct(denominator, langruntime.checkedIndex(langruntime.checkedSubtract(cursor, 1)), copyNumericWireDigit).value), borrow);
-                    borrow = langruntime.checkedI32(0);
-                    if (difference < 0) {
-                        difference = langruntime.checkedI32(langruntime.checkedSignedAdd(difference, 10));
-                        borrow = langruntime.checkedI32(1);
-                    }
-                    remainder[langruntime.checkedIndexIn(remainder, cursor)] = copyNumericWireDigit({ value: difference });
-                    cursor = langruntime.checkedIndex(langruntime.checkedSubtract(cursor, 1));
-                }
-                remainder[langruntime.checkedIndexIn(remainder, 0)] = copyNumericWireDigit({ value: langruntime.checkedSignedSubtract(langruntime.indexStruct(remainder, langruntime.checkedIndex(0), copyNumericWireDigit).value, borrow) });
-                quotient = langruntime.checkedI32(langruntime.checkedSignedAdd(quotient, 1));
-            }
-        }
-        if (!(quotient === 0) && sign === 0) {
-            sign = langruntime.checkedI32(langruntime.checkedSignedMultiply(left.sign, right.sign));
-            weight = langruntime.checkedI32(position);
-        }
-        if (!(sign === 0)) {
-            coefficient = coefficient + langruntime.checkedChar(langruntime.characterFromI32((langruntime.checkedSignedAdd(quotient, 48)), "0"));
-        }
-        let nonzero: boolean = false;
-        cursor = langruntime.checkedIndex(0);
-        while (cursor < remainder.length) {
-            if (!(langruntime.indexStruct(remainder, langruntime.checkedIndex(cursor), copyNumericWireDigit).value === 0)) {
-                nonzero = langruntime.checkedBool(true);
-            }
-            cursor = langruntime.checkedAdd(cursor, 1);
-        }
-        if (index >= first.length && nonzero === false) {
-            position = langruntime.checkedI32(boundary);
-        }
-        position = langruntime.checkedI32(langruntime.checkedSignedSubtract(position, 1));
-    }
-    return { valid: true, special: 1, sign: sign, weight: weight, scale: scale, digits: coefficient };
+    return rscale;
 }
 function numericDivision(left: checkruntime.NumericValue, right: checkruntime.NumericValue, mode: number): checkruntime.NumericValue {
     mode = langruntime.checkedI32(mode);
@@ -1317,27 +950,19 @@ function numericDivision(left: checkruntime.NumericValue, right: checkruntime.Nu
                 }
                 return { kind: "Value", value: "0" };
             }
+            const dividend: NumericVar = numericVarFromWork(a);
+            const divisor: NumericVar = numericVarFromWork(b);
             if (mode === 2) {
-                const quotient: NumericWork = numericDivisionWork(copyNumericWork(a), copyNumericWork(b), 0, false);
-                const product: checkruntime.NumericValue = numericWorkMultiply(quotient, b);
-                if (product.kind === "Value") {
-                    const multiplied: string = langruntime.checkedString(product.value);
-                    return numericWorkAdd(a, numericWorkFromValue(multiplied), true);
-                }
-                return product;
+                const result: NumericVar = numericVarMod(dividend, divisor);
+                return numericVarResult(result);
             }
-            let scale: number = 0;
-            let rounding: boolean = false;
-            if (mode === 0) {
-                scale = langruntime.checkedI32(numericDivisionScale(copyNumericWork(a), copyNumericWork(b)));
-                rounding = langruntime.checkedBool(true);
+            if (mode === 1) {
+                const result: NumericVar = numericVarDiv(dividend, divisor, 0, false, true);
+                return numericVarResult(result);
             }
-            const quotient: NumericWork = numericDivisionWork(a, b, scale, rounding);
-            let roundMode: number = 0;
-            if (rounding) {
-                roundMode = langruntime.checkedI32(1);
-            }
-            return numericWorkRound(quotient, scale, roundMode);
+            const rscale: number = numericDivisionScale(dividend, divisor);
+            const result: NumericVar = numericVarDiv(dividend, divisor, rscale, true, true);
+            return numericVarResult(result);
         }
     }
     return checkruntime.numericUnresolved(unresolvedFlavor);
@@ -1491,6 +1116,46 @@ export function sign2rsu(input: checkruntime.NumericValue): checkruntime.Numeric
     }
     return checkruntime.numericUnresolved(unresolvedFlavor);
 }
+function numericRoundValue(work: NumericWork, requested: number, mode: number): checkruntime.NumericValue {
+    work = copyNumericWork(work);
+    requested = langruntime.checkedI32(requested);
+    mode = langruntime.checkedI32(mode);
+    if (work.valid === false) {
+        return checkruntime.numericUnresolved(0);
+    }
+    if (!(work.special === 1)) {
+        return { kind: "Value", value: numericWorkText(work) };
+    }
+    const arg: NumericVar = numericVarFromWork(work);
+    if (mode === 2) {
+        return numericVarResult(numericVarCeil(arg));
+    }
+    if (mode === 3) {
+        return numericVarResult(numericVarFloor(arg));
+    }
+    let scale: number = requested;
+    let minimum: number = langruntime.checkedSignedNegate(131072);
+    if (mode === 1) {
+        minimum = langruntime.checkedI32(langruntime.checkedSignedSubtract(minimum, 1));
+    }
+    if (scale < minimum) {
+        scale = langruntime.checkedI32(minimum);
+    }
+    if (scale > 16383) {
+        scale = langruntime.checkedI32(16383);
+    }
+    let result: NumericVar = numericVarZero(0);
+    if (mode === 1) {
+        result = copyNumericVar(numericVarRound(arg, scale));
+    }
+    else {
+        result = copyNumericVar(numericVarTrunc(arg, scale));
+    }
+    if (scale < 0) {
+        result = copyNumericVar(numericVarRescaled(result, 0));
+    }
+    return numericVarResult(result);
+}
 export function roundMmpo(input: checkruntime.NumericValue): checkruntime.NumericValue {
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
@@ -1524,7 +1189,7 @@ export function roundMmpo(input: checkruntime.NumericValue): checkruntime.Numeri
         if (work.valid === false) {
             return checkruntime.numericUnresolved(unresolvedFlavor);
         }
-        return numericWorkRound(work, 0, 1);
+        return numericRoundValue(work, 0, 1);
     }
     return checkruntime.numericUnresolved(unresolvedFlavor);
 }
@@ -1581,7 +1246,7 @@ export function roundOtcq(input: checkruntime.NumericValue, scale: checkruntime.
         }
         if (scale.kind === "Value") {
             const precision: number = langruntime.checkedI32(scale.value);
-            return numericWorkRound(work, precision, 1);
+            return numericRoundValue(work, precision, 1);
         }
     }
     return checkruntime.numericUnresolved(unresolvedFlavor);
@@ -1619,7 +1284,7 @@ export function truncDghz(input: checkruntime.NumericValue): checkruntime.Numeri
         if (work.valid === false) {
             return checkruntime.numericUnresolved(unresolvedFlavor);
         }
-        return numericWorkRound(work, 0, 0);
+        return numericRoundValue(work, 0, 0);
     }
     return checkruntime.numericUnresolved(unresolvedFlavor);
 }
@@ -1676,7 +1341,7 @@ export function truncHay3(input: checkruntime.NumericValue, scale: checkruntime.
         }
         if (scale.kind === "Value") {
             const precision: number = langruntime.checkedI32(scale.value);
-            return numericWorkRound(work, precision, 0);
+            return numericRoundValue(work, precision, 0);
         }
     }
     return checkruntime.numericUnresolved(unresolvedFlavor);
@@ -1730,6 +1395,1022 @@ function numericWireScale(input: string): number {
         return 0;
     }
     return scale;
+}
+interface NumericVar {
+    sign: number;
+    weight: number;
+    dscale: number;
+    digits: NumericWireDigit[];
+}
+function copyNumericVar(value: NumericVar): NumericVar {
+    return { sign: langruntime.checkedI32(value.sign), weight: langruntime.checkedI32(value.weight), dscale: langruntime.checkedI32(value.dscale), digits: langruntime.checkedStructs(value.digits, copyNumericWireDigit) };
+}
+const numericVarNbase = 10000;
+const numericVarHalfNbase = 5000;
+const numericVarDecDigits = 4;
+const numericVarMulGuardDigits = 2;
+const numericVarDivGuardDigits = 4;
+const numericVarMinSigDigits = 16;
+const numericVarMaxDisplayScale = 1000;
+interface NumericVarWide {
+    value: bigint;
+}
+function copyNumericVarWide(value: NumericVarWide): NumericVarWide {
+    return { value: langruntime.checkedI64(value.value) };
+}
+function numericVarZero(dscale: number): NumericVar {
+    dscale = langruntime.checkedI32(dscale);
+    const digits: NumericWireDigit[] = [];
+    return { sign: 1, weight: 0, dscale: dscale, digits: digits };
+}
+function numericVarCount(value: NumericVar): number {
+    return langruntime.checkedI32(langruntime.checkedIndex(value.digits.length));
+}
+function numericVarDigit(value: NumericVar, index: number): number {
+    index = langruntime.checkedI32(index);
+    if (index < 0 || index >= numericVarCount(value)) {
+        return 0;
+    }
+    return langruntime.indexStruct(value.digits, langruntime.checkedIndex(langruntime.indexFromI32(index, 0)), copyNumericWireDigit).value;
+}
+function numericVarZeros(count: number): NumericWireDigit[] {
+    count = langruntime.checkedI32(count);
+    let digits: NumericWireDigit[] = [];
+    let index: number = 0;
+    while (index < count) {
+        langruntime.pushStruct(digits, { value: 0 }, copyNumericWireDigit);
+        index = langruntime.checkedI32(langruntime.checkedSignedAdd(index, 1));
+    }
+    return digits;
+}
+function numericVarRoundPower(decimals: number): number {
+    decimals = langruntime.checkedI32(decimals);
+    if (decimals === 1) {
+        return 1000;
+    }
+    if (decimals === 2) {
+        return 100;
+    }
+    return 10;
+}
+function numericVarFromWork(work: NumericWork): NumericVar {
+    if (work.sign === 0) {
+        return numericVarZero(work.scale);
+    }
+    const characters: string[] = Array.from(work.digits);
+    let weight: number = langruntime.checkedSignedDivide(work.weight, numericVarDecDigits);
+    if (langruntime.checkedSignedRemainder(work.weight, numericVarDecDigits) < 0) {
+        weight = langruntime.checkedI32(langruntime.checkedSignedSubtract(weight, 1));
+    }
+    let leading: number = langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(weight, numericVarDecDigits), numericVarDecDigits), 1), work.weight);
+    let emitted: number = 0;
+    let digits: NumericWireDigit[] = [];
+    let value: number = 0;
+    let index: number = 0;
+    while (index < characters.length || !(langruntime.checkedSignedRemainder(emitted, numericVarDecDigits) === 0)) {
+        let decimal: number = 0;
+        if (leading > 0) {
+            leading = langruntime.checkedI32(langruntime.checkedSignedSubtract(leading, 1));
+        }
+        else if (index < characters.length) {
+            decimal = langruntime.checkedI32(numericWireDecimalDigit(langruntime.indexChar(characters, langruntime.checkedIndex(index))));
+            index = langruntime.checkedAdd(index, 1);
+        }
+        value = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(value, 10), decimal));
+        emitted = langruntime.checkedI32(langruntime.checkedSignedAdd(emitted, 1));
+        if (langruntime.checkedSignedRemainder(emitted, numericVarDecDigits) === 0) {
+            langruntime.pushStruct(digits, { value: value }, copyNumericWireDigit);
+            value = langruntime.checkedI32(0);
+        }
+    }
+    return numericVarStrip({ sign: work.sign, weight: weight, dscale: work.scale, digits: digits });
+}
+function numericWorkFromVar(value: NumericVar): NumericWork {
+    let scale: number = value.dscale;
+    if (scale < 0) {
+        scale = langruntime.checkedI32(0);
+    }
+    let decimals: string = "";
+    let weight: number = langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(value.weight, numericVarDecDigits), numericVarDecDigits), 1);
+    let index: number = 0;
+    while (index < value.digits.length) {
+        let word: number = langruntime.indexStruct(value.digits, langruntime.checkedIndex(index), copyNumericWireDigit).value;
+        let place: number = 1000;
+        while (place > 0) {
+            const digit: number = langruntime.checkedSignedDivide(word, place);
+            word = langruntime.checkedI32(langruntime.checkedSignedRemainder(word, place));
+            if (decimals === "" && digit === 0) {
+                weight = langruntime.checkedI32(langruntime.checkedSignedSubtract(weight, 1));
+            }
+            else {
+                decimals = decimals + langruntime.checkedChar(langruntime.characterFromI32((langruntime.checkedSignedAdd(digit, 48)), "0"));
+            }
+            place = langruntime.checkedI32(langruntime.checkedSignedDivide(place, 10));
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    const characters: string[] = Array.from(decimals);
+    let end: number = characters.length;
+    while (end > 0 && langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1))) === "0") {
+        end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
+    }
+    let digits: string = "";
+    index = langruntime.checkedIndex(0);
+    while (index < end) {
+        digits = digits + langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(index)));
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let sign: number = value.sign;
+    if (end === 0) {
+        sign = langruntime.checkedI32(0);
+        weight = langruntime.checkedI32(0);
+    }
+    return { valid: true, special: 1, sign: sign, weight: weight, scale: scale, digits: digits };
+}
+function numericVarFromI64(value: bigint): NumericVar {
+    value = langruntime.checkedI64(value);
+    let sign: number = 1;
+    let magnitude: bigint = value;
+    if (value < 0n) {
+        sign = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+        magnitude = langruntime.checkedI64(langruntime.checkedI64Subtract(0n, value));
+    }
+    let reversed: NumericWireDigit[] = [];
+    while (magnitude > 0n) {
+        const next: bigint = langruntime.checkedI64Divide(magnitude, 10000n);
+        langruntime.pushStruct(reversed, { value: Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Subtract(magnitude, langruntime.checkedI64Multiply(next, 10000n)))))) }, copyNumericWireDigit);
+        magnitude = langruntime.checkedI64(next);
+    }
+    let digits: NumericWireDigit[] = [];
+    let index: number = reversed.length;
+    while (index > 0) {
+        index = langruntime.checkedIndex(langruntime.checkedSubtract(index, 1));
+        langruntime.pushStruct(digits, langruntime.indexStruct(reversed, langruntime.checkedIndex(index), copyNumericWireDigit), copyNumericWireDigit);
+    }
+    const count: number = langruntime.checkedI32(langruntime.checkedIndex(digits.length));
+    if (count === 0) {
+        return numericVarZero(0);
+    }
+    return { sign: sign, weight: langruntime.checkedSignedSubtract(count, 1), dscale: 0, digits: digits };
+}
+function numericVarStrip(value: NumericVar): NumericVar {
+    value = copyNumericVar(value);
+    let weight: number = value.weight;
+    let start: number = 0;
+    while (start < value.digits.length && langruntime.indexStruct(value.digits, langruntime.checkedIndex(start), copyNumericWireDigit).value === 0) {
+        start = langruntime.checkedAdd(start, 1);
+        weight = langruntime.checkedI32(langruntime.checkedSignedSubtract(weight, 1));
+    }
+    let end: number = value.digits.length;
+    while (end > start && langruntime.indexStruct(value.digits, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1)), copyNumericWireDigit).value === 0) {
+        end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
+    }
+    let digits: NumericWireDigit[] = [];
+    let index: number = start;
+    while (index < end) {
+        langruntime.pushStruct(digits, langruntime.indexStruct(value.digits, langruntime.checkedIndex(index), copyNumericWireDigit), copyNumericWireDigit);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let sign: number = value.sign;
+    if (end === start) {
+        sign = langruntime.checkedI32(1);
+        weight = langruntime.checkedI32(0);
+    }
+    return { sign: sign, weight: weight, dscale: value.dscale, digits: digits };
+}
+function numericVarShifted(value: NumericVar, places: number): NumericVar {
+    places = langruntime.checkedI32(places);
+    let digits: NumericWireDigit[] = [];
+    let index: number = 0;
+    while (index < value.digits.length) {
+        langruntime.pushStruct(digits, langruntime.indexStruct(value.digits, langruntime.checkedIndex(index), copyNumericWireDigit), copyNumericWireDigit);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return { sign: value.sign, weight: langruntime.checkedSignedAdd(value.weight, places), dscale: value.dscale, digits: digits };
+}
+function numericVarCmpAbs(left: NumericVar, right: NumericVar): number {
+    const leftCount: number = numericVarCount(left);
+    const rightCount: number = numericVarCount(right);
+    let leftWeight: number = left.weight;
+    let rightWeight: number = right.weight;
+    let i1: number = 0;
+    let i2: number = 0;
+    while (leftWeight > rightWeight && i1 < leftCount) {
+        if (!(numericVarDigit(left, i1) === 0)) {
+            return 1;
+        }
+        i1 = langruntime.checkedI32(langruntime.checkedSignedAdd(i1, 1));
+        leftWeight = langruntime.checkedI32(langruntime.checkedSignedSubtract(leftWeight, 1));
+    }
+    while (rightWeight > leftWeight && i2 < rightCount) {
+        if (!(numericVarDigit(right, i2) === 0)) {
+            return langruntime.checkedSignedNegate(1);
+        }
+        i2 = langruntime.checkedI32(langruntime.checkedSignedAdd(i2, 1));
+        rightWeight = langruntime.checkedI32(langruntime.checkedSignedSubtract(rightWeight, 1));
+    }
+    if (leftWeight === rightWeight) {
+        while (i1 < leftCount && i2 < rightCount) {
+            const stat: number = langruntime.checkedSignedSubtract(numericVarDigit(left, i1), numericVarDigit(right, i2));
+            i1 = langruntime.checkedI32(langruntime.checkedSignedAdd(i1, 1));
+            i2 = langruntime.checkedI32(langruntime.checkedSignedAdd(i2, 1));
+            if (stat > 0) {
+                return 1;
+            }
+            if (stat < 0) {
+                return langruntime.checkedSignedNegate(1);
+            }
+        }
+    }
+    while (i1 < leftCount) {
+        if (!(numericVarDigit(left, i1) === 0)) {
+            return 1;
+        }
+        i1 = langruntime.checkedI32(langruntime.checkedSignedAdd(i1, 1));
+    }
+    while (i2 < rightCount) {
+        if (!(numericVarDigit(right, i2) === 0)) {
+            return langruntime.checkedSignedNegate(1);
+        }
+        i2 = langruntime.checkedI32(langruntime.checkedSignedAdd(i2, 1));
+    }
+    return 0;
+}
+function numericVarCmp(left: NumericVar, right: NumericVar): number {
+    if (numericVarCount(left) === 0) {
+        if (numericVarCount(right) === 0) {
+            return 0;
+        }
+        if (right.sign < 0) {
+            return 1;
+        }
+        return langruntime.checkedSignedNegate(1);
+    }
+    if (numericVarCount(right) === 0) {
+        if (left.sign > 0) {
+            return 1;
+        }
+        return langruntime.checkedSignedNegate(1);
+    }
+    if (left.sign > 0) {
+        if (right.sign < 0) {
+            return 1;
+        }
+        return numericVarCmpAbs(left, right);
+    }
+    if (right.sign > 0) {
+        return langruntime.checkedSignedNegate(1);
+    }
+    return numericVarCmpAbs(right, left);
+}
+function numericVarAddAbs(left: NumericVar, right: NumericVar): NumericVar {
+    const leftCount: number = numericVarCount(left);
+    const rightCount: number = numericVarCount(right);
+    let resWeight: number = left.weight;
+    if (right.weight > resWeight) {
+        resWeight = langruntime.checkedI32(right.weight);
+    }
+    resWeight = langruntime.checkedI32(langruntime.checkedSignedAdd(resWeight, 1));
+    let resDscale: number = left.dscale;
+    if (right.dscale > resDscale) {
+        resDscale = langruntime.checkedI32(right.dscale);
+    }
+    const rscale1: number = langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(leftCount, left.weight), 1);
+    const rscale2: number = langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(rightCount, right.weight), 1);
+    let resRscale: number = rscale1;
+    if (rscale2 > resRscale) {
+        resRscale = langruntime.checkedI32(rscale2);
+    }
+    let resNdigits: number = langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(resRscale, resWeight), 1);
+    if (resNdigits <= 0) {
+        resNdigits = langruntime.checkedI32(1);
+    }
+    let digits: NumericWireDigit[] = numericVarZeros(resNdigits);
+    let i1: number = langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(resRscale, left.weight), 1);
+    let i2: number = langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(resRscale, right.weight), 1);
+    let carry: number = 0;
+    let i: number = langruntime.checkedSignedSubtract(resNdigits, 1);
+    while (i >= 0) {
+        i1 = langruntime.checkedI32(langruntime.checkedSignedSubtract(i1, 1));
+        i2 = langruntime.checkedI32(langruntime.checkedSignedSubtract(i2, 1));
+        carry = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(carry, numericVarDigit(left, i1)), numericVarDigit(right, i2)));
+        let digit: number = carry;
+        carry = langruntime.checkedI32(0);
+        if (digit >= numericVarNbase) {
+            digit = langruntime.checkedI32(langruntime.checkedSignedSubtract(digit, numericVarNbase));
+            carry = langruntime.checkedI32(1);
+        }
+        digits[langruntime.checkedIndexIn(digits, langruntime.indexFromI32(i, 0))] = copyNumericWireDigit({ value: digit });
+        i = langruntime.checkedI32(langruntime.checkedSignedSubtract(i, 1));
+    }
+    return numericVarStrip({ sign: 1, weight: resWeight, dscale: resDscale, digits: digits });
+}
+function numericVarSubAbs(left: NumericVar, right: NumericVar): NumericVar {
+    const leftCount: number = numericVarCount(left);
+    const rightCount: number = numericVarCount(right);
+    const resWeight: number = left.weight;
+    let resDscale: number = left.dscale;
+    if (right.dscale > resDscale) {
+        resDscale = langruntime.checkedI32(right.dscale);
+    }
+    const rscale1: number = langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(leftCount, left.weight), 1);
+    const rscale2: number = langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(rightCount, right.weight), 1);
+    let resRscale: number = rscale1;
+    if (rscale2 > resRscale) {
+        resRscale = langruntime.checkedI32(rscale2);
+    }
+    let resNdigits: number = langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(resRscale, resWeight), 1);
+    if (resNdigits <= 0) {
+        resNdigits = langruntime.checkedI32(1);
+    }
+    let digits: NumericWireDigit[] = numericVarZeros(resNdigits);
+    let i1: number = langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(resRscale, left.weight), 1);
+    let i2: number = langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(resRscale, right.weight), 1);
+    let borrow: number = 0;
+    let i: number = langruntime.checkedSignedSubtract(resNdigits, 1);
+    while (i >= 0) {
+        i1 = langruntime.checkedI32(langruntime.checkedSignedSubtract(i1, 1));
+        i2 = langruntime.checkedI32(langruntime.checkedSignedSubtract(i2, 1));
+        borrow = langruntime.checkedI32(langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(borrow, numericVarDigit(left, i1)), numericVarDigit(right, i2)));
+        let digit: number = borrow;
+        borrow = langruntime.checkedI32(0);
+        if (digit < 0) {
+            digit = langruntime.checkedI32(langruntime.checkedSignedAdd(digit, numericVarNbase));
+            borrow = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+        }
+        digits[langruntime.checkedIndexIn(digits, langruntime.indexFromI32(i, 0))] = copyNumericWireDigit({ value: digit });
+        i = langruntime.checkedI32(langruntime.checkedSignedSubtract(i, 1));
+    }
+    return numericVarStrip({ sign: 1, weight: resWeight, dscale: resDscale, digits: digits });
+}
+function numericVarSigned(value: NumericVar, sign: number): NumericVar {
+    value = copyNumericVar(value);
+    sign = langruntime.checkedI32(sign);
+    return { sign: sign, weight: value.weight, dscale: value.dscale, digits: value.digits };
+}
+function numericVarSum(left: NumericVar, right: NumericVar, rightSign: number): NumericVar {
+    rightSign = langruntime.checkedI32(rightSign);
+    let dscale: number = left.dscale;
+    if (right.dscale > dscale) {
+        dscale = langruntime.checkedI32(right.dscale);
+    }
+    if (left.sign === rightSign) {
+        return numericVarSigned(numericVarAddAbs(left, right), left.sign);
+    }
+    const order: number = numericVarCmpAbs(left, right);
+    if (order === 0) {
+        return numericVarZero(dscale);
+    }
+    if (order > 0) {
+        return numericVarSigned(numericVarSubAbs(left, right), left.sign);
+    }
+    return numericVarSigned(numericVarSubAbs(right, left), rightSign);
+}
+function numericVarAdd(left: NumericVar, right: NumericVar): NumericVar {
+    return numericVarSum(left, right, right.sign);
+}
+function numericVarSub(left: NumericVar, right: NumericVar): NumericVar {
+    return numericVarSum(left, right, langruntime.checkedSignedSubtract(0, right.sign));
+}
+function numericVarRound(value: NumericVar, rscale: number): NumericVar {
+    value = copyNumericVar(value);
+    rscale = langruntime.checkedI32(rscale);
+    const sign: number = value.sign;
+    let weight: number = value.weight;
+    let digits: NumericWireDigit[] = value.digits;
+    let di: number = langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply((langruntime.checkedSignedAdd(weight, 1)), numericVarDecDigits), rscale);
+    if (di < 0) {
+        return numericVarZero(rscale);
+    }
+    const ndigits: number = langruntime.checkedSignedDivide((langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(di, numericVarDecDigits), 1)), numericVarDecDigits);
+    di = langruntime.checkedI32(langruntime.checkedSignedRemainder(di, numericVarDecDigits));
+    let kept: number = langruntime.checkedI32(langruntime.checkedIndex(digits.length));
+    let leading: number = 0;
+    if (ndigits < kept || (ndigits === kept && di > 0)) {
+        kept = langruntime.checkedI32(ndigits);
+        let position: number = ndigits;
+        let carry: number = 0;
+        if (di === 0) {
+            if (langruntime.indexStruct(digits, langruntime.checkedIndex(langruntime.indexFromI32(ndigits, 0)), copyNumericWireDigit).value >= numericVarHalfNbase) {
+                carry = langruntime.checkedI32(1);
+            }
+        }
+        else {
+            position = langruntime.checkedI32(langruntime.checkedSignedSubtract(position, 1));
+            const last: number = langruntime.indexFromI32(position, 0);
+            let pow10: number = numericVarRoundPower(di);
+            const extra: number = langruntime.checkedSignedRemainder(langruntime.indexStruct(digits, langruntime.checkedIndex(last), copyNumericWireDigit).value, pow10);
+            digits[langruntime.checkedIndexIn(digits, last)] = copyNumericWireDigit({ value: langruntime.checkedSignedSubtract(langruntime.indexStruct(digits, langruntime.checkedIndex(last), copyNumericWireDigit).value, extra) });
+            if (extra >= langruntime.checkedSignedDivide(pow10, 2)) {
+                pow10 = langruntime.checkedI32(langruntime.checkedSignedAdd(pow10, langruntime.indexStruct(digits, langruntime.checkedIndex(last), copyNumericWireDigit).value));
+                if (pow10 >= numericVarNbase) {
+                    pow10 = langruntime.checkedI32(langruntime.checkedSignedSubtract(pow10, numericVarNbase));
+                    carry = langruntime.checkedI32(1);
+                }
+                digits[langruntime.checkedIndexIn(digits, last)] = copyNumericWireDigit({ value: pow10 });
+            }
+        }
+        while (carry > 0) {
+            position = langruntime.checkedI32(langruntime.checkedSignedSubtract(position, 1));
+            if (position < 0) {
+                leading = langruntime.checkedI32(carry);
+                weight = langruntime.checkedI32(langruntime.checkedSignedAdd(weight, 1));
+                carry = langruntime.checkedI32(0);
+            }
+            else {
+                const at: number = langruntime.indexFromI32(position, 0);
+                carry = langruntime.checkedI32(langruntime.checkedSignedAdd(carry, langruntime.indexStruct(digits, langruntime.checkedIndex(at), copyNumericWireDigit).value));
+                if (carry >= numericVarNbase) {
+                    digits[langruntime.checkedIndexIn(digits, at)] = copyNumericWireDigit({ value: langruntime.checkedSignedSubtract(carry, numericVarNbase) });
+                    carry = langruntime.checkedI32(1);
+                }
+                else {
+                    digits[langruntime.checkedIndexIn(digits, at)] = copyNumericWireDigit({ value: carry });
+                    carry = langruntime.checkedI32(0);
+                }
+            }
+        }
+    }
+    let rounded: NumericWireDigit[] = [];
+    if (leading > 0) {
+        langruntime.pushStruct(rounded, { value: leading }, copyNumericWireDigit);
+    }
+    const end: number = langruntime.indexFromI32(kept, 0);
+    let index: number = 0;
+    while (index < end) {
+        langruntime.pushStruct(rounded, langruntime.indexStruct(digits, langruntime.checkedIndex(index), copyNumericWireDigit), copyNumericWireDigit);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return { sign: sign, weight: weight, dscale: rscale, digits: rounded };
+}
+function numericVarTrunc(value: NumericVar, rscale: number): NumericVar {
+    value = copyNumericVar(value);
+    rscale = langruntime.checkedI32(rscale);
+    const sign: number = value.sign;
+    const weight: number = value.weight;
+    let digits: NumericWireDigit[] = value.digits;
+    let di: number = langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply((langruntime.checkedSignedAdd(weight, 1)), numericVarDecDigits), rscale);
+    if (di <= 0) {
+        return numericVarZero(rscale);
+    }
+    const ndigits: number = langruntime.checkedSignedDivide((langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(di, numericVarDecDigits), 1)), numericVarDecDigits);
+    let kept: number = langruntime.checkedI32(langruntime.checkedIndex(digits.length));
+    if (ndigits <= kept) {
+        kept = langruntime.checkedI32(ndigits);
+        di = langruntime.checkedI32(langruntime.checkedSignedRemainder(di, numericVarDecDigits));
+        if (di > 0) {
+            const last: number = langruntime.indexFromI32(langruntime.checkedSignedSubtract(ndigits, 1), 0);
+            const pow10: number = numericVarRoundPower(di);
+            const extra: number = langruntime.checkedSignedRemainder(langruntime.indexStruct(digits, langruntime.checkedIndex(last), copyNumericWireDigit).value, pow10);
+            digits[langruntime.checkedIndexIn(digits, last)] = copyNumericWireDigit({ value: langruntime.checkedSignedSubtract(langruntime.indexStruct(digits, langruntime.checkedIndex(last), copyNumericWireDigit).value, extra) });
+        }
+    }
+    let truncated: NumericWireDigit[] = [];
+    const end: number = langruntime.indexFromI32(kept, 0);
+    let index: number = 0;
+    while (index < end) {
+        langruntime.pushStruct(truncated, langruntime.indexStruct(digits, langruntime.checkedIndex(index), copyNumericWireDigit), copyNumericWireDigit);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return { sign: sign, weight: weight, dscale: rscale, digits: truncated };
+}
+function numericVarMul(left: NumericVar, right: NumericVar, rscale: number): NumericVar {
+    rscale = langruntime.checkedI32(rscale);
+    if (numericVarCount(left) > numericVarCount(right)) {
+        return numericVarMul(right, left, rscale);
+    }
+    const var1ndigits: number = numericVarCount(left);
+    const var2ndigits: number = numericVarCount(right);
+    if (var1ndigits === 0) {
+        return numericVarZero(rscale);
+    }
+    if (var1ndigits <= 6 && rscale === langruntime.checkedSignedAdd(left.dscale, right.dscale)) {
+        return numericVarMulExact(left, right);
+    }
+    let resSign: number = 1;
+    if (!(left.sign === right.sign)) {
+        resSign = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+    }
+    let var1ndigitpairs: number = langruntime.checkedSignedDivide((langruntime.checkedSignedAdd(var1ndigits, 1)), 2);
+    let var2ndigitpairs: number = langruntime.checkedSignedDivide((langruntime.checkedSignedAdd(var2ndigits, 1)), 2);
+    let resNdigits: number = langruntime.checkedSignedAdd(var1ndigits, var2ndigits);
+    let resNdigitpairs: number = langruntime.checkedSignedAdd(langruntime.checkedSignedDivide(resNdigits, 2), 1);
+    const pairOffset: number = langruntime.checkedSignedAdd(langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(resNdigitpairs, var1ndigitpairs), var2ndigitpairs), 1);
+    const resWeight: number = langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(left.weight, right.weight), 1), langruntime.checkedSignedMultiply(2, resNdigitpairs)), resNdigits), langruntime.checkedSignedRemainder(var1ndigits, 2)), langruntime.checkedSignedRemainder(var2ndigits, 2));
+    const maxdigits: number = langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(resWeight, 1), langruntime.checkedSignedDivide((langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(rscale, numericVarDecDigits), 1)), numericVarDecDigits)), numericVarMulGuardDigits);
+    const maxdigitpairs: number = langruntime.checkedSignedAdd(langruntime.checkedSignedDivide(maxdigits, 2), 1);
+    if (maxdigitpairs < resNdigitpairs) {
+        resNdigitpairs = langruntime.checkedI32(maxdigitpairs);
+    }
+    resNdigits = langruntime.checkedI32(langruntime.checkedSignedMultiply(2, resNdigitpairs));
+    if (resNdigitpairs <= pairOffset) {
+        return numericVarZero(rscale);
+    }
+    if (langruntime.checkedSignedSubtract(resNdigitpairs, pairOffset) < var1ndigitpairs) {
+        var1ndigitpairs = langruntime.checkedI32(langruntime.checkedSignedSubtract(resNdigitpairs, pairOffset));
+    }
+    if (langruntime.checkedSignedSubtract(resNdigitpairs, pairOffset) < var2ndigitpairs) {
+        var2ndigitpairs = langruntime.checkedI32(langruntime.checkedSignedSubtract(resNdigitpairs, pairOffset));
+    }
+    let slots: NumericWireDigit[] = numericVarZeros(langruntime.checkedSignedAdd(resNdigits, 1));
+    let high: NumericWireDigit[] = [];
+    let low: NumericWireDigit[] = [];
+    let i2: number = 0;
+    while (i2 < var2ndigitpairs) {
+        langruntime.pushStruct(high, { value: numericVarDigit(right, langruntime.checkedSignedMultiply(2, i2)) }, copyNumericWireDigit);
+        langruntime.pushStruct(low, { value: numericVarDigit(right, langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(2, i2), 1)) }, copyNumericWireDigit);
+        i2 = langruntime.checkedI32(langruntime.checkedSignedAdd(i2, 1));
+    }
+    let rows: number = 0;
+    let i1: number = langruntime.checkedSignedSubtract(var1ndigitpairs, 1);
+    while (i1 >= 0) {
+        const a: number = numericVarDigit(left, langruntime.checkedSignedMultiply(2, i1));
+        const b: number = numericVarDigit(left, langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(2, i1), 1));
+        if (!(a === 0) || !(b === 0)) {
+            if (rows === 10) {
+                let carry: number = 0;
+                let slot: number = slots.length;
+                while (slot > 0) {
+                    slot = langruntime.checkedIndex(langruntime.checkedSubtract(slot, 1));
+                    let digit: number = langruntime.checkedSignedAdd(langruntime.indexStruct(slots, langruntime.checkedIndex(slot), copyNumericWireDigit).value, carry);
+                    carry = langruntime.checkedI32(0);
+                    if (slot > 0 && digit >= numericVarNbase) {
+                        carry = langruntime.checkedI32(langruntime.checkedSignedDivide(digit, numericVarNbase));
+                        digit = langruntime.checkedI32(langruntime.checkedSignedSubtract(digit, langruntime.checkedSignedMultiply(carry, numericVarNbase)));
+                    }
+                    slots[langruntime.checkedIndexIn(slots, slot)] = copyNumericWireDigit({ value: digit });
+                }
+                rows = langruntime.checkedI32(0);
+            }
+            rows = langruntime.checkedI32(langruntime.checkedSignedAdd(rows, 1));
+            let i2limit: number = var2ndigitpairs;
+            if (langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(resNdigitpairs, i1), pairOffset) < i2limit) {
+                i2limit = langruntime.checkedI32(langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(resNdigitpairs, i1), pairOffset));
+            }
+            const limit: number = langruntime.indexFromI32(i2limit, 0);
+            const base: number = langruntime.indexFromI32(langruntime.checkedSignedMultiply(2, (langruntime.checkedSignedAdd(i1, pairOffset))), 0);
+            let index: number = 0;
+            while (index < limit) {
+                const c: number = langruntime.indexStruct(high, langruntime.checkedIndex(index), copyNumericWireDigit).value;
+                const d: number = langruntime.indexStruct(low, langruntime.checkedIndex(index), copyNumericWireDigit).value;
+                const at: number = langruntime.checkedAdd(langruntime.checkedAdd(base, index), index);
+                slots[langruntime.checkedIndexIn(slots, at)] = copyNumericWireDigit({ value: langruntime.checkedSignedAdd(langruntime.indexStruct(slots, langruntime.checkedIndex(at), copyNumericWireDigit).value, langruntime.checkedSignedMultiply(a, c)) });
+                slots[langruntime.checkedIndexIn(slots, langruntime.checkedAdd(at, 1))] = copyNumericWireDigit({ value: langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(langruntime.indexStruct(slots, langruntime.checkedIndex(langruntime.checkedAdd(at, 1)), copyNumericWireDigit).value, langruntime.checkedSignedMultiply(a, d)), langruntime.checkedSignedMultiply(b, c)) });
+                slots[langruntime.checkedIndexIn(slots, langruntime.checkedAdd(at, 2))] = copyNumericWireDigit({ value: langruntime.checkedSignedAdd(langruntime.indexStruct(slots, langruntime.checkedIndex(langruntime.checkedAdd(at, 2)), copyNumericWireDigit).value, langruntime.checkedSignedMultiply(b, d)) });
+                index = langruntime.checkedAdd(index, 1);
+            }
+        }
+        i1 = langruntime.checkedI32(langruntime.checkedSignedSubtract(i1, 1));
+    }
+    let carry: number = 0;
+    let slot: number = slots.length;
+    while (slot > 0) {
+        slot = langruntime.checkedIndex(langruntime.checkedSubtract(slot, 1));
+        let digit: number = langruntime.checkedSignedAdd(langruntime.indexStruct(slots, langruntime.checkedIndex(slot), copyNumericWireDigit).value, carry);
+        carry = langruntime.checkedI32(0);
+        if (slot > 0 && digit >= numericVarNbase) {
+            carry = langruntime.checkedI32(langruntime.checkedSignedDivide(digit, numericVarNbase));
+            digit = langruntime.checkedI32(langruntime.checkedSignedSubtract(digit, langruntime.checkedSignedMultiply(carry, numericVarNbase)));
+        }
+        slots[langruntime.checkedIndexIn(slots, slot)] = copyNumericWireDigit({ value: digit });
+    }
+    let digits: NumericWireDigit[] = [];
+    let weight: number = resWeight;
+    if (!(langruntime.indexStruct(slots, langruntime.checkedIndex(0), copyNumericWireDigit).value === 0)) {
+        langruntime.pushStruct(digits, langruntime.indexStruct(slots, langruntime.checkedIndex(0), copyNumericWireDigit), copyNumericWireDigit);
+        weight = langruntime.checkedI32(langruntime.checkedSignedAdd(weight, 1));
+    }
+    let index: number = 1;
+    while (index < slots.length) {
+        langruntime.pushStruct(digits, langruntime.indexStruct(slots, langruntime.checkedIndex(index), copyNumericWireDigit), copyNumericWireDigit);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    const product: NumericVar = { sign: resSign, weight: weight, dscale: rscale, digits: digits };
+    return numericVarStrip(numericVarRound(product, rscale));
+}
+function numericVarMulExact(left: NumericVar, right: NumericVar): NumericVar {
+    const var1ndigits: number = numericVarCount(left);
+    const var2ndigits: number = numericVarCount(right);
+    let resSign: number = 1;
+    if (!(left.sign === right.sign)) {
+        resSign = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+    }
+    let slots: NumericWireDigit[] = numericVarZeros(langruntime.checkedSignedAdd(var1ndigits, var2ndigits));
+    let rows: number = 0;
+    let i1: number = langruntime.checkedSignedSubtract(var1ndigits, 1);
+    while (i1 >= 0) {
+        const a: number = numericVarDigit(left, i1);
+        if (!(a === 0)) {
+            if (rows === 20) {
+                let carry: number = 0;
+                let slot: number = slots.length;
+                while (slot > 0) {
+                    slot = langruntime.checkedIndex(langruntime.checkedSubtract(slot, 1));
+                    let digit: number = langruntime.checkedSignedAdd(langruntime.indexStruct(slots, langruntime.checkedIndex(slot), copyNumericWireDigit).value, carry);
+                    carry = langruntime.checkedI32(0);
+                    if (slot > 0 && digit >= numericVarNbase) {
+                        carry = langruntime.checkedI32(langruntime.checkedSignedDivide(digit, numericVarNbase));
+                        digit = langruntime.checkedI32(langruntime.checkedSignedSubtract(digit, langruntime.checkedSignedMultiply(carry, numericVarNbase)));
+                    }
+                    slots[langruntime.checkedIndexIn(slots, slot)] = copyNumericWireDigit({ value: digit });
+                }
+                rows = langruntime.checkedI32(0);
+            }
+            rows = langruntime.checkedI32(langruntime.checkedSignedAdd(rows, 1));
+            const base: number = langruntime.indexFromI32(langruntime.checkedSignedAdd(i1, 1), 0);
+            let index: number = 0;
+            while (index < right.digits.length) {
+                slots[langruntime.checkedIndexIn(slots, langruntime.checkedAdd(base, index))] = copyNumericWireDigit({ value: langruntime.checkedSignedAdd(langruntime.indexStruct(slots, langruntime.checkedIndex(langruntime.checkedAdd(base, index)), copyNumericWireDigit).value, langruntime.checkedSignedMultiply(a, langruntime.indexStruct(right.digits, langruntime.checkedIndex(index), copyNumericWireDigit).value)) });
+                index = langruntime.checkedAdd(index, 1);
+            }
+        }
+        i1 = langruntime.checkedI32(langruntime.checkedSignedSubtract(i1, 1));
+    }
+    let carry: number = 0;
+    let slot: number = slots.length;
+    while (slot > 0) {
+        slot = langruntime.checkedIndex(langruntime.checkedSubtract(slot, 1));
+        let digit: number = langruntime.checkedSignedAdd(langruntime.indexStruct(slots, langruntime.checkedIndex(slot), copyNumericWireDigit).value, carry);
+        carry = langruntime.checkedI32(0);
+        if (slot > 0 && digit >= numericVarNbase) {
+            carry = langruntime.checkedI32(langruntime.checkedSignedDivide(digit, numericVarNbase));
+            digit = langruntime.checkedI32(langruntime.checkedSignedSubtract(digit, langruntime.checkedSignedMultiply(carry, numericVarNbase)));
+        }
+        slots[langruntime.checkedIndexIn(slots, slot)] = copyNumericWireDigit({ value: digit });
+    }
+    return numericVarStrip({ sign: resSign, weight: langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(left.weight, right.weight), 1), dscale: langruntime.checkedSignedAdd(left.dscale, right.dscale), digits: slots });
+}
+function numericVarDivInt(value: NumericVar, ival: number, ivalWeight: number, rscale: number, round: boolean): NumericVar {
+    ival = langruntime.checkedI32(ival);
+    ivalWeight = langruntime.checkedI32(ivalWeight);
+    rscale = langruntime.checkedI32(rscale);
+    round = langruntime.checkedBool(round);
+    const varNdigits: number = numericVarCount(value);
+    if (varNdigits === 0) {
+        return numericVarZero(rscale);
+    }
+    let resSign: number = 1;
+    if (value.sign > 0) {
+        if (ival < 0) {
+            resSign = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+        }
+    }
+    else if (ival > 0) {
+        resSign = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+    }
+    const resWeight: number = langruntime.checkedSignedSubtract(value.weight, ivalWeight);
+    let resNdigits: number = langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(resWeight, 1), langruntime.checkedSignedDivide((langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(rscale, numericVarDecDigits), 1)), numericVarDecDigits));
+    if (resNdigits < 1) {
+        resNdigits = langruntime.checkedI32(1);
+    }
+    if (round) {
+        resNdigits = langruntime.checkedI32(langruntime.checkedSignedAdd(resNdigits, 1));
+    }
+    let divisor: bigint = BigInt(langruntime.checkedI32(ival));
+    if (divisor < 0n) {
+        divisor = langruntime.checkedI64(langruntime.checkedI64Subtract(0n, divisor));
+    }
+    let digits: NumericWireDigit[] = [];
+    let carry: bigint = 0n;
+    let i: number = 0;
+    while (i < resNdigits) {
+        const digit: bigint = BigInt(langruntime.checkedI32(numericVarDigit(value, i)));
+        carry = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Multiply(carry, 10000n), digit));
+        langruntime.pushStruct(digits, { value: Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Divide(carry, divisor))))) }, copyNumericWireDigit);
+        carry = langruntime.checkedI64(langruntime.checkedI64Remainder(carry, divisor));
+        i = langruntime.checkedI32(langruntime.checkedSignedAdd(i, 1));
+    }
+    const quotient: NumericVar = { sign: resSign, weight: resWeight, dscale: rscale, digits: digits };
+    if (round) {
+        return numericVarStrip(numericVarRound(quotient, rscale));
+    }
+    return numericVarStrip(numericVarTrunc(quotient, rscale));
+}
+function numericVarDiv(left: NumericVar, right: NumericVar, rscale: number, round: boolean, exact: boolean): NumericVar {
+    rscale = langruntime.checkedI32(rscale);
+    round = langruntime.checkedBool(round);
+    exact = langruntime.checkedBool(exact);
+    if (exact || numericVarCount(right) <= langruntime.checkedSignedMultiply(2, (langruntime.checkedSignedAdd(numericVarDivGuardDigits, 2))) || numericVarCount(left) === 0) {
+        return numericVarDivExact(left, right, rscale, round);
+    }
+    return numericVarDivApproximate(left, right, rscale, round);
+}
+function numericVarDivExact(left: NumericVar, right: NumericVar, rscale: number, round: boolean): NumericVar {
+    rscale = langruntime.checkedI32(rscale);
+    round = langruntime.checkedBool(round);
+    const var1ndigits: number = numericVarCount(left);
+    const var2ndigits: number = numericVarCount(right);
+    if (var2ndigits <= 2) {
+        let idivisor: number = numericVarDigit(right, 0);
+        let idivisorWeight: number = right.weight;
+        if (var2ndigits === 2) {
+            idivisor = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(idivisor, numericVarNbase), numericVarDigit(right, 1)));
+            idivisorWeight = langruntime.checkedI32(langruntime.checkedSignedSubtract(idivisorWeight, 1));
+        }
+        if (right.sign < 0) {
+            idivisor = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, idivisor));
+        }
+        return numericVarDivInt(left, idivisor, idivisorWeight, rscale, round);
+    }
+    if (var1ndigits === 0) {
+        return numericVarZero(rscale);
+    }
+    let resSign: number = 1;
+    if (!(left.sign === right.sign)) {
+        resSign = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+    }
+    const resWeight: number = langruntime.checkedSignedSubtract(left.weight, right.weight);
+    let resNdigits: number = langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(resWeight, 1), langruntime.checkedSignedDivide((langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(rscale, numericVarDecDigits), 1)), numericVarDecDigits));
+    if (resNdigits < 1) {
+        resNdigits = langruntime.checkedI32(1);
+    }
+    if (round) {
+        resNdigits = langruntime.checkedI32(langruntime.checkedSignedAdd(resNdigits, 1));
+    }
+    let divNdigits: number = langruntime.checkedSignedAdd(resNdigits, var2ndigits);
+    if (var1ndigits > divNdigits) {
+        divNdigits = langruntime.checkedI32(var1ndigits);
+    }
+    let dividend: NumericWireDigit[] = numericVarZeros(langruntime.checkedSignedAdd(divNdigits, 1));
+    let divisor: NumericWireDigit[] = numericVarZeros(langruntime.checkedSignedAdd(var2ndigits, 1));
+    let index: number = 0;
+    while (index < left.digits.length) {
+        dividend[langruntime.checkedIndexIn(dividend, langruntime.checkedAdd(index, 1))] = copyNumericWireDigit(langruntime.indexStruct(left.digits, langruntime.checkedIndex(index), copyNumericWireDigit));
+        index = langruntime.checkedAdd(index, 1);
+    }
+    index = langruntime.checkedIndex(0);
+    while (index < right.digits.length) {
+        divisor[langruntime.checkedIndexIn(divisor, langruntime.checkedAdd(index, 1))] = copyNumericWireDigit(langruntime.indexStruct(right.digits, langruntime.checkedIndex(index), copyNumericWireDigit));
+        index = langruntime.checkedAdd(index, 1);
+    }
+    const divisorEnd: number = langruntime.indexFromI32(var2ndigits, 0);
+    if (langruntime.indexStruct(divisor, langruntime.checkedIndex(1), copyNumericWireDigit).value < numericVarHalfNbase) {
+        const d: number = langruntime.checkedSignedDivide(numericVarNbase, (langruntime.checkedSignedAdd(langruntime.indexStruct(divisor, langruntime.checkedIndex(1), copyNumericWireDigit).value, 1)));
+        let carry: number = 0;
+        let i: number = divisorEnd;
+        while (i > 0) {
+            carry = langruntime.checkedI32(langruntime.checkedSignedAdd(carry, langruntime.checkedSignedMultiply(langruntime.indexStruct(divisor, langruntime.checkedIndex(i), copyNumericWireDigit).value, d)));
+            divisor[langruntime.checkedIndexIn(divisor, i)] = copyNumericWireDigit({ value: langruntime.checkedSignedRemainder(carry, numericVarNbase) });
+            carry = langruntime.checkedI32(langruntime.checkedSignedDivide(carry, numericVarNbase));
+            i = langruntime.checkedIndex(langruntime.checkedSubtract(i, 1));
+        }
+        carry = langruntime.checkedI32(0);
+        let j: number = langruntime.checkedAdd(langruntime.indexFromI32(var1ndigits, 0), 1);
+        while (j > 0) {
+            j = langruntime.checkedIndex(langruntime.checkedSubtract(j, 1));
+            carry = langruntime.checkedI32(langruntime.checkedSignedAdd(carry, langruntime.checkedSignedMultiply(langruntime.indexStruct(dividend, langruntime.checkedIndex(j), copyNumericWireDigit).value, d)));
+            dividend[langruntime.checkedIndexIn(dividend, j)] = copyNumericWireDigit({ value: langruntime.checkedSignedRemainder(carry, numericVarNbase) });
+            carry = langruntime.checkedI32(langruntime.checkedSignedDivide(carry, numericVarNbase));
+        }
+    }
+    const divisor1: number = langruntime.indexStruct(divisor, langruntime.checkedIndex(1), copyNumericWireDigit).value;
+    const divisor2: number = langruntime.indexStruct(divisor, langruntime.checkedIndex(2), copyNumericWireDigit).value;
+    let resDigits: NumericWireDigit[] = [];
+    const resEnd: number = langruntime.indexFromI32(resNdigits, 0);
+    let j: number = 0;
+    while (j < resEnd) {
+        const next2digits: number = langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(langruntime.indexStruct(dividend, langruntime.checkedIndex(j), copyNumericWireDigit).value, numericVarNbase), langruntime.indexStruct(dividend, langruntime.checkedIndex(langruntime.checkedAdd(j, 1)), copyNumericWireDigit).value);
+        let qhat: number = 0;
+        if (!(next2digits === 0)) {
+            if (langruntime.indexStruct(dividend, langruntime.checkedIndex(j), copyNumericWireDigit).value === divisor1) {
+                qhat = langruntime.checkedI32(langruntime.checkedSignedSubtract(numericVarNbase, 1));
+            }
+            else {
+                qhat = langruntime.checkedI32(langruntime.checkedSignedDivide(next2digits, divisor1));
+            }
+            while (langruntime.checkedSignedMultiply(divisor2, qhat) > langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply((langruntime.checkedSignedSubtract(next2digits, langruntime.checkedSignedMultiply(qhat, divisor1))), numericVarNbase), langruntime.indexStruct(dividend, langruntime.checkedIndex(langruntime.checkedAdd(j, 2)), copyNumericWireDigit).value)) {
+                qhat = langruntime.checkedI32(langruntime.checkedSignedSubtract(qhat, 1));
+            }
+            if (qhat > 0) {
+                let borrow: number = 0;
+                let i: number = langruntime.checkedAdd(divisorEnd, 1);
+                while (i > 0) {
+                    i = langruntime.checkedIndex(langruntime.checkedSubtract(i, 1));
+                    const tmpResult: number = langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(langruntime.indexStruct(dividend, langruntime.checkedIndex(langruntime.checkedAdd(j, i)), copyNumericWireDigit).value, borrow), langruntime.checkedSignedMultiply(langruntime.indexStruct(divisor, langruntime.checkedIndex(i), copyNumericWireDigit).value, qhat));
+                    borrow = langruntime.checkedI32(langruntime.checkedSignedDivide((langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(numericVarNbase, 1), tmpResult)), numericVarNbase));
+                    dividend[langruntime.checkedIndexIn(dividend, langruntime.checkedAdd(j, i))] = copyNumericWireDigit({ value: langruntime.checkedSignedAdd(tmpResult, langruntime.checkedSignedMultiply(borrow, numericVarNbase)) });
+                }
+                if (!(borrow === 0)) {
+                    qhat = langruntime.checkedI32(langruntime.checkedSignedSubtract(qhat, 1));
+                    let carry: number = 0;
+                    i = langruntime.checkedIndex(langruntime.checkedAdd(divisorEnd, 1));
+                    while (i > 0) {
+                        i = langruntime.checkedIndex(langruntime.checkedSubtract(i, 1));
+                        carry = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(carry, langruntime.indexStruct(dividend, langruntime.checkedIndex(langruntime.checkedAdd(j, i)), copyNumericWireDigit).value), langruntime.indexStruct(divisor, langruntime.checkedIndex(i), copyNumericWireDigit).value));
+                        if (carry >= numericVarNbase) {
+                            dividend[langruntime.checkedIndexIn(dividend, langruntime.checkedAdd(j, i))] = copyNumericWireDigit({ value: langruntime.checkedSignedSubtract(carry, numericVarNbase) });
+                            carry = langruntime.checkedI32(1);
+                        }
+                        else {
+                            dividend[langruntime.checkedIndexIn(dividend, langruntime.checkedAdd(j, i))] = copyNumericWireDigit({ value: carry });
+                            carry = langruntime.checkedI32(0);
+                        }
+                    }
+                }
+            }
+        }
+        langruntime.pushStruct(resDigits, { value: qhat }, copyNumericWireDigit);
+        j = langruntime.checkedAdd(j, 1);
+    }
+    const quotient: NumericVar = { sign: resSign, weight: resWeight, dscale: rscale, digits: resDigits };
+    if (round) {
+        return numericVarStrip(numericVarRound(quotient, rscale));
+    }
+    return numericVarStrip(numericVarTrunc(quotient, rscale));
+}
+function numericVarWideDouble(value: bigint): number {
+    value = langruntime.checkedI64(value);
+    const high: bigint = langruntime.checkedI64Divide(value, 4294967296n);
+    const rest: bigint = langruntime.checkedI64Subtract(value, langruntime.checkedI64Multiply(high, 4294967296n));
+    const middle: bigint = langruntime.checkedI64Divide(rest, 65536n);
+    const low: bigint = langruntime.checkedI64Subtract(rest, langruntime.checkedI64Multiply(middle, 65536n));
+    const upper: number = Number(langruntime.checkedI32((Number(BigInt.asIntN(32, langruntime.checkedI64(high))))));
+    const lower: number = langruntime.f64Add(langruntime.f64Multiply((Number(langruntime.checkedI32((Number(BigInt.asIntN(32, langruntime.checkedI64(middle))))))), 65536.0), (Number(langruntime.checkedI32((Number(BigInt.asIntN(32, langruntime.checkedI64(low))))))));
+    return langruntime.f64Add(langruntime.f64Multiply(upper, 4294967296.0), lower);
+}
+function numericVarQuotientDigit(estimate: number): number {
+    estimate = langruntime.checkedF64(estimate);
+    if (estimate >= 0.0) {
+        return langruntime.f64ToI32(estimate);
+    }
+    return langruntime.checkedSignedSubtract((langruntime.f64ToI32(estimate)), 1);
+}
+function numericVarWideCarry(digit: bigint): bigint {
+    digit = langruntime.checkedI64(digit);
+    if (digit < 0n) {
+        return langruntime.checkedI64Subtract(langruntime.checkedI64Subtract(0n, (langruntime.checkedI64Divide((langruntime.checkedI64Subtract(langruntime.checkedI64Subtract(0n, digit), 1n)), 100000000n))), 1n);
+    }
+    if (digit >= 100000000n) {
+        return langruntime.checkedI64Divide(digit, 100000000n);
+    }
+    return 0n;
+}
+function numericVarDivApproximate(left: NumericVar, right: NumericVar, rscale: number, round: boolean): NumericVar {
+    rscale = langruntime.checkedI32(rscale);
+    round = langruntime.checkedBool(round);
+    const var1ndigits: number = numericVarCount(left);
+    const var2ndigits: number = numericVarCount(right);
+    let resSign: number = 1;
+    if (!(left.sign === right.sign)) {
+        resSign = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+    }
+    const resWeight: number = langruntime.checkedSignedAdd(langruntime.checkedSignedSubtract(left.weight, right.weight), 1);
+    let resNdigits: number = langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(resWeight, 1), langruntime.checkedSignedDivide((langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(rscale, numericVarDecDigits), 1)), numericVarDecDigits));
+    if (resNdigits < 1) {
+        resNdigits = langruntime.checkedI32(1);
+    }
+    if (round) {
+        resNdigits = langruntime.checkedI32(langruntime.checkedSignedAdd(resNdigits, 1));
+    }
+    resNdigits = langruntime.checkedI32(langruntime.checkedSignedAdd(resNdigits, numericVarDivGuardDigits));
+    let var1ndigitpairs: number = langruntime.checkedSignedDivide((langruntime.checkedSignedAdd(var1ndigits, 1)), 2);
+    let var2ndigitpairs: number = langruntime.checkedSignedDivide((langruntime.checkedSignedAdd(var2ndigits, 1)), 2);
+    const resNdigitpairs: number = langruntime.checkedSignedDivide((langruntime.checkedSignedAdd(resNdigits, 1)), 2);
+    const divNdigitpairs: number = resNdigitpairs;
+    if (divNdigitpairs < var1ndigitpairs) {
+        var1ndigitpairs = langruntime.checkedI32(divNdigitpairs);
+    }
+    if (divNdigitpairs < var2ndigitpairs) {
+        var2ndigitpairs = langruntime.checkedI32(divNdigitpairs);
+    }
+    let dividend: NumericVarWide[] = [];
+    let i: number = 0;
+    while (i <= divNdigitpairs) {
+        let pair: bigint = 0n;
+        if (i < var1ndigitpairs) {
+            const first: bigint = BigInt(langruntime.checkedI32(numericVarDigit(left, langruntime.checkedSignedMultiply(2, i))));
+            const second: bigint = BigInt(langruntime.checkedI32(numericVarDigit(left, langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(2, i), 1))));
+            pair = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Multiply(first, 10000n), second));
+        }
+        langruntime.pushStruct(dividend, { value: pair }, copyNumericVarWide);
+        i = langruntime.checkedI32(langruntime.checkedSignedAdd(i, 1));
+    }
+    let divisor: NumericVarWide[] = [];
+    i = langruntime.checkedI32(0);
+    while (i < var2ndigitpairs) {
+        const first: bigint = BigInt(langruntime.checkedI32(numericVarDigit(right, langruntime.checkedSignedMultiply(2, i))));
+        const second: bigint = BigInt(langruntime.checkedI32(numericVarDigit(right, langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(2, i), 1))));
+        langruntime.pushStruct(divisor, { value: langruntime.checkedI64Add(langruntime.checkedI64Multiply(first, 10000n), second) }, copyNumericVarWide);
+        i = langruntime.checkedI32(langruntime.checkedSignedAdd(i, 1));
+    }
+    let fdivisor: number = langruntime.f64Multiply(numericVarWideDouble(langruntime.indexStruct(divisor, langruntime.checkedIndex(0), copyNumericVarWide).value), 100000000.0);
+    if (var2ndigitpairs > 1) {
+        fdivisor = langruntime.checkedF64(langruntime.f64Add(fdivisor, numericVarWideDouble(langruntime.indexStruct(divisor, langruntime.checkedIndex(1), copyNumericVarWide).value)));
+    }
+    const fdivisorinverse: number = langruntime.f64Divide(1.0, fdivisor);
+    const limit: bigint = langruntime.checkedI64Divide((langruntime.checkedI64Subtract(langruntime.checkedI64Subtract(9223372036854775807n, langruntime.checkedI64Divide(9223372036854775807n, 100000000n)), 1n)), 99999999n);
+    let maxdiv: bigint = 1n;
+    let qi: number = 0;
+    while (qi < resNdigitpairs) {
+        const at: number = langruntime.indexFromI32(qi, 0);
+        let fdividend: number = langruntime.f64Multiply(numericVarWideDouble(langruntime.indexStruct(dividend, langruntime.checkedIndex(at), copyNumericVarWide).value), 100000000.0);
+        fdividend = langruntime.checkedF64(langruntime.f64Add(fdividend, numericVarWideDouble(langruntime.indexStruct(dividend, langruntime.checkedIndex(langruntime.checkedAdd(at, 1)), copyNumericVarWide).value)));
+        let qdigit: number = numericVarQuotientDigit(langruntime.f64Multiply(fdividend, fdivisorinverse));
+        if (!(qdigit === 0)) {
+            let magnitude: bigint = BigInt(langruntime.checkedI32(qdigit));
+            if (magnitude < 0n) {
+                magnitude = langruntime.checkedI64(langruntime.checkedI64Subtract(0n, magnitude));
+            }
+            maxdiv = langruntime.checkedI64(langruntime.checkedI64Add(maxdiv, magnitude));
+            if (maxdiv > limit) {
+                let carry: bigint = 0n;
+                let j: number = langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(qi, var2ndigitpairs), 2);
+                if (langruntime.checkedSignedSubtract(divNdigitpairs, 1) < j) {
+                    j = langruntime.checkedI32(langruntime.checkedSignedSubtract(divNdigitpairs, 1));
+                }
+                while (j > qi) {
+                    const index: number = langruntime.indexFromI32(j, 0);
+                    let newdig: bigint = langruntime.checkedI64Add(langruntime.indexStruct(dividend, langruntime.checkedIndex(index), copyNumericVarWide).value, carry);
+                    carry = langruntime.checkedI64(numericVarWideCarry(newdig));
+                    newdig = langruntime.checkedI64(langruntime.checkedI64Subtract(newdig, langruntime.checkedI64Multiply(carry, 100000000n)));
+                    dividend[langruntime.checkedIndexIn(dividend, index)] = copyNumericVarWide({ value: newdig });
+                    j = langruntime.checkedI32(langruntime.checkedSignedSubtract(j, 1));
+                }
+                dividend[langruntime.checkedIndexIn(dividend, at)] = copyNumericVarWide({ value: langruntime.checkedI64Add(langruntime.indexStruct(dividend, langruntime.checkedIndex(at), copyNumericVarWide).value, carry) });
+                maxdiv = langruntime.checkedI64(1n);
+                fdividend = langruntime.checkedF64(langruntime.f64Multiply(numericVarWideDouble(langruntime.indexStruct(dividend, langruntime.checkedIndex(at), copyNumericVarWide).value), 100000000.0));
+                fdividend = langruntime.checkedF64(langruntime.f64Add(fdividend, numericVarWideDouble(langruntime.indexStruct(dividend, langruntime.checkedIndex(langruntime.checkedAdd(at, 1)), copyNumericVarWide).value)));
+                qdigit = langruntime.checkedI32(numericVarQuotientDigit(langruntime.f64Multiply(fdividend, fdivisorinverse)));
+                magnitude = langruntime.checkedI64(BigInt(langruntime.checkedI32(qdigit)));
+                if (magnitude < 0n) {
+                    magnitude = langruntime.checkedI64(langruntime.checkedI64Subtract(0n, magnitude));
+                }
+                maxdiv = langruntime.checkedI64(langruntime.checkedI64Add(maxdiv, magnitude));
+            }
+            if (!(qdigit === 0)) {
+                let istop: number = var2ndigitpairs;
+                if (langruntime.checkedSignedSubtract(divNdigitpairs, qi) < istop) {
+                    istop = langruntime.checkedI32(langruntime.checkedSignedSubtract(divNdigitpairs, qi));
+                }
+                const stop: number = langruntime.indexFromI32(istop, 0);
+                const wideQdigit: bigint = BigInt(langruntime.checkedI32(qdigit));
+                let k: number = 0;
+                while (k < stop) {
+                    dividend[langruntime.checkedIndexIn(dividend, langruntime.checkedAdd(at, k))] = copyNumericVarWide({ value: langruntime.checkedI64Subtract(langruntime.indexStruct(dividend, langruntime.checkedIndex(langruntime.checkedAdd(at, k)), copyNumericVarWide).value, langruntime.checkedI64Multiply(wideQdigit, langruntime.indexStruct(divisor, langruntime.checkedIndex(k), copyNumericVarWide).value)) });
+                    k = langruntime.checkedAdd(k, 1);
+                }
+            }
+        }
+        const current: bigint = langruntime.indexStruct(dividend, langruntime.checkedIndex(at), copyNumericVarWide).value;
+        const next: bigint = langruntime.indexStruct(dividend, langruntime.checkedIndex(langruntime.checkedAdd(at, 1)), copyNumericVarWide).value;
+        const nextHigh: bigint = langruntime.checkedI64Divide(next, 100000000n);
+        const nextLow: bigint = langruntime.checkedI64Subtract(next, langruntime.checkedI64Multiply(nextHigh, 100000000n));
+        dividend[langruntime.checkedIndexIn(dividend, langruntime.checkedAdd(at, 1))] = copyNumericVarWide({ value: langruntime.checkedI64Add(langruntime.checkedI64Multiply((langruntime.checkedI64Add(current, nextHigh)), 100000000n), nextLow) });
+        dividend[langruntime.checkedIndexIn(dividend, at)] = copyNumericVarWide({ value: BigInt(langruntime.checkedI32(qdigit)) });
+        qi = langruntime.checkedI32(langruntime.checkedSignedAdd(qi, 1));
+    }
+    let digits: NumericWireDigit[] = numericVarZeros(langruntime.checkedSignedMultiply(2, resNdigitpairs));
+    let carry: bigint = 0n;
+    let j: number = langruntime.checkedSignedSubtract(resNdigitpairs, 1);
+    while (j >= 0) {
+        const index: number = langruntime.indexFromI32(j, 0);
+        let newdig: bigint = langruntime.checkedI64Add(langruntime.indexStruct(dividend, langruntime.checkedIndex(index), copyNumericVarWide).value, carry);
+        carry = langruntime.checkedI64(numericVarWideCarry(newdig));
+        newdig = langruntime.checkedI64(langruntime.checkedI64Subtract(newdig, langruntime.checkedI64Multiply(carry, 100000000n)));
+        const pair: number = Number(BigInt.asIntN(32, langruntime.checkedI64(newdig)));
+        digits[langruntime.checkedIndexIn(digits, langruntime.checkedAdd(index, index))] = copyNumericWireDigit({ value: langruntime.checkedSignedDivide(pair, numericVarNbase) });
+        digits[langruntime.checkedIndexIn(digits, langruntime.checkedAdd(langruntime.checkedAdd(index, index), 1))] = copyNumericWireDigit({ value: langruntime.checkedSignedRemainder(pair, numericVarNbase) });
+        j = langruntime.checkedI32(langruntime.checkedSignedSubtract(j, 1));
+    }
+    const quotient: NumericVar = { sign: resSign, weight: resWeight, dscale: rscale, digits: digits };
+    if (round) {
+        return numericVarStrip(numericVarRound(quotient, rscale));
+    }
+    return numericVarStrip(numericVarTrunc(quotient, rscale));
+}
+function numericVarMod(left: NumericVar, right: NumericVar): NumericVar {
+    const quotient: NumericVar = numericVarDiv(left, right, 0, false, true);
+    const product: NumericVar = numericVarMul(right, quotient, right.dscale);
+    return numericVarSub(left, product);
+}
+function numericVarResult(value: NumericVar): checkruntime.NumericValue {
+    value = copyNumericVar(value);
+    const stripped: NumericVar = numericVarStrip(value);
+    if ((numericVarCount(stripped) > 0 && (stripped.weight > 32767 || stripped.weight < langruntime.checkedSignedNegate(32768))) || stripped.dscale > 16383) {
+        return { kind: "Error", value: checkruntime.makeSqlError(numericSupportRangeError) };
+    }
+    return { kind: "Value", value: numericWorkText(numericWorkFromVar(stripped)) };
+}
+function numericVarRescaled(value: NumericVar, dscale: number): NumericVar {
+    value = copyNumericVar(value);
+    dscale = langruntime.checkedI32(dscale);
+    return { sign: value.sign, weight: value.weight, dscale: dscale, digits: value.digits };
+}
+function numericVarCeil(value: NumericVar): NumericVar {
+    const one: NumericVar = numericVarFromI64(1n);
+    const truncated: NumericVar = numericVarTrunc(numericVarShifted(value, 0), 0);
+    if (value.sign > 0 && !(numericVarCmp(value, truncated) === 0)) {
+        return numericVarAdd(truncated, one);
+    }
+    return truncated;
+}
+function numericVarFloor(value: NumericVar): NumericVar {
+    const one: NumericVar = numericVarFromI64(1n);
+    const truncated: NumericVar = numericVarTrunc(numericVarShifted(value, 0), 0);
+    if (value.sign < 0 && !(numericVarCmp(value, truncated) === 0)) {
+        return numericVarSub(truncated, one);
+    }
+    return truncated;
 }
 const numericSupportRangeError = 3452547;
 interface NumericWork {
@@ -1847,117 +2528,6 @@ function numericWorkText(work: NumericWork): string {
         output = output + numericWorkZeros(positions);
     }
     return output;
-}
-function numericWorkRounded(work: NumericWork, scale: number, mode: number): NumericWork {
-    work = copyNumericWork(work);
-    scale = langruntime.checkedI32(scale);
-    mode = langruntime.checkedI32(mode);
-    const original: string[] = Array.from(work.digits);
-    const boundary: number = langruntime.checkedSignedSubtract(0, scale);
-    let digits: string[] = [];
-    let position: number = work.weight;
-    let index: number = 0;
-    while (index < original.length && position >= boundary) {
-        langruntime.pushChar(digits, langruntime.indexChar(original, langruntime.checkedIndex(index)));
-        index = langruntime.checkedAdd(index, 1);
-        position = langruntime.checkedI32(langruntime.checkedSignedSubtract(position, 1));
-    }
-    let increase: boolean = false;
-    if (index < original.length) {
-        if (mode === 1 && position === langruntime.checkedSignedSubtract(boundary, 1) && numericWireDecimalDigit(langruntime.indexChar(original, langruntime.checkedIndex(index))) >= 5) {
-            increase = langruntime.checkedBool(true);
-        }
-        if (mode === 2 && work.sign > 0) {
-            increase = langruntime.checkedBool(true);
-        }
-        if (mode === 3 && work.sign < 0) {
-            increase = langruntime.checkedBool(true);
-        }
-    }
-    let weight: number = work.weight;
-    let leadingCarry: boolean = false;
-    if (increase) {
-        if (digits.length === 0) {
-            langruntime.pushChar(digits, "1");
-            weight = langruntime.checkedI32(boundary);
-        }
-        else {
-            let carry: boolean = true;
-            let cursor: number = digits.length;
-            const symbols: string[] = Array.from("0123456789");
-            while (cursor > 0 && carry) {
-                cursor = langruntime.checkedIndex(langruntime.checkedSubtract(cursor, 1));
-                if (langruntime.indexChar(digits, langruntime.checkedIndex(cursor)) === "9") {
-                    digits[langruntime.checkedIndexIn(digits, cursor)] = langruntime.checkedChar("0");
-                }
-                else {
-                    let symbol: number = 0;
-                    while (!(langruntime.indexChar(symbols, langruntime.checkedIndex(symbol)) === langruntime.indexChar(digits, langruntime.checkedIndex(cursor)))) {
-                        symbol = langruntime.checkedAdd(symbol, 1);
-                    }
-                    digits[langruntime.checkedIndexIn(digits, cursor)] = langruntime.checkedChar(langruntime.indexChar(symbols, langruntime.checkedIndex(langruntime.checkedAdd(symbol, 1))));
-                    carry = langruntime.checkedBool(false);
-                }
-            }
-            if (carry) {
-                leadingCarry = langruntime.checkedBool(true);
-                weight = langruntime.checkedI32(langruntime.checkedSignedAdd(weight, 1));
-            }
-        }
-    }
-    let end: number = digits.length;
-    while (end > 0 && langruntime.indexChar(digits, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1))) === "0") {
-        end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
-    }
-    let coefficient: string = "";
-    let cursor: number = 0;
-    if (leadingCarry) {
-        coefficient = coefficient + langruntime.checkedChar("1");
-    }
-    else {
-        while (cursor < end) {
-            coefficient = coefficient + langruntime.checkedChar(langruntime.indexChar(digits, langruntime.checkedIndex(cursor)));
-            cursor = langruntime.checkedAdd(cursor, 1);
-        }
-    }
-    let sign: number = work.sign;
-    if (end === 0 && leadingCarry === false) {
-        sign = langruntime.checkedI32(0);
-        weight = langruntime.checkedI32(0);
-    }
-    let outputScale: number = scale;
-    if (outputScale < 0) {
-        outputScale = langruntime.checkedI32(0);
-    }
-    return { valid: true, special: 1, sign: sign, weight: weight, scale: outputScale, digits: coefficient };
-}
-function numericWorkRound(work: NumericWork, requested: number, mode: number): checkruntime.NumericValue {
-    work = copyNumericWork(work);
-    requested = langruntime.checkedI32(requested);
-    mode = langruntime.checkedI32(mode);
-    const unresolvedFlavor: number = 0;
-    if (work.valid === false) {
-        return checkruntime.numericUnresolved(unresolvedFlavor);
-    }
-    if (!(work.special === 1)) {
-        return { kind: "Value", value: numericWorkText(work) };
-    }
-    let scale: number = requested;
-    let minimum: number = langruntime.checkedSignedNegate(131072);
-    if (mode === 1) {
-        minimum = langruntime.checkedI32(langruntime.checkedSignedSubtract(minimum, 1));
-    }
-    if (scale < minimum) {
-        scale = langruntime.checkedI32(minimum);
-    }
-    if (scale > 16383) {
-        scale = langruntime.checkedI32(16383);
-    }
-    const rounded: NumericWork = numericWorkRounded(work, scale, mode);
-    if (rounded.weight > 131071) {
-        return { kind: "Error", value: checkruntime.makeSqlError(numericSupportRangeError) };
-    }
-    return { kind: "Value", value: numericWorkText(rounded) };
 }
 const scalarInputInvalid = 3484946;
 export function scalarNumericFromText(input: checkruntime.TextValue): checkruntime.NumericValue {

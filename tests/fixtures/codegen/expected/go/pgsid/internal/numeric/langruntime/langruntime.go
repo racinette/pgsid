@@ -1,6 +1,8 @@
 package langruntime
 
 import (
+	"math"
+
 	"unicode/utf8"
 )
 
@@ -217,4 +219,22 @@ func CheckedStructs[T any](value []T, copyValue func(T) T) []T {
 		result[index] = copyValue(entry)
 	}
 	return result
+}
+
+func F64Add(left float64, right float64) float64 { return float64(left + right) }
+
+func F64Multiply(left float64, right float64) float64 { return float64(left * right) }
+func F64Divide(left float64, right float64) float64   { return float64(left / right) }
+
+func F64ToI32(value float64) int {
+	if math.IsNaN(value) {
+		return 0
+	}
+	if value >= 2147483647 {
+		return 2147483647
+	}
+	if value <= -2147483648 {
+		return -2147483648
+	}
+	return int(math.Trunc(value))
 }

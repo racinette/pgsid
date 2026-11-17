@@ -60,223 +60,191 @@ fn numeric_power_odd(work: NumericWork) -> bool {
     false
 }
 
-fn numeric_power_positive(work: NumericWork) -> NumericWork {
-    let mut sign = work.sign;
-    if sign < 0 {
-        sign = 1;
-    }
-    NumericWork {
-        valid: work.valid,
-        special: work.special,
-        sign: sign,
-        weight: work.weight,
-        scale: work.scale,
-        digits: work.digits,
-    }
-}
-
-fn numeric_power_decimal_estimate(work: NumericWork) -> f64 {
-    if work.sign == 0 {
-        return 0.0f64;
-    }
-    let characters: Vec<char> = work.digits.chars().collect();
-    let group_weight = numeric_math_group_weight(work.clone());
-    let mut exponent = group_weight * 4;
-    let mut width = work.weight - exponent + 1;
-    let mut index: usize = 0;
-    let mut leading: f64 = 0.0f64;
-    let mut groups: i32 = 0;
-    let mut advancing = true;
-    while advancing {
-        let mut digit: i32 = 0;
-        while width > 0 {
-            digit = digit * 10;
-            if index < characters.len() {
-                digit = digit + numeric_wire_decimal_digit(characters[index]);
-                index += 1;
-            }
-            width = width - 1;
+// PostgreSQL's power_var_int: repeated squaring, each product truncated to the significant
+// digits the result needs, and a reciprocal for a negative exponent.
+fn numeric_var_power_int(base: &NumericVar, exp: i32, exp_dscale: i32) -> NumericVarOutcome {
+    let one = numeric_var_from_i64(1i64);
+    let mut f: f64 = 0.0f64;
+    if numeric_var_count(base) != 0 {
+        f = numeric_var_digit(base, 0) as f64;
+        let mut p = base.weight * NUMERIC_VAR_DEC_DIGITS;
+        let mut i: i32 = 1;
+        while i < numeric_var_count(base) && i * NUMERIC_VAR_DEC_DIGITS < 16 {
+            f = f * 10000.0f64 + (numeric_var_digit(base, i) as f64);
+            p = p - NUMERIC_VAR_DEC_DIGITS;
+            i = i + 1;
         }
-        leading = leading * 10000.0f64 + digit as f64;
-        groups = groups + 1;
-        if index < characters.len() && groups < 4 {
-            width = 4;
-            exponent = exponent - 4;
-        } else {
-            advancing = false;
-        };
+        f = (exp as f64) * (f.log10() + (p as f64));
     }
-    leading.log10() + exponent as f64
-}
-
-fn numeric_power_scale(estimate: f64, base_scale: i32, exponent_scale: i32) -> i32 {
-    let mut scale = 16 - estimate as i32;
-    if scale < base_scale {
-        scale = base_scale;
+    if f > 131072.0f64 {
+        return numeric_var_overflow();
     }
-    if scale < exponent_scale {
-        scale = exponent_scale;
+    if f + 1.0f64 < -1000.0f64 {
+        return numeric_var_succeeded(numeric_var_zero(NUMERIC_VAR_MAX_DISPLAY_SCALE));
     }
-    if scale < 0 {
-        scale = 0;
+    let mut rscale = NUMERIC_VAR_MIN_SIG_DIGITS - f as i32;
+    if rscale < base.dscale {
+        rscale = base.dscale;
     }
-    if scale > 1000 {
-        scale = 1000;
+    if rscale < exp_dscale {
+        rscale = exp_dscale;
     }
-    scale
-}
-
-fn numeric_power_integer(base: NumericWork, exponent: i32, exponent_scale: i32) -> NumericValue {
-    let estimate = exponent as f64 * numeric_power_decimal_estimate(base.clone());
-    if estimate > 131072.0f64 {
-        return NumericValue::Error(make_sql_error(NUMERIC_SUPPORT_RANGE_ERROR));
+    if rscale < 0 {
+        rscale = 0;
     }
-    if estimate + 1.0f64 < -1000.0f64 {
-        return NumericValue::Value(numeric_work_text(numeric_work_rounded(
-            numeric_work_from_value("0"),
-            1000,
-            1,
-        )));
+    if rscale > NUMERIC_VAR_MAX_DISPLAY_SCALE {
+        rscale = NUMERIC_VAR_MAX_DISPLAY_SCALE;
     }
-    let scale = numeric_power_scale(estimate, base.scale, exponent_scale);
-    if exponent == 0 {
-        return numeric_work_round(numeric_work_from_value("1"), scale, 1);
+    if exp == 0 {
+        return numeric_var_succeeded(numeric_var_rescaled(one, rscale));
     }
-    if exponent == 1 {
-        return numeric_work_round(base, scale, 1);
+    if exp == 1 {
+        return numeric_var_succeeded(numeric_var_round(numeric_var_shifted(base, 0), rscale));
     }
-    if exponent == -1 {
-        return numeric_work_round(
-            numeric_division_work(numeric_work_from_value("1"), base, scale, true),
-            scale,
-            1,
-        );
+    if exp == -1 {
+        return numeric_var_succeeded(numeric_var_div(&one, base, rscale, true, true));
     }
-    if exponent == 2 {
-        return numeric_work_round(numeric_work_product(base.clone(), base), scale, 1);
+    if exp == 2 {
+        return numeric_var_succeeded(numeric_var_mul(base, base, rscale));
     }
-    if base.sign == 0 {
-        return numeric_work_round(base, scale, 1);
+    if numeric_var_count(base) == 0 {
+        return numeric_var_succeeded(numeric_var_zero(rscale));
     }
-    let mut significant = 1 + scale + estimate as i32;
-    significant = significant + ((exponent as f64).abs().ln()) as i32 + 8;
-    let mut negative = exponent < 0;
-    let mut mask = exponent as i64;
-    if negative {
+    let mut sig_digits = 1 + rscale + f as i32;
+    sig_digits = sig_digits + ((exp as f64).abs().ln()) as i32 + 8;
+    let mut neg = exp < 0;
+    let mut mask = exp as i64;
+    if mask < 0i64 {
         mask = 0i64 - mask;
     }
-    let mut product = base.clone();
-    let mut result = numeric_work_from_value("1");
-    if mask % 2i64 != 0i64 {
-        result = base;
+    let mut base_prod = numeric_var_shifted(base, 0);
+    let mut result = numeric_var_shifted(&one, 0);
+    if mask % 2i64 == 1i64 {
+        result = numeric_var_shifted(base, 0);
     }
     mask = mask / 2i64;
     while mask > 0i64 {
-        let mut local_scale = significant - numeric_math_group_weight(product.clone()) * 8;
-        if local_scale > product.scale * 2 {
-            local_scale = product.scale * 2;
+        let mut local_rscale = sig_digits - 2 * base_prod.weight * NUMERIC_VAR_DEC_DIGITS;
+        if 2 * base_prod.dscale < local_rscale {
+            local_rscale = 2 * base_prod.dscale;
         }
-        if local_scale < 0 {
-            local_scale = 0;
+        if local_rscale < 0 {
+            local_rscale = 0;
         }
-        product = numeric_work_rounded(
-            numeric_work_product(product.clone(), product),
-            local_scale,
-            1,
-        );
-        if mask % 2i64 != 0i64 {
-            local_scale = significant
-                - (numeric_math_group_weight(product.clone())
-                    + numeric_math_group_weight(result.clone()))
-                    * 4;
-            if local_scale > product.scale + result.scale {
-                local_scale = product.scale + result.scale;
+        base_prod = numeric_var_mul(&base_prod, &base_prod, local_rscale);
+        if mask % 2i64 == 1i64 {
+            let mut product_rscale =
+                sig_digits - (base_prod.weight + result.weight) * NUMERIC_VAR_DEC_DIGITS;
+            if base_prod.dscale + result.dscale < product_rscale {
+                product_rscale = base_prod.dscale + result.dscale;
             }
-            if local_scale < 0 {
-                local_scale = 0;
+            if product_rscale < 0 {
+                product_rscale = 0;
             }
-            result = numeric_work_rounded(
-                numeric_work_product(product.clone(), result),
-                local_scale,
-                1,
-            );
+            result = numeric_var_mul(&base_prod, &result, product_rscale);
         }
-        if numeric_math_group_weight(product.clone()) > 32767
-            || numeric_math_group_weight(result.clone()) > 32767
-        {
-            if negative == false {
-                return NumericValue::Error(make_sql_error(NUMERIC_SUPPORT_RANGE_ERROR));
+        if base_prod.weight > 32767 || result.weight > 32767 {
+            if neg == false {
+                return numeric_var_overflow();
             }
-            result = numeric_work_from_value("0");
-            negative = false;
+            result = numeric_var_zero(0);
+            neg = false;
             mask = 0i64;
-        }
-        mask = mask / 2i64;
+        } else {
+            mask = mask / 2i64;
+        };
     }
-    if negative {
-        return numeric_work_round(
-            numeric_division_work(numeric_work_from_value("1"), result, scale, true),
-            scale,
-            1,
-        );
+    if neg {
+        return numeric_var_succeeded(numeric_var_div(&one, &result, rscale, true, false));
     }
-    numeric_work_round(result, scale, 1)
+    numeric_var_succeeded(numeric_var_round(result, rscale))
 }
 
-fn numeric_power_fractional(base: NumericWork, exponent: NumericWork) -> NumericValue {
-    if base.sign == 0 {
-        return numeric_work_round(base, 16, 1);
-    }
-    let negative = base.sign < 0 && numeric_power_odd(exponent.clone());
-    let positive = numeric_power_positive(base);
-    let logarithm_weight = numeric_logarithm_weight(positive.clone());
-    let mut local_scale = 8 - logarithm_weight;
-    if local_scale < 0 {
-        local_scale = 0;
-    }
-    let preliminary_logarithm = numeric_logarithm_work(positive.clone(), local_scale);
-    let preliminary = numeric_work_rounded(
-        numeric_work_product(preliminary_logarithm, exponent.clone()),
-        local_scale,
-        1,
-    );
-    let text = numeric_work_text(preliminary);
-    let mut estimate = text.as_str().parse::<f64>().unwrap_or(0.0f64);
-    if estimate.abs() > 6020.0f64 {
-        if estimate > 0.0f64 {
-            return NumericValue::Error(make_sql_error(NUMERIC_SUPPORT_RANGE_ERROR));
+// PostgreSQL's power_var: an integral exponent within 32 bits uses repeated squaring;
+// otherwise exp(ln(base) * exp), with ln figured first roughly to size the result and then to
+// the precision it needs. Callers have already rejected a negative base with a fractional
+// exponent.
+fn numeric_var_power(base_arg: &NumericVar, exp: &NumericVar) -> NumericVarOutcome {
+    if numeric_var_count(exp) == 0 || numeric_var_count(exp) <= exp.weight + 1 {
+        if numeric_var_count(exp) == 0 {
+            return numeric_var_power_int(base_arg, 0, exp.dscale);
         }
-        return numeric_work_round(numeric_work_from_value("0"), 1000, 1);
+        if exp.weight <= 2 {
+            let mut value: i64 = 0i64;
+            let mut i: i32 = 0;
+            while i <= exp.weight {
+                let digit = numeric_var_digit(exp, i) as i64;
+                value = value * 10000i64 + digit;
+                i = i + 1;
+            }
+            if exp.sign < 0 {
+                value = 0i64 - value;
+            }
+            if value >= -2147483648i64 && value <= 2147483647i64 {
+                return numeric_var_power_int(base_arg, value as i32, exp.dscale);
+            }
+        }
     }
-    estimate = estimate * NUMERIC_EXP_LOG10_E;
-    let scale = numeric_power_scale(estimate, positive.scale, exponent.scale);
-    let mut significant = scale + estimate as i32;
-    if significant < 0 {
-        significant = 0;
+    let zero = numeric_var_zero(0);
+    if numeric_var_cmp(base_arg, &zero) == 0 {
+        return numeric_var_succeeded(numeric_var_zero(NUMERIC_VAR_MIN_SIG_DIGITS));
     }
-    local_scale = significant - logarithm_weight + 8;
-    if local_scale < 0 {
-        local_scale = 0;
+    let mut res_sign: i32 = 1;
+    if base_arg.sign < 0
+        && numeric_var_count(exp) > 0
+        && numeric_var_count(exp) == exp.weight + 1
+        && numeric_var_digit(exp, numeric_var_count(exp) - 1) % 2 == 1
+    {
+        res_sign = -1;
     }
-    let logarithm = numeric_logarithm_work(positive, local_scale);
-    let argument = numeric_work_rounded(numeric_work_product(logarithm, exponent), local_scale, 1);
-    let result = numeric_exponential_work(argument, scale);
-    if result.valid == false {
-        return NumericValue::Error(make_sql_error(NUMERIC_SUPPORT_RANGE_ERROR));
+    let base = numeric_var_signed(numeric_var_shifted(base_arg, 0), 1);
+    let ln_dweight = numeric_var_ln_dweight(&base);
+    let mut local_rscale = 8 - ln_dweight;
+    if local_rscale < 0 {
+        local_rscale = 0;
     }
-    let mut sign = result.sign;
-    if negative && sign != 0 {
-        sign = -1;
+    let rough_ln_base = numeric_var_ln(&base, local_rscale);
+    let rough_ln_num = numeric_var_mul(&rough_ln_base, exp, local_rscale);
+    let mut val = numeric_var_to_double(&rough_ln_num);
+    if val.abs() > 6020.0f64 {
+        if val > 0.0f64 {
+            return numeric_var_overflow();
+        }
+        return numeric_var_succeeded(numeric_var_zero(NUMERIC_VAR_MAX_DISPLAY_SCALE));
     }
-    let signed = NumericWork {
-        valid: true,
-        special: 1,
-        sign: sign,
-        weight: result.weight,
-        scale: result.scale,
-        digits: result.digits,
-    };
-    numeric_work_round(signed, scale, 1)
+    val = val * NUMERIC_EXP_LOG10_E;
+    let mut rscale = NUMERIC_VAR_MIN_SIG_DIGITS - val as i32;
+    if rscale < base.dscale {
+        rscale = base.dscale;
+    }
+    if rscale < exp.dscale {
+        rscale = exp.dscale;
+    }
+    if rscale < 0 {
+        rscale = 0;
+    }
+    if rscale > NUMERIC_VAR_MAX_DISPLAY_SCALE {
+        rscale = NUMERIC_VAR_MAX_DISPLAY_SCALE;
+    }
+    let mut sig_digits = rscale + val as i32;
+    if sig_digits < 0 {
+        sig_digits = 0;
+    }
+    local_rscale = sig_digits - ln_dweight + 8;
+    if local_rscale < 0 {
+        local_rscale = 0;
+    }
+    let ln_base = numeric_var_ln(&base, local_rscale);
+    let ln_num = numeric_var_mul(&ln_base, exp, local_rscale);
+    let outcome = numeric_var_exp(&ln_num, rscale);
+    if outcome.overflow {
+        return outcome;
+    }
+    let result = outcome.value;
+    if res_sign < 0 && numeric_var_count(&result) > 0 {
+        return numeric_var_succeeded(numeric_var_signed(result, -1));
+    }
+    numeric_var_succeeded(result)
 }
 
 fn numeric_power_values(base: NumericWork, exponent: NumericWork) -> NumericValue {
@@ -332,16 +300,9 @@ fn numeric_power_values(base: NumericWork, exponent: NumericWork) -> NumericValu
         }
         return NumericValue::Value("Infinity".to_owned());
     }
-    if numeric_power_integral(exponent.clone()) && (exponent.sign == 0 || exponent.weight <= 9) {
-        let converted =
-            numeric_integer_value(NumericValue::Value(numeric_work_text(exponent.clone())));
-        if let Int8Value::Value(value) = converted {
-            if value >= -2147483648i64 && value <= 2147483647i64 {
-                return numeric_power_integer(base, value as i32, exponent.scale);
-            }
-        }
-    }
-    numeric_power_fractional(base, exponent)
+    let base_var = numeric_var_from_work(&base);
+    let exp_var = numeric_var_from_work(&exponent);
+    numeric_var_outcome_result(numeric_var_power(&base_var, &exp_var))
 }
 
 pub fn sql__pg_catalog__numeric_power__n7g8(

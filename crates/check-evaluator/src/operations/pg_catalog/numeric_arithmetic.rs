@@ -144,14 +144,6 @@ fn numeric_work_sum(left: NumericWork, right: NumericWork, subtract: bool) -> Nu
     }
 }
 
-fn numeric_work_add(left: NumericWork, right: NumericWork, subtract: bool) -> NumericValue {
-    let work = numeric_work_sum(left, right, subtract);
-    if work.weight > 131071 {
-        return NumericValue::Error(make_sql_error(NUMERIC_SUPPORT_RANGE_ERROR));
-    }
-    NumericValue::Value(numeric_work_text(work))
-}
-
 fn numeric_product_words(characters: Vec<char>) -> Vec<NumericWireDigit> {
     let mut words: Vec<NumericWireDigit> = Vec::new();
     let mut end = characters.len();
@@ -264,12 +256,6 @@ fn numeric_work_product(left: NumericWork, right: NumericWork) -> NumericWork {
     }
 }
 
-fn numeric_work_multiply(left: NumericWork, right: NumericWork) -> NumericValue {
-    let work = numeric_work_product(left, right);
-    let scale = work.scale;
-    numeric_work_round(work, scale, 1)
-}
-
 fn numeric_arithmetic(left: NumericValue, right: NumericValue, mode: i32) -> NumericValue {
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = left { unresolved_flavor = 1; };
@@ -336,10 +322,22 @@ fn numeric_arithmetic(left: NumericValue, right: NumericValue, mode: i32) -> Num
                 }
                 return make_numeric_value("Infinity");
             }
+            let left_var = numeric_var_from_work(&first);
+            let right_var = numeric_var_from_work(&second);
             if mode == 2 {
-                return numeric_work_multiply(first, second);
+                let rscale = left_var.dscale + right_var.dscale;
+                let product = numeric_var_mul(&left_var, &right_var, rscale);
+                if product.dscale > 16383 {
+                    return numeric_var_result(numeric_var_round(product, 16383));
+                }
+                return numeric_var_result(product);
             }
-            return numeric_work_add(first, second, mode == 1);
+            if mode == 1 {
+                let result = numeric_var_sub(&left_var, &right_var);
+                return numeric_var_result(result);
+            }
+            let result = numeric_var_add(&left_var, &right_var);
+            return numeric_var_result(result);
         }
     }
     numeric_unresolved(unresolved_flavor)

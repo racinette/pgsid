@@ -170,3 +170,27 @@ export function pushStruct<T>(values: T[], value: T, copyValue: (entry: T) => T)
     checkedAdd(values.length, 1);
     values.push(copyValue(value));
 }
+export function checkedF64(value: number): number {
+    if (typeof value !== 'number')
+        throw new TypeError('expected an f64');
+    return value;
+}
+export function f64Add(left: number, right: number): number {
+    return checkedF64(left) + checkedF64(right);
+}
+export function f64Multiply(left: number, right: number): number {
+    return checkedF64(left) * checkedF64(right);
+}
+export function f64Divide(left: number, right: number): number {
+    return checkedF64(left) / checkedF64(right);
+}
+export function f64ToI32(value: number): number {
+    checkedF64(value);
+    if (Number.isNaN(value))
+        return 0;
+    if (value >= 2147483647)
+        return 2147483647;
+    if (value <= -2147483648)
+        return -2147483648;
+    return Math.trunc(value) || 0;
+}

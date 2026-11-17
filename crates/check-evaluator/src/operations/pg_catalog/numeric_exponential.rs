@@ -26,103 +26,61 @@
 
 const NUMERIC_EXP_LOG10_E: f64 = 0.434294481903252f64;
 
-fn numeric_exponential_scale(input: NumericWork) -> i32 {
-    let value = numeric_work_text(input.clone());
-    let parsed = value.as_str().parse::<f64>().unwrap_or(0.0f64);
-    let mut estimate = parsed * NUMERIC_EXP_LOG10_E;
-    if estimate < -2000.0f64 {
-        estimate = -2000.0f64;
-    }
-    if estimate > 2000.0f64 {
-        estimate = 2000.0f64;
-    }
-    let mut scale = 16 - estimate as i32;
-    if scale < input.scale {
-        scale = input.scale;
-    }
-    if scale < 0 {
-        scale = 0;
-    }
-    if scale > 1000 {
-        scale = 1000;
-    }
-    scale
-}
-
-fn numeric_exponential_work(input: NumericWork, scale: i32) -> NumericWork {
-    let text = numeric_work_text(input.clone());
-    let mut estimate = text.as_str().parse::<f64>().unwrap_or(0.0f64);
-    if estimate.abs() >= 6000.0f64 {
-        if estimate > 0.0f64 {
-            return NumericWork {
-                valid: false,
-                special: 1,
-                sign: 0,
-                weight: 0,
-                scale: scale,
-                digits: String::new(),
-            };
+// PostgreSQL's exp_var: the argument is halved until it is at most 0.01, the Taylor series
+// runs to the significant digits the result needs, and the halvings are undone by squaring.
+fn numeric_var_exp(arg: &NumericVar, rscale: i32) -> NumericVarOutcome {
+    let one = numeric_var_from_i64(1i64);
+    let mut x = numeric_var_shifted(arg, 0);
+    let mut val = numeric_var_to_double(&x);
+    if val.abs() >= 6000.0f64 {
+        if val > 0.0f64 {
+            return numeric_var_overflow();
         }
-        return numeric_work_rounded(numeric_work_from_value("0"), scale, 1);
+        return numeric_var_succeeded(numeric_var_zero(rscale));
     }
-    let weight = (estimate * NUMERIC_EXP_LOG10_E) as i32;
-    let mut divisions: i32 = 0;
-    let mut divisor: i32 = 1;
-    let mut x = input;
-    while estimate.abs() > 0.01f64 {
-        divisions = divisions + 1;
-        divisor = divisor * 2;
-        estimate = estimate / 2.0f64;
-    }
-    if divisions > 0 {
-        let local_scale = x.scale + divisions;
-        let denominator = numeric_work_from_value(text_number(divisor, 10).as_str());
-        x = numeric_work_rounded(
-            numeric_division_work(x, denominator, local_scale, true),
-            local_scale,
-            1,
-        );
-    }
-    let extra = (divisions as f64 * 0.301029995663981f64) as i32;
-    let mut significant = 1 + weight + scale + extra;
-    if significant < 0 {
-        significant = 0;
-    }
-    significant = significant + 8;
-    let local_scale = significant - 1;
-    let mut result = numeric_work_sum(numeric_work_from_value("1"), x.clone(), false);
-    let product = numeric_work_product(x.clone(), x.clone());
-    let mut term = numeric_work_rounded(product, local_scale, 1);
-    let mut number: i32 = 2;
-    term = numeric_work_rounded(
-        numeric_division_work(term, numeric_work_from_value("2"), local_scale, true),
-        local_scale,
-        1,
-    );
-    while term.sign != 0 {
-        result = numeric_work_sum(result, term.clone(), false);
-        term = numeric_work_rounded(numeric_work_product(term, x.clone()), local_scale, 1);
-        number = number + 1;
-        let denominator = numeric_work_from_value(text_number(number, 10).as_str());
-        term = numeric_work_rounded(
-            numeric_division_work(term, denominator, local_scale, true),
-            local_scale,
-            1,
-        );
-    }
-    while divisions > 0 {
-        let mut square_scale = significant - numeric_math_group_weight(result.clone()) * 8;
-        if square_scale < 0 {
-            square_scale = 0;
+    let dweight = (val * NUMERIC_EXP_LOG10_E) as i32;
+    let mut ndiv2: i32 = 0;
+    if val.abs() > 0.01f64 {
+        ndiv2 = 1;
+        val = val / 2.0f64;
+        while val.abs() > 0.01f64 {
+            ndiv2 = ndiv2 + 1;
+            val = val / 2.0f64;
         }
-        result = numeric_work_rounded(
-            numeric_work_product(result.clone(), result),
-            square_scale,
-            1,
-        );
-        divisions = divisions - 1;
+        let local_rscale = x.dscale + ndiv2;
+        let mut divisor: i32 = 1;
+        let mut shift: i32 = 0;
+        while shift < ndiv2 {
+            divisor = divisor * 2;
+            shift = shift + 1;
+        }
+        x = numeric_var_div_int(&x, divisor, 0, local_rscale, true);
     }
-    numeric_work_rounded(result, scale, 1)
+    let mut sig_digits = 1 + dweight + rscale + ((ndiv2 as f64) * 0.301029995663981f64) as i32;
+    if sig_digits < 0 {
+        sig_digits = 0;
+    }
+    sig_digits = sig_digits + 8;
+    let local_rscale = sig_digits - 1;
+    let mut result = numeric_var_add(&one, &x);
+    let square = numeric_var_mul(&x, &x, local_rscale);
+    let mut ni: i32 = 2;
+    let mut elem = numeric_var_div_int(&square, ni, 0, local_rscale, true);
+    while numeric_var_count(&elem) != 0 {
+        result = numeric_var_add(&result, &elem);
+        let product = numeric_var_mul(&elem, &x, local_rscale);
+        ni = ni + 1;
+        elem = numeric_var_div_int(&product, ni, 0, local_rscale, true);
+    }
+    while ndiv2 > 0 {
+        ndiv2 = ndiv2 - 1;
+        let mut square_rscale = sig_digits - result.weight * 2 * NUMERIC_VAR_DEC_DIGITS;
+        if square_rscale < 0 {
+            square_rscale = 0;
+        }
+        result = numeric_var_mul(&result, &result, square_rscale);
+    }
+    numeric_var_succeeded(numeric_var_round(result, rscale))
 }
 
 pub fn sql__pg_catalog__numeric_exp__fi9j(input: NumericValue) -> NumericValue {
@@ -149,12 +107,25 @@ pub fn sql__pg_catalog__numeric_exp__fi9j(input: NumericValue) -> NumericValue {
         if work.special != 1 {
             return NumericValue::Value(numeric_work_text(work));
         }
-        let scale = numeric_exponential_scale(work.clone());
-        let result = numeric_exponential_work(work, scale);
-        if result.valid == false {
-            return NumericValue::Error(make_sql_error(NUMERIC_SUPPORT_RANGE_ERROR));
+        let arg = numeric_var_from_work(&work);
+        let mut val = numeric_var_to_double(&arg) * NUMERIC_EXP_LOG10_E;
+        if val < -2000.0f64 {
+            val = -2000.0f64;
         }
-        return numeric_work_round(result, scale, 1);
+        if val > 2000.0f64 {
+            val = 2000.0f64;
+        }
+        let mut rscale = NUMERIC_VAR_MIN_SIG_DIGITS - val as i32;
+        if rscale < arg.dscale {
+            rscale = arg.dscale;
+        }
+        if rscale < 0 {
+            rscale = 0;
+        }
+        if rscale > NUMERIC_VAR_MAX_DISPLAY_SCALE {
+            rscale = NUMERIC_VAR_MAX_DISPLAY_SCALE;
+        }
+        return numeric_var_outcome_result(numeric_var_exp(&arg, rscale));
     }
     numeric_unresolved(unresolved_flavor)
 }

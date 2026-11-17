@@ -7,17 +7,9 @@ fn numeric_bucket_order(left: NumericWork, right: NumericWork) -> i32 {
     if left.special == 2 {
         return 1;
     }
-    if left.sign < right.sign {
-        return -1;
-    }
-    if left.sign > right.sign {
-        return 1;
-    }
-    let order = numeric_work_magnitude(left.clone(), right);
-    if left.sign < 0 {
-        return 0 - order;
-    }
-    order
+    let first = numeric_var_from_work(&left);
+    let second = numeric_var_from_work(&right);
+    numeric_var_cmp(&first, &second)
 }
 
 fn numeric_bucket(value: &str, lower: &str, upper: &str, count: i32) -> Int4Value {
@@ -46,12 +38,16 @@ fn numeric_bucket(value: &str, lower: &str, upper: &str, count: i32) -> Int4Valu
         }
         return Int4Value::Value(count + 1);
     }
-    let distance = numeric_work_sum(operand, first.clone(), true);
-    let span = numeric_work_sum(last, first, true);
-    let multiplier = numeric_work_from_value(text_number(count, 10).as_str());
-    let scaled = numeric_work_product(distance, multiplier);
-    let quotient = numeric_division_work(scaled, span, 0, false);
-    let integer = numeric_integer_value(NumericValue::Value(numeric_work_text(quotient)));
+    // PostgreSQL's compute_bucket: ((operand - bound1) * count) / (bound2 - bound1), truncated.
+    let operand_var = numeric_var_from_work(&operand);
+    let bound1_var = numeric_var_from_work(&first);
+    let bound2_var = numeric_var_from_work(&last);
+    let distance = numeric_var_sub(&operand_var, &bound1_var);
+    let span = numeric_var_sub(&bound2_var, &bound1_var);
+    let count_var = numeric_var_from_i64(count as i64);
+    let scaled = numeric_var_mul(&distance, &count_var, distance.dscale + count_var.dscale);
+    let quotient = numeric_var_div(&scaled, &span, 0, false, true);
+    let integer = numeric_integer_value(numeric_var_result(quotient));
     if let Int8Value::Error(error) = integer {
         return Int4Value::Error(error);
     }
