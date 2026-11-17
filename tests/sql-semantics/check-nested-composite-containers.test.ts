@@ -503,6 +503,7 @@ func TestNestedPayloads(t *testing.T){
     )
     // Every public case decides as the server does.
     expect(mismatches).toEqual([])
+    await mkdir('artifacts/nested-composite-containers', { recursive: true })
     await writeFile(
       'artifacts/nested-composite-containers/public-report.json',
       JSON.stringify(
@@ -635,6 +636,7 @@ it('preserves fresh nested domain errors and stored literal provenance at every 
       plans.map((p) => p.name),
       fixtures,
     )
+    await mkdir('artifacts/nested-composite-containers', { recursive: true })
     await writeFile(
       'artifacts/nested-composite-containers/input-report.json',
       JSON.stringify(
@@ -785,6 +787,7 @@ it('constructs and transforms nested record containers with ordered leaf and who
         serverEncoding: 'UTF8',
         arrayNulls: true,
       })
+    await mkdir('artifacts/nested-composite-containers', { recursive: true })
     await writeFile(
       'artifacts/nested-composite-containers/constructors-plans.json',
       JSON.stringify(plans, null, 2) + '\n',

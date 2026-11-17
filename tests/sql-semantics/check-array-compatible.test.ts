@@ -269,6 +269,7 @@ it('keeps structural results and known NULL cells when a reached scalar cast req
             })
         }
       }
+    await mkdir('artifacts/array-compatible', { recursive: true })
     await writeFile(
       'artifacts/array-compatible/context-fixtures.json',
       JSON.stringify(fixtures, null, 2) + '\n',
@@ -353,6 +354,7 @@ it('prepares immutable array coercion errors inside parents while retaining prun
         fixtures.push({ name, row: { bypass: known(bypass) }, expected })
       }
     }
+    await mkdir('artifacts/array-compatible', { recursive: true })
     await writeFile(
       'artifacts/array-compatible/constants-fixtures.json',
       JSON.stringify(fixtures, null, 2) + '\n',

@@ -265,6 +265,7 @@ it('defers unavailable captured output bodies while skipping them for NULL datum
       (await pg.query<{ v: boolean }>("SELECT concat('prefix',NULL::opaque_label) IS NOT NULL v"))
         .rows[0]!.v,
     ).toBe(true)
+    await mkdir(packet, { recursive: true })
     await writeFile(packet + '/unavailable-evaluators.rs', group.evaluatorSource!)
     await writeFile(
       packet + '/unavailable-summary.json',

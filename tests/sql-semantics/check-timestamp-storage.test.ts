@@ -539,6 +539,7 @@ it('admits projected and rounded timestamp rows, containers and captured constan
     }).catch((cause: { stdout: string; stderr: string }) => {
       throw new Error(cause.stdout + cause.stderr, { cause })
     })
+    await mkdir('artifacts/goal-checks/timestamp-storage-active', { recursive: true })
     await writeFile(
       'artifacts/goal-checks/timestamp-storage-active/public-summary.json',
       JSON.stringify(

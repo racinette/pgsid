@@ -228,6 +228,7 @@ it('retains output context only after a non-NULL datum and evaluates a failing a
         }
       }
     await runCheckParity(root, 'generic_literal_quote_context', group, names, fixtures)
+    await mkdir(packet, { recursive: true })
     await writeFile(
       packet + '/context-summary.json',
       JSON.stringify(
@@ -384,6 +385,7 @@ it('skips text casts for NULL original datums and preserves missing bodies, erro
       )
     ).rows[0]!
     expect(native).toEqual({ strict: null, nullable: "'null-cast'" })
+    await mkdir(packet, { recursive: true })
     await writeFile(packet + '/states-evaluator.rs', group.evaluatorSource!)
     await runCheckParity(root, 'generic_literal_quote_states', group, names, fixtures)
     await writeFile(

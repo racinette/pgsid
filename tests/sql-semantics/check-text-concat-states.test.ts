@@ -284,6 +284,7 @@ it('requires output context only for reached non-NULL values and preserves parti
     )
     const error = { kind: 'Error' as const, value: { state: parseInt('22003', 36) } }
     add(form, { items: error, separator: known(null), expected: known(null) }, error)
+    await mkdir(packet, { recursive: true })
     await writeFile(packet + '/context-evaluators.rs', group.evaluatorSource!)
     await writeFile(
       packet + '/context-summary.json',

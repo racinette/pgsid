@@ -352,6 +352,7 @@ it('keeps unavailable historical function casts local while evaluating default r
       plans.map((p) => p.name),
       fixtures,
     )
+    await mkdir(artifact, { recursive: true })
     await writeFile(
       join(artifact, 'function-report.json'),
       JSON.stringify(

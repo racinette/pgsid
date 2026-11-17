@@ -294,6 +294,7 @@ CREATE TYPE leaf AS(n int4,phase phase,phases phase[]);CREATE FUNCTION leaf_json
       plans.map((p) => p.name),
       fixtures,
     )
+    await mkdir(artifact, { recursive: true })
     await writeFile(
       join(artifact, 'casts-report.json'),
       JSON.stringify(

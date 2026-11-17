@@ -440,6 +440,7 @@ it('prepares immutable containment errors and defers unavailable equality only f
         )!.expression,
       ).toEqual({ kind: 'uncertain' })
     }
+    await mkdir('artifacts/array-containment', { recursive: true })
     await writeFile(
       'artifacts/array-containment/context-fixtures.json',
       JSON.stringify(fixtures, null, 2) + '\n',

@@ -769,6 +769,7 @@ it('preserves NULL and empty ACL array text forms and defers role-name conversio
       checks.map((c) => c.identity.constraint),
       fixtures,
     )
+    await mkdir(packet, { recursive: true })
     await writeFile(
       join(packet, 'io-reference.json'),
       JSON.stringify(

@@ -497,6 +497,7 @@ it('preserves partial nullness, eager operand errors, NULL arrays and lazy branc
       }
     }
     await runCheckParity(root, 'null_count_states', group, names, fixtures)
+    await mkdir(packet, { recursive: true })
     await writeFile(
       packet + '/states-summary.json',
       JSON.stringify(

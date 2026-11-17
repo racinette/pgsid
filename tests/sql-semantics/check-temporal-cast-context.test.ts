@@ -439,6 +439,7 @@ it('casts already-projected dates without repeating date input validation before
         }
       }
     }
+    await mkdir(packet, { recursive: true })
     await writeFile(join(packet, 'projected-native.json'), JSON.stringify(native, null, 2) + '\n')
     await writeFile(
       join(packet, 'projected-summary.json'),

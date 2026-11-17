@@ -370,6 +370,7 @@ it('composes legacy conversion with the existing regex matcher', async () => {
         },
         expected: { kind: 'True' },
       })
+    await mkdir(packet, { recursive: true })
     await writeFile(
       packet + '/match-summary.json',
       JSON.stringify({ checks: plans.length, fixtures: fixtures.length }, null, 2) + '\n',

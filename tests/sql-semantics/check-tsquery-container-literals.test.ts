@@ -270,6 +270,7 @@ it('keeps document-size and query-tree capture plans independent inside mixed st
       checks.map((c) => c.identity.constraint),
       fixtures,
     )
+    await mkdir(packet, { recursive: true })
     await writeFile(
       join(packet, 'mixed-reference.json'),
       JSON.stringify({ nativeInserts: inserts, fixtures: fixtures.length }, null, 2) + '\n',

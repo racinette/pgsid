@@ -259,6 +259,7 @@ it('retains reached output requirements while quoting NULL and skipping errors w
         )
       }
     await runCheckParity(root, 'nullable_quote_context', group, names, fixtures)
+    await mkdir(packet, { recursive: true })
     await writeFile(
       packet + '/context-summary.json',
       JSON.stringify(
@@ -397,6 +398,7 @@ it('captures custom text-cast choices and preserves strict NULLs, unavailable bo
     for (const [index, check] of group.checks.entries())
       expect(check.kind, names[index]).toBe('supported')
     await runCheckParity(root, 'nullable_quote_casts', group, names, fixtures)
+    await mkdir(packet, { recursive: true })
     await writeFile(
       packet + '/casts-summary.json',
       JSON.stringify(

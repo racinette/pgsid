@@ -567,6 +567,7 @@ it('preserves strict partial states, constant preparation and lazy runtime dista
       ],
       fixtures,
     )
+    await mkdir('artifacts/range-subdiff', { recursive: true })
     await writeFile(
       'artifacts/range-subdiff/state-report.json',
       JSON.stringify({ inserts, fixtures: fixtures.length, references }, null, 2) + '\n',

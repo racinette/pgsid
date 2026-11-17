@@ -517,6 +517,7 @@ fn tsvector_test_payload(mode:i32)->BoolValue {
       )
     ).rows[0]!
     expect(binaryWitness).toMatchObject({ lexemes: 1, rendered: 2049, native_bytes: 2059 })
+    await mkdir(packet, { recursive: true })
     await writeFile(
       join(packet, 'binary-boundary.json'),
       JSON.stringify(binaryWitness, null, 2) + '\n',

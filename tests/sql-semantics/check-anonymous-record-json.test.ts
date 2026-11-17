@@ -323,6 +323,7 @@ it('defers reached anonymous enum casts while preserving selected layouts, NULL 
       plans.map((p) => p.name),
       fixtures,
     )
+    await mkdir(artifact, { recursive: true })
     await writeFile(
       join(artifact, 'casts-report.json'),
       JSON.stringify(

@@ -341,6 +341,7 @@ it('searches every represented scalar and enum profile, preserving catalog suppo
           })
       }
     expect(arrayScalarProfiles).toHaveLength(58)
+    await mkdir('artifacts/array-search', { recursive: true })
     await writeFile(
       'artifacts/array-search/family-fixtures.json',
       JSON.stringify(fixtures, null, 2) + '\n',
@@ -579,6 +580,7 @@ it('preserves search preparation, nominal compatible types and reached collation
         )!.expression,
       ).toEqual({ kind: 'uncertain' })
     }
+    await mkdir('artifacts/array-search', { recursive: true })
     await writeFile(
       'artifacts/array-search/context-fixtures.json',
       JSON.stringify(fixtures, null, 2) + '\n',

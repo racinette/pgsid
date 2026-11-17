@@ -103,6 +103,7 @@ it('matches floating state transitions and combiners through catalog calls, over
       })),
     )
     const group = prepareCheckRustGroup(plans, { arrayNulls: true })
+    await mkdir('artifacts/goal-checks/array-float-transition', { recursive: true })
     await writeFile(
       'artifacts/goal-checks/array-float-transition/plans.json',
       JSON.stringify(plans, null, 2),
@@ -327,7 +328,6 @@ it('matches floating state transitions and combiners through catalog calls, over
         )
       }
     }
-    await mkdir('artifacts/goal-checks/array-float-transition', { recursive: true })
     await writeFile(
       'artifacts/goal-checks/array-float-transition/observations.json',
       JSON.stringify(observations, null, 2) + '\n',
@@ -481,6 +481,7 @@ pub fn transition_probe(mode:Int4Value,operation:Int4Value)->BoolValue {
       ],
     }
     await runCheckParity(directory, 'floattransitionowned', group, ['state'], fixtures)
+    await mkdir('artifacts/goal-checks/array-float-transition', { recursive: true })
     await writeFile(
       'artifacts/goal-checks/array-float-transition/owned-measurements.json',
       JSON.stringify(

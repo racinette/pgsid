@@ -252,6 +252,9 @@ ALTER DOMAIN checked_span ADD CONSTRAINT raised_lower CHECK(lower(VALUE)>=2) NOT
       plans.map((p) => p.name),
       fixtures,
     )
+    await mkdir('artifacts/goal-checks/composite-range-field-dependencies-active', {
+      recursive: true,
+    })
     await writeFile(
       'artifacts/goal-checks/composite-range-field-dependencies-active/stored-report.json',
       JSON.stringify({
@@ -325,6 +328,9 @@ CREATE TYPE entry AS(n int2,ordered ordered_span,canonical canonical_span,parts 
       plans.map((p) => p.name),
       fixtures,
     )
+    await mkdir('artifacts/goal-checks/composite-range-field-dependencies-active', {
+      recursive: true,
+    })
     await writeFile(
       'artifacts/goal-checks/composite-range-field-dependencies-active/callback-report.json',
       JSON.stringify({

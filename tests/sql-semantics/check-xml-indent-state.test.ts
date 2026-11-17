@@ -260,6 +260,7 @@ it('matches native indentation text limits and discarded whitespace without embe
         reference.push({ ...sample, mode: form.name, length, outcome })
       }
     }
+    await mkdir('artifacts/goal-checks/xml-indent-active', { recursive: true })
     await writeFile(
       'artifacts/goal-checks/xml-indent-active/limit-reference.json',
       JSON.stringify({ reference, inserts, fixtures: fixtures.length }, null, 2) + '\n',

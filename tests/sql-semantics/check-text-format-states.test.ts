@@ -222,6 +222,7 @@ it('requires context only for reached output and identifier quoting', async () =
         }
       }
     }
+    await mkdir(packet, { recursive: true })
     await writeFile(packet + '/context-evaluators.rs', group.evaluatorSource!)
     await writeFile(
       packet + '/context-summary.json',

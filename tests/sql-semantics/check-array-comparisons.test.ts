@@ -376,6 +376,7 @@ it('preserves the C name comparator integer result for SQL-coerced Unicode names
       row: { first_name: { kind: 'Unknown' }, second_name: known('a'), expected: known(0) },
       expected: { kind: 'Unknown' },
     })
+    await mkdir('artifacts/array-comparisons', { recursive: true })
     await writeFile(
       'artifacts/array-comparisons/name-fixtures.json',
       JSON.stringify(fixtures, null, 2) + '\n',
@@ -509,6 +510,7 @@ it('retains default and explicit array collations and resolves context-independe
       callables: [],
       requiresRegex: false,
     })
+    await mkdir('artifacts/array-comparisons', { recursive: true })
     await writeFile(
       'artifacts/array-comparisons/context-fixtures.json',
       JSON.stringify(fixtures, null, 2) + '\n',
@@ -609,6 +611,7 @@ it('preserves constant comparison preparation and catalog errors through lazy br
         )!.expression,
       ).toEqual({ kind: 'uncertain' })
     }
+    await mkdir('artifacts/array-comparisons', { recursive: true })
     await writeFile(
       'artifacts/array-comparisons/constant-fixtures.json',
       JSON.stringify(fixtures, null, 2) + '\n',

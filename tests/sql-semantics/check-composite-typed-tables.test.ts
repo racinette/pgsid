@@ -400,6 +400,7 @@ it('preserves selected catalog row-cast deferrals and implicit inheritance fallb
       plans.map((p) => p.name),
       fixtures,
     )
+    await mkdir(artifact, { recursive: true })
     await writeFile(
       join(artifact, 'cast-report.json'),
       JSON.stringify(

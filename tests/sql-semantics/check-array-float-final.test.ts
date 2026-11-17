@@ -440,6 +440,7 @@ pub fn float_final_probe(mode:Int4Value,operation:Int4Value,expected:Int8Value)-
       ],
     }
     await runCheckParity(directory, 'floatfinalowned', group, ['state'], fixtures)
+    await mkdir('artifacts/goal-checks/array-float-final', { recursive: true })
     await writeFile(
       'artifacts/goal-checks/array-float-final/owned-measurements.json',
       JSON.stringify({ fixtures: fixtures.length, operations: 16, storageProfiles: 15 }, null, 2) +

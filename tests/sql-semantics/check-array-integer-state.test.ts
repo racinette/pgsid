@@ -397,6 +397,7 @@ pub fn integer_state_probe(mode:Int4Value,operation:Int4Value)->BoolValue {
         })
       }
     await runCheckParity(directory, 'integerstateowned', group, ['state'], fixtures)
+    await mkdir('artifacts/goal-checks/array-integer-state', { recursive: true })
     await writeFile(
       'artifacts/goal-checks/array-integer-state/owned-measurements.json',
       JSON.stringify({ fixtures: fixtures.length, operations: 6, storageProfiles: 17 }, null, 2) +
