@@ -674,7 +674,7 @@ fn infer_expr_type(
         Expr::MethodCall(call)
             if matches!(
                 call.method.to_string().as_str(),
-                "abs" | "ln" | "log10" | "sqrt"
+                "abs" | "sqrt"
             ) =>
         {
             if infer_expr_type(&call.receiver, locals, semantics)?.as_deref() != Some("f64") {

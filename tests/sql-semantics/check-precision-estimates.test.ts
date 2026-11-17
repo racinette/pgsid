@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { PGlite } from '@electric-sql/pglite'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -13,26 +12,14 @@ import { transpileCheckRust } from '../../src/codegen/shared/check-rust-transpil
 const run = promisify(execFile)
 
 describe('CHECK numeric precision estimates', () => {
-  it('preserves PostgreSQL scale estimates, IEEE arithmetic and immutable record replacement in Rust and both targets', async () => {
+  it('keeps IEEE arithmetic and immutable record replacement in Rust and both targets, and rejects math-library logarithms', async () => {
     const source = await readFile('tools/check-transpiler/precision_estimate_smoke.rs', 'utf8')
-    const cases: { digits: number; weight: number; display: number; expected: number }[] = []
-    const pg = await PGlite.create()
-    try {
-      for (const digits of [1, 9, 1234, 9999, 10000, 99999, 10000000, 99999999])
-        for (const weight of [-16, -8, 0, 4, 16, 131060]) {
-          const approximate = digits * 10 ** weight
-          if (approximate >= 0.9 && approximate <= 1.1) continue
-          const expected = (
-            await pg.query<{ scale: number }>('SELECT scale(ln($1::numeric)) scale', [
-              String(digits) + 'e' + String(weight),
-            ])
-          ).rows[0]!.scale
-          cases.push({ digits, weight, display: Math.max(0, -weight), expected })
-        }
-    } finally {
-      await pg.close()
-    }
-    expect(cases).toHaveLength(46)
+    // A logarithm's last bits depend on the math library, so the dialect has none; estimates use
+    // the ported library routines instead.
+    for (const method of ['ln', 'log10'])
+      expect(() =>
+        transpileCheckRust(`pub fn estimate(value: f64) -> i32 { value.${method}() as i32 }`),
+      ).toThrow()
     const generated = transpileCheckRust(source)
     const context = createContext({ exports: {} })
     runInContext(
@@ -45,14 +32,11 @@ describe('CHECK numeric precision estimates', () => {
       ieeeEstimatePrimitives(): boolean
       immutableWorkRebinding(): boolean
       borrowedEstimateInput(value: string): boolean
-      logarithmScaleHint(digits: number, weight: number, display: number): number
     }
     expect(functions.ieeeEstimatePrimitives()).toBe(true)
     expect(functions.immutableWorkRebinding()).toBe(true)
     expect(functions.borrowedEstimateInput('anchor')).toBe(true)
     expect(functions.borrowedEstimateInput('other')).toBe(false)
-    for (const row of cases)
-      expect(functions.logarithmScaleHint(row.digits, row.weight, row.display)).toBe(row.expected)
     const directory = await mkdtemp(join(tmpdir(), 'pgsid-precision-estimates-'))
     try {
       const fail = (label: string): GoStatement =>
@@ -75,19 +59,6 @@ describe('CHECK numeric precision estimates', () => {
           ),
           [fail('borrowed mismatch')],
         ),
-        ...cases.map((row) =>
-          go.if(
-            go.notEqual(
-              go.call(go.ident('LogarithmScaleHint'), [
-                go.number(row.digits),
-                go.number(row.weight),
-                go.number(row.display),
-              ]),
-              go.number(row.expected),
-            ),
-            [fail(String(row.digits) + 'e' + String(row.weight))],
-          ),
-        ),
       ]
       await writeFile(join(directory, 'runtime.go'), generated.go)
       await writeFile(join(directory, 'go.mod'), 'module precisionestimates\n\ngo 1.25\n')
@@ -109,14 +80,7 @@ describe('CHECK numeric precision estimates', () => {
       await writeFile(
         join(directory, 'precision.rs'),
         source +
-          '\n#[test] fn estimates() {\nassert!(ieee_estimate_primitives());\nassert!(immutable_work_rebinding());\nassert!(borrowed_estimate_input("anchor"));\nassert!(!borrowed_estimate_input("other"));\n' +
-          cases
-            .map(
-              (row) =>
-                `assert_eq!(logarithm_scale_hint(${row.digits}, ${row.weight}, ${row.display}), ${row.expected});`,
-            )
-            .join('\n') +
-          '\n}\n',
+          '\n#[test] fn estimates() {\nassert!(ieee_estimate_primitives());\nassert!(immutable_work_rebinding());\nassert!(borrowed_estimate_input("anchor"));\nassert!(!borrowed_estimate_input("other"));\n}\n',
       )
       await run('rustc', [
         '--edition',

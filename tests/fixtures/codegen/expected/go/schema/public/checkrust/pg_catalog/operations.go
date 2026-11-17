@@ -137,7 +137,8 @@
 // keep the translated targets on plain numbers. Where it approximates, by truncating a product
 // or estimating a quotient, they reproduce PostgreSQL's arithmetic step for step.
 
-// A result, or the numeric overflow PostgreSQL raises while computing it.
+// A result, the numeric overflow PostgreSQL raises while computing it, or a result that
+// depends on the deployment's math library.
 
 // Portions Copyright (c) 1999-2025, PostgreSQL Global Development Group.
 
@@ -51322,7 +51323,7 @@ func numberParseNumeric(text string, template string, numericC bool, monetaryC b
 	if format.multiplied == false {
 		return typed
 	}
-	scale := PowerJfdf(checkruntime.MakeNumericValue("10"), NumericNcrk(checkruntime.MakeInt4Value(langruntime.CheckedSignedSubtract(0, format.multi))))
+	scale := PowerJfdf(checkruntime.MakeNumericValue("10"), NumericNcrk(checkruntime.MakeInt4Value(langruntime.CheckedSignedSubtract(0, format.multi))), false)
 	return NumericMulBj4l(typed, scale)
 }
 func numberParseDigit(byte int) rune {
@@ -53712,32 +53713,33 @@ const numericLogInvalidArgument = 3452594
 
 var numericLnTenEstimate = float64(2.302585092994046)
 
-func numericVarLnDweight(value *checkruntime.NumericVar) int {
+func numericVarLnDweight(value *checkruntime.NumericVar, musl bool) numericVarEstimate {
 	if value.Sign < 0 {
-		return 0
+		return numericVarEstimate{uncertain: false, value: 0}
 	}
 	one := numericVarFromI64(int64(1))
 	zeroPointNine := numericVarFromText("0.9")
 	onePointOne := numericVarFromText("1.1")
 	if numericVarCmp(value, &zeroPointNine) >= 0 && numericVarCmp(value, &onePointOne) <= 0 {
 		x := numericVarSub(value, &one)
+		weight := 0
 		if numericVarCount(&x) > 0 {
-			leading := float64(numericVarDigit(&x, 0))
-			return langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(x.Weight, numericVarDecDigits), (langruntime.F64ToI32(langruntime.F64Log10(leading))))
+			weight = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(x.Weight, numericVarDecDigits), numericVarDigitLog10(numericVarDigit(&x, 0))))
 		}
-		return 0
+		return numericVarEstimate{uncertain: false, value: weight}
 	}
-	if numericVarCount(value) > 0 {
-		digits := numericVarDigit(value, 0)
-		dweight := langruntime.CheckedSignedMultiply(value.Weight, numericVarDecDigits)
-		if numericVarCount(value) > 1 {
-			digits = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(digits, numericVarNbase), numericVarDigit(value, 1)))
-			dweight = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(dweight, numericVarDecDigits))
-		}
-		lnValue := langruntime.F64Add(langruntime.F64Ln((float64(digits))), langruntime.F64Multiply((float64(dweight)), numericLnTenEstimate))
-		return langruntime.F64ToI32(langruntime.F64Log10(langruntime.F64Abs(lnValue)))
+	if numericVarCount(value) == 0 {
+		return numericVarEstimate{uncertain: false, value: 0}
 	}
-	return 0
+	digits := numericVarDigit(value, 0)
+	dweight := langruntime.CheckedSignedMultiply(value.Weight, numericVarDecDigits)
+	if numericVarCount(value) > 1 {
+		digits = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(digits, numericVarNbase), numericVarDigit(value, 1)))
+		dweight = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(dweight, numericVarDecDigits))
+	}
+	lnValue := langruntime.F64Add(muslLog(float64(digits)), langruntime.F64Multiply((float64(dweight)), numericLnTenEstimate))
+	estimate := muslLog10(langruntime.F64Abs(lnValue))
+	return numericVarEstimate{uncertain: musl == false && numericVarNearInteger(estimate, float64(0.000000000001)), value: langruntime.F64ToI32(estimate)}
 }
 func numericVarLn(arg *checkruntime.NumericVar, rscale int) checkruntime.NumericVar {
 	rscale = langruntime.CheckedI32(rscale)
@@ -53783,7 +53785,7 @@ func numericVarLn(arg *checkruntime.NumericVar, rscale int) checkruntime.Numeric
 	}
 	return numericVarMul(&result, &fact, rscale)
 }
-func NumericLnOkv6(input checkruntime.NumericValue) checkruntime.NumericValue {
+func NumericLnOkv6(input checkruntime.NumericValue, musl bool) checkruntime.NumericValue {
 	input = checkruntime.CopyNumericValue(input)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
@@ -53832,7 +53834,11 @@ func NumericLnOkv6(input checkruntime.NumericValue) checkruntime.NumericValue {
 		if kind != 1 {
 			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: arg}
 		}
-		rscale := langruntime.CheckedSignedSubtract(numericVarMinSigDigits, numericVarLnDweight(&arg))
+		lnDweight := numericVarLnDweight(&arg, musl)
+		if lnDweight.uncertain {
+			return checkruntime.NumericUnresolved(1)
+		}
+		rscale := langruntime.CheckedSignedSubtract(numericVarMinSigDigits, lnDweight.value)
 		if rscale < arg.Dscale {
 			rscale = langruntime.CheckedI32(arg.Dscale)
 		}
@@ -53846,11 +53852,11 @@ func NumericLnOkv6(input checkruntime.NumericValue) checkruntime.NumericValue {
 	}
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
-func Ln05bs(input checkruntime.NumericValue) checkruntime.NumericValue {
+func Ln05bs(input checkruntime.NumericValue, musl bool) checkruntime.NumericValue {
 	input = checkruntime.CopyNumericValue(input)
-	return NumericLnOkv6(input)
+	return NumericLnOkv6(input, musl)
 }
-func numericBaseLogarithm(baseVar checkruntime.NumericVar, numVar checkruntime.NumericVar) checkruntime.NumericValue {
+func numericBaseLogarithm(baseVar checkruntime.NumericVar, numVar checkruntime.NumericVar, musl bool) checkruntime.NumericValue {
 	baseVar = checkruntime.CopyNumericVar(baseVar)
 	numVar = checkruntime.CopyNumericVar(numVar)
 	baseKind := numericVarKind(&baseVar)
@@ -53870,8 +53876,13 @@ func numericBaseLogarithm(baseVar checkruntime.NumericVar, numVar checkruntime.N
 	if inputKind == 2 {
 		return checkruntime.MakeNumericValue("Infinity")
 	}
-	lnBaseDweight := numericVarLnDweight(&baseVar)
-	lnNumDweight := numericVarLnDweight(&numVar)
+	lnBaseEstimate := numericVarLnDweight(&baseVar, musl)
+	lnNumEstimate := numericVarLnDweight(&numVar, musl)
+	if lnBaseEstimate.uncertain || lnNumEstimate.uncertain {
+		return checkruntime.NumericUnresolved(1)
+	}
+	lnBaseDweight := lnBaseEstimate.value
+	lnNumDweight := lnNumEstimate.value
 	resultDweight := langruntime.CheckedSignedSubtract(lnNumDweight, lnBaseDweight)
 	rscale := langruntime.CheckedSignedSubtract(numericVarMinSigDigits, resultDweight)
 	if rscale < baseVar.Dscale {
@@ -53901,7 +53912,7 @@ func numericBaseLogarithm(baseVar checkruntime.NumericVar, numVar checkruntime.N
 	}
 	return numericVarResult(numericVarDiv(&lnNum, &lnBase, rscale, true, false))
 }
-func NumericLog8gwh(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
+func NumericLog8gwh(left checkruntime.NumericValue, right checkruntime.NumericValue, musl bool) checkruntime.NumericValue {
 	left = checkruntime.CopyNumericValue(left)
 	right = checkruntime.CopyNumericValue(right)
 	unresolvedFlavor := 0
@@ -53976,23 +53987,23 @@ func NumericLog8gwh(left checkruntime.NumericValue, right checkruntime.NumericVa
 		base := checkruntime.CopyNumericVar(left.Value)
 		if right.Kind == checkruntime.NumericValueValue {
 			input := checkruntime.CopyNumericVar(right.Value)
-			return numericBaseLogarithm(base, input)
+			return numericBaseLogarithm(base, input, musl)
 		}
 	}
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
-func Log94cu(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
+func Log94cu(left checkruntime.NumericValue, right checkruntime.NumericValue, musl bool) checkruntime.NumericValue {
 	left = checkruntime.CopyNumericValue(left)
 	right = checkruntime.CopyNumericValue(right)
-	return NumericLog8gwh(left, right)
+	return NumericLog8gwh(left, right, musl)
 }
-func LogWnnd(input checkruntime.NumericValue) checkruntime.NumericValue {
+func LogWnnd(input checkruntime.NumericValue, musl bool) checkruntime.NumericValue {
 	input = checkruntime.CopyNumericValue(input)
-	return NumericLog8gwh(checkruntime.MakeNumericValue("10"), input)
+	return NumericLog8gwh(checkruntime.MakeNumericValue("10"), input, musl)
 }
-func Log10Dgh7(input checkruntime.NumericValue) checkruntime.NumericValue {
+func Log10Dgh7(input checkruntime.NumericValue, musl bool) checkruntime.NumericValue {
 	input = checkruntime.CopyNumericValue(input)
-	return LogWnnd(input)
+	return LogWnnd(input, musl)
 }
 
 const numericPowerInvalidArgument = 3452595
@@ -54021,21 +54032,41 @@ func numericPowerOdd(value *checkruntime.NumericVar) bool {
 	count := numericVarCount(value)
 	return count > 0 && count == langruntime.CheckedSignedAdd(value.Weight, 1) && langruntime.CheckedSignedRemainder(numericVarDigit(value, langruntime.CheckedSignedSubtract(count, 1)), 2) == 1
 }
-func numericVarPowerInt(base *checkruntime.NumericVar, exp int, expDscale int) numericVarOutcome {
+func numericVarPowerInt(base *checkruntime.NumericVar, exp int, expDscale int, musl bool) numericVarOutcome {
 	exp = langruntime.CheckedI32(exp)
 	expDscale = langruntime.CheckedI32(expDscale)
 	one := numericVarFromI64(int64(1))
 	f := float64(0.0)
 	if numericVarCount(base) != 0 {
-		f = float64(numericVarDigit(base, 0))
+		mantissa := float64(numericVarDigit(base, 0))
 		p := langruntime.CheckedSignedMultiply(base.Weight, numericVarDecDigits)
 		i := 1
 		for i < numericVarCount(base) && langruntime.CheckedSignedMultiply(i, numericVarDecDigits) < 16 {
-			f = langruntime.F64Add(langruntime.F64Multiply(f, float64(10000.0)), (float64(numericVarDigit(base, i))))
+			mantissa = langruntime.F64Add(langruntime.F64Multiply(mantissa, float64(10000.0)), (float64(numericVarDigit(base, i))))
 			p = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(p, numericVarDecDigits))
 			i = langruntime.CheckedI32(langruntime.CheckedSignedAdd(i, 1))
 		}
-		f = langruntime.F64Multiply((float64(exp)), (langruntime.F64Add(langruntime.F64Log10(f), (float64(p)))))
+		exact := false
+		logarithm := float64(0.0)
+		power := float64(1.0)
+		j := 0
+		for j <= 16 {
+			if mantissa == power {
+				exact = true
+				logarithm = float64(j)
+			}
+			power = langruntime.F64Multiply(power, float64(10.0))
+			j = langruntime.CheckedI32(langruntime.CheckedSignedAdd(j, 1))
+		}
+		if exact == false {
+			logarithm = muslLog10(mantissa)
+		}
+		weight := langruntime.F64Add(logarithm, (float64(p)))
+		f = langruntime.F64Multiply((float64(exp)), weight)
+		margin := langruntime.F64Add(langruntime.F64Multiply(langruntime.F64Abs((float64(exp))), (langruntime.F64Add(float64(0.00000000000001), langruntime.F64Multiply(float64(0.000000000000001), langruntime.F64Abs(weight))))), langruntime.F64Multiply(float64(0.000000000000001), langruntime.F64Abs(f)))
+		if exact == false && musl == false && exp != 0 && f <= float64(131073.0) && f >= float64(-1002.0) && numericVarNearInteger(f, margin) {
+			return numericVarUncertain()
+		}
 	}
 	if f > float64(131072.0) {
 		return numericVarOverflow()
@@ -54072,7 +54103,7 @@ func numericVarPowerInt(base *checkruntime.NumericVar, exp int, expDscale int) n
 		return numericVarSucceeded(numericVarZero(rscale))
 	}
 	sigDigits := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(1, rscale), langruntime.F64ToI32(f))
-	sigDigits = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(sigDigits, langruntime.F64ToI32((langruntime.F64Ln(langruntime.F64Abs((float64(exp))))))), 8))
+	sigDigits = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(sigDigits, langruntime.F64ToI32((muslLog(langruntime.F64Abs((float64(exp))))))), 8))
 	neg := exp < 0
 	mask := int64(langruntime.CheckedI32(exp))
 	if mask < int64(0) {
@@ -54119,10 +54150,10 @@ func numericVarPowerInt(base *checkruntime.NumericVar, exp int, expDscale int) n
 	}
 	return numericVarSucceeded(numericVarRound(result, rscale))
 }
-func numericVarPower(baseArg *checkruntime.NumericVar, exp *checkruntime.NumericVar) numericVarOutcome {
+func numericVarPower(baseArg *checkruntime.NumericVar, exp *checkruntime.NumericVar, musl bool) numericVarOutcome {
 	if numericVarCount(exp) == 0 || numericVarCount(exp) <= langruntime.CheckedSignedAdd(exp.Weight, 1) {
 		if numericVarCount(exp) == 0 {
-			return numericVarPowerInt(baseArg, 0, exp.Dscale)
+			return numericVarPowerInt(baseArg, 0, exp.Dscale, musl)
 		}
 		if exp.Weight <= 2 {
 			value := int64(0)
@@ -54136,7 +54167,7 @@ func numericVarPower(baseArg *checkruntime.NumericVar, exp *checkruntime.Numeric
 				value = langruntime.CheckedI64Subtract(int64(0), value)
 			}
 			if value >= int64(-2147483648) && value <= int64(2147483647) {
-				return numericVarPowerInt(baseArg, int(int32(value)), exp.Dscale)
+				return numericVarPowerInt(baseArg, int(int32(value)), exp.Dscale, musl)
 			}
 		}
 	}
@@ -54149,7 +54180,11 @@ func numericVarPower(baseArg *checkruntime.NumericVar, exp *checkruntime.Numeric
 		resSign = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
 	}
 	base := numericVarSigned(numericVarShifted(baseArg, 0), 1)
-	lnDweight := numericVarLnDweight(&base)
+	lnEstimate := numericVarLnDweight(&base, musl)
+	if lnEstimate.uncertain {
+		return numericVarUncertain()
+	}
+	lnDweight := lnEstimate.value
 	localRscale := langruntime.CheckedSignedSubtract(8, lnDweight)
 	if localRscale < 0 {
 		localRscale = langruntime.CheckedI32(0)
@@ -54188,7 +54223,7 @@ func numericVarPower(baseArg *checkruntime.NumericVar, exp *checkruntime.Numeric
 	lnBase := numericVarLn(&base, localRscale)
 	lnNum := numericVarMul(&lnBase, exp, localRscale)
 	outcome := numericVarExp(&lnNum, rscale)
-	if outcome.overflow {
+	if outcome.overflow || outcome.uncertain {
 		return outcome
 	}
 	result := outcome.value
@@ -54197,7 +54232,7 @@ func numericVarPower(baseArg *checkruntime.NumericVar, exp *checkruntime.Numeric
 	}
 	return numericVarSucceeded(result)
 }
-func numericPowerValues(base checkruntime.NumericVar, exponent checkruntime.NumericVar) checkruntime.NumericValue {
+func numericPowerValues(base checkruntime.NumericVar, exponent checkruntime.NumericVar, musl bool) checkruntime.NumericValue {
 	base = checkruntime.CopyNumericVar(base)
 	exponent = checkruntime.CopyNumericVar(exponent)
 	one := numericVarFromI64(int64(1))
@@ -54258,9 +54293,9 @@ func numericPowerValues(base checkruntime.NumericVar, exponent checkruntime.Nume
 		}
 		return checkruntime.MakeNumericValue("Infinity")
 	}
-	return numericVarOutcomeResult(numericVarPower(&base, &exponent))
+	return numericVarOutcomeResult(numericVarPower(&base, &exponent, musl))
 }
-func NumericPowerN7g8(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
+func NumericPowerN7g8(left checkruntime.NumericValue, right checkruntime.NumericValue, musl bool) checkruntime.NumericValue {
 	left = checkruntime.CopyNumericValue(left)
 	right = checkruntime.CopyNumericValue(right)
 	unresolvedFlavor := 0
@@ -54335,20 +54370,20 @@ func NumericPowerN7g8(left checkruntime.NumericValue, right checkruntime.Numeric
 		base := checkruntime.CopyNumericVar(left.Value)
 		if right.Kind == checkruntime.NumericValueValue {
 			exponent := checkruntime.CopyNumericVar(right.Value)
-			return numericPowerValues(base, exponent)
+			return numericPowerValues(base, exponent, musl)
 		}
 	}
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
-func PowerJfdf(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
+func PowerJfdf(left checkruntime.NumericValue, right checkruntime.NumericValue, musl bool) checkruntime.NumericValue {
 	left = checkruntime.CopyNumericValue(left)
 	right = checkruntime.CopyNumericValue(right)
-	return NumericPowerN7g8(left, right)
+	return NumericPowerN7g8(left, right, musl)
 }
-func Pow8fdt(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
+func Pow8fdt(left checkruntime.NumericValue, right checkruntime.NumericValue, musl bool) checkruntime.NumericValue {
 	left = checkruntime.CopyNumericValue(left)
 	right = checkruntime.CopyNumericValue(right)
-	return NumericPowerN7g8(left, right)
+	return NumericPowerN7g8(left, right, musl)
 }
 func numericRangeValues(value checkruntime.NumericVar, base checkruntime.NumericVar, offset checkruntime.NumericVar, subtract bool, less bool) checkruntime.BoolValue {
 	value = checkruntime.CopyNumericVar(value)
@@ -55552,12 +55587,22 @@ func Numeric879l(input checkruntime.NumericValue, modifier checkruntime.Int4Valu
 }
 
 type numericVarOutcome struct {
-	overflow bool
-	value    checkruntime.NumericVar
+	overflow  bool
+	uncertain bool
+	value     checkruntime.NumericVar
 }
 
 func copynumericVarOutcome(value numericVarOutcome) numericVarOutcome {
-	return numericVarOutcome{overflow: value.overflow, value: checkruntime.CopyNumericVar(value.value)}
+	return numericVarOutcome{overflow: value.overflow, uncertain: value.uncertain, value: checkruntime.CopyNumericVar(value.value)}
+}
+
+type numericVarEstimate struct {
+	uncertain bool
+	value     int
+}
+
+func copynumericVarEstimate(value numericVarEstimate) numericVarEstimate {
+	return numericVarEstimate{uncertain: value.uncertain, value: langruntime.CheckedI32(value.value)}
 }
 
 type numericVarDivision struct {
@@ -56596,13 +56641,19 @@ func numericVarFromText(text string) checkruntime.NumericVar {
 }
 func numericVarSucceeded(value checkruntime.NumericVar) numericVarOutcome {
 	value = checkruntime.CopyNumericVar(value)
-	return numericVarOutcome{overflow: false, value: value}
+	return numericVarOutcome{overflow: false, uncertain: false, value: value}
 }
 func numericVarOverflow() numericVarOutcome {
-	return numericVarOutcome{overflow: true, value: numericVarZero(0)}
+	return numericVarOutcome{overflow: true, uncertain: false, value: numericVarZero(0)}
+}
+func numericVarUncertain() numericVarOutcome {
+	return numericVarOutcome{overflow: false, uncertain: true, value: numericVarZero(0)}
 }
 func numericVarOutcomeResult(outcome numericVarOutcome) checkruntime.NumericValue {
 	outcome = copynumericVarOutcome(outcome)
+	if outcome.uncertain {
+		return checkruntime.NumericUnresolved(1)
+	}
 	if outcome.overflow {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(numericSupportRangeError)}
 	}
@@ -56716,6 +56767,26 @@ func numericVarCompareValues(left *checkruntime.NumericVar, right *checkruntime.
 		return langruntime.CheckedSignedNegate(1)
 	}
 	return numericVarCmp(left, right)
+}
+func numericVarNearInteger(value float64, margin float64) bool {
+	truncated := langruntime.F64ToI32(value)
+	below := langruntime.F64Subtract((float64(truncated)), value)
+	above := langruntime.F64Subtract((float64((langruntime.CheckedSignedAdd(truncated, 1)))), value)
+	under := langruntime.F64Subtract((float64((langruntime.CheckedSignedSubtract(truncated, 1)))), value)
+	return langruntime.F64Abs(below) <= margin || langruntime.F64Abs(above) <= margin || langruntime.F64Abs(under) <= margin
+}
+func numericVarDigitLog10(digit int) int {
+	digit = langruntime.CheckedI32(digit)
+	if digit >= 1000 {
+		return 3
+	}
+	if digit >= 100 {
+		return 2
+	}
+	if digit >= 10 {
+		return 1
+	}
+	return 0
 }
 
 const numericSupportRangeError = 3452547
@@ -80627,7 +80698,7 @@ func tsRankCalculate(weights *tsRankWeightSet, document *checkruntime.TsvectorPa
 	}
 	length := tsRankLength(document)
 	if tsRankFlag(method, 1) {
-		result = tsRankSingle(langruntime.F64Divide(result, (langruntime.F64Divide(langruntime.F64Ln((float64((langruntime.CheckedSignedAdd(length, 1))))), langruntime.F64Ln(float64(2.0))))))
+		result = tsRankSingle(langruntime.F64Divide(result, (langruntime.F64Divide(muslLog(float64((langruntime.CheckedSignedAdd(length, 1)))), muslLog(float64(2.0))))))
 	}
 	if tsRankFlag(method, 2) && length > 0 {
 		result = tsRankSingle(langruntime.F64Divide(result, tsRankSingle(float64(length))))
@@ -80637,14 +80708,14 @@ func tsRankCalculate(weights *tsRankWeightSet, document *checkruntime.TsvectorPa
 		result = tsRankSingle(langruntime.F64Divide(result, tsRankSingle(float64(unique))))
 	}
 	if tsRankFlag(method, 16) {
-		result = tsRankSingle(langruntime.F64Divide(result, (langruntime.F64Divide(langruntime.F64Ln((float64((langruntime.CheckedSignedAdd(unique, 1))))), langruntime.F64Ln(float64(2.0))))))
+		result = tsRankSingle(langruntime.F64Divide(result, (langruntime.F64Divide(muslLog(float64((langruntime.CheckedSignedAdd(unique, 1)))), muslLog(float64(2.0))))))
 	}
 	if tsRankFlag(method, 32) {
 		result = tsRankSingle(langruntime.F64Divide(result, tsRankSingle(langruntime.F64Add(result, float64(1.0)))))
 	}
 	return result
 }
-func tsRankRun(weights checkruntime.ArrayValue, document checkruntime.TsvectorValue, query checkruntime.TsqueryValue, method checkruntime.Int4Value, defaults bool) checkruntime.Float4Value {
+func tsRankRun(weights checkruntime.ArrayValue, document checkruntime.TsvectorValue, query checkruntime.TsqueryValue, method checkruntime.Int4Value, defaults bool, musl bool) checkruntime.Float4Value {
 	weights = checkruntime.CopyArrayValue(weights)
 	document = checkruntime.CopyTsvectorValue(document)
 	query = checkruntime.CopyTsqueryValue(query)
@@ -80789,6 +80860,9 @@ func tsRankRun(weights checkruntime.ArrayValue, document checkruntime.TsvectorVa
 			pattern := checkruntime.CopyTsqueryPayload(query.Value)
 			if method.Kind == checkruntime.Int4ValueValue {
 				normalization := langruntime.CheckedI32(method.Value)
+				if (tsRankFlag(normalization, 1) || tsRankFlag(normalization, 16)) && musl == false {
+					return checkruntime.Float4Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
+				}
 				result := tsRankCalculate(&selected, &value, &pattern, normalization)
 				if result != result {
 					return checkruntime.Float4Value{Kind: checkruntime.Float4ValueUnspecifiedNan}
@@ -80803,23 +80877,23 @@ func TsRankHfbf(weights checkruntime.ArrayValue, document checkruntime.TsvectorV
 	weights = checkruntime.CopyArrayValue(weights)
 	document = checkruntime.CopyTsvectorValue(document)
 	query = checkruntime.CopyTsqueryValue(query)
-	return tsRankRun(weights, document, query, checkruntime.MakeInt4Value(0), false)
+	return tsRankRun(weights, document, query, checkruntime.MakeInt4Value(0), false, false)
 }
-func TsRankWvbm(weights checkruntime.ArrayValue, document checkruntime.TsvectorValue, query checkruntime.TsqueryValue, method checkruntime.Int4Value) checkruntime.Float4Value {
+func TsRankWvbm(weights checkruntime.ArrayValue, document checkruntime.TsvectorValue, query checkruntime.TsqueryValue, method checkruntime.Int4Value, musl bool) checkruntime.Float4Value {
 	weights = checkruntime.CopyArrayValue(weights)
 	document = checkruntime.CopyTsvectorValue(document)
 	query = checkruntime.CopyTsqueryValue(query)
-	return tsRankRun(weights, document, query, method, false)
+	return tsRankRun(weights, document, query, method, false, musl)
 }
 func TsRankFite(document checkruntime.TsvectorValue, query checkruntime.TsqueryValue) checkruntime.Float4Value {
 	document = checkruntime.CopyTsvectorValue(document)
 	query = checkruntime.CopyTsqueryValue(query)
-	return tsRankRun(checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}, document, query, checkruntime.MakeInt4Value(0), true)
+	return tsRankRun(checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}, document, query, checkruntime.MakeInt4Value(0), true, false)
 }
-func TsRankD2j5(document checkruntime.TsvectorValue, query checkruntime.TsqueryValue, method checkruntime.Int4Value) checkruntime.Float4Value {
+func TsRankD2j5(document checkruntime.TsvectorValue, query checkruntime.TsqueryValue, method checkruntime.Int4Value, musl bool) checkruntime.Float4Value {
 	document = checkruntime.CopyTsvectorValue(document)
 	query = checkruntime.CopyTsqueryValue(query)
-	return tsRankRun(checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}, document, query, method, true)
+	return tsRankRun(checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}, document, query, method, true, musl)
 }
 
 type tsRankCdPosition struct {
@@ -81107,7 +81181,7 @@ func tsRankCdCalculate(weights *tsRankWeightSet, document *checkruntime.Tsvector
 	}
 	length := tsRankLength(document)
 	if tsRankFlag(method, 1) {
-		result = langruntime.F64Divide(result, langruntime.F64Ln((float64((langruntime.CheckedSignedAdd(length, 1))))))
+		result = langruntime.F64Divide(result, muslLog(float64((langruntime.CheckedSignedAdd(length, 1)))))
 	}
 	if tsRankFlag(method, 2) && length > 0 {
 		result = langruntime.F64Divide(result, (float64(length)))
@@ -81120,14 +81194,14 @@ func tsRankCdCalculate(weights *tsRankWeightSet, document *checkruntime.Tsvector
 		result = langruntime.F64Divide(result, (float64(unique)))
 	}
 	if tsRankFlag(method, 16) {
-		result = langruntime.F64Divide(result, (langruntime.F64Divide(langruntime.F64Ln((float64((langruntime.CheckedSignedAdd(unique, 1))))), langruntime.F64Ln(float64(2.0)))))
+		result = langruntime.F64Divide(result, (langruntime.F64Divide(muslLog(float64((langruntime.CheckedSignedAdd(unique, 1)))), muslLog(float64(2.0)))))
 	}
 	if tsRankFlag(method, 32) {
 		result = langruntime.F64Divide(result, (langruntime.F64Add(result, float64(1.0))))
 	}
 	return result
 }
-func tsRankCdRun(weights checkruntime.ArrayValue, document checkruntime.TsvectorValue, query checkruntime.TsqueryValue, method checkruntime.Int4Value, defaults bool) checkruntime.Float4Value {
+func tsRankCdRun(weights checkruntime.ArrayValue, document checkruntime.TsvectorValue, query checkruntime.TsqueryValue, method checkruntime.Int4Value, defaults bool, musl bool) checkruntime.Float4Value {
 	weights = checkruntime.CopyArrayValue(weights)
 	document = checkruntime.CopyTsvectorValue(document)
 	query = checkruntime.CopyTsqueryValue(query)
@@ -81272,6 +81346,9 @@ func tsRankCdRun(weights checkruntime.ArrayValue, document checkruntime.Tsvector
 			pattern := checkruntime.CopyTsqueryPayload(query.Value)
 			if method.Kind == checkruntime.Int4ValueValue {
 				normalization := langruntime.CheckedI32(method.Value)
+				if (tsRankFlag(normalization, 1) || tsRankFlag(normalization, 16)) && musl == false {
+					return checkruntime.Float4Unresolved(checkruntime.ResolutionContext(unresolvedFlavor))
+				}
 				result := tsRankCdCalculate(&selected, &value, &pattern, normalization)
 				if result != result {
 					return checkruntime.Float4Value{Kind: checkruntime.Float4ValueUnspecifiedNan}
@@ -81286,23 +81363,23 @@ func TsRankCdW5px(weights checkruntime.ArrayValue, document checkruntime.Tsvecto
 	weights = checkruntime.CopyArrayValue(weights)
 	document = checkruntime.CopyTsvectorValue(document)
 	query = checkruntime.CopyTsqueryValue(query)
-	return tsRankCdRun(weights, document, query, checkruntime.MakeInt4Value(0), false)
+	return tsRankCdRun(weights, document, query, checkruntime.MakeInt4Value(0), false, false)
 }
-func TsRankCd81i4(weights checkruntime.ArrayValue, document checkruntime.TsvectorValue, query checkruntime.TsqueryValue, method checkruntime.Int4Value) checkruntime.Float4Value {
+func TsRankCd81i4(weights checkruntime.ArrayValue, document checkruntime.TsvectorValue, query checkruntime.TsqueryValue, method checkruntime.Int4Value, musl bool) checkruntime.Float4Value {
 	weights = checkruntime.CopyArrayValue(weights)
 	document = checkruntime.CopyTsvectorValue(document)
 	query = checkruntime.CopyTsqueryValue(query)
-	return tsRankCdRun(weights, document, query, method, false)
+	return tsRankCdRun(weights, document, query, method, false, musl)
 }
 func TsRankCdRycu(document checkruntime.TsvectorValue, query checkruntime.TsqueryValue) checkruntime.Float4Value {
 	document = checkruntime.CopyTsvectorValue(document)
 	query = checkruntime.CopyTsqueryValue(query)
-	return tsRankCdRun(checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}, document, query, checkruntime.MakeInt4Value(0), true)
+	return tsRankCdRun(checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}, document, query, checkruntime.MakeInt4Value(0), true, false)
 }
-func TsRankCdTqso(document checkruntime.TsvectorValue, query checkruntime.TsqueryValue, method checkruntime.Int4Value) checkruntime.Float4Value {
+func TsRankCdTqso(document checkruntime.TsvectorValue, query checkruntime.TsqueryValue, method checkruntime.Int4Value, musl bool) checkruntime.Float4Value {
 	document = checkruntime.CopyTsvectorValue(document)
 	query = checkruntime.CopyTsqueryValue(query)
-	return tsRankCdRun(checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}, document, query, method, true)
+	return tsRankCdRun(checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}, document, query, method, true, musl)
 }
 
 var tsRankDistanceBits = []int{1065053655, 1064853957, 1064478574, 1063794993, 1062619232, 1060782469, 1058304202, 1054130172, 1049171398, 1042413691, 1035223700, 1027697705, 1019956935, 1012093949, 1004167255, 996210734, 988243216, 980274995, 972311703, 964356469, 956356202, 948194690, 940039026, 931889482, 923746285, 915609638, 907479732, 899356759, 891240908, 883132374, 875031354, 866938051, 858852671, 850775428, 842706540, 834646231, 826594732, 818552280, 810519116, 802495490, 794481658, 786477883, 778484434, 770501589, 762529633, 754568857, 746602837, 738439780, 730282775, 722131985, 713987577, 705849721, 697718595, 689594378, 681477255, 673367418, 665265061, 657170385, 649083597, 641004908, 632934536, 624872703, 616819639, 608775579, 600740764, 592715444, 584699872, 576694310, 568699027, 560714298, 552740407, 544777645, 536826310, 528684507, 520526426, 512374532, 504228990, 496089971, 487957649, 479832204, 471713821, 463602689, 455499003, 447402963, 439314773, 431234646, 423162795, 415099445, 407044823, 398999163, 390962706, 382935699, 374918395, 366911055, 358913945, 350927341, 342951525, 334986786, 327033420, 318929419}

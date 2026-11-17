@@ -58,19 +58,58 @@ fn numeric_power_odd(value: &NumericVar) -> bool {
 
 // PostgreSQL's power_var_int: repeated squaring, each product truncated to the significant
 // digits the result needs, and a reciprocal for a negative exponent.
-fn numeric_var_power_int(base: &NumericVar, exp: i32, exp_dscale: i32) -> NumericVarOutcome {
+fn numeric_var_power_int(
+    base: &NumericVar,
+    exp: i32,
+    exp_dscale: i32,
+    musl: bool,
+) -> NumericVarOutcome {
     let one = numeric_var_from_i64(1i64);
     let mut f: f64 = 0.0f64;
     if numeric_var_count(base) != 0 {
-        f = numeric_var_digit(base, 0) as f64;
+        let mut mantissa = numeric_var_digit(base, 0) as f64;
         let mut p = base.weight * NUMERIC_VAR_DEC_DIGITS;
         let mut i: i32 = 1;
         while i < numeric_var_count(base) && i * NUMERIC_VAR_DEC_DIGITS < 16 {
-            f = f * 10000.0f64 + (numeric_var_digit(base, i) as f64);
+            mantissa = mantissa * 10000.0f64 + (numeric_var_digit(base, i) as f64);
             p = p - NUMERIC_VAR_DEC_DIGITS;
             i = i + 1;
         }
-        f = (exp as f64) * (f.log10() + (p as f64));
+        // A power of ten has an exact logarithm in every math library; any other mantissa's
+        // last bits depend on the library.
+        let mut exact = false;
+        let mut logarithm: f64 = 0.0f64;
+        let mut power: f64 = 1.0f64;
+        let mut j: i32 = 0;
+        while j <= 16 {
+            if mantissa == power {
+                exact = true;
+                logarithm = j as f64;
+            }
+            power = power * 10.0f64;
+            j = j + 1;
+        }
+        if exact == false {
+            logarithm = musl_log10(mantissa);
+        }
+        let weight = logarithm + (p as f64);
+        f = (exp as f64) * weight;
+        // The logarithm's error is scaled by the exponent; a zero exponent makes the estimate
+        // exactly zero whatever the library returns.
+        let margin =
+            (exp as f64).abs() * (0.00000000000001f64 + 0.000000000000001f64 * weight.abs())
+                + 0.000000000000001f64 * f.abs();
+        // Far past the overflow and underflow limits, the result does not depend on the
+        // truncation.
+        if exact == false
+            && musl == false
+            && exp != 0
+            && f <= 131073.0f64
+            && f >= -1002.0f64
+            && numeric_var_near_integer(f, margin)
+        {
+            return numeric_var_uncertain();
+        }
     }
     if f > 131072.0f64 {
         return numeric_var_overflow();
@@ -107,7 +146,9 @@ fn numeric_var_power_int(base: &NumericVar, exp: i32, exp_dscale: i32) -> Numeri
         return numeric_var_succeeded(numeric_var_zero(rscale));
     }
     let mut sig_digits = 1 + rscale + f as i32;
-    sig_digits = sig_digits + ((exp as f64).abs().ln()) as i32 + 8;
+    // The logarithm of a 32-bit integer lies far from any integer, so every library truncates
+    // it alike.
+    sig_digits = sig_digits + (musl_log((exp as f64).abs())) as i32 + 8;
     let mut neg = exp < 0;
     let mut mask = exp as i64;
     if mask < 0i64 {
@@ -160,10 +201,10 @@ fn numeric_var_power_int(base: &NumericVar, exp: i32, exp_dscale: i32) -> Numeri
 // otherwise exp(ln(base) * exp), with ln figured first roughly to size the result and then to
 // the precision it needs. Callers have already rejected a negative base with a fractional
 // exponent.
-fn numeric_var_power(base_arg: &NumericVar, exp: &NumericVar) -> NumericVarOutcome {
+fn numeric_var_power(base_arg: &NumericVar, exp: &NumericVar, musl: bool) -> NumericVarOutcome {
     if numeric_var_count(exp) == 0 || numeric_var_count(exp) <= exp.weight + 1 {
         if numeric_var_count(exp) == 0 {
-            return numeric_var_power_int(base_arg, 0, exp.dscale);
+            return numeric_var_power_int(base_arg, 0, exp.dscale, musl);
         }
         if exp.weight <= 2 {
             let mut value: i64 = 0i64;
@@ -177,7 +218,7 @@ fn numeric_var_power(base_arg: &NumericVar, exp: &NumericVar) -> NumericVarOutco
                 value = 0i64 - value;
             }
             if value >= -2147483648i64 && value <= 2147483647i64 {
-                return numeric_var_power_int(base_arg, value as i32, exp.dscale);
+                return numeric_var_power_int(base_arg, value as i32, exp.dscale, musl);
             }
         }
     }
@@ -194,7 +235,11 @@ fn numeric_var_power(base_arg: &NumericVar, exp: &NumericVar) -> NumericVarOutco
         res_sign = -1;
     }
     let base = numeric_var_signed(numeric_var_shifted(base_arg, 0), 1);
-    let ln_dweight = numeric_var_ln_dweight(&base);
+    let ln_estimate = numeric_var_ln_dweight(&base, musl);
+    if ln_estimate.uncertain {
+        return numeric_var_uncertain();
+    }
+    let ln_dweight = ln_estimate.value;
     let mut local_rscale = 8 - ln_dweight;
     if local_rscale < 0 {
         local_rscale = 0;
@@ -233,7 +278,7 @@ fn numeric_var_power(base_arg: &NumericVar, exp: &NumericVar) -> NumericVarOutco
     let ln_base = numeric_var_ln(&base, local_rscale);
     let ln_num = numeric_var_mul(&ln_base, exp, local_rscale);
     let outcome = numeric_var_exp(&ln_num, rscale);
-    if outcome.overflow {
+    if outcome.overflow || outcome.uncertain {
         return outcome;
     }
     let result = outcome.value;
@@ -244,7 +289,7 @@ fn numeric_var_power(base_arg: &NumericVar, exp: &NumericVar) -> NumericVarOutco
 }
 
 // PostgreSQL's numeric_power: NaN, infinity and zero cases, then power_var.
-fn numeric_power_values(base: NumericVar, exponent: NumericVar) -> NumericValue {
+fn numeric_power_values(base: NumericVar, exponent: NumericVar, musl: bool) -> NumericValue {
     let one = numeric_var_from_i64(1i64);
     let minus_one = numeric_var_from_i64(-1i64);
     let base_kind = numeric_var_kind(&base);
@@ -303,12 +348,13 @@ fn numeric_power_values(base: NumericVar, exponent: NumericVar) -> NumericValue 
         }
         return make_numeric_value("Infinity");
     }
-    numeric_var_outcome_result(numeric_var_power(&base, &exponent))
+    numeric_var_outcome_result(numeric_var_power(&base, &exponent, musl))
 }
 
 pub fn sql__pg_catalog__numeric_power__n7g8(
     left: NumericValue,
     right: NumericValue,
+    musl: bool,
 ) -> NumericValue {
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = left { unresolved_flavor = 1; };
@@ -331,16 +377,16 @@ pub fn sql__pg_catalog__numeric_power__n7g8(
     }
     if let NumericValue::Value(base) = left {
         if let NumericValue::Value(exponent) = right {
-            return numeric_power_values(base, exponent);
+            return numeric_power_values(base, exponent, musl);
         }
     }
     numeric_unresolved(unresolved_flavor)
 }
 
-pub fn sql__pg_catalog__power__jfdf(left: NumericValue, right: NumericValue) -> NumericValue {
-    sql__pg_catalog__numeric_power__n7g8(left, right)
+pub fn sql__pg_catalog__power__jfdf(left: NumericValue, right: NumericValue, musl: bool) -> NumericValue {
+    sql__pg_catalog__numeric_power__n7g8(left, right, musl)
 }
 
-pub fn sql__pg_catalog__pow__8fdt(left: NumericValue, right: NumericValue) -> NumericValue {
-    sql__pg_catalog__numeric_power__n7g8(left, right)
+pub fn sql__pg_catalog__pow__8fdt(left: NumericValue, right: NumericValue, musl: bool) -> NumericValue {
+    sql__pg_catalog__numeric_power__n7g8(left, right, musl)
 }

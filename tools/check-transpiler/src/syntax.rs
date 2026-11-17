@@ -378,14 +378,7 @@ fn expr(expr: &Expr) -> Result {
             }
             if matches!(
                 method.as_str(),
-                "to_ascii_lowercase"
-                    | "to_owned"
-                    | "as_str"
-                    | "clone"
-                    | "abs"
-                    | "ln"
-                    | "log10"
-                    | "sqrt"
+                "to_ascii_lowercase" | "to_owned" | "as_str" | "clone" | "abs" | "sqrt"
             ) && node.args.is_empty()
             {
                 return self::expr(&node.receiver);

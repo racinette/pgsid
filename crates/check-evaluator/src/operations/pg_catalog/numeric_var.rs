@@ -29,11 +29,21 @@
 // keep the translated targets on plain numbers. Where it approximates, by truncating a product
 // or estimating a quotient, they reproduce PostgreSQL's arithmetic step for step.
 
-// A result, or the numeric overflow PostgreSQL raises while computing it.
+// A result, the numeric overflow PostgreSQL raises while computing it, or a result that
+// depends on the deployment's math library.
 #[derive(Clone)]
 struct NumericVarOutcome {
     overflow: bool,
+    uncertain: bool,
     value: NumericVar,
+}
+
+// An integer PostgreSQL truncates from a floating-point logarithm, uncertain when the math
+// library could have truncated it differently.
+#[derive(Clone, Copy)]
+struct NumericVarEstimate {
+    uncertain: bool,
+    value: i32,
 }
 
 #[derive(Clone)]
@@ -1248,6 +1258,7 @@ fn numeric_var_from_text(text: &str) -> NumericVar {
 fn numeric_var_succeeded(value: NumericVar) -> NumericVarOutcome {
     NumericVarOutcome {
         overflow: false,
+        uncertain: false,
         value: value,
     }
 }
@@ -1255,11 +1266,23 @@ fn numeric_var_succeeded(value: NumericVar) -> NumericVarOutcome {
 fn numeric_var_overflow() -> NumericVarOutcome {
     NumericVarOutcome {
         overflow: true,
+        uncertain: false,
+        value: numeric_var_zero(0),
+    }
+}
+
+fn numeric_var_uncertain() -> NumericVarOutcome {
+    NumericVarOutcome {
+        overflow: false,
+        uncertain: true,
         value: numeric_var_zero(0),
     }
 }
 
 fn numeric_var_outcome_result(outcome: NumericVarOutcome) -> NumericValue {
+    if outcome.uncertain {
+        return numeric_unresolved(1);
+    }
     if outcome.overflow {
         return NumericValue::Error(make_sql_error(NUMERIC_SUPPORT_RANGE_ERROR));
     }
@@ -1388,4 +1411,29 @@ fn numeric_var_compare_values(left: &NumericVar, right: &NumericVar) -> i32 {
         return -1;
     }
     numeric_var_cmp(left, right)
+}
+
+// Math libraries agree on a logarithm only to within a few units in its last place, so an
+// estimate this close to an integer may truncate to either side of it, depending on the library.
+fn numeric_var_near_integer(value: f64, margin: f64) -> bool {
+    let truncated = value as i32;
+    let below = (truncated as f64) - value;
+    let above = ((truncated + 1) as f64) - value;
+    let under = ((truncated - 1) as f64) - value;
+    below.abs() <= margin || above.abs() <= margin || under.abs() <= margin
+}
+
+// (int) log10(digit) for an NBASE digit: its decimal digits less one, which every math library
+// computes exactly because powers of ten have exact logarithms.
+fn numeric_var_digit_log10(digit: i32) -> i32 {
+    if digit >= 1000 {
+        return 3;
+    }
+    if digit >= 100 {
+        return 2;
+    }
+    if digit >= 10 {
+        return 1;
+    }
+    0
 }

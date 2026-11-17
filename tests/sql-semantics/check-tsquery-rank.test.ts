@@ -15,7 +15,9 @@ import {
 } from '../../tools/check-rust/parity.js'
 
 const packet = 'artifacts/goal-checks/tsquery-rank-active'
+// Length normalisation divides by a logarithm, which PGlite takes from musl.
 const context = {
+  mathLibrary: 'musl',
   serverEncoding: 'UTF8',
   clientEncoding: 'UTF8',
   defaultCollation: 'C',

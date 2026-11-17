@@ -28,7 +28,8 @@ it('ranks owned vectors and binary-origin queries with public weight arrays, met
     root = await mkdtemp(join(tmpdir(), 'pgsid-tsquery-rank-payload-')),
     packet = 'artifacts/goal-checks/tsquery-rank-active',
     run = promisify(execFile)
-  const context = { defaultCollation: 'C' } as const
+  // Length normalisation divides by a logarithm, which PGlite takes from musl.
+  const context = { defaultCollation: 'C', mathLibrary: 'musl' } as const
   const definitions: Record<string, string> = {
     same: "encode(float4send(ts_rank(item,reference)),'hex') IS NOT DISTINCT FROM expected",
     presence: 'item IS NULL',
@@ -972,7 +973,7 @@ it('ranks owned vectors and binary-origin queries with public weight arrays, met
         [],
         catalog,
         parseConfigString(
-          'schema: schema.sql\nsql:\n  codegen:\n    go: {}\n    checks:\n      defaultCollation: C\n',
+          'schema: schema.sql\nsql:\n  codegen:\n    go: {}\n    checks:\n      defaultCollation: C\n      mathLibrary: musl\n',
         ),
         undefined,
         'tsvector-public',

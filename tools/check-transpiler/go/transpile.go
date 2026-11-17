@@ -421,7 +421,7 @@ func (g *generator) inferType(value *node) *node {
 		return nil
 	case "method-call":
 		switch value.Method {
-		case "abs", "ln", "log10", "sqrt":
+		case "abs", "sqrt":
 			return namedType("f64")
 		case "len":
 			return namedType("usize")

@@ -1397,8 +1397,14 @@ mod f64_tests {
     use super::parse;
     #[test]
     fn permits_precision_estimate_primitives() {
-        let source = "const FACTOR: f64 = 2.302585092994046f64; pub fn weight(digits: i32, exponent: i32) -> i32 { let first = digits as f64; let second = exponent as f64; let estimate = first.ln() + second * FACTOR; estimate.abs().log10() as i32 }";
+        let source = "const FACTOR: f64 = 2.302585092994046f64; pub fn weight(digits: i32, exponent: i32) -> i32 { let first = digits as f64; let second = exponent as f64; let estimate = first + second * FACTOR; estimate.abs().sqrt() as i32 }";
         assert!(parse(source).is_ok());
+        for source in [
+            "pub fn f(value:f64)->f64 { value.ln() }",
+            "pub fn f(value:f64)->f64 { value.log10() }",
+        ] {
+            assert!(parse(source).is_err(), "{source}");
+        }
         for source in [
             "pub fn f(value: f64) -> f64 { -value }",
             "pub fn f() -> f64 { -0.0f64 }",

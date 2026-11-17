@@ -24,7 +24,7 @@
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
  */
 
-fn numeric_base_logarithm(base_var: NumericVar, num_var: NumericVar) -> NumericValue {
+fn numeric_base_logarithm(base_var: NumericVar, num_var: NumericVar, musl: bool) -> NumericValue {
     let base_kind = numeric_var_kind(&base_var);
     let input_kind = numeric_var_kind(&num_var);
     if base_kind == 3 || input_kind == 3 {
@@ -48,8 +48,13 @@ fn numeric_base_logarithm(base_var: NumericVar, num_var: NumericVar) -> NumericV
     }
     // PostgreSQL's log_var: ln(num) / ln(base), each logarithm figured to the precision
     // the quotient needs.
-    let ln_base_dweight = numeric_var_ln_dweight(&base_var);
-    let ln_num_dweight = numeric_var_ln_dweight(&num_var);
+    let ln_base_estimate = numeric_var_ln_dweight(&base_var, musl);
+    let ln_num_estimate = numeric_var_ln_dweight(&num_var, musl);
+    if ln_base_estimate.uncertain || ln_num_estimate.uncertain {
+        return numeric_unresolved(1);
+    }
+    let ln_base_dweight = ln_base_estimate.value;
+    let ln_num_dweight = ln_num_estimate.value;
     let result_dweight = ln_num_dweight - ln_base_dweight;
     let mut rscale = NUMERIC_VAR_MIN_SIG_DIGITS - result_dweight;
     if rscale < base_var.dscale {
@@ -80,7 +85,11 @@ fn numeric_base_logarithm(base_var: NumericVar, num_var: NumericVar) -> NumericV
     numeric_var_result(numeric_var_div(&ln_num, &ln_base, rscale, true, false))
 }
 
-pub fn sql__pg_catalog__numeric_log__8gwh(left: NumericValue, right: NumericValue) -> NumericValue {
+pub fn sql__pg_catalog__numeric_log__8gwh(
+    left: NumericValue,
+    right: NumericValue,
+    musl: bool,
+) -> NumericValue {
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = left { unresolved_flavor = 1; };
     if let NumericValue::Unknown = right { unresolved_flavor = 1; };
@@ -102,20 +111,20 @@ pub fn sql__pg_catalog__numeric_log__8gwh(left: NumericValue, right: NumericValu
     }
     if let NumericValue::Value(base) = left {
         if let NumericValue::Value(input) = right {
-            return numeric_base_logarithm(base, input);
+            return numeric_base_logarithm(base, input, musl);
         }
     }
     numeric_unresolved(unresolved_flavor)
 }
 
-pub fn sql__pg_catalog__log__94cu(left: NumericValue, right: NumericValue) -> NumericValue {
-    sql__pg_catalog__numeric_log__8gwh(left, right)
+pub fn sql__pg_catalog__log__94cu(left: NumericValue, right: NumericValue, musl: bool) -> NumericValue {
+    sql__pg_catalog__numeric_log__8gwh(left, right, musl)
 }
 
-pub fn sql__pg_catalog__log__wnnd(input: NumericValue) -> NumericValue {
-    sql__pg_catalog__numeric_log__8gwh(make_numeric_value("10"), input)
+pub fn sql__pg_catalog__log__wnnd(input: NumericValue, musl: bool) -> NumericValue {
+    sql__pg_catalog__numeric_log__8gwh(make_numeric_value("10"), input, musl)
 }
 
-pub fn sql__pg_catalog__log10__dgh7(input: NumericValue) -> NumericValue {
-    sql__pg_catalog__log__wnnd(input)
+pub fn sql__pg_catalog__log10__dgh7(input: NumericValue, musl: bool) -> NumericValue {
+    sql__pg_catalog__log__wnnd(input, musl)
 }

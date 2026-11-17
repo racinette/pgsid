@@ -1,24 +1,5 @@
 const BORROWED_WORD: &str = "anchor";
 const NEGATIVE_ZERO: f64 = -0.0f64;
-const LN_TEN: f64 = 2.302585092994046f64;
-
-pub fn logarithm_scale_hint(digits: i32, decimal_weight: i32, display_scale: i32) -> i32 {
-    let coefficient = digits as f64;
-    let exponent = decimal_weight as f64;
-    let logarithm = coefficient.ln() + exponent * LN_TEN;
-    let weight = logarithm.abs().log10() as i32;
-    let mut scale: i32 = 16 - weight;
-    if scale < display_scale {
-        scale = display_scale;
-    }
-    if scale < 0 {
-        scale = 0;
-    }
-    if scale > 1000 {
-        scale = 1000;
-    }
-    scale
-}
 
 pub fn ieee_estimate_primitives() -> bool {
     let nan = 0.0f64 / 0.0f64;
@@ -32,8 +13,8 @@ pub fn ieee_estimate_primitives() -> bool {
     let rounded = a * b;
     let difference = rounded - 1.0f64;
     let huge = (9007199254740992.0f64 + 1.0f64) - 9007199254740992.0f64;
-    let zero_log = 0.0f64.ln();
-    let negative_log = (-1.0f64).ln();
+    let negative_reciprocal = -1.0f64 / 0.0f64;
+    let negative_root = (-1.0f64).sqrt();
     let zero_cast = nan as i32;
     let positive_cast = positive as i32;
     let negative_cast = negative as i32;
@@ -48,8 +29,8 @@ pub fn ieee_estimate_primitives() -> bool {
         && denormal == 1e-323f64
         && difference == 0.0f64
         && huge == 0.0f64
-        && zero_log == negative
-        && negative_log != negative_log
+        && negative_reciprocal == negative
+        && negative_root != negative_root
         && zero_cast == 0
         && positive_cast == 2147483647
         && negative_cast == min

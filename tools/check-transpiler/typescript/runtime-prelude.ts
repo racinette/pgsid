@@ -240,12 +240,6 @@ function f64Divide(left: number, right: number): number {
 function f64Abs(value: number): number {
   return Math.abs(checkedF64(value))
 }
-function f64Ln(value: number): number {
-  return Math.log(checkedF64(value))
-}
-function f64Log10(value: number): number {
-  return Math.log10(checkedF64(value))
-}
 function f64Sqrt(value: number): number {
   return Math.sqrt(checkedF64(value))
 }

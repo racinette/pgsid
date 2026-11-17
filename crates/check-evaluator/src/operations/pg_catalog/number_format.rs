@@ -2230,9 +2230,11 @@ fn number_parse_numeric(text: &str, template: &str, numeric_c: bool, monetary_c:
     if format.multiplied == false {
         return typed;
     };
+    // A base of ten has an exact logarithm, so no math library is needed.
     let scale = sql__pg_catalog__power__jfdf(
         make_numeric_value("10"),
         sql__pg_catalog__numeric__ncrk(make_int4_value(0 - format.multi)),
+        false,
     );
     sql__pg_catalog__numeric_mul__bj4l(typed, scale)
 }

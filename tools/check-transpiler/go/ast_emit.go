@@ -352,10 +352,6 @@ func (g *generator) goExpression(value *node) ast.Expr {
 		switch {
 		case value.Method == "abs" && len(value.Arguments) == 0:
 			return goCall("F64Abs", g.goExpression(value.Receiver))
-		case value.Method == "ln" && len(value.Arguments) == 0:
-			return goCall("F64Ln", g.goExpression(value.Receiver))
-		case value.Method == "log10" && len(value.Arguments) == 0:
-			return goCall("F64Log10", g.goExpression(value.Receiver))
 		case value.Method == "sqrt" && len(value.Arguments) == 0:
 			return goCall("F64Sqrt", g.goExpression(value.Receiver))
 		case value.Method == "clone":

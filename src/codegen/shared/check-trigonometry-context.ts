@@ -89,3 +89,25 @@ export function floatMathLibrary(item: BuiltinCallable): boolean {
         item.args.join(',') === 'pg_catalog.float8,pg_catalog.float8'))
   )
 }
+
+// Numeric logarithms and powers truncate floating-point logarithms to choose their working
+// precision, and text search ranks normalised by document length divide by a logarithm, so a math
+// library that rounds the logarithm differently can change their results.
+const numericLogarithms = new Set(['ln', 'numeric_ln', 'log', 'numeric_log', 'log10'])
+const numericPowers = new Set(['power', 'pow', 'numeric_power'])
+const textRanks = new Set(['ts_rank', 'ts_rank_cd'])
+
+export function numericMathLibrary(item: BuiltinCallable): boolean {
+  if (item.kind !== 'function' || item.schema !== 'pg_catalog' || item.returnsSet) return false
+  const numeric = 'pg_catalog."numeric"'
+  if (item.result === numeric && item.args.every((arg) => arg === numeric))
+    return (
+      (numericLogarithms.has(item.name) && item.args.length >= 1) ||
+      (numericPowers.has(item.name) && item.args.length === 2)
+    )
+  return (
+    textRanks.has(item.name) &&
+    item.result === 'pg_catalog.float4' &&
+    item.args.includes('pg_catalog.int4')
+  )
+}

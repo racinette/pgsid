@@ -57,7 +57,12 @@ and gamma functions
 `sinh`, `cosh`, `tanh` and their inverses, `erf`, `erfc`, `gamma` and `lgamma`) come from
 newer routines that differ between libraries; declare `mathLibrary: musl` when
 PostgreSQL is built against musl, as PGlite is. musl's trigonometry is fdlibm's,
-so `mathLibrary: musl` also covers the trigonometric functions. Either setting
+so `mathLibrary: musl` also covers the trigonometric functions. Numeric `ln`,
+`log` and `power` truncate a floating-point logarithm to choose their working
+precision; when that estimate lies within a library's rounding of an integer,
+their result also depends on `mathLibrary`, and otherwise it does not. Text
+search ranks normalised by document length divide by a logarithm and need it
+too. Either setting
 selects shared arithmetic in every generated language and describes PostgreSQL,
 independently of the math library on the client machine. Without a declared
 profile, reached results stay uncertain; context-independent NULL results,

@@ -213,30 +213,30 @@ describe('Rust CHECK decimal powers', () => {
     const table = catalog.tables.find((table) => table.name === 'numeric_function_checks')!
     const names = Object.keys(expressions)
     const fixtureNames = names.flatMap((name) => ['raw', 'stored'].map((form) => name + '_' + form))
-    const group = prepareCheckRustGroup(
-      names.flatMap((name) =>
-        ['raw', 'stored'].map((form) => {
-          const plan = lowerTableCheck(
-            table,
-            form === 'stored'
-              ? table.constraints.find((check) => check.name === name)!
-              : { name, type: 'check', definition: `CHECK (${expressions[name]})` },
-            [],
-            catalog.domains,
-          )!
-          expect(plan.expression.kind, name + '_' + form).not.toBe('uncertain')
-          return {
-            expression: plan.expression,
-            identity: {
-              schema: 'public',
-              kind: 'table' as const,
-              owner: table.name,
-              constraint: name + '_' + form,
-            },
-          }
-        }),
-      ),
+    const checks = names.flatMap((name) =>
+      ['raw', 'stored'].map((form) => {
+        const plan = lowerTableCheck(
+          table,
+          form === 'stored'
+            ? table.constraints.find((check) => check.name === name)!
+            : { name, type: 'check', definition: `CHECK (${expressions[name]})` },
+          [],
+          catalog.domains,
+        )!
+        expect(plan.expression.kind, name + '_' + form).not.toBe('uncertain')
+        return {
+          expression: plan.expression,
+          identity: {
+            schema: 'public',
+            kind: 'table' as const,
+            owner: table.name,
+            constraint: name + '_' + form,
+          },
+        }
+      }),
     )
+    // PGlite is built against musl, whose logarithms decide the boundary samples' precision.
+    const group = prepareCheckRustGroup(checks, { mathLibrary: 'musl' })
     for (const [index, check] of group.checks.entries())
       expect(
         check.kind,
@@ -366,5 +366,43 @@ describe('Rust CHECK decimal powers', () => {
       }
     }
     await runCheckParity(directory, 'pgsid-check-numeric-functions', group, fixtureNames, fixtures)
+    // Without a declared math library, a power whose precision estimate lands within a
+    // library's rounding of an integer is unknown, and one clear of it stays definite.
+    const numericType = 'pg_catalog."numeric"'
+    const portableFixtures: { name: string; row: Row; expected: Outcome }[] = []
+    for (const [base, exponent, kind] of [
+      ['0.3162277660168379', '2', 'Unknown'],
+      ['0.4641588833612779', '3', 'Unknown'],
+      ['0.999999999999999', '1000000', 'Unknown'],
+      ['3.162277660168379', '2', 'True'],
+      ['10', '2', 'True'],
+    ] as const) {
+      const row = defaults()
+      row[argument(0, numericType)] = input(base)
+      row[argument(1, numericType)] = input(exponent)
+      const query = `pg_catalog.numeric_power('${base}'::numeric,'${exponent}'::numeric)`
+      const result = await execute(numericType, query)
+      row[recorded(numericType)] = deserialize(result.value, numericType)
+      row.result_scale = deserialize(result.result_scale, 'pg_catalog.int4')
+      row.result_wire = input(result.result_wire)
+      for (const form of ['raw', 'stored'])
+        portableFixtures.push({
+          name: 'sql__pg_catalog__numeric_power__n7g8_' + form,
+          row: { ...row },
+          expected: { kind },
+        })
+    }
+    const portableDirectory = await mkdtemp(join(tmpdir(), 'pgsid-numeric-power-portable-'))
+    try {
+      await runCheckParity(
+        portableDirectory,
+        'pgsid-check-numeric-power-portable',
+        prepareCheckRustGroup(checks),
+        fixtureNames,
+        portableFixtures,
+      )
+    } finally {
+      await rm(portableDirectory, { recursive: true, force: true })
+    }
   }, 900_000)
 })

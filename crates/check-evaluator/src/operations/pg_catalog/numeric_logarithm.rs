@@ -28,33 +28,48 @@ const NUMERIC_LOG_INVALID_ARGUMENT: u32 = 3452594;
 const NUMERIC_LN_TEN_ESTIMATE: f64 = 2.302585092994046f64;
 
 // PostgreSQL's estimate_ln_dweight: the decimal weight of ln(value), exact near one and
-// estimated in double precision elsewhere.
-fn numeric_var_ln_dweight(value: &NumericVar) -> i32 {
+// estimated from logarithms elsewhere. Without a declared math library, an estimate that a
+// different library could truncate differently is uncertain.
+fn numeric_var_ln_dweight(value: &NumericVar, musl: bool) -> NumericVarEstimate {
     if value.sign < 0 {
-        return 0;
+        return NumericVarEstimate {
+            uncertain: false,
+            value: 0,
+        };
     }
     let one = numeric_var_from_i64(1i64);
     let zero_point_nine = numeric_var_from_text("0.9");
     let one_point_one = numeric_var_from_text("1.1");
     if numeric_var_cmp(value, &zero_point_nine) >= 0 && numeric_var_cmp(value, &one_point_one) <= 0 {
         let x = numeric_var_sub(value, &one);
+        let mut weight: i32 = 0;
         if numeric_var_count(&x) > 0 {
-            let leading = numeric_var_digit(&x, 0) as f64;
-            return x.weight * NUMERIC_VAR_DEC_DIGITS + (leading.log10() as i32);
+            weight = x.weight * NUMERIC_VAR_DEC_DIGITS
+                + numeric_var_digit_log10(numeric_var_digit(&x, 0));
         }
-        return 0;
+        return NumericVarEstimate {
+            uncertain: false,
+            value: weight,
+        };
     }
-    if numeric_var_count(value) > 0 {
-        let mut digits = numeric_var_digit(value, 0);
-        let mut dweight = value.weight * NUMERIC_VAR_DEC_DIGITS;
-        if numeric_var_count(value) > 1 {
-            digits = digits * NUMERIC_VAR_NBASE + numeric_var_digit(value, 1);
-            dweight = dweight - NUMERIC_VAR_DEC_DIGITS;
-        }
-        let ln_value = (digits as f64).ln() + (dweight as f64) * NUMERIC_LN_TEN_ESTIMATE;
-        return ln_value.abs().log10() as i32;
+    if numeric_var_count(value) == 0 {
+        return NumericVarEstimate {
+            uncertain: false,
+            value: 0,
+        };
     }
-    0
+    let mut digits = numeric_var_digit(value, 0);
+    let mut dweight = value.weight * NUMERIC_VAR_DEC_DIGITS;
+    if numeric_var_count(value) > 1 {
+        digits = digits * NUMERIC_VAR_NBASE + numeric_var_digit(value, 1);
+        dweight = dweight - NUMERIC_VAR_DEC_DIGITS;
+    }
+    let ln_value = musl_log(digits as f64) + (dweight as f64) * NUMERIC_LN_TEN_ESTIMATE;
+    let estimate = musl_log10(ln_value.abs());
+    NumericVarEstimate {
+        uncertain: musl == false && numeric_var_near_integer(estimate, 0.000000000001f64),
+        value: estimate as i32,
+    }
 }
 
 // PostgreSQL's ln_var: square roots bring the argument within 0.9 and 1.1, then the series
@@ -103,7 +118,7 @@ fn numeric_var_ln(arg: &NumericVar, rscale: i32) -> NumericVar {
     numeric_var_mul(&result, &fact, rscale)
 }
 
-pub fn sql__pg_catalog__numeric_ln__okv6(input: NumericValue) -> NumericValue {
+pub fn sql__pg_catalog__numeric_ln__okv6(input: NumericValue, musl: bool) -> NumericValue {
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = input { unresolved_flavor = 1; };
     if let NumericValue::Unimplemented = input { unresolved_flavor = 2; };
@@ -126,7 +141,11 @@ pub fn sql__pg_catalog__numeric_ln__okv6(input: NumericValue) -> NumericValue {
         if kind != 1 {
             return NumericValue::Value(arg);
         }
-        let mut rscale = NUMERIC_VAR_MIN_SIG_DIGITS - numeric_var_ln_dweight(&arg);
+        let ln_dweight = numeric_var_ln_dweight(&arg, musl);
+        if ln_dweight.uncertain {
+            return numeric_unresolved(1);
+        }
+        let mut rscale = NUMERIC_VAR_MIN_SIG_DIGITS - ln_dweight.value;
         if rscale < arg.dscale {
             rscale = arg.dscale;
         }
@@ -141,6 +160,6 @@ pub fn sql__pg_catalog__numeric_ln__okv6(input: NumericValue) -> NumericValue {
     numeric_unresolved(unresolved_flavor)
 }
 
-pub fn sql__pg_catalog__ln__05bs(input: NumericValue) -> NumericValue {
-    sql__pg_catalog__numeric_ln__okv6(input)
+pub fn sql__pg_catalog__ln__05bs(input: NumericValue, musl: bool) -> NumericValue {
+    sql__pg_catalog__numeric_ln__okv6(input, musl)
 }

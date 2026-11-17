@@ -91,7 +91,11 @@ import {
   rangeHashSupport,
 } from './check-hash-context.js'
 import { characterEncodingContext } from './check-character-context.js'
-import { floatMathLibrary, trigonometryContext } from './check-trigonometry-context.js'
+import {
+  floatMathLibrary,
+  numericMathLibrary,
+  trigonometryContext,
+} from './check-trigonometry-context.js'
 import { jsonbTextRenderingContext, jsonScalarExtractionContext } from './check-jsonb-context.js'
 import {
   rustCallCanFail,
@@ -6513,7 +6517,7 @@ export function emitCheckRustEvaluator(
             executionContext.trigonometry === 'fdlibm' || executionContext.mathLibrary === 'musl',
           ),
         )
-      if (floatMathLibrary(implementation))
+      if (floatMathLibrary(implementation) || numericMathLibrary(implementation))
         arguments_.push(String(executionContext.mathLibrary === 'musl'))
       if (jsonbTextRenderingContext(implementation))
         arguments_.push(String(executionContext.serverEncoding === 'UTF8'))

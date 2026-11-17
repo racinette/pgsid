@@ -207,17 +207,17 @@ fn ts_rank_cd_calculate(weights: &TsRankWeightSet, document: &TsvectorPayload, q
         } else { scanning = false; };
     }
     let length = ts_rank_length(document);
-    if ts_rank_flag(method,1) { result = result/((length+1) as f64).ln(); };
+    if ts_rank_flag(method,1) { result = result/musl_log((length+1) as f64); };
     if ts_rank_flag(method,2) && length > 0 { result = result/(length as f64); };
     if ts_rank_flag(method,4) && extents > 0 && sum_distance > 0.0f64 { result = result/((extents as f64)/sum_distance); };
     let unique = document.lexemes.len() as i32;
     if ts_rank_flag(method,8) { result = result/(unique as f64); };
-    if ts_rank_flag(method,16) { result = result/(((unique+1) as f64).ln()/2.0f64.ln()); };
+    if ts_rank_flag(method,16) { result = result/(musl_log((unique+1) as f64)/musl_log(2.0f64)); };
     if ts_rank_flag(method,32) { result = result/(result+1.0f64); };
     result
 }
 
-fn ts_rank_cd_run(weights: ArrayValue, document: TsvectorValue, query: TsqueryValue, method: Int4Value, defaults: bool) -> Float4Value {
+fn ts_rank_cd_run(weights: ArrayValue, document: TsvectorValue, query: TsqueryValue, method: Int4Value, defaults: bool, musl: bool) -> Float4Value {
     let mut unresolved_flavor: i32 = 0;
     if let ArrayValue::Unknown = weights { unresolved_flavor = 1; };
     if let TsvectorValue::Unknown = document { unresolved_flavor = 1; };
@@ -250,6 +250,9 @@ fn ts_rank_cd_run(weights: ArrayValue, document: TsvectorValue, query: TsqueryVa
     if let TsvectorValue::Value(value) = document {
         if let TsqueryValue::Value(pattern) = query {
             if let Int4Value::Value(normalization) = method {
+                // Normalising by the logarithm of the document length uses the deployment's math
+                // library.
+                if (ts_rank_flag(normalization,1) || ts_rank_flag(normalization,16)) && musl == false { return float4_unresolved(resolution_context(unresolved_flavor)); };
                 let result = ts_rank_cd_calculate(&selected,&value,&pattern,normalization);
                 if result != result { return Float4Value::UnspecifiedNan; };
                 return make_float4_bits((result as f32).to_bits() as i32);
@@ -259,7 +262,7 @@ fn ts_rank_cd_run(weights: ArrayValue, document: TsvectorValue, query: TsqueryVa
     float4_unresolved(unresolved_flavor)
 }
 
-pub fn sql__pg_catalog__ts_rank_cd__w5px(weights: ArrayValue, document: TsvectorValue, query: TsqueryValue) -> Float4Value { ts_rank_cd_run(weights,document,query,make_int4_value(0),false) }
-pub fn sql__pg_catalog__ts_rank_cd__81i4(weights: ArrayValue, document: TsvectorValue, query: TsqueryValue, method: Int4Value) -> Float4Value { ts_rank_cd_run(weights,document,query,method,false) }
-pub fn sql__pg_catalog__ts_rank_cd__rycu(document: TsvectorValue, query: TsqueryValue) -> Float4Value { ts_rank_cd_run(ArrayValue::Null,document,query,make_int4_value(0),true) }
-pub fn sql__pg_catalog__ts_rank_cd__tqso(document: TsvectorValue, query: TsqueryValue, method: Int4Value) -> Float4Value { ts_rank_cd_run(ArrayValue::Null,document,query,method,true) }
+pub fn sql__pg_catalog__ts_rank_cd__w5px(weights: ArrayValue, document: TsvectorValue, query: TsqueryValue) -> Float4Value { ts_rank_cd_run(weights,document,query,make_int4_value(0),false,false) }
+pub fn sql__pg_catalog__ts_rank_cd__81i4(weights: ArrayValue, document: TsvectorValue, query: TsqueryValue, method: Int4Value, musl: bool) -> Float4Value { ts_rank_cd_run(weights,document,query,method,false,musl) }
+pub fn sql__pg_catalog__ts_rank_cd__rycu(document: TsvectorValue, query: TsqueryValue) -> Float4Value { ts_rank_cd_run(ArrayValue::Null,document,query,make_int4_value(0),true,false) }
+pub fn sql__pg_catalog__ts_rank_cd__tqso(document: TsvectorValue, query: TsqueryValue, method: Int4Value, musl: bool) -> Float4Value { ts_rank_cd_run(ArrayValue::Null,document,query,method,true,musl) }

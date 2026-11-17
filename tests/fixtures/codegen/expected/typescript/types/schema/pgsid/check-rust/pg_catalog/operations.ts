@@ -137,7 +137,8 @@
 // keep the translated targets on plain numbers. Where it approximates, by truncating a product
 // or estimating a quotient, they reproduce PostgreSQL's arithmetic step for step.
 
-// A result, or the numeric overflow PostgreSQL raises while computing it.
+// A result, the numeric overflow PostgreSQL raises while computing it, or a result that
+// depends on the deployment's math library.
 
 // Portions Copyright (c) 1999-2025, PostgreSQL Global Development Group.
 
