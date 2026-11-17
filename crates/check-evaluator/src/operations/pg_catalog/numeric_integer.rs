@@ -8,62 +8,46 @@ fn numeric_integer_value(input: NumericValue) -> Int8Value {
     if let NumericValue::Error(error) = input {
         return Int8Value::Error(error);
     }
-    let mut condition_flavor_11_4: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_11_4 < 1 { condition_flavor_11_4 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_11_4 = 2; }; if input == NumericValue::Unknown || input == NumericValue::Unimplemented {
+    let mut numeric_unknown_input_1 = false; if let NumericValue::Unknown = input { numeric_unknown_input_1 = true; }; let mut numeric_unimplemented_input_2 = false; if let NumericValue::Unimplemented = input { numeric_unimplemented_input_2 = true; };
+    let mut condition_flavor_11_4: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_11_4 < 1 { condition_flavor_11_4 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_11_4 = 2; }; if numeric_unknown_input_1 || numeric_unimplemented_input_2 {
         return int8_unresolved(condition_flavor_11_4);
     }
-    if input == NumericValue::Null {
+    let mut numeric_null_input_3 = false; if let NumericValue::Null = input { numeric_null_input_3 = true; };
+    if numeric_null_input_3 {
         return Int8Value::Null;
     }
-    if let NumericValue::Value(text) = input {
-        let work = numeric_work_from_value(text.as_str());
-        if work.valid == false {
-            return int8_unresolved(unresolved_flavor);
-        }
-        if work.special != 1 {
+    // PostgreSQL's numericvar_to_int64: round to an integer, then accumulate the NBASE digits
+    // negatively so that the most negative value fits.
+    if let NumericValue::Value(value) = input {
+        if numeric_var_kind(&value) != 1 {
             return Int8Value::Error(make_sql_error(NUMERIC_INTEGER_SPECIAL_ERROR));
         }
-        if work.sign != 0 && work.weight > 18 {
+        let negative = numeric_var_signum(&value) < 0;
+        let rounded = numeric_var_strip(numeric_var_round(value, 0));
+        let count = numeric_var_count(&rounded);
+        if count == 0 {
+            return Int8Value::Value(0i64);
+        }
+        if rounded.weight > 4 {
             return Int8Value::Error(make_sql_error(NUMERIC_INTEGER_RANGE_ERROR));
         }
-        let rounded = numeric_work_round(work, 0, 1);
-        if let NumericValue::Error(error) = rounded {
-            return Int8Value::Error(error);
-        }
-        if let NumericValue::Value(value) = rounded {
-            let parts = numeric_parts(value.as_str());
-            if parts.sign == 0 {
-                return Int8Value::Value(0i64);
-            }
-            if parts.weight > 18 {
+        let mut result: i64 = 0i64;
+        let mut i: i32 = 0;
+        while i <= rounded.weight {
+            let digit = numeric_var_digit(&rounded, i) as i64;
+            if result < -922337203685477i64 || (result == -922337203685477i64 && digit > 5808i64) {
                 return Int8Value::Error(make_sql_error(NUMERIC_INTEGER_RANGE_ERROR));
             }
-            let characters: Vec<char> = value.chars().collect();
-            let mut result: i64 = 0i64;
-            let mut index = parts.first;
-            let mut position: i32 = 0;
-            while position <= parts.weight {
-                let mut digit: i64 = 0i64;
-                if index < parts.end {
-                    digit = numeric_wire_decimal_digit(characters[index]) as i64;
-                    index += 1;
-                }
-
-                if result < -922337203685477580i64
-                    || (result == -922337203685477580i64 && digit > 8i64)
-                {
-                    return Int8Value::Error(make_sql_error(NUMERIC_INTEGER_RANGE_ERROR));
-                }
-                result = result * 10i64 - digit;
-                position = position + 1;
-            }
-            if parts.sign < 0 {
-                return Int8Value::Value(result);
-            }
-            if result == -9223372036854775808i64 {
-                return Int8Value::Error(make_sql_error(NUMERIC_INTEGER_RANGE_ERROR));
-            }
-            return Int8Value::Value(0i64 - result);
+            result = result * 10000i64 - digit;
+            i = i + 1;
         }
+        if negative {
+            return Int8Value::Value(result);
+        }
+        if result == -9223372036854775808i64 {
+            return Int8Value::Error(make_sql_error(NUMERIC_INTEGER_RANGE_ERROR));
+        }
+        return Int8Value::Value(0i64 - result);
     }
     int8_unresolved(unresolved_flavor)
 }
@@ -133,7 +117,7 @@ pub fn sql__pg_catalog__numeric__itt9(input: Int2Value) -> NumericValue {
     }
     if let Int2Value::Value(value) = input {
         let integer = value as i64;
-        return NumericValue::Value(text_signed_number(integer));
+        return make_numeric_value(text_signed_number(integer).as_str());
     }
     numeric_unresolved(unresolved_flavor)
 }
@@ -153,7 +137,7 @@ pub fn sql__pg_catalog__numeric__ncrk(input: Int4Value) -> NumericValue {
     }
     if let Int4Value::Value(value) = input {
         let integer = value as i64;
-        return NumericValue::Value(text_signed_number(integer));
+        return make_numeric_value(text_signed_number(integer).as_str());
     }
     numeric_unresolved(unresolved_flavor)
 }
@@ -173,7 +157,7 @@ pub fn sql__pg_catalog__numeric__11bc(input: Int8Value) -> NumericValue {
     }
     if let Int8Value::Value(value) = input {
         let integer = value;
-        return NumericValue::Value(text_signed_number(integer));
+        return make_numeric_value(text_signed_number(integer).as_str());
     }
     numeric_unresolved(unresolved_flavor)
 }

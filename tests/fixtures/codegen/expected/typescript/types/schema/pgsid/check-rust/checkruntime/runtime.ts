@@ -1,3 +1,28 @@
+/*
+ * PostgreSQL Database Management System
+ * (also known as Postgres, formerly known as Postgres95)
+ *
+ * Portions Copyright (c) 1996-2026, PostgreSQL Global Development Group
+ *
+ * Portions Copyright (c) 1994, The Regents of the University of California
+ *
+ * Permission to use, copy, modify, and distribute this software and its
+ * documentation for any purpose, without fee, and without a written agreement
+ * is hereby granted, provided that the above copyright notice and this
+ * paragraph and the following two paragraphs appear in all copies.
+ *
+ * IN NO EVENT SHALL THE UNIVERSITY OF CALIFORNIA BE LIABLE TO ANY PARTY FOR
+ * DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, INCLUDING
+ * LOST PROFITS, ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS
+ * DOCUMENTATION, EVEN IF THE UNIVERSITY OF CALIFORNIA HAS BEEN ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ *
+ * THE UNIVERSITY OF CALIFORNIA SPECIFICALLY DISCLAIMS ANY WARRANTIES,
+ * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
+ * AND FITNESS FOR A PARTICULAR PURPOSE.  THE SOFTWARE PROVIDED HEREUNDER IS
+ * ON AN "AS IS" BASIS, AND THE UNIVERSITY OF CALIFORNIA HAS NO OBLIGATIONS TO
+ * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
+ */
 import * as langruntime from "../langruntime/runtime.js";
 export type Int4Value = {
     readonly kind: "Unknown";
@@ -271,28 +296,100 @@ export type NumericValue = {
     readonly kind: "Null";
 } | {
     readonly kind: "Value";
-    readonly value: string;
+    readonly value: NumericVar;
 } | {
     readonly kind: "Error";
     readonly value: SqlError;
 };
-export function equalNumericValue(left: NumericValue, right: NumericValue): boolean {
-    if (left.kind !== right.kind)
-        return false;
-    if (left.kind === "Value" && right.kind === "Value")
-        return left.value === right.value;
-    if (left.kind === "Error" && right.kind === "Error")
-        return equalSqlError(left.value, right.value);
-    return true;
+export function copyNumericValue(value: NumericValue): NumericValue {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Unimplemented": return { kind: "Unimplemented" };
+        case "Null": return { kind: "Null" };
+        case "Value": return { kind: "Value", value: copyNumericVar(value.value) };
+        case "Error": return { kind: "Error", value: value.value };
+    }
 }
 export function makeNumericValue(value: string): NumericValue {
     value = langruntime.checkedString(value);
-    const unresolvedFlavor: number = 0;
-    const parts: NumericLayout = copyNumericLayout(numericParts(value));
-    if (parts.valid === false) {
-        return numericUnresolved(unresolvedFlavor);
+    const layout: NumericLayout = copyNumericLayout(numericParts(value));
+    if (layout.valid === false) {
+        return numericUnresolved(0);
     }
-    return { kind: "Value", value: value };
+    if (layout.special === 3) {
+        return { kind: "Value", value: numericVarSpecial(numericSignNan) };
+    }
+    if (layout.special === 2) {
+        return { kind: "Value", value: numericVarSpecial(numericSignPinf) };
+    }
+    if (layout.special === 0) {
+        return { kind: "Value", value: numericVarSpecial(numericSignNinf) };
+    }
+    const chars: string[] = Array.from(value);
+    let index: number = 0;
+    let point: boolean = false;
+    let power: boolean = false;
+    let fractional: number = 0;
+    let exponent: number = 0;
+    let exponentSign: number = 1;
+    while (index < chars.length) {
+        const digit: number = numericDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+        if (digit >= 0) {
+            if (power) {
+                exponent = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(exponent, 10), digit));
+            }
+            else if (point) {
+                fractional = langruntime.checkedI32(langruntime.checkedSignedAdd(fractional, 1));
+            }
+        }
+        else if (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === ".") {
+            point = langruntime.checkedBool(true);
+        }
+        else if (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "e" || langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "E") {
+            power = langruntime.checkedBool(true);
+        }
+        else if (power && langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "-") {
+            exponentSign = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let dscale: number = langruntime.checkedSignedSubtract(fractional, langruntime.checkedSignedMultiply(exponent, exponentSign));
+    if (dscale < 0) {
+        dscale = langruntime.checkedI32(0);
+    }
+    let digits: number[] = [];
+    if (layout.sign === 0) {
+        return { kind: "Value", value: { sign: 1, weight: 0, dscale: dscale, digits: digits } };
+    }
+    let weight: number = langruntime.checkedSignedDivide(layout.weight, 4);
+    if (langruntime.checkedSignedRemainder(layout.weight, 4) < 0) {
+        weight = langruntime.checkedI32(langruntime.checkedSignedSubtract(weight, 1));
+    }
+    let leading: number = langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(weight, 4), 3), layout.weight);
+    let emitted: number = 0;
+    let group: number = 0;
+    index = langruntime.checkedIndex(layout.first);
+    while (index < layout.end || !(langruntime.checkedSignedRemainder(emitted, 4) === 0)) {
+        let decimal: number = 0;
+        if (leading > 0) {
+            leading = langruntime.checkedI32(langruntime.checkedSignedSubtract(leading, 1));
+        }
+        else if (index < layout.end) {
+            decimal = langruntime.checkedI32(numericDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index))));
+            while (decimal < 0) {
+                index = langruntime.checkedAdd(index, 1);
+                decimal = langruntime.checkedI32(numericDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index))));
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        group = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(group, 10), decimal));
+        emitted = langruntime.checkedI32(langruntime.checkedSignedAdd(emitted, 1));
+        if (langruntime.checkedSignedRemainder(emitted, 4) === 0) {
+            langruntime.pushIndex(digits, langruntime.indexFromI32(group, 0));
+            group = langruntime.checkedI32(0);
+        }
+    }
+    return { kind: "Value", value: { sign: layout.sign, weight: weight, dscale: dscale, digits: digits } };
 }
 export interface JsonbNode {
     readonly kind: number;
@@ -585,6 +682,88 @@ export function numericParts(value: string): NumericLayout {
         return invalidNumericParts();
     }
     return { valid: true, special: 1, sign: sign, weight: weight, first: first, end: last };
+}
+export const numericSignPinf = 2;
+export const numericSignNinf = 4;
+export const numericSignNan = 3;
+export interface NumericVar {
+    readonly sign: number;
+    readonly weight: number;
+    readonly dscale: number;
+    readonly digits: number[];
+}
+export function copyNumericVar(value: NumericVar): NumericVar {
+    return { sign: langruntime.checkedI32(value.sign), weight: langruntime.checkedI32(value.weight), dscale: langruntime.checkedI32(value.dscale), digits: langruntime.checkedIndices(value.digits) };
+}
+export function numericVarSpecial(sign: number): NumericVar {
+    sign = langruntime.checkedI32(sign);
+    const digits: number[] = [];
+    return { sign: sign, weight: 0, dscale: 0, digits: digits };
+}
+export function numericText(value: NumericVar): string {
+    value = copyNumericVar(value);
+    if (value.sign === numericSignNan) {
+        return "NaN";
+    }
+    if (value.sign === numericSignPinf) {
+        return "Infinity";
+    }
+    if (value.sign === numericSignNinf) {
+        return "-Infinity";
+    }
+    let output: string = "";
+    if (value.sign < 0) {
+        output = output + langruntime.checkedChar("-");
+    }
+    const count: number = langruntime.checkedI32(langruntime.checkedIndex(value.digits.length));
+    if (value.weight < 0) {
+        output = output + langruntime.checkedChar("0");
+    }
+    else {
+        let d: number = 0;
+        while (d <= value.weight) {
+            let dig: number = 0;
+            if (d < count) {
+                dig = langruntime.checkedI32(langruntime.checkedI32(langruntime.checkedIndex(langruntime.indexNumber(value.digits, langruntime.checkedIndex(langruntime.indexFromI32(d, 0))))));
+            }
+            let putit: boolean = d > 0;
+            let place: number = 1000;
+            while (place > 1) {
+                const d1: number = langruntime.checkedSignedDivide(dig, place);
+                dig = langruntime.checkedI32(langruntime.checkedSignedSubtract(dig, langruntime.checkedSignedMultiply(d1, place)));
+                if (d1 > 0) {
+                    putit = langruntime.checkedBool(true);
+                }
+                if (putit) {
+                    output = output + langruntime.checkedChar(langruntime.characterFromI32((langruntime.checkedSignedAdd(d1, 48)), "0"));
+                }
+                place = langruntime.checkedI32(langruntime.checkedSignedDivide(place, 10));
+            }
+            output = output + langruntime.checkedChar(langruntime.characterFromI32((langruntime.checkedSignedAdd(dig, 48)), "0"));
+            d = langruntime.checkedI32(langruntime.checkedSignedAdd(d, 1));
+        }
+    }
+    if (value.dscale > 0) {
+        output = output + langruntime.checkedChar(".");
+        let written: number = 0;
+        let d: number = langruntime.checkedSignedAdd(value.weight, 1);
+        while (written < value.dscale) {
+            let dig: number = 0;
+            if (d >= 0 && d < count) {
+                dig = langruntime.checkedI32(langruntime.checkedI32(langruntime.checkedIndex(langruntime.indexNumber(value.digits, langruntime.checkedIndex(langruntime.indexFromI32(d, 0))))));
+            }
+            let place: number = 1000;
+            while (place > 0 && written < value.dscale) {
+                const d1: number = langruntime.checkedSignedDivide(dig, place);
+                dig = langruntime.checkedI32(langruntime.checkedSignedSubtract(dig, langruntime.checkedSignedMultiply(d1, place)));
+                output = output + langruntime.checkedChar(langruntime.characterFromI32((langruntime.checkedSignedAdd(d1, 48)), "0"));
+                written = langruntime.checkedI32(langruntime.checkedSignedAdd(written, 1));
+                place = langruntime.checkedI32(langruntime.checkedSignedDivide(place, 10));
+            }
+            d = langruntime.checkedI32(langruntime.checkedSignedAdd(d, 1));
+        }
+    }
+    return output;
 }
 interface JsonSyntaxSource {
     characters: string[];

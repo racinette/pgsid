@@ -459,7 +459,9 @@ fn array_sort_same_element(left: ArrayElement, right: ArrayElement) -> bool {
         return array_element_to_bool(left) == array_element_to_bool(right);
     };
     if kind == 10 {
-        return array_element_to_numeric(left) == array_element_to_numeric(right);
+        let first = array_element_to_numeric(left);
+        let second = array_element_to_numeric(right);
+        return numeric_value_identical(first, second);
     };
     if kind == 13 {
         return array_element_to_network(left) == array_element_to_network(right);

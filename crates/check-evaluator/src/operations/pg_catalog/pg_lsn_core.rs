@@ -150,15 +150,18 @@ fn pg_lsn_from_numeric(input: NumericValue) -> PgLsnValue {
     if let NumericValue::Unknown = input { unresolved_flavor = 1; };
     if let NumericValue::Unimplemented = input { unresolved_flavor = 2; };
     if let NumericValue::Error(error) = input { return PgLsnValue::Error(error); };
-    if input == NumericValue::Null { return PgLsnValue::Null; };
-    if let NumericValue::Value(text) = input {
+    let mut numeric_null_input_1 = false; if let NumericValue::Null = input { numeric_null_input_1 = true; };
+    if numeric_null_input_1 { return PgLsnValue::Null; };
+    if let NumericValue::Value(text_numeric) = input {
+        let text = numeric_text(&text_numeric);
         let work = numeric_work_from_value(text.as_str());
         if work.valid == false { return pg_lsn_unresolved(unresolved_flavor); };
         if work.special != 1 { return PgLsnValue::Error(make_sql_error(PG_LSN_SPECIAL_ERROR)); };
         if work.sign != 0 && work.weight > 19 { return PgLsnValue::Error(make_sql_error(PG_LSN_RANGE_ERROR)); };
         let rounded = numeric_work_round(work, 0, 1);
         if let NumericValue::Error(error) = rounded { return PgLsnValue::Error(error); };
-        if let NumericValue::Value(value) = rounded {
+        if let NumericValue::Value(value_numeric) = rounded {
+            let value = numeric_text(&value_numeric);
             let parts = numeric_parts(value.as_str());
             if parts.sign == 0 { return make_pg_lsn_bits(0i64); };
             if parts.sign < 0 || parts.weight > 19 { return PgLsnValue::Error(make_sql_error(PG_LSN_RANGE_ERROR)); };
@@ -189,8 +192,10 @@ fn pg_lsn_adjust(left: PgLsnValue, right: NumericValue, subtract: bool) -> PgLsn
     if let NumericValue::Unimplemented = right { unresolved_flavor = 2; };
     if let PgLsnValue::Error(error) = left { return PgLsnValue::Error(error); };
     if let NumericValue::Error(error) = right { return PgLsnValue::Error(error); };
-    let mut condition_flavor_192_4: i32 = unresolved_flavor; if let PgLsnValue::Unknown = left { if condition_flavor_192_4 < 1 { condition_flavor_192_4 = 1; }; }; if let PgLsnValue::Unimplemented = left { condition_flavor_192_4 = 2; }; if let NumericValue::Unknown = right { if condition_flavor_192_4 < 1 { condition_flavor_192_4 = 1; }; }; if let NumericValue::Unimplemented = right { condition_flavor_192_4 = 2; }; if (left == PgLsnValue::Unknown || left == PgLsnValue::Unimplemented) || (right == NumericValue::Unknown || right == NumericValue::Unimplemented) { return pg_lsn_unresolved(condition_flavor_192_4); };
-    if left == PgLsnValue::Null || right == NumericValue::Null { return PgLsnValue::Null; };
+    let mut numeric_unknown_right_2 = false; if let NumericValue::Unknown = right { numeric_unknown_right_2 = true; }; let mut numeric_unimplemented_right_3 = false; if let NumericValue::Unimplemented = right { numeric_unimplemented_right_3 = true; };
+    let mut condition_flavor_192_4: i32 = unresolved_flavor; if let PgLsnValue::Unknown = left { if condition_flavor_192_4 < 1 { condition_flavor_192_4 = 1; }; }; if let PgLsnValue::Unimplemented = left { condition_flavor_192_4 = 2; }; if let NumericValue::Unknown = right { if condition_flavor_192_4 < 1 { condition_flavor_192_4 = 1; }; }; if let NumericValue::Unimplemented = right { condition_flavor_192_4 = 2; }; if (left == PgLsnValue::Unknown || left == PgLsnValue::Unimplemented) || (numeric_unknown_right_2 || numeric_unimplemented_right_3) { return pg_lsn_unresolved(condition_flavor_192_4); };
+    let mut numeric_null_right_4 = false; if let NumericValue::Null = right { numeric_null_right_4 = true; };
+    if left == PgLsnValue::Null || numeric_null_right_4 { return PgLsnValue::Null; };
     let numeric = pg_lsn_numeric(left);
     if subtract { return pg_lsn_from_numeric(sql__pg_catalog__numeric_sub__ys09(numeric, right)); };
     pg_lsn_from_numeric(sql__pg_catalog__numeric_add__o3d7(numeric, right))

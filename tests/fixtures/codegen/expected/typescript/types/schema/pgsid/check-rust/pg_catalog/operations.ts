@@ -132,12 +132,12 @@
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
  */
 
-// PostgreSQL's NumericVar, so its numeric algorithms port as written: base-NBASE digits,
-// most significant first, the weight of the first digit, and the display scale. A zero has
-// no digits. Where PostgreSQL computes an exact result, any exact method yields the same
-// digits, so these routines use PostgreSQL's 32-bit forms and keep the translated targets on
-// plain numbers. Where it approximates, by truncating a product or estimating a quotient, they
-// reproduce PostgreSQL's arithmetic step for step.
+// PostgreSQL's numeric algorithms on NumericVar. Where PostgreSQL computes an exact result,
+// any exact method yields the same digits, so these routines use PostgreSQL's 32-bit forms and
+// keep the translated targets on plain numbers. Where it approximates, by truncating a product
+// or estimating a quotient, they reproduce PostgreSQL's arithmetic step for step.
+
+// A result, or the numeric overflow PostgreSQL raises while computing it.
 
 // Portions Copyright (c) 1999-2025, PostgreSQL Global Development Group.
 
@@ -553,6 +553,8 @@ function jsonpathNumericLiteral(input: string): checkruntime.TextValue {
     return checkruntime.jsonbToText(parsed);
 }
 function numericCompare(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.Int4Value {
+    left = checkruntime.copyNumericValue(left);
+    right = checkruntime.copyNumericValue(right);
     let unresolvedFlavor: number = 0;
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -574,6 +576,22 @@ function numericCompare(left: checkruntime.NumericValue, right: checkruntime.Num
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
+    let numericUnknownLeft1: boolean = false;
+    if (left.kind === "Unknown") {
+        numericUnknownLeft1 = langruntime.checkedBool(true);
+    }
+    let numericUnimplementedLeft2: boolean = false;
+    if (left.kind === "Unimplemented") {
+        numericUnimplementedLeft2 = langruntime.checkedBool(true);
+    }
+    let numericUnknownRight3: boolean = false;
+    if (right.kind === "Unknown") {
+        numericUnknownRight3 = langruntime.checkedBool(true);
+    }
+    let numericUnimplementedRight4: boolean = false;
+    if (right.kind === "Unimplemented") {
+        numericUnimplementedRight4 = langruntime.checkedBool(true);
+    }
     let conditionFlavor134: number = unresolvedFlavor;
     if (left.kind === "Unknown") {
         if (conditionFlavor134 < 1) {
@@ -591,81 +609,32 @@ function numericCompare(left: checkruntime.NumericValue, right: checkruntime.Num
     if (right.kind === "Unimplemented") {
         conditionFlavor134 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNumericValue(left, { kind: "Unknown" }) || checkruntime.equalNumericValue(left, { kind: "Unimplemented" })) || (checkruntime.equalNumericValue(right, { kind: "Unknown" }) || checkruntime.equalNumericValue(right, { kind: "Unimplemented" }))) {
+    if ((numericUnknownLeft1 || numericUnimplementedLeft2) || (numericUnknownRight3 || numericUnimplementedRight4)) {
         return checkruntime.int4Unresolved(conditionFlavor134);
     }
-    if (checkruntime.equalNumericValue(left, { kind: "Null" }) || checkruntime.equalNumericValue(right, { kind: "Null" })) {
+    let numericNullLeft5: boolean = false;
+    if (left.kind === "Null") {
+        numericNullLeft5 = langruntime.checkedBool(true);
+    }
+    let numericNullRight6: boolean = false;
+    if (right.kind === "Null") {
+        numericNullRight6 = langruntime.checkedBool(true);
+    }
+    if (numericNullLeft5 || numericNullRight6) {
         return { kind: "Null" };
     }
     if (left.kind === "Value") {
-        const leftValue: string = langruntime.checkedString(left.value);
+        const leftValue: checkruntime.NumericVar = checkruntime.copyNumericVar(left.value);
         if (right.kind === "Value") {
-            const rightValue: string = langruntime.checkedString(right.value);
-            const a: checkruntime.NumericLayout = checkruntime.copyNumericLayout(checkruntime.numericParts(leftValue));
-            const b: checkruntime.NumericLayout = checkruntime.copyNumericLayout(checkruntime.numericParts(rightValue));
-            if (a.valid === false || b.valid === false) {
-                return checkruntime.int4Unresolved(unresolvedFlavor);
-            }
-            if (a.special < b.special) {
-                return { kind: "Value", value: langruntime.checkedSignedNegate(1) };
-            }
-            if (a.special > b.special) {
-                return { kind: "Value", value: 1 };
-            }
-            if (!(a.special === 1)) {
-                return { kind: "Value", value: 0 };
-            }
-            if (a.sign < b.sign) {
-                return { kind: "Value", value: langruntime.checkedSignedNegate(1) };
-            }
-            if (a.sign > b.sign) {
-                return { kind: "Value", value: 1 };
-            }
-            if (a.sign === 0) {
-                return { kind: "Value", value: 0 };
-            }
-            if (a.weight < b.weight) {
-                return { kind: "Value", value: langruntime.checkedSignedSubtract(0, a.sign) };
-            }
-            if (a.weight > b.weight) {
-                return { kind: "Value", value: a.sign };
-            }
-            const leftChars: string[] = Array.from(leftValue);
-            const rightChars: string[] = Array.from(rightValue);
-            let i: number = a.first;
-            let j: number = b.first;
-            while (i < a.end || j < b.end) {
-                while (i < a.end && (langruntime.indexChar(leftChars, langruntime.checkedIndex(i)) === "." || langruntime.indexChar(leftChars, langruntime.checkedIndex(i)) === "_")) {
-                    i = langruntime.checkedAdd(i, 1);
-                }
-                while (j < b.end && (langruntime.indexChar(rightChars, langruntime.checkedIndex(j)) === "." || langruntime.indexChar(rightChars, langruntime.checkedIndex(j)) === "_")) {
-                    j = langruntime.checkedAdd(j, 1);
-                }
-                let x: string = "0";
-                let y: string = "0";
-                if (i < a.end) {
-                    x = langruntime.checkedChar(langruntime.indexChar(leftChars, langruntime.checkedIndex(i)));
-                    i = langruntime.checkedAdd(i, 1);
-                }
-                if (j < b.end) {
-                    y = langruntime.checkedChar(langruntime.indexChar(rightChars, langruntime.checkedIndex(j)));
-                    j = langruntime.checkedAdd(j, 1);
-                }
-                const xCode: number = langruntime.checkedChar(x).codePointAt(0)!;
-                const yCode: number = langruntime.checkedChar(y).codePointAt(0)!;
-                if (xCode < yCode) {
-                    return { kind: "Value", value: langruntime.checkedSignedSubtract(0, a.sign) };
-                }
-                if (xCode > yCode) {
-                    return { kind: "Value", value: a.sign };
-                }
-            }
-            return { kind: "Value", value: 0 };
+            const rightValue: checkruntime.NumericVar = checkruntime.copyNumericVar(right.value);
+            return { kind: "Value", value: numericVarCompareValues(leftValue, rightValue) };
         }
     }
     return checkruntime.int4Unresolved(unresolvedFlavor);
 }
 export function numericEqFw7r(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.BoolValue {
+    left = checkruntime.copyNumericValue(left);
+    right = checkruntime.copyNumericValue(right);
     let unresolvedFlavor: number = 0;
     if (left.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -706,6 +675,8 @@ export function numericEqFw7r(left: checkruntime.NumericValue, right: checkrunti
     return checkruntime.boolUnresolved(unresolvedFlavor);
 }
 function numericArithmetic(left: checkruntime.NumericValue, right: checkruntime.NumericValue, mode: number): checkruntime.NumericValue {
+    left = checkruntime.copyNumericValue(left);
+    right = checkruntime.copyNumericValue(right);
     mode = langruntime.checkedI32(mode);
     let unresolvedFlavor: number = 0;
     if (left.kind === "Unknown") {
@@ -728,6 +699,22 @@ function numericArithmetic(left: checkruntime.NumericValue, right: checkruntime.
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
+    let numericUnknownLeft1: boolean = false;
+    if (left.kind === "Unknown") {
+        numericUnknownLeft1 = langruntime.checkedBool(true);
+    }
+    let numericUnimplementedLeft2: boolean = false;
+    if (left.kind === "Unimplemented") {
+        numericUnimplementedLeft2 = langruntime.checkedBool(true);
+    }
+    let numericUnknownRight3: boolean = false;
+    if (right.kind === "Unknown") {
+        numericUnknownRight3 = langruntime.checkedBool(true);
+    }
+    let numericUnimplementedRight4: boolean = false;
+    if (right.kind === "Unimplemented") {
+        numericUnimplementedRight4 = langruntime.checkedBool(true);
+    }
     let conditionFlavor2854: number = unresolvedFlavor;
     if (left.kind === "Unknown") {
         if (conditionFlavor2854 < 1) {
@@ -745,37 +732,42 @@ function numericArithmetic(left: checkruntime.NumericValue, right: checkruntime.
     if (right.kind === "Unimplemented") {
         conditionFlavor2854 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNumericValue(left, { kind: "Unknown" }) || checkruntime.equalNumericValue(left, { kind: "Unimplemented" })) || (checkruntime.equalNumericValue(right, { kind: "Unknown" }) || checkruntime.equalNumericValue(right, { kind: "Unimplemented" }))) {
+    if ((numericUnknownLeft1 || numericUnimplementedLeft2) || (numericUnknownRight3 || numericUnimplementedRight4)) {
         return checkruntime.numericUnresolved(conditionFlavor2854);
     }
-    if (checkruntime.equalNumericValue(left, { kind: "Null" }) || checkruntime.equalNumericValue(right, { kind: "Null" })) {
+    let numericNullLeft5: boolean = false;
+    if (left.kind === "Null") {
+        numericNullLeft5 = langruntime.checkedBool(true);
+    }
+    let numericNullRight6: boolean = false;
+    if (right.kind === "Null") {
+        numericNullRight6 = langruntime.checkedBool(true);
+    }
+    if (numericNullLeft5 || numericNullRight6) {
         return { kind: "Null" };
     }
     if (left.kind === "Value") {
-        const a: string = langruntime.checkedString(left.value);
+        const leftVar: checkruntime.NumericVar = checkruntime.copyNumericVar(left.value);
         if (right.kind === "Value") {
-            const b: string = langruntime.checkedString(right.value);
-            const first: NumericWork = numericWorkFromValue(a);
-            const second: NumericWork = numericWorkFromValue(b);
-            if (first.valid === false || second.valid === false) {
-                return checkruntime.numericUnresolved(unresolvedFlavor);
-            }
-            if (first.special === 3 || second.special === 3) {
+            const rightVar: checkruntime.NumericVar = checkruntime.copyNumericVar(right.value);
+            const firstKind: number = numericVarKind(leftVar);
+            const secondKind: number = numericVarKind(rightVar);
+            if (firstKind === 3 || secondKind === 3) {
                 return checkruntime.makeNumericValue("NaN");
             }
-            if (!(first.special === 1) || !(second.special === 1)) {
-                let leftSign: number = first.sign;
-                let rightSign: number = second.sign;
-                if (first.special === 0) {
+            if (!(firstKind === 1) || !(secondKind === 1)) {
+                let leftSign: number = numericVarSignum(leftVar);
+                let rightSign: number = numericVarSignum(rightVar);
+                if (firstKind === 0) {
                     leftSign = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
                 }
-                if (first.special === 2) {
+                if (firstKind === 2) {
                     leftSign = langruntime.checkedI32(1);
                 }
-                if (second.special === 0) {
+                if (secondKind === 0) {
                     rightSign = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
                 }
-                if (second.special === 2) {
+                if (secondKind === 2) {
                     rightSign = langruntime.checkedI32(1);
                 }
                 if (mode === 1) {
@@ -785,10 +777,10 @@ function numericArithmetic(left: checkruntime.NumericValue, right: checkruntime.
                 if (mode === 2) {
                     resultSign = langruntime.checkedI32(langruntime.checkedSignedMultiply(leftSign, rightSign));
                 }
-                else if (first.special === 1) {
+                else if (firstKind === 1) {
                     resultSign = langruntime.checkedI32(rightSign);
                 }
-                else if (!(second.special === 1) && !(leftSign === rightSign)) {
+                else if (!(secondKind === 1) && !(leftSign === rightSign)) {
                     resultSign = langruntime.checkedI32(0);
                 }
                 if (resultSign === 0) {
@@ -799,36 +791,40 @@ function numericArithmetic(left: checkruntime.NumericValue, right: checkruntime.
                 }
                 return checkruntime.makeNumericValue("Infinity");
             }
-            const leftVar: NumericVar = numericVarFromWork(first);
-            const rightVar: NumericVar = numericVarFromWork(second);
             if (mode === 2) {
                 const rscale: number = langruntime.checkedSignedAdd(leftVar.dscale, rightVar.dscale);
-                const product: NumericVar = numericVarMul(leftVar, rightVar, rscale);
+                const product: checkruntime.NumericVar = numericVarMul(leftVar, rightVar, rscale);
                 if (product.dscale > 16383) {
                     return numericVarResult(numericVarRound(product, 16383));
                 }
                 return numericVarResult(product);
             }
             if (mode === 1) {
-                const result: NumericVar = numericVarSub(leftVar, rightVar);
+                const result: checkruntime.NumericVar = numericVarSub(leftVar, rightVar);
                 return numericVarResult(result);
             }
-            const result: NumericVar = numericVarAdd(leftVar, rightVar);
+            const result: checkruntime.NumericVar = numericVarAdd(leftVar, rightVar);
             return numericVarResult(result);
         }
     }
     return checkruntime.numericUnresolved(unresolvedFlavor);
 }
 export function numericAddO3d7(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.NumericValue {
+    left = checkruntime.copyNumericValue(left);
+    right = checkruntime.copyNumericValue(right);
     return numericArithmetic(left, right, 0);
 }
 export function numericSubYs09(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.NumericValue {
+    left = checkruntime.copyNumericValue(left);
+    right = checkruntime.copyNumericValue(right);
     return numericArithmetic(left, right, 1);
 }
 export function numericMulBj4l(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.NumericValue {
+    left = checkruntime.copyNumericValue(left);
+    right = checkruntime.copyNumericValue(right);
     return numericArithmetic(left, right, 2);
 }
-function numericDivisionScale(left: NumericVar, right: NumericVar): number {
+function numericDivisionScale(left: checkruntime.NumericVar, right: checkruntime.NumericVar): number {
     let weight1: number = 0;
     let firstdigit1: number = 0;
     let i: number = 0;
@@ -871,6 +867,8 @@ function numericDivisionScale(left: NumericVar, right: NumericVar): number {
     return rscale;
 }
 function numericDivision(left: checkruntime.NumericValue, right: checkruntime.NumericValue, mode: number): checkruntime.NumericValue {
+    left = checkruntime.copyNumericValue(left);
+    right = checkruntime.copyNumericValue(right);
     mode = langruntime.checkedI32(mode);
     let unresolvedFlavor: number = 0;
     if (left.kind === "Unknown") {
@@ -893,6 +891,22 @@ function numericDivision(left: checkruntime.NumericValue, right: checkruntime.Nu
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
+    let numericUnknownLeft1: boolean = false;
+    if (left.kind === "Unknown") {
+        numericUnknownLeft1 = langruntime.checkedBool(true);
+    }
+    let numericUnimplementedLeft2: boolean = false;
+    if (left.kind === "Unimplemented") {
+        numericUnimplementedLeft2 = langruntime.checkedBool(true);
+    }
+    let numericUnknownRight3: boolean = false;
+    if (right.kind === "Unknown") {
+        numericUnknownRight3 = langruntime.checkedBool(true);
+    }
+    let numericUnimplementedRight4: boolean = false;
+    if (right.kind === "Unimplemented") {
+        numericUnimplementedRight4 = langruntime.checkedBool(true);
+    }
     let conditionFlavor1864: number = unresolvedFlavor;
     if (left.kind === "Unknown") {
         if (conditionFlavor1864 < 1) {
@@ -910,70 +924,78 @@ function numericDivision(left: checkruntime.NumericValue, right: checkruntime.Nu
     if (right.kind === "Unimplemented") {
         conditionFlavor1864 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNumericValue(left, { kind: "Unknown" }) || checkruntime.equalNumericValue(left, { kind: "Unimplemented" })) || (checkruntime.equalNumericValue(right, { kind: "Unknown" }) || checkruntime.equalNumericValue(right, { kind: "Unimplemented" }))) {
+    if ((numericUnknownLeft1 || numericUnimplementedLeft2) || (numericUnknownRight3 || numericUnimplementedRight4)) {
         return checkruntime.numericUnresolved(conditionFlavor1864);
     }
-    if (checkruntime.equalNumericValue(left, { kind: "Null" }) || checkruntime.equalNumericValue(right, { kind: "Null" })) {
+    let numericNullLeft5: boolean = false;
+    if (left.kind === "Null") {
+        numericNullLeft5 = langruntime.checkedBool(true);
+    }
+    let numericNullRight6: boolean = false;
+    if (right.kind === "Null") {
+        numericNullRight6 = langruntime.checkedBool(true);
+    }
+    if (numericNullLeft5 || numericNullRight6) {
         return { kind: "Null" };
     }
     if (left.kind === "Value") {
-        const first: string = langruntime.checkedString(left.value);
+        const dividend: checkruntime.NumericVar = checkruntime.copyNumericVar(left.value);
         if (right.kind === "Value") {
-            const second: string = langruntime.checkedString(right.value);
-            const a: NumericWork = numericWorkFromValue(first);
-            const b: NumericWork = numericWorkFromValue(second);
-            if (a.valid === false || b.valid === false) {
-                return checkruntime.numericUnresolved(unresolvedFlavor);
+            const divisor: checkruntime.NumericVar = checkruntime.copyNumericVar(right.value);
+            const aKind: number = numericVarKind(dividend);
+            const bKind: number = numericVarKind(divisor);
+            if (aKind === 3 || bKind === 3) {
+                return checkruntime.makeNumericValue("NaN");
             }
-            if (a.special === 3 || b.special === 3) {
-                return { kind: "Value", value: "NaN" };
-            }
-            if (b.special === 1 && b.sign === 0) {
+            if (bKind === 1 && numericVarSignum(divisor) === 0) {
                 return { kind: "Error", value: checkruntime.makeSqlError(sqlstateDivisionByZero) };
             }
-            if (!(a.special === 1)) {
-                if (mode === 2 || !(b.special === 1)) {
-                    return { kind: "Value", value: "NaN" };
+            if (!(aKind === 1)) {
+                if (mode === 2 || !(bKind === 1)) {
+                    return checkruntime.makeNumericValue("NaN");
                 }
-                let sign: number = b.sign;
-                if (a.special === 0) {
+                let sign: number = numericVarSignum(divisor);
+                if (aKind === 0) {
                     sign = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, sign));
                 }
                 if (sign < 0) {
-                    return { kind: "Value", value: "-Infinity" };
+                    return checkruntime.makeNumericValue("-Infinity");
                 }
-                return { kind: "Value", value: "Infinity" };
+                return checkruntime.makeNumericValue("Infinity");
             }
-            if (!(b.special === 1)) {
+            if (!(bKind === 1)) {
                 if (mode === 2) {
-                    return { kind: "Value", value: first };
+                    return { kind: "Value", value: dividend };
                 }
-                return { kind: "Value", value: "0" };
+                return checkruntime.makeNumericValue("0");
             }
-            const dividend: NumericVar = numericVarFromWork(a);
-            const divisor: NumericVar = numericVarFromWork(b);
             if (mode === 2) {
-                const result: NumericVar = numericVarMod(dividend, divisor);
+                const result: checkruntime.NumericVar = numericVarMod(dividend, divisor);
                 return numericVarResult(result);
             }
             if (mode === 1) {
-                const result: NumericVar = numericVarDiv(dividend, divisor, 0, false, true);
+                const result: checkruntime.NumericVar = numericVarDiv(dividend, divisor, 0, false, true);
                 return numericVarResult(result);
             }
             const rscale: number = numericDivisionScale(dividend, divisor);
-            const result: NumericVar = numericVarDiv(dividend, divisor, rscale, true, true);
+            const result: checkruntime.NumericVar = numericVarDiv(dividend, divisor, rscale, true, true);
             return numericVarResult(result);
         }
     }
     return checkruntime.numericUnresolved(unresolvedFlavor);
 }
 export function numericDivPnzm(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.NumericValue {
+    left = checkruntime.copyNumericValue(left);
+    right = checkruntime.copyNumericValue(right);
     return numericDivision(left, right, 0);
 }
 export function numericMod8ywz(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.NumericValue {
+    left = checkruntime.copyNumericValue(left);
+    right = checkruntime.copyNumericValue(right);
     return numericDivision(left, right, 2);
 }
 export function numericAbs6g5e(input: checkruntime.NumericValue): checkruntime.NumericValue {
+    input = checkruntime.copyNumericValue(input);
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -984,6 +1006,14 @@ export function numericAbs6g5e(input: checkruntime.NumericValue): checkruntime.N
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
+    }
+    let numericUnknownInput7: boolean = false;
+    if (input.kind === "Unknown") {
+        numericUnknownInput7 = langruntime.checkedBool(true);
+    }
+    let numericUnimplementedInput8: boolean = false;
+    if (input.kind === "Unimplemented") {
+        numericUnimplementedInput8 = langruntime.checkedBool(true);
     }
     let conditionFlavor420: number = unresolvedFlavor;
     if (input.kind === "Unknown") {
@@ -994,36 +1024,30 @@ export function numericAbs6g5e(input: checkruntime.NumericValue): checkruntime.N
     if (input.kind === "Unimplemented") {
         conditionFlavor420 = langruntime.checkedI32(2);
     }
-    if (checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" })) {
+    if (numericUnknownInput7 || numericUnimplementedInput8) {
         return checkruntime.numericUnresolved(conditionFlavor420);
     }
-    if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
+    let numericNullInput9: boolean = false;
+    if (input.kind === "Null") {
+        numericNullInput9 = langruntime.checkedBool(true);
+    }
+    if (numericNullInput9) {
         return { kind: "Null" };
     }
     if (input.kind === "Value") {
-        const value: string = langruntime.checkedString(input.value);
-        const work: NumericWork = numericWorkFromValue(value);
-        if (work.valid === false) {
-            return checkruntime.numericUnresolved(unresolvedFlavor);
-        }
-        let special: number = work.special;
-        let sign: number = work.sign;
-        const outputScale: number = work.scale;
-        if (sign < 0) {
-            sign = langruntime.checkedI32(1);
-        }
-        if (special === 0) {
-            special = langruntime.checkedI32(2);
-        }
-        return { kind: "Value", value: numericWorkText({ valid: true, special: special, sign: sign, weight: work.weight, scale: outputScale, digits: work.digits }) };
+        const value: checkruntime.NumericVar = checkruntime.copyNumericVar(input.value);
+        return { kind: "Value", value: numericVarAbsolute(value) };
     }
     return checkruntime.numericUnresolved(unresolvedFlavor);
 }
 export function numericCmp6h4s(input: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.Int4Value {
-    const result: checkruntime.Int4Value = numericCompare(input, right);
+    input = checkruntime.copyNumericValue(input);
+    right = checkruntime.copyNumericValue(right);
+    const result: checkruntime.Int4Value = numericCompare(checkruntime.copyNumericValue(input), checkruntime.copyNumericValue(right));
     return result;
 }
 export function numericUminusWcmy(input: checkruntime.NumericValue): checkruntime.NumericValue {
+    input = checkruntime.copyNumericValue(input);
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -1034,6 +1058,14 @@ export function numericUminusWcmy(input: checkruntime.NumericValue): checkruntim
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
+    }
+    let numericUnknownInput10: boolean = false;
+    if (input.kind === "Unknown") {
+        numericUnknownInput10 = langruntime.checkedBool(true);
+    }
+    let numericUnimplementedInput11: boolean = false;
+    if (input.kind === "Unimplemented") {
+        numericUnimplementedInput11 = langruntime.checkedBool(true);
     }
     let conditionFlavor950: number = unresolvedFlavor;
     if (input.kind === "Unknown") {
@@ -1044,33 +1076,24 @@ export function numericUminusWcmy(input: checkruntime.NumericValue): checkruntim
     if (input.kind === "Unimplemented") {
         conditionFlavor950 = langruntime.checkedI32(2);
     }
-    if (checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" })) {
+    if (numericUnknownInput10 || numericUnimplementedInput11) {
         return checkruntime.numericUnresolved(conditionFlavor950);
     }
-    if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
+    let numericNullInput12: boolean = false;
+    if (input.kind === "Null") {
+        numericNullInput12 = langruntime.checkedBool(true);
+    }
+    if (numericNullInput12) {
         return { kind: "Null" };
     }
     if (input.kind === "Value") {
-        const value: string = langruntime.checkedString(input.value);
-        const work: NumericWork = numericWorkFromValue(value);
-        if (work.valid === false) {
-            return checkruntime.numericUnresolved(unresolvedFlavor);
-        }
-        let special: number = work.special;
-        let sign: number = work.sign;
-        const outputScale: number = work.scale;
-        sign = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, sign));
-        if (special === 0) {
-            special = langruntime.checkedI32(2);
-        }
-        else if (special === 2) {
-            special = langruntime.checkedI32(0);
-        }
-        return { kind: "Value", value: numericWorkText({ valid: true, special: special, sign: sign, weight: work.weight, scale: outputScale, digits: work.digits }) };
+        const value: checkruntime.NumericVar = checkruntime.copyNumericVar(input.value);
+        return { kind: "Value", value: numericVarNegated(value) };
     }
     return checkruntime.numericUnresolved(unresolvedFlavor);
 }
 export function sign2rsu(input: checkruntime.NumericValue): checkruntime.NumericValue {
+    input = checkruntime.copyNumericValue(input);
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -1082,6 +1105,14 @@ export function sign2rsu(input: checkruntime.NumericValue): checkruntime.Numeric
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
     }
+    let numericUnknownInput19: boolean = false;
+    if (input.kind === "Unknown") {
+        numericUnknownInput19 = langruntime.checkedBool(true);
+    }
+    let numericUnimplementedInput20: boolean = false;
+    if (input.kind === "Unimplemented") {
+        numericUnimplementedInput20 = langruntime.checkedBool(true);
+    }
     let conditionFlavor1490: number = unresolvedFlavor;
     if (input.kind === "Unknown") {
         if (conditionFlavor1490 < 1) {
@@ -1091,42 +1122,39 @@ export function sign2rsu(input: checkruntime.NumericValue): checkruntime.Numeric
     if (input.kind === "Unimplemented") {
         conditionFlavor1490 = langruntime.checkedI32(2);
     }
-    if (checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" })) {
+    if (numericUnknownInput19 || numericUnimplementedInput20) {
         return checkruntime.numericUnresolved(conditionFlavor1490);
     }
-    if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
+    let numericNullInput21: boolean = false;
+    if (input.kind === "Null") {
+        numericNullInput21 = langruntime.checkedBool(true);
+    }
+    if (numericNullInput21) {
         return { kind: "Null" };
     }
     if (input.kind === "Value") {
-        const value: string = langruntime.checkedString(input.value);
-        const work: NumericWork = numericWorkFromValue(value);
-        if (work.valid === false) {
-            return checkruntime.numericUnresolved(unresolvedFlavor);
+        const value: checkruntime.NumericVar = checkruntime.copyNumericVar(input.value);
+        const kind: number = numericVarKind(value);
+        if (kind === 3) {
+            return checkruntime.makeNumericValue("NaN");
         }
-        if (work.special === 3) {
-            return { kind: "Value", value: "NaN" };
+        if (kind === 0 || numericVarSignum(value) < 0) {
+            return checkruntime.makeNumericValue("-1");
         }
-        if (work.special === 0 || work.sign < 0) {
-            return { kind: "Value", value: "-1" };
+        if (kind === 2 || numericVarSignum(value) > 0) {
+            return checkruntime.makeNumericValue("1");
         }
-        if (work.special === 2 || work.sign > 0) {
-            return { kind: "Value", value: "1" };
-        }
-        return { kind: "Value", value: "0" };
+        return checkruntime.makeNumericValue("0");
     }
     return checkruntime.numericUnresolved(unresolvedFlavor);
 }
-function numericRoundValue(work: NumericWork, requested: number, mode: number): checkruntime.NumericValue {
-    work = copyNumericWork(work);
+function numericRoundValue(arg: checkruntime.NumericVar, requested: number, mode: number): checkruntime.NumericValue {
+    arg = checkruntime.copyNumericVar(arg);
     requested = langruntime.checkedI32(requested);
     mode = langruntime.checkedI32(mode);
-    if (work.valid === false) {
-        return checkruntime.numericUnresolved(0);
+    if (!(numericVarKind(arg) === 1)) {
+        return { kind: "Value", value: arg };
     }
-    if (!(work.special === 1)) {
-        return { kind: "Value", value: numericWorkText(work) };
-    }
-    const arg: NumericVar = numericVarFromWork(work);
     if (mode === 2) {
         return numericVarResult(numericVarCeil(arg));
     }
@@ -1144,19 +1172,20 @@ function numericRoundValue(work: NumericWork, requested: number, mode: number): 
     if (scale > 16383) {
         scale = langruntime.checkedI32(16383);
     }
-    let result: NumericVar = numericVarZero(0);
+    let result: checkruntime.NumericVar = numericVarZero(0);
     if (mode === 1) {
-        result = copyNumericVar(numericVarRound(arg, scale));
+        result = checkruntime.copyNumericVar(numericVarRound(arg, scale));
     }
     else {
-        result = copyNumericVar(numericVarTrunc(arg, scale));
+        result = checkruntime.copyNumericVar(numericVarTrunc(arg, scale));
     }
     if (scale < 0) {
-        result = copyNumericVar(numericVarRescaled(result, 0));
+        result = checkruntime.copyNumericVar(numericVarRescaled(result, 0));
     }
     return numericVarResult(result);
 }
 export function roundMmpo(input: checkruntime.NumericValue): checkruntime.NumericValue {
+    input = checkruntime.copyNumericValue(input);
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -1168,6 +1197,14 @@ export function roundMmpo(input: checkruntime.NumericValue): checkruntime.Numeri
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
     }
+    let numericUnknownInput10: boolean = false;
+    if (input.kind === "Unknown") {
+        numericUnknownInput10 = langruntime.checkedBool(true);
+    }
+    let numericUnimplementedInput11: boolean = false;
+    if (input.kind === "Unimplemented") {
+        numericUnimplementedInput11 = langruntime.checkedBool(true);
+    }
     let conditionFlavor510: number = unresolvedFlavor;
     if (input.kind === "Unknown") {
         if (conditionFlavor510 < 1) {
@@ -1177,23 +1214,24 @@ export function roundMmpo(input: checkruntime.NumericValue): checkruntime.Numeri
     if (input.kind === "Unimplemented") {
         conditionFlavor510 = langruntime.checkedI32(2);
     }
-    if (checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" })) {
+    if (numericUnknownInput10 || numericUnimplementedInput11) {
         return checkruntime.numericUnresolved(conditionFlavor510);
     }
-    if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
+    let numericNullInput12: boolean = false;
+    if (input.kind === "Null") {
+        numericNullInput12 = langruntime.checkedBool(true);
+    }
+    if (numericNullInput12) {
         return { kind: "Null" };
     }
     if (input.kind === "Value") {
-        const value: string = langruntime.checkedString(input.value);
-        const work: NumericWork = numericWorkFromValue(value);
-        if (work.valid === false) {
-            return checkruntime.numericUnresolved(unresolvedFlavor);
-        }
+        const work: checkruntime.NumericVar = checkruntime.copyNumericVar(input.value);
         return numericRoundValue(work, 0, 1);
     }
     return checkruntime.numericUnresolved(unresolvedFlavor);
 }
 export function roundOtcq(input: checkruntime.NumericValue, scale: checkruntime.Int4Value): checkruntime.NumericValue {
+    input = checkruntime.copyNumericValue(input);
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -1214,6 +1252,14 @@ export function roundOtcq(input: checkruntime.NumericValue, scale: checkruntime.
     if (scale.kind === "Error") {
         const error: checkruntime.SqlError = scale.value;
         return { kind: "Error", value: error };
+    }
+    let numericUnknownInput13: boolean = false;
+    if (input.kind === "Unknown") {
+        numericUnknownInput13 = langruntime.checkedBool(true);
+    }
+    let numericUnimplementedInput14: boolean = false;
+    if (input.kind === "Unimplemented") {
+        numericUnimplementedInput14 = langruntime.checkedBool(true);
     }
     let conditionFlavor690: number = unresolvedFlavor;
     if (input.kind === "Unknown") {
@@ -1232,18 +1278,18 @@ export function roundOtcq(input: checkruntime.NumericValue, scale: checkruntime.
     if (scale.kind === "Unimplemented") {
         conditionFlavor690 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" })) || (checkruntime.equalInt4Value(scale, { kind: "Unknown" }) || checkruntime.equalInt4Value(scale, { kind: "Unimplemented" }))) {
+    if ((numericUnknownInput13 || numericUnimplementedInput14) || (checkruntime.equalInt4Value(scale, { kind: "Unknown" }) || checkruntime.equalInt4Value(scale, { kind: "Unimplemented" }))) {
         return checkruntime.numericUnresolved(conditionFlavor690);
     }
-    if (checkruntime.equalNumericValue(input, { kind: "Null" }) || checkruntime.equalInt4Value(scale, { kind: "Null" })) {
+    let numericNullInput15: boolean = false;
+    if (input.kind === "Null") {
+        numericNullInput15 = langruntime.checkedBool(true);
+    }
+    if (numericNullInput15 || checkruntime.equalInt4Value(scale, { kind: "Null" })) {
         return { kind: "Null" };
     }
     if (input.kind === "Value") {
-        const value: string = langruntime.checkedString(input.value);
-        const work: NumericWork = numericWorkFromValue(value);
-        if (work.valid === false) {
-            return checkruntime.numericUnresolved(unresolvedFlavor);
-        }
+        const work: checkruntime.NumericVar = checkruntime.copyNumericVar(input.value);
         if (scale.kind === "Value") {
             const precision: number = langruntime.checkedI32(scale.value);
             return numericRoundValue(work, precision, 1);
@@ -1252,6 +1298,7 @@ export function roundOtcq(input: checkruntime.NumericValue, scale: checkruntime.
     return checkruntime.numericUnresolved(unresolvedFlavor);
 }
 export function truncDghz(input: checkruntime.NumericValue): checkruntime.NumericValue {
+    input = checkruntime.copyNumericValue(input);
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -1263,6 +1310,14 @@ export function truncDghz(input: checkruntime.NumericValue): checkruntime.Numeri
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
     }
+    let numericUnknownInput16: boolean = false;
+    if (input.kind === "Unknown") {
+        numericUnknownInput16 = langruntime.checkedBool(true);
+    }
+    let numericUnimplementedInput17: boolean = false;
+    if (input.kind === "Unimplemented") {
+        numericUnimplementedInput17 = langruntime.checkedBool(true);
+    }
     let conditionFlavor840: number = unresolvedFlavor;
     if (input.kind === "Unknown") {
         if (conditionFlavor840 < 1) {
@@ -1272,23 +1327,24 @@ export function truncDghz(input: checkruntime.NumericValue): checkruntime.Numeri
     if (input.kind === "Unimplemented") {
         conditionFlavor840 = langruntime.checkedI32(2);
     }
-    if (checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" })) {
+    if (numericUnknownInput16 || numericUnimplementedInput17) {
         return checkruntime.numericUnresolved(conditionFlavor840);
     }
-    if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
+    let numericNullInput18: boolean = false;
+    if (input.kind === "Null") {
+        numericNullInput18 = langruntime.checkedBool(true);
+    }
+    if (numericNullInput18) {
         return { kind: "Null" };
     }
     if (input.kind === "Value") {
-        const value: string = langruntime.checkedString(input.value);
-        const work: NumericWork = numericWorkFromValue(value);
-        if (work.valid === false) {
-            return checkruntime.numericUnresolved(unresolvedFlavor);
-        }
+        const work: checkruntime.NumericVar = checkruntime.copyNumericVar(input.value);
         return numericRoundValue(work, 0, 0);
     }
     return checkruntime.numericUnresolved(unresolvedFlavor);
 }
 export function truncHay3(input: checkruntime.NumericValue, scale: checkruntime.Int4Value): checkruntime.NumericValue {
+    input = checkruntime.copyNumericValue(input);
     let unresolvedFlavor: number = 0;
     if (input.kind === "Unknown") {
         unresolvedFlavor = langruntime.checkedI32(1);
@@ -1310,6 +1366,14 @@ export function truncHay3(input: checkruntime.NumericValue, scale: checkruntime.
         const error: checkruntime.SqlError = scale.value;
         return { kind: "Error", value: error };
     }
+    let numericUnknownInput19: boolean = false;
+    if (input.kind === "Unknown") {
+        numericUnknownInput19 = langruntime.checkedBool(true);
+    }
+    let numericUnimplementedInput20: boolean = false;
+    if (input.kind === "Unimplemented") {
+        numericUnimplementedInput20 = langruntime.checkedBool(true);
+    }
     let conditionFlavor1020: number = unresolvedFlavor;
     if (input.kind === "Unknown") {
         if (conditionFlavor1020 < 1) {
@@ -1327,18 +1391,18 @@ export function truncHay3(input: checkruntime.NumericValue, scale: checkruntime.
     if (scale.kind === "Unimplemented") {
         conditionFlavor1020 = langruntime.checkedI32(2);
     }
-    if ((checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalNumericValue(input, { kind: "Unimplemented" })) || (checkruntime.equalInt4Value(scale, { kind: "Unknown" }) || checkruntime.equalInt4Value(scale, { kind: "Unimplemented" }))) {
+    if ((numericUnknownInput19 || numericUnimplementedInput20) || (checkruntime.equalInt4Value(scale, { kind: "Unknown" }) || checkruntime.equalInt4Value(scale, { kind: "Unimplemented" }))) {
         return checkruntime.numericUnresolved(conditionFlavor1020);
     }
-    if (checkruntime.equalNumericValue(input, { kind: "Null" }) || checkruntime.equalInt4Value(scale, { kind: "Null" })) {
+    let numericNullInput21: boolean = false;
+    if (input.kind === "Null") {
+        numericNullInput21 = langruntime.checkedBool(true);
+    }
+    if (numericNullInput21 || checkruntime.equalInt4Value(scale, { kind: "Null" })) {
         return { kind: "Null" };
     }
     if (input.kind === "Value") {
-        const value: string = langruntime.checkedString(input.value);
-        const work: NumericWork = numericWorkFromValue(value);
-        if (work.valid === false) {
-            return checkruntime.numericUnresolved(unresolvedFlavor);
-        }
+        const work: checkruntime.NumericVar = checkruntime.copyNumericVar(input.value);
         if (scale.kind === "Value") {
             const precision: number = langruntime.checkedI32(scale.value);
             return numericRoundValue(work, precision, 0);
@@ -1354,51 +1418,6 @@ function numericWireDecimalDigit(character: string): number {
     }
     return langruntime.checkedSignedNegate(1);
 }
-function numericWireScale(input: string): number {
-    input = langruntime.checkedString(input);
-    const chars: string[] = Array.from(input);
-    let index: number = 0;
-    let point: boolean = false;
-    let power: boolean = false;
-    let fractional: number = 0;
-    let exponent: number = 0;
-    let sign: number = 1;
-    while (index < chars.length) {
-        const digit: number = numericWireDecimalDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
-        if (digit >= 0) {
-            if (power) {
-                exponent = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(exponent, 10), digit));
-            }
-            else if (point) {
-                fractional = langruntime.checkedI32(langruntime.checkedSignedAdd(fractional, 1));
-            }
-        }
-        else if (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === ".") {
-            point = langruntime.checkedBool(true);
-        }
-        else if (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "e" || langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "E") {
-            power = langruntime.checkedBool(true);
-        }
-        else if (power && langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "-") {
-            sign = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
-        }
-        index = langruntime.checkedAdd(index, 1);
-    }
-    const scale: number = langruntime.checkedSignedSubtract(fractional, langruntime.checkedSignedMultiply(exponent, sign));
-    if (scale < 0) {
-        return 0;
-    }
-    return scale;
-}
-interface NumericVar {
-    sign: number;
-    weight: number;
-    dscale: number;
-    digits: number[];
-}
-function copyNumericVar(value: NumericVar): NumericVar {
-    return { sign: langruntime.checkedI32(value.sign), weight: langruntime.checkedI32(value.weight), dscale: langruntime.checkedI32(value.dscale), digits: langruntime.checkedIndices(value.digits) };
-}
 const numericVarNbase = 10000;
 const numericVarHalfNbase = 5000;
 const numericVarDecDigits = 4;
@@ -1412,15 +1431,15 @@ interface NumericVarWide {
 function copyNumericVarWide(value: NumericVarWide): NumericVarWide {
     return { value: langruntime.checkedI64(value.value) };
 }
-function numericVarZero(dscale: number): NumericVar {
+function numericVarZero(dscale: number): checkruntime.NumericVar {
     dscale = langruntime.checkedI32(dscale);
     const digits: number[] = [];
     return { sign: 1, weight: 0, dscale: dscale, digits: digits };
 }
-function numericVarCount(value: NumericVar): number {
+function numericVarCount(value: checkruntime.NumericVar): number {
     return langruntime.checkedI32(langruntime.checkedIndex(value.digits.length));
 }
-function numericVarDigit(value: NumericVar, index: number): number {
+function numericVarDigit(value: checkruntime.NumericVar, index: number): number {
     index = langruntime.checkedI32(index);
     if (index < 0 || index >= numericVarCount(value)) {
         return 0;
@@ -1447,81 +1466,7 @@ function numericVarRoundPower(decimals: number): number {
     }
     return 10;
 }
-function numericVarFromWork(work: NumericWork): NumericVar {
-    if (work.sign === 0) {
-        return numericVarZero(work.scale);
-    }
-    const characters: string[] = Array.from(work.digits);
-    let weight: number = langruntime.checkedSignedDivide(work.weight, numericVarDecDigits);
-    if (langruntime.checkedSignedRemainder(work.weight, numericVarDecDigits) < 0) {
-        weight = langruntime.checkedI32(langruntime.checkedSignedSubtract(weight, 1));
-    }
-    let leading: number = langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(weight, numericVarDecDigits), numericVarDecDigits), 1), work.weight);
-    let emitted: number = 0;
-    let digits: number[] = [];
-    let value: number = 0;
-    let index: number = 0;
-    while (index < characters.length || !(langruntime.checkedSignedRemainder(emitted, numericVarDecDigits) === 0)) {
-        let decimal: number = 0;
-        if (leading > 0) {
-            leading = langruntime.checkedI32(langruntime.checkedSignedSubtract(leading, 1));
-        }
-        else if (index < characters.length) {
-            decimal = langruntime.checkedI32(numericWireDecimalDigit(langruntime.indexChar(characters, langruntime.checkedIndex(index))));
-            index = langruntime.checkedAdd(index, 1);
-        }
-        value = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(value, 10), decimal));
-        emitted = langruntime.checkedI32(langruntime.checkedSignedAdd(emitted, 1));
-        if (langruntime.checkedSignedRemainder(emitted, numericVarDecDigits) === 0) {
-            langruntime.pushIndex(digits, langruntime.indexFromI32(value, 0));
-            value = langruntime.checkedI32(0);
-        }
-    }
-    return numericVarStrip({ sign: work.sign, weight: weight, dscale: work.scale, digits: digits });
-}
-function numericWorkFromVar(value: NumericVar): NumericWork {
-    let scale: number = value.dscale;
-    if (scale < 0) {
-        scale = langruntime.checkedI32(0);
-    }
-    let decimals: string = "";
-    let weight: number = langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(value.weight, numericVarDecDigits), numericVarDecDigits), 1);
-    let index: number = 0;
-    while (index < value.digits.length) {
-        let word: number = (langruntime.checkedI32(langruntime.checkedIndex(langruntime.indexNumber(value.digits, langruntime.checkedIndex(index)))));
-        let place: number = 1000;
-        while (place > 0) {
-            const digit: number = langruntime.checkedSignedDivide(word, place);
-            word = langruntime.checkedI32(langruntime.checkedSignedRemainder(word, place));
-            if (decimals === "" && digit === 0) {
-                weight = langruntime.checkedI32(langruntime.checkedSignedSubtract(weight, 1));
-            }
-            else {
-                decimals = decimals + langruntime.checkedChar(langruntime.characterFromI32((langruntime.checkedSignedAdd(digit, 48)), "0"));
-            }
-            place = langruntime.checkedI32(langruntime.checkedSignedDivide(place, 10));
-        }
-        index = langruntime.checkedAdd(index, 1);
-    }
-    const characters: string[] = Array.from(decimals);
-    let end: number = characters.length;
-    while (end > 0 && langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1))) === "0") {
-        end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
-    }
-    let digits: string = "";
-    index = langruntime.checkedIndex(0);
-    while (index < end) {
-        digits = digits + langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(index)));
-        index = langruntime.checkedAdd(index, 1);
-    }
-    let sign: number = value.sign;
-    if (end === 0) {
-        sign = langruntime.checkedI32(0);
-        weight = langruntime.checkedI32(0);
-    }
-    return { valid: true, special: 1, sign: sign, weight: weight, scale: scale, digits: digits };
-}
-function numericVarFromI64(value: bigint): NumericVar {
+function numericVarFromI64(value: bigint): checkruntime.NumericVar {
     value = langruntime.checkedI64(value);
     let sign: number = 1;
     let magnitude: bigint = value;
@@ -1547,8 +1492,8 @@ function numericVarFromI64(value: bigint): NumericVar {
     }
     return { sign: sign, weight: langruntime.checkedSignedSubtract(count, 1), dscale: 0, digits: digits };
 }
-function numericVarStrip(value: NumericVar): NumericVar {
-    value = copyNumericVar(value);
+function numericVarStrip(value: checkruntime.NumericVar): checkruntime.NumericVar {
+    value = checkruntime.copyNumericVar(value);
     let weight: number = value.weight;
     let start: number = 0;
     while (start < value.digits.length && (langruntime.checkedI32(langruntime.checkedIndex(langruntime.indexNumber(value.digits, langruntime.checkedIndex(start))))) === 0) {
@@ -1572,7 +1517,7 @@ function numericVarStrip(value: NumericVar): NumericVar {
     }
     return { sign: sign, weight: weight, dscale: value.dscale, digits: digits };
 }
-function numericVarShifted(value: NumericVar, places: number): NumericVar {
+function numericVarShifted(value: checkruntime.NumericVar, places: number): checkruntime.NumericVar {
     places = langruntime.checkedI32(places);
     let digits: number[] = [];
     let index: number = 0;
@@ -1582,7 +1527,7 @@ function numericVarShifted(value: NumericVar, places: number): NumericVar {
     }
     return { sign: value.sign, weight: langruntime.checkedSignedAdd(value.weight, places), dscale: value.dscale, digits: digits };
 }
-function numericVarCmpAbs(left: NumericVar, right: NumericVar): number {
+function numericVarCmpAbs(left: checkruntime.NumericVar, right: checkruntime.NumericVar): number {
     const leftCount: number = numericVarCount(left);
     const rightCount: number = numericVarCount(right);
     let leftWeight: number = left.weight;
@@ -1630,7 +1575,7 @@ function numericVarCmpAbs(left: NumericVar, right: NumericVar): number {
     }
     return 0;
 }
-function numericVarCmp(left: NumericVar, right: NumericVar): number {
+function numericVarCmp(left: checkruntime.NumericVar, right: checkruntime.NumericVar): number {
     if (numericVarCount(left) === 0) {
         if (numericVarCount(right) === 0) {
             return 0;
@@ -1657,7 +1602,7 @@ function numericVarCmp(left: NumericVar, right: NumericVar): number {
     }
     return numericVarCmpAbs(right, left);
 }
-function numericVarAddAbs(left: NumericVar, right: NumericVar): NumericVar {
+function numericVarAddAbs(left: checkruntime.NumericVar, right: checkruntime.NumericVar): checkruntime.NumericVar {
     const leftCount: number = numericVarCount(left);
     const rightCount: number = numericVarCount(right);
     let resWeight: number = left.weight;
@@ -1699,7 +1644,7 @@ function numericVarAddAbs(left: NumericVar, right: NumericVar): NumericVar {
     }
     return numericVarStrip({ sign: 1, weight: resWeight, dscale: resDscale, digits: digits });
 }
-function numericVarSubAbs(left: NumericVar, right: NumericVar): NumericVar {
+function numericVarSubAbs(left: checkruntime.NumericVar, right: checkruntime.NumericVar): checkruntime.NumericVar {
     const leftCount: number = numericVarCount(left);
     const rightCount: number = numericVarCount(right);
     const resWeight: number = left.weight;
@@ -1737,12 +1682,12 @@ function numericVarSubAbs(left: NumericVar, right: NumericVar): NumericVar {
     }
     return numericVarStrip({ sign: 1, weight: resWeight, dscale: resDscale, digits: digits });
 }
-function numericVarSigned(value: NumericVar, sign: number): NumericVar {
-    value = copyNumericVar(value);
+function numericVarSigned(value: checkruntime.NumericVar, sign: number): checkruntime.NumericVar {
+    value = checkruntime.copyNumericVar(value);
     sign = langruntime.checkedI32(sign);
     return { sign: sign, weight: value.weight, dscale: value.dscale, digits: value.digits };
 }
-function numericVarSum(left: NumericVar, right: NumericVar, rightSign: number): NumericVar {
+function numericVarSum(left: checkruntime.NumericVar, right: checkruntime.NumericVar, rightSign: number): checkruntime.NumericVar {
     rightSign = langruntime.checkedI32(rightSign);
     let dscale: number = left.dscale;
     if (right.dscale > dscale) {
@@ -1760,14 +1705,14 @@ function numericVarSum(left: NumericVar, right: NumericVar, rightSign: number): 
     }
     return numericVarSigned(numericVarSubAbs(right, left), rightSign);
 }
-function numericVarAdd(left: NumericVar, right: NumericVar): NumericVar {
+function numericVarAdd(left: checkruntime.NumericVar, right: checkruntime.NumericVar): checkruntime.NumericVar {
     return numericVarSum(left, right, right.sign);
 }
-function numericVarSub(left: NumericVar, right: NumericVar): NumericVar {
+function numericVarSub(left: checkruntime.NumericVar, right: checkruntime.NumericVar): checkruntime.NumericVar {
     return numericVarSum(left, right, langruntime.checkedSignedSubtract(0, right.sign));
 }
-function numericVarRound(value: NumericVar, rscale: number): NumericVar {
-    value = copyNumericVar(value);
+function numericVarRound(value: checkruntime.NumericVar, rscale: number): checkruntime.NumericVar {
+    value = checkruntime.copyNumericVar(value);
     rscale = langruntime.checkedI32(rscale);
     const sign: number = value.sign;
     let weight: number = value.weight;
@@ -1837,8 +1782,8 @@ function numericVarRound(value: NumericVar, rscale: number): NumericVar {
     }
     return { sign: sign, weight: weight, dscale: rscale, digits: rounded };
 }
-function numericVarTrunc(value: NumericVar, rscale: number): NumericVar {
-    value = copyNumericVar(value);
+function numericVarTrunc(value: checkruntime.NumericVar, rscale: number): checkruntime.NumericVar {
+    value = checkruntime.copyNumericVar(value);
     rscale = langruntime.checkedI32(rscale);
     const sign: number = value.sign;
     const weight: number = value.weight;
@@ -1868,7 +1813,7 @@ function numericVarTrunc(value: NumericVar, rscale: number): NumericVar {
     }
     return { sign: sign, weight: weight, dscale: rscale, digits: truncated };
 }
-function numericVarMul(left: NumericVar, right: NumericVar, rscale: number): NumericVar {
+function numericVarMul(left: checkruntime.NumericVar, right: checkruntime.NumericVar, rscale: number): checkruntime.NumericVar {
     rscale = langruntime.checkedI32(rscale);
     if (numericVarCount(left) > numericVarCount(right)) {
         return numericVarMul(right, left, rscale);
@@ -1979,10 +1924,10 @@ function numericVarMul(left: NumericVar, right: NumericVar, rscale: number): Num
         langruntime.pushIndex(digits, langruntime.indexNumber(slots, langruntime.checkedIndex(index)));
         index = langruntime.checkedAdd(index, 1);
     }
-    const product: NumericVar = { sign: resSign, weight: weight, dscale: rscale, digits: digits };
+    const product: checkruntime.NumericVar = { sign: resSign, weight: weight, dscale: rscale, digits: digits };
     return numericVarStrip(numericVarRound(product, rscale));
 }
-function numericVarMulExact(left: NumericVar, right: NumericVar): NumericVar {
+function numericVarMulExact(left: checkruntime.NumericVar, right: checkruntime.NumericVar): checkruntime.NumericVar {
     const var1ndigits: number = numericVarCount(left);
     const var2ndigits: number = numericVarCount(right);
     let resSign: number = 1;
@@ -2029,7 +1974,7 @@ function numericVarMulExact(left: NumericVar, right: NumericVar): NumericVar {
     const dropped: number = langruntime.checkedI32(langruntime.checkedIndex((langruntime.checkedSubtract(reversed.length, high))));
     return { sign: resSign, weight: langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(left.weight, right.weight), 1), dropped), dscale: dscale, digits: digits };
 }
-function numericVarDivInt(value: NumericVar, ival: number, ivalWeight: number, rscale: number, round: boolean): NumericVar {
+function numericVarDivInt(value: checkruntime.NumericVar, ival: number, ivalWeight: number, rscale: number, round: boolean): checkruntime.NumericVar {
     ival = langruntime.checkedI32(ival);
     ivalWeight = langruntime.checkedI32(ivalWeight);
     rscale = langruntime.checkedI32(rscale);
@@ -2069,13 +2014,13 @@ function numericVarDivInt(value: NumericVar, ival: number, ivalWeight: number, r
         carry = langruntime.checkedI64(langruntime.checkedI64Remainder(carry, divisor));
         i = langruntime.checkedI32(langruntime.checkedSignedAdd(i, 1));
     }
-    const quotient: NumericVar = { sign: resSign, weight: resWeight, dscale: rscale, digits: digits };
+    const quotient: checkruntime.NumericVar = { sign: resSign, weight: resWeight, dscale: rscale, digits: digits };
     if (round) {
         return numericVarStrip(numericVarRound(quotient, rscale));
     }
     return numericVarStrip(numericVarTrunc(quotient, rscale));
 }
-function numericVarDiv(left: NumericVar, right: NumericVar, rscale: number, round: boolean, exact: boolean): NumericVar {
+function numericVarDiv(left: checkruntime.NumericVar, right: checkruntime.NumericVar, rscale: number, round: boolean, exact: boolean): checkruntime.NumericVar {
     rscale = langruntime.checkedI32(rscale);
     round = langruntime.checkedBool(round);
     exact = langruntime.checkedBool(exact);
@@ -2084,7 +2029,7 @@ function numericVarDiv(left: NumericVar, right: NumericVar, rscale: number, roun
     }
     return numericVarDivApproximate(left, right, rscale, round);
 }
-function numericVarDivExact(left: NumericVar, right: NumericVar, rscale: number, round: boolean): NumericVar {
+function numericVarDivExact(left: checkruntime.NumericVar, right: checkruntime.NumericVar, rscale: number, round: boolean): checkruntime.NumericVar {
     rscale = langruntime.checkedI32(rscale);
     round = langruntime.checkedBool(round);
     const var1ndigits: number = numericVarCount(left);
@@ -2201,7 +2146,7 @@ function numericVarDivExact(left: NumericVar, right: NumericVar, rscale: number,
         langruntime.pushIndex(resDigits, langruntime.indexFromI32(qhat, 0));
         j = langruntime.checkedAdd(j, 1);
     }
-    const quotient: NumericVar = { sign: resSign, weight: resWeight, dscale: rscale, digits: resDigits };
+    const quotient: checkruntime.NumericVar = { sign: resSign, weight: resWeight, dscale: rscale, digits: resDigits };
     if (round) {
         return numericVarStrip(numericVarRound(quotient, rscale));
     }
@@ -2234,7 +2179,7 @@ function numericVarWideCarry(digit: bigint): bigint {
     }
     return 0n;
 }
-function numericVarDivApproximate(left: NumericVar, right: NumericVar, rscale: number, round: boolean): NumericVar {
+function numericVarDivApproximate(left: checkruntime.NumericVar, right: checkruntime.NumericVar, rscale: number, round: boolean): checkruntime.NumericVar {
     rscale = langruntime.checkedI32(rscale);
     round = langruntime.checkedBool(round);
     const var1ndigits: number = numericVarCount(left);
@@ -2361,163 +2306,121 @@ function numericVarDivApproximate(left: NumericVar, right: NumericVar, rscale: n
         digits[langruntime.checkedIndexIn(digits, langruntime.checkedAdd(langruntime.checkedAdd(index, index), 1))] = langruntime.checkedIndex(langruntime.indexFromI32(langruntime.checkedSignedRemainder(pair, numericVarNbase), 0));
         j = langruntime.checkedI32(langruntime.checkedSignedSubtract(j, 1));
     }
-    const quotient: NumericVar = { sign: resSign, weight: resWeight, dscale: rscale, digits: digits };
+    const quotient: checkruntime.NumericVar = { sign: resSign, weight: resWeight, dscale: rscale, digits: digits };
     if (round) {
         return numericVarStrip(numericVarRound(quotient, rscale));
     }
     return numericVarStrip(numericVarTrunc(quotient, rscale));
 }
-function numericVarMod(left: NumericVar, right: NumericVar): NumericVar {
-    const quotient: NumericVar = numericVarDiv(left, right, 0, false, true);
-    const product: NumericVar = numericVarMul(right, quotient, right.dscale);
+function numericVarMod(left: checkruntime.NumericVar, right: checkruntime.NumericVar): checkruntime.NumericVar {
+    const quotient: checkruntime.NumericVar = numericVarDiv(left, right, 0, false, true);
+    const product: checkruntime.NumericVar = numericVarMul(right, quotient, right.dscale);
     return numericVarSub(left, product);
 }
-function numericVarResult(value: NumericVar): checkruntime.NumericValue {
-    value = copyNumericVar(value);
-    const stripped: NumericVar = numericVarStrip(value);
+function numericVarResult(value: checkruntime.NumericVar): checkruntime.NumericValue {
+    value = checkruntime.copyNumericVar(value);
+    const stripped: checkruntime.NumericVar = numericVarStrip(value);
     if ((numericVarCount(stripped) > 0 && (stripped.weight > 32767 || stripped.weight < langruntime.checkedSignedNegate(32768))) || stripped.dscale > 16383) {
         return { kind: "Error", value: checkruntime.makeSqlError(numericSupportRangeError) };
     }
-    return { kind: "Value", value: numericWorkText(numericWorkFromVar(stripped)) };
+    return { kind: "Value", value: stripped };
 }
-function numericVarRescaled(value: NumericVar, dscale: number): NumericVar {
-    value = copyNumericVar(value);
+function numericVarRescaled(value: checkruntime.NumericVar, dscale: number): checkruntime.NumericVar {
+    value = checkruntime.copyNumericVar(value);
     dscale = langruntime.checkedI32(dscale);
     return { sign: value.sign, weight: value.weight, dscale: dscale, digits: value.digits };
 }
-function numericVarCeil(value: NumericVar): NumericVar {
-    const one: NumericVar = numericVarFromI64(1n);
-    const truncated: NumericVar = numericVarTrunc(numericVarShifted(value, 0), 0);
+function numericVarCeil(value: checkruntime.NumericVar): checkruntime.NumericVar {
+    const one: checkruntime.NumericVar = numericVarFromI64(1n);
+    const truncated: checkruntime.NumericVar = numericVarTrunc(numericVarShifted(value, 0), 0);
     if (value.sign > 0 && !(numericVarCmp(value, truncated) === 0)) {
         return numericVarAdd(truncated, one);
     }
     return truncated;
 }
-function numericVarFloor(value: NumericVar): NumericVar {
-    const one: NumericVar = numericVarFromI64(1n);
-    const truncated: NumericVar = numericVarTrunc(numericVarShifted(value, 0), 0);
+function numericVarFloor(value: checkruntime.NumericVar): checkruntime.NumericVar {
+    const one: checkruntime.NumericVar = numericVarFromI64(1n);
+    const truncated: checkruntime.NumericVar = numericVarTrunc(numericVarShifted(value, 0), 0);
     if (value.sign < 0 && !(numericVarCmp(value, truncated) === 0)) {
         return numericVarSub(truncated, one);
     }
     return truncated;
 }
+function numericVarKind(value: checkruntime.NumericVar): number {
+    if (value.sign === checkruntime.numericSignNan) {
+        return 3;
+    }
+    if (value.sign === checkruntime.numericSignPinf) {
+        return 2;
+    }
+    if (value.sign === checkruntime.numericSignNinf) {
+        return 0;
+    }
+    return 1;
+}
+function numericVarSignum(value: checkruntime.NumericVar): number {
+    if (numericVarCount(value) === 0) {
+        return 0;
+    }
+    return value.sign;
+}
+function numericVarAbsolute(value: checkruntime.NumericVar): checkruntime.NumericVar {
+    value = checkruntime.copyNumericVar(value);
+    if (value.sign === checkruntime.numericSignNinf) {
+        return checkruntime.numericVarSpecial(checkruntime.numericSignPinf);
+    }
+    if (value.sign === langruntime.checkedSignedNegate(1)) {
+        return numericVarSigned(value, 1);
+    }
+    return value;
+}
+function numericVarNegated(value: checkruntime.NumericVar): checkruntime.NumericVar {
+    value = checkruntime.copyNumericVar(value);
+    if (value.sign === checkruntime.numericSignNinf) {
+        return checkruntime.numericVarSpecial(checkruntime.numericSignPinf);
+    }
+    if (value.sign === checkruntime.numericSignPinf) {
+        return checkruntime.numericVarSpecial(checkruntime.numericSignNinf);
+    }
+    if (value.sign === checkruntime.numericSignNan || numericVarCount(value) === 0) {
+        return value;
+    }
+    const sign: number = langruntime.checkedSignedSubtract(0, value.sign);
+    return numericVarSigned(value, sign);
+}
+function numericVarCompareValues(left: checkruntime.NumericVar, right: checkruntime.NumericVar): number {
+    const leftKind: number = numericVarKind(left);
+    const rightKind: number = numericVarKind(right);
+    if (leftKind === 3) {
+        if (rightKind === 3) {
+            return 0;
+        }
+        return 1;
+    }
+    if (leftKind === 2) {
+        if (rightKind === 3) {
+            return langruntime.checkedSignedNegate(1);
+        }
+        if (rightKind === 2) {
+            return 0;
+        }
+        return 1;
+    }
+    if (leftKind === 0) {
+        if (rightKind === 0) {
+            return 0;
+        }
+        return langruntime.checkedSignedNegate(1);
+    }
+    if (rightKind === 0) {
+        return 1;
+    }
+    if (!(rightKind === 1)) {
+        return langruntime.checkedSignedNegate(1);
+    }
+    return numericVarCmp(left, right);
+}
 const numericSupportRangeError = 3452547;
-interface NumericWork {
-    valid: boolean;
-    special: number;
-    sign: number;
-    weight: number;
-    scale: number;
-    digits: string;
-}
-function copyNumericWork(value: NumericWork): NumericWork {
-    return { valid: langruntime.checkedBool(value.valid), special: langruntime.checkedI32(value.special), sign: langruntime.checkedI32(value.sign), weight: langruntime.checkedI32(value.weight), scale: langruntime.checkedI32(value.scale), digits: langruntime.checkedString(value.digits) };
-}
-function numericWorkFromValue(value: string): NumericWork {
-    value = langruntime.checkedString(value);
-    const layout: checkruntime.NumericLayout = checkruntime.copyNumericLayout(checkruntime.numericParts(value));
-    let digits: string = "";
-    let scale: number = 0;
-    if (layout.valid && layout.special === 1) {
-        scale = langruntime.checkedI32(numericWireScale(value));
-        const characters: string[] = Array.from(value);
-        let index: number = layout.first;
-        while (index < layout.end) {
-            const character: string = langruntime.indexChar(characters, langruntime.checkedIndex(index));
-            if (numericWireDecimalDigit(character) >= 0) {
-                digits = digits + langruntime.checkedChar(character);
-            }
-            index = langruntime.checkedAdd(index, 1);
-        }
-    }
-    return { valid: layout.valid, special: layout.special, sign: layout.sign, weight: layout.weight, scale: scale, digits: digits };
-}
-function numericWorkZeros(count: number): string {
-    count = langruntime.checkedI32(count);
-    let remaining: number = count;
-    let block: string = "0";
-    let output: string = "";
-    while (remaining > 0) {
-        if (langruntime.checkedSignedRemainder(remaining, 2) === 1) {
-            output = output + block;
-        }
-        remaining = langruntime.checkedI32(langruntime.checkedSignedDivide(remaining, 2));
-        if (remaining > 0) {
-            const copy: string = langruntime.checkedString(block);
-            block = block + copy;
-        }
-    }
-    return output;
-}
-function numericWorkText(work: NumericWork): string {
-    work = copyNumericWork(work);
-    if (work.special === 0) {
-        return "-Infinity";
-    }
-    if (work.special === 2) {
-        return "Infinity";
-    }
-    if (work.special === 3) {
-        return "NaN";
-    }
-    const digits: string[] = Array.from(work.digits);
-    let output: string = "";
-    if (work.sign < 0) {
-        output = output + langruntime.checkedChar("-");
-    }
-    if (work.sign === 0) {
-        output = output + langruntime.checkedChar("0");
-        if (work.scale > 0) {
-            output = output + langruntime.checkedChar(".");
-            output = output + numericWorkZeros(work.scale);
-        }
-        return output;
-    }
-    let index: number = 0;
-    if (work.weight >= 0) {
-        let length: number = 0;
-        while (index < digits.length) {
-            length = langruntime.checkedI32(langruntime.checkedSignedAdd(length, 1));
-            index = langruntime.checkedAdd(index, 1);
-        }
-        index = langruntime.checkedIndex(0);
-        let positions: number = langruntime.checkedSignedAdd(work.weight, 1);
-        if (length <= positions) {
-            output = output + work.digits;
-            output = output + numericWorkZeros(langruntime.checkedSignedSubtract(positions, length));
-            index = langruntime.checkedIndex(digits.length);
-        }
-        else {
-            while (positions > 0) {
-                output = output + langruntime.checkedChar(langruntime.indexChar(digits, langruntime.checkedIndex(index)));
-                index = langruntime.checkedAdd(index, 1);
-                positions = langruntime.checkedI32(langruntime.checkedSignedSubtract(positions, 1));
-            }
-        }
-    }
-    else {
-        output = output + langruntime.checkedChar("0");
-    }
-    if (work.scale > 0) {
-        output = output + langruntime.checkedChar(".");
-        let positions: number = work.scale;
-        if (work.weight < langruntime.checkedSignedNegate(1)) {
-            let leading: number = langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(0, work.weight), 1);
-            if (leading > positions) {
-                leading = langruntime.checkedI32(positions);
-            }
-            output = output + numericWorkZeros(leading);
-            positions = langruntime.checkedI32(langruntime.checkedSignedSubtract(positions, leading));
-        }
-        while (positions > 0 && index < digits.length) {
-            output = output + langruntime.checkedChar(langruntime.indexChar(digits, langruntime.checkedIndex(index)));
-            index = langruntime.checkedAdd(index, 1);
-            positions = langruntime.checkedI32(langruntime.checkedSignedSubtract(positions, 1));
-        }
-        output = output + numericWorkZeros(positions);
-    }
-    return output;
-}
 const scalarInputInvalid = 3484946;
 export function scalarNumericFromText(input: checkruntime.TextValue): checkruntime.NumericValue {
     let unresolvedFlavor: number = 0;
@@ -2544,12 +2447,12 @@ export function scalarNumericFromText(input: checkruntime.TextValue): checkrunti
         const parts: checkruntime.NumericLayout = checkruntime.copyNumericLayout(checkruntime.numericParts(value));
         if (parts.valid && !(parts.special === 1)) {
             if (parts.special === 0) {
-                return { kind: "Value", value: "-Infinity" };
+                return checkruntime.makeNumericValue("-Infinity");
             }
             if (parts.special === 2) {
-                return { kind: "Value", value: "Infinity" };
+                return checkruntime.makeNumericValue("Infinity");
             }
-            return { kind: "Value", value: "NaN" };
+            return checkruntime.makeNumericValue("NaN");
         }
         const characters: string[] = Array.from(value);
         let start: number = 0;
@@ -2639,9 +2542,9 @@ export function scalarNumericFromText(input: checkruntime.TextValue): checkrunti
         }
         if (parsed.kind === "Value") {
             const number: string = langruntime.checkedString(parsed.value);
-            let result: checkruntime.NumericValue = { kind: "Value", value: number };
+            let result: checkruntime.NumericValue = checkruntime.makeNumericValue(number);
             if (negative) {
-                result = numericUminusWcmy(result);
+                result = checkruntime.copyNumericValue(numericUminusWcmy(result));
             }
             return result;
         }

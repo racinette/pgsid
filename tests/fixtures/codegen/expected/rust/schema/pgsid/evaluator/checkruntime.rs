@@ -424,22 +424,101 @@ pub fn bool_is_null(value: BoolValue) -> BoolValue {
     BoolValue::Value(value == BoolValue::Null)
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone)]
 pub enum NumericValue {
     Unknown,
     Unimplemented,
     Null,
-    Value(String),
+    Value(NumericVar),
     Error(SqlError),
 }
 
+// numeric input: the text's decimal digits packed into NBASE digits at the weight its point and
+// exponent give, and the display scale its fractional digits less its exponent give.
 pub fn make_numeric_value(value: &str) -> NumericValue {
-    let unresolved_flavor: i32 = 0;
-    let parts = numeric_parts(value);
-    if parts.valid == false {
-        return numeric_unresolved(unresolved_flavor);
+    let layout = numeric_parts(value);
+    if layout.valid == false {
+        return numeric_unresolved(0);
     }
-    NumericValue::Value(value.to_owned())
+    if layout.special == 3 {
+        return NumericValue::Value(numeric_var_special(NUMERIC_SIGN_NAN));
+    }
+    if layout.special == 2 {
+        return NumericValue::Value(numeric_var_special(NUMERIC_SIGN_PINF));
+    }
+    if layout.special == 0 {
+        return NumericValue::Value(numeric_var_special(NUMERIC_SIGN_NINF));
+    }
+    let chars: Vec<char> = value.chars().collect();
+    let mut index: usize = 0;
+    let mut point = false;
+    let mut power = false;
+    let mut fractional: i32 = 0;
+    let mut exponent: i32 = 0;
+    let mut exponent_sign: i32 = 1;
+    while index < chars.len() {
+        let digit = numeric_digit(chars[index]);
+        if digit >= 0 {
+            if power {
+                exponent = exponent * 10 + digit;
+            } else if point {
+                fractional = fractional + 1;
+            };
+        } else if chars[index] == '.' {
+            point = true;
+        } else if chars[index] == 'e' || chars[index] == 'E' {
+            power = true;
+        } else if power && chars[index] == '-' {
+            exponent_sign = -1;
+        };
+        index += 1;
+    }
+    let mut dscale = fractional - exponent * exponent_sign;
+    if dscale < 0 {
+        dscale = 0;
+    }
+    let mut digits: Vec<usize> = Vec::new();
+    if layout.sign == 0 {
+        return NumericValue::Value(NumericVar {
+            sign: 1,
+            weight: 0,
+            dscale: dscale,
+            digits: digits,
+        });
+    }
+    let mut weight = layout.weight / 4;
+    if layout.weight % 4 < 0 {
+        weight = weight - 1;
+    }
+    let mut leading = weight * 4 + 3 - layout.weight;
+    let mut emitted: i32 = 0;
+    let mut group: i32 = 0;
+    index = layout.first;
+    while index < layout.end || emitted % 4 != 0 {
+        let mut decimal: i32 = 0;
+        if leading > 0 {
+            leading = leading - 1;
+        } else if index < layout.end {
+            decimal = numeric_digit(chars[index]);
+            while decimal < 0 {
+                index += 1;
+                decimal = numeric_digit(chars[index]);
+            }
+            index += 1;
+        };
+        group = group * 10 + decimal;
+        emitted = emitted + 1;
+        if emitted % 4 == 0 {
+            digits.push(usize::try_from(group).unwrap_or(0));
+            group = 0;
+        }
+    }
+    NumericValue::Value(NumericVar {
+        sign: layout.sign,
+        weight: weight,
+        dscale: dscale,
+        digits: digits,
+    })
 }
 
 #[derive(Clone, Copy)]
@@ -571,6 +650,32 @@ pub fn resolution_context(flavor: i32) -> i32 {
     if flavor == 2 { return 2; };
     1
 }
+
+/*
+ * PostgreSQL Database Management System
+ * (also known as Postgres, formerly known as Postgres95)
+ *
+ * Portions Copyright (c) 1996-2026, PostgreSQL Global Development Group
+ *
+ * Portions Copyright (c) 1994, The Regents of the University of California
+ *
+ * Permission to use, copy, modify, and distribute this software and its
+ * documentation for any purpose, without fee, and without a written agreement
+ * is hereby granted, provided that the above copyright notice and this
+ * paragraph and the following two paragraphs appear in all copies.
+ *
+ * IN NO EVENT SHALL THE UNIVERSITY OF CALIFORNIA BE LIABLE TO ANY PARTY FOR
+ * DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, INCLUDING
+ * LOST PROFITS, ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS
+ * DOCUMENTATION, EVEN IF THE UNIVERSITY OF CALIFORNIA HAS BEEN ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ *
+ * THE UNIVERSITY OF CALIFORNIA SPECIFICALLY DISCLAIMS ANY WARRANTIES,
+ * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
+ * AND FITNESS FOR A PARTICULAR PURPOSE.  THE SOFTWARE PROVIDED HEREUNDER IS
+ * ON AN "AS IS" BASIS, AND THE UNIVERSITY OF CALIFORNIA HAS NO OBLIGATIONS TO
+ * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
+ */
 
 #[derive(Clone, Copy)]
 pub struct NumericLayout {
@@ -819,6 +924,100 @@ pub fn numeric_parts(value: &str) -> NumericLayout {
         first: first,
         end: last,
     }
+}
+
+// NumericVar sign values for the special numerics, which carry no digits.
+pub const NUMERIC_SIGN_PINF: i32 = 2;
+
+pub const NUMERIC_SIGN_NINF: i32 = 4;
+
+pub const NUMERIC_SIGN_NAN: i32 = 3;
+
+// PostgreSQL's NumericVar, the form numeric values take between operations: base-NBASE
+// digits, most significant first, the weight of the first digit, the display scale, and a sign
+// of 1 or -1, or one of the special signs. A zero has no digits.
+#[derive(Clone)]
+pub struct NumericVar {
+    pub sign: i32,
+    pub weight: i32,
+    pub dscale: i32,
+    pub digits: Vec<usize>,
+}
+
+pub fn numeric_var_special(sign: i32) -> NumericVar {
+    let digits: Vec<usize> = Vec::new();
+    NumericVar {
+        sign: sign,
+        weight: 0,
+        dscale: 0,
+        digits: digits,
+    }
+}
+
+// PostgreSQL's get_str_from_var: the integer digits without leading zeros, then dscale
+// fractional digits.
+pub fn numeric_text(value: &NumericVar) -> String {
+    if value.sign == NUMERIC_SIGN_NAN {
+        return "NaN".to_owned();
+    }
+    if value.sign == NUMERIC_SIGN_PINF {
+        return "Infinity".to_owned();
+    }
+    if value.sign == NUMERIC_SIGN_NINF {
+        return "-Infinity".to_owned();
+    }
+    let mut output = String::new();
+    if value.sign < 0 {
+        output.push('-');
+    }
+    let count = value.digits.len() as i32;
+    if value.weight < 0 {
+        output.push('0');
+    } else {
+        let mut d: i32 = 0;
+        while d <= value.weight {
+            let mut dig: i32 = 0;
+            if d < count {
+                dig = value.digits[usize::try_from(d).unwrap_or(0)] as i32;
+            }
+            let mut putit = d > 0;
+            let mut place: i32 = 1000;
+            while place > 1 {
+                let d1 = dig / place;
+                dig = dig - d1 * place;
+                if d1 > 0 {
+                    putit = true;
+                }
+                if putit {
+                    output.push(char::from_u32((d1 + 48) as u32).unwrap_or('0'));
+                }
+                place = place / 10;
+            }
+            output.push(char::from_u32((dig + 48) as u32).unwrap_or('0'));
+            d = d + 1;
+        }
+    };
+    if value.dscale > 0 {
+        output.push('.');
+        let mut written: i32 = 0;
+        let mut d = value.weight + 1;
+        while written < value.dscale {
+            let mut dig: i32 = 0;
+            if d >= 0 && d < count {
+                dig = value.digits[usize::try_from(d).unwrap_or(0)] as i32;
+            }
+            let mut place: i32 = 1000;
+            while place > 0 && written < value.dscale {
+                let d1 = dig / place;
+                dig = dig - d1 * place;
+                output.push(char::from_u32((d1 + 48) as u32).unwrap_or('0'));
+                written = written + 1;
+                place = place / 10;
+            }
+            d = d + 1;
+        }
+    }
+    output
 }
 
 #[derive(Clone)]

@@ -10,74 +10,17 @@ fn numeric_compare(left: NumericValue, right: NumericValue) -> Int4Value {
     if let NumericValue::Error(error) = right {
         return Int4Value::Error(error);
     }
-    let mut condition_flavor_13_4: i32 = unresolved_flavor; if let NumericValue::Unknown = left { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let NumericValue::Unimplemented = left { condition_flavor_13_4 = 2; }; if let NumericValue::Unknown = right { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let NumericValue::Unimplemented = right { condition_flavor_13_4 = 2; }; if (left == NumericValue::Unknown || left == NumericValue::Unimplemented) || (right == NumericValue::Unknown || right == NumericValue::Unimplemented) {
+    let mut numeric_unknown_left_1 = false; if let NumericValue::Unknown = left { numeric_unknown_left_1 = true; }; let mut numeric_unimplemented_left_2 = false; if let NumericValue::Unimplemented = left { numeric_unimplemented_left_2 = true; }; let mut numeric_unknown_right_3 = false; if let NumericValue::Unknown = right { numeric_unknown_right_3 = true; }; let mut numeric_unimplemented_right_4 = false; if let NumericValue::Unimplemented = right { numeric_unimplemented_right_4 = true; };
+    let mut condition_flavor_13_4: i32 = unresolved_flavor; if let NumericValue::Unknown = left { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let NumericValue::Unimplemented = left { condition_flavor_13_4 = 2; }; if let NumericValue::Unknown = right { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let NumericValue::Unimplemented = right { condition_flavor_13_4 = 2; }; if (numeric_unknown_left_1 || numeric_unimplemented_left_2) || (numeric_unknown_right_3 || numeric_unimplemented_right_4) {
         return int4_unresolved(condition_flavor_13_4);
     }
-    if left == NumericValue::Null || right == NumericValue::Null {
+    let mut numeric_null_left_5 = false; if let NumericValue::Null = left { numeric_null_left_5 = true; }; let mut numeric_null_right_6 = false; if let NumericValue::Null = right { numeric_null_right_6 = true; };
+    if numeric_null_left_5 || numeric_null_right_6 {
         return Int4Value::Null;
     }
     if let NumericValue::Value(left_value) = left {
         if let NumericValue::Value(right_value) = right {
-            let a = numeric_parts(left_value.as_str());
-            let b = numeric_parts(right_value.as_str());
-            if a.valid == false || b.valid == false {
-                return int4_unresolved(unresolved_flavor);
-            }
-            if a.special < b.special {
-                return Int4Value::Value(-1);
-            }
-            if a.special > b.special {
-                return Int4Value::Value(1);
-            }
-            if a.special != 1 {
-                return Int4Value::Value(0);
-            }
-            if a.sign < b.sign {
-                return Int4Value::Value(-1);
-            }
-            if a.sign > b.sign {
-                return Int4Value::Value(1);
-            }
-            if a.sign == 0 {
-                return Int4Value::Value(0);
-            }
-            if a.weight < b.weight {
-                return Int4Value::Value(0 - a.sign);
-            }
-            if a.weight > b.weight {
-                return Int4Value::Value(a.sign);
-            }
-            let left_chars: Vec<char> = left_value.chars().collect();
-            let right_chars: Vec<char> = right_value.chars().collect();
-            let mut i = a.first;
-            let mut j = b.first;
-            while i < a.end || j < b.end {
-                while i < a.end && (left_chars[i] == '.' || left_chars[i] == '_') {
-                    i += 1;
-                }
-                while j < b.end && (right_chars[j] == '.' || right_chars[j] == '_') {
-                    j += 1;
-                }
-                let mut x = '0';
-                let mut y = '0';
-                if i < a.end {
-                    x = left_chars[i];
-                    i += 1;
-                }
-                if j < b.end {
-                    y = right_chars[j];
-                    j += 1;
-                }
-                let x_code = x as u32;
-                let y_code = y as u32;
-                if x_code < y_code {
-                    return Int4Value::Value(0 - a.sign);
-                }
-                if x_code > y_code {
-                    return Int4Value::Value(a.sign);
-                }
-            }
-            return Int4Value::Value(0);
+            return Int4Value::Value(numeric_var_compare_values(&left_value, &right_value));
         }
     }
     int4_unresolved(unresolved_flavor)

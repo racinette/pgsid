@@ -24,10 +24,12 @@ pub fn array_numeric_output(input: NumericValue) -> TextValue {
     if let NumericValue::Error(error) = input {
         return TextValue::Error(error);
     };
-    if input == NumericValue::Null {
+    let mut numeric_null_input_1 = false; if let NumericValue::Null = input { numeric_null_input_1 = true; };
+    if numeric_null_input_1 {
         return TextValue::Null;
     };
-    if let NumericValue::Value(value) = input {
+    if let NumericValue::Value(value_numeric) = input {
+        let value = numeric_text(&value_numeric);
         let work = numeric_work_from_value(value.as_str());
         if work.valid {
             return TextValue::Value(numeric_work_text(work));

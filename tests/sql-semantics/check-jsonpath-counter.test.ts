@@ -44,7 +44,7 @@ pub fn jsonpath_counter_identity_probe(identity:Int8Value,offset:NumericValue,ex
   if let NumericValue::Error(error)=result {return BoolValue::Error(error);};
   if let NumericValue::Null=result {return BoolValue::Null;};
   if let NumericValue::Value(number)=result {
-   if let TextValue::Value(wanted)=expected {return BoolValue::Value(number==wanted);};
+   if let TextValue::Value(wanted)=expected {return BoolValue::Value(numeric_text(&number)==wanted);};
   };
  };
  BoolValue::Unknown

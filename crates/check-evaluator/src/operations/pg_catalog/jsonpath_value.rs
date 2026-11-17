@@ -181,9 +181,10 @@ fn jsonpath_value_from_tree(tree: JsonpathParseTree) -> JsonpathValue {
                         number.push(characters[position]);
                         position += 1;
                     }
-                    let result = sql__pg_catalog__numeric_uminus__wcmy(NumericValue::Value(number));
+                    let result = sql__pg_catalog__numeric_uminus__wcmy(make_numeric_value(number.as_str()));
                     let mut valid = false;
-                    if let NumericValue::Value(negated) = result {
+                    if let NumericValue::Value(negated_numeric) = result {
+                        let negated = numeric_text(&negated_numeric);
                         valid = true;
                         let text: Vec<char> = negated.chars().collect();
                         begin = characters.len();

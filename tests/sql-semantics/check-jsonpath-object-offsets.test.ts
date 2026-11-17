@@ -60,7 +60,7 @@ pub fn jsonpath_offset_probe(document:TextValue,path:TextValue,expected:TextValu
     let reference=sequence.items[0];
     let offset=offsets[reference.node].clone();
     if let TextValue::Value(number)=expected {
-     let comparison=numeric_compare(offset,NumericValue::Value(number));
+     let comparison=numeric_compare(offset,make_numeric_value(number.as_str()));
      if let Int4Value::Value(order)=comparison {return BoolValue::Value(order==0);};
     };
    };

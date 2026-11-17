@@ -53,7 +53,7 @@ fn float_numeric_decimal(input: Float8Value, precision: usize) -> NumericValue {
             scale: minimum_scale,
             digits: rounded.digits,
         };
-        return NumericValue::Value(numeric_work_text(result));
+        return make_numeric_value(numeric_work_text(result).as_str());
     }
     let mut local_flavor_57_4: i32 = unresolved_flavor; if let Float8Value::Unknown = known_input { if local_flavor_57_4 < 1 { local_flavor_57_4 = 1; }; }; if let Float8Value::Unimplemented = known_input { local_flavor_57_4 = 2; }; numeric_unresolved(local_flavor_57_4)
 }
@@ -65,10 +65,12 @@ fn float_numeric_text(input: NumericValue) -> TextValue {
     if let NumericValue::Error(error) = input {
         return TextValue::Error(error);
     }
-    if input == NumericValue::Null {
+    let mut numeric_null_input_1 = false; if let NumericValue::Null = input { numeric_null_input_1 = true; };
+    if numeric_null_input_1 {
         return TextValue::Null;
     }
-    if let NumericValue::Value(text) = input {
+    if let NumericValue::Value(text_numeric) = input {
+        let text = numeric_text(&text_numeric);
         let work = numeric_work_from_value(text.as_str());
         if work.valid {
             return TextValue::Value(numeric_work_text(work));

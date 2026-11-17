@@ -364,74 +364,17 @@ fn numeric_compare(left: NumericValue, right: NumericValue) -> Int4Value {
     if let NumericValue::Error(error) = right {
         return Int4Value::Error(error);
     }
-    let mut condition_flavor_13_4: i32 = unresolved_flavor; if let NumericValue::Unknown = left { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let NumericValue::Unimplemented = left { condition_flavor_13_4 = 2; }; if let NumericValue::Unknown = right { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let NumericValue::Unimplemented = right { condition_flavor_13_4 = 2; }; if (left == NumericValue::Unknown || left == NumericValue::Unimplemented) || (right == NumericValue::Unknown || right == NumericValue::Unimplemented) {
+    let mut numeric_unknown_left_1 = false; if let NumericValue::Unknown = left { numeric_unknown_left_1 = true; }; let mut numeric_unimplemented_left_2 = false; if let NumericValue::Unimplemented = left { numeric_unimplemented_left_2 = true; }; let mut numeric_unknown_right_3 = false; if let NumericValue::Unknown = right { numeric_unknown_right_3 = true; }; let mut numeric_unimplemented_right_4 = false; if let NumericValue::Unimplemented = right { numeric_unimplemented_right_4 = true; };
+    let mut condition_flavor_13_4: i32 = unresolved_flavor; if let NumericValue::Unknown = left { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let NumericValue::Unimplemented = left { condition_flavor_13_4 = 2; }; if let NumericValue::Unknown = right { if condition_flavor_13_4 < 1 { condition_flavor_13_4 = 1; }; }; if let NumericValue::Unimplemented = right { condition_flavor_13_4 = 2; }; if (numeric_unknown_left_1 || numeric_unimplemented_left_2) || (numeric_unknown_right_3 || numeric_unimplemented_right_4) {
         return int4_unresolved(condition_flavor_13_4);
     }
-    if left == NumericValue::Null || right == NumericValue::Null {
+    let mut numeric_null_left_5 = false; if let NumericValue::Null = left { numeric_null_left_5 = true; }; let mut numeric_null_right_6 = false; if let NumericValue::Null = right { numeric_null_right_6 = true; };
+    if numeric_null_left_5 || numeric_null_right_6 {
         return Int4Value::Null;
     }
     if let NumericValue::Value(left_value) = left {
         if let NumericValue::Value(right_value) = right {
-            let a = numeric_parts(left_value.as_str());
-            let b = numeric_parts(right_value.as_str());
-            if a.valid == false || b.valid == false {
-                return int4_unresolved(unresolved_flavor);
-            }
-            if a.special < b.special {
-                return Int4Value::Value(-1);
-            }
-            if a.special > b.special {
-                return Int4Value::Value(1);
-            }
-            if a.special != 1 {
-                return Int4Value::Value(0);
-            }
-            if a.sign < b.sign {
-                return Int4Value::Value(-1);
-            }
-            if a.sign > b.sign {
-                return Int4Value::Value(1);
-            }
-            if a.sign == 0 {
-                return Int4Value::Value(0);
-            }
-            if a.weight < b.weight {
-                return Int4Value::Value(0 - a.sign);
-            }
-            if a.weight > b.weight {
-                return Int4Value::Value(a.sign);
-            }
-            let left_chars: Vec<char> = left_value.chars().collect();
-            let right_chars: Vec<char> = right_value.chars().collect();
-            let mut i = a.first;
-            let mut j = b.first;
-            while i < a.end || j < b.end {
-                while i < a.end && (left_chars[i] == '.' || left_chars[i] == '_') {
-                    i += 1;
-                }
-                while j < b.end && (right_chars[j] == '.' || right_chars[j] == '_') {
-                    j += 1;
-                }
-                let mut x = '0';
-                let mut y = '0';
-                if i < a.end {
-                    x = left_chars[i];
-                    i += 1;
-                }
-                if j < b.end {
-                    y = right_chars[j];
-                    j += 1;
-                }
-                let x_code = x as u32;
-                let y_code = y as u32;
-                if x_code < y_code {
-                    return Int4Value::Value(0 - a.sign);
-                }
-                if x_code > y_code {
-                    return Int4Value::Value(a.sign);
-                }
-            }
-            return Int4Value::Value(0);
+            return Int4Value::Value(numeric_var_compare_values(&left_value, &right_value));
         }
     }
     int4_unresolved(unresolved_flavor)
@@ -471,35 +414,34 @@ fn numeric_arithmetic(left: NumericValue, right: NumericValue, mode: i32) -> Num
     if let NumericValue::Error(error) = right {
         return NumericValue::Error(error);
     }
-    let mut condition_flavor_285_4: i32 = unresolved_flavor; if let NumericValue::Unknown = left { if condition_flavor_285_4 < 1 { condition_flavor_285_4 = 1; }; }; if let NumericValue::Unimplemented = left { condition_flavor_285_4 = 2; }; if let NumericValue::Unknown = right { if condition_flavor_285_4 < 1 { condition_flavor_285_4 = 1; }; }; if let NumericValue::Unimplemented = right { condition_flavor_285_4 = 2; }; if (left == NumericValue::Unknown || left == NumericValue::Unimplemented) || (right == NumericValue::Unknown || right == NumericValue::Unimplemented) {
+    let mut numeric_unknown_left_1 = false; if let NumericValue::Unknown = left { numeric_unknown_left_1 = true; }; let mut numeric_unimplemented_left_2 = false; if let NumericValue::Unimplemented = left { numeric_unimplemented_left_2 = true; }; let mut numeric_unknown_right_3 = false; if let NumericValue::Unknown = right { numeric_unknown_right_3 = true; }; let mut numeric_unimplemented_right_4 = false; if let NumericValue::Unimplemented = right { numeric_unimplemented_right_4 = true; };
+    let mut condition_flavor_285_4: i32 = unresolved_flavor; if let NumericValue::Unknown = left { if condition_flavor_285_4 < 1 { condition_flavor_285_4 = 1; }; }; if let NumericValue::Unimplemented = left { condition_flavor_285_4 = 2; }; if let NumericValue::Unknown = right { if condition_flavor_285_4 < 1 { condition_flavor_285_4 = 1; }; }; if let NumericValue::Unimplemented = right { condition_flavor_285_4 = 2; }; if (numeric_unknown_left_1 || numeric_unimplemented_left_2) || (numeric_unknown_right_3 || numeric_unimplemented_right_4) {
         return numeric_unresolved(condition_flavor_285_4);
     }
-    if left == NumericValue::Null || right == NumericValue::Null {
+    let mut numeric_null_left_5 = false; if let NumericValue::Null = left { numeric_null_left_5 = true; }; let mut numeric_null_right_6 = false; if let NumericValue::Null = right { numeric_null_right_6 = true; };
+    if numeric_null_left_5 || numeric_null_right_6 {
         return NumericValue::Null;
     }
-    if let NumericValue::Value(a) = left {
-        if let NumericValue::Value(b) = right {
-            let first = numeric_work_from_value(a.as_str());
-            let second = numeric_work_from_value(b.as_str());
-            if first.valid == false || second.valid == false {
-                return numeric_unresolved(unresolved_flavor);
-            }
-            if first.special == 3 || second.special == 3 {
+    if let NumericValue::Value(left_var) = left {
+        if let NumericValue::Value(right_var) = right {
+            let first_kind = numeric_var_kind(&left_var);
+            let second_kind = numeric_var_kind(&right_var);
+            if first_kind == 3 || second_kind == 3 {
                 return make_numeric_value("NaN");
             }
-            if first.special != 1 || second.special != 1 {
-                let mut left_sign = first.sign;
-                let mut right_sign = second.sign;
-                if first.special == 0 {
+            if first_kind != 1 || second_kind != 1 {
+                let mut left_sign = numeric_var_signum(&left_var);
+                let mut right_sign = numeric_var_signum(&right_var);
+                if first_kind == 0 {
                     left_sign = -1;
                 }
-                if first.special == 2 {
+                if first_kind == 2 {
                     left_sign = 1;
                 }
-                if second.special == 0 {
+                if second_kind == 0 {
                     right_sign = -1;
                 }
-                if second.special == 2 {
+                if second_kind == 2 {
                     right_sign = 1;
                 }
                 if mode == 1 {
@@ -509,10 +451,10 @@ fn numeric_arithmetic(left: NumericValue, right: NumericValue, mode: i32) -> Num
                 if mode == 2 {
                     result_sign = left_sign * right_sign;
                 } else {
-                    if first.special == 1 {
+                    if first_kind == 1 {
                         result_sign = right_sign;
                     } else {
-                        if second.special != 1 && left_sign != right_sign {
+                        if second_kind != 1 && left_sign != right_sign {
                             result_sign = 0;
                         }
                     };
@@ -525,8 +467,6 @@ fn numeric_arithmetic(left: NumericValue, right: NumericValue, mode: i32) -> Num
                 }
                 return make_numeric_value("Infinity");
             }
-            let left_var = numeric_var_from_work(&first);
-            let right_var = numeric_var_from_work(&second);
             if mode == 2 {
                 let rscale = left_var.dscale + right_var.dscale;
                 let product = numeric_var_mul(&left_var, &right_var, rscale);
@@ -615,46 +555,43 @@ fn numeric_division(left: NumericValue, right: NumericValue, mode: i32) -> Numer
     if let NumericValue::Error(error) = right {
         return NumericValue::Error(error);
     }
-    let mut condition_flavor_186_4: i32 = unresolved_flavor; if let NumericValue::Unknown = left { if condition_flavor_186_4 < 1 { condition_flavor_186_4 = 1; }; }; if let NumericValue::Unimplemented = left { condition_flavor_186_4 = 2; }; if let NumericValue::Unknown = right { if condition_flavor_186_4 < 1 { condition_flavor_186_4 = 1; }; }; if let NumericValue::Unimplemented = right { condition_flavor_186_4 = 2; }; if (left == NumericValue::Unknown || left == NumericValue::Unimplemented) || (right == NumericValue::Unknown || right == NumericValue::Unimplemented) {
+    let mut numeric_unknown_left_1 = false; if let NumericValue::Unknown = left { numeric_unknown_left_1 = true; }; let mut numeric_unimplemented_left_2 = false; if let NumericValue::Unimplemented = left { numeric_unimplemented_left_2 = true; }; let mut numeric_unknown_right_3 = false; if let NumericValue::Unknown = right { numeric_unknown_right_3 = true; }; let mut numeric_unimplemented_right_4 = false; if let NumericValue::Unimplemented = right { numeric_unimplemented_right_4 = true; };
+    let mut condition_flavor_186_4: i32 = unresolved_flavor; if let NumericValue::Unknown = left { if condition_flavor_186_4 < 1 { condition_flavor_186_4 = 1; }; }; if let NumericValue::Unimplemented = left { condition_flavor_186_4 = 2; }; if let NumericValue::Unknown = right { if condition_flavor_186_4 < 1 { condition_flavor_186_4 = 1; }; }; if let NumericValue::Unimplemented = right { condition_flavor_186_4 = 2; }; if (numeric_unknown_left_1 || numeric_unimplemented_left_2) || (numeric_unknown_right_3 || numeric_unimplemented_right_4) {
         return numeric_unresolved(condition_flavor_186_4);
     }
-    if left == NumericValue::Null || right == NumericValue::Null {
+    let mut numeric_null_left_5 = false; if let NumericValue::Null = left { numeric_null_left_5 = true; }; let mut numeric_null_right_6 = false; if let NumericValue::Null = right { numeric_null_right_6 = true; };
+    if numeric_null_left_5 || numeric_null_right_6 {
         return NumericValue::Null;
     }
-    if let NumericValue::Value(first) = left {
-        if let NumericValue::Value(second) = right {
-            let a = numeric_work_from_value(first.as_str());
-            let b = numeric_work_from_value(second.as_str());
-            if a.valid == false || b.valid == false {
-                return numeric_unresolved(unresolved_flavor);
+    if let NumericValue::Value(dividend) = left {
+        if let NumericValue::Value(divisor) = right {
+            let a_kind = numeric_var_kind(&dividend);
+            let b_kind = numeric_var_kind(&divisor);
+            if a_kind == 3 || b_kind == 3 {
+                return make_numeric_value("NaN");
             }
-            if a.special == 3 || b.special == 3 {
-                return NumericValue::Value("NaN".to_owned());
-            }
-            if b.special == 1 && b.sign == 0 {
+            if b_kind == 1 && numeric_var_signum(&divisor) == 0 {
                 return NumericValue::Error(make_sql_error(SQLSTATE_DIVISION_BY_ZERO));
             }
-            if a.special != 1 {
-                if mode == 2 || b.special != 1 {
-                    return NumericValue::Value("NaN".to_owned());
+            if a_kind != 1 {
+                if mode == 2 || b_kind != 1 {
+                    return make_numeric_value("NaN");
                 }
-                let mut sign = b.sign;
-                if a.special == 0 {
+                let mut sign = numeric_var_signum(&divisor);
+                if a_kind == 0 {
                     sign = 0 - sign;
                 }
                 if sign < 0 {
-                    return NumericValue::Value("-Infinity".to_owned());
+                    return make_numeric_value("-Infinity");
                 }
-                return NumericValue::Value("Infinity".to_owned());
+                return make_numeric_value("Infinity");
             }
-            if b.special != 1 {
+            if b_kind != 1 {
                 if mode == 2 {
-                    return NumericValue::Value(first);
+                    return NumericValue::Value(dividend);
                 }
-                return NumericValue::Value("0".to_owned());
+                return make_numeric_value("0");
             }
-            let dividend = numeric_var_from_work(&a);
-            let divisor = numeric_var_from_work(&b);
             if mode == 2 {
                 let result = numeric_var_mod(&dividend, &divisor);
                 return numeric_var_result(result);
@@ -684,17 +621,12 @@ pub fn sql__pg_catalog__numeric_abs__6g5e(input: NumericValue) -> NumericValue {
     if let NumericValue::Unknown = input { unresolved_flavor = 1; };
     if let NumericValue::Unimplemented = input { unresolved_flavor = 2; };
 if let NumericValue::Error(error) = input { return NumericValue::Error(error); }
-let mut condition_flavor_42_0: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_42_0 < 1 { condition_flavor_42_0 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_42_0 = 2; }; if input == NumericValue::Unknown || input == NumericValue::Unimplemented { return numeric_unresolved(condition_flavor_42_0); }
-if input == NumericValue::Null { return NumericValue::Null; }
+let mut numeric_unknown_input_7 = false; if let NumericValue::Unknown = input { numeric_unknown_input_7 = true; }; let mut numeric_unimplemented_input_8 = false; if let NumericValue::Unimplemented = input { numeric_unimplemented_input_8 = true; };
+let mut condition_flavor_42_0: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_42_0 < 1 { condition_flavor_42_0 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_42_0 = 2; }; if numeric_unknown_input_7 || numeric_unimplemented_input_8 { return numeric_unresolved(condition_flavor_42_0); }
+let mut numeric_null_input_9 = false; if let NumericValue::Null = input { numeric_null_input_9 = true; };
+if numeric_null_input_9 { return NumericValue::Null; }
 if let NumericValue::Value(value) = input {
-let work = numeric_work_from_value(value.as_str());
-if work.valid == false { return numeric_unresolved(unresolved_flavor); }
-let mut special = work.special;
-let mut sign = work.sign;
-let output_scale = work.scale;
-if sign < 0 { sign = 1; }
-if special == 0 { special = 2; }
-return NumericValue::Value(numeric_work_text(NumericWork { valid: true, special: special, sign: sign, weight: work.weight, scale: output_scale, digits: work.digits }));
+return NumericValue::Value(numeric_var_absolute(value));
 }
 numeric_unresolved(unresolved_flavor)
 }
@@ -709,17 +641,12 @@ pub fn sql__pg_catalog__numeric_uminus__wcmy(input: NumericValue) -> NumericValu
     if let NumericValue::Unknown = input { unresolved_flavor = 1; };
     if let NumericValue::Unimplemented = input { unresolved_flavor = 2; };
 if let NumericValue::Error(error) = input { return NumericValue::Error(error); }
-let mut condition_flavor_95_0: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_95_0 < 1 { condition_flavor_95_0 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_95_0 = 2; }; if input == NumericValue::Unknown || input == NumericValue::Unimplemented { return numeric_unresolved(condition_flavor_95_0); }
-if input == NumericValue::Null { return NumericValue::Null; }
+let mut numeric_unknown_input_10 = false; if let NumericValue::Unknown = input { numeric_unknown_input_10 = true; }; let mut numeric_unimplemented_input_11 = false; if let NumericValue::Unimplemented = input { numeric_unimplemented_input_11 = true; };
+let mut condition_flavor_95_0: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_95_0 < 1 { condition_flavor_95_0 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_95_0 = 2; }; if numeric_unknown_input_10 || numeric_unimplemented_input_11 { return numeric_unresolved(condition_flavor_95_0); }
+let mut numeric_null_input_12 = false; if let NumericValue::Null = input { numeric_null_input_12 = true; };
+if numeric_null_input_12 { return NumericValue::Null; }
 if let NumericValue::Value(value) = input {
-let work = numeric_work_from_value(value.as_str());
-if work.valid == false { return numeric_unresolved(unresolved_flavor); }
-let mut special = work.special;
-let mut sign = work.sign;
-let output_scale = work.scale;
-sign = 0 - sign;
-if special == 0 { special = 2; } else if special == 2 { special = 0; };
-return NumericValue::Value(numeric_work_text(NumericWork { valid: true, special: special, sign: sign, weight: work.weight, scale: output_scale, digits: work.digits }));
+return NumericValue::Value(numeric_var_negated(value));
 }
 numeric_unresolved(unresolved_flavor)
 }
@@ -729,15 +656,16 @@ pub fn sql__pg_catalog__sign__2rsu(input: NumericValue) -> NumericValue {
     if let NumericValue::Unknown = input { unresolved_flavor = 1; };
     if let NumericValue::Unimplemented = input { unresolved_flavor = 2; };
 if let NumericValue::Error(error) = input { return NumericValue::Error(error); }
-let mut condition_flavor_149_0: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_149_0 < 1 { condition_flavor_149_0 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_149_0 = 2; }; if input == NumericValue::Unknown || input == NumericValue::Unimplemented { return numeric_unresolved(condition_flavor_149_0); }
-if input == NumericValue::Null { return NumericValue::Null; }
+let mut numeric_unknown_input_19 = false; if let NumericValue::Unknown = input { numeric_unknown_input_19 = true; }; let mut numeric_unimplemented_input_20 = false; if let NumericValue::Unimplemented = input { numeric_unimplemented_input_20 = true; };
+let mut condition_flavor_149_0: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_149_0 < 1 { condition_flavor_149_0 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_149_0 = 2; }; if numeric_unknown_input_19 || numeric_unimplemented_input_20 { return numeric_unresolved(condition_flavor_149_0); }
+let mut numeric_null_input_21 = false; if let NumericValue::Null = input { numeric_null_input_21 = true; };
+if numeric_null_input_21 { return NumericValue::Null; }
 if let NumericValue::Value(value) = input {
-let work = numeric_work_from_value(value.as_str());
-if work.valid == false { return numeric_unresolved(unresolved_flavor); }
-if work.special == 3 { return NumericValue::Value("NaN".to_owned()); }
-if work.special == 0 || work.sign < 0 { return NumericValue::Value("-1".to_owned()); }
-if work.special == 2 || work.sign > 0 { return NumericValue::Value("1".to_owned()); }
-return NumericValue::Value("0".to_owned());
+let kind = numeric_var_kind(&value);
+if kind == 3 { return make_numeric_value("NaN"); }
+if kind == 0 || numeric_var_signum(&value) < 0 { return make_numeric_value("-1"); }
+if kind == 2 || numeric_var_signum(&value) > 0 { return make_numeric_value("1"); }
+return make_numeric_value("0");
 }
 numeric_unresolved(unresolved_flavor)
 }
@@ -745,14 +673,10 @@ numeric_unresolved(unresolved_flavor)
 // PostgreSQL's numeric_round, numeric_trunc, numeric_ceil and numeric_floor: mode 1 rounds,
 // 0 truncates, 2 takes the ceiling and 3 the floor. Scales are clamped as PostgreSQL clamps
 // them, and a negative scale displays no fractional digits.
-fn numeric_round_value(work: NumericWork, requested: i32, mode: i32) -> NumericValue {
-    if work.valid == false {
-        return numeric_unresolved(0);
+fn numeric_round_value(arg: NumericVar, requested: i32, mode: i32) -> NumericValue {
+    if numeric_var_kind(&arg) != 1 {
+        return NumericValue::Value(arg);
     }
-    if work.special != 1 {
-        return NumericValue::Value(numeric_work_text(work));
-    }
-    let arg = numeric_var_from_work(&work);
     if mode == 2 {
         return numeric_var_result(numeric_var_ceil(&arg));
     }
@@ -790,11 +714,11 @@ pub fn sql__pg_catalog__round__otcq(input: NumericValue, scale: Int4Value) -> Nu
     if let Int4Value::Unimplemented = scale { unresolved_flavor = 2; };
 if let NumericValue::Error(error) = input { return NumericValue::Error(error); }
 if let Int4Value::Error(error) = scale { return NumericValue::Error(error); }
-let mut condition_flavor_69_0: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_69_0 < 1 { condition_flavor_69_0 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_69_0 = 2; }; if let Int4Value::Unknown = scale { if condition_flavor_69_0 < 1 { condition_flavor_69_0 = 1; }; }; if let Int4Value::Unimplemented = scale { condition_flavor_69_0 = 2; }; if (input == NumericValue::Unknown || input == NumericValue::Unimplemented) || (scale == Int4Value::Unknown || scale == Int4Value::Unimplemented) { return numeric_unresolved(condition_flavor_69_0); }
-if input == NumericValue::Null || scale == Int4Value::Null { return NumericValue::Null; }
-if let NumericValue::Value(value) = input {
-let work = numeric_work_from_value(value.as_str());
-if work.valid == false { return numeric_unresolved(unresolved_flavor); }
+let mut numeric_unknown_input_13 = false; if let NumericValue::Unknown = input { numeric_unknown_input_13 = true; }; let mut numeric_unimplemented_input_14 = false; if let NumericValue::Unimplemented = input { numeric_unimplemented_input_14 = true; };
+let mut condition_flavor_69_0: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_69_0 < 1 { condition_flavor_69_0 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_69_0 = 2; }; if let Int4Value::Unknown = scale { if condition_flavor_69_0 < 1 { condition_flavor_69_0 = 1; }; }; if let Int4Value::Unimplemented = scale { condition_flavor_69_0 = 2; }; if (numeric_unknown_input_13 || numeric_unimplemented_input_14) || (scale == Int4Value::Unknown || scale == Int4Value::Unimplemented) { return numeric_unresolved(condition_flavor_69_0); }
+let mut numeric_null_input_15 = false; if let NumericValue::Null = input { numeric_null_input_15 = true; };
+if numeric_null_input_15 || scale == Int4Value::Null { return NumericValue::Null; }
+if let NumericValue::Value(work) = input {
 if let Int4Value::Value(precision) = scale { return numeric_round_value(work, precision, 1); }
 }
 numeric_unresolved(unresolved_flavor)
@@ -808,11 +732,11 @@ pub fn sql__pg_catalog__trunc__hay3(input: NumericValue, scale: Int4Value) -> Nu
     if let Int4Value::Unimplemented = scale { unresolved_flavor = 2; };
 if let NumericValue::Error(error) = input { return NumericValue::Error(error); }
 if let Int4Value::Error(error) = scale { return NumericValue::Error(error); }
-let mut condition_flavor_102_0: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_102_0 < 1 { condition_flavor_102_0 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_102_0 = 2; }; if let Int4Value::Unknown = scale { if condition_flavor_102_0 < 1 { condition_flavor_102_0 = 1; }; }; if let Int4Value::Unimplemented = scale { condition_flavor_102_0 = 2; }; if (input == NumericValue::Unknown || input == NumericValue::Unimplemented) || (scale == Int4Value::Unknown || scale == Int4Value::Unimplemented) { return numeric_unresolved(condition_flavor_102_0); }
-if input == NumericValue::Null || scale == Int4Value::Null { return NumericValue::Null; }
-if let NumericValue::Value(value) = input {
-let work = numeric_work_from_value(value.as_str());
-if work.valid == false { return numeric_unresolved(unresolved_flavor); }
+let mut numeric_unknown_input_19 = false; if let NumericValue::Unknown = input { numeric_unknown_input_19 = true; }; let mut numeric_unimplemented_input_20 = false; if let NumericValue::Unimplemented = input { numeric_unimplemented_input_20 = true; };
+let mut condition_flavor_102_0: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_102_0 < 1 { condition_flavor_102_0 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_102_0 = 2; }; if let Int4Value::Unknown = scale { if condition_flavor_102_0 < 1 { condition_flavor_102_0 = 1; }; }; if let Int4Value::Unimplemented = scale { condition_flavor_102_0 = 2; }; if (numeric_unknown_input_19 || numeric_unimplemented_input_20) || (scale == Int4Value::Unknown || scale == Int4Value::Unimplemented) { return numeric_unresolved(condition_flavor_102_0); }
+let mut numeric_null_input_21 = false; if let NumericValue::Null = input { numeric_null_input_21 = true; };
+if numeric_null_input_21 || scale == Int4Value::Null { return NumericValue::Null; }
+if let NumericValue::Value(work) = input {
 if let Int4Value::Value(precision) = scale { return numeric_round_value(work, precision, 0); }
 }
 numeric_unresolved(unresolved_flavor)
@@ -824,78 +748,6 @@ fn numeric_wire_decimal_digit(character: char) -> i32 {
         return code - 48;
     }
     -1
-}
-
-fn numeric_wire_scale(input: &str) -> i32 {
-    let chars: Vec<char> = input.chars().collect();
-    let mut index: usize = 0;
-    let mut point = false;
-    let mut power = false;
-    let mut fractional: i32 = 0;
-    let mut exponent: i32 = 0;
-    let mut sign: i32 = 1;
-    while index < chars.len() {
-        let digit = numeric_wire_decimal_digit(chars[index]);
-        if digit >= 0 {
-            if power {
-                exponent = exponent * 10 + digit;
-            } else if point {
-                fractional = fractional + 1;
-            };
-        } else if chars[index] == '.' {
-            point = true;
-        } else if chars[index] == 'e' || chars[index] == 'E' {
-            power = true;
-        } else if power && chars[index] == '-' {
-            sign = -1;
-        }
-        index += 1;
-    }
-    let scale = fractional - exponent * sign;
-    if scale < 0 {
-        return 0;
-    }
-    scale
-}
-
-/*
- * PostgreSQL Database Management System
- * (also known as Postgres, formerly known as Postgres95)
- *
- * Portions Copyright (c) 1996-2026, PostgreSQL Global Development Group
- *
- * Portions Copyright (c) 1994, The Regents of the University of California
- *
- * Permission to use, copy, modify, and distribute this software and its
- * documentation for any purpose, without fee, and without a written agreement
- * is hereby granted, provided that the above copyright notice and this
- * paragraph and the following two paragraphs appear in all copies.
- *
- * IN NO EVENT SHALL THE UNIVERSITY OF CALIFORNIA BE LIABLE TO ANY PARTY FOR
- * DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, INCLUDING
- * LOST PROFITS, ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS
- * DOCUMENTATION, EVEN IF THE UNIVERSITY OF CALIFORNIA HAS BEEN ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
- *
- * THE UNIVERSITY OF CALIFORNIA SPECIFICALLY DISCLAIMS ANY WARRANTIES,
- * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
- * AND FITNESS FOR A PARTICULAR PURPOSE.  THE SOFTWARE PROVIDED HEREUNDER IS
- * ON AN "AS IS" BASIS, AND THE UNIVERSITY OF CALIFORNIA HAS NO OBLIGATIONS TO
- * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
- */
-
-// PostgreSQL's NumericVar, so its numeric algorithms port as written: base-NBASE digits,
-// most significant first, the weight of the first digit, and the display scale. A zero has
-// no digits. Where PostgreSQL computes an exact result, any exact method yields the same
-// digits, so these routines use PostgreSQL's 32-bit forms and keep the translated targets on
-// plain numbers. Where it approximates, by truncating a product or estimating a quotient, they
-// reproduce PostgreSQL's arithmetic step for step.
-#[derive(Clone)]
-struct NumericVar {
-    sign: i32,
-    weight: i32,
-    dscale: i32,
-    digits: Vec<usize>,
 }
 
 const NUMERIC_VAR_NBASE: i32 = 10000;
@@ -956,94 +808,6 @@ fn numeric_var_round_power(decimals: i32) -> i32 {
         return 100;
     }
     10
-}
-
-fn numeric_var_from_work(work: &NumericWork) -> NumericVar {
-    if work.sign == 0 {
-        return numeric_var_zero(work.scale);
-    }
-    let characters: Vec<char> = work.digits.chars().collect();
-    let mut weight = work.weight / NUMERIC_VAR_DEC_DIGITS;
-    if work.weight % NUMERIC_VAR_DEC_DIGITS < 0 {
-        weight = weight - 1;
-    }
-    // Leading zeros place the first decimal digit within the first NBASE digit, and trailing
-    // zeros complete the last one.
-    let mut leading = weight * NUMERIC_VAR_DEC_DIGITS + NUMERIC_VAR_DEC_DIGITS - 1 - work.weight;
-    let mut emitted: i32 = 0;
-    let mut digits: Vec<usize> = Vec::new();
-    let mut value: i32 = 0;
-    let mut index: usize = 0;
-    while index < characters.len() || emitted % NUMERIC_VAR_DEC_DIGITS != 0 {
-        let mut decimal: i32 = 0;
-        if leading > 0 {
-            leading = leading - 1;
-        } else if index < characters.len() {
-            decimal = numeric_wire_decimal_digit(characters[index]);
-            index += 1;
-        }
-        value = value * 10 + decimal;
-        emitted = emitted + 1;
-        if emitted % NUMERIC_VAR_DEC_DIGITS == 0 {
-            digits.push(usize::try_from(value).unwrap_or(0));
-            value = 0;
-        };
-    }
-    numeric_var_strip(NumericVar {
-        sign: work.sign,
-        weight: weight,
-        dscale: work.scale,
-        digits: digits,
-    })
-}
-
-fn numeric_work_from_var(value: &NumericVar) -> NumericWork {
-    let mut scale = value.dscale;
-    if scale < 0 {
-        scale = 0;
-    }
-    let mut decimals = String::new();
-    let mut weight = value.weight * NUMERIC_VAR_DEC_DIGITS + NUMERIC_VAR_DEC_DIGITS - 1;
-    let mut index: usize = 0;
-    while index < value.digits.len() {
-        let mut word = (value.digits[index] as i32);
-        let mut place: i32 = 1000;
-        while place > 0 {
-            let digit = word / place;
-            word = word % place;
-            if decimals == String::new() && digit == 0 {
-                weight = weight - 1;
-            } else {
-                decimals.push(char::from_u32((digit + 48) as u32).unwrap_or('0'));
-            }
-            place = place / 10;
-        }
-        index += 1;
-    }
-    let characters: Vec<char> = decimals.chars().collect();
-    let mut end = characters.len();
-    while end > 0 && characters[end - 1] == '0' {
-        end = end - 1;
-    }
-    let mut digits = String::new();
-    index = 0;
-    while index < end {
-        digits.push(characters[index]);
-        index += 1;
-    }
-    let mut sign = value.sign;
-    if end == 0 {
-        sign = 0;
-        weight = 0;
-    }
-    NumericWork {
-        valid: true,
-        special: 1,
-        sign: sign,
-        weight: weight,
-        scale: scale,
-        digits: digits,
-    }
 }
 
 fn numeric_var_from_i64(value: i64) -> NumericVar {
@@ -2053,7 +1817,7 @@ fn numeric_var_result(value: NumericVar) -> NumericValue {
     {
         return NumericValue::Error(make_sql_error(NUMERIC_SUPPORT_RANGE_ERROR));
     }
-    NumericValue::Value(numeric_work_text(numeric_work_from_var(&stripped)))
+    NumericValue::Value(stripped)
 }
 
 fn numeric_var_rescaled(value: NumericVar, dscale: i32) -> NumericVar {
@@ -2085,127 +1849,90 @@ fn numeric_var_floor(value: &NumericVar) -> NumericVar {
     truncated
 }
 
+// The special-value code the decimal helpers use: 0 for -Infinity, 1 for a finite value, 2 for
+// Infinity and 3 for NaN.
+fn numeric_var_kind(value: &NumericVar) -> i32 {
+    if value.sign == NUMERIC_SIGN_NAN {
+        return 3;
+    }
+    if value.sign == NUMERIC_SIGN_PINF {
+        return 2;
+    }
+    if value.sign == NUMERIC_SIGN_NINF {
+        return 0;
+    }
+    1
+}
+
+// -1, 0 or 1 for a finite value.
+fn numeric_var_signum(value: &NumericVar) -> i32 {
+    if numeric_var_count(value) == 0 {
+        return 0;
+    }
+    value.sign
+}
+
+// PostgreSQL's numeric_abs: the infinities become Infinity.
+fn numeric_var_absolute(value: NumericVar) -> NumericVar {
+    if value.sign == NUMERIC_SIGN_NINF {
+        return numeric_var_special(NUMERIC_SIGN_PINF);
+    }
+    if value.sign == -1 {
+        return numeric_var_signed(value, 1);
+    }
+    value
+}
+
+// PostgreSQL's numeric_uminus: zero and NaN keep their sign.
+fn numeric_var_negated(value: NumericVar) -> NumericVar {
+    if value.sign == NUMERIC_SIGN_NINF {
+        return numeric_var_special(NUMERIC_SIGN_PINF);
+    }
+    if value.sign == NUMERIC_SIGN_PINF {
+        return numeric_var_special(NUMERIC_SIGN_NINF);
+    }
+    if value.sign == NUMERIC_SIGN_NAN || numeric_var_count(&value) == 0 {
+        return value;
+    }
+    let sign = 0 - value.sign;
+    numeric_var_signed(value, sign)
+}
+
+// PostgreSQL's cmp_numerics: NaN above everything, the infinities at the ends.
+fn numeric_var_compare_values(left: &NumericVar, right: &NumericVar) -> i32 {
+    let left_kind = numeric_var_kind(left);
+    let right_kind = numeric_var_kind(right);
+    if left_kind == 3 {
+        if right_kind == 3 {
+            return 0;
+        }
+        return 1;
+    }
+    if left_kind == 2 {
+        if right_kind == 3 {
+            return -1;
+        }
+        if right_kind == 2 {
+            return 0;
+        }
+        return 1;
+    }
+    if left_kind == 0 {
+        if right_kind == 0 {
+            return 0;
+        }
+        return -1;
+    }
+    if right_kind == 0 {
+        return 1;
+    }
+    if right_kind != 1 {
+        return -1;
+    }
+    numeric_var_cmp(left, right)
+}
+
 const NUMERIC_SUPPORT_RANGE_ERROR: u32 = 3452547;
-
-#[derive(Clone)]
-struct NumericWork {
-    valid: bool,
-    special: i32,
-    sign: i32,
-    weight: i32,
-    scale: i32,
-    digits: String,
-}
-
-fn numeric_work_from_value(value: &str) -> NumericWork {
-    let layout = numeric_parts(value);
-    let mut digits = String::new();
-    let mut scale: i32 = 0;
-    if layout.valid && layout.special == 1 {
-        scale = numeric_wire_scale(value);
-        let characters: Vec<char> = value.chars().collect();
-        let mut index = layout.first;
-        while index < layout.end {
-            let character = characters[index];
-            if numeric_wire_decimal_digit(character) >= 0 {
-                digits.push(character);
-            }
-            index += 1;
-        }
-    }
-    NumericWork {
-        valid: layout.valid,
-        special: layout.special,
-        sign: layout.sign,
-        weight: layout.weight,
-        scale: scale,
-        digits: digits,
-    }
-}
-
-fn numeric_work_zeros(count: i32) -> String {
-    let mut remaining = count;
-    let mut block = "0".to_owned();
-    let mut output = String::new();
-    while remaining > 0 {
-        if remaining % 2 == 1 {
-            output.push_str(block.as_str());
-        }
-        remaining = remaining / 2;
-        if remaining > 0 {
-            let copy = block.clone();
-            block.push_str(copy.as_str());
-        }
-    }
-    output
-}
-
-fn numeric_work_text(work: NumericWork) -> String {
-    if work.special == 0 {
-        return "-Infinity".to_owned();
-    }
-    if work.special == 2 {
-        return "Infinity".to_owned();
-    }
-    if work.special == 3 {
-        return "NaN".to_owned();
-    }
-    let digits: Vec<char> = work.digits.chars().collect();
-    let mut output = String::new();
-    if work.sign < 0 {
-        output.push('-');
-    }
-    if work.sign == 0 {
-        output.push('0');
-        if work.scale > 0 {
-            output.push('.');
-            output.push_str(numeric_work_zeros(work.scale).as_str());
-        }
-        return output;
-    }
-    let mut index: usize = 0;
-    if work.weight >= 0 {
-        let mut length: i32 = 0;
-        while index < digits.len() {
-            length = length + 1;
-            index += 1;
-        }
-        index = 0;
-        let mut positions = work.weight + 1;
-        if length <= positions {
-            output.push_str(work.digits.as_str());
-            output.push_str(numeric_work_zeros(positions - length).as_str());
-            index = digits.len();
-        } else {
-            while positions > 0 {
-                output.push(digits[index]);
-                index += 1;
-                positions = positions - 1;
-            }
-        };
-    } else {
-        output.push('0');
-    };
-    if work.scale > 0 {
-        output.push('.');
-        let mut positions = work.scale;
-        if work.weight < -1 {
-            let mut leading = 0 - work.weight - 1;
-            if leading > positions {
-                leading = positions;
-            }
-            output.push_str(numeric_work_zeros(leading).as_str());
-            positions = positions - leading;
-        }
-        while positions > 0 && index < digits.len() {
-            output.push(digits[index]);
-            index += 1;
-            positions = positions - 1;
-        }
-        output.push_str(numeric_work_zeros(positions).as_str());
-    }
-    output
-}
 
 const SCALAR_INPUT_INVALID: u32 = 3484946;
 
@@ -2224,12 +1951,12 @@ pub fn scalar_numeric_from_text(input: TextValue) -> NumericValue {
         let parts = numeric_parts(value.as_str());
         if parts.valid && parts.special != 1 {
             if parts.special == 0 {
-                return NumericValue::Value("-Infinity".to_owned());
+                return make_numeric_value("-Infinity");
             };
             if parts.special == 2 {
-                return NumericValue::Value("Infinity".to_owned());
+                return make_numeric_value("Infinity");
             };
-            return NumericValue::Value("NaN".to_owned());
+            return make_numeric_value("NaN");
         };
         let characters: Vec<char> = value.chars().collect();
         let mut start: usize = 0;
@@ -2329,7 +2056,7 @@ pub fn scalar_numeric_from_text(input: TextValue) -> NumericValue {
             return NumericValue::Error(error);
         };
         if let TextValue::Value(number) = parsed {
-            let mut result = NumericValue::Value(number);
+            let mut result = make_numeric_value(number.as_str());
             if negative {
                 result = sql__pg_catalog__numeric_uminus__wcmy(result);
             };

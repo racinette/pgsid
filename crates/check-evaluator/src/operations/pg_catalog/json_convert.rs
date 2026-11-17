@@ -52,10 +52,12 @@ pub fn json_input_from_numeric(input: NumericValue) -> JsonbInput {
     let mut unresolved_flavor: i32 = 0;
     if let NumericValue::Unknown = input { unresolved_flavor = 1; };
     if let NumericValue::Unimplemented = input { unresolved_flavor = 2; };
-    if input == NumericValue::Unimplemented {
+    let mut numeric_unimplemented_input_1 = false; if let NumericValue::Unimplemented = input { numeric_unimplemented_input_1 = true; };
+    if numeric_unimplemented_input_1 {
         return JsonbInput::Unimplemented;
     };
-    if input == NumericValue::Unknown {
+    let mut numeric_unknown_input_2 = false; if let NumericValue::Unknown = input { numeric_unknown_input_2 = true; };
+    if numeric_unknown_input_2 {
         return JsonbInput::ScalarUnknown("1001000".to_owned());
     };
     let output = array_numeric_output(input);

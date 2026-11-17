@@ -77,17 +77,17 @@ fn temporal_extract_date(value: i32, code: i32) -> NumericValue {
             return NumericValue::Null;
         };
         if value < 0 {
-            return NumericValue::Value("-Infinity".to_owned());
+            return make_numeric_value("-Infinity");
         };
-        return NumericValue::Value("Infinity".to_owned());
+        return make_numeric_value("Infinity");
     };
     let date = value as i64;
     if code == 19 {
-        return NumericValue::Value(text_signed_number((date + 10957i64) * 86400i64));
+        return make_numeric_value(text_signed_number((date + 10957i64) * 86400i64).as_str());
     };
     let julian = date + 2451545i64;
     if code == 14 {
-        return NumericValue::Value(text_signed_number(julian));
+        return make_numeric_value(text_signed_number(julian).as_str());
     };
     let calendar = temporal_calendar_from_julian(julian);
     let mut result: i64 = 0i64;
@@ -155,7 +155,7 @@ fn temporal_extract_date(value: i32, code: i32) -> NumericValue {
     if code == 18 {
         result = julian - temporal_julian_from_calendar(calendar.year, 1, 1) + 1i64;
     };
-    NumericValue::Value(text_signed_number(result))
+    make_numeric_value(text_signed_number(result).as_str())
 }
 
 pub fn sql__pg_catalog__extract__qjml(units: TextValue, input: DateValue) -> NumericValue {

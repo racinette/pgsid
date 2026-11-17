@@ -40,24 +40,19 @@ fn numeric_common(left: NumericValue, right: NumericValue, multiple: bool) -> Nu
     if let NumericValue::Error(error) = right {
         return NumericValue::Error(error);
     }
-    let mut condition_flavor_28_4: i32 = unresolved_flavor; if let NumericValue::Unknown = left { if condition_flavor_28_4 < 1 { condition_flavor_28_4 = 1; }; }; if let NumericValue::Unimplemented = left { condition_flavor_28_4 = 2; }; if let NumericValue::Unknown = right { if condition_flavor_28_4 < 1 { condition_flavor_28_4 = 1; }; }; if let NumericValue::Unimplemented = right { condition_flavor_28_4 = 2; }; if (left == NumericValue::Unknown || left == NumericValue::Unimplemented) || (right == NumericValue::Unknown || right == NumericValue::Unimplemented) {
+    let mut numeric_unknown_left_1 = false; if let NumericValue::Unknown = left { numeric_unknown_left_1 = true; }; let mut numeric_unimplemented_left_2 = false; if let NumericValue::Unimplemented = left { numeric_unimplemented_left_2 = true; }; let mut numeric_unknown_right_3 = false; if let NumericValue::Unknown = right { numeric_unknown_right_3 = true; }; let mut numeric_unimplemented_right_4 = false; if let NumericValue::Unimplemented = right { numeric_unimplemented_right_4 = true; };
+    let mut condition_flavor_28_4: i32 = unresolved_flavor; if let NumericValue::Unknown = left { if condition_flavor_28_4 < 1 { condition_flavor_28_4 = 1; }; }; if let NumericValue::Unimplemented = left { condition_flavor_28_4 = 2; }; if let NumericValue::Unknown = right { if condition_flavor_28_4 < 1 { condition_flavor_28_4 = 1; }; }; if let NumericValue::Unimplemented = right { condition_flavor_28_4 = 2; }; if (numeric_unknown_left_1 || numeric_unimplemented_left_2) || (numeric_unknown_right_3 || numeric_unimplemented_right_4) {
         return numeric_unresolved(condition_flavor_28_4);
     }
-    if left == NumericValue::Null || right == NumericValue::Null {
+    let mut numeric_null_left_5 = false; if let NumericValue::Null = left { numeric_null_left_5 = true; }; let mut numeric_null_right_6 = false; if let NumericValue::Null = right { numeric_null_right_6 = true; };
+    if numeric_null_left_5 || numeric_null_right_6 {
         return NumericValue::Null;
     }
-    if let NumericValue::Value(first) = left {
-        if let NumericValue::Value(second) = right {
-            let a = numeric_work_from_value(first.as_str());
-            let b = numeric_work_from_value(second.as_str());
-            if a.valid == false || b.valid == false {
-                return numeric_unresolved(unresolved_flavor);
+    if let NumericValue::Value(arg1) = left {
+        if let NumericValue::Value(arg2) = right {
+            if numeric_var_kind(&arg1) != 1 || numeric_var_kind(&arg2) != 1 {
+                return make_numeric_value("NaN");
             }
-            if a.special != 1 || b.special != 1 {
-                return NumericValue::Value("NaN".to_owned());
-            }
-            let arg1 = numeric_var_from_work(&a);
-            let arg2 = numeric_var_from_work(&b);
             let mut dscale = arg1.dscale;
             if arg2.dscale > dscale {
                 dscale = arg2.dscale;

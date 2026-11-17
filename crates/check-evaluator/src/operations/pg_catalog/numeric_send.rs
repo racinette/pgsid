@@ -59,79 +59,42 @@ pub fn sql__pg_catalog__numeric_send__3mnb(input: NumericValue) -> ByteaValue {
     if let NumericValue::Error(error) = input {
         return ByteaValue::Error(error);
     }
-    let mut condition_flavor_62_4: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_62_4 < 1 { condition_flavor_62_4 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_62_4 = 2; }; if input == NumericValue::Unknown || input == NumericValue::Unimplemented {
+    let mut numeric_unknown_input_1 = false; if let NumericValue::Unknown = input { numeric_unknown_input_1 = true; }; let mut numeric_unimplemented_input_2 = false; if let NumericValue::Unimplemented = input { numeric_unimplemented_input_2 = true; };
+    let mut condition_flavor_62_4: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_62_4 < 1 { condition_flavor_62_4 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_62_4 = 2; }; if numeric_unknown_input_1 || numeric_unimplemented_input_2 {
         return bytea_unresolved(condition_flavor_62_4);
     }
-    if input == NumericValue::Null {
+    let mut numeric_null_input_3 = false; if let NumericValue::Null = input { numeric_null_input_3 = true; };
+    if numeric_null_input_3 {
         return ByteaValue::Null;
     }
     if let NumericValue::Value(value) = input {
-        let layout = numeric_parts(value.as_str());
-        if layout.valid == false {
-            return bytea_unresolved(unresolved_flavor);
-        }
+        let kind = numeric_var_kind(&value);
         let mut sign: i32 = 0;
-        if layout.special == 0 {
+        if kind == 0 {
             sign = 61440;
-        } else if layout.special == 2 {
+        } else if kind == 2 {
             sign = 53248;
-        } else if layout.special == 3 {
+        } else if kind == 3 {
             sign = 49152;
-        } else if layout.sign < 0 {
+        } else if numeric_var_signum(&value) < 0 {
             sign = 16384;
         }
-        let mut scale: i32 = 0;
-        if layout.special == 0 || layout.special == 2 {
+        let mut scale: i32 = value.dscale;
+        if kind == 0 || kind == 2 {
             scale = 32;
+        } else if kind == 3 {
+            scale = 0;
         }
-        let mut weight: i32 = 0;
-        let mut count: i32 = 0;
-        let mut words: Vec<NumericWireDigit> = Vec::new();
-        if layout.special == 1 {
-            scale = numeric_wire_scale(value.as_str());
-            if layout.sign != 0 {
-                weight = layout.weight / 4;
-                let mut remainder = layout.weight % 4;
-                if remainder < 0 {
-                    weight = weight - 1;
-                    remainder = remainder + 4;
-                }
-                let chars: Vec<char> = value.chars().collect();
-                let mut index = layout.first;
-                let mut position = 3 - remainder;
-                let mut group: i32 = 0;
-                while index < layout.end {
-                    let digit = numeric_wire_decimal_digit(chars[index]);
-                    if digit >= 0 {
-                        group = group * 10 + digit;
-                        position = position + 1;
-                        if position == 4 {
-                            words.push(NumericWireDigit { value: group });
-                            count = count + 1;
-                            position = 0;
-                            group = 0;
-                        }
-                    }
-                    index += 1;
-                }
-                if position > 0 {
-                    while position < 4 {
-                        group = group * 10;
-                        position = position + 1;
-                    }
-                    words.push(NumericWireDigit { value: group });
-                    count = count + 1;
-                }
-            }
-        }
+        let weight = value.weight;
+        let count = value.digits.len() as i32;
         let mut output = String::new();
         output = numeric_wire_word(output, count);
         output = numeric_wire_word(output, weight);
         output = numeric_wire_word(output, sign);
         output = numeric_wire_word(output, scale);
         let mut index: usize = 0;
-        while index < words.len() {
-            output = numeric_wire_word(output, words[index].value);
+        while index < value.digits.len() {
+            output = numeric_wire_word(output, value.digits[index] as i32);
             index += 1;
         }
         return ByteaValue::Value(output);

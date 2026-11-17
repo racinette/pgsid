@@ -59,7 +59,7 @@ fn array_typmod_probe(source:TextValue,expected:TextValue,selected:i32)->BoolVal
  if selected==8 {
   let number=array_element_to_numeric(cell.clone());
   if let NumericValue::Null=number {actual=TextValue::Null;};
-  if let NumericValue::Value(value)=number {actual=TextValue::Value(numeric_work_text(numeric_work_from_value(value.as_str())));};
+  if let NumericValue::Value(value)=number {actual=TextValue::Value(numeric_text(&value));};
  };
  let mut wire=ByteaValue::Unknown;
  if selected==9 {wire=sql__pg_catalog__bit_send__1fyo(array_element_to_bit(cell.clone()));};
@@ -97,7 +97,7 @@ pub fn scalar_input_probe(source:TextValue,expected:TextValue,mode:Int4Value)->B
   let number=scalar_numeric_from_text(source.clone());
   if let NumericValue::Error(error)=number {return BoolValue::Error(error);};
   if let NumericValue::Null=number {actual=TextValue::Null;};
-  if let NumericValue::Value(value)=number {let work=numeric_work_from_value(value.as_str());actual=TextValue::Value(numeric_work_text(work));};
+  if let NumericValue::Value(value)=number {actual=TextValue::Value(numeric_text(&value));};
  };
  if selected==5 {actual=enum_to_text(scalar_enum_from_text(source,"\0new\0雪\0NULL",4),"\0new\0雪\0NULL",4);};
  if let TextValue::Error(error)=actual {return BoolValue::Error(error);};

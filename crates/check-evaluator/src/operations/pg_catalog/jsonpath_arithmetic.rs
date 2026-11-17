@@ -26,7 +26,7 @@ fn jsonpath_execution_numeric(
         ));
         position += 1;
     }
-    NumericValue::Value(text)
+    make_numeric_value(text.as_str())
 }
 
 fn jsonpath_arithmetic_binary(kind: i32, left: NumericValue, right: NumericValue) -> NumericValue {

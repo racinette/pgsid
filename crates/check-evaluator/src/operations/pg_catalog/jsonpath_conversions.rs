@@ -98,7 +98,7 @@ fn jsonpath_conversion_integer_text(input: TextValue, wide: bool) -> NumericValu
         if negative == false {
             number = 0i64 - number;
         };
-        return NumericValue::Value(text_signed_number(number));
+        return make_numeric_value(text_signed_number(number).as_str());
     };
     numeric_unresolved(unresolved_flavor)
 }
@@ -113,10 +113,11 @@ fn jsonpath_conversion_number_text(input: TextValue) -> NumericValue {
         if let NumericValue::Error(_) = parsed {
             return NumericValue::Error(make_sql_error(JSONPATH_METHOD_NON_NUMERIC));
         };
-        if let NumericValue::Value(number) = parsed {
+        if let NumericValue::Value(number_numeric) = parsed {
+            let number = numeric_text(&number_numeric);
             let parts = numeric_parts(number.as_str());
             if parts.valid && parts.special == 1 {
-                return NumericValue::Value(number);
+                return make_numeric_value(number.as_str());
             };
             return NumericValue::Error(make_sql_error(JSONPATH_METHOD_NON_NUMERIC));
         };
@@ -150,12 +151,14 @@ fn jsonpath_conversion_boolean_value(
         return jsonpath_conversion_boolean_text(text);
     };
     if value_kind == 3 {
-        if let NumericValue::Value(value) = number {
+        if let NumericValue::Value(value_numeric) = number {
+            let value = numeric_text(&value_numeric);
             let parsed = jsonpath_conversion_integer_text(TextValue::Value(value), false);
             if let NumericValue::Error(error) = parsed {
                 return BoolValue::Error(error);
             };
-            if let NumericValue::Value(value) = parsed {
+            if let NumericValue::Value(value_numeric) = parsed {
+                let value = numeric_text(&value_numeric);
                 return BoolValue::Value(value != "0".to_owned());
             };
         };
@@ -185,7 +188,8 @@ fn jsonpath_conversion_string_value(
         return TextValue::Value("true".to_owned());
     };
     if value_kind == 3 {
-        if let NumericValue::Value(value) = number {
+        if let NumericValue::Value(value_numeric) = number {
+            let value = numeric_text(&value_numeric);
             return TextValue::Value(value);
         };
         return text_unresolved(unresolved_flavor);
@@ -234,7 +238,8 @@ fn jsonpath_conversion_numeric_value(
         if let NumericValue::Error(error) = converted {
             return NumericValue::Error(error);
         };
-        let mut condition_flavor_232_8: i32 = unresolved_flavor; if let NumericValue::Unknown = converted { if condition_flavor_232_8 < 1 { condition_flavor_232_8 = 1; }; }; if let NumericValue::Unimplemented = converted { condition_flavor_232_8 = 2; }; if converted == NumericValue::Unknown || converted == NumericValue::Unimplemented {
+        let mut numeric_unknown_converted_1 = false; if let NumericValue::Unknown = converted { numeric_unknown_converted_1 = true; }; let mut numeric_unimplemented_converted_2 = false; if let NumericValue::Unimplemented = converted { numeric_unimplemented_converted_2 = true; };
+        let mut condition_flavor_232_8: i32 = unresolved_flavor; if let NumericValue::Unknown = converted { if condition_flavor_232_8 < 1 { condition_flavor_232_8 = 1; }; }; if let NumericValue::Unimplemented = converted { condition_flavor_232_8 = 2; }; if numeric_unknown_converted_1 || numeric_unimplemented_converted_2 {
             return numeric_unresolved(condition_flavor_232_8);
         };
         let precision = sql__pg_catalog__int4__z4rh(jsonpath_execution_numeric(

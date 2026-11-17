@@ -159,7 +159,7 @@ fn jsonpath_keyvalue_add_base(offset: NumericValue, identity: i64) -> NumericVal
         if high >= 2147483648i64 {
             high = high - 4294967296i64;
         };
-        return NumericValue::Value(text_signed_number(high * 4294967296i64 + low));
+        return make_numeric_value(text_signed_number(high * 4294967296i64 + low).as_str());
     };
     let mut local_flavor_164_4: i32 = unresolved_flavor; if let Int8Value::Unknown = converted { if local_flavor_164_4 < 1 { local_flavor_164_4 = 1; }; }; if let Int8Value::Unimplemented = converted { local_flavor_164_4 = 2; }; numeric_unresolved(local_flavor_164_4)
 }
@@ -232,7 +232,8 @@ fn jsonpath_keyvalue_build(
     tails.push(3);
     let identity_start = characters.len();
     let identity = jsonpath_keyvalue_identity(context, reference);
-    if let NumericValue::Value(text) = identity {
+    if let NumericValue::Value(text_numeric) = identity {
+        let text = numeric_text(&text_numeric);
         let content: Vec<char> = text.chars().collect();
         let mut position: usize = 0;
         while position < content.len() {

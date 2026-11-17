@@ -1,3 +1,28 @@
+/*
+ * PostgreSQL Database Management System
+ * (also known as Postgres, formerly known as Postgres95)
+ *
+ * Portions Copyright (c) 1996-2026, PostgreSQL Global Development Group
+ *
+ * Portions Copyright (c) 1994, The Regents of the University of California
+ *
+ * Permission to use, copy, modify, and distribute this software and its
+ * documentation for any purpose, without fee, and without a written agreement
+ * is hereby granted, provided that the above copyright notice and this
+ * paragraph and the following two paragraphs appear in all copies.
+ *
+ * IN NO EVENT SHALL THE UNIVERSITY OF CALIFORNIA BE LIABLE TO ANY PARTY FOR
+ * DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, INCLUDING
+ * LOST PROFITS, ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS
+ * DOCUMENTATION, EVEN IF THE UNIVERSITY OF CALIFORNIA HAS BEEN ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ *
+ * THE UNIVERSITY OF CALIFORNIA SPECIFICALLY DISCLAIMS ANY WARRANTIES,
+ * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
+ * AND FITNESS FOR A PARTICULAR PURPOSE.  THE SOFTWARE PROVIDED HEREUNDER IS
+ * ON AN "AS IS" BASIS, AND THE UNIVERSITY OF CALIFORNIA HAS NO OBLIGATIONS TO
+ * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
+ */
 package checkruntime
 
 import langruntime "example.com/pgsid-fixture/generated/go/pgsid/internal/numeric/langruntime"
@@ -263,18 +288,101 @@ const (
 
 type NumericValue struct {
 	Kind  NumericValueKind
-	Value string
+	Value NumericVar
 	Error SqlError
 }
 
+func CopyNumericValue(value NumericValue) NumericValue {
+	switch value.Kind {
+	case NumericValueUnknown:
+		return NumericValue{Kind: NumericValueUnknown}
+	case NumericValueUnimplemented:
+		return NumericValue{Kind: NumericValueUnimplemented}
+	case NumericValueNull:
+		return NumericValue{Kind: NumericValueNull}
+	case NumericValueValue:
+		return NumericValue{Kind: NumericValueValue, Value: CopyNumericVar(value.Value)}
+	case NumericValueError:
+		return NumericValue{Kind: NumericValueError, Error: value.Error}
+	}
+	panic("unknown enum variant")
+}
 func MakeNumericValue(value string) NumericValue {
 	value = langruntime.CheckedString(value)
-	unresolvedFlavor := 0
-	parts := NumericParts(value)
-	if parts.Valid == false {
-		return NumericUnresolved(unresolvedFlavor)
+	layout := NumericParts(value)
+	if layout.Valid == false {
+		return NumericUnresolved(0)
 	}
-	return NumericValue{Kind: NumericValueValue, Value: value}
+	if layout.Special == 3 {
+		return NumericValue{Kind: NumericValueValue, Value: NumericVarSpecial(NumericSignNan)}
+	}
+	if layout.Special == 2 {
+		return NumericValue{Kind: NumericValueValue, Value: NumericVarSpecial(NumericSignPinf)}
+	}
+	if layout.Special == 0 {
+		return NumericValue{Kind: NumericValueValue, Value: NumericVarSpecial(NumericSignNinf)}
+	}
+	chars := []rune(value)
+	index := 0
+	point := false
+	power := false
+	fractional := 0
+	exponent := 0
+	exponentSign := 1
+	for index < len(chars) {
+		digit := numericDigit(chars[index])
+		if digit >= 0 {
+			if power {
+				exponent = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(exponent, 10), digit))
+			} else if point {
+				fractional = langruntime.CheckedI32(langruntime.CheckedSignedAdd(fractional, 1))
+			}
+		} else if chars[index] == '.' {
+			point = true
+		} else if chars[index] == 'e' || chars[index] == 'E' {
+			power = true
+		} else if power && chars[index] == '-' {
+			exponentSign = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	dscale := langruntime.CheckedSignedSubtract(fractional, langruntime.CheckedSignedMultiply(exponent, exponentSign))
+	if dscale < 0 {
+		dscale = langruntime.CheckedI32(0)
+	}
+	digits := []int{}
+	if layout.Sign == 0 {
+		return NumericValue{Kind: NumericValueValue, Value: NumericVar{Sign: 1, Weight: 0, Dscale: dscale, Digits: digits}}
+	}
+	weight := langruntime.CheckedSignedDivide(layout.Weight, 4)
+	if langruntime.CheckedSignedRemainder(layout.Weight, 4) < 0 {
+		weight = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(weight, 1))
+	}
+	leading := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(weight, 4), 3), layout.Weight)
+	emitted := 0
+	group := 0
+	index = langruntime.CheckedIndex(layout.First)
+	for index < layout.End || langruntime.CheckedSignedRemainder(emitted, 4) != 0 {
+		decimal := 0
+		if leading > 0 {
+			leading = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(leading, 1))
+		} else if index < layout.End {
+			decimal = langruntime.CheckedI32(numericDigit(chars[index]))
+			for decimal < 0 {
+				index = langruntime.CheckedAdd(index, 1)
+				decimal = langruntime.CheckedI32(numericDigit(chars[index]))
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		group = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(group, 10), decimal))
+		emitted = langruntime.CheckedI32(langruntime.CheckedSignedAdd(emitted, 1))
+		if langruntime.CheckedSignedRemainder(emitted, 4) == 0 {
+			langruntime.CheckedAdd(len(digits), 1)
+			digits = append(digits, langruntime.CheckedIndex(langruntime.IndexFromI32(group, 0)))
+			group = langruntime.CheckedI32(0)
+		}
+	}
+	return NumericValue{Kind: NumericValueValue, Value: NumericVar{Sign: layout.Sign, Weight: weight, Dscale: dscale, Digits: digits}}
 }
 
 type JsonbNode struct {
@@ -580,6 +688,90 @@ func NumericParts(value string) NumericLayout {
 		return invalidNumericParts()
 	}
 	return NumericLayout{Valid: true, Special: 1, Sign: sign, Weight: weight, First: first, End: last}
+}
+
+const NumericSignPinf = 2
+const NumericSignNinf = 4
+const NumericSignNan = 3
+
+type NumericVar struct {
+	Sign   int
+	Weight int
+	Dscale int
+	Digits []int
+}
+
+func CopyNumericVar(value NumericVar) NumericVar {
+	return NumericVar{Sign: langruntime.CheckedI32(value.Sign), Weight: langruntime.CheckedI32(value.Weight), Dscale: langruntime.CheckedI32(value.Dscale), Digits: langruntime.CheckedIndices(value.Digits)}
+}
+func NumericVarSpecial(sign int) NumericVar {
+	sign = langruntime.CheckedI32(sign)
+	digits := []int{}
+	return NumericVar{Sign: sign, Weight: 0, Dscale: 0, Digits: digits}
+}
+func NumericText(value *NumericVar) string {
+	value = langruntime.CheckedBorrowed(value, CopyNumericVar)
+	if value.Sign == NumericSignNan {
+		return "NaN"
+	}
+	if value.Sign == NumericSignPinf {
+		return "Infinity"
+	}
+	if value.Sign == NumericSignNinf {
+		return "-Infinity"
+	}
+	output := langruntime.NewTextBuffer("")
+	if value.Sign < 0 {
+		output = append(output, string(langruntime.CheckedChar('-'))...)
+	}
+	count := int(int32(len(value.Digits)))
+	if value.Weight < 0 {
+		output = append(output, string(langruntime.CheckedChar('0'))...)
+	} else {
+		d := 0
+		for d <= value.Weight {
+			dig := 0
+			if d < count {
+				dig = langruntime.CheckedI32(int(int32(value.Digits[langruntime.IndexFromI32(d, 0)])))
+			}
+			putit := d > 0
+			place := 1000
+			for place > 1 {
+				d1 := langruntime.CheckedSignedDivide(dig, place)
+				dig = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(dig, langruntime.CheckedSignedMultiply(d1, place)))
+				if d1 > 0 {
+					putit = true
+				}
+				if putit {
+					output = append(output, string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(d1, 48)), '0')))...)
+				}
+				place = langruntime.CheckedI32(langruntime.CheckedSignedDivide(place, 10))
+			}
+			output = append(output, string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(dig, 48)), '0')))...)
+			d = langruntime.CheckedI32(langruntime.CheckedSignedAdd(d, 1))
+		}
+	}
+	if value.Dscale > 0 {
+		output = append(output, string(langruntime.CheckedChar('.'))...)
+		written := 0
+		d := langruntime.CheckedSignedAdd(value.Weight, 1)
+		for written < value.Dscale {
+			dig := 0
+			if d >= 0 && d < count {
+				dig = langruntime.CheckedI32(int(int32(value.Digits[langruntime.IndexFromI32(d, 0)])))
+			}
+			place := 1000
+			for place > 0 && written < value.Dscale {
+				d1 := langruntime.CheckedSignedDivide(dig, place)
+				dig = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(dig, langruntime.CheckedSignedMultiply(d1, place)))
+				output = append(output, string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(d1, 48)), '0')))...)
+				written = langruntime.CheckedI32(langruntime.CheckedSignedAdd(written, 1))
+				place = langruntime.CheckedI32(langruntime.CheckedSignedDivide(place, 10))
+			}
+			d = langruntime.CheckedI32(langruntime.CheckedSignedAdd(d, 1))
+		}
+	}
+	return string(output)
 }
 
 type jsonSyntaxSource struct {

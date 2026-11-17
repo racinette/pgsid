@@ -33,10 +33,11 @@ pub fn sql__pg_catalog__money__z8lp(input: NumericValue, digits: i32) -> MoneyVa
     if let NumericValue::Unimplemented = input { unresolved_flavor = 2; };
     if let NumericValue::Error(error) = input { return MoneyValue::Error(error); };
     if let NumericValue::Null = input { return MoneyValue::Null; };
-    if let NumericValue::Value(value) = input {
+    if let NumericValue::Value(value_numeric) = input {
+        let value = numeric_text(&value_numeric);
         let work = numeric_work_from_value(value.as_str());
         if work.valid == false { return money_unresolved(unresolved_flavor); };
-        let amount = NumericValue::Value(value);
+        let amount = make_numeric_value(value.as_str());
         if work.special != 1 { return money_from_units(sql__pg_catalog__int8__xy54(amount)); };
         if work.sign == 0 { return make_money_value(0i64); };
         if money_scale_available(digits) == false { return money_unresolved(resolution_context(unresolved_flavor)); };

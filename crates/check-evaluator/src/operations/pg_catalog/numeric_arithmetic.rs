@@ -268,35 +268,34 @@ fn numeric_arithmetic(left: NumericValue, right: NumericValue, mode: i32) -> Num
     if let NumericValue::Error(error) = right {
         return NumericValue::Error(error);
     }
-    let mut condition_flavor_285_4: i32 = unresolved_flavor; if let NumericValue::Unknown = left { if condition_flavor_285_4 < 1 { condition_flavor_285_4 = 1; }; }; if let NumericValue::Unimplemented = left { condition_flavor_285_4 = 2; }; if let NumericValue::Unknown = right { if condition_flavor_285_4 < 1 { condition_flavor_285_4 = 1; }; }; if let NumericValue::Unimplemented = right { condition_flavor_285_4 = 2; }; if (left == NumericValue::Unknown || left == NumericValue::Unimplemented) || (right == NumericValue::Unknown || right == NumericValue::Unimplemented) {
+    let mut numeric_unknown_left_1 = false; if let NumericValue::Unknown = left { numeric_unknown_left_1 = true; }; let mut numeric_unimplemented_left_2 = false; if let NumericValue::Unimplemented = left { numeric_unimplemented_left_2 = true; }; let mut numeric_unknown_right_3 = false; if let NumericValue::Unknown = right { numeric_unknown_right_3 = true; }; let mut numeric_unimplemented_right_4 = false; if let NumericValue::Unimplemented = right { numeric_unimplemented_right_4 = true; };
+    let mut condition_flavor_285_4: i32 = unresolved_flavor; if let NumericValue::Unknown = left { if condition_flavor_285_4 < 1 { condition_flavor_285_4 = 1; }; }; if let NumericValue::Unimplemented = left { condition_flavor_285_4 = 2; }; if let NumericValue::Unknown = right { if condition_flavor_285_4 < 1 { condition_flavor_285_4 = 1; }; }; if let NumericValue::Unimplemented = right { condition_flavor_285_4 = 2; }; if (numeric_unknown_left_1 || numeric_unimplemented_left_2) || (numeric_unknown_right_3 || numeric_unimplemented_right_4) {
         return numeric_unresolved(condition_flavor_285_4);
     }
-    if left == NumericValue::Null || right == NumericValue::Null {
+    let mut numeric_null_left_5 = false; if let NumericValue::Null = left { numeric_null_left_5 = true; }; let mut numeric_null_right_6 = false; if let NumericValue::Null = right { numeric_null_right_6 = true; };
+    if numeric_null_left_5 || numeric_null_right_6 {
         return NumericValue::Null;
     }
-    if let NumericValue::Value(a) = left {
-        if let NumericValue::Value(b) = right {
-            let first = numeric_work_from_value(a.as_str());
-            let second = numeric_work_from_value(b.as_str());
-            if first.valid == false || second.valid == false {
-                return numeric_unresolved(unresolved_flavor);
-            }
-            if first.special == 3 || second.special == 3 {
+    if let NumericValue::Value(left_var) = left {
+        if let NumericValue::Value(right_var) = right {
+            let first_kind = numeric_var_kind(&left_var);
+            let second_kind = numeric_var_kind(&right_var);
+            if first_kind == 3 || second_kind == 3 {
                 return make_numeric_value("NaN");
             }
-            if first.special != 1 || second.special != 1 {
-                let mut left_sign = first.sign;
-                let mut right_sign = second.sign;
-                if first.special == 0 {
+            if first_kind != 1 || second_kind != 1 {
+                let mut left_sign = numeric_var_signum(&left_var);
+                let mut right_sign = numeric_var_signum(&right_var);
+                if first_kind == 0 {
                     left_sign = -1;
                 }
-                if first.special == 2 {
+                if first_kind == 2 {
                     left_sign = 1;
                 }
-                if second.special == 0 {
+                if second_kind == 0 {
                     right_sign = -1;
                 }
-                if second.special == 2 {
+                if second_kind == 2 {
                     right_sign = 1;
                 }
                 if mode == 1 {
@@ -306,10 +305,10 @@ fn numeric_arithmetic(left: NumericValue, right: NumericValue, mode: i32) -> Num
                 if mode == 2 {
                     result_sign = left_sign * right_sign;
                 } else {
-                    if first.special == 1 {
+                    if first_kind == 1 {
                         result_sign = right_sign;
                     } else {
-                        if second.special != 1 && left_sign != right_sign {
+                        if second_kind != 1 && left_sign != right_sign {
                             result_sign = 0;
                         }
                     };
@@ -322,8 +321,6 @@ fn numeric_arithmetic(left: NumericValue, right: NumericValue, mode: i32) -> Num
                 }
                 return make_numeric_value("Infinity");
             }
-            let left_var = numeric_var_from_work(&first);
-            let right_var = numeric_var_from_work(&second);
             if mode == 2 {
                 let rscale = left_var.dscale + right_var.dscale;
                 let product = numeric_var_mul(&left_var, &right_var, rscale);

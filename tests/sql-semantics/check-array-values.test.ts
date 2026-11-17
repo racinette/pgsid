@@ -152,7 +152,9 @@ pub fn array_carrier_probe(family:Int4Value)->BoolValue {
    let encoded=array_element_from_numeric(original.clone());
    if array_element_family(encoded.clone())!=10 {return BoolValue::Value(false);};
    let restored=array_element_to_numeric(encoded);
-   if restored!=original {return BoolValue::Value(false);};
+   let mut restored_text=String::new();if let NumericValue::Value(restored_payload)=restored {restored_text=numeric_text(&restored_payload);};
+   let mut original_text=String::new();if let NumericValue::Value(original_payload)=original {original_text=numeric_text(&original_payload);};
+   if restored_text!=original_text || original_text==String::new() {return BoolValue::Value(false);};
    let absent=array_element_to_numeric(array_element_from_numeric(NumericValue::Null));
    let mut correct_null=false;if let NumericValue::Null=absent {correct_null=true;};if correct_null==false {return BoolValue::Value(false);};
    let unknown=array_element_to_numeric(array_element_from_numeric(NumericValue::Unknown));

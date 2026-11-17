@@ -2210,7 +2210,7 @@ func checkRustNumeric[T any](field CheckOptional[T]) checkruntime.NumericValue {
   if !field.Set { return checkruntime.NumericUnknown() }
   if field.Null { return checkruntime.NumericNull() }
   if value, ok := any(field.V).(checkruntime.NumericValue); ok {
-    if value.Kind == checkruntime.NumericValueValue { return checkruntime.MakeNumericValue(value.Value) }
+    if value.Kind == checkruntime.NumericValueValue { return checkruntime.MakeNumericValue(checkruntime.NumericText(&value.Value)) }
     return value
   }
   if value, ok := any(field.V).(string); ok { return checkruntime.MakeNumericValue(value) }
@@ -2258,7 +2258,7 @@ func checkRustInt4[T any](field CheckOptional[T]) checkruntime.Int4Value {
 func checkRustNullness[T any](field CheckOptional[T]) checkruntime.BoolValue {
   if field.Set && !field.Null {
     if value, ok := any(field.V).(checkruntime.NumericValue); ok {
-      if value.Kind == checkruntime.NumericValueValue { return checkruntime.NumericIsNull(checkruntime.MakeNumericValue(value.Value)) }
+      if value.Kind == checkruntime.NumericValueValue { return checkruntime.NumericIsNull(checkruntime.MakeNumericValue(checkruntime.NumericText(&value.Value))) }
       return checkruntime.NumericIsNull(value)
     }
     if value, ok := any(field.V).(checkruntime.DateValue); ok { return checkruntime.DateIsNull(value) }

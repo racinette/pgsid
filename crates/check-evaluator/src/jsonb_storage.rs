@@ -334,7 +334,7 @@ pub fn jsonb_ordered_object_offsets(source: &JsonbPayload, utf8: bool) -> Vec<Nu
         let offset = offsets[index];
         if offset.reachable {
             if node.kind == 6 && offset.low == offset.high {
-                result[index] = NumericValue::Value(text_signed_number(offset.low));
+                result[index] = make_numeric_value(text_signed_number(offset.low).as_str());
             };
             if node.kind >= 5 {
                 let mut header: i64 = 4i64;

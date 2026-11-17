@@ -41,11 +41,13 @@ pub fn sql__pg_catalog__int8_sum__cqr6(state: NumericValue, input: Int8Value) ->
         return state;
     };
     let amount = sql__pg_catalog__numeric__11bc(input);
-    if state == NumericValue::Null {
+    let mut numeric_null_state_1 = false; if let NumericValue::Null = state { numeric_null_state_1 = true; };
+    if numeric_null_state_1 {
         return amount;
     };
     let copy = state.clone();
-    if let NumericValue::Value(text) = copy {
+    if let NumericValue::Value(text_numeric) = copy {
+        let text = numeric_text(&text_numeric);
         let parts = numeric_parts(text.as_str());
         if parts.valid && parts.special == 0 {
             return make_numeric_value("-Infinity");

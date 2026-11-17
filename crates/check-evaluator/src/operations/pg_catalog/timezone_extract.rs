@@ -69,7 +69,7 @@ fn timezone_extract_number(
                 } else if offset_field == 3 {
                     seconds = (seconds / 60) % 60;
                 };
-                return NumericValue::Value(text_signed_number(seconds as i64));
+                return make_numeric_value(text_signed_number(seconds as i64).as_str());
             };
             let projected = value + (seconds as i64) * 1000000i64;
             return temporal_extract_timestamp_value(projected, unit.as_str(), true);

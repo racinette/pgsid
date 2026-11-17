@@ -1444,16 +1444,19 @@ pub fn sql__pg_catalog__to_char__hftr(
     if let TextValue::Error(error) = template {
         return TextValue::Error(error);
     };
-    let mut condition_flavor_1442_4: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_1442_4 < 1 { condition_flavor_1442_4 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_1442_4 = 2; }; if let TextValue::Unknown = template { if condition_flavor_1442_4 < 1 { condition_flavor_1442_4 = 1; }; }; if let TextValue::Unimplemented = template { condition_flavor_1442_4 = 2; }; if (input == NumericValue::Unknown || input == NumericValue::Unimplemented)
+    let mut numeric_unknown_input_1 = false; if let NumericValue::Unknown = input { numeric_unknown_input_1 = true; }; let mut numeric_unimplemented_input_2 = false; if let NumericValue::Unimplemented = input { numeric_unimplemented_input_2 = true; };
+    let mut condition_flavor_1442_4: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_1442_4 < 1 { condition_flavor_1442_4 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_1442_4 = 2; }; if let TextValue::Unknown = template { if condition_flavor_1442_4 < 1 { condition_flavor_1442_4 = 1; }; }; if let TextValue::Unimplemented = template { condition_flavor_1442_4 = 2; }; if (numeric_unknown_input_1 || numeric_unimplemented_input_2)
         || (template == TextValue::Unknown || template == TextValue::Unimplemented)
         || template == TextValue::NonNull
     {
         return text_unresolved(condition_flavor_1442_4);
     };
-    if input == NumericValue::Null || template == TextValue::Null {
+    let mut numeric_null_input_3 = false; if let NumericValue::Null = input { numeric_null_input_3 = true; };
+    if numeric_null_input_3 || template == TextValue::Null {
         return TextValue::Null;
     };
-    if let NumericValue::Value(text) = input {
+    if let NumericValue::Value(text_numeric) = input {
+        let text = numeric_text(&text_numeric);
         if let TextValue::Value(format) = template {
             return number_format_numeric(text.as_str(), format.as_str(), numeric_c, monetary_c);
         };

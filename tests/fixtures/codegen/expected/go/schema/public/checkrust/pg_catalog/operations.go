@@ -132,12 +132,12 @@
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
  */
 
-// PostgreSQL's NumericVar, so its numeric algorithms port as written: base-NBASE digits,
-// most significant first, the weight of the first digit, and the display scale. A zero has
-// no digits. Where PostgreSQL computes an exact result, any exact method yields the same
-// digits, so these routines use PostgreSQL's 32-bit forms and keep the translated targets on
-// plain numbers. Where it approximates, by truncating a product or estimating a quotient, they
-// reproduce PostgreSQL's arithmetic step for step.
+// PostgreSQL's numeric algorithms on NumericVar. Where PostgreSQL computes an exact result,
+// any exact method yields the same digits, so these routines use PostgreSQL's 32-bit forms and
+// keep the translated targets on plain numbers. Where it approximates, by truncating a product
+// or estimating a quotient, they reproduce PostgreSQL's arithmetic step for step.
+
+// A result, or the numeric overflow PostgreSQL raises while computing it.
 
 // Portions Copyright (c) 1999-2025, PostgreSQL Global Development Group.
 
@@ -3859,6 +3859,7 @@ func ArrayBooleanOutput(input checkruntime.BoolValue) checkruntime.TextValue {
 	return checkruntime.TextUnresolved(unresolvedFlavor)
 }
 func ArrayNumericOutput(input checkruntime.NumericValue) checkruntime.TextValue {
+	input = checkruntime.CopyNumericValue(input)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -3870,11 +3871,16 @@ func ArrayNumericOutput(input checkruntime.NumericValue) checkruntime.TextValue 
 		error := input.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullInput1 := false
+	if input.Kind == checkruntime.NumericValueNull {
+		numericNullInput1 = true
+	}
+	if numericNullInput1 {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
 	}
 	if input.Kind == checkruntime.NumericValueValue {
-		value := langruntime.CheckedString(input.Value)
+		valueNumeric := checkruntime.CopyNumericVar(input.Value)
+		value := checkruntime.NumericText(&valueNumeric)
 		work := numericWorkFromValue(value)
 		if work.valid {
 			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: numericWorkText(work)}
@@ -4651,7 +4657,9 @@ func arraySortSameElement(left checkruntime.ArrayElement, right checkruntime.Arr
 		return checkruntime.ArrayElementToBool(left) == checkruntime.ArrayElementToBool(right)
 	}
 	if kind == 10 {
-		return checkruntime.ArrayElementToNumeric(left) == checkruntime.ArrayElementToNumeric(right)
+		first := checkruntime.ArrayElementToNumeric(left)
+		second := checkruntime.ArrayElementToNumeric(right)
+		return checkruntime.NumericValueIdentical(first, second)
 	}
 	if kind == 13 {
 		return checkruntime.ArrayElementToNetwork(left) == checkruntime.ArrayElementToNetwork(right)
@@ -17821,7 +17829,7 @@ func clockFieldsNumericValue(span checkruntime.IntervalPayload, zone int, family
 		years := langruntime.CheckedI64Divide((int64(langruntime.CheckedI32(span.Months))), int64(12))
 		months := langruntime.CheckedI64Remainder((int64(langruntime.CheckedI32(span.Months))), int64(12))
 		seconds := langruntime.CheckedI64Multiply((langruntime.CheckedI64Add(langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(int64(1461), years), langruntime.CheckedI64Multiply(int64(120), months)), langruntime.CheckedI64Multiply(int64(4), (int64(langruntime.CheckedI32(span.Days)))))), int64(21600))
-		whole := checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: checkruntime.TextSignedNumber(seconds)}
+		whole := checkruntime.MakeNumericValue(checkruntime.TextSignedNumber(seconds))
 		clock := temporalScaledNumber(span.Time, 6)
 		return NumericAddO3d7(clock, whole)
 	}
@@ -17927,6 +17935,14 @@ func clockFieldsLegacy(units checkruntime.TextValue, input clockFieldInput) chec
 		error := number.Error
 		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
 	}
+	numericUnknownNumber1 := false
+	if number.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownNumber1 = true
+	}
+	numericUnimplementedNumber2 := false
+	if number.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedNumber2 = true
+	}
 	conditionFlavor2404 := unresolvedFlavor
 	if number.Kind == checkruntime.NumericValueUnknown {
 		if conditionFlavor2404 < 1 {
@@ -17936,10 +17952,14 @@ func clockFieldsLegacy(units checkruntime.TextValue, input clockFieldInput) chec
 	if number.Kind == checkruntime.NumericValueUnimplemented {
 		conditionFlavor2404 = langruntime.CheckedI32(2)
 	}
-	if number == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || number == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented}) {
+	if numericUnknownNumber1 || numericUnimplementedNumber2 {
 		return checkruntime.Float8Unresolved(conditionFlavor2404)
 	}
-	if number == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullNumber3 := false
+	if number.Kind == checkruntime.NumericValueNull {
+		numericNullNumber3 = true
+	}
+	if numericNullNumber3 {
 		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
 	}
 	if units.Kind == checkruntime.TextValueValue {
@@ -23253,7 +23273,7 @@ func floatNumericDecimal(input checkruntime.Float8Value, precision int) checkrun
 		}
 		minimumScale := numericWorkMinScale(copynumericWork(rounded))
 		result := numericWork{valid: rounded.valid, special: rounded.special, sign: sign, weight: rounded.weight, scale: minimumScale, digits: rounded.digits}
-		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(result)}
+		return checkruntime.MakeNumericValue(numericWorkText(result))
 	}
 	localFlavor574 := unresolvedFlavor
 	if knownInput.Kind == checkruntime.Float8ValueUnknown {
@@ -23267,6 +23287,7 @@ func floatNumericDecimal(input checkruntime.Float8Value, precision int) checkrun
 	return checkruntime.NumericUnresolved(localFlavor574)
 }
 func floatNumericText(input checkruntime.NumericValue) checkruntime.TextValue {
+	input = checkruntime.CopyNumericValue(input)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -23278,11 +23299,16 @@ func floatNumericText(input checkruntime.NumericValue) checkruntime.TextValue {
 		error := input.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullInput1 := false
+	if input.Kind == checkruntime.NumericValueNull {
+		numericNullInput1 = true
+	}
+	if numericNullInput1 {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
 	}
 	if input.Kind == checkruntime.NumericValueValue {
-		text := langruntime.CheckedString(input.Value)
+		textNumeric := checkruntime.CopyNumericVar(input.Value)
+		text := checkruntime.NumericText(&textNumeric)
 		work := numericWorkFromValue(text)
 		if work.valid {
 			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: numericWorkText(work)}
@@ -23291,9 +23317,11 @@ func floatNumericText(input checkruntime.NumericValue) checkruntime.TextValue {
 	return checkruntime.TextUnresolved(unresolvedFlavor)
 }
 func Float490ur(input checkruntime.NumericValue) checkruntime.Float4Value {
+	input = checkruntime.CopyNumericValue(input)
 	return Float4FromText(floatNumericText(input))
 }
 func Float8Bkfn(input checkruntime.NumericValue) checkruntime.Float8Value {
+	input = checkruntime.CopyNumericValue(input)
 	return Float8FromText(floatNumericText(input))
 }
 func Numeric7rfd(input checkruntime.Float4Value) checkruntime.NumericValue {
@@ -26339,6 +26367,7 @@ func Int4SumVfwt(state checkruntime.Int8Value, input checkruntime.Int4Value) che
 	return integerScalarSum(state, Int8Mzac(input))
 }
 func Int8SumCqr6(state checkruntime.NumericValue, input checkruntime.Int8Value) checkruntime.NumericValue {
+	state = checkruntime.CopyNumericValue(state)
 	if state.Kind == checkruntime.NumericValueError {
 		error := state.Error
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
@@ -26351,12 +26380,17 @@ func Int8SumCqr6(state checkruntime.NumericValue, input checkruntime.Int8Value) 
 		return state
 	}
 	amount := Numeric11bc(input)
-	if state == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullState1 := false
+	if state.Kind == checkruntime.NumericValueNull {
+		numericNullState1 = true
+	}
+	if numericNullState1 {
 		return amount
 	}
-	copy := state
+	copy := checkruntime.CopyNumericValue(state)
 	if copy.Kind == checkruntime.NumericValueValue {
-		text := langruntime.CheckedString(copy.Value)
+		textNumeric := checkruntime.CopyNumericVar(copy.Value)
+		text := checkruntime.NumericText(&textNumeric)
 		parts := checkruntime.NumericParts(text)
 		if parts.Valid && parts.Special == 0 {
 			return checkruntime.MakeNumericValue("-Infinity")
@@ -29853,6 +29887,7 @@ func jsonbPrettyContext(input checkruntime.JsonbValue, utf8 bool) checkruntime.T
 	return checkruntime.JsonbToPrettyText(input)
 }
 func JsonInputFromNumeric(input checkruntime.NumericValue) checkruntime.JsonbInput {
+	input = checkruntime.CopyNumericValue(input)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -29860,10 +29895,18 @@ func JsonInputFromNumeric(input checkruntime.NumericValue) checkruntime.JsonbInp
 	if input.Kind == checkruntime.NumericValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented}) {
+	numericUnimplementedInput1 := false
+	if input.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedInput1 = true
+	}
+	if numericUnimplementedInput1 {
 		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnimplemented}
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) {
+	numericUnknownInput2 := false
+	if input.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownInput2 = true
+	}
+	if numericUnknownInput2 {
 		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputScalarUnknown, ScalarUnknown: "1001000"}
 	}
 	output := ArrayNumericOutput(input)
@@ -35732,7 +35775,7 @@ func jsonbRelationNumber(source *checkruntime.JsonbPayload, node checkruntime.Js
 		text = append(text, string(langruntime.CheckedChar(source.Characters[position]))...)
 		position = langruntime.CheckedAdd(position, 1)
 	}
-	return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: string(text)}
+	return checkruntime.MakeNumericValue(string(text))
 }
 func jsonbRelationScalar(left *checkruntime.JsonbPayload, right *checkruntime.JsonbPayload, a checkruntime.JsonbNode, b checkruntime.JsonbNode) bool {
 	if a.Kind != b.Kind {
@@ -39458,10 +39501,11 @@ func jsonpathValueFromTree(tree jsonpathParseTree) checkruntime.JsonpathValue {
 						number = append(number, string(langruntime.CheckedChar(characters[position]))...)
 						position = langruntime.CheckedAdd(position, 1)
 					}
-					result := NumericUminusWcmy(checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: string(number)})
+					result := NumericUminusWcmy(checkruntime.MakeNumericValue(string(number)))
 					valid := false
 					if result.Kind == checkruntime.NumericValueValue {
-						negated := langruntime.CheckedString(result.Value)
+						negatedNumeric := checkruntime.CopyNumericVar(result.Value)
+						negated := checkruntime.NumericText(&negatedNumeric)
 						valid = true
 						text := []rune(negated)
 						begin = langruntime.CheckedIndex(len(characters))
@@ -43847,6 +43891,7 @@ func Money2ie3(input checkruntime.Int4Value, digits int) checkruntime.MoneyValue
 	return MoneyU7ss(Int8Mzac(input), digits)
 }
 func MoneyZ8lp(input checkruntime.NumericValue, digits int) checkruntime.MoneyValue {
+	input = checkruntime.CopyNumericValue(input)
 	digits = langruntime.CheckedI32(digits)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
@@ -43863,12 +43908,13 @@ func MoneyZ8lp(input checkruntime.NumericValue, digits int) checkruntime.MoneyVa
 		return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueNull}
 	}
 	if input.Kind == checkruntime.NumericValueValue {
-		value := langruntime.CheckedString(input.Value)
+		valueNumeric := checkruntime.CopyNumericVar(input.Value)
+		value := checkruntime.NumericText(&valueNumeric)
 		work := numericWorkFromValue(value)
 		if work.valid == false {
 			return checkruntime.MoneyUnresolved(unresolvedFlavor)
 		}
-		amount := checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: value}
+		amount := checkruntime.MakeNumericValue(value)
 		if work.special != 1 {
 			return moneyFromUnits(Int8Xy54(amount))
 		}
@@ -50400,6 +50446,7 @@ func numberFormatNumeric(text string, template string, numericC bool, monetaryC 
 	return numberFormatProcess(&format, pre, format.post, &number, langruntime.CheckedSignedSubtract(pre, wholeLength), sign)
 }
 func ToCharHftr(input checkruntime.NumericValue, template checkruntime.TextValue, numericC bool, monetaryC bool) checkruntime.TextValue {
+	input = checkruntime.CopyNumericValue(input)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -50426,6 +50473,14 @@ func ToCharHftr(input checkruntime.NumericValue, template checkruntime.TextValue
 		error := template.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 	}
+	numericUnknownInput1 := false
+	if input.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownInput1 = true
+	}
+	numericUnimplementedInput2 := false
+	if input.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedInput2 = true
+	}
 	conditionFlavor14424 := unresolvedFlavor
 	if input.Kind == checkruntime.NumericValueUnknown {
 		if conditionFlavor14424 < 1 {
@@ -50443,14 +50498,19 @@ func ToCharHftr(input checkruntime.NumericValue, template checkruntime.TextValue
 	if template.Kind == checkruntime.TextValueUnimplemented {
 		conditionFlavor14424 = langruntime.CheckedI32(2)
 	}
-	if (input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented})) || (template == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || template == (checkruntime.TextValue{Kind: checkruntime.TextValueUnimplemented})) || template == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
+	if (numericUnknownInput1 || numericUnimplementedInput2) || (template == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || template == (checkruntime.TextValue{Kind: checkruntime.TextValueUnimplemented})) || template == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
 		return checkruntime.TextUnresolved(conditionFlavor14424)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) || template == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+	numericNullInput3 := false
+	if input.Kind == checkruntime.NumericValueNull {
+		numericNullInput3 = true
+	}
+	if numericNullInput3 || template == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
 	}
 	if input.Kind == checkruntime.NumericValueValue {
-		text := langruntime.CheckedString(input.Value)
+		textNumeric := checkruntime.CopyNumericVar(input.Value)
+		text := checkruntime.NumericText(&textNumeric)
 		if template.Kind == checkruntime.TextValueValue {
 			format := langruntime.CheckedString(template.Value)
 			return numberFormatNumeric(text, format, numericC, monetaryC)
@@ -51324,6 +51384,8 @@ func ToNumberIbqn(input checkruntime.TextValue, template checkruntime.TextValue,
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
 func numericCompare(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.Int4Value {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
 	unresolvedFlavor := 0
 	if left.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -51345,6 +51407,22 @@ func numericCompare(left checkruntime.NumericValue, right checkruntime.NumericVa
 		error := right.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
 	}
+	numericUnknownLeft1 := false
+	if left.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownLeft1 = true
+	}
+	numericUnimplementedLeft2 := false
+	if left.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedLeft2 = true
+	}
+	numericUnknownRight3 := false
+	if right.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownRight3 = true
+	}
+	numericUnimplementedRight4 := false
+	if right.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedRight4 = true
+	}
 	conditionFlavor134 := unresolvedFlavor
 	if left.Kind == checkruntime.NumericValueUnknown {
 		if conditionFlavor134 < 1 {
@@ -51362,81 +51440,32 @@ func numericCompare(left checkruntime.NumericValue, right checkruntime.NumericVa
 	if right.Kind == checkruntime.NumericValueUnimplemented {
 		conditionFlavor134 = langruntime.CheckedI32(2)
 	}
-	if (left == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || left == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented})) || (right == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || right == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented})) {
+	if (numericUnknownLeft1 || numericUnimplementedLeft2) || (numericUnknownRight3 || numericUnimplementedRight4) {
 		return checkruntime.Int4Unresolved(conditionFlavor134)
 	}
-	if left == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) || right == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullLeft5 := false
+	if left.Kind == checkruntime.NumericValueNull {
+		numericNullLeft5 = true
+	}
+	numericNullRight6 := false
+	if right.Kind == checkruntime.NumericValueNull {
+		numericNullRight6 = true
+	}
+	if numericNullLeft5 || numericNullRight6 {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
 	}
 	if left.Kind == checkruntime.NumericValueValue {
-		leftValue := langruntime.CheckedString(left.Value)
+		leftValue := checkruntime.CopyNumericVar(left.Value)
 		if right.Kind == checkruntime.NumericValueValue {
-			rightValue := langruntime.CheckedString(right.Value)
-			a := checkruntime.NumericParts(leftValue)
-			b := checkruntime.NumericParts(rightValue)
-			if a.Valid == false || b.Valid == false {
-				return checkruntime.Int4Unresolved(unresolvedFlavor)
-			}
-			if a.Special < b.Special {
-				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedNegate(1)}
-			}
-			if a.Special > b.Special {
-				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}
-			}
-			if a.Special != 1 {
-				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
-			}
-			if a.Sign < b.Sign {
-				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedNegate(1)}
-			}
-			if a.Sign > b.Sign {
-				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}
-			}
-			if a.Sign == 0 {
-				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
-			}
-			if a.Weight < b.Weight {
-				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedSubtract(0, a.Sign)}
-			}
-			if a.Weight > b.Weight {
-				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: a.Sign}
-			}
-			leftChars := []rune(leftValue)
-			rightChars := []rune(rightValue)
-			i := a.First
-			j := b.First
-			for i < a.End || j < b.End {
-				for i < a.End && (leftChars[i] == '.' || leftChars[i] == '_') {
-					i = langruntime.CheckedAdd(i, 1)
-				}
-				for j < b.End && (rightChars[j] == '.' || rightChars[j] == '_') {
-					j = langruntime.CheckedAdd(j, 1)
-				}
-				x := '0'
-				y := '0'
-				if i < a.End {
-					x = langruntime.CheckedChar(leftChars[i])
-					i = langruntime.CheckedAdd(i, 1)
-				}
-				if j < b.End {
-					y = langruntime.CheckedChar(rightChars[j])
-					j = langruntime.CheckedAdd(j, 1)
-				}
-				xCode := int(langruntime.CheckedChar(x))
-				yCode := int(langruntime.CheckedChar(y))
-				if xCode < yCode {
-					return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedSubtract(0, a.Sign)}
-				}
-				if xCode > yCode {
-					return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: a.Sign}
-				}
-			}
-			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+			rightValue := checkruntime.CopyNumericVar(right.Value)
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: numericVarCompareValues(&leftValue, &rightValue)}
 		}
 	}
 	return checkruntime.Int4Unresolved(unresolvedFlavor)
 }
 func NumericEqFw7r(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.BoolValue {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
 	unresolvedFlavor := 0
 	if left.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -51477,6 +51506,8 @@ func NumericEqFw7r(left checkruntime.NumericValue, right checkruntime.NumericVal
 	return checkruntime.BoolUnresolved(unresolvedFlavor)
 }
 func NumericGeW8pw(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.BoolValue {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
 	unresolvedFlavor := 0
 	if left.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -51517,6 +51548,8 @@ func NumericGeW8pw(left checkruntime.NumericValue, right checkruntime.NumericVal
 	return checkruntime.BoolUnresolved(unresolvedFlavor)
 }
 func NumericGtH1pi(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.BoolValue {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
 	unresolvedFlavor := 0
 	if left.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -51557,6 +51590,8 @@ func NumericGtH1pi(left checkruntime.NumericValue, right checkruntime.NumericVal
 	return checkruntime.BoolUnresolved(unresolvedFlavor)
 }
 func NumericLeBbpc(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.BoolValue {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
 	unresolvedFlavor := 0
 	if left.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -51597,6 +51632,8 @@ func NumericLeBbpc(left checkruntime.NumericValue, right checkruntime.NumericVal
 	return checkruntime.BoolUnresolved(unresolvedFlavor)
 }
 func NumericLtZl16(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.BoolValue {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
 	unresolvedFlavor := 0
 	if left.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -51637,6 +51674,8 @@ func NumericLtZl16(left checkruntime.NumericValue, right checkruntime.NumericVal
 	return checkruntime.BoolUnresolved(unresolvedFlavor)
 }
 func NumericNeGyip(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.BoolValue {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
 	unresolvedFlavor := 0
 	if left.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -51925,6 +51964,8 @@ func numericWorkProduct(left numericWork, right numericWork) numericWork {
 	return numericWork{valid: true, special: 1, sign: sign, weight: weight, scale: scale, digits: string(digits)}
 }
 func numericArithmetic(left checkruntime.NumericValue, right checkruntime.NumericValue, mode int) checkruntime.NumericValue {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
 	mode = langruntime.CheckedI32(mode)
 	unresolvedFlavor := 0
 	if left.Kind == checkruntime.NumericValueUnknown {
@@ -51947,6 +51988,22 @@ func numericArithmetic(left checkruntime.NumericValue, right checkruntime.Numeri
 		error := right.Error
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
 	}
+	numericUnknownLeft1 := false
+	if left.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownLeft1 = true
+	}
+	numericUnimplementedLeft2 := false
+	if left.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedLeft2 = true
+	}
+	numericUnknownRight3 := false
+	if right.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownRight3 = true
+	}
+	numericUnimplementedRight4 := false
+	if right.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedRight4 = true
+	}
 	conditionFlavor2854 := unresolvedFlavor
 	if left.Kind == checkruntime.NumericValueUnknown {
 		if conditionFlavor2854 < 1 {
@@ -51964,37 +52021,42 @@ func numericArithmetic(left checkruntime.NumericValue, right checkruntime.Numeri
 	if right.Kind == checkruntime.NumericValueUnimplemented {
 		conditionFlavor2854 = langruntime.CheckedI32(2)
 	}
-	if (left == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || left == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented})) || (right == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || right == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented})) {
+	if (numericUnknownLeft1 || numericUnimplementedLeft2) || (numericUnknownRight3 || numericUnimplementedRight4) {
 		return checkruntime.NumericUnresolved(conditionFlavor2854)
 	}
-	if left == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) || right == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullLeft5 := false
+	if left.Kind == checkruntime.NumericValueNull {
+		numericNullLeft5 = true
+	}
+	numericNullRight6 := false
+	if right.Kind == checkruntime.NumericValueNull {
+		numericNullRight6 = true
+	}
+	if numericNullLeft5 || numericNullRight6 {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
 	}
 	if left.Kind == checkruntime.NumericValueValue {
-		a := langruntime.CheckedString(left.Value)
+		leftVar := checkruntime.CopyNumericVar(left.Value)
 		if right.Kind == checkruntime.NumericValueValue {
-			b := langruntime.CheckedString(right.Value)
-			first := numericWorkFromValue(a)
-			second := numericWorkFromValue(b)
-			if first.valid == false || second.valid == false {
-				return checkruntime.NumericUnresolved(unresolvedFlavor)
-			}
-			if first.special == 3 || second.special == 3 {
+			rightVar := checkruntime.CopyNumericVar(right.Value)
+			firstKind := numericVarKind(&leftVar)
+			secondKind := numericVarKind(&rightVar)
+			if firstKind == 3 || secondKind == 3 {
 				return checkruntime.MakeNumericValue("NaN")
 			}
-			if first.special != 1 || second.special != 1 {
-				leftSign := first.sign
-				rightSign := second.sign
-				if first.special == 0 {
+			if firstKind != 1 || secondKind != 1 {
+				leftSign := numericVarSignum(&leftVar)
+				rightSign := numericVarSignum(&rightVar)
+				if firstKind == 0 {
 					leftSign = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
 				}
-				if first.special == 2 {
+				if firstKind == 2 {
 					leftSign = langruntime.CheckedI32(1)
 				}
-				if second.special == 0 {
+				if secondKind == 0 {
 					rightSign = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
 				}
-				if second.special == 2 {
+				if secondKind == 2 {
 					rightSign = langruntime.CheckedI32(1)
 				}
 				if mode == 1 {
@@ -52003,9 +52065,9 @@ func numericArithmetic(left checkruntime.NumericValue, right checkruntime.Numeri
 				resultSign := leftSign
 				if mode == 2 {
 					resultSign = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(leftSign, rightSign))
-				} else if first.special == 1 {
+				} else if firstKind == 1 {
 					resultSign = langruntime.CheckedI32(rightSign)
-				} else if second.special != 1 && leftSign != rightSign {
+				} else if secondKind != 1 && leftSign != rightSign {
 					resultSign = langruntime.CheckedI32(0)
 				}
 				if resultSign == 0 {
@@ -52016,12 +52078,10 @@ func numericArithmetic(left checkruntime.NumericValue, right checkruntime.Numeri
 				}
 				return checkruntime.MakeNumericValue("Infinity")
 			}
-			leftVar := numericVarFromWork(&first)
-			rightVar := numericVarFromWork(&second)
 			if mode == 2 {
-				rscale := langruntime.CheckedSignedAdd(leftVar.dscale, rightVar.dscale)
+				rscale := langruntime.CheckedSignedAdd(leftVar.Dscale, rightVar.Dscale)
 				product := numericVarMul(&leftVar, &rightVar, rscale)
-				if product.dscale > 16383 {
+				if product.Dscale > 16383 {
 					return numericVarResult(numericVarRound(product, 16383))
 				}
 				return numericVarResult(product)
@@ -52037,54 +52097,52 @@ func numericArithmetic(left checkruntime.NumericValue, right checkruntime.Numeri
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
 func NumericAddO3d7(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
 	return numericArithmetic(left, right, 0)
 }
 func NumericSubYs09(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
 	return numericArithmetic(left, right, 1)
 }
 func NumericMulBj4l(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
 	return numericArithmetic(left, right, 2)
 }
 func NumericInc6dcf(input checkruntime.NumericValue) checkruntime.NumericValue {
+	input = checkruntime.CopyNumericValue(input)
 	return NumericAddO3d7(input, checkruntime.MakeNumericValue("1"))
 }
 
 const numericBucketInvalidArgument = 3452596
 
-func numericBucketOrder(left numericWork, right numericWork) int {
-	left = copynumericWork(left)
-	right = copynumericWork(right)
-	if left.special == 0 {
+func numericBucketOrder(left *checkruntime.NumericVar, right *checkruntime.NumericVar) int {
+	kind := numericVarKind(left)
+	if kind == 0 {
 		return langruntime.CheckedSignedNegate(1)
 	}
-	if left.special == 2 {
+	if kind == 2 {
 		return 1
 	}
-	first := numericVarFromWork(&left)
-	second := numericVarFromWork(&right)
-	return numericVarCmp(&first, &second)
+	return numericVarCmp(left, right)
 }
-func numericBucket(value string, lower string, upper string, count int) checkruntime.Int4Value {
-	value = langruntime.CheckedString(value)
-	lower = langruntime.CheckedString(lower)
-	upper = langruntime.CheckedString(upper)
+func numericBucket(operandVar checkruntime.NumericVar, bound1Var checkruntime.NumericVar, bound2Var checkruntime.NumericVar, count int) checkruntime.Int4Value {
+	operandVar = checkruntime.CopyNumericVar(operandVar)
+	bound1Var = checkruntime.CopyNumericVar(bound1Var)
+	bound2Var = checkruntime.CopyNumericVar(bound2Var)
 	count = langruntime.CheckedI32(count)
 	unresolvedFlavor := 0
-	operand := numericWorkFromValue(value)
-	first := numericWorkFromValue(lower)
-	last := numericWorkFromValue(upper)
-	if operand.valid == false || first.valid == false || last.valid == false {
-		return checkruntime.Int4Unresolved(unresolvedFlavor)
-	}
-	if count <= 0 || operand.special == 3 || first.special != 1 || last.special != 1 {
+	if count <= 0 || numericVarKind(&operandVar) == 3 || numericVarKind(&bound1Var) != 1 || numericVarKind(&bound2Var) != 1 {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(numericBucketInvalidArgument)}
 	}
-	direction := numericBucketOrder(copynumericWork(first), copynumericWork(last))
+	direction := numericBucketOrder(&bound1Var, &bound2Var)
 	if direction == 0 {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(numericBucketInvalidArgument)}
 	}
-	start := numericBucketOrder(copynumericWork(operand), copynumericWork(first))
-	end := numericBucketOrder(copynumericWork(operand), copynumericWork(last))
+	start := numericBucketOrder(&operandVar, &bound1Var)
+	end := numericBucketOrder(&operandVar, &bound2Var)
 	if (direction < 0 && start < 0) || (direction > 0 && start > 0) {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
 	}
@@ -52094,13 +52152,10 @@ func numericBucket(value string, lower string, upper string, count int) checkrun
 		}
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedAdd(count, 1)}
 	}
-	operandVar := numericVarFromWork(&operand)
-	bound1Var := numericVarFromWork(&first)
-	bound2Var := numericVarFromWork(&last)
 	distance := numericVarSub(&operandVar, &bound1Var)
 	span := numericVarSub(&bound2Var, &bound1Var)
 	countVar := numericVarFromI64(int64(langruntime.CheckedI32(count)))
-	scaled := numericVarMul(&distance, &countVar, langruntime.CheckedSignedAdd(distance.dscale, countVar.dscale))
+	scaled := numericVarMul(&distance, &countVar, langruntime.CheckedSignedAdd(distance.Dscale, countVar.Dscale))
 	quotient := numericVarDiv(&scaled, &span, 0, false, true)
 	integer := numericIntegerValue(numericVarResult(quotient))
 	if integer.Kind == checkruntime.Int8ValueError {
@@ -52127,6 +52182,9 @@ func numericBucket(value string, lower string, upper string, count int) checkrun
 	return checkruntime.Int4Unresolved(localFlavor654)
 }
 func WidthBucketMx75(value checkruntime.NumericValue, lower checkruntime.NumericValue, upper checkruntime.NumericValue, count checkruntime.Int4Value) checkruntime.Int4Value {
+	value = checkruntime.CopyNumericValue(value)
+	lower = checkruntime.CopyNumericValue(lower)
+	upper = checkruntime.CopyNumericValue(upper)
 	unresolvedFlavor := 0
 	if value.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -52168,6 +52226,30 @@ func WidthBucketMx75(value checkruntime.NumericValue, lower checkruntime.Numeric
 		error := count.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
 	}
+	numericUnknownValue1 := false
+	if value.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownValue1 = true
+	}
+	numericUnimplementedValue2 := false
+	if value.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedValue2 = true
+	}
+	numericUnknownLower3 := false
+	if lower.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownLower3 = true
+	}
+	numericUnimplementedLower4 := false
+	if lower.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedLower4 = true
+	}
+	numericUnknownUpper5 := false
+	if upper.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownUpper5 = true
+	}
+	numericUnimplementedUpper6 := false
+	if upper.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedUpper6 = true
+	}
 	conditionFlavor954 := unresolvedFlavor
 	if value.Kind == checkruntime.NumericValueUnknown {
 		if conditionFlavor954 < 1 {
@@ -52201,18 +52283,30 @@ func WidthBucketMx75(value checkruntime.NumericValue, lower checkruntime.Numeric
 	if count.Kind == checkruntime.Int4ValueUnimplemented {
 		conditionFlavor954 = langruntime.CheckedI32(2)
 	}
-	if (value == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || value == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented})) || (lower == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || lower == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented})) || (upper == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || upper == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented})) || (count == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || count == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnimplemented})) {
+	if (numericUnknownValue1 || numericUnimplementedValue2) || (numericUnknownLower3 || numericUnimplementedLower4) || (numericUnknownUpper5 || numericUnimplementedUpper6) || (count == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || count == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnimplemented})) {
 		return checkruntime.Int4Unresolved(conditionFlavor954)
 	}
-	if value == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) || lower == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) || upper == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) || count == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+	numericNullValue7 := false
+	if value.Kind == checkruntime.NumericValueNull {
+		numericNullValue7 = true
+	}
+	numericNullLower8 := false
+	if lower.Kind == checkruntime.NumericValueNull {
+		numericNullLower8 = true
+	}
+	numericNullUpper9 := false
+	if upper.Kind == checkruntime.NumericValueNull {
+		numericNullUpper9 = true
+	}
+	if numericNullValue7 || numericNullLower8 || numericNullUpper9 || count == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
 	}
 	if value.Kind == checkruntime.NumericValueValue {
-		input := langruntime.CheckedString(value.Value)
+		input := checkruntime.CopyNumericVar(value.Value)
 		if lower.Kind == checkruntime.NumericValueValue {
-			first := langruntime.CheckedString(lower.Value)
+			first := checkruntime.CopyNumericVar(lower.Value)
 			if upper.Kind == checkruntime.NumericValueValue {
-				last := langruntime.CheckedString(upper.Value)
+				last := checkruntime.CopyNumericVar(upper.Value)
 				if count.Kind == checkruntime.Int4ValueValue {
 					buckets := langruntime.CheckedI32(count.Value)
 					return numericBucket(input, first, last, buckets)
@@ -52222,17 +52316,17 @@ func WidthBucketMx75(value checkruntime.NumericValue, lower checkruntime.Numeric
 	}
 	return checkruntime.Int4Unresolved(unresolvedFlavor)
 }
-func numericCommonGcd(left *numericVar, right *numericVar) numericVar {
-	resDscale := left.dscale
-	if right.dscale > resDscale {
-		resDscale = langruntime.CheckedI32(right.dscale)
+func numericCommonGcd(left *checkruntime.NumericVar, right *checkruntime.NumericVar) checkruntime.NumericVar {
+	resDscale := left.Dscale
+	if right.Dscale > resDscale {
+		resDscale = langruntime.CheckedI32(right.Dscale)
 	}
 	cmp := numericVarCmpAbs(left, right)
 	larger := numericVarShifted(left, 0)
 	smaller := numericVarShifted(right, 0)
 	if cmp < 0 {
-		larger = copynumericVar(numericVarShifted(right, 0))
-		smaller = copynumericVar(numericVarShifted(left, 0))
+		larger = checkruntime.CopyNumericVar(numericVarShifted(right, 0))
+		smaller = checkruntime.CopyNumericVar(numericVarShifted(left, 0))
 	}
 	if cmp == 0 || numericVarCount(&smaller) == 0 {
 		return numericVarSigned(numericVarRescaled(larger, resDscale), 1)
@@ -52243,13 +52337,15 @@ func numericCommonGcd(left *numericVar, right *numericVar) numericVar {
 		if numericVarCount(&remainder) == 0 {
 			searching = false
 		} else {
-			larger = copynumericVar(smaller)
-			smaller = copynumericVar(remainder)
+			larger = checkruntime.CopyNumericVar(smaller)
+			smaller = checkruntime.CopyNumericVar(remainder)
 		}
 	}
 	return numericVarSigned(numericVarRescaled(smaller, resDscale), 1)
 }
 func numericCommon(left checkruntime.NumericValue, right checkruntime.NumericValue, multiple bool) checkruntime.NumericValue {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
 	unresolvedFlavor := 0
 	if left.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -52271,6 +52367,22 @@ func numericCommon(left checkruntime.NumericValue, right checkruntime.NumericVal
 		error := right.Error
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
 	}
+	numericUnknownLeft1 := false
+	if left.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownLeft1 = true
+	}
+	numericUnimplementedLeft2 := false
+	if left.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedLeft2 = true
+	}
+	numericUnknownRight3 := false
+	if right.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownRight3 = true
+	}
+	numericUnimplementedRight4 := false
+	if right.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedRight4 = true
+	}
 	conditionFlavor284 := unresolvedFlavor
 	if left.Kind == checkruntime.NumericValueUnknown {
 		if conditionFlavor284 < 1 {
@@ -52288,29 +52400,30 @@ func numericCommon(left checkruntime.NumericValue, right checkruntime.NumericVal
 	if right.Kind == checkruntime.NumericValueUnimplemented {
 		conditionFlavor284 = langruntime.CheckedI32(2)
 	}
-	if (left == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || left == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented})) || (right == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || right == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented})) {
+	if (numericUnknownLeft1 || numericUnimplementedLeft2) || (numericUnknownRight3 || numericUnimplementedRight4) {
 		return checkruntime.NumericUnresolved(conditionFlavor284)
 	}
-	if left == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) || right == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullLeft5 := false
+	if left.Kind == checkruntime.NumericValueNull {
+		numericNullLeft5 = true
+	}
+	numericNullRight6 := false
+	if right.Kind == checkruntime.NumericValueNull {
+		numericNullRight6 = true
+	}
+	if numericNullLeft5 || numericNullRight6 {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
 	}
 	if left.Kind == checkruntime.NumericValueValue {
-		first := langruntime.CheckedString(left.Value)
+		arg1 := checkruntime.CopyNumericVar(left.Value)
 		if right.Kind == checkruntime.NumericValueValue {
-			second := langruntime.CheckedString(right.Value)
-			a := numericWorkFromValue(first)
-			b := numericWorkFromValue(second)
-			if a.valid == false || b.valid == false {
-				return checkruntime.NumericUnresolved(unresolvedFlavor)
+			arg2 := checkruntime.CopyNumericVar(right.Value)
+			if numericVarKind(&arg1) != 1 || numericVarKind(&arg2) != 1 {
+				return checkruntime.MakeNumericValue("NaN")
 			}
-			if a.special != 1 || b.special != 1 {
-				return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "NaN"}
-			}
-			arg1 := numericVarFromWork(&a)
-			arg2 := numericVarFromWork(&b)
-			dscale := arg1.dscale
-			if arg2.dscale > dscale {
-				dscale = langruntime.CheckedI32(arg2.dscale)
+			dscale := arg1.Dscale
+			if arg2.Dscale > dscale {
+				dscale = langruntime.CheckedI32(arg2.Dscale)
 			}
 			if multiple == false {
 				return numericVarResult(numericCommonGcd(&arg1, &arg2))
@@ -52320,26 +52433,30 @@ func numericCommon(left checkruntime.NumericValue, right checkruntime.NumericVal
 			}
 			divisor := numericCommonGcd(&arg1, &arg2)
 			quotient := numericVarDiv(&arg1, &divisor, 0, false, true)
-			product := numericVarMul(&arg2, &quotient, arg2.dscale)
+			product := numericVarMul(&arg2, &quotient, arg2.Dscale)
 			return numericVarResult(numericVarSigned(numericVarRescaled(product, dscale), 1))
 		}
 	}
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
 func GcdBke6(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
 	return numericCommon(left, right, false)
 }
 func LcmPjls(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
 	return numericCommon(left, right, true)
 }
-func numericDivisionScale(left *numericVar, right *numericVar) int {
+func numericDivisionScale(left *checkruntime.NumericVar, right *checkruntime.NumericVar) int {
 	weight1 := 0
 	firstdigit1 := 0
 	i := 0
 	for i < numericVarCount(left) {
 		firstdigit1 = langruntime.CheckedI32(numericVarDigit(left, i))
 		if firstdigit1 != 0 {
-			weight1 = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(left.weight, i))
+			weight1 = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(left.Weight, i))
 			i = langruntime.CheckedI32(numericVarCount(left))
 		}
 		i = langruntime.CheckedI32(langruntime.CheckedSignedAdd(i, 1))
@@ -52350,7 +52467,7 @@ func numericDivisionScale(left *numericVar, right *numericVar) int {
 	for i < numericVarCount(right) {
 		firstdigit2 = langruntime.CheckedI32(numericVarDigit(right, i))
 		if firstdigit2 != 0 {
-			weight2 = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(right.weight, i))
+			weight2 = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(right.Weight, i))
 			i = langruntime.CheckedI32(numericVarCount(right))
 		}
 		i = langruntime.CheckedI32(langruntime.CheckedSignedAdd(i, 1))
@@ -52360,11 +52477,11 @@ func numericDivisionScale(left *numericVar, right *numericVar) int {
 		qweight = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(qweight, 1))
 	}
 	rscale := langruntime.CheckedSignedSubtract(numericVarMinSigDigits, langruntime.CheckedSignedMultiply(qweight, numericVarDecDigits))
-	if rscale < left.dscale {
-		rscale = langruntime.CheckedI32(left.dscale)
+	if rscale < left.Dscale {
+		rscale = langruntime.CheckedI32(left.Dscale)
 	}
-	if rscale < right.dscale {
-		rscale = langruntime.CheckedI32(right.dscale)
+	if rscale < right.Dscale {
+		rscale = langruntime.CheckedI32(right.Dscale)
 	}
 	if rscale < 0 {
 		rscale = langruntime.CheckedI32(0)
@@ -52375,6 +52492,8 @@ func numericDivisionScale(left *numericVar, right *numericVar) int {
 	return rscale
 }
 func numericDivision(left checkruntime.NumericValue, right checkruntime.NumericValue, mode int) checkruntime.NumericValue {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
 	mode = langruntime.CheckedI32(mode)
 	unresolvedFlavor := 0
 	if left.Kind == checkruntime.NumericValueUnknown {
@@ -52397,6 +52516,22 @@ func numericDivision(left checkruntime.NumericValue, right checkruntime.NumericV
 		error := right.Error
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
 	}
+	numericUnknownLeft1 := false
+	if left.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownLeft1 = true
+	}
+	numericUnimplementedLeft2 := false
+	if left.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedLeft2 = true
+	}
+	numericUnknownRight3 := false
+	if right.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownRight3 = true
+	}
+	numericUnimplementedRight4 := false
+	if right.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedRight4 = true
+	}
 	conditionFlavor1864 := unresolvedFlavor
 	if left.Kind == checkruntime.NumericValueUnknown {
 		if conditionFlavor1864 < 1 {
@@ -52414,48 +52549,51 @@ func numericDivision(left checkruntime.NumericValue, right checkruntime.NumericV
 	if right.Kind == checkruntime.NumericValueUnimplemented {
 		conditionFlavor1864 = langruntime.CheckedI32(2)
 	}
-	if (left == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || left == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented})) || (right == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || right == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented})) {
+	if (numericUnknownLeft1 || numericUnimplementedLeft2) || (numericUnknownRight3 || numericUnimplementedRight4) {
 		return checkruntime.NumericUnresolved(conditionFlavor1864)
 	}
-	if left == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) || right == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullLeft5 := false
+	if left.Kind == checkruntime.NumericValueNull {
+		numericNullLeft5 = true
+	}
+	numericNullRight6 := false
+	if right.Kind == checkruntime.NumericValueNull {
+		numericNullRight6 = true
+	}
+	if numericNullLeft5 || numericNullRight6 {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
 	}
 	if left.Kind == checkruntime.NumericValueValue {
-		first := langruntime.CheckedString(left.Value)
+		dividend := checkruntime.CopyNumericVar(left.Value)
 		if right.Kind == checkruntime.NumericValueValue {
-			second := langruntime.CheckedString(right.Value)
-			a := numericWorkFromValue(first)
-			b := numericWorkFromValue(second)
-			if a.valid == false || b.valid == false {
-				return checkruntime.NumericUnresolved(unresolvedFlavor)
+			divisor := checkruntime.CopyNumericVar(right.Value)
+			aKind := numericVarKind(&dividend)
+			bKind := numericVarKind(&divisor)
+			if aKind == 3 || bKind == 3 {
+				return checkruntime.MakeNumericValue("NaN")
 			}
-			if a.special == 3 || b.special == 3 {
-				return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "NaN"}
-			}
-			if b.special == 1 && b.sign == 0 {
+			if bKind == 1 && numericVarSignum(&divisor) == 0 {
 				return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(sqlstateDivisionByZero)}
 			}
-			if a.special != 1 {
-				if mode == 2 || b.special != 1 {
-					return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "NaN"}
+			if aKind != 1 {
+				if mode == 2 || bKind != 1 {
+					return checkruntime.MakeNumericValue("NaN")
 				}
-				sign := b.sign
-				if a.special == 0 {
+				sign := numericVarSignum(&divisor)
+				if aKind == 0 {
 					sign = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, sign))
 				}
 				if sign < 0 {
-					return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "-Infinity"}
+					return checkruntime.MakeNumericValue("-Infinity")
 				}
-				return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "Infinity"}
+				return checkruntime.MakeNumericValue("Infinity")
 			}
-			if b.special != 1 {
+			if bKind != 1 {
 				if mode == 2 {
-					return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: first}
+					return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: dividend}
 				}
-				return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "0"}
+				return checkruntime.MakeNumericValue("0")
 			}
-			dividend := numericVarFromWork(&a)
-			divisor := numericVarFromWork(&b)
 			if mode == 2 {
 				result := numericVarMod(&dividend, &divisor)
 				return numericVarResult(result)
@@ -52472,24 +52610,34 @@ func numericDivision(left checkruntime.NumericValue, right checkruntime.NumericV
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
 func NumericDivPnzm(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
 	return numericDivision(left, right, 0)
 }
 func NumericDivTrunc5o9b(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
 	return numericDivision(left, right, 1)
 }
 func DivN5y4(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
 	return numericDivision(left, right, 1)
 }
 func NumericMod8ywz(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
 	return numericDivision(left, right, 2)
 }
 func Mod4p6l(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
 	return numericDivision(left, right, 2)
 }
 
 var numericExpLog10E = float64(0.434294481903252)
 
-func numericVarExp(arg *numericVar, rscale int) numericVarOutcome {
+func numericVarExp(arg *checkruntime.NumericVar, rscale int) numericVarOutcome {
 	rscale = langruntime.CheckedI32(rscale)
 	one := numericVarFromI64(int64(1))
 	x := numericVarShifted(arg, 0)
@@ -52509,14 +52657,14 @@ func numericVarExp(arg *numericVar, rscale int) numericVarOutcome {
 			ndiv2 = langruntime.CheckedI32(langruntime.CheckedSignedAdd(ndiv2, 1))
 			val = langruntime.F64Divide(val, float64(2.0))
 		}
-		localRscale := langruntime.CheckedSignedAdd(x.dscale, ndiv2)
+		localRscale := langruntime.CheckedSignedAdd(x.Dscale, ndiv2)
 		divisor := 1
 		shift := 0
 		for shift < ndiv2 {
 			divisor = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(divisor, 2))
 			shift = langruntime.CheckedI32(langruntime.CheckedSignedAdd(shift, 1))
 		}
-		x = copynumericVar(numericVarDivInt(&x, divisor, 0, localRscale, true))
+		x = checkruntime.CopyNumericVar(numericVarDivInt(&x, divisor, 0, localRscale, true))
 	}
 	sigDigits := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(1, dweight), rscale), langruntime.F64ToI32((langruntime.F64Multiply((float64(ndiv2)), float64(0.301029995663981)))))
 	if sigDigits < 0 {
@@ -52529,22 +52677,23 @@ func numericVarExp(arg *numericVar, rscale int) numericVarOutcome {
 	ni := 2
 	elem := numericVarDivInt(&square, ni, 0, localRscale, true)
 	for numericVarCount(&elem) != 0 {
-		result = copynumericVar(numericVarAdd(&result, &elem))
+		result = checkruntime.CopyNumericVar(numericVarAdd(&result, &elem))
 		product := numericVarMul(&elem, &x, localRscale)
 		ni = langruntime.CheckedI32(langruntime.CheckedSignedAdd(ni, 1))
-		elem = copynumericVar(numericVarDivInt(&product, ni, 0, localRscale, true))
+		elem = checkruntime.CopyNumericVar(numericVarDivInt(&product, ni, 0, localRscale, true))
 	}
 	for ndiv2 > 0 {
 		ndiv2 = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(ndiv2, 1))
-		squareRscale := langruntime.CheckedSignedSubtract(sigDigits, langruntime.CheckedSignedMultiply(langruntime.CheckedSignedMultiply(result.weight, 2), numericVarDecDigits))
+		squareRscale := langruntime.CheckedSignedSubtract(sigDigits, langruntime.CheckedSignedMultiply(langruntime.CheckedSignedMultiply(result.Weight, 2), numericVarDecDigits))
 		if squareRscale < 0 {
 			squareRscale = langruntime.CheckedI32(0)
 		}
-		result = copynumericVar(numericVarMul(&result, &result, squareRscale))
+		result = checkruntime.CopyNumericVar(numericVarMul(&result, &result, squareRscale))
 	}
 	return numericVarSucceeded(numericVarRound(result, rscale))
 }
 func NumericExpFi9j(input checkruntime.NumericValue) checkruntime.NumericValue {
+	input = checkruntime.CopyNumericValue(input)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -52556,6 +52705,14 @@ func NumericExpFi9j(input checkruntime.NumericValue) checkruntime.NumericValue {
 		error := input.Error
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
 	}
+	numericUnknownInput1 := false
+	if input.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownInput1 = true
+	}
+	numericUnimplementedInput2 := false
+	if input.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedInput2 = true
+	}
 	conditionFlavor1094 := unresolvedFlavor
 	if input.Kind == checkruntime.NumericValueUnknown {
 		if conditionFlavor1094 < 1 {
@@ -52565,25 +52722,25 @@ func NumericExpFi9j(input checkruntime.NumericValue) checkruntime.NumericValue {
 	if input.Kind == checkruntime.NumericValueUnimplemented {
 		conditionFlavor1094 = langruntime.CheckedI32(2)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented}) {
+	if numericUnknownInput1 || numericUnimplementedInput2 {
 		return checkruntime.NumericUnresolved(conditionFlavor1094)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullInput3 := false
+	if input.Kind == checkruntime.NumericValueNull {
+		numericNullInput3 = true
+	}
+	if numericNullInput3 {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
 	}
 	if input.Kind == checkruntime.NumericValueValue {
-		value := langruntime.CheckedString(input.Value)
-		work := numericWorkFromValue(value)
-		if work.valid == false {
-			return checkruntime.NumericUnresolved(unresolvedFlavor)
+		arg := checkruntime.CopyNumericVar(input.Value)
+		kind := numericVarKind(&arg)
+		if kind == 0 {
+			return checkruntime.MakeNumericValue("0")
 		}
-		if work.special == 0 {
-			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "0"}
+		if kind != 1 {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: arg}
 		}
-		if work.special != 1 {
-			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(work)}
-		}
-		arg := numericVarFromWork(&work)
 		val := langruntime.F64Multiply(numericVarToDouble(&arg), numericExpLog10E)
 		if val < float64(-2000.0) {
 			val = float64(-2000.0)
@@ -52592,8 +52749,8 @@ func NumericExpFi9j(input checkruntime.NumericValue) checkruntime.NumericValue {
 			val = float64(2000.0)
 		}
 		rscale := langruntime.CheckedSignedSubtract(numericVarMinSigDigits, langruntime.F64ToI32(val))
-		if rscale < arg.dscale {
-			rscale = langruntime.CheckedI32(arg.dscale)
+		if rscale < arg.Dscale {
+			rscale = langruntime.CheckedI32(arg.Dscale)
 		}
 		if rscale < 0 {
 			rscale = langruntime.CheckedI32(0)
@@ -52606,6 +52763,7 @@ func NumericExpFi9j(input checkruntime.NumericValue) checkruntime.NumericValue {
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
 func ExpAo9b(input checkruntime.NumericValue) checkruntime.NumericValue {
+	input = checkruntime.CopyNumericValue(input)
 	return NumericExpFi9j(input)
 }
 func FactorialTah6(input checkruntime.Int8Value) checkruntime.NumericValue {
@@ -52642,63 +52800,35 @@ func FactorialTah6(input checkruntime.Int8Value) checkruntime.NumericValue {
 		}
 		result := numericVarFromI64(value)
 		if value <= int64(1) {
-			result = copynumericVar(numericVarFromI64(int64(1)))
+			result = checkruntime.CopyNumericVar(numericVarFromI64(int64(1)))
 		}
 		factor := langruntime.CheckedI64Subtract(value, int64(1))
 		for factor > int64(1) {
 			fact := numericVarFromI64(factor)
-			result = copynumericVar(numericVarMul(&result, &fact, 0))
+			result = checkruntime.CopyNumericVar(numericVarMul(&result, &fact, 0))
 			factor = langruntime.CheckedI64Subtract(factor, int64(1))
 		}
 		return numericVarResult(result)
 	}
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
-func numericHashDigits(value string) []checkruntime.HashByte {
-	value = langruntime.CheckedString(value)
-	layout := checkruntime.NumericParts(value)
-	characters := []rune(value)
-	remainder := langruntime.CheckedSignedRemainder(layout.Weight, 4)
-	if remainder < 0 {
-		remainder = langruntime.CheckedI32(langruntime.CheckedSignedAdd(remainder, 4))
-	}
-	position := langruntime.CheckedSignedSubtract(3, remainder)
-	group := 0
-	index := layout.First
+func numericHashDigits(value *checkruntime.NumericVar) []checkruntime.HashByte {
 	bytes := []checkruntime.HashByte{}
-	for index < layout.End {
-		digit := numericWireDecimalDigit(characters[index])
-		if digit >= 0 {
-			group = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(group, 10), digit))
-			position = langruntime.CheckedI32(langruntime.CheckedSignedAdd(position, 1))
-			if position == 4 {
-				low := langruntime.CheckedSignedRemainder(group, 256)
-				high := langruntime.CheckedSignedDivide(group, 256)
-				langruntime.CheckedAdd(len(bytes), 1)
-				bytes = append(bytes, checkruntime.CopyHashByte(checkruntime.HashByte{Value: int64(langruntime.CheckedI32(low))}))
-				langruntime.CheckedAdd(len(bytes), 1)
-				bytes = append(bytes, checkruntime.CopyHashByte(checkruntime.HashByte{Value: int64(langruntime.CheckedI32(high))}))
-				position = langruntime.CheckedI32(0)
-				group = langruntime.CheckedI32(0)
-			}
-		}
-		index = langruntime.CheckedAdd(index, 1)
-	}
-	if position > 0 {
-		for position < 4 {
-			group = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(group, 10))
-			position = langruntime.CheckedI32(langruntime.CheckedSignedAdd(position, 1))
-		}
+	index := 0
+	for index < len(value.Digits) {
+		group := int(int32(value.Digits[index]))
 		low := langruntime.CheckedSignedRemainder(group, 256)
 		high := langruntime.CheckedSignedDivide(group, 256)
 		langruntime.CheckedAdd(len(bytes), 1)
 		bytes = append(bytes, checkruntime.CopyHashByte(checkruntime.HashByte{Value: int64(langruntime.CheckedI32(low))}))
 		langruntime.CheckedAdd(len(bytes), 1)
 		bytes = append(bytes, checkruntime.CopyHashByte(checkruntime.HashByte{Value: int64(langruntime.CheckedI32(high))}))
+		index = langruntime.CheckedAdd(index, 1)
 	}
 	return bytes
 }
 func HashNumeric0e7w(input checkruntime.NumericValue, byteOrder int) checkruntime.Int4Value {
+	input = checkruntime.CopyNumericValue(input)
 	byteOrder = langruntime.CheckedI32(byteOrder)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
@@ -52711,6 +52841,14 @@ func HashNumeric0e7w(input checkruntime.NumericValue, byteOrder int) checkruntim
 		error := input.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
 	}
+	numericUnknownInput1 := false
+	if input.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownInput1 = true
+	}
+	numericUnimplementedInput2 := false
+	if input.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedInput2 = true
+	}
 	conditionFlavor484 := unresolvedFlavor
 	if input.Kind == checkruntime.NumericValueUnknown {
 		if conditionFlavor484 < 1 {
@@ -52720,35 +52858,33 @@ func HashNumeric0e7w(input checkruntime.NumericValue, byteOrder int) checkruntim
 	if input.Kind == checkruntime.NumericValueUnimplemented {
 		conditionFlavor484 = langruntime.CheckedI32(2)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented}) {
+	if numericUnknownInput1 || numericUnimplementedInput2 {
 		return checkruntime.Int4Unresolved(conditionFlavor484)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullInput3 := false
+	if input.Kind == checkruntime.NumericValueNull {
+		numericNullInput3 = true
+	}
+	if numericNullInput3 {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
 	}
 	if input.Kind == checkruntime.NumericValueValue {
-		value := langruntime.CheckedString(input.Value)
-		layout := checkruntime.NumericParts(value)
-		if layout.Valid == false {
-			return checkruntime.Int4Unresolved(unresolvedFlavor)
-		}
-		if layout.Special != 1 {
+		value := checkruntime.CopyNumericVar(input.Value)
+		if numericVarKind(&value) != 1 {
 			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
 		}
-		if layout.Sign == 0 {
+		if numericVarCount(&value) == 0 {
 			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedNegate(1)}
 		}
-		weight := langruntime.CheckedSignedDivide(layout.Weight, 4)
-		if langruntime.CheckedSignedRemainder(layout.Weight, 4) < 0 {
-			weight = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(weight, 1))
-		}
-		bytes := numericHashDigits(value)
+		weight := value.Weight
+		bytes := numericHashDigits(&value)
 		hash := checkruntime.HashNative32(bytes, byteOrder, 2)
 		return Int4xor6j8h(hash, checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: weight})
 	}
 	return checkruntime.Int4Unresolved(unresolvedFlavor)
 }
 func HashNumericExtendedOglu(input checkruntime.NumericValue, seed checkruntime.Int8Value, byteOrder int) checkruntime.Int8Value {
+	input = checkruntime.CopyNumericValue(input)
 	byteOrder = langruntime.CheckedI32(byteOrder)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
@@ -52771,6 +52907,14 @@ func HashNumericExtendedOglu(input checkruntime.NumericValue, seed checkruntime.
 		error := seed.Error
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
 	}
+	numericUnknownInput4 := false
+	if input.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownInput4 = true
+	}
+	numericUnimplementedInput5 := false
+	if input.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedInput5 = true
+	}
 	conditionFlavor924 := unresolvedFlavor
 	if input.Kind == checkruntime.NumericValueUnknown {
 		if conditionFlavor924 < 1 {
@@ -52788,35 +52932,31 @@ func HashNumericExtendedOglu(input checkruntime.NumericValue, seed checkruntime.
 	if seed.Kind == checkruntime.Int8ValueUnimplemented {
 		conditionFlavor924 = langruntime.CheckedI32(2)
 	}
-	if (input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented})) || (seed == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || seed == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnimplemented})) {
+	if (numericUnknownInput4 || numericUnimplementedInput5) || (seed == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || seed == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnimplemented})) {
 		return checkruntime.Int8Unresolved(conditionFlavor924)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) || seed == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+	numericNullInput6 := false
+	if input.Kind == checkruntime.NumericValueNull {
+		numericNullInput6 = true
+	}
+	if numericNullInput6 || seed == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
 	}
 	if input.Kind == checkruntime.NumericValueValue {
-		value := langruntime.CheckedString(input.Value)
+		value := checkruntime.CopyNumericVar(input.Value)
 		if seed.Kind == checkruntime.Int8ValueValue {
 			salt := seed.Value
-			layout := checkruntime.NumericParts(value)
-			if layout.Valid == false {
-				return checkruntime.Int8Unresolved(unresolvedFlavor)
-			}
-			if layout.Special != 1 {
+			if numericVarKind(&value) != 1 {
 				return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: salt}
 			}
-			if layout.Sign == 0 {
+			if numericVarCount(&value) == 0 {
 				if salt == int64(-9223372036854775808) {
 					return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: int64(9223372036854775807)}
 				}
 				return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: langruntime.CheckedI64Subtract(salt, int64(1))}
 			}
-			weight := langruntime.CheckedSignedDivide(layout.Weight, 4)
-			if langruntime.CheckedSignedRemainder(layout.Weight, 4) < 0 {
-				weight = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(weight, 1))
-			}
-			wideWeight := int64(langruntime.CheckedI32(weight))
-			bytes := numericHashDigits(value)
+			wideWeight := int64(langruntime.CheckedI32(value.Weight))
+			bytes := numericHashDigits(&value)
 			hash := checkruntime.HashNative64(bytes, salt, byteOrder, 2)
 			return Int8xor4v56(hash, checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: wideWeight})
 		}
@@ -52824,6 +52964,7 @@ func HashNumericExtendedOglu(input checkruntime.NumericValue, seed checkruntime.
 	return checkruntime.Int8Unresolved(unresolvedFlavor)
 }
 func AbsM5ih(input checkruntime.NumericValue) checkruntime.NumericValue {
+	input = checkruntime.CopyNumericValue(input)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -52835,6 +52976,14 @@ func AbsM5ih(input checkruntime.NumericValue) checkruntime.NumericValue {
 		error := input.Error
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
 	}
+	numericUnknownInput1 := false
+	if input.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownInput1 = true
+	}
+	numericUnimplementedInput2 := false
+	if input.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedInput2 = true
+	}
 	conditionFlavor60 := unresolvedFlavor
 	if input.Kind == checkruntime.NumericValueUnknown {
 		if conditionFlavor60 < 1 {
@@ -52844,32 +52993,24 @@ func AbsM5ih(input checkruntime.NumericValue) checkruntime.NumericValue {
 	if input.Kind == checkruntime.NumericValueUnimplemented {
 		conditionFlavor60 = langruntime.CheckedI32(2)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented}) {
+	if numericUnknownInput1 || numericUnimplementedInput2 {
 		return checkruntime.NumericUnresolved(conditionFlavor60)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullInput3 := false
+	if input.Kind == checkruntime.NumericValueNull {
+		numericNullInput3 = true
+	}
+	if numericNullInput3 {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
 	}
 	if input.Kind == checkruntime.NumericValueValue {
-		value := langruntime.CheckedString(input.Value)
-		work := numericWorkFromValue(value)
-		if work.valid == false {
-			return checkruntime.NumericUnresolved(unresolvedFlavor)
-		}
-		special := work.special
-		sign := work.sign
-		outputScale := work.scale
-		if sign < 0 {
-			sign = langruntime.CheckedI32(1)
-		}
-		if special == 0 {
-			special = langruntime.CheckedI32(2)
-		}
-		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(numericWork{valid: true, special: special, sign: sign, weight: work.weight, scale: outputScale, digits: work.digits})}
+		value := checkruntime.CopyNumericVar(input.Value)
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericVarAbsolute(value)}
 	}
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
 func MinScaleB8o1(input checkruntime.NumericValue) checkruntime.Int4Value {
+	input = checkruntime.CopyNumericValue(input)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -52881,6 +53022,14 @@ func MinScaleB8o1(input checkruntime.NumericValue) checkruntime.Int4Value {
 		error := input.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
 	}
+	numericUnknownInput4 := false
+	if input.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownInput4 = true
+	}
+	numericUnimplementedInput5 := false
+	if input.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedInput5 = true
+	}
 	conditionFlavor260 := unresolvedFlavor
 	if input.Kind == checkruntime.NumericValueUnknown {
 		if conditionFlavor260 < 1 {
@@ -52890,26 +53039,27 @@ func MinScaleB8o1(input checkruntime.NumericValue) checkruntime.Int4Value {
 	if input.Kind == checkruntime.NumericValueUnimplemented {
 		conditionFlavor260 = langruntime.CheckedI32(2)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented}) {
+	if numericUnknownInput4 || numericUnimplementedInput5 {
 		return checkruntime.Int4Unresolved(conditionFlavor260)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullInput6 := false
+	if input.Kind == checkruntime.NumericValueNull {
+		numericNullInput6 = true
+	}
+	if numericNullInput6 {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
 	}
 	if input.Kind == checkruntime.NumericValueValue {
-		value := langruntime.CheckedString(input.Value)
-		work := numericWorkFromValue(value)
-		if work.valid == false {
-			return checkruntime.Int4Unresolved(unresolvedFlavor)
-		}
-		if work.special != 1 {
+		value := checkruntime.CopyNumericVar(input.Value)
+		if numericVarKind(&value) != 1 {
 			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
 		}
-		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: numericWorkMinScale(work)}
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: numericVarMinScale(&value)}
 	}
 	return checkruntime.Int4Unresolved(unresolvedFlavor)
 }
 func NumericAbs6g5e(input checkruntime.NumericValue) checkruntime.NumericValue {
+	input = checkruntime.CopyNumericValue(input)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -52921,6 +53071,14 @@ func NumericAbs6g5e(input checkruntime.NumericValue) checkruntime.NumericValue {
 		error := input.Error
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
 	}
+	numericUnknownInput7 := false
+	if input.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownInput7 = true
+	}
+	numericUnimplementedInput8 := false
+	if input.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedInput8 = true
+	}
 	conditionFlavor420 := unresolvedFlavor
 	if input.Kind == checkruntime.NumericValueUnknown {
 		if conditionFlavor420 < 1 {
@@ -52930,36 +53088,31 @@ func NumericAbs6g5e(input checkruntime.NumericValue) checkruntime.NumericValue {
 	if input.Kind == checkruntime.NumericValueUnimplemented {
 		conditionFlavor420 = langruntime.CheckedI32(2)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented}) {
+	if numericUnknownInput7 || numericUnimplementedInput8 {
 		return checkruntime.NumericUnresolved(conditionFlavor420)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullInput9 := false
+	if input.Kind == checkruntime.NumericValueNull {
+		numericNullInput9 = true
+	}
+	if numericNullInput9 {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
 	}
 	if input.Kind == checkruntime.NumericValueValue {
-		value := langruntime.CheckedString(input.Value)
-		work := numericWorkFromValue(value)
-		if work.valid == false {
-			return checkruntime.NumericUnresolved(unresolvedFlavor)
-		}
-		special := work.special
-		sign := work.sign
-		outputScale := work.scale
-		if sign < 0 {
-			sign = langruntime.CheckedI32(1)
-		}
-		if special == 0 {
-			special = langruntime.CheckedI32(2)
-		}
-		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(numericWork{valid: true, special: special, sign: sign, weight: work.weight, scale: outputScale, digits: work.digits})}
+		value := checkruntime.CopyNumericVar(input.Value)
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericVarAbsolute(value)}
 	}
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
 func NumericCmp6h4s(input checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.Int4Value {
-	result := numericCompare(input, right)
+	input = checkruntime.CopyNumericValue(input)
+	right = checkruntime.CopyNumericValue(right)
+	result := numericCompare(checkruntime.CopyNumericValue(input), checkruntime.CopyNumericValue(right))
 	return result
 }
 func NumericLarger4j2h(input checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
+	input = checkruntime.CopyNumericValue(input)
+	right = checkruntime.CopyNumericValue(right)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -52973,7 +53126,7 @@ func NumericLarger4j2h(input checkruntime.NumericValue, right checkruntime.Numer
 	if right.Kind == checkruntime.NumericValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
-	result := numericCompare(input, right)
+	result := numericCompare(checkruntime.CopyNumericValue(input), checkruntime.CopyNumericValue(right))
 	if result.Kind == checkruntime.Int4ValueError {
 		error := result.Error
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
@@ -53003,6 +53156,8 @@ func NumericLarger4j2h(input checkruntime.NumericValue, right checkruntime.Numer
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
 func NumericSmallerB9i1(input checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
+	input = checkruntime.CopyNumericValue(input)
+	right = checkruntime.CopyNumericValue(right)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -53016,7 +53171,7 @@ func NumericSmallerB9i1(input checkruntime.NumericValue, right checkruntime.Nume
 	if right.Kind == checkruntime.NumericValueUnimplemented {
 		unresolvedFlavor = langruntime.CheckedI32(2)
 	}
-	result := numericCompare(input, right)
+	result := numericCompare(checkruntime.CopyNumericValue(input), checkruntime.CopyNumericValue(right))
 	if result.Kind == checkruntime.Int4ValueError {
 		error := result.Error
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
@@ -53046,6 +53201,7 @@ func NumericSmallerB9i1(input checkruntime.NumericValue, right checkruntime.Nume
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
 func NumericUminusWcmy(input checkruntime.NumericValue) checkruntime.NumericValue {
+	input = checkruntime.CopyNumericValue(input)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -53056,6 +53212,14 @@ func NumericUminusWcmy(input checkruntime.NumericValue) checkruntime.NumericValu
 	if input.Kind == checkruntime.NumericValueError {
 		error := input.Error
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	numericUnknownInput10 := false
+	if input.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownInput10 = true
+	}
+	numericUnimplementedInput11 := false
+	if input.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedInput11 = true
 	}
 	conditionFlavor950 := unresolvedFlavor
 	if input.Kind == checkruntime.NumericValueUnknown {
@@ -53066,32 +53230,24 @@ func NumericUminusWcmy(input checkruntime.NumericValue) checkruntime.NumericValu
 	if input.Kind == checkruntime.NumericValueUnimplemented {
 		conditionFlavor950 = langruntime.CheckedI32(2)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented}) {
+	if numericUnknownInput10 || numericUnimplementedInput11 {
 		return checkruntime.NumericUnresolved(conditionFlavor950)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullInput12 := false
+	if input.Kind == checkruntime.NumericValueNull {
+		numericNullInput12 = true
+	}
+	if numericNullInput12 {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
 	}
 	if input.Kind == checkruntime.NumericValueValue {
-		value := langruntime.CheckedString(input.Value)
-		work := numericWorkFromValue(value)
-		if work.valid == false {
-			return checkruntime.NumericUnresolved(unresolvedFlavor)
-		}
-		special := work.special
-		sign := work.sign
-		outputScale := work.scale
-		sign = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, sign))
-		if special == 0 {
-			special = langruntime.CheckedI32(2)
-		} else if special == 2 {
-			special = langruntime.CheckedI32(0)
-		}
-		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(numericWork{valid: true, special: special, sign: sign, weight: work.weight, scale: outputScale, digits: work.digits})}
+		value := checkruntime.CopyNumericVar(input.Value)
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericVarNegated(value)}
 	}
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
 func NumericUplus2a0z(input checkruntime.NumericValue) checkruntime.NumericValue {
+	input = checkruntime.CopyNumericValue(input)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -53103,6 +53259,14 @@ func NumericUplus2a0z(input checkruntime.NumericValue) checkruntime.NumericValue
 		error := input.Error
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
 	}
+	numericUnknownInput13 := false
+	if input.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownInput13 = true
+	}
+	numericUnimplementedInput14 := false
+	if input.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedInput14 = true
+	}
 	conditionFlavor1150 := unresolvedFlavor
 	if input.Kind == checkruntime.NumericValueUnknown {
 		if conditionFlavor1150 < 1 {
@@ -53112,26 +53276,24 @@ func NumericUplus2a0z(input checkruntime.NumericValue) checkruntime.NumericValue
 	if input.Kind == checkruntime.NumericValueUnimplemented {
 		conditionFlavor1150 = langruntime.CheckedI32(2)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented}) {
+	if numericUnknownInput13 || numericUnimplementedInput14 {
 		return checkruntime.NumericUnresolved(conditionFlavor1150)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullInput15 := false
+	if input.Kind == checkruntime.NumericValueNull {
+		numericNullInput15 = true
+	}
+	if numericNullInput15 {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
 	}
 	if input.Kind == checkruntime.NumericValueValue {
-		value := langruntime.CheckedString(input.Value)
-		work := numericWorkFromValue(value)
-		if work.valid == false {
-			return checkruntime.NumericUnresolved(unresolvedFlavor)
-		}
-		special := work.special
-		sign := work.sign
-		outputScale := work.scale
-		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(numericWork{valid: true, special: special, sign: sign, weight: work.weight, scale: outputScale, digits: work.digits})}
+		value := checkruntime.CopyNumericVar(input.Value)
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: value}
 	}
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
 func ScaleSvql(input checkruntime.NumericValue) checkruntime.Int4Value {
+	input = checkruntime.CopyNumericValue(input)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -53143,6 +53305,14 @@ func ScaleSvql(input checkruntime.NumericValue) checkruntime.Int4Value {
 		error := input.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
 	}
+	numericUnknownInput16 := false
+	if input.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownInput16 = true
+	}
+	numericUnimplementedInput17 := false
+	if input.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedInput17 = true
+	}
 	conditionFlavor1330 := unresolvedFlavor
 	if input.Kind == checkruntime.NumericValueUnknown {
 		if conditionFlavor1330 < 1 {
@@ -53152,26 +53322,27 @@ func ScaleSvql(input checkruntime.NumericValue) checkruntime.Int4Value {
 	if input.Kind == checkruntime.NumericValueUnimplemented {
 		conditionFlavor1330 = langruntime.CheckedI32(2)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented}) {
+	if numericUnknownInput16 || numericUnimplementedInput17 {
 		return checkruntime.Int4Unresolved(conditionFlavor1330)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullInput18 := false
+	if input.Kind == checkruntime.NumericValueNull {
+		numericNullInput18 = true
+	}
+	if numericNullInput18 {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
 	}
 	if input.Kind == checkruntime.NumericValueValue {
-		value := langruntime.CheckedString(input.Value)
-		work := numericWorkFromValue(value)
-		if work.valid == false {
-			return checkruntime.Int4Unresolved(unresolvedFlavor)
-		}
-		if work.special != 1 {
+		value := checkruntime.CopyNumericVar(input.Value)
+		if numericVarKind(&value) != 1 {
 			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
 		}
-		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: work.scale}
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: value.Dscale}
 	}
 	return checkruntime.Int4Unresolved(unresolvedFlavor)
 }
 func Sign2rsu(input checkruntime.NumericValue) checkruntime.NumericValue {
+	input = checkruntime.CopyNumericValue(input)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -53182,6 +53353,14 @@ func Sign2rsu(input checkruntime.NumericValue) checkruntime.NumericValue {
 	if input.Kind == checkruntime.NumericValueError {
 		error := input.Error
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	numericUnknownInput19 := false
+	if input.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownInput19 = true
+	}
+	numericUnimplementedInput20 := false
+	if input.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedInput20 = true
 	}
 	conditionFlavor1490 := unresolvedFlavor
 	if input.Kind == checkruntime.NumericValueUnknown {
@@ -53192,32 +53371,34 @@ func Sign2rsu(input checkruntime.NumericValue) checkruntime.NumericValue {
 	if input.Kind == checkruntime.NumericValueUnimplemented {
 		conditionFlavor1490 = langruntime.CheckedI32(2)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented}) {
+	if numericUnknownInput19 || numericUnimplementedInput20 {
 		return checkruntime.NumericUnresolved(conditionFlavor1490)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullInput21 := false
+	if input.Kind == checkruntime.NumericValueNull {
+		numericNullInput21 = true
+	}
+	if numericNullInput21 {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
 	}
 	if input.Kind == checkruntime.NumericValueValue {
-		value := langruntime.CheckedString(input.Value)
-		work := numericWorkFromValue(value)
-		if work.valid == false {
-			return checkruntime.NumericUnresolved(unresolvedFlavor)
+		value := checkruntime.CopyNumericVar(input.Value)
+		kind := numericVarKind(&value)
+		if kind == 3 {
+			return checkruntime.MakeNumericValue("NaN")
 		}
-		if work.special == 3 {
-			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "NaN"}
+		if kind == 0 || numericVarSignum(&value) < 0 {
+			return checkruntime.MakeNumericValue("-1")
 		}
-		if work.special == 0 || work.sign < 0 {
-			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "-1"}
+		if kind == 2 || numericVarSignum(&value) > 0 {
+			return checkruntime.MakeNumericValue("1")
 		}
-		if work.special == 2 || work.sign > 0 {
-			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "1"}
-		}
-		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "0"}
+		return checkruntime.MakeNumericValue("0")
 	}
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
 func TrimScale3rbp(input checkruntime.NumericValue) checkruntime.NumericValue {
+	input = checkruntime.CopyNumericValue(input)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -53229,6 +53410,14 @@ func TrimScale3rbp(input checkruntime.NumericValue) checkruntime.NumericValue {
 		error := input.Error
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
 	}
+	numericUnknownInput22 := false
+	if input.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownInput22 = true
+	}
+	numericUnimplementedInput23 := false
+	if input.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedInput23 = true
+	}
 	conditionFlavor1670 := unresolvedFlavor
 	if input.Kind == checkruntime.NumericValueUnknown {
 		if conditionFlavor1670 < 1 {
@@ -53238,22 +53427,23 @@ func TrimScale3rbp(input checkruntime.NumericValue) checkruntime.NumericValue {
 	if input.Kind == checkruntime.NumericValueUnimplemented {
 		conditionFlavor1670 = langruntime.CheckedI32(2)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented}) {
+	if numericUnknownInput22 || numericUnimplementedInput23 {
 		return checkruntime.NumericUnresolved(conditionFlavor1670)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullInput24 := false
+	if input.Kind == checkruntime.NumericValueNull {
+		numericNullInput24 = true
+	}
+	if numericNullInput24 {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
 	}
 	if input.Kind == checkruntime.NumericValueValue {
-		value := langruntime.CheckedString(input.Value)
-		work := numericWorkFromValue(value)
-		if work.valid == false {
-			return checkruntime.NumericUnresolved(unresolvedFlavor)
+		value := checkruntime.CopyNumericVar(input.Value)
+		if numericVarKind(&value) != 1 {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: value}
 		}
-		special := work.special
-		sign := work.sign
-		outputScale := numericWorkMinScale(copynumericWork(work))
-		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(numericWork{valid: true, special: special, sign: sign, weight: work.weight, scale: outputScale, digits: work.digits})}
+		minScale := numericVarMinScale(&value)
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericVarRescaled(value, minScale)}
 	}
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
@@ -53262,6 +53452,7 @@ const numericIntegerRangeError = 3452547
 const numericIntegerSpecialError = 466560
 
 func numericIntegerValue(input checkruntime.NumericValue) checkruntime.Int8Value {
+	input = checkruntime.CopyNumericValue(input)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -53273,6 +53464,14 @@ func numericIntegerValue(input checkruntime.NumericValue) checkruntime.Int8Value
 		error := input.Error
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
 	}
+	numericUnknownInput1 := false
+	if input.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownInput1 = true
+	}
+	numericUnimplementedInput2 := false
+	if input.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedInput2 = true
+	}
 	conditionFlavor114 := unresolvedFlavor
 	if input.Kind == checkruntime.NumericValueUnknown {
 		if conditionFlavor114 < 1 {
@@ -53282,66 +53481,52 @@ func numericIntegerValue(input checkruntime.NumericValue) checkruntime.Int8Value
 	if input.Kind == checkruntime.NumericValueUnimplemented {
 		conditionFlavor114 = langruntime.CheckedI32(2)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented}) {
+	if numericUnknownInput1 || numericUnimplementedInput2 {
 		return checkruntime.Int8Unresolved(conditionFlavor114)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullInput3 := false
+	if input.Kind == checkruntime.NumericValueNull {
+		numericNullInput3 = true
+	}
+	if numericNullInput3 {
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
 	}
 	if input.Kind == checkruntime.NumericValueValue {
-		text := langruntime.CheckedString(input.Value)
-		work := numericWorkFromValue(text)
-		if work.valid == false {
-			return checkruntime.Int8Unresolved(unresolvedFlavor)
-		}
-		if work.special != 1 {
+		value := checkruntime.CopyNumericVar(input.Value)
+		if numericVarKind(&value) != 1 {
 			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(numericIntegerSpecialError)}
 		}
-		if work.sign != 0 && work.weight > 18 {
+		negative := numericVarSignum(&value) < 0
+		rounded := numericVarStrip(numericVarRound(value, 0))
+		count := numericVarCount(&rounded)
+		if count == 0 {
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: int64(0)}
+		}
+		if rounded.Weight > 4 {
 			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(numericIntegerRangeError)}
 		}
-		rounded := numericWorkRound(work, 0, 1)
-		if rounded.Kind == checkruntime.NumericValueError {
-			error := rounded.Error
-			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
-		}
-		if rounded.Kind == checkruntime.NumericValueValue {
-			value := langruntime.CheckedString(rounded.Value)
-			parts := checkruntime.NumericParts(value)
-			if parts.Sign == 0 {
-				return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: int64(0)}
-			}
-			if parts.Weight > 18 {
+		result := int64(0)
+		i := 0
+		for i <= rounded.Weight {
+			digit := int64(langruntime.CheckedI32(numericVarDigit(&rounded, i)))
+			if result < int64(-922337203685477) || (result == int64(-922337203685477) && digit > int64(5808)) {
 				return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(numericIntegerRangeError)}
 			}
-			characters := []rune(value)
-			result := int64(0)
-			index := parts.First
-			position := 0
-			for position <= parts.Weight {
-				digit := int64(0)
-				if index < parts.End {
-					digit = int64(langruntime.CheckedI32(numericWireDecimalDigit(characters[index])))
-					index = langruntime.CheckedAdd(index, 1)
-				}
-				if result < int64(-922337203685477580) || (result == int64(-922337203685477580) && digit > int64(8)) {
-					return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(numericIntegerRangeError)}
-				}
-				result = langruntime.CheckedI64Subtract(langruntime.CheckedI64Multiply(result, int64(10)), digit)
-				position = langruntime.CheckedI32(langruntime.CheckedSignedAdd(position, 1))
-			}
-			if parts.Sign < 0 {
-				return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: result}
-			}
-			if result == int64(-9223372036854775808) {
-				return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(numericIntegerRangeError)}
-			}
-			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: langruntime.CheckedI64Subtract(int64(0), result)}
+			result = langruntime.CheckedI64Subtract(langruntime.CheckedI64Multiply(result, int64(10000)), digit)
+			i = langruntime.CheckedI32(langruntime.CheckedSignedAdd(i, 1))
 		}
+		if negative {
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: result}
+		}
+		if result == int64(-9223372036854775808) {
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(numericIntegerRangeError)}
+		}
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: langruntime.CheckedI64Subtract(int64(0), result)}
 	}
 	return checkruntime.Int8Unresolved(unresolvedFlavor)
 }
 func Int2Zpjn(input checkruntime.NumericValue) checkruntime.Int2Value {
+	input = checkruntime.CopyNumericValue(input)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -53379,6 +53564,7 @@ func Int2Zpjn(input checkruntime.NumericValue) checkruntime.Int2Value {
 	return checkruntime.Int2Unresolved(unresolvedFlavor)
 }
 func Int4Z4rh(input checkruntime.NumericValue) checkruntime.Int4Value {
+	input = checkruntime.CopyNumericValue(input)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -53416,6 +53602,7 @@ func Int4Z4rh(input checkruntime.NumericValue) checkruntime.Int4Value {
 	return checkruntime.Int4Unresolved(unresolvedFlavor)
 }
 func Int8Xy54(input checkruntime.NumericValue) checkruntime.Int8Value {
+	input = checkruntime.CopyNumericValue(input)
 	return numericIntegerValue(input)
 }
 func NumericItt9(input checkruntime.Int2Value) checkruntime.NumericValue {
@@ -53448,7 +53635,7 @@ func NumericItt9(input checkruntime.Int2Value) checkruntime.NumericValue {
 	if input.Kind == checkruntime.Int2ValueValue {
 		value := langruntime.CheckedI32(input.Value)
 		integer := int64(langruntime.CheckedI32(value))
-		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: checkruntime.TextSignedNumber(integer)}
+		return checkruntime.MakeNumericValue(checkruntime.TextSignedNumber(integer))
 	}
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
@@ -53482,7 +53669,7 @@ func NumericNcrk(input checkruntime.Int4Value) checkruntime.NumericValue {
 	if input.Kind == checkruntime.Int4ValueValue {
 		value := langruntime.CheckedI32(input.Value)
 		integer := int64(langruntime.CheckedI32(value))
-		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: checkruntime.TextSignedNumber(integer)}
+		return checkruntime.MakeNumericValue(checkruntime.TextSignedNumber(integer))
 	}
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
@@ -53516,7 +53703,7 @@ func Numeric11bc(input checkruntime.Int8Value) checkruntime.NumericValue {
 	if input.Kind == checkruntime.Int8ValueValue {
 		value := input.Value
 		integer := value
-		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: checkruntime.TextSignedNumber(integer)}
+		return checkruntime.MakeNumericValue(checkruntime.TextSignedNumber(integer))
 	}
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
@@ -53525,8 +53712,8 @@ const numericLogInvalidArgument = 3452594
 
 var numericLnTenEstimate = float64(2.302585092994046)
 
-func numericVarLnDweight(value *numericVar) int {
-	if value.sign < 0 {
+func numericVarLnDweight(value *checkruntime.NumericVar) int {
+	if value.Sign < 0 {
 		return 0
 	}
 	one := numericVarFromI64(int64(1))
@@ -53536,13 +53723,13 @@ func numericVarLnDweight(value *numericVar) int {
 		x := numericVarSub(value, &one)
 		if numericVarCount(&x) > 0 {
 			leading := float64(numericVarDigit(&x, 0))
-			return langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(x.weight, numericVarDecDigits), (langruntime.F64ToI32(langruntime.F64Log10(leading))))
+			return langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(x.Weight, numericVarDecDigits), (langruntime.F64ToI32(langruntime.F64Log10(leading))))
 		}
 		return 0
 	}
 	if numericVarCount(value) > 0 {
 		digits := numericVarDigit(value, 0)
-		dweight := langruntime.CheckedSignedMultiply(value.weight, numericVarDecDigits)
+		dweight := langruntime.CheckedSignedMultiply(value.Weight, numericVarDecDigits)
 		if numericVarCount(value) > 1 {
 			digits = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(digits, numericVarNbase), numericVarDigit(value, 1)))
 			dweight = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(dweight, numericVarDecDigits))
@@ -53552,7 +53739,7 @@ func numericVarLnDweight(value *numericVar) int {
 	}
 	return 0
 }
-func numericVarLn(arg *numericVar, rscale int) numericVar {
+func numericVarLn(arg *checkruntime.NumericVar, rscale int) checkruntime.NumericVar {
 	rscale = langruntime.CheckedI32(rscale)
 	one := numericVarFromI64(int64(1))
 	two := numericVarFromI64(int64(2))
@@ -53562,15 +53749,15 @@ func numericVarLn(arg *numericVar, rscale int) numericVar {
 	fact := numericVarFromI64(int64(2))
 	nsqrt := 0
 	for numericVarCmp(&x, &zeroPointNine) <= 0 {
-		localRscale := langruntime.CheckedSignedAdd(langruntime.CheckedSignedSubtract(rscale, langruntime.CheckedSignedDivide(langruntime.CheckedSignedMultiply(x.weight, numericVarDecDigits), 2)), 8)
-		x = copynumericVar(numericVarSqrt(&x, localRscale))
-		fact = copynumericVar(numericVarMul(&fact, &two, 0))
+		localRscale := langruntime.CheckedSignedAdd(langruntime.CheckedSignedSubtract(rscale, langruntime.CheckedSignedDivide(langruntime.CheckedSignedMultiply(x.Weight, numericVarDecDigits), 2)), 8)
+		x = checkruntime.CopyNumericVar(numericVarSqrt(&x, localRscale))
+		fact = checkruntime.CopyNumericVar(numericVarMul(&fact, &two, 0))
 		nsqrt = langruntime.CheckedI32(langruntime.CheckedSignedAdd(nsqrt, 1))
 	}
 	for numericVarCmp(&x, &onePointOne) >= 0 {
-		localRscale := langruntime.CheckedSignedAdd(langruntime.CheckedSignedSubtract(rscale, langruntime.CheckedSignedDivide(langruntime.CheckedSignedMultiply(x.weight, numericVarDecDigits), 2)), 8)
-		x = copynumericVar(numericVarSqrt(&x, localRscale))
-		fact = copynumericVar(numericVarMul(&fact, &two, 0))
+		localRscale := langruntime.CheckedSignedAdd(langruntime.CheckedSignedSubtract(rscale, langruntime.CheckedSignedDivide(langruntime.CheckedSignedMultiply(x.Weight, numericVarDecDigits), 2)), 8)
+		x = checkruntime.CopyNumericVar(numericVarSqrt(&x, localRscale))
+		fact = checkruntime.CopyNumericVar(numericVarMul(&fact, &two, 0))
 		nsqrt = langruntime.CheckedI32(langruntime.CheckedSignedAdd(nsqrt, 1))
 	}
 	localRscale := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(rscale, langruntime.F64ToI32((langruntime.F64Multiply((float64((langruntime.CheckedSignedAdd(nsqrt, 1)))), float64(0.301029995663981))))), 8)
@@ -53583,13 +53770,13 @@ func numericVarLn(arg *numericVar, rscale int) numericVar {
 	advancing := true
 	for advancing {
 		ni = langruntime.CheckedI32(langruntime.CheckedSignedAdd(ni, 2))
-		xx = copynumericVar(numericVarMul(&xx, &square, localRscale))
+		xx = checkruntime.CopyNumericVar(numericVarMul(&xx, &square, localRscale))
 		elem := numericVarDivInt(&xx, ni, 0, localRscale, true)
 		if numericVarCount(&elem) == 0 {
 			advancing = false
 		} else {
-			result = copynumericVar(numericVarAdd(&result, &elem))
-			if elem.weight < langruntime.CheckedSignedSubtract(result.weight, langruntime.CheckedSignedDivide(langruntime.CheckedSignedMultiply(localRscale, 2), numericVarDecDigits)) {
+			result = checkruntime.CopyNumericVar(numericVarAdd(&result, &elem))
+			if elem.Weight < langruntime.CheckedSignedSubtract(result.Weight, langruntime.CheckedSignedDivide(langruntime.CheckedSignedMultiply(localRscale, 2), numericVarDecDigits)) {
 				advancing = false
 			}
 		}
@@ -53597,6 +53784,7 @@ func numericVarLn(arg *numericVar, rscale int) numericVar {
 	return numericVarMul(&result, &fact, rscale)
 }
 func NumericLnOkv6(input checkruntime.NumericValue) checkruntime.NumericValue {
+	input = checkruntime.CopyNumericValue(input)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -53608,6 +53796,14 @@ func NumericLnOkv6(input checkruntime.NumericValue) checkruntime.NumericValue {
 		error := input.Error
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
 	}
+	numericUnknownInput1 := false
+	if input.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownInput1 = true
+	}
+	numericUnimplementedInput2 := false
+	if input.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedInput2 = true
+	}
 	conditionFlavor1154 := unresolvedFlavor
 	if input.Kind == checkruntime.NumericValueUnknown {
 		if conditionFlavor1154 < 1 {
@@ -53617,28 +53813,28 @@ func NumericLnOkv6(input checkruntime.NumericValue) checkruntime.NumericValue {
 	if input.Kind == checkruntime.NumericValueUnimplemented {
 		conditionFlavor1154 = langruntime.CheckedI32(2)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented}) {
+	if numericUnknownInput1 || numericUnimplementedInput2 {
 		return checkruntime.NumericUnresolved(conditionFlavor1154)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullInput3 := false
+	if input.Kind == checkruntime.NumericValueNull {
+		numericNullInput3 = true
+	}
+	if numericNullInput3 {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
 	}
 	if input.Kind == checkruntime.NumericValueValue {
-		value := langruntime.CheckedString(input.Value)
-		work := numericWorkFromValue(value)
-		if work.valid == false {
-			return checkruntime.NumericUnresolved(unresolvedFlavor)
-		}
-		if work.special == 0 || (work.special == 1 && work.sign <= 0) {
+		arg := checkruntime.CopyNumericVar(input.Value)
+		kind := numericVarKind(&arg)
+		if kind == 0 || (kind == 1 && numericVarSignum(&arg) <= 0) {
 			return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(numericLogInvalidArgument)}
 		}
-		if work.special != 1 {
-			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(work)}
+		if kind != 1 {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: arg}
 		}
-		arg := numericVarFromWork(&work)
 		rscale := langruntime.CheckedSignedSubtract(numericVarMinSigDigits, numericVarLnDweight(&arg))
-		if rscale < arg.dscale {
-			rscale = langruntime.CheckedI32(arg.dscale)
+		if rscale < arg.Dscale {
+			rscale = langruntime.CheckedI32(arg.Dscale)
 		}
 		if rscale < 0 {
 			rscale = langruntime.CheckedI32(0)
@@ -53651,37 +53847,38 @@ func NumericLnOkv6(input checkruntime.NumericValue) checkruntime.NumericValue {
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
 func Ln05bs(input checkruntime.NumericValue) checkruntime.NumericValue {
+	input = checkruntime.CopyNumericValue(input)
 	return NumericLnOkv6(input)
 }
-func numericBaseLogarithm(base numericWork, input numericWork) checkruntime.NumericValue {
-	base = copynumericWork(base)
-	input = copynumericWork(input)
-	if base.special == 3 || input.special == 3 {
-		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "NaN"}
+func numericBaseLogarithm(baseVar checkruntime.NumericVar, numVar checkruntime.NumericVar) checkruntime.NumericValue {
+	baseVar = checkruntime.CopyNumericVar(baseVar)
+	numVar = checkruntime.CopyNumericVar(numVar)
+	baseKind := numericVarKind(&baseVar)
+	inputKind := numericVarKind(&numVar)
+	if baseKind == 3 || inputKind == 3 {
+		return checkruntime.MakeNumericValue("NaN")
 	}
-	if base.special == 0 || input.special == 0 || (base.special == 1 && base.sign <= 0) || (input.special == 1 && input.sign <= 0) {
+	if baseKind == 0 || inputKind == 0 || (baseKind == 1 && numericVarSignum(&baseVar) <= 0) || (inputKind == 1 && numericVarSignum(&numVar) <= 0) {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(numericLogInvalidArgument)}
 	}
-	if base.special == 2 {
-		if input.special == 2 {
-			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "NaN"}
+	if baseKind == 2 {
+		if inputKind == 2 {
+			return checkruntime.MakeNumericValue("NaN")
 		}
-		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "0"}
+		return checkruntime.MakeNumericValue("0")
 	}
-	if input.special == 2 {
-		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "Infinity"}
+	if inputKind == 2 {
+		return checkruntime.MakeNumericValue("Infinity")
 	}
-	baseVar := numericVarFromWork(&base)
-	numVar := numericVarFromWork(&input)
 	lnBaseDweight := numericVarLnDweight(&baseVar)
 	lnNumDweight := numericVarLnDweight(&numVar)
 	resultDweight := langruntime.CheckedSignedSubtract(lnNumDweight, lnBaseDweight)
 	rscale := langruntime.CheckedSignedSubtract(numericVarMinSigDigits, resultDweight)
-	if rscale < baseVar.dscale {
-		rscale = langruntime.CheckedI32(baseVar.dscale)
+	if rscale < baseVar.Dscale {
+		rscale = langruntime.CheckedI32(baseVar.Dscale)
 	}
-	if rscale < numVar.dscale {
-		rscale = langruntime.CheckedI32(numVar.dscale)
+	if rscale < numVar.Dscale {
+		rscale = langruntime.CheckedI32(numVar.Dscale)
 	}
 	if rscale < 0 {
 		rscale = langruntime.CheckedI32(0)
@@ -53705,6 +53902,8 @@ func numericBaseLogarithm(base numericWork, input numericWork) checkruntime.Nume
 	return numericVarResult(numericVarDiv(&lnNum, &lnBase, rscale, true, false))
 }
 func NumericLog8gwh(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
 	unresolvedFlavor := 0
 	if left.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -53726,6 +53925,22 @@ func NumericLog8gwh(left checkruntime.NumericValue, right checkruntime.NumericVa
 		error := right.Error
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
 	}
+	numericUnknownLeft1 := false
+	if left.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownLeft1 = true
+	}
+	numericUnimplementedLeft2 := false
+	if left.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedLeft2 = true
+	}
+	numericUnknownRight3 := false
+	if right.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownRight3 = true
+	}
+	numericUnimplementedRight4 := false
+	if right.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedRight4 = true
+	}
 	conditionFlavor664 := unresolvedFlavor
 	if left.Kind == checkruntime.NumericValueUnknown {
 		if conditionFlavor664 < 1 {
@@ -53743,80 +53958,77 @@ func NumericLog8gwh(left checkruntime.NumericValue, right checkruntime.NumericVa
 	if right.Kind == checkruntime.NumericValueUnimplemented {
 		conditionFlavor664 = langruntime.CheckedI32(2)
 	}
-	if (left == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || left == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented})) || (right == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || right == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented})) {
+	if (numericUnknownLeft1 || numericUnimplementedLeft2) || (numericUnknownRight3 || numericUnimplementedRight4) {
 		return checkruntime.NumericUnresolved(conditionFlavor664)
 	}
-	if left == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) || right == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullLeft5 := false
+	if left.Kind == checkruntime.NumericValueNull {
+		numericNullLeft5 = true
+	}
+	numericNullRight6 := false
+	if right.Kind == checkruntime.NumericValueNull {
+		numericNullRight6 = true
+	}
+	if numericNullLeft5 || numericNullRight6 {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
 	}
 	if left.Kind == checkruntime.NumericValueValue {
-		base := langruntime.CheckedString(left.Value)
+		base := checkruntime.CopyNumericVar(left.Value)
 		if right.Kind == checkruntime.NumericValueValue {
-			input := langruntime.CheckedString(right.Value)
-			first := numericWorkFromValue(base)
-			second := numericWorkFromValue(input)
-			if first.valid == false || second.valid == false {
-				return checkruntime.NumericUnresolved(unresolvedFlavor)
-			}
-			return numericBaseLogarithm(first, second)
+			input := checkruntime.CopyNumericVar(right.Value)
+			return numericBaseLogarithm(base, input)
 		}
 	}
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
 func Log94cu(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
 	return NumericLog8gwh(left, right)
 }
 func LogWnnd(input checkruntime.NumericValue) checkruntime.NumericValue {
-	return NumericLog8gwh(checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "10"}, input)
+	input = checkruntime.CopyNumericValue(input)
+	return NumericLog8gwh(checkruntime.MakeNumericValue("10"), input)
 }
 func Log10Dgh7(input checkruntime.NumericValue) checkruntime.NumericValue {
+	input = checkruntime.CopyNumericValue(input)
 	return LogWnnd(input)
 }
 
 const numericPowerInvalidArgument = 3452595
 
-func numericPowerSign(work numericWork) int {
-	work = copynumericWork(work)
-	if work.special == 0 {
+func numericPowerSign(value *checkruntime.NumericVar) int {
+	kind := numericVarKind(value)
+	if kind == 0 {
 		return langruntime.CheckedSignedNegate(1)
 	}
-	if work.special == 2 {
+	if kind == 2 {
 		return 1
 	}
-	return work.sign
+	return numericVarSignum(value)
 }
-func numericPowerIntegral(work numericWork) bool {
-	work = copynumericWork(work)
-	if work.special == 3 {
+func numericPowerIntegral(value *checkruntime.NumericVar) bool {
+	kind := numericVarKind(value)
+	if kind == 3 {
 		return false
 	}
-	if work.special != 1 {
+	if kind != 1 {
 		return true
 	}
-	return numericWorkMinScale(work) == 0
+	return numericVarCount(value) == 0 || numericVarCount(value) <= langruntime.CheckedSignedAdd(value.Weight, 1)
 }
-func numericPowerOdd(work numericWork) bool {
-	work = copynumericWork(work)
-	characters := []rune(work.digits)
-	position := work.weight
-	index := 0
-	for index < len(characters) {
-		if position == 0 {
-			return langruntime.CheckedSignedRemainder(numericWireDecimalDigit(characters[index]), 2) != 0
-		}
-		index = langruntime.CheckedAdd(index, 1)
-		position = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(position, 1))
-	}
-	return false
+func numericPowerOdd(value *checkruntime.NumericVar) bool {
+	count := numericVarCount(value)
+	return count > 0 && count == langruntime.CheckedSignedAdd(value.Weight, 1) && langruntime.CheckedSignedRemainder(numericVarDigit(value, langruntime.CheckedSignedSubtract(count, 1)), 2) == 1
 }
-func numericVarPowerInt(base *numericVar, exp int, expDscale int) numericVarOutcome {
+func numericVarPowerInt(base *checkruntime.NumericVar, exp int, expDscale int) numericVarOutcome {
 	exp = langruntime.CheckedI32(exp)
 	expDscale = langruntime.CheckedI32(expDscale)
 	one := numericVarFromI64(int64(1))
 	f := float64(0.0)
 	if numericVarCount(base) != 0 {
 		f = float64(numericVarDigit(base, 0))
-		p := langruntime.CheckedSignedMultiply(base.weight, numericVarDecDigits)
+		p := langruntime.CheckedSignedMultiply(base.Weight, numericVarDecDigits)
 		i := 1
 		for i < numericVarCount(base) && langruntime.CheckedSignedMultiply(i, numericVarDecDigits) < 16 {
 			f = langruntime.F64Add(langruntime.F64Multiply(f, float64(10000.0)), (float64(numericVarDigit(base, i))))
@@ -53832,8 +54044,8 @@ func numericVarPowerInt(base *numericVar, exp int, expDscale int) numericVarOutc
 		return numericVarSucceeded(numericVarZero(numericVarMaxDisplayScale))
 	}
 	rscale := langruntime.CheckedSignedSubtract(numericVarMinSigDigits, langruntime.F64ToI32(f))
-	if rscale < base.dscale {
-		rscale = langruntime.CheckedI32(base.dscale)
+	if rscale < base.Dscale {
+		rscale = langruntime.CheckedI32(base.Dscale)
 	}
 	if rscale < expDscale {
 		rscale = langruntime.CheckedI32(expDscale)
@@ -53869,33 +54081,33 @@ func numericVarPowerInt(base *numericVar, exp int, expDscale int) numericVarOutc
 	baseProd := numericVarShifted(base, 0)
 	result := numericVarShifted(&one, 0)
 	if langruntime.CheckedI64Remainder(mask, int64(2)) == int64(1) {
-		result = copynumericVar(numericVarShifted(base, 0))
+		result = checkruntime.CopyNumericVar(numericVarShifted(base, 0))
 	}
 	mask = langruntime.CheckedI64Divide(mask, int64(2))
 	for mask > int64(0) {
-		localRscale := langruntime.CheckedSignedSubtract(sigDigits, langruntime.CheckedSignedMultiply(langruntime.CheckedSignedMultiply(2, baseProd.weight), numericVarDecDigits))
-		if langruntime.CheckedSignedMultiply(2, baseProd.dscale) < localRscale {
-			localRscale = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(2, baseProd.dscale))
+		localRscale := langruntime.CheckedSignedSubtract(sigDigits, langruntime.CheckedSignedMultiply(langruntime.CheckedSignedMultiply(2, baseProd.Weight), numericVarDecDigits))
+		if langruntime.CheckedSignedMultiply(2, baseProd.Dscale) < localRscale {
+			localRscale = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(2, baseProd.Dscale))
 		}
 		if localRscale < 0 {
 			localRscale = langruntime.CheckedI32(0)
 		}
-		baseProd = copynumericVar(numericVarMul(&baseProd, &baseProd, localRscale))
+		baseProd = checkruntime.CopyNumericVar(numericVarMul(&baseProd, &baseProd, localRscale))
 		if langruntime.CheckedI64Remainder(mask, int64(2)) == int64(1) {
-			productRscale := langruntime.CheckedSignedSubtract(sigDigits, langruntime.CheckedSignedMultiply((langruntime.CheckedSignedAdd(baseProd.weight, result.weight)), numericVarDecDigits))
-			if langruntime.CheckedSignedAdd(baseProd.dscale, result.dscale) < productRscale {
-				productRscale = langruntime.CheckedI32(langruntime.CheckedSignedAdd(baseProd.dscale, result.dscale))
+			productRscale := langruntime.CheckedSignedSubtract(sigDigits, langruntime.CheckedSignedMultiply((langruntime.CheckedSignedAdd(baseProd.Weight, result.Weight)), numericVarDecDigits))
+			if langruntime.CheckedSignedAdd(baseProd.Dscale, result.Dscale) < productRscale {
+				productRscale = langruntime.CheckedI32(langruntime.CheckedSignedAdd(baseProd.Dscale, result.Dscale))
 			}
 			if productRscale < 0 {
 				productRscale = langruntime.CheckedI32(0)
 			}
-			result = copynumericVar(numericVarMul(&baseProd, &result, productRscale))
+			result = checkruntime.CopyNumericVar(numericVarMul(&baseProd, &result, productRscale))
 		}
-		if baseProd.weight > 32767 || result.weight > 32767 {
+		if baseProd.Weight > 32767 || result.Weight > 32767 {
 			if neg == false {
 				return numericVarOverflow()
 			}
-			result = copynumericVar(numericVarZero(0))
+			result = checkruntime.CopyNumericVar(numericVarZero(0))
 			neg = false
 			mask = int64(0)
 		} else {
@@ -53907,24 +54119,24 @@ func numericVarPowerInt(base *numericVar, exp int, expDscale int) numericVarOutc
 	}
 	return numericVarSucceeded(numericVarRound(result, rscale))
 }
-func numericVarPower(baseArg *numericVar, exp *numericVar) numericVarOutcome {
-	if numericVarCount(exp) == 0 || numericVarCount(exp) <= langruntime.CheckedSignedAdd(exp.weight, 1) {
+func numericVarPower(baseArg *checkruntime.NumericVar, exp *checkruntime.NumericVar) numericVarOutcome {
+	if numericVarCount(exp) == 0 || numericVarCount(exp) <= langruntime.CheckedSignedAdd(exp.Weight, 1) {
 		if numericVarCount(exp) == 0 {
-			return numericVarPowerInt(baseArg, 0, exp.dscale)
+			return numericVarPowerInt(baseArg, 0, exp.Dscale)
 		}
-		if exp.weight <= 2 {
+		if exp.Weight <= 2 {
 			value := int64(0)
 			i := 0
-			for i <= exp.weight {
+			for i <= exp.Weight {
 				digit := int64(langruntime.CheckedI32(numericVarDigit(exp, i)))
 				value = langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(value, int64(10000)), digit)
 				i = langruntime.CheckedI32(langruntime.CheckedSignedAdd(i, 1))
 			}
-			if exp.sign < 0 {
+			if exp.Sign < 0 {
 				value = langruntime.CheckedI64Subtract(int64(0), value)
 			}
 			if value >= int64(-2147483648) && value <= int64(2147483647) {
-				return numericVarPowerInt(baseArg, int(int32(value)), exp.dscale)
+				return numericVarPowerInt(baseArg, int(int32(value)), exp.Dscale)
 			}
 		}
 	}
@@ -53933,7 +54145,7 @@ func numericVarPower(baseArg *numericVar, exp *numericVar) numericVarOutcome {
 		return numericVarSucceeded(numericVarZero(numericVarMinSigDigits))
 	}
 	resSign := 1
-	if baseArg.sign < 0 && numericVarCount(exp) > 0 && numericVarCount(exp) == langruntime.CheckedSignedAdd(exp.weight, 1) && langruntime.CheckedSignedRemainder(numericVarDigit(exp, langruntime.CheckedSignedSubtract(numericVarCount(exp), 1)), 2) == 1 {
+	if baseArg.Sign < 0 && numericVarCount(exp) > 0 && numericVarCount(exp) == langruntime.CheckedSignedAdd(exp.Weight, 1) && langruntime.CheckedSignedRemainder(numericVarDigit(exp, langruntime.CheckedSignedSubtract(numericVarCount(exp), 1)), 2) == 1 {
 		resSign = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
 	}
 	base := numericVarSigned(numericVarShifted(baseArg, 0), 1)
@@ -53953,11 +54165,11 @@ func numericVarPower(baseArg *numericVar, exp *numericVar) numericVarOutcome {
 	}
 	val = langruntime.F64Multiply(val, numericExpLog10E)
 	rscale := langruntime.CheckedSignedSubtract(numericVarMinSigDigits, langruntime.F64ToI32(val))
-	if rscale < base.dscale {
-		rscale = langruntime.CheckedI32(base.dscale)
+	if rscale < base.Dscale {
+		rscale = langruntime.CheckedI32(base.Dscale)
 	}
-	if rscale < exp.dscale {
-		rscale = langruntime.CheckedI32(exp.dscale)
+	if rscale < exp.Dscale {
+		rscale = langruntime.CheckedI32(exp.Dscale)
 	}
 	if rscale < 0 {
 		rscale = langruntime.CheckedI32(0)
@@ -53985,57 +54197,72 @@ func numericVarPower(baseArg *numericVar, exp *numericVar) numericVarOutcome {
 	}
 	return numericVarSucceeded(result)
 }
-func numericPowerValues(base numericWork, exponent numericWork) checkruntime.NumericValue {
-	base = copynumericWork(base)
-	exponent = copynumericWork(exponent)
-	one := numericWorkFromValue("1")
-	if base.special == 3 {
-		if exponent.special == 1 && exponent.sign == 0 {
-			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "1"}
+func numericPowerValues(base checkruntime.NumericVar, exponent checkruntime.NumericVar) checkruntime.NumericValue {
+	base = checkruntime.CopyNumericVar(base)
+	exponent = checkruntime.CopyNumericVar(exponent)
+	one := numericVarFromI64(int64(1))
+	minusOne := numericVarFromI64(int64(-1))
+	baseKind := numericVarKind(&base)
+	exponentKind := numericVarKind(&exponent)
+	if baseKind == 3 {
+		if exponentKind == 1 && numericVarSignum(&exponent) == 0 {
+			return checkruntime.MakeNumericValue("1")
 		}
-		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "NaN"}
+		return checkruntime.MakeNumericValue("NaN")
 	}
-	if exponent.special == 3 {
-		if base.special == 1 && base.sign == 1 && numericWorkMagnitude(copynumericWork(base), copynumericWork(one)) == 0 {
-			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "1"}
+	if exponentKind == 3 {
+		if baseKind == 1 && numericVarCmp(&base, &one) == 0 {
+			return checkruntime.MakeNumericValue("1")
 		}
-		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "NaN"}
+		return checkruntime.MakeNumericValue("NaN")
 	}
-	baseSign := numericPowerSign(copynumericWork(base))
-	exponentSign := numericPowerSign(copynumericWork(exponent))
-	if (baseSign == 0 && exponentSign < 0) || (baseSign < 0 && numericPowerIntegral(copynumericWork(exponent)) == false) {
+	sign1 := numericPowerSign(&base)
+	sign2 := numericPowerSign(&exponent)
+	if (sign1 == 0 && sign2 < 0) || (sign1 < 0 && numericPowerIntegral(&exponent) == false) {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(numericPowerInvalidArgument)}
 	}
-	if base.special != 1 || exponent.special != 1 {
-		if (base.special == 1 && baseSign == 1 && numericWorkMagnitude(copynumericWork(base), copynumericWork(one)) == 0) || exponentSign == 0 {
-			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "1"}
+	if baseKind != 1 || exponentKind != 1 {
+		if baseKind == 1 && numericVarCmp(&base, &one) == 0 {
+			return checkruntime.MakeNumericValue("1")
 		}
-		if baseSign == 0 && exponentSign > 0 {
-			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "0"}
+		if sign2 == 0 {
+			return checkruntime.MakeNumericValue("1")
 		}
-		if exponent.special != 1 {
-			if base.special == 1 && numericWorkMagnitude(copynumericWork(base), copynumericWork(one)) == 0 {
-				return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "1"}
+		if sign1 == 0 && sign2 > 0 {
+			return checkruntime.MakeNumericValue("0")
+		}
+		if exponentKind != 1 {
+			absXGtOne := true
+			if baseKind == 1 {
+				if numericVarCmp(&base, &minusOne) == 0 {
+					return checkruntime.MakeNumericValue("1")
+				}
+				absXGtOne = numericVarCmpAbs(&base, &one) > 0
 			}
-			greater := base.special != 1 || numericWorkMagnitude(base, one) > 0
-			if greater == (exponentSign > 0) {
-				return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "Infinity"}
+			if absXGtOne == (sign2 > 0) {
+				return checkruntime.MakeNumericValue("Infinity")
 			}
-			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "0"}
+			return checkruntime.MakeNumericValue("0")
 		}
-		if exponentSign < 0 {
-			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "0"}
+		if baseKind == 2 {
+			if sign2 > 0 {
+				return checkruntime.MakeNumericValue("Infinity")
+			}
+			return checkruntime.MakeNumericValue("0")
 		}
-		if base.special == 0 && numericPowerOdd(exponent) {
-			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "-Infinity"}
+		if sign2 < 0 {
+			return checkruntime.MakeNumericValue("0")
 		}
-		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "Infinity"}
+		if numericPowerOdd(&exponent) {
+			return checkruntime.MakeNumericValue("-Infinity")
+		}
+		return checkruntime.MakeNumericValue("Infinity")
 	}
-	baseVar := numericVarFromWork(&base)
-	expVar := numericVarFromWork(&exponent)
-	return numericVarOutcomeResult(numericVarPower(&baseVar, &expVar))
+	return numericVarOutcomeResult(numericVarPower(&base, &exponent))
 }
 func NumericPowerN7g8(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
 	unresolvedFlavor := 0
 	if left.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -54057,6 +54284,22 @@ func NumericPowerN7g8(left checkruntime.NumericValue, right checkruntime.Numeric
 		error := right.Error
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
 	}
+	numericUnknownLeft1 := false
+	if left.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownLeft1 = true
+	}
+	numericUnimplementedLeft2 := false
+	if left.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedLeft2 = true
+	}
+	numericUnknownRight3 := false
+	if right.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownRight3 = true
+	}
+	numericUnimplementedRight4 := false
+	if right.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedRight4 = true
+	}
 	conditionFlavor3364 := unresolvedFlavor
 	if left.Kind == checkruntime.NumericValueUnknown {
 		if conditionFlavor3364 < 1 {
@@ -54074,72 +54317,76 @@ func NumericPowerN7g8(left checkruntime.NumericValue, right checkruntime.Numeric
 	if right.Kind == checkruntime.NumericValueUnimplemented {
 		conditionFlavor3364 = langruntime.CheckedI32(2)
 	}
-	if (left == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || left == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented})) || (right == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || right == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented})) {
+	if (numericUnknownLeft1 || numericUnimplementedLeft2) || (numericUnknownRight3 || numericUnimplementedRight4) {
 		return checkruntime.NumericUnresolved(conditionFlavor3364)
 	}
-	if left == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) || right == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullLeft5 := false
+	if left.Kind == checkruntime.NumericValueNull {
+		numericNullLeft5 = true
+	}
+	numericNullRight6 := false
+	if right.Kind == checkruntime.NumericValueNull {
+		numericNullRight6 = true
+	}
+	if numericNullLeft5 || numericNullRight6 {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
 	}
 	if left.Kind == checkruntime.NumericValueValue {
-		base := langruntime.CheckedString(left.Value)
+		base := checkruntime.CopyNumericVar(left.Value)
 		if right.Kind == checkruntime.NumericValueValue {
-			exponent := langruntime.CheckedString(right.Value)
-			first := numericWorkFromValue(base)
-			second := numericWorkFromValue(exponent)
-			if first.valid == false || second.valid == false {
-				return checkruntime.NumericUnresolved(unresolvedFlavor)
-			}
-			return numericPowerValues(first, second)
+			exponent := checkruntime.CopyNumericVar(right.Value)
+			return numericPowerValues(base, exponent)
 		}
 	}
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
 func PowerJfdf(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
 	return NumericPowerN7g8(left, right)
 }
 func Pow8fdt(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
 	return NumericPowerN7g8(left, right)
 }
-func numericRangeValues(value string, base string, offset string, subtract bool, less bool) checkruntime.BoolValue {
-	value = langruntime.CheckedString(value)
-	base = langruntime.CheckedString(base)
-	offset = langruntime.CheckedString(offset)
+func numericRangeValues(value checkruntime.NumericVar, base checkruntime.NumericVar, offset checkruntime.NumericVar, subtract bool, less bool) checkruntime.BoolValue {
+	value = checkruntime.CopyNumericVar(value)
+	base = checkruntime.CopyNumericVar(base)
+	offset = checkruntime.CopyNumericVar(offset)
 	unresolvedFlavor := 0
-	input := checkruntime.NumericParts(value)
-	center := checkruntime.NumericParts(base)
-	distance := checkruntime.NumericParts(offset)
-	if input.Valid == false || center.Valid == false || distance.Valid == false {
-		return checkruntime.BoolUnresolved(unresolvedFlavor)
-	}
-	if distance.Special == 3 || distance.Special == 0 || distance.Sign < 0 {
+	inputKind := numericVarKind(&value)
+	centerKind := numericVarKind(&base)
+	distanceKind := numericVarKind(&offset)
+	if distanceKind == 3 || distanceKind == 0 || numericVarSignum(&offset) < 0 {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: checkruntime.MakeSqlError(integerInvalidFrameSize)}
 	}
-	if input.Special == 3 {
-		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: center.Special == 3 || less == false}
+	if inputKind == 3 {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: centerKind == 3 || less == false}
 	}
-	if center.Special == 3 {
+	if centerKind == 3 {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: less}
 	}
-	if distance.Special == 2 {
-		if (subtract && center.Special == 2) || (subtract == false && center.Special == 0) {
+	if distanceKind == 2 {
+		if (subtract && centerKind == 2) || (subtract == false && centerKind == 0) {
 			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}
 		}
 		if subtract {
-			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: less == false || input.Special == 0}
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: less == false || inputKind == 0}
 		}
-		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: less || input.Special == 2}
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: less || inputKind == 2}
 	}
-	if input.Special == 0 || input.Special == 2 {
-		if input.Special == center.Special {
+	if inputKind == 0 || inputKind == 2 {
+		if inputKind == centerKind {
 			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}
 		}
-		if input.Special == 0 {
+		if inputKind == 0 {
 			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: less}
 		}
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: less == false}
 	}
-	if center.Special == 0 || center.Special == 2 {
-		if center.Special == 0 {
+	if centerKind == 0 || centerKind == 2 {
+		if centerKind == 0 {
 			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: less == false}
 		}
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: less}
@@ -54148,7 +54395,7 @@ func numericRangeValues(value string, base string, offset string, subtract bool,
 	if subtract {
 		mode = langruntime.CheckedI32(1)
 	}
-	boundary := numericArithmetic(checkruntime.MakeNumericValue(base), checkruntime.MakeNumericValue(offset), mode)
+	boundary := numericArithmetic(checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: base}, checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: offset}, mode)
 	if boundary.Kind == checkruntime.NumericValueError {
 		error := boundary.Error
 		if error.State == numericSupportRangeError {
@@ -54156,7 +54403,7 @@ func numericRangeValues(value string, base string, offset string, subtract bool,
 		}
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	compared := numericCompare(checkruntime.MakeNumericValue(value), boundary)
+	compared := numericCompare(checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: value}, boundary)
 	if compared.Kind == checkruntime.Int4ValueError {
 		error := compared.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -54183,6 +54430,9 @@ func numericRangeValues(value string, base string, offset string, subtract bool,
 	return checkruntime.BoolUnresolved(unresolvedFlavor)
 }
 func InRangeFhht(value checkruntime.NumericValue, base checkruntime.NumericValue, offset checkruntime.NumericValue, subtract checkruntime.BoolValue, less checkruntime.BoolValue) checkruntime.BoolValue {
+	value = checkruntime.CopyNumericValue(value)
+	base = checkruntime.CopyNumericValue(base)
+	offset = checkruntime.CopyNumericValue(offset)
 	unresolvedFlavor := 0
 	if value.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -54234,6 +54484,30 @@ func InRangeFhht(value checkruntime.NumericValue, base checkruntime.NumericValue
 		error := less.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
+	numericUnknownValue1 := false
+	if value.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownValue1 = true
+	}
+	numericUnimplementedValue2 := false
+	if value.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedValue2 = true
+	}
+	numericUnknownBase3 := false
+	if base.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownBase3 = true
+	}
+	numericUnimplementedBase4 := false
+	if base.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedBase4 = true
+	}
+	numericUnknownOffset5 := false
+	if offset.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownOffset5 = true
+	}
+	numericUnimplementedOffset6 := false
+	if offset.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedOffset6 = true
+	}
 	conditionFlavor1084 := unresolvedFlavor
 	if value.Kind == checkruntime.NumericValueUnknown {
 		if conditionFlavor1084 < 1 {
@@ -54275,18 +54549,30 @@ func InRangeFhht(value checkruntime.NumericValue, base checkruntime.NumericValue
 	if less.Kind == checkruntime.BoolValueUnimplemented {
 		conditionFlavor1084 = langruntime.CheckedI32(2)
 	}
-	if (value == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || value == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented})) || (base == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || base == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented})) || (offset == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || offset == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented})) || (subtract == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) || subtract == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnimplemented})) || (less == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) || less == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnimplemented})) {
+	if (numericUnknownValue1 || numericUnimplementedValue2) || (numericUnknownBase3 || numericUnimplementedBase4) || (numericUnknownOffset5 || numericUnimplementedOffset6) || (subtract == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) || subtract == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnimplemented})) || (less == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) || less == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnimplemented})) {
 		return checkruntime.BoolUnresolved(conditionFlavor1084)
 	}
-	if value == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) || base == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) || offset == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) || subtract == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) || less == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) {
+	numericNullValue7 := false
+	if value.Kind == checkruntime.NumericValueNull {
+		numericNullValue7 = true
+	}
+	numericNullBase8 := false
+	if base.Kind == checkruntime.NumericValueNull {
+		numericNullBase8 = true
+	}
+	numericNullOffset9 := false
+	if offset.Kind == checkruntime.NumericValueNull {
+		numericNullOffset9 = true
+	}
+	if numericNullValue7 || numericNullBase8 || numericNullOffset9 || subtract == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) || less == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
 	}
 	if value.Kind == checkruntime.NumericValueValue {
-		input := langruntime.CheckedString(value.Value)
+		input := checkruntime.CopyNumericVar(value.Value)
 		if base.Kind == checkruntime.NumericValueValue {
-			center := langruntime.CheckedString(base.Value)
+			center := checkruntime.CopyNumericVar(base.Value)
 			if offset.Kind == checkruntime.NumericValueValue {
-				distance := langruntime.CheckedString(offset.Value)
+				distance := checkruntime.CopyNumericVar(offset.Value)
 				if subtract.Kind == checkruntime.BoolValueValue {
 					sub := subtract.Value
 					if less.Kind == checkruntime.BoolValueValue {
@@ -54299,17 +54585,13 @@ func InRangeFhht(value checkruntime.NumericValue, base checkruntime.NumericValue
 	}
 	return checkruntime.BoolUnresolved(unresolvedFlavor)
 }
-func numericRoundValue(work numericWork, requested int, mode int) checkruntime.NumericValue {
-	work = copynumericWork(work)
+func numericRoundValue(arg checkruntime.NumericVar, requested int, mode int) checkruntime.NumericValue {
+	arg = checkruntime.CopyNumericVar(arg)
 	requested = langruntime.CheckedI32(requested)
 	mode = langruntime.CheckedI32(mode)
-	if work.valid == false {
-		return checkruntime.NumericUnresolved(0)
+	if numericVarKind(&arg) != 1 {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: arg}
 	}
-	if work.special != 1 {
-		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(work)}
-	}
-	arg := numericVarFromWork(&work)
 	if mode == 2 {
 		return numericVarResult(numericVarCeil(&arg))
 	}
@@ -54329,16 +54611,17 @@ func numericRoundValue(work numericWork, requested int, mode int) checkruntime.N
 	}
 	result := numericVarZero(0)
 	if mode == 1 {
-		result = copynumericVar(numericVarRound(arg, scale))
+		result = checkruntime.CopyNumericVar(numericVarRound(arg, scale))
 	} else {
-		result = copynumericVar(numericVarTrunc(arg, scale))
+		result = checkruntime.CopyNumericVar(numericVarTrunc(arg, scale))
 	}
 	if scale < 0 {
-		result = copynumericVar(numericVarRescaled(result, 0))
+		result = checkruntime.CopyNumericVar(numericVarRescaled(result, 0))
 	}
 	return numericVarResult(result)
 }
 func Ceil8geh(input checkruntime.NumericValue) checkruntime.NumericValue {
+	input = checkruntime.CopyNumericValue(input)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -54349,6 +54632,14 @@ func Ceil8geh(input checkruntime.NumericValue) checkruntime.NumericValue {
 	if input.Kind == checkruntime.NumericValueError {
 		error := input.Error
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	numericUnknownInput1 := false
+	if input.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownInput1 = true
+	}
+	numericUnimplementedInput2 := false
+	if input.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedInput2 = true
 	}
 	conditionFlavor60 := unresolvedFlavor
 	if input.Kind == checkruntime.NumericValueUnknown {
@@ -54359,23 +54650,24 @@ func Ceil8geh(input checkruntime.NumericValue) checkruntime.NumericValue {
 	if input.Kind == checkruntime.NumericValueUnimplemented {
 		conditionFlavor60 = langruntime.CheckedI32(2)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented}) {
+	if numericUnknownInput1 || numericUnimplementedInput2 {
 		return checkruntime.NumericUnresolved(conditionFlavor60)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullInput3 := false
+	if input.Kind == checkruntime.NumericValueNull {
+		numericNullInput3 = true
+	}
+	if numericNullInput3 {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
 	}
 	if input.Kind == checkruntime.NumericValueValue {
-		value := langruntime.CheckedString(input.Value)
-		work := numericWorkFromValue(value)
-		if work.valid == false {
-			return checkruntime.NumericUnresolved(unresolvedFlavor)
-		}
+		work := checkruntime.CopyNumericVar(input.Value)
 		return numericRoundValue(work, 0, 2)
 	}
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
 func CeilingPr5v(input checkruntime.NumericValue) checkruntime.NumericValue {
+	input = checkruntime.CopyNumericValue(input)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -54386,6 +54678,14 @@ func CeilingPr5v(input checkruntime.NumericValue) checkruntime.NumericValue {
 	if input.Kind == checkruntime.NumericValueError {
 		error := input.Error
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	numericUnknownInput4 := false
+	if input.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownInput4 = true
+	}
+	numericUnimplementedInput5 := false
+	if input.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedInput5 = true
 	}
 	conditionFlavor210 := unresolvedFlavor
 	if input.Kind == checkruntime.NumericValueUnknown {
@@ -54396,23 +54696,24 @@ func CeilingPr5v(input checkruntime.NumericValue) checkruntime.NumericValue {
 	if input.Kind == checkruntime.NumericValueUnimplemented {
 		conditionFlavor210 = langruntime.CheckedI32(2)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented}) {
+	if numericUnknownInput4 || numericUnimplementedInput5 {
 		return checkruntime.NumericUnresolved(conditionFlavor210)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullInput6 := false
+	if input.Kind == checkruntime.NumericValueNull {
+		numericNullInput6 = true
+	}
+	if numericNullInput6 {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
 	}
 	if input.Kind == checkruntime.NumericValueValue {
-		value := langruntime.CheckedString(input.Value)
-		work := numericWorkFromValue(value)
-		if work.valid == false {
-			return checkruntime.NumericUnresolved(unresolvedFlavor)
-		}
+		work := checkruntime.CopyNumericVar(input.Value)
 		return numericRoundValue(work, 0, 2)
 	}
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
 func FloorX7mh(input checkruntime.NumericValue) checkruntime.NumericValue {
+	input = checkruntime.CopyNumericValue(input)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -54423,6 +54724,14 @@ func FloorX7mh(input checkruntime.NumericValue) checkruntime.NumericValue {
 	if input.Kind == checkruntime.NumericValueError {
 		error := input.Error
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	numericUnknownInput7 := false
+	if input.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownInput7 = true
+	}
+	numericUnimplementedInput8 := false
+	if input.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedInput8 = true
 	}
 	conditionFlavor360 := unresolvedFlavor
 	if input.Kind == checkruntime.NumericValueUnknown {
@@ -54433,23 +54742,24 @@ func FloorX7mh(input checkruntime.NumericValue) checkruntime.NumericValue {
 	if input.Kind == checkruntime.NumericValueUnimplemented {
 		conditionFlavor360 = langruntime.CheckedI32(2)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented}) {
+	if numericUnknownInput7 || numericUnimplementedInput8 {
 		return checkruntime.NumericUnresolved(conditionFlavor360)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullInput9 := false
+	if input.Kind == checkruntime.NumericValueNull {
+		numericNullInput9 = true
+	}
+	if numericNullInput9 {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
 	}
 	if input.Kind == checkruntime.NumericValueValue {
-		value := langruntime.CheckedString(input.Value)
-		work := numericWorkFromValue(value)
-		if work.valid == false {
-			return checkruntime.NumericUnresolved(unresolvedFlavor)
-		}
+		work := checkruntime.CopyNumericVar(input.Value)
 		return numericRoundValue(work, 0, 3)
 	}
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
 func RoundMmpo(input checkruntime.NumericValue) checkruntime.NumericValue {
+	input = checkruntime.CopyNumericValue(input)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -54461,6 +54771,14 @@ func RoundMmpo(input checkruntime.NumericValue) checkruntime.NumericValue {
 		error := input.Error
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
 	}
+	numericUnknownInput10 := false
+	if input.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownInput10 = true
+	}
+	numericUnimplementedInput11 := false
+	if input.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedInput11 = true
+	}
 	conditionFlavor510 := unresolvedFlavor
 	if input.Kind == checkruntime.NumericValueUnknown {
 		if conditionFlavor510 < 1 {
@@ -54470,23 +54788,24 @@ func RoundMmpo(input checkruntime.NumericValue) checkruntime.NumericValue {
 	if input.Kind == checkruntime.NumericValueUnimplemented {
 		conditionFlavor510 = langruntime.CheckedI32(2)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented}) {
+	if numericUnknownInput10 || numericUnimplementedInput11 {
 		return checkruntime.NumericUnresolved(conditionFlavor510)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullInput12 := false
+	if input.Kind == checkruntime.NumericValueNull {
+		numericNullInput12 = true
+	}
+	if numericNullInput12 {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
 	}
 	if input.Kind == checkruntime.NumericValueValue {
-		value := langruntime.CheckedString(input.Value)
-		work := numericWorkFromValue(value)
-		if work.valid == false {
-			return checkruntime.NumericUnresolved(unresolvedFlavor)
-		}
+		work := checkruntime.CopyNumericVar(input.Value)
 		return numericRoundValue(work, 0, 1)
 	}
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
 func RoundOtcq(input checkruntime.NumericValue, scale checkruntime.Int4Value) checkruntime.NumericValue {
+	input = checkruntime.CopyNumericValue(input)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -54507,6 +54826,14 @@ func RoundOtcq(input checkruntime.NumericValue, scale checkruntime.Int4Value) ch
 	if scale.Kind == checkruntime.Int4ValueError {
 		error := scale.Error
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	numericUnknownInput13 := false
+	if input.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownInput13 = true
+	}
+	numericUnimplementedInput14 := false
+	if input.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedInput14 = true
 	}
 	conditionFlavor690 := unresolvedFlavor
 	if input.Kind == checkruntime.NumericValueUnknown {
@@ -54525,18 +54852,18 @@ func RoundOtcq(input checkruntime.NumericValue, scale checkruntime.Int4Value) ch
 	if scale.Kind == checkruntime.Int4ValueUnimplemented {
 		conditionFlavor690 = langruntime.CheckedI32(2)
 	}
-	if (input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented})) || (scale == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || scale == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnimplemented})) {
+	if (numericUnknownInput13 || numericUnimplementedInput14) || (scale == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || scale == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnimplemented})) {
 		return checkruntime.NumericUnresolved(conditionFlavor690)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) || scale == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+	numericNullInput15 := false
+	if input.Kind == checkruntime.NumericValueNull {
+		numericNullInput15 = true
+	}
+	if numericNullInput15 || scale == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
 	}
 	if input.Kind == checkruntime.NumericValueValue {
-		value := langruntime.CheckedString(input.Value)
-		work := numericWorkFromValue(value)
-		if work.valid == false {
-			return checkruntime.NumericUnresolved(unresolvedFlavor)
-		}
+		work := checkruntime.CopyNumericVar(input.Value)
 		if scale.Kind == checkruntime.Int4ValueValue {
 			precision := langruntime.CheckedI32(scale.Value)
 			return numericRoundValue(work, precision, 1)
@@ -54545,6 +54872,7 @@ func RoundOtcq(input checkruntime.NumericValue, scale checkruntime.Int4Value) ch
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
 func TruncDghz(input checkruntime.NumericValue) checkruntime.NumericValue {
+	input = checkruntime.CopyNumericValue(input)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -54556,6 +54884,14 @@ func TruncDghz(input checkruntime.NumericValue) checkruntime.NumericValue {
 		error := input.Error
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
 	}
+	numericUnknownInput16 := false
+	if input.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownInput16 = true
+	}
+	numericUnimplementedInput17 := false
+	if input.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedInput17 = true
+	}
 	conditionFlavor840 := unresolvedFlavor
 	if input.Kind == checkruntime.NumericValueUnknown {
 		if conditionFlavor840 < 1 {
@@ -54565,23 +54901,24 @@ func TruncDghz(input checkruntime.NumericValue) checkruntime.NumericValue {
 	if input.Kind == checkruntime.NumericValueUnimplemented {
 		conditionFlavor840 = langruntime.CheckedI32(2)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented}) {
+	if numericUnknownInput16 || numericUnimplementedInput17 {
 		return checkruntime.NumericUnresolved(conditionFlavor840)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullInput18 := false
+	if input.Kind == checkruntime.NumericValueNull {
+		numericNullInput18 = true
+	}
+	if numericNullInput18 {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
 	}
 	if input.Kind == checkruntime.NumericValueValue {
-		value := langruntime.CheckedString(input.Value)
-		work := numericWorkFromValue(value)
-		if work.valid == false {
-			return checkruntime.NumericUnresolved(unresolvedFlavor)
-		}
+		work := checkruntime.CopyNumericVar(input.Value)
 		return numericRoundValue(work, 0, 0)
 	}
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
 func TruncHay3(input checkruntime.NumericValue, scale checkruntime.Int4Value) checkruntime.NumericValue {
+	input = checkruntime.CopyNumericValue(input)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -54603,6 +54940,14 @@ func TruncHay3(input checkruntime.NumericValue, scale checkruntime.Int4Value) ch
 		error := scale.Error
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
 	}
+	numericUnknownInput19 := false
+	if input.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownInput19 = true
+	}
+	numericUnimplementedInput20 := false
+	if input.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedInput20 = true
+	}
 	conditionFlavor1020 := unresolvedFlavor
 	if input.Kind == checkruntime.NumericValueUnknown {
 		if conditionFlavor1020 < 1 {
@@ -54620,18 +54965,18 @@ func TruncHay3(input checkruntime.NumericValue, scale checkruntime.Int4Value) ch
 	if scale.Kind == checkruntime.Int4ValueUnimplemented {
 		conditionFlavor1020 = langruntime.CheckedI32(2)
 	}
-	if (input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented})) || (scale == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || scale == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnimplemented})) {
+	if (numericUnknownInput19 || numericUnimplementedInput20) || (scale == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || scale == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnimplemented})) {
 		return checkruntime.NumericUnresolved(conditionFlavor1020)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) || scale == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+	numericNullInput21 := false
+	if input.Kind == checkruntime.NumericValueNull {
+		numericNullInput21 = true
+	}
+	if numericNullInput21 || scale == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
 	}
 	if input.Kind == checkruntime.NumericValueValue {
-		value := langruntime.CheckedString(input.Value)
-		work := numericWorkFromValue(value)
-		if work.valid == false {
-			return checkruntime.NumericUnresolved(unresolvedFlavor)
-		}
+		work := checkruntime.CopyNumericVar(input.Value)
 		if scale.Kind == checkruntime.Int4ValueValue {
 			precision := langruntime.CheckedI32(scale.Value)
 			return numericRoundValue(work, precision, 0)
@@ -54698,6 +55043,7 @@ func numericWireWord(output string, word int) string {
 	return checkruntime.ByteaAppendByte(result, langruntime.CheckedSignedRemainder(unsigned, 256))
 }
 func NumericSend3mnb(input checkruntime.NumericValue) checkruntime.ByteaValue {
+	input = checkruntime.CopyNumericValue(input)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -54709,6 +55055,14 @@ func NumericSend3mnb(input checkruntime.NumericValue) checkruntime.ByteaValue {
 		error := input.Error
 		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
 	}
+	numericUnknownInput1 := false
+	if input.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownInput1 = true
+	}
+	numericUnimplementedInput2 := false
+	if input.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedInput2 = true
+	}
 	conditionFlavor624 := unresolvedFlavor
 	if input.Kind == checkruntime.NumericValueUnknown {
 		if conditionFlavor624 < 1 {
@@ -54718,82 +55072,45 @@ func NumericSend3mnb(input checkruntime.NumericValue) checkruntime.ByteaValue {
 	if input.Kind == checkruntime.NumericValueUnimplemented {
 		conditionFlavor624 = langruntime.CheckedI32(2)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented}) {
+	if numericUnknownInput1 || numericUnimplementedInput2 {
 		return checkruntime.ByteaUnresolved(conditionFlavor624)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullInput3 := false
+	if input.Kind == checkruntime.NumericValueNull {
+		numericNullInput3 = true
+	}
+	if numericNullInput3 {
 		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
 	}
 	if input.Kind == checkruntime.NumericValueValue {
-		value := langruntime.CheckedString(input.Value)
-		layout := checkruntime.NumericParts(value)
-		if layout.Valid == false {
-			return checkruntime.ByteaUnresolved(unresolvedFlavor)
-		}
+		value := checkruntime.CopyNumericVar(input.Value)
+		kind := numericVarKind(&value)
 		sign := 0
-		if layout.Special == 0 {
+		if kind == 0 {
 			sign = langruntime.CheckedI32(61440)
-		} else if layout.Special == 2 {
+		} else if kind == 2 {
 			sign = langruntime.CheckedI32(53248)
-		} else if layout.Special == 3 {
+		} else if kind == 3 {
 			sign = langruntime.CheckedI32(49152)
-		} else if layout.Sign < 0 {
+		} else if numericVarSignum(&value) < 0 {
 			sign = langruntime.CheckedI32(16384)
 		}
-		scale := 0
-		if layout.Special == 0 || layout.Special == 2 {
+		scale := value.Dscale
+		if kind == 0 || kind == 2 {
 			scale = langruntime.CheckedI32(32)
+		} else if kind == 3 {
+			scale = langruntime.CheckedI32(0)
 		}
-		weight := 0
-		count := 0
-		words := []numericWireDigit{}
-		if layout.Special == 1 {
-			scale = langruntime.CheckedI32(numericWireScale(value))
-			if layout.Sign != 0 {
-				weight = langruntime.CheckedI32(langruntime.CheckedSignedDivide(layout.Weight, 4))
-				remainder := langruntime.CheckedSignedRemainder(layout.Weight, 4)
-				if remainder < 0 {
-					weight = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(weight, 1))
-					remainder = langruntime.CheckedI32(langruntime.CheckedSignedAdd(remainder, 4))
-				}
-				chars := []rune(value)
-				index := layout.First
-				position := langruntime.CheckedSignedSubtract(3, remainder)
-				group := 0
-				for index < layout.End {
-					digit := numericWireDecimalDigit(chars[index])
-					if digit >= 0 {
-						group = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(group, 10), digit))
-						position = langruntime.CheckedI32(langruntime.CheckedSignedAdd(position, 1))
-						if position == 4 {
-							langruntime.CheckedAdd(len(words), 1)
-							words = append(words, copynumericWireDigit(numericWireDigit{value: group}))
-							count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
-							position = langruntime.CheckedI32(0)
-							group = langruntime.CheckedI32(0)
-						}
-					}
-					index = langruntime.CheckedAdd(index, 1)
-				}
-				if position > 0 {
-					for position < 4 {
-						group = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(group, 10))
-						position = langruntime.CheckedI32(langruntime.CheckedSignedAdd(position, 1))
-					}
-					langruntime.CheckedAdd(len(words), 1)
-					words = append(words, copynumericWireDigit(numericWireDigit{value: group}))
-					count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
-				}
-			}
-		}
+		weight := value.Weight
+		count := int(int32(len(value.Digits)))
 		output := langruntime.NewTextBuffer("")
 		output = langruntime.NewTextBuffer(numericWireWord(string(output), count))
 		output = langruntime.NewTextBuffer(numericWireWord(string(output), weight))
 		output = langruntime.NewTextBuffer(numericWireWord(string(output), sign))
 		output = langruntime.NewTextBuffer(numericWireWord(string(output), scale))
 		index := 0
-		for index < len(words) {
-			output = langruntime.NewTextBuffer(numericWireWord(string(output), words[index].value))
+		for index < len(value.Digits) {
+			output = langruntime.NewTextBuffer(numericWireWord(string(output), int(int32(value.Digits[index]))))
 			index = langruntime.CheckedAdd(index, 1)
 		}
 		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: string(output)}
@@ -54806,6 +55123,7 @@ func numericSizeBelow(value string, limit string) bool {
 	return numericWorkMagnitude(numericWorkFromValue(value), numericWorkFromValue(limit)) < 0
 }
 func PgSizePrettyAxtn(input checkruntime.NumericValue) checkruntime.TextValue {
+	input = checkruntime.CopyNumericValue(input)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -54817,6 +55135,14 @@ func PgSizePrettyAxtn(input checkruntime.NumericValue) checkruntime.TextValue {
 		error := input.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 	}
+	numericUnknownInput1 := false
+	if input.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownInput1 = true
+	}
+	numericUnimplementedInput2 := false
+	if input.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedInput2 = true
+	}
 	conditionFlavor154 := unresolvedFlavor
 	if input.Kind == checkruntime.NumericValueUnknown {
 		if conditionFlavor154 < 1 {
@@ -54826,14 +55152,19 @@ func PgSizePrettyAxtn(input checkruntime.NumericValue) checkruntime.TextValue {
 	if input.Kind == checkruntime.NumericValueUnimplemented {
 		conditionFlavor154 = langruntime.CheckedI32(2)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented}) {
+	if numericUnknownInput1 || numericUnimplementedInput2 {
 		return checkruntime.TextUnresolved(conditionFlavor154)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullInput3 := false
+	if input.Kind == checkruntime.NumericValueNull {
+		numericNullInput3 = true
+	}
+	if numericNullInput3 {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
 	}
 	if input.Kind == checkruntime.NumericValueValue {
-		value := langruntime.CheckedString(input.Value)
+		valueNumeric := checkruntime.CopyNumericVar(input.Value)
+		value := checkruntime.NumericText(&valueNumeric)
 		work := numericWorkFromValue(value)
 		if work.valid == false {
 			return checkruntime.TextUnresolved(unresolvedFlavor)
@@ -54849,7 +55180,8 @@ func PgSizePrettyAxtn(input checkruntime.NumericValue) checkruntime.TextValue {
 				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 			}
 			if divided.Kind == checkruntime.NumericValueValue {
-				number := langruntime.CheckedString(divided.Value)
+				numberNumeric := checkruntime.CopyNumericVar(divided.Value)
+				number := checkruntime.NumericText(&numberNumeric)
 				amount = langruntime.NewTextBuffer(number)
 			}
 			unit = langruntime.CheckedIndex(1)
@@ -54860,7 +55192,8 @@ func PgSizePrettyAxtn(input checkruntime.NumericValue) checkruntime.TextValue {
 					return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 				}
 				if divided.Kind == checkruntime.NumericValueValue {
-					number := langruntime.CheckedString(divided.Value)
+					numberNumeric := checkruntime.CopyNumericVar(divided.Value)
+					number := checkruntime.NumericText(&numberNumeric)
 					amount = langruntime.NewTextBuffer(number)
 				}
 				unit = langruntime.CheckedAdd(unit, 1)
@@ -54877,7 +55210,8 @@ func PgSizePrettyAxtn(input checkruntime.NumericValue) checkruntime.TextValue {
 				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 			}
 			if rounded.Kind == checkruntime.NumericValueValue {
-				number := langruntime.CheckedString(rounded.Value)
+				numberNumeric := checkruntime.CopyNumericVar(rounded.Value)
+				number := checkruntime.NumericText(&numberNumeric)
 				amount = langruntime.NewTextBuffer(number)
 			}
 		}
@@ -54890,15 +55224,15 @@ func PgSizePrettyAxtn(input checkruntime.NumericValue) checkruntime.TextValue {
 
 const numericSqrtInvalidArgument = 3452595
 
-func numericVarSqrt(arg *numericVar, rscale int) numericVar {
+func numericVarSqrt(arg *checkruntime.NumericVar, rscale int) checkruntime.NumericVar {
 	rscale = langruntime.CheckedI32(rscale)
 	argNdigits := numericVarCount(arg)
 	if argNdigits == 0 {
 		return numericVarZero(rscale)
 	}
-	resWeight := langruntime.CheckedSignedDivide(arg.weight, 2)
-	if arg.weight < 0 {
-		resWeight = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, (langruntime.CheckedSignedAdd(langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(0, arg.weight), 1)), 2), 1))))
+	resWeight := langruntime.CheckedSignedDivide(arg.Weight, 2)
+	if arg.Weight < 0 {
+		resWeight = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, (langruntime.CheckedSignedAdd(langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(0, arg.Weight), 1)), 2), 1))))
 	}
 	resNdigits := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(resWeight, 1), langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(0, rscale), 1)), numericVarDecDigits))
 	if langruntime.CheckedSignedAdd(rscale, 1) >= 0 {
@@ -54907,7 +55241,7 @@ func numericVarSqrt(arg *numericVar, rscale int) numericVar {
 	if resNdigits < 1 {
 		resNdigits = langruntime.CheckedI32(1)
 	}
-	srcNdigits := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(arg.weight, 1), langruntime.CheckedSignedMultiply((langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(resNdigits, resWeight), 1)), 2))
+	srcNdigits := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(arg.Weight, 1), langruntime.CheckedSignedMultiply((langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(resNdigits, resWeight), 1)), 2))
 	if srcNdigits < 1 {
 		srcNdigits = langruntime.CheckedI32(1)
 	}
@@ -54981,7 +55315,7 @@ func numericVarSqrt(arg *numericVar, rscale int) numericVar {
 	sVar := numericVarFromI64(sInt64)
 	rVar := numericVarZero(0)
 	if step >= 0 {
-		rVar = copynumericVar(numericVarFromI64(rInt64))
+		rVar = checkruntime.CopyNumericVar(numericVarFromI64(rInt64))
 	}
 	for step >= 0 {
 		srcNdigits = langruntime.CheckedI32(ndigits[langruntime.IndexFromI32(step, 0)].value)
@@ -54994,29 +55328,29 @@ func numericVarSqrt(arg *numericVar, rscale int) numericVar {
 		numer := numericVarAdd(&rScaled, &a1Var)
 		denom := numericVarAdd(&sVar, &sVar)
 		division := numericVarDivMod(&numer, &denom)
-		remainder := copynumericVar(division.remainder)
+		remainder := checkruntime.CopyNumericVar(division.remainder)
 		qVar := division.quotient
 		uScaled := numericVarShifted(&remainder, blen)
 		uVar := numericVarAdd(&uScaled, &a0Var)
 		sScaled := numericVarShifted(&sVar, blen)
-		sVar = copynumericVar(numericVarAdd(&sScaled, &qVar))
+		sVar = checkruntime.CopyNumericVar(numericVarAdd(&sScaled, &qVar))
 		square := numericVarMul(&qVar, &qVar, 0)
 		if step > 0 {
-			rVar = copynumericVar(numericVarSub(&uVar, &square))
-			if rVar.sign < 0 {
-				rVar = copynumericVar(numericVarAdd(&rVar, &sVar))
-				sVar = copynumericVar(numericVarSub(&sVar, &one))
-				rVar = copynumericVar(numericVarAdd(&rVar, &sVar))
+			rVar = checkruntime.CopyNumericVar(numericVarSub(&uVar, &square))
+			if rVar.Sign < 0 {
+				rVar = checkruntime.CopyNumericVar(numericVarAdd(&rVar, &sVar))
+				sVar = checkruntime.CopyNumericVar(numericVarSub(&sVar, &one))
+				rVar = checkruntime.CopyNumericVar(numericVarAdd(&rVar, &sVar))
 			}
 		} else if numericVarCmp(&uVar, &square) < 0 {
-			sVar = copynumericVar(numericVarSub(&sVar, &one))
+			sVar = checkruntime.CopyNumericVar(numericVarSub(&sVar, &one))
 		}
 		step = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(step, 1))
 	}
-	root := numericVar{sign: 1, weight: resWeight, dscale: sVar.dscale, digits: sVar.digits}
+	root := checkruntime.NumericVar{Sign: 1, Weight: resWeight, Dscale: sVar.Dscale, Digits: sVar.Digits}
 	return numericVarStrip(numericVarRound(root, rscale))
 }
-func numericSquareRootPart(arg *numericVar, start int, blen int) numericVar {
+func numericSquareRootPart(arg *checkruntime.NumericVar, start int, blen int) checkruntime.NumericVar {
 	start = langruntime.CheckedI32(start)
 	blen = langruntime.CheckedI32(blen)
 	count := numericVarCount(arg)
@@ -55030,15 +55364,14 @@ func numericSquareRootPart(arg *numericVar, start int, blen int) numericVar {
 		digits = append(digits, langruntime.CheckedIndex(langruntime.IndexFromI32(numericVarDigit(arg, index), 0)))
 		index = langruntime.CheckedI32(langruntime.CheckedSignedAdd(index, 1))
 	}
-	return numericVarStrip(numericVar{sign: 1, weight: langruntime.CheckedSignedSubtract(blen, 1), dscale: 0, digits: digits})
+	return numericVarStrip(checkruntime.NumericVar{Sign: 1, Weight: langruntime.CheckedSignedSubtract(blen, 1), Dscale: 0, Digits: digits})
 }
-func numericSquareRoot(work numericWork) checkruntime.NumericValue {
-	work = copynumericWork(work)
-	arg := numericVarFromWork(&work)
-	sweight := langruntime.CheckedSignedAdd(langruntime.CheckedSignedDivide(langruntime.CheckedSignedMultiply(arg.weight, numericVarDecDigits), 2), 1)
+func numericSquareRoot(arg checkruntime.NumericVar) checkruntime.NumericValue {
+	arg = checkruntime.CopyNumericVar(arg)
+	sweight := langruntime.CheckedSignedAdd(langruntime.CheckedSignedDivide(langruntime.CheckedSignedMultiply(arg.Weight, numericVarDecDigits), 2), 1)
 	rscale := langruntime.CheckedSignedSubtract(numericVarMinSigDigits, sweight)
-	if rscale < arg.dscale {
-		rscale = langruntime.CheckedI32(arg.dscale)
+	if rscale < arg.Dscale {
+		rscale = langruntime.CheckedI32(arg.Dscale)
 	}
 	if rscale < 0 {
 		rscale = langruntime.CheckedI32(0)
@@ -55049,6 +55382,7 @@ func numericSquareRoot(work numericWork) checkruntime.NumericValue {
 	return numericVarResult(numericVarSqrt(&arg, rscale))
 }
 func NumericSqrtT0uy(input checkruntime.NumericValue) checkruntime.NumericValue {
+	input = checkruntime.CopyNumericValue(input)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -55060,6 +55394,14 @@ func NumericSqrtT0uy(input checkruntime.NumericValue) checkruntime.NumericValue 
 		error := input.Error
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
 	}
+	numericUnknownInput1 := false
+	if input.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownInput1 = true
+	}
+	numericUnimplementedInput2 := false
+	if input.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedInput2 = true
+	}
 	conditionFlavor1744 := unresolvedFlavor
 	if input.Kind == checkruntime.NumericValueUnknown {
 		if conditionFlavor1744 < 1 {
@@ -55069,32 +55411,35 @@ func NumericSqrtT0uy(input checkruntime.NumericValue) checkruntime.NumericValue 
 	if input.Kind == checkruntime.NumericValueUnimplemented {
 		conditionFlavor1744 = langruntime.CheckedI32(2)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented}) {
+	if numericUnknownInput1 || numericUnimplementedInput2 {
 		return checkruntime.NumericUnresolved(conditionFlavor1744)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullInput3 := false
+	if input.Kind == checkruntime.NumericValueNull {
+		numericNullInput3 = true
+	}
+	if numericNullInput3 {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
 	}
 	if input.Kind == checkruntime.NumericValueValue {
-		value := langruntime.CheckedString(input.Value)
-		work := numericWorkFromValue(value)
-		if work.valid == false {
-			return checkruntime.NumericUnresolved(unresolvedFlavor)
-		}
-		if work.special == 0 || (work.special == 1 && work.sign < 0) {
+		arg := checkruntime.CopyNumericVar(input.Value)
+		kind := numericVarKind(&arg)
+		if kind == 0 || (kind == 1 && numericVarSignum(&arg) < 0) {
 			return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(numericSqrtInvalidArgument)}
 		}
-		if work.special != 1 {
-			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(work)}
+		if kind != 1 {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: arg}
 		}
-		return numericSquareRoot(work)
+		return numericSquareRoot(arg)
 	}
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
 func Sqrt2lic(input checkruntime.NumericValue) checkruntime.NumericValue {
+	input = checkruntime.CopyNumericValue(input)
 	return NumericSqrtT0uy(input)
 }
 func Numeric879l(input checkruntime.NumericValue, modifier checkruntime.Int4Value) checkruntime.NumericValue {
+	input = checkruntime.CopyNumericValue(input)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -55116,6 +55461,14 @@ func Numeric879l(input checkruntime.NumericValue, modifier checkruntime.Int4Valu
 		error := modifier.Error
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
 	}
+	numericUnknownInput1 := false
+	if input.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownInput1 = true
+	}
+	numericUnimplementedInput2 := false
+	if input.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedInput2 = true
+	}
 	conditionFlavor134 := unresolvedFlavor
 	if input.Kind == checkruntime.NumericValueUnknown {
 		if conditionFlavor134 < 1 {
@@ -55133,24 +55486,25 @@ func Numeric879l(input checkruntime.NumericValue, modifier checkruntime.Int4Valu
 	if modifier.Kind == checkruntime.Int4ValueUnimplemented {
 		conditionFlavor134 = langruntime.CheckedI32(2)
 	}
-	if (input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented})) || (modifier == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || modifier == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnimplemented})) {
+	if (numericUnknownInput1 || numericUnimplementedInput2) || (modifier == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || modifier == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnimplemented})) {
 		return checkruntime.NumericUnresolved(conditionFlavor134)
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) || modifier == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+	numericNullInput3 := false
+	if input.Kind == checkruntime.NumericValueNull {
+		numericNullInput3 = true
+	}
+	if numericNullInput3 || modifier == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
 	}
 	if input.Kind == checkruntime.NumericValueValue {
-		value := langruntime.CheckedString(input.Value)
-		work := numericWorkFromValue(value)
-		if work.valid == false {
-			return checkruntime.NumericUnresolved(unresolvedFlavor)
-		}
+		value := checkruntime.CopyNumericVar(input.Value)
 		if modifier.Kind == checkruntime.Int4ValueValue {
 			typmod := langruntime.CheckedI32(modifier.Value)
-			if typmod < 4 || work.special == 3 {
+			kind := numericVarKind(&value)
+			if typmod < 4 || kind == 3 {
 				return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: value}
 			}
-			if work.special != 1 {
+			if kind != 1 {
 				return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(numericSupportRangeError)}
 			}
 			packed := langruntime.CheckedSignedSubtract(typmod, 4)
@@ -55159,48 +55513,60 @@ func Numeric879l(input checkruntime.NumericValue, modifier checkruntime.Int4Valu
 			if scale >= 1024 {
 				scale = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(scale, 2048))
 			}
-			rounded := numericWorkRound(work, scale, 1)
-			if rounded.Kind == checkruntime.NumericValueValue {
-				result := langruntime.CheckedString(rounded.Value)
-				layout := checkruntime.NumericParts(result)
-				if layout.Sign != 0 && langruntime.CheckedSignedAdd(layout.Weight, 1) > langruntime.CheckedSignedSubtract(precision, scale) {
-					return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(numericSupportRangeError)}
+			maxdigits := langruntime.CheckedSignedSubtract(precision, scale)
+			rounded := numericVarRound(value, scale)
+			count := numericVarCount(&rounded)
+			if count > 0 {
+				ddigits := langruntime.CheckedSignedMultiply((langruntime.CheckedSignedAdd(rounded.Weight, 1)), numericVarDecDigits)
+				if ddigits > maxdigits {
+					i := 0
+					for i < count {
+						dig := numericVarDigit(&rounded, i)
+						if dig != 0 {
+							if dig < 10 {
+								ddigits = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(ddigits, 3))
+							} else if dig < 100 {
+								ddigits = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(ddigits, 2))
+							} else if dig < 1000 {
+								ddigits = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(ddigits, 1))
+							}
+							if ddigits > maxdigits {
+								return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(numericSupportRangeError)}
+							}
+							i = langruntime.CheckedI32(count)
+						} else {
+							ddigits = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(ddigits, numericVarDecDigits))
+						}
+						i = langruntime.CheckedI32(langruntime.CheckedSignedAdd(i, 1))
+					}
 				}
-				return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: result}
 			}
-			return rounded
+			resultScale := scale
+			if resultScale < 0 {
+				resultScale = langruntime.CheckedI32(0)
+			}
+			return numericVarResult(numericVarRescaled(rounded, resultScale))
 		}
 	}
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
 
-type numericVar struct {
-	sign   int
-	weight int
-	dscale int
-	digits []int
-}
-
-func copynumericVar(value numericVar) numericVar {
-	return numericVar{sign: langruntime.CheckedI32(value.sign), weight: langruntime.CheckedI32(value.weight), dscale: langruntime.CheckedI32(value.dscale), digits: langruntime.CheckedIndices(value.digits)}
-}
-
 type numericVarOutcome struct {
 	overflow bool
-	value    numericVar
+	value    checkruntime.NumericVar
 }
 
 func copynumericVarOutcome(value numericVarOutcome) numericVarOutcome {
-	return numericVarOutcome{overflow: value.overflow, value: copynumericVar(value.value)}
+	return numericVarOutcome{overflow: value.overflow, value: checkruntime.CopyNumericVar(value.value)}
 }
 
 type numericVarDivision struct {
-	quotient  numericVar
-	remainder numericVar
+	quotient  checkruntime.NumericVar
+	remainder checkruntime.NumericVar
 }
 
 func copynumericVarDivision(value numericVarDivision) numericVarDivision {
-	return numericVarDivision{quotient: copynumericVar(value.quotient), remainder: copynumericVar(value.remainder)}
+	return numericVarDivision{quotient: checkruntime.CopyNumericVar(value.quotient), remainder: checkruntime.CopyNumericVar(value.remainder)}
 }
 
 const numericVarNbase = 10000
@@ -55218,20 +55584,20 @@ type numericVarWide struct {
 func copynumericVarWide(value numericVarWide) numericVarWide {
 	return numericVarWide{value: value.value}
 }
-func numericVarZero(dscale int) numericVar {
+func numericVarZero(dscale int) checkruntime.NumericVar {
 	dscale = langruntime.CheckedI32(dscale)
 	digits := []int{}
-	return numericVar{sign: 1, weight: 0, dscale: dscale, digits: digits}
+	return checkruntime.NumericVar{Sign: 1, Weight: 0, Dscale: dscale, Digits: digits}
 }
-func numericVarCount(value *numericVar) int {
-	return int(int32(len(value.digits)))
+func numericVarCount(value *checkruntime.NumericVar) int {
+	return int(int32(len(value.Digits)))
 }
-func numericVarDigit(value *numericVar, index int) int {
+func numericVarDigit(value *checkruntime.NumericVar, index int) int {
 	index = langruntime.CheckedI32(index)
 	if index < 0 || index >= numericVarCount(value) {
 		return 0
 	}
-	return (int(int32(value.digits[langruntime.IndexFromI32(index, 0)])))
+	return (int(int32(value.Digits[langruntime.IndexFromI32(index, 0)])))
 }
 func numericVarZeros(count int) []int {
 	count = langruntime.CheckedI32(count)
@@ -55254,7 +55620,7 @@ func numericVarRoundPower(decimals int) int {
 	}
 	return 10
 }
-func numericVarFromWork(work *numericWork) numericVar {
+func numericVarFromWork(work *numericWork) checkruntime.NumericVar {
 	if work.sign == 0 {
 		return numericVarZero(work.scale)
 	}
@@ -55284,18 +55650,18 @@ func numericVarFromWork(work *numericWork) numericVar {
 			value = langruntime.CheckedI32(0)
 		}
 	}
-	return numericVarStrip(numericVar{sign: work.sign, weight: weight, dscale: work.scale, digits: digits})
+	return numericVarStrip(checkruntime.NumericVar{Sign: work.sign, Weight: weight, Dscale: work.scale, Digits: digits})
 }
-func numericWorkFromVar(value *numericVar) numericWork {
-	scale := value.dscale
+func numericWorkFromVar(value *checkruntime.NumericVar) numericWork {
+	scale := value.Dscale
 	if scale < 0 {
 		scale = langruntime.CheckedI32(0)
 	}
 	decimals := langruntime.NewTextBuffer("")
-	weight := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(value.weight, numericVarDecDigits), numericVarDecDigits), 1)
+	weight := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(value.Weight, numericVarDecDigits), numericVarDecDigits), 1)
 	index := 0
-	for index < len(value.digits) {
-		word := (int(int32(value.digits[index])))
+	for index < len(value.Digits) {
+		word := (int(int32(value.Digits[index])))
 		place := 1000
 		for place > 0 {
 			digit := langruntime.CheckedSignedDivide(word, place)
@@ -55320,14 +55686,14 @@ func numericWorkFromVar(value *numericVar) numericWork {
 		digits = append(digits, string(langruntime.CheckedChar(characters[index]))...)
 		index = langruntime.CheckedAdd(index, 1)
 	}
-	sign := value.sign
+	sign := value.Sign
 	if end == 0 {
 		sign = langruntime.CheckedI32(0)
 		weight = langruntime.CheckedI32(0)
 	}
 	return numericWork{valid: true, special: 1, sign: sign, weight: weight, scale: scale, digits: string(digits)}
 }
-func numericVarFromI64(value int64) numericVar {
+func numericVarFromI64(value int64) checkruntime.NumericVar {
 	sign := 1
 	magnitude := value
 	if value < int64(0) {
@@ -55352,50 +55718,50 @@ func numericVarFromI64(value int64) numericVar {
 	if count == 0 {
 		return numericVarZero(0)
 	}
-	return numericVar{sign: sign, weight: langruntime.CheckedSignedSubtract(count, 1), dscale: 0, digits: digits}
+	return checkruntime.NumericVar{Sign: sign, Weight: langruntime.CheckedSignedSubtract(count, 1), Dscale: 0, Digits: digits}
 }
-func numericVarStrip(value numericVar) numericVar {
-	value = copynumericVar(value)
-	weight := value.weight
+func numericVarStrip(value checkruntime.NumericVar) checkruntime.NumericVar {
+	value = checkruntime.CopyNumericVar(value)
+	weight := value.Weight
 	start := 0
-	for start < len(value.digits) && (int(int32(value.digits[start]))) == 0 {
+	for start < len(value.Digits) && (int(int32(value.Digits[start]))) == 0 {
 		start = langruntime.CheckedAdd(start, 1)
 		weight = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(weight, 1))
 	}
-	end := len(value.digits)
-	for end > start && (int(int32(value.digits[langruntime.CheckedSubtract(end, 1)]))) == 0 {
+	end := len(value.Digits)
+	for end > start && (int(int32(value.Digits[langruntime.CheckedSubtract(end, 1)]))) == 0 {
 		end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
 	}
 	digits := []int{}
 	index := start
 	for index < end {
 		langruntime.CheckedAdd(len(digits), 1)
-		digits = append(digits, langruntime.CheckedIndex(value.digits[index]))
+		digits = append(digits, langruntime.CheckedIndex(value.Digits[index]))
 		index = langruntime.CheckedAdd(index, 1)
 	}
-	sign := value.sign
+	sign := value.Sign
 	if end == start {
 		sign = langruntime.CheckedI32(1)
 		weight = langruntime.CheckedI32(0)
 	}
-	return numericVar{sign: sign, weight: weight, dscale: value.dscale, digits: digits}
+	return checkruntime.NumericVar{Sign: sign, Weight: weight, Dscale: value.Dscale, Digits: digits}
 }
-func numericVarShifted(value *numericVar, places int) numericVar {
+func numericVarShifted(value *checkruntime.NumericVar, places int) checkruntime.NumericVar {
 	places = langruntime.CheckedI32(places)
 	digits := []int{}
 	index := 0
-	for index < len(value.digits) {
+	for index < len(value.Digits) {
 		langruntime.CheckedAdd(len(digits), 1)
-		digits = append(digits, langruntime.CheckedIndex(value.digits[index]))
+		digits = append(digits, langruntime.CheckedIndex(value.Digits[index]))
 		index = langruntime.CheckedAdd(index, 1)
 	}
-	return numericVar{sign: value.sign, weight: langruntime.CheckedSignedAdd(value.weight, places), dscale: value.dscale, digits: digits}
+	return checkruntime.NumericVar{Sign: value.Sign, Weight: langruntime.CheckedSignedAdd(value.Weight, places), Dscale: value.Dscale, Digits: digits}
 }
-func numericVarCmpAbs(left *numericVar, right *numericVar) int {
+func numericVarCmpAbs(left *checkruntime.NumericVar, right *checkruntime.NumericVar) int {
 	leftCount := numericVarCount(left)
 	rightCount := numericVarCount(right)
-	leftWeight := left.weight
-	rightWeight := right.weight
+	leftWeight := left.Weight
+	rightWeight := right.Weight
 	i1 := 0
 	i2 := 0
 	for leftWeight > rightWeight && i1 < leftCount {
@@ -55439,47 +55805,47 @@ func numericVarCmpAbs(left *numericVar, right *numericVar) int {
 	}
 	return 0
 }
-func numericVarCmp(left *numericVar, right *numericVar) int {
+func numericVarCmp(left *checkruntime.NumericVar, right *checkruntime.NumericVar) int {
 	if numericVarCount(left) == 0 {
 		if numericVarCount(right) == 0 {
 			return 0
 		}
-		if right.sign < 0 {
+		if right.Sign < 0 {
 			return 1
 		}
 		return langruntime.CheckedSignedNegate(1)
 	}
 	if numericVarCount(right) == 0 {
-		if left.sign > 0 {
+		if left.Sign > 0 {
 			return 1
 		}
 		return langruntime.CheckedSignedNegate(1)
 	}
-	if left.sign > 0 {
-		if right.sign < 0 {
+	if left.Sign > 0 {
+		if right.Sign < 0 {
 			return 1
 		}
 		return numericVarCmpAbs(left, right)
 	}
-	if right.sign > 0 {
+	if right.Sign > 0 {
 		return langruntime.CheckedSignedNegate(1)
 	}
 	return numericVarCmpAbs(right, left)
 }
-func numericVarAddAbs(left *numericVar, right *numericVar) numericVar {
+func numericVarAddAbs(left *checkruntime.NumericVar, right *checkruntime.NumericVar) checkruntime.NumericVar {
 	leftCount := numericVarCount(left)
 	rightCount := numericVarCount(right)
-	resWeight := left.weight
-	if right.weight > resWeight {
-		resWeight = langruntime.CheckedI32(right.weight)
+	resWeight := left.Weight
+	if right.Weight > resWeight {
+		resWeight = langruntime.CheckedI32(right.Weight)
 	}
 	resWeight = langruntime.CheckedI32(langruntime.CheckedSignedAdd(resWeight, 1))
-	resDscale := left.dscale
-	if right.dscale > resDscale {
-		resDscale = langruntime.CheckedI32(right.dscale)
+	resDscale := left.Dscale
+	if right.Dscale > resDscale {
+		resDscale = langruntime.CheckedI32(right.Dscale)
 	}
-	rscale1 := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(leftCount, left.weight), 1)
-	rscale2 := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(rightCount, right.weight), 1)
+	rscale1 := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(leftCount, left.Weight), 1)
+	rscale2 := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(rightCount, right.Weight), 1)
 	resRscale := rscale1
 	if rscale2 > resRscale {
 		resRscale = langruntime.CheckedI32(rscale2)
@@ -55489,8 +55855,8 @@ func numericVarAddAbs(left *numericVar, right *numericVar) numericVar {
 		resNdigits = langruntime.CheckedI32(1)
 	}
 	digits := numericVarZeros(resNdigits)
-	i1 := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(resRscale, left.weight), 1)
-	i2 := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(resRscale, right.weight), 1)
+	i1 := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(resRscale, left.Weight), 1)
+	i2 := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(resRscale, right.Weight), 1)
 	carry := 0
 	i := langruntime.CheckedSignedSubtract(resNdigits, 1)
 	for i >= 0 {
@@ -55506,18 +55872,18 @@ func numericVarAddAbs(left *numericVar, right *numericVar) numericVar {
 		digits[langruntime.IndexFromI32(i, 0)] = langruntime.CheckedIndex(langruntime.IndexFromI32(digit, 0))
 		i = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(i, 1))
 	}
-	return numericVarStrip(numericVar{sign: 1, weight: resWeight, dscale: resDscale, digits: digits})
+	return numericVarStrip(checkruntime.NumericVar{Sign: 1, Weight: resWeight, Dscale: resDscale, Digits: digits})
 }
-func numericVarSubAbs(left *numericVar, right *numericVar) numericVar {
+func numericVarSubAbs(left *checkruntime.NumericVar, right *checkruntime.NumericVar) checkruntime.NumericVar {
 	leftCount := numericVarCount(left)
 	rightCount := numericVarCount(right)
-	resWeight := left.weight
-	resDscale := left.dscale
-	if right.dscale > resDscale {
-		resDscale = langruntime.CheckedI32(right.dscale)
+	resWeight := left.Weight
+	resDscale := left.Dscale
+	if right.Dscale > resDscale {
+		resDscale = langruntime.CheckedI32(right.Dscale)
 	}
-	rscale1 := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(leftCount, left.weight), 1)
-	rscale2 := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(rightCount, right.weight), 1)
+	rscale1 := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(leftCount, left.Weight), 1)
+	rscale2 := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(rightCount, right.Weight), 1)
 	resRscale := rscale1
 	if rscale2 > resRscale {
 		resRscale = langruntime.CheckedI32(rscale2)
@@ -55527,8 +55893,8 @@ func numericVarSubAbs(left *numericVar, right *numericVar) numericVar {
 		resNdigits = langruntime.CheckedI32(1)
 	}
 	digits := numericVarZeros(resNdigits)
-	i1 := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(resRscale, left.weight), 1)
-	i2 := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(resRscale, right.weight), 1)
+	i1 := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(resRscale, left.Weight), 1)
+	i2 := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(resRscale, right.Weight), 1)
 	borrow := 0
 	i := langruntime.CheckedSignedSubtract(resNdigits, 1)
 	for i >= 0 {
@@ -55544,43 +55910,43 @@ func numericVarSubAbs(left *numericVar, right *numericVar) numericVar {
 		digits[langruntime.IndexFromI32(i, 0)] = langruntime.CheckedIndex(langruntime.IndexFromI32(digit, 0))
 		i = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(i, 1))
 	}
-	return numericVarStrip(numericVar{sign: 1, weight: resWeight, dscale: resDscale, digits: digits})
+	return numericVarStrip(checkruntime.NumericVar{Sign: 1, Weight: resWeight, Dscale: resDscale, Digits: digits})
 }
-func numericVarSigned(value numericVar, sign int) numericVar {
-	value = copynumericVar(value)
+func numericVarSigned(value checkruntime.NumericVar, sign int) checkruntime.NumericVar {
+	value = checkruntime.CopyNumericVar(value)
 	sign = langruntime.CheckedI32(sign)
-	return numericVar{sign: sign, weight: value.weight, dscale: value.dscale, digits: value.digits}
+	return checkruntime.NumericVar{Sign: sign, Weight: value.Weight, Dscale: value.Dscale, Digits: value.Digits}
 }
-func numericVarSum(left *numericVar, right *numericVar, rightSign int) numericVar {
+func numericVarSum(left *checkruntime.NumericVar, right *checkruntime.NumericVar, rightSign int) checkruntime.NumericVar {
 	rightSign = langruntime.CheckedI32(rightSign)
-	dscale := left.dscale
-	if right.dscale > dscale {
-		dscale = langruntime.CheckedI32(right.dscale)
+	dscale := left.Dscale
+	if right.Dscale > dscale {
+		dscale = langruntime.CheckedI32(right.Dscale)
 	}
-	if left.sign == rightSign {
-		return numericVarSigned(numericVarAddAbs(left, right), left.sign)
+	if left.Sign == rightSign {
+		return numericVarSigned(numericVarAddAbs(left, right), left.Sign)
 	}
 	order := numericVarCmpAbs(left, right)
 	if order == 0 {
 		return numericVarZero(dscale)
 	}
 	if order > 0 {
-		return numericVarSigned(numericVarSubAbs(left, right), left.sign)
+		return numericVarSigned(numericVarSubAbs(left, right), left.Sign)
 	}
 	return numericVarSigned(numericVarSubAbs(right, left), rightSign)
 }
-func numericVarAdd(left *numericVar, right *numericVar) numericVar {
-	return numericVarSum(left, right, right.sign)
+func numericVarAdd(left *checkruntime.NumericVar, right *checkruntime.NumericVar) checkruntime.NumericVar {
+	return numericVarSum(left, right, right.Sign)
 }
-func numericVarSub(left *numericVar, right *numericVar) numericVar {
-	return numericVarSum(left, right, langruntime.CheckedSignedSubtract(0, right.sign))
+func numericVarSub(left *checkruntime.NumericVar, right *checkruntime.NumericVar) checkruntime.NumericVar {
+	return numericVarSum(left, right, langruntime.CheckedSignedSubtract(0, right.Sign))
 }
-func numericVarRound(value numericVar, rscale int) numericVar {
-	value = copynumericVar(value)
+func numericVarRound(value checkruntime.NumericVar, rscale int) checkruntime.NumericVar {
+	value = checkruntime.CopyNumericVar(value)
 	rscale = langruntime.CheckedI32(rscale)
-	sign := value.sign
-	weight := value.weight
-	digits := value.digits
+	sign := value.Sign
+	weight := value.Weight
+	digits := value.Digits
 	di := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply((langruntime.CheckedSignedAdd(weight, 1)), numericVarDecDigits), rscale)
 	if di < 0 {
 		return numericVarZero(rscale)
@@ -55643,14 +56009,14 @@ func numericVarRound(value numericVar, rscale int) numericVar {
 		rounded = append(rounded, langruntime.CheckedIndex(digits[index]))
 		index = langruntime.CheckedAdd(index, 1)
 	}
-	return numericVar{sign: sign, weight: weight, dscale: rscale, digits: rounded}
+	return checkruntime.NumericVar{Sign: sign, Weight: weight, Dscale: rscale, Digits: rounded}
 }
-func numericVarTrunc(value numericVar, rscale int) numericVar {
-	value = copynumericVar(value)
+func numericVarTrunc(value checkruntime.NumericVar, rscale int) checkruntime.NumericVar {
+	value = checkruntime.CopyNumericVar(value)
 	rscale = langruntime.CheckedI32(rscale)
-	sign := value.sign
-	weight := value.weight
-	digits := value.digits
+	sign := value.Sign
+	weight := value.Weight
+	digits := value.Digits
 	di := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply((langruntime.CheckedSignedAdd(weight, 1)), numericVarDecDigits), rscale)
 	if di <= 0 {
 		return numericVarZero(rscale)
@@ -55675,9 +56041,9 @@ func numericVarTrunc(value numericVar, rscale int) numericVar {
 		truncated = append(truncated, langruntime.CheckedIndex(digits[index]))
 		index = langruntime.CheckedAdd(index, 1)
 	}
-	return numericVar{sign: sign, weight: weight, dscale: rscale, digits: truncated}
+	return checkruntime.NumericVar{Sign: sign, Weight: weight, Dscale: rscale, Digits: truncated}
 }
-func numericVarMul(left *numericVar, right *numericVar, rscale int) numericVar {
+func numericVarMul(left *checkruntime.NumericVar, right *checkruntime.NumericVar, rscale int) checkruntime.NumericVar {
 	rscale = langruntime.CheckedI32(rscale)
 	if numericVarCount(left) > numericVarCount(right) {
 		return numericVarMul(right, left, rscale)
@@ -55687,11 +56053,11 @@ func numericVarMul(left *numericVar, right *numericVar, rscale int) numericVar {
 	if var1ndigits == 0 {
 		return numericVarZero(rscale)
 	}
-	if var1ndigits <= 6 && rscale == langruntime.CheckedSignedAdd(left.dscale, right.dscale) {
+	if var1ndigits <= 6 && rscale == langruntime.CheckedSignedAdd(left.Dscale, right.Dscale) {
 		return numericVarMulExact(left, right)
 	}
 	resSign := 1
-	if left.sign != right.sign {
+	if left.Sign != right.Sign {
 		resSign = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
 	}
 	var1ndigitpairs := langruntime.CheckedSignedDivide((langruntime.CheckedSignedAdd(var1ndigits, 1)), 2)
@@ -55699,7 +56065,7 @@ func numericVarMul(left *numericVar, right *numericVar, rscale int) numericVar {
 	resNdigits := langruntime.CheckedSignedAdd(var1ndigits, var2ndigits)
 	resNdigitpairs := langruntime.CheckedSignedAdd(langruntime.CheckedSignedDivide(resNdigits, 2), 1)
 	pairOffset := langruntime.CheckedSignedAdd(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(resNdigitpairs, var1ndigitpairs), var2ndigitpairs), 1)
-	resWeight := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(left.weight, right.weight), 1), langruntime.CheckedSignedMultiply(2, resNdigitpairs)), resNdigits), langruntime.CheckedSignedRemainder(var1ndigits, 2)), langruntime.CheckedSignedRemainder(var2ndigits, 2))
+	resWeight := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(left.Weight, right.Weight), 1), langruntime.CheckedSignedMultiply(2, resNdigitpairs)), resNdigits), langruntime.CheckedSignedRemainder(var1ndigits, 2)), langruntime.CheckedSignedRemainder(var2ndigits, 2))
 	maxdigits := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(resWeight, 1), langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(rscale, numericVarDecDigits), 1)), numericVarDecDigits)), numericVarMulGuardDigits)
 	maxdigitpairs := langruntime.CheckedSignedAdd(langruntime.CheckedSignedDivide(maxdigits, 2), 1)
 	if maxdigitpairs < resNdigitpairs {
@@ -55792,14 +56158,14 @@ func numericVarMul(left *numericVar, right *numericVar, rscale int) numericVar {
 		digits = append(digits, langruntime.CheckedIndex(slots[index]))
 		index = langruntime.CheckedAdd(index, 1)
 	}
-	product := numericVar{sign: resSign, weight: weight, dscale: rscale, digits: digits}
+	product := checkruntime.NumericVar{Sign: resSign, Weight: weight, Dscale: rscale, Digits: digits}
 	return numericVarStrip(numericVarRound(product, rscale))
 }
-func numericVarMulExact(left *numericVar, right *numericVar) numericVar {
+func numericVarMulExact(left *checkruntime.NumericVar, right *checkruntime.NumericVar) checkruntime.NumericVar {
 	var1ndigits := numericVarCount(left)
 	var2ndigits := numericVarCount(right)
 	resSign := 1
-	if left.sign != right.sign {
+	if left.Sign != right.Sign {
 		resSign = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
 	}
 	resNdigits := langruntime.CheckedSignedAdd(var1ndigits, var2ndigits)
@@ -55831,7 +56197,7 @@ func numericVarMulExact(left *numericVar, right *numericVar) numericVar {
 	for high > low && reversed[langruntime.CheckedSubtract(high, 1)] == 0 {
 		high = langruntime.CheckedIndex(langruntime.CheckedSubtract(high, 1))
 	}
-	dscale := langruntime.CheckedSignedAdd(left.dscale, right.dscale)
+	dscale := langruntime.CheckedSignedAdd(left.Dscale, right.Dscale)
 	if high == low {
 		return numericVarZero(dscale)
 	}
@@ -55843,9 +56209,9 @@ func numericVarMulExact(left *numericVar, right *numericVar) numericVar {
 		digits = append(digits, langruntime.CheckedIndex(reversed[index]))
 	}
 	dropped := int(int32((langruntime.CheckedSubtract(len(reversed), high))))
-	return numericVar{sign: resSign, weight: langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(left.weight, right.weight), 1), dropped), dscale: dscale, digits: digits}
+	return checkruntime.NumericVar{Sign: resSign, Weight: langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(left.Weight, right.Weight), 1), dropped), Dscale: dscale, Digits: digits}
 }
-func numericVarDivInt(value *numericVar, ival int, ivalWeight int, rscale int, round bool) numericVar {
+func numericVarDivInt(value *checkruntime.NumericVar, ival int, ivalWeight int, rscale int, round bool) checkruntime.NumericVar {
 	ival = langruntime.CheckedI32(ival)
 	ivalWeight = langruntime.CheckedI32(ivalWeight)
 	rscale = langruntime.CheckedI32(rscale)
@@ -55854,14 +56220,14 @@ func numericVarDivInt(value *numericVar, ival int, ivalWeight int, rscale int, r
 		return numericVarZero(rscale)
 	}
 	resSign := 1
-	if value.sign > 0 {
+	if value.Sign > 0 {
 		if ival < 0 {
 			resSign = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
 		}
 	} else if ival > 0 {
 		resSign = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
 	}
-	resWeight := langruntime.CheckedSignedSubtract(value.weight, ivalWeight)
+	resWeight := langruntime.CheckedSignedSubtract(value.Weight, ivalWeight)
 	resNdigits := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(resWeight, 1), langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(rscale, numericVarDecDigits), 1)), numericVarDecDigits))
 	if resNdigits < 1 {
 		resNdigits = langruntime.CheckedI32(1)
@@ -55884,31 +56250,31 @@ func numericVarDivInt(value *numericVar, ival int, ivalWeight int, rscale int, r
 		carry = langruntime.CheckedI64Remainder(carry, divisor)
 		i = langruntime.CheckedI32(langruntime.CheckedSignedAdd(i, 1))
 	}
-	quotient := numericVar{sign: resSign, weight: resWeight, dscale: rscale, digits: digits}
+	quotient := checkruntime.NumericVar{Sign: resSign, Weight: resWeight, Dscale: rscale, Digits: digits}
 	if round {
 		return numericVarStrip(numericVarRound(quotient, rscale))
 	}
 	return numericVarStrip(numericVarTrunc(quotient, rscale))
 }
-func numericVarDiv(left *numericVar, right *numericVar, rscale int, round bool, exact bool) numericVar {
+func numericVarDiv(left *checkruntime.NumericVar, right *checkruntime.NumericVar, rscale int, round bool, exact bool) checkruntime.NumericVar {
 	rscale = langruntime.CheckedI32(rscale)
 	if exact || numericVarCount(right) <= langruntime.CheckedSignedMultiply(2, (langruntime.CheckedSignedAdd(numericVarDivGuardDigits, 2))) || numericVarCount(left) == 0 {
 		return numericVarDivExact(left, right, rscale, round)
 	}
 	return numericVarDivApproximate(left, right, rscale, round)
 }
-func numericVarDivExact(left *numericVar, right *numericVar, rscale int, round bool) numericVar {
+func numericVarDivExact(left *checkruntime.NumericVar, right *checkruntime.NumericVar, rscale int, round bool) checkruntime.NumericVar {
 	rscale = langruntime.CheckedI32(rscale)
 	var1ndigits := numericVarCount(left)
 	var2ndigits := numericVarCount(right)
 	if var2ndigits <= 2 {
 		idivisor := numericVarDigit(right, 0)
-		idivisorWeight := right.weight
+		idivisorWeight := right.Weight
 		if var2ndigits == 2 {
 			idivisor = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(idivisor, numericVarNbase), numericVarDigit(right, 1)))
 			idivisorWeight = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(idivisorWeight, 1))
 		}
-		if right.sign < 0 {
+		if right.Sign < 0 {
 			idivisor = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, idivisor))
 		}
 		return numericVarDivInt(left, idivisor, idivisorWeight, rscale, round)
@@ -55917,10 +56283,10 @@ func numericVarDivExact(left *numericVar, right *numericVar, rscale int, round b
 		return numericVarZero(rscale)
 	}
 	resSign := 1
-	if left.sign != right.sign {
+	if left.Sign != right.Sign {
 		resSign = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
 	}
-	resWeight := langruntime.CheckedSignedSubtract(left.weight, right.weight)
+	resWeight := langruntime.CheckedSignedSubtract(left.Weight, right.Weight)
 	resNdigits := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(resWeight, 1), langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(rscale, numericVarDecDigits), 1)), numericVarDecDigits))
 	if resNdigits < 1 {
 		resNdigits = langruntime.CheckedI32(1)
@@ -55935,13 +56301,13 @@ func numericVarDivExact(left *numericVar, right *numericVar, rscale int, round b
 	dividend := numericVarZeros(langruntime.CheckedSignedAdd(divNdigits, 1))
 	divisor := numericVarZeros(langruntime.CheckedSignedAdd(var2ndigits, 1))
 	index := 0
-	for index < len(left.digits) {
-		dividend[langruntime.CheckedAdd(index, 1)] = langruntime.CheckedIndex(left.digits[index])
+	for index < len(left.Digits) {
+		dividend[langruntime.CheckedAdd(index, 1)] = langruntime.CheckedIndex(left.Digits[index])
 		index = langruntime.CheckedAdd(index, 1)
 	}
 	index = langruntime.CheckedIndex(0)
-	for index < len(right.digits) {
-		divisor[langruntime.CheckedAdd(index, 1)] = langruntime.CheckedIndex(right.digits[index])
+	for index < len(right.Digits) {
+		divisor[langruntime.CheckedAdd(index, 1)] = langruntime.CheckedIndex(right.Digits[index])
 		index = langruntime.CheckedAdd(index, 1)
 	}
 	divisorEnd := langruntime.IndexFromI32(var2ndigits, 0)
@@ -56012,7 +56378,7 @@ func numericVarDivExact(left *numericVar, right *numericVar, rscale int, round b
 		resDigits = append(resDigits, langruntime.CheckedIndex(langruntime.IndexFromI32(qhat, 0)))
 		j = langruntime.CheckedAdd(j, 1)
 	}
-	quotient := numericVar{sign: resSign, weight: resWeight, dscale: rscale, digits: resDigits}
+	quotient := checkruntime.NumericVar{Sign: resSign, Weight: resWeight, Dscale: rscale, Digits: resDigits}
 	if round {
 		return numericVarStrip(numericVarRound(quotient, rscale))
 	}
@@ -56042,15 +56408,15 @@ func numericVarWideCarry(digit int64) int64 {
 	}
 	return int64(0)
 }
-func numericVarDivApproximate(left *numericVar, right *numericVar, rscale int, round bool) numericVar {
+func numericVarDivApproximate(left *checkruntime.NumericVar, right *checkruntime.NumericVar, rscale int, round bool) checkruntime.NumericVar {
 	rscale = langruntime.CheckedI32(rscale)
 	var1ndigits := numericVarCount(left)
 	var2ndigits := numericVarCount(right)
 	resSign := 1
-	if left.sign != right.sign {
+	if left.Sign != right.Sign {
 		resSign = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
 	}
-	resWeight := langruntime.CheckedSignedAdd(langruntime.CheckedSignedSubtract(left.weight, right.weight), 1)
+	resWeight := langruntime.CheckedSignedAdd(langruntime.CheckedSignedSubtract(left.Weight, right.Weight), 1)
 	resNdigits := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(resWeight, 1), langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(rscale, numericVarDecDigits), 1)), numericVarDecDigits))
 	if resNdigits < 1 {
 		resNdigits = langruntime.CheckedI32(1)
@@ -56170,66 +56536,66 @@ func numericVarDivApproximate(left *numericVar, right *numericVar, rscale int, r
 		digits[langruntime.CheckedAdd(langruntime.CheckedAdd(index, index), 1)] = langruntime.CheckedIndex(langruntime.IndexFromI32(langruntime.CheckedSignedRemainder(pair, numericVarNbase), 0))
 		j = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(j, 1))
 	}
-	quotient := numericVar{sign: resSign, weight: resWeight, dscale: rscale, digits: digits}
+	quotient := checkruntime.NumericVar{Sign: resSign, Weight: resWeight, Dscale: rscale, Digits: digits}
 	if round {
 		return numericVarStrip(numericVarRound(quotient, rscale))
 	}
 	return numericVarStrip(numericVarTrunc(quotient, rscale))
 }
-func numericVarDivMod(left *numericVar, right *numericVar) numericVarDivision {
+func numericVarDivMod(left *checkruntime.NumericVar, right *checkruntime.NumericVar) numericVarDivision {
 	one := numericVarFromI64(int64(1))
 	q := numericVarDiv(left, right, 0, false, true)
-	product := numericVarMul(right, &q, right.dscale)
+	product := numericVarMul(right, &q, right.Dscale)
 	r := numericVarSub(left, &product)
-	for numericVarCount(&r) != 0 && r.sign != left.sign {
-		if left.sign == right.sign {
-			q = copynumericVar(numericVarSub(&q, &one))
-			r = copynumericVar(numericVarAdd(&r, right))
+	for numericVarCount(&r) != 0 && r.Sign != left.Sign {
+		if left.Sign == right.Sign {
+			q = checkruntime.CopyNumericVar(numericVarSub(&q, &one))
+			r = checkruntime.CopyNumericVar(numericVarAdd(&r, right))
 		} else {
-			q = copynumericVar(numericVarAdd(&q, &one))
-			r = copynumericVar(numericVarSub(&r, right))
+			q = checkruntime.CopyNumericVar(numericVarAdd(&q, &one))
+			r = checkruntime.CopyNumericVar(numericVarSub(&r, right))
 		}
 	}
 	for numericVarCmpAbs(&r, right) >= 0 {
-		if left.sign == right.sign {
-			q = copynumericVar(numericVarAdd(&q, &one))
-			r = copynumericVar(numericVarSub(&r, right))
+		if left.Sign == right.Sign {
+			q = checkruntime.CopyNumericVar(numericVarAdd(&q, &one))
+			r = checkruntime.CopyNumericVar(numericVarSub(&r, right))
 		} else {
-			q = copynumericVar(numericVarSub(&q, &one))
-			r = copynumericVar(numericVarAdd(&r, right))
+			q = checkruntime.CopyNumericVar(numericVarSub(&q, &one))
+			r = checkruntime.CopyNumericVar(numericVarAdd(&r, right))
 		}
 	}
 	return numericVarDivision{quotient: q, remainder: r}
 }
-func numericVarMod(left *numericVar, right *numericVar) numericVar {
+func numericVarMod(left *checkruntime.NumericVar, right *checkruntime.NumericVar) checkruntime.NumericVar {
 	quotient := numericVarDiv(left, right, 0, false, true)
-	product := numericVarMul(right, &quotient, right.dscale)
+	product := numericVarMul(right, &quotient, right.Dscale)
 	return numericVarSub(left, &product)
 }
-func numericVarResult(value numericVar) checkruntime.NumericValue {
-	value = copynumericVar(value)
+func numericVarResult(value checkruntime.NumericVar) checkruntime.NumericValue {
+	value = checkruntime.CopyNumericVar(value)
 	stripped := numericVarStrip(value)
-	if (numericVarCount(&stripped) > 0 && (stripped.weight > 32767 || stripped.weight < langruntime.CheckedSignedNegate(32768))) || stripped.dscale > 16383 {
+	if (numericVarCount(&stripped) > 0 && (stripped.Weight > 32767 || stripped.Weight < langruntime.CheckedSignedNegate(32768))) || stripped.Dscale > 16383 {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(numericSupportRangeError)}
 	}
-	return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(numericWorkFromVar(&stripped))}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: stripped}
 }
-func numericVarRescaled(value numericVar, dscale int) numericVar {
-	value = copynumericVar(value)
+func numericVarRescaled(value checkruntime.NumericVar, dscale int) checkruntime.NumericVar {
+	value = checkruntime.CopyNumericVar(value)
 	dscale = langruntime.CheckedI32(dscale)
-	return numericVar{sign: value.sign, weight: value.weight, dscale: dscale, digits: value.digits}
+	return checkruntime.NumericVar{Sign: value.Sign, Weight: value.Weight, Dscale: dscale, Digits: value.Digits}
 }
-func numericVarToDouble(value *numericVar) float64 {
+func numericVarToDouble(value *checkruntime.NumericVar) float64 {
 	text := numericWorkText(numericWorkFromVar(value))
 	return langruntime.F64FromText(text, float64(0.0))
 }
-func numericVarFromText(text string) numericVar {
+func numericVarFromText(text string) checkruntime.NumericVar {
 	text = langruntime.CheckedString(text)
 	work := numericWorkFromValue(text)
 	return numericVarFromWork(&work)
 }
-func numericVarSucceeded(value numericVar) numericVarOutcome {
-	value = copynumericVar(value)
+func numericVarSucceeded(value checkruntime.NumericVar) numericVarOutcome {
+	value = checkruntime.CopyNumericVar(value)
 	return numericVarOutcome{overflow: false, value: value}
 }
 func numericVarOverflow() numericVarOutcome {
@@ -56242,21 +56608,114 @@ func numericVarOutcomeResult(outcome numericVarOutcome) checkruntime.NumericValu
 	}
 	return numericVarResult(outcome.value)
 }
-func numericVarCeil(value *numericVar) numericVar {
+func numericVarCeil(value *checkruntime.NumericVar) checkruntime.NumericVar {
 	one := numericVarFromI64(int64(1))
 	truncated := numericVarTrunc(numericVarShifted(value, 0), 0)
-	if value.sign > 0 && numericVarCmp(value, &truncated) != 0 {
+	if value.Sign > 0 && numericVarCmp(value, &truncated) != 0 {
 		return numericVarAdd(&truncated, &one)
 	}
 	return truncated
 }
-func numericVarFloor(value *numericVar) numericVar {
+func numericVarFloor(value *checkruntime.NumericVar) checkruntime.NumericVar {
 	one := numericVarFromI64(int64(1))
 	truncated := numericVarTrunc(numericVarShifted(value, 0), 0)
-	if value.sign < 0 && numericVarCmp(value, &truncated) != 0 {
+	if value.Sign < 0 && numericVarCmp(value, &truncated) != 0 {
 		return numericVarSub(&truncated, &one)
 	}
 	return truncated
+}
+func numericVarKind(value *checkruntime.NumericVar) int {
+	if value.Sign == checkruntime.NumericSignNan {
+		return 3
+	}
+	if value.Sign == checkruntime.NumericSignPinf {
+		return 2
+	}
+	if value.Sign == checkruntime.NumericSignNinf {
+		return 0
+	}
+	return 1
+}
+func numericVarSignum(value *checkruntime.NumericVar) int {
+	if numericVarCount(value) == 0 {
+		return 0
+	}
+	return value.Sign
+}
+func numericVarAbsolute(value checkruntime.NumericVar) checkruntime.NumericVar {
+	value = checkruntime.CopyNumericVar(value)
+	if value.Sign == checkruntime.NumericSignNinf {
+		return checkruntime.NumericVarSpecial(checkruntime.NumericSignPinf)
+	}
+	if value.Sign == langruntime.CheckedSignedNegate(1) {
+		return numericVarSigned(value, 1)
+	}
+	return value
+}
+func numericVarNegated(value checkruntime.NumericVar) checkruntime.NumericVar {
+	value = checkruntime.CopyNumericVar(value)
+	if value.Sign == checkruntime.NumericSignNinf {
+		return checkruntime.NumericVarSpecial(checkruntime.NumericSignPinf)
+	}
+	if value.Sign == checkruntime.NumericSignPinf {
+		return checkruntime.NumericVarSpecial(checkruntime.NumericSignNinf)
+	}
+	if value.Sign == checkruntime.NumericSignNan || numericVarCount(&value) == 0 {
+		return value
+	}
+	sign := langruntime.CheckedSignedSubtract(0, value.Sign)
+	return numericVarSigned(value, sign)
+}
+func numericVarMinScale(value *checkruntime.NumericVar) int {
+	lastDigitPos := langruntime.CheckedSignedSubtract(numericVarCount(value), 1)
+	for lastDigitPos >= 0 && numericVarDigit(value, lastDigitPos) == 0 {
+		lastDigitPos = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(lastDigitPos, 1))
+	}
+	if lastDigitPos < 0 {
+		return 0
+	}
+	minScale := langruntime.CheckedSignedMultiply((langruntime.CheckedSignedSubtract(lastDigitPos, value.Weight)), numericVarDecDigits)
+	if minScale <= 0 {
+		return 0
+	}
+	lastDigit := numericVarDigit(value, lastDigitPos)
+	for langruntime.CheckedSignedRemainder(lastDigit, 10) == 0 {
+		minScale = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(minScale, 1))
+		lastDigit = langruntime.CheckedI32(langruntime.CheckedSignedDivide(lastDigit, 10))
+	}
+	return minScale
+}
+func numericVarCompareValues(left *checkruntime.NumericVar, right *checkruntime.NumericVar) int {
+	leftKind := numericVarKind(left)
+	rightKind := numericVarKind(right)
+	if leftKind == 3 {
+		if rightKind == 3 {
+			return 0
+		}
+		return 1
+	}
+	if leftKind == 2 {
+		if rightKind == 3 {
+			return langruntime.CheckedSignedNegate(1)
+		}
+		if rightKind == 2 {
+			return 0
+		}
+		return 1
+	}
+	if leftKind == 0 {
+		if rightKind == 0 {
+			return 0
+		}
+		return langruntime.CheckedSignedNegate(1)
+	}
+	if rightKind == 0 {
+		return 1
+	}
+	if rightKind != 1 {
+		return langruntime.CheckedSignedNegate(1)
+	}
+	return numericVarCmp(left, right)
 }
 
 const numericSupportRangeError = 3452547
@@ -56485,7 +56944,7 @@ func numericWorkRound(work numericWork, requested int, mode int) checkruntime.Nu
 		return checkruntime.NumericUnresolved(unresolvedFlavor)
 	}
 	if work.special != 1 {
-		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(work)}
+		return checkruntime.MakeNumericValue(numericWorkText(work))
 	}
 	scale := requested
 	minimum := langruntime.CheckedSignedNegate(131072)
@@ -56502,7 +56961,7 @@ func numericWorkRound(work numericWork, requested int, mode int) checkruntime.Nu
 	if rounded.weight > 131071 {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(numericSupportRangeError)}
 	}
-	return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(rounded)}
+	return checkruntime.MakeNumericValue(numericWorkText(rounded))
 }
 
 const oidAliasInvalidName = 6819554
@@ -59245,6 +59704,7 @@ func pgLsnNumeric(input checkruntime.PgLsnValue) checkruntime.NumericValue {
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
 func pgLsnFromNumeric(input checkruntime.NumericValue) checkruntime.PgLsnValue {
+	input = checkruntime.CopyNumericValue(input)
 	unresolvedFlavor := 0
 	if input.Kind == checkruntime.NumericValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -59256,11 +59716,16 @@ func pgLsnFromNumeric(input checkruntime.NumericValue) checkruntime.PgLsnValue {
 		error := input.Error
 		return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueError, Error: error}
 	}
-	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullInput1 := false
+	if input.Kind == checkruntime.NumericValueNull {
+		numericNullInput1 = true
+	}
+	if numericNullInput1 {
 		return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueNull}
 	}
 	if input.Kind == checkruntime.NumericValueValue {
-		text := langruntime.CheckedString(input.Value)
+		textNumeric := checkruntime.CopyNumericVar(input.Value)
+		text := checkruntime.NumericText(&textNumeric)
 		work := numericWorkFromValue(text)
 		if work.valid == false {
 			return checkruntime.PgLsnUnresolved(unresolvedFlavor)
@@ -59277,7 +59742,8 @@ func pgLsnFromNumeric(input checkruntime.NumericValue) checkruntime.PgLsnValue {
 			return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueError, Error: error}
 		}
 		if rounded.Kind == checkruntime.NumericValueValue {
-			value := langruntime.CheckedString(rounded.Value)
+			valueNumeric := checkruntime.CopyNumericVar(rounded.Value)
+			value := checkruntime.NumericText(&valueNumeric)
 			parts := checkruntime.NumericParts(value)
 			if parts.Sign == 0 {
 				return checkruntime.MakePgLsnBits(int64(0))
@@ -59310,6 +59776,7 @@ func pgLsnFromNumeric(input checkruntime.NumericValue) checkruntime.PgLsnValue {
 	return checkruntime.PgLsnUnresolved(unresolvedFlavor)
 }
 func pgLsnAdjust(left checkruntime.PgLsnValue, right checkruntime.NumericValue, subtract bool) checkruntime.PgLsnValue {
+	right = checkruntime.CopyNumericValue(right)
 	unresolvedFlavor := 0
 	if left.Kind == checkruntime.PgLsnValueUnknown {
 		unresolvedFlavor = langruntime.CheckedI32(1)
@@ -59331,6 +59798,14 @@ func pgLsnAdjust(left checkruntime.PgLsnValue, right checkruntime.NumericValue, 
 		error := right.Error
 		return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueError, Error: error}
 	}
+	numericUnknownRight2 := false
+	if right.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownRight2 = true
+	}
+	numericUnimplementedRight3 := false
+	if right.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedRight3 = true
+	}
 	conditionFlavor1924 := unresolvedFlavor
 	if left.Kind == checkruntime.PgLsnValueUnknown {
 		if conditionFlavor1924 < 1 {
@@ -59348,10 +59823,14 @@ func pgLsnAdjust(left checkruntime.PgLsnValue, right checkruntime.NumericValue, 
 	if right.Kind == checkruntime.NumericValueUnimplemented {
 		conditionFlavor1924 = langruntime.CheckedI32(2)
 	}
-	if (left == (checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueUnknown}) || left == (checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueUnimplemented})) || (right == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || right == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented})) {
+	if (left == (checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueUnknown}) || left == (checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueUnimplemented})) || (numericUnknownRight2 || numericUnimplementedRight3) {
 		return checkruntime.PgLsnUnresolved(conditionFlavor1924)
 	}
-	if left == (checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueNull}) || right == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullRight4 := false
+	if right.Kind == checkruntime.NumericValueNull {
+		numericNullRight4 = true
+	}
+	if left == (checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueNull}) || numericNullRight4 {
 		return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueNull}
 	}
 	numeric := pgLsnNumeric(left)
@@ -59364,6 +59843,7 @@ func PgLsnSendR284(left checkruntime.PgLsnValue) checkruntime.ByteaValue {
 	return Int8sendPjz0(pgLsnBits(left))
 }
 func NumericPlPgLsnJhoo(left checkruntime.NumericValue, right checkruntime.PgLsnValue) checkruntime.PgLsnValue {
+	left = checkruntime.CopyNumericValue(left)
 	if left.Kind == checkruntime.NumericValueError {
 		error := left.Error
 		return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueError, Error: error}
@@ -59381,6 +59861,7 @@ func NumericPlPgLsnJhoo(left checkruntime.NumericValue, right checkruntime.PgLsn
 	return pgLsnAdjust(right, left, false)
 }
 func PgLsn8qf1(left checkruntime.NumericValue) checkruntime.PgLsnValue {
+	left = checkruntime.CopyNumericValue(left)
 	return pgLsnFromNumeric(left)
 }
 func PgLsnCmp46uk(left checkruntime.PgLsnValue, right checkruntime.PgLsnValue) checkruntime.Int4Value {
@@ -59414,12 +59895,14 @@ func PgLsnMiF4h2(left checkruntime.PgLsnValue, right checkruntime.PgLsnValue) ch
 	return NumericSubYs09(pgLsnNumeric(left), pgLsnNumeric(right))
 }
 func PgLsnMiiKdo3(left checkruntime.PgLsnValue, right checkruntime.NumericValue) checkruntime.PgLsnValue {
+	right = checkruntime.CopyNumericValue(right)
 	return pgLsnAdjust(left, right, true)
 }
 func PgLsnNeCw52(left checkruntime.PgLsnValue, right checkruntime.PgLsnValue) checkruntime.BoolValue {
 	return pgLsnRelation(left, right, 1)
 }
 func PgLsnPliRpc5(left checkruntime.PgLsnValue, right checkruntime.NumericValue) checkruntime.PgLsnValue {
+	right = checkruntime.CopyNumericValue(right)
 	return pgLsnAdjust(left, right, false)
 }
 func PgLsnSmallerTxge(left checkruntime.PgLsnValue, right checkruntime.PgLsnValue) checkruntime.PgLsnValue {
@@ -63070,11 +63553,15 @@ func Int8rangeCanonicalWenu(input checkruntime.RangeValue) checkruntime.RangeVal
 	return rangeBuiltinCanonical(checked)
 }
 func NumrangeEag6(lower checkruntime.NumericValue, upper checkruntime.NumericValue) checkruntime.RangeValue {
+	lower = checkruntime.CopyNumericValue(lower)
+	upper = checkruntime.CopyNumericValue(upper)
 	lo := checkruntime.ArrayElementFromNumeric(lower)
 	hi := checkruntime.ArrayElementFromNumeric(upper)
 	return rangeBuiltinConstruct("pg_catalog.numrange", "pg_catalog.\"numeric\"", 10, lo, hi, checkruntime.MakeTextValue("[)"))
 }
 func Numrange8ziy(lower checkruntime.NumericValue, upper checkruntime.NumericValue, flags checkruntime.TextValue) checkruntime.RangeValue {
+	lower = checkruntime.CopyNumericValue(lower)
+	upper = checkruntime.CopyNumericValue(upper)
 	lo := checkruntime.ArrayElementFromNumeric(lower)
 	hi := checkruntime.ArrayElementFromNumeric(upper)
 	return rangeBuiltinConstruct("pg_catalog.numrange", "pg_catalog.\"numeric\"", 10, lo, hi, flags)
@@ -64768,6 +65255,8 @@ func Int8rangeSubdiffB2ct(left checkruntime.Int8Value, right checkruntime.Int8Va
 	return rangeSubdiffInteger(left, right, false)
 }
 func NumrangeSubdiffWqu8(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.Float8Value {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
 	difference := NumericSubYs09(left, right)
 	return Float8Bkfn(difference)
 }
@@ -65069,12 +65558,12 @@ func ScalarNumericFromText(input checkruntime.TextValue) checkruntime.NumericVal
 		parts := checkruntime.NumericParts(value)
 		if parts.Valid && parts.Special != 1 {
 			if parts.Special == 0 {
-				return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "-Infinity"}
+				return checkruntime.MakeNumericValue("-Infinity")
 			}
 			if parts.Special == 2 {
-				return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "Infinity"}
+				return checkruntime.MakeNumericValue("Infinity")
 			}
-			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "NaN"}
+			return checkruntime.MakeNumericValue("NaN")
 		}
 		characters := []rune(value)
 		start := 0
@@ -65163,9 +65652,9 @@ func ScalarNumericFromText(input checkruntime.TextValue) checkruntime.NumericVal
 		}
 		if parsed.Kind == checkruntime.TextValueValue {
 			number := langruntime.CheckedString(parsed.Value)
-			result := checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: number}
+			result := checkruntime.MakeNumericValue(number)
 			if negative {
-				result = NumericUminusWcmy(result)
+				result = checkruntime.CopyNumericValue(NumericUminusWcmy(result))
 			}
 			return result
 		}
@@ -67840,17 +68329,17 @@ func temporalExtractDate(value int, code int) checkruntime.NumericValue {
 			return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
 		}
 		if value < 0 {
-			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "-Infinity"}
+			return checkruntime.MakeNumericValue("-Infinity")
 		}
-		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "Infinity"}
+		return checkruntime.MakeNumericValue("Infinity")
 	}
 	date := int64(langruntime.CheckedI32(value))
 	if code == 19 {
-		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: checkruntime.TextSignedNumber(langruntime.CheckedI64Multiply((langruntime.CheckedI64Add(date, int64(10957))), int64(86400)))}
+		return checkruntime.MakeNumericValue(checkruntime.TextSignedNumber(langruntime.CheckedI64Multiply((langruntime.CheckedI64Add(date, int64(10957))), int64(86400))))
 	}
 	julian := langruntime.CheckedI64Add(date, int64(2451545))
 	if code == 14 {
-		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: checkruntime.TextSignedNumber(julian)}
+		return checkruntime.MakeNumericValue(checkruntime.TextSignedNumber(julian))
 	}
 	calendar := temporalCalendarFromJulian(julian)
 	result := int64(0)
@@ -67918,7 +68407,7 @@ func temporalExtractDate(value int, code int) checkruntime.NumericValue {
 	if code == 18 {
 		result = langruntime.CheckedI64Add(langruntime.CheckedI64Subtract(julian, temporalJulianFromCalendar(calendar.year, 1, 1)), int64(1))
 	}
-	return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: checkruntime.TextSignedNumber(result)}
+	return checkruntime.MakeNumericValue(checkruntime.TextSignedNumber(result))
 }
 func ExtractQjml(units checkruntime.TextValue, input checkruntime.DateValue) checkruntime.NumericValue {
 	unresolvedFlavor := 0
@@ -70750,7 +71239,7 @@ func temporalScaledNumber(value int64, scale int) checkruntime.NumericValue {
 	if fraction < int64(0) {
 		fraction = langruntime.CheckedI64Subtract(int64(0), fraction)
 	}
-	return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: temporalDecimalParts(whole, fraction, scale, value < int64(0) && whole == int64(0))}
+	return checkruntime.MakeNumericValue(temporalDecimalParts(whole, fraction, scale, value < int64(0) && whole == int64(0)))
 }
 func temporalTimestampEpoch(value int64) checkruntime.NumericValue {
 	whole := langruntime.CheckedI64Add(langruntime.CheckedI64Divide(value, int64(1000000)), int64(946684800))
@@ -70771,7 +71260,7 @@ func temporalTimestampEpoch(value int64) checkruntime.NumericValue {
 		whole = langruntime.CheckedI64Add(whole, int64(1))
 		fraction = langruntime.CheckedI64Subtract(int64(1000000), fraction)
 	}
-	return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: temporalDecimalParts(whole, fraction, 6, negative && whole == int64(0))}
+	return checkruntime.MakeNumericValue(temporalDecimalParts(whole, fraction, 6, negative && whole == int64(0)))
 }
 func temporalTimestampJulian(julian int64, clock int64) checkruntime.NumericValue {
 	weight := 0
@@ -70827,9 +71316,9 @@ func temporalTimestampJulian(julian int64, clock int64) checkruntime.NumericValu
 		cursor = langruntime.CheckedAdd(cursor, 1)
 	}
 	if whole < int64(0) {
-		return NumericAddO3d7(checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: checkruntime.TextSignedNumber(whole)}, checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: string(output)})
+		return NumericAddO3d7(checkruntime.MakeNumericValue(checkruntime.TextSignedNumber(whole)), checkruntime.MakeNumericValue(string(output)))
 	}
-	return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: string(output)}
+	return checkruntime.MakeNumericValue(string(output))
 }
 func temporalExtractTimestamp(value int64, unit string) checkruntime.NumericValue {
 	unit = langruntime.CheckedString(unit)
@@ -70850,9 +71339,9 @@ func temporalExtractTimestampValue(value int64, unit string, projected bool) che
 		}
 		if code >= 10 && code <= 19 {
 			if value < int64(0) {
-				return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "-Infinity"}
+				return checkruntime.MakeNumericValue("-Infinity")
 			}
-			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "Infinity"}
+			return checkruntime.MakeNumericValue("Infinity")
 		}
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(temporalFieldUnsupportedError)}
 	}
@@ -70869,7 +71358,7 @@ func temporalExtractTimestampValue(value int64, unit string, projected bool) che
 		clock = langruntime.CheckedI64Add(clock, int64(86400000000))
 	}
 	if code == 1 {
-		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: checkruntime.TextSignedNumber(langruntime.CheckedI64Remainder(clock, int64(60000000)))}
+		return checkruntime.MakeNumericValue(checkruntime.TextSignedNumber(langruntime.CheckedI64Remainder(clock, int64(60000000))))
 	}
 	if code == 2 {
 		return temporalScaledNumber(langruntime.CheckedI64Remainder(clock, int64(60000000)), 3)
@@ -70878,10 +71367,10 @@ func temporalExtractTimestampValue(value int64, unit string, projected bool) che
 		return temporalScaledNumber(langruntime.CheckedI64Remainder(clock, int64(60000000)), 6)
 	}
 	if code == 4 {
-		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: checkruntime.TextSignedNumber(langruntime.CheckedI64Remainder(langruntime.CheckedI64Divide(clock, int64(60000000)), int64(60)))}
+		return checkruntime.MakeNumericValue(checkruntime.TextSignedNumber(langruntime.CheckedI64Remainder(langruntime.CheckedI64Divide(clock, int64(60000000)), int64(60))))
 	}
 	if code == 5 {
-		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: checkruntime.TextSignedNumber(langruntime.CheckedI64Divide(clock, int64(3600000000)))}
+		return checkruntime.MakeNumericValue(checkruntime.TextSignedNumber(langruntime.CheckedI64Divide(clock, int64(3600000000))))
 	}
 	if code == 14 {
 		return temporalTimestampJulian(langruntime.CheckedI64Add(day, int64(2451545)), clock)
@@ -70951,6 +71440,7 @@ func ExtractF4l3(units checkruntime.TextValue, input checkruntime.TimestampValue
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }
 func temporalTimestampLegacyValue(number checkruntime.NumericValue, unit string, time int64) checkruntime.Float8Value {
+	number = checkruntime.CopyNumericValue(number)
 	unit = langruntime.CheckedString(unit)
 	unresolvedFlavor := 0
 	if number.Kind == checkruntime.NumericValueUnknown {
@@ -70963,6 +71453,14 @@ func temporalTimestampLegacyValue(number checkruntime.NumericValue, unit string,
 		error := number.Error
 		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
 	}
+	numericUnknownNumber1 := false
+	if number.Kind == checkruntime.NumericValueUnknown {
+		numericUnknownNumber1 = true
+	}
+	numericUnimplementedNumber2 := false
+	if number.Kind == checkruntime.NumericValueUnimplemented {
+		numericUnimplementedNumber2 = true
+	}
 	conditionFlavor84 := unresolvedFlavor
 	if number.Kind == checkruntime.NumericValueUnknown {
 		if conditionFlavor84 < 1 {
@@ -70972,10 +71470,14 @@ func temporalTimestampLegacyValue(number checkruntime.NumericValue, unit string,
 	if number.Kind == checkruntime.NumericValueUnimplemented {
 		conditionFlavor84 = langruntime.CheckedI32(2)
 	}
-	if number == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || number == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnimplemented}) {
+	if numericUnknownNumber1 || numericUnimplementedNumber2 {
 		return checkruntime.Float8Unresolved(conditionFlavor84)
 	}
-	if number == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+	numericNullNumber3 := false
+	if number.Kind == checkruntime.NumericValueNull {
+		numericNullNumber3 = true
+	}
+	if numericNullNumber3 {
 		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
 	}
 	if time != (int64(-9223372036854775808)) && time != int64(9223372036854775807) {
@@ -75386,15 +75888,15 @@ func PgSizeBytesGgrt(input checkruntime.TextValue) checkruntime.Int8Value {
 			index = langruntime.CheckedAdd(index, 1)
 		}
 		quantity := numericWork{valid: true, special: 1, sign: sign, weight: weight, scale: scale, digits: string(coefficient)}
-		value := checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(quantity)}
+		value := checkruntime.MakeNumericValue(numericWorkText(quantity))
 		if power > 0 {
 			multiplier := int64(1)
 			for power > 0 {
 				multiplier = langruntime.CheckedI64Multiply(multiplier, int64(1024))
 				power = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(power, 1))
 			}
-			factor := checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: checkruntime.TextSignedNumber(multiplier)}
-			value = numericArithmetic(value, factor, 2)
+			factor := checkruntime.MakeNumericValue(checkruntime.TextSignedNumber(multiplier))
+			value = checkruntime.CopyNumericValue(numericArithmetic(value, factor, 2))
 		}
 		return numericIntegerValue(value)
 	}

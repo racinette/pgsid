@@ -24,30 +24,30 @@
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
  */
 
-fn numeric_base_logarithm(base: NumericWork, input: NumericWork) -> NumericValue {
-    if base.special == 3 || input.special == 3 {
-        return NumericValue::Value("NaN".to_owned());
+fn numeric_base_logarithm(base_var: NumericVar, num_var: NumericVar) -> NumericValue {
+    let base_kind = numeric_var_kind(&base_var);
+    let input_kind = numeric_var_kind(&num_var);
+    if base_kind == 3 || input_kind == 3 {
+        return make_numeric_value("NaN");
     }
-    if base.special == 0
-        || input.special == 0
-        || (base.special == 1 && base.sign <= 0)
-        || (input.special == 1 && input.sign <= 0)
+    if base_kind == 0
+        || input_kind == 0
+        || (base_kind == 1 && numeric_var_signum(&base_var) <= 0)
+        || (input_kind == 1 && numeric_var_signum(&num_var) <= 0)
     {
         return NumericValue::Error(make_sql_error(NUMERIC_LOG_INVALID_ARGUMENT));
     }
-    if base.special == 2 {
-        if input.special == 2 {
-            return NumericValue::Value("NaN".to_owned());
+    if base_kind == 2 {
+        if input_kind == 2 {
+            return make_numeric_value("NaN");
         }
-        return NumericValue::Value("0".to_owned());
+        return make_numeric_value("0");
     }
-    if input.special == 2 {
-        return NumericValue::Value("Infinity".to_owned());
+    if input_kind == 2 {
+        return make_numeric_value("Infinity");
     }
     // PostgreSQL's log_var: ln(num) / ln(base), each logarithm figured to the precision
     // the quotient needs.
-    let base_var = numeric_var_from_work(&base);
-    let num_var = numeric_var_from_work(&input);
     let ln_base_dweight = numeric_var_ln_dweight(&base_var);
     let ln_num_dweight = numeric_var_ln_dweight(&num_var);
     let result_dweight = ln_num_dweight - ln_base_dweight;
@@ -92,20 +92,17 @@ pub fn sql__pg_catalog__numeric_log__8gwh(left: NumericValue, right: NumericValu
     if let NumericValue::Error(error) = right {
         return NumericValue::Error(error);
     }
-    let mut condition_flavor_66_4: i32 = unresolved_flavor; if let NumericValue::Unknown = left { if condition_flavor_66_4 < 1 { condition_flavor_66_4 = 1; }; }; if let NumericValue::Unimplemented = left { condition_flavor_66_4 = 2; }; if let NumericValue::Unknown = right { if condition_flavor_66_4 < 1 { condition_flavor_66_4 = 1; }; }; if let NumericValue::Unimplemented = right { condition_flavor_66_4 = 2; }; if (left == NumericValue::Unknown || left == NumericValue::Unimplemented) || (right == NumericValue::Unknown || right == NumericValue::Unimplemented) {
+    let mut numeric_unknown_left_1 = false; if let NumericValue::Unknown = left { numeric_unknown_left_1 = true; }; let mut numeric_unimplemented_left_2 = false; if let NumericValue::Unimplemented = left { numeric_unimplemented_left_2 = true; }; let mut numeric_unknown_right_3 = false; if let NumericValue::Unknown = right { numeric_unknown_right_3 = true; }; let mut numeric_unimplemented_right_4 = false; if let NumericValue::Unimplemented = right { numeric_unimplemented_right_4 = true; };
+    let mut condition_flavor_66_4: i32 = unresolved_flavor; if let NumericValue::Unknown = left { if condition_flavor_66_4 < 1 { condition_flavor_66_4 = 1; }; }; if let NumericValue::Unimplemented = left { condition_flavor_66_4 = 2; }; if let NumericValue::Unknown = right { if condition_flavor_66_4 < 1 { condition_flavor_66_4 = 1; }; }; if let NumericValue::Unimplemented = right { condition_flavor_66_4 = 2; }; if (numeric_unknown_left_1 || numeric_unimplemented_left_2) || (numeric_unknown_right_3 || numeric_unimplemented_right_4) {
         return numeric_unresolved(condition_flavor_66_4);
     }
-    if left == NumericValue::Null || right == NumericValue::Null {
+    let mut numeric_null_left_5 = false; if let NumericValue::Null = left { numeric_null_left_5 = true; }; let mut numeric_null_right_6 = false; if let NumericValue::Null = right { numeric_null_right_6 = true; };
+    if numeric_null_left_5 || numeric_null_right_6 {
         return NumericValue::Null;
     }
     if let NumericValue::Value(base) = left {
         if let NumericValue::Value(input) = right {
-            let first = numeric_work_from_value(base.as_str());
-            let second = numeric_work_from_value(input.as_str());
-            if first.valid == false || second.valid == false {
-                return numeric_unresolved(unresolved_flavor);
-            }
-            return numeric_base_logarithm(first, second);
+            return numeric_base_logarithm(base, input);
         }
     }
     numeric_unresolved(unresolved_flavor)
@@ -116,7 +113,7 @@ pub fn sql__pg_catalog__log__94cu(left: NumericValue, right: NumericValue) -> Nu
 }
 
 pub fn sql__pg_catalog__log__wnnd(input: NumericValue) -> NumericValue {
-    sql__pg_catalog__numeric_log__8gwh(NumericValue::Value("10".to_owned()), input)
+    sql__pg_catalog__numeric_log__8gwh(make_numeric_value("10"), input)
 }
 
 pub fn sql__pg_catalog__log10__dgh7(input: NumericValue) -> NumericValue {

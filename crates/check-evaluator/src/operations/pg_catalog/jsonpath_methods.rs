@@ -81,7 +81,8 @@ fn jsonpath_method_double_value(
     let mut input = text;
     if numeric {
         let copied = number.clone();
-        if let NumericValue::Value(value) = copied {
+        if let NumericValue::Value(value_numeric) = copied {
+            let value = numeric_text(&value_numeric);
             input = TextValue::Value(value);
         };
     };

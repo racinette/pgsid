@@ -104,7 +104,7 @@ func (n Numeric) operand() checkruntime.NumericValue {
 func numericResult(value checkruntime.NumericValue) (Numeric, error) {
 	switch value.Kind {
 	case checkruntime.NumericValueValue:
-		return Numeric{text: value.Value}, nil
+		return Numeric{text: checkruntime.NumericText(&value.Value)}, nil
 	case checkruntime.NumericValueError:
 		code := strings.ToUpper(strconv.FormatInt(int64(value.Error.State), 36))
 		for len(code) < 5 {

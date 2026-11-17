@@ -1559,7 +1559,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
                 } else {
                     let text = int4_to_text(Int4Value::Value(innermost_size - 1));
                     if let TextValue::Value(number) = text {
-                        computed = NumericValue::Value(number);
+                        computed = make_numeric_value(number.as_str());
                     };
                     pending.push(jsonpath_execution_make_task(
                         0,
@@ -1855,7 +1855,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
                     if size >= 0 {
                         let text = int4_to_text(Int4Value::Value(size));
                         if let TextValue::Value(number) = text {
-                            computed = NumericValue::Value(number);
+                            computed = make_numeric_value(number.as_str());
                         };
                         pending.push(jsonpath_execution_make_task(
                             0,
@@ -1956,13 +1956,15 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
         };
         let mut computed_unknown = false;
         let mut computed_flavor: i32 = 0;
-        if computed == NumericValue::Unknown || computed == NumericValue::Unimplemented {
+        let mut numeric_unknown_computed_1 = false; if let NumericValue::Unknown = computed { numeric_unknown_computed_1 = true; }; let mut numeric_unimplemented_computed_2 = false; if let NumericValue::Unimplemented = computed { numeric_unimplemented_computed_2 = true; };
+        if numeric_unknown_computed_1 || numeric_unimplemented_computed_2 {
             computed_unknown = true;
         };
         if let NumericValue::Unknown = computed { computed_flavor = 1; };
         if let NumericValue::Unimplemented = computed { computed_flavor = 2; };
-        if let NumericValue::Value(number) = computed {
-            numbers.push(NumericValue::Value(number));
+        if let NumericValue::Value(number_numeric) = computed {
+            let number = numeric_text(&number_numeric);
+            numbers.push(make_numeric_value(number.as_str()));
         };
         if let TextValue::Error(failure) = computed_text {
             error = failure.state;
@@ -2137,7 +2139,8 @@ fn jsonpath_execution_output(
             let text_start = characters.len();
             if task.reference.source == 3 {
                 let number = sequence.numbers[task.reference.node].clone();
-                if let NumericValue::Value(text) = number {
+                if let NumericValue::Value(text_numeric) = number {
+                    let text = numeric_text(&text_numeric);
                     let content: Vec<char> = text.chars().collect();
                     let mut position: usize = 0;
                     while position < content.len() {

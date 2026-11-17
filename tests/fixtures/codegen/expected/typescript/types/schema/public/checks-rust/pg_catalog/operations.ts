@@ -132,12 +132,12 @@
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
  */
 
-// PostgreSQL's NumericVar, so its numeric algorithms port as written: base-NBASE digits,
-// most significant first, the weight of the first digit, and the display scale. A zero has
-// no digits. Where PostgreSQL computes an exact result, any exact method yields the same
-// digits, so these routines use PostgreSQL's 32-bit forms and keep the translated targets on
-// plain numbers. Where it approximates, by truncating a product or estimating a quotient, they
-// reproduce PostgreSQL's arithmetic step for step.
+// PostgreSQL's numeric algorithms on NumericVar. Where PostgreSQL computes an exact result,
+// any exact method yields the same digits, so these routines use PostgreSQL's 32-bit forms and
+// keep the translated targets on plain numbers. Where it approximates, by truncating a product
+// or estimating a quotient, they reproduce PostgreSQL's arithmetic step for step.
+
+// A result, or the numeric overflow PostgreSQL raises while computing it.
 
 // Portions Copyright (c) 1999-2025, PostgreSQL Global Development Group.
 

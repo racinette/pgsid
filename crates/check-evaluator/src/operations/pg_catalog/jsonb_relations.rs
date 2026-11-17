@@ -51,7 +51,7 @@ fn jsonb_relation_number(source: &JsonbPayload, node: JsonbNode) -> NumericValue
         text.push(source.characters[position]);
         position += 1;
     }
-    NumericValue::Value(text)
+    make_numeric_value(text.as_str())
 }
 
 fn jsonb_relation_scalar(

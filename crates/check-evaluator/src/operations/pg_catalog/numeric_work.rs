@@ -230,7 +230,7 @@ fn numeric_work_round(work: NumericWork, requested: i32, mode: i32) -> NumericVa
         return numeric_unresolved(unresolved_flavor);
     }
     if work.special != 1 {
-        return NumericValue::Value(numeric_work_text(work));
+        return make_numeric_value(numeric_work_text(work).as_str());
     }
     let mut scale = requested;
     let mut minimum: i32 = -131072;
@@ -247,5 +247,5 @@ fn numeric_work_round(work: NumericWork, requested: i32, mode: i32) -> NumericVa
     if rounded.weight > 131071 {
         return NumericValue::Error(make_sql_error(NUMERIC_SUPPORT_RANGE_ERROR));
     }
-    NumericValue::Value(numeric_work_text(rounded))
+    make_numeric_value(numeric_work_text(rounded).as_str())
 }

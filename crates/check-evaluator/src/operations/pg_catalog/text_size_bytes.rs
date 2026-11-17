@@ -162,14 +162,14 @@ pub fn sql__pg_catalog__pg_size_bytes__ggrt(input: TextValue) -> Int8Value {
             scale: scale,
             digits: coefficient,
         };
-        let mut value = NumericValue::Value(numeric_work_text(quantity));
+        let mut value = make_numeric_value(numeric_work_text(quantity).as_str());
         if power > 0 {
             let mut multiplier: i64 = 1i64;
             while power > 0 {
                 multiplier = multiplier * 1024i64;
                 power = power - 1;
             }
-            let factor = NumericValue::Value(text_signed_number(multiplier));
+            let factor = make_numeric_value(text_signed_number(multiplier).as_str());
             value = numeric_arithmetic(value, factor, 2);
         }
         return numeric_integer_value(value);

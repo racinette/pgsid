@@ -44,6 +44,7 @@ export const rustNumericRoots = [
   'pg_catalog::sql__pg_catalog__sign__2rsu',
   'pg_catalog::scalar_numeric_from_text',
   'checkruntime::make_numeric_value',
+  'checkruntime::numeric_text',
   'checkruntime::make_text_value',
   'checkruntime::make_int4_value',
   'checkruntime::sql_error_message',

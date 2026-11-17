@@ -26,7 +26,7 @@ function sqlError(error: runtime.SqlError): Error {
   return Object.assign(new Error(runtime.sqlErrorMessage(error).message), { code: error.state.toString(36).toUpperCase().padStart(5, "0") });
 }
 function numericResult(value: runtime.NumericValue): PgsidNumeric {
-  if (value.kind === "Value") return numericOf(value.value);
+  if (value.kind === "Value") return numericOf(runtime.numericText(value.value));
   if (value.kind === "Error") throw sqlError(value.value);
   throw new Error("The numeric operation has no result");
 }

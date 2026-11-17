@@ -1,3 +1,29 @@
+/*
+ * PostgreSQL Database Management System
+ * (also known as Postgres, formerly known as Postgres95)
+ *
+ * Portions Copyright (c) 1996-2026, PostgreSQL Global Development Group
+ *
+ * Portions Copyright (c) 1994, The Regents of the University of California
+ *
+ * Permission to use, copy, modify, and distribute this software and its
+ * documentation for any purpose, without fee, and without a written agreement
+ * is hereby granted, provided that the above copyright notice and this
+ * paragraph and the following two paragraphs appear in all copies.
+ *
+ * IN NO EVENT SHALL THE UNIVERSITY OF CALIFORNIA BE LIABLE TO ANY PARTY FOR
+ * DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, INCLUDING
+ * LOST PROFITS, ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS
+ * DOCUMENTATION, EVEN IF THE UNIVERSITY OF CALIFORNIA HAS BEEN ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ *
+ * THE UNIVERSITY OF CALIFORNIA SPECIFICALLY DISCLAIMS ANY WARRANTIES,
+ * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
+ * AND FITNESS FOR A PARTICULAR PURPOSE.  THE SOFTWARE PROVIDED HEREUNDER IS
+ * ON AN "AS IS" BASIS, AND THE UNIVERSITY OF CALIFORNIA HAS NO OBLIGATIONS TO
+ * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
+ */
+
 #[derive(Clone, Copy)]
 pub struct NumericLayout {
     pub valid: bool,
@@ -245,4 +271,96 @@ pub fn numeric_parts(value: &str) -> NumericLayout {
         first: first,
         end: last,
     }
+}
+
+// NumericVar sign values for the special numerics, which carry no digits.
+pub const NUMERIC_SIGN_PINF: i32 = 2;
+pub const NUMERIC_SIGN_NINF: i32 = 4;
+pub const NUMERIC_SIGN_NAN: i32 = 3;
+
+// PostgreSQL's NumericVar, the form numeric values take between operations: base-NBASE
+// digits, most significant first, the weight of the first digit, the display scale, and a sign
+// of 1 or -1, or one of the special signs. A zero has no digits.
+#[derive(Clone)]
+pub struct NumericVar {
+    pub sign: i32,
+    pub weight: i32,
+    pub dscale: i32,
+    pub digits: Vec<usize>,
+}
+
+pub fn numeric_var_special(sign: i32) -> NumericVar {
+    let digits: Vec<usize> = Vec::new();
+    NumericVar {
+        sign: sign,
+        weight: 0,
+        dscale: 0,
+        digits: digits,
+    }
+}
+
+// PostgreSQL's get_str_from_var: the integer digits without leading zeros, then dscale
+// fractional digits.
+pub fn numeric_text(value: &NumericVar) -> String {
+    if value.sign == NUMERIC_SIGN_NAN {
+        return "NaN".to_owned();
+    }
+    if value.sign == NUMERIC_SIGN_PINF {
+        return "Infinity".to_owned();
+    }
+    if value.sign == NUMERIC_SIGN_NINF {
+        return "-Infinity".to_owned();
+    }
+    let mut output = String::new();
+    if value.sign < 0 {
+        output.push('-');
+    }
+    let count = value.digits.len() as i32;
+    if value.weight < 0 {
+        output.push('0');
+    } else {
+        let mut d: i32 = 0;
+        while d <= value.weight {
+            let mut dig: i32 = 0;
+            if d < count {
+                dig = value.digits[usize::try_from(d).unwrap_or(0)] as i32;
+            }
+            let mut putit = d > 0;
+            let mut place: i32 = 1000;
+            while place > 1 {
+                let d1 = dig / place;
+                dig = dig - d1 * place;
+                if d1 > 0 {
+                    putit = true;
+                }
+                if putit {
+                    output.push(char::from_u32((d1 + 48) as u32).unwrap_or('0'));
+                }
+                place = place / 10;
+            }
+            output.push(char::from_u32((dig + 48) as u32).unwrap_or('0'));
+            d = d + 1;
+        }
+    };
+    if value.dscale > 0 {
+        output.push('.');
+        let mut written: i32 = 0;
+        let mut d = value.weight + 1;
+        while written < value.dscale {
+            let mut dig: i32 = 0;
+            if d >= 0 && d < count {
+                dig = value.digits[usize::try_from(d).unwrap_or(0)] as i32;
+            }
+            let mut place: i32 = 1000;
+            while place > 0 && written < value.dscale {
+                let d1 = dig / place;
+                dig = dig - d1 * place;
+                output.push(char::from_u32((d1 + 48) as u32).unwrap_or('0'));
+                written = written + 1;
+                place = place / 10;
+            }
+            d = d + 1;
+        }
+    }
+    output
 }

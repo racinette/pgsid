@@ -19,6 +19,7 @@ export const goNumericRoots = [
   'pg_catalog.Sign2rsu',
   'pg_catalog.ScalarNumericFromText',
   'checkruntime.MakeNumericValue',
+  'checkruntime.NumericText',
   'checkruntime.MakeTextValue',
   'checkruntime.MakeInt4Value',
   'checkruntime.SqlErrorMessage',

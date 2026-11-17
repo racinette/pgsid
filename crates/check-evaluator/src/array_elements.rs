@@ -562,7 +562,7 @@ pub fn array_element_from_numeric(input: NumericValue) -> ArrayElement {
         return ArrayElement::Null;
     };
     if let NumericValue::Value(value) = input {
-        return ArrayElement::Numeric(value);
+        return ArrayElement::Numeric(numeric_text(&value));
     };
     array_element_unresolved(unresolved_flavor)
 }
@@ -578,7 +578,7 @@ pub fn array_element_to_numeric(input: ArrayElement) -> NumericValue {
         return NumericValue::Null;
     };
     if let ArrayElement::Numeric(value) = input {
-        return NumericValue::Value(value);
+        return make_numeric_value(value.as_str());
     };
     numeric_unresolved(unresolved_flavor)
 }

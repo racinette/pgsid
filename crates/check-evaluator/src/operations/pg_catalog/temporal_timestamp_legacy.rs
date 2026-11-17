@@ -5,10 +5,12 @@ fn temporal_timestamp_legacy_value(number: NumericValue, unit: &str, time: i64) 
     if let NumericValue::Error(error) = number {
         return Float8Value::Error(error);
     };
-    let mut condition_flavor_8_4: i32 = unresolved_flavor; if let NumericValue::Unknown = number { if condition_flavor_8_4 < 1 { condition_flavor_8_4 = 1; }; }; if let NumericValue::Unimplemented = number { condition_flavor_8_4 = 2; }; if number == NumericValue::Unknown || number == NumericValue::Unimplemented {
+    let mut numeric_unknown_number_1 = false; if let NumericValue::Unknown = number { numeric_unknown_number_1 = true; }; let mut numeric_unimplemented_number_2 = false; if let NumericValue::Unimplemented = number { numeric_unimplemented_number_2 = true; };
+    let mut condition_flavor_8_4: i32 = unresolved_flavor; if let NumericValue::Unknown = number { if condition_flavor_8_4 < 1 { condition_flavor_8_4 = 1; }; }; if let NumericValue::Unimplemented = number { condition_flavor_8_4 = 2; }; if numeric_unknown_number_1 || numeric_unimplemented_number_2 {
         return float8_unresolved(condition_flavor_8_4);
     };
-    if number == NumericValue::Null {
+    let mut numeric_null_number_3 = false; if let NumericValue::Null = number { numeric_null_number_3 = true; };
+    if numeric_null_number_3 {
         return Float8Value::Null;
     };
     if time != (-9223372036854775808i64) && time != 9223372036854775807i64 {

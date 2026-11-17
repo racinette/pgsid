@@ -38,12 +38,12 @@ fn temporal_scaled_number(value: i64, scale: i32) -> NumericValue {
     if fraction < 0i64 {
         fraction = 0i64 - fraction;
     }
-    NumericValue::Value(temporal_decimal_parts(
+    make_numeric_value(temporal_decimal_parts(
         whole,
         fraction,
         scale,
         value < 0i64 && whole == 0i64,
-    ))
+    ).as_str())
 }
 
 fn temporal_timestamp_epoch(value: i64) -> NumericValue {
@@ -65,12 +65,12 @@ fn temporal_timestamp_epoch(value: i64) -> NumericValue {
         whole = whole + 1i64;
         fraction = 1000000i64 - fraction;
     }
-    NumericValue::Value(temporal_decimal_parts(
+    make_numeric_value(temporal_decimal_parts(
         whole,
         fraction,
         6,
         negative && whole == 0i64,
-    ))
+    ).as_str())
 }
 
 fn temporal_timestamp_julian(julian: i64, clock: i64) -> NumericValue {
@@ -127,11 +127,11 @@ fn temporal_timestamp_julian(julian: i64, clock: i64) -> NumericValue {
     }
     if whole < 0i64 {
         return sql__pg_catalog__numeric_add__o3d7(
-            NumericValue::Value(text_signed_number(whole)),
-            NumericValue::Value(output),
+            make_numeric_value(text_signed_number(whole).as_str()),
+            make_numeric_value(output.as_str()),
         );
     };
-    NumericValue::Value(output)
+    make_numeric_value(output.as_str())
 }
 
 fn temporal_extract_timestamp(value: i64, unit: &str) -> NumericValue {
@@ -157,9 +157,9 @@ fn temporal_extract_timestamp_value(value: i64, unit: &str, projected: bool) -> 
         }
         if code >= 10 && code <= 19 {
             if value < 0i64 {
-                return NumericValue::Value("-Infinity".to_owned());
+                return make_numeric_value("-Infinity");
             }
-            return NumericValue::Value("Infinity".to_owned());
+            return make_numeric_value("Infinity");
         }
         return NumericValue::Error(make_sql_error(TEMPORAL_FIELD_UNSUPPORTED_ERROR));
     }
@@ -176,7 +176,7 @@ fn temporal_extract_timestamp_value(value: i64, unit: &str, projected: bool) -> 
         clock = clock + 86400000000i64;
     }
     if code == 1 {
-        return NumericValue::Value(text_signed_number(clock % 60000000i64));
+        return make_numeric_value(text_signed_number(clock % 60000000i64).as_str());
     }
     if code == 2 {
         return temporal_scaled_number(clock % 60000000i64, 3);
@@ -185,10 +185,10 @@ fn temporal_extract_timestamp_value(value: i64, unit: &str, projected: bool) -> 
         return temporal_scaled_number(clock % 60000000i64, 6);
     }
     if code == 4 {
-        return NumericValue::Value(text_signed_number(clock / 60000000i64 % 60i64));
+        return make_numeric_value(text_signed_number(clock / 60000000i64 % 60i64).as_str());
     }
     if code == 5 {
-        return NumericValue::Value(text_signed_number(clock / 3600000000i64));
+        return make_numeric_value(text_signed_number(clock / 3600000000i64).as_str());
     }
     if code == 14 {
         return temporal_timestamp_julian(day + 2451545i64, clock);

@@ -38,7 +38,7 @@ impl Error for NumericError {}
 
 fn result(value: runtime::NumericValue) -> Result<Numeric, NumericError> {
     match value {
-        runtime::NumericValue::Value(text) => Ok(Numeric { text }),
+        runtime::NumericValue::Value(value) => Ok(Numeric { text: runtime::numeric_text(&value) }),
         runtime::NumericValue::Error(error) => {
             let mut code = String::new();
             let mut state = error.state;

@@ -90,24 +90,22 @@ pub fn sql__pg_catalog__numeric_exp__fi9j(input: NumericValue) -> NumericValue {
     if let NumericValue::Error(error) = input {
         return NumericValue::Error(error);
     }
-    let mut condition_flavor_109_4: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_109_4 < 1 { condition_flavor_109_4 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_109_4 = 2; }; if input == NumericValue::Unknown || input == NumericValue::Unimplemented {
+    let mut numeric_unknown_input_1 = false; if let NumericValue::Unknown = input { numeric_unknown_input_1 = true; }; let mut numeric_unimplemented_input_2 = false; if let NumericValue::Unimplemented = input { numeric_unimplemented_input_2 = true; };
+    let mut condition_flavor_109_4: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_109_4 < 1 { condition_flavor_109_4 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_109_4 = 2; }; if numeric_unknown_input_1 || numeric_unimplemented_input_2 {
         return numeric_unresolved(condition_flavor_109_4);
     }
-    if input == NumericValue::Null {
+    let mut numeric_null_input_3 = false; if let NumericValue::Null = input { numeric_null_input_3 = true; };
+    if numeric_null_input_3 {
         return NumericValue::Null;
     }
-    if let NumericValue::Value(value) = input {
-        let work = numeric_work_from_value(value.as_str());
-        if work.valid == false {
-            return numeric_unresolved(unresolved_flavor);
+    if let NumericValue::Value(arg) = input {
+        let kind = numeric_var_kind(&arg);
+        if kind == 0 {
+            return make_numeric_value("0");
         }
-        if work.special == 0 {
-            return NumericValue::Value("0".to_owned());
+        if kind != 1 {
+            return NumericValue::Value(arg);
         }
-        if work.special != 1 {
-            return NumericValue::Value(numeric_work_text(work));
-        }
-        let arg = numeric_var_from_work(&work);
         let mut val = numeric_var_to_double(&arg) * NUMERIC_EXP_LOG10_E;
         if val < -2000.0f64 {
             val = -2000.0f64;

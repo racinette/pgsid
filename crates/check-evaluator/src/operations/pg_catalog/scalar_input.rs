@@ -230,12 +230,12 @@ pub fn scalar_numeric_from_text(input: TextValue) -> NumericValue {
         let parts = numeric_parts(value.as_str());
         if parts.valid && parts.special != 1 {
             if parts.special == 0 {
-                return NumericValue::Value("-Infinity".to_owned());
+                return make_numeric_value("-Infinity");
             };
             if parts.special == 2 {
-                return NumericValue::Value("Infinity".to_owned());
+                return make_numeric_value("Infinity");
             };
-            return NumericValue::Value("NaN".to_owned());
+            return make_numeric_value("NaN");
         };
         let characters: Vec<char> = value.chars().collect();
         let mut start: usize = 0;
@@ -335,7 +335,7 @@ pub fn scalar_numeric_from_text(input: TextValue) -> NumericValue {
             return NumericValue::Error(error);
         };
         if let TextValue::Value(number) = parsed {
-            let mut result = NumericValue::Value(number);
+            let mut result = make_numeric_value(number.as_str());
             if negative {
                 result = sql__pg_catalog__numeric_uminus__wcmy(result);
             };

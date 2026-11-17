@@ -110,24 +110,22 @@ pub fn sql__pg_catalog__numeric_ln__okv6(input: NumericValue) -> NumericValue {
     if let NumericValue::Error(error) = input {
         return NumericValue::Error(error);
     }
-    let mut condition_flavor_115_4: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_115_4 < 1 { condition_flavor_115_4 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_115_4 = 2; }; if input == NumericValue::Unknown || input == NumericValue::Unimplemented {
+    let mut numeric_unknown_input_1 = false; if let NumericValue::Unknown = input { numeric_unknown_input_1 = true; }; let mut numeric_unimplemented_input_2 = false; if let NumericValue::Unimplemented = input { numeric_unimplemented_input_2 = true; };
+    let mut condition_flavor_115_4: i32 = unresolved_flavor; if let NumericValue::Unknown = input { if condition_flavor_115_4 < 1 { condition_flavor_115_4 = 1; }; }; if let NumericValue::Unimplemented = input { condition_flavor_115_4 = 2; }; if numeric_unknown_input_1 || numeric_unimplemented_input_2 {
         return numeric_unresolved(condition_flavor_115_4);
     }
-    if input == NumericValue::Null {
+    let mut numeric_null_input_3 = false; if let NumericValue::Null = input { numeric_null_input_3 = true; };
+    if numeric_null_input_3 {
         return NumericValue::Null;
     }
-    if let NumericValue::Value(value) = input {
-        let work = numeric_work_from_value(value.as_str());
-        if work.valid == false {
-            return numeric_unresolved(unresolved_flavor);
-        }
-        if work.special == 0 || (work.special == 1 && work.sign <= 0) {
+    if let NumericValue::Value(arg) = input {
+        let kind = numeric_var_kind(&arg);
+        if kind == 0 || (kind == 1 && numeric_var_signum(&arg) <= 0) {
             return NumericValue::Error(make_sql_error(NUMERIC_LOG_INVALID_ARGUMENT));
         }
-        if work.special != 1 {
-            return NumericValue::Value(numeric_work_text(work));
+        if kind != 1 {
+            return NumericValue::Value(arg);
         }
-        let arg = numeric_var_from_work(&work);
         let mut rscale = NUMERIC_VAR_MIN_SIG_DIGITS - numeric_var_ln_dweight(&arg);
         if rscale < arg.dscale {
             rscale = arg.dscale;

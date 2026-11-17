@@ -26,38 +26,34 @@
 
 const NUMERIC_POWER_INVALID_ARGUMENT: u32 = 3452595;
 
-fn numeric_power_sign(work: NumericWork) -> i32 {
-    if work.special == 0 {
+// PostgreSQL's numeric_sign_internal: the infinities count as their sign.
+fn numeric_power_sign(value: &NumericVar) -> i32 {
+    let kind = numeric_var_kind(value);
+    if kind == 0 {
         return -1;
     }
-    if work.special == 2 {
+    if kind == 2 {
         return 1;
     }
-    work.sign
+    numeric_var_signum(value)
 }
 
-fn numeric_power_integral(work: NumericWork) -> bool {
-    if work.special == 3 {
+// PostgreSQL's numeric_is_integral: NaN is not integral and the infinities are.
+fn numeric_power_integral(value: &NumericVar) -> bool {
+    let kind = numeric_var_kind(value);
+    if kind == 3 {
         return false;
     }
-    if work.special != 1 {
+    if kind != 1 {
         return true;
     }
-    numeric_work_min_scale(work) == 0
+    numeric_var_count(value) == 0 || numeric_var_count(value) <= value.weight + 1
 }
 
-fn numeric_power_odd(work: NumericWork) -> bool {
-    let characters: Vec<char> = work.digits.chars().collect();
-    let mut position = work.weight;
-    let mut index: usize = 0;
-    while index < characters.len() {
-        if position == 0 {
-            return numeric_wire_decimal_digit(characters[index]) % 2 != 0;
-        }
-        index += 1;
-        position = position - 1;
-    }
-    false
+// An integral finite value whose last NBASE digit is odd.
+fn numeric_power_odd(value: &NumericVar) -> bool {
+    let count = numeric_var_count(value);
+    count > 0 && count == value.weight + 1 && numeric_var_digit(value, count - 1) % 2 == 1
 }
 
 // PostgreSQL's power_var_int: repeated squaring, each product truncated to the significant
@@ -247,62 +243,67 @@ fn numeric_var_power(base_arg: &NumericVar, exp: &NumericVar) -> NumericVarOutco
     numeric_var_succeeded(result)
 }
 
-fn numeric_power_values(base: NumericWork, exponent: NumericWork) -> NumericValue {
-    let one = numeric_work_from_value("1");
-    if base.special == 3 {
-        if exponent.special == 1 && exponent.sign == 0 {
-            return NumericValue::Value("1".to_owned());
+// PostgreSQL's numeric_power: NaN, infinity and zero cases, then power_var.
+fn numeric_power_values(base: NumericVar, exponent: NumericVar) -> NumericValue {
+    let one = numeric_var_from_i64(1i64);
+    let minus_one = numeric_var_from_i64(-1i64);
+    let base_kind = numeric_var_kind(&base);
+    let exponent_kind = numeric_var_kind(&exponent);
+    if base_kind == 3 {
+        if exponent_kind == 1 && numeric_var_signum(&exponent) == 0 {
+            return make_numeric_value("1");
         }
-        return NumericValue::Value("NaN".to_owned());
+        return make_numeric_value("NaN");
     }
-    if exponent.special == 3 {
-        if base.special == 1
-            && base.sign == 1
-            && numeric_work_magnitude(base.clone(), one.clone()) == 0
-        {
-            return NumericValue::Value("1".to_owned());
+    if exponent_kind == 3 {
+        if base_kind == 1 && numeric_var_cmp(&base, &one) == 0 {
+            return make_numeric_value("1");
         }
-        return NumericValue::Value("NaN".to_owned());
+        return make_numeric_value("NaN");
     }
-    let base_sign = numeric_power_sign(base.clone());
-    let exponent_sign = numeric_power_sign(exponent.clone());
-    if (base_sign == 0 && exponent_sign < 0)
-        || (base_sign < 0 && numeric_power_integral(exponent.clone()) == false)
-    {
+    let sign1 = numeric_power_sign(&base);
+    let sign2 = numeric_power_sign(&exponent);
+    if (sign1 == 0 && sign2 < 0) || (sign1 < 0 && numeric_power_integral(&exponent) == false) {
         return NumericValue::Error(make_sql_error(NUMERIC_POWER_INVALID_ARGUMENT));
     }
-    if base.special != 1 || exponent.special != 1 {
-        if (base.special == 1
-            && base_sign == 1
-            && numeric_work_magnitude(base.clone(), one.clone()) == 0)
-            || exponent_sign == 0
-        {
-            return NumericValue::Value("1".to_owned());
+    if base_kind != 1 || exponent_kind != 1 {
+        if base_kind == 1 && numeric_var_cmp(&base, &one) == 0 {
+            return make_numeric_value("1");
         }
-        if base_sign == 0 && exponent_sign > 0 {
-            return NumericValue::Value("0".to_owned());
+        if sign2 == 0 {
+            return make_numeric_value("1");
         }
-        if exponent.special != 1 {
-            if base.special == 1 && numeric_work_magnitude(base.clone(), one.clone()) == 0 {
-                return NumericValue::Value("1".to_owned());
+        if sign1 == 0 && sign2 > 0 {
+            return make_numeric_value("0");
+        }
+        if exponent_kind != 1 {
+            let mut abs_x_gt_one = true;
+            if base_kind == 1 {
+                if numeric_var_cmp(&base, &minus_one) == 0 {
+                    return make_numeric_value("1");
+                }
+                abs_x_gt_one = numeric_var_cmp_abs(&base, &one) > 0;
             }
-            let greater = base.special != 1 || numeric_work_magnitude(base, one) > 0;
-            if greater == (exponent_sign > 0) {
-                return NumericValue::Value("Infinity".to_owned());
+            if abs_x_gt_one == (sign2 > 0) {
+                return make_numeric_value("Infinity");
             }
-            return NumericValue::Value("0".to_owned());
+            return make_numeric_value("0");
         }
-        if exponent_sign < 0 {
-            return NumericValue::Value("0".to_owned());
+        if base_kind == 2 {
+            if sign2 > 0 {
+                return make_numeric_value("Infinity");
+            }
+            return make_numeric_value("0");
         }
-        if base.special == 0 && numeric_power_odd(exponent) {
-            return NumericValue::Value("-Infinity".to_owned());
+        if sign2 < 0 {
+            return make_numeric_value("0");
         }
-        return NumericValue::Value("Infinity".to_owned());
+        if numeric_power_odd(&exponent) {
+            return make_numeric_value("-Infinity");
+        }
+        return make_numeric_value("Infinity");
     }
-    let base_var = numeric_var_from_work(&base);
-    let exp_var = numeric_var_from_work(&exponent);
-    numeric_var_outcome_result(numeric_var_power(&base_var, &exp_var))
+    numeric_var_outcome_result(numeric_var_power(&base, &exponent))
 }
 
 pub fn sql__pg_catalog__numeric_power__n7g8(
@@ -320,20 +321,17 @@ pub fn sql__pg_catalog__numeric_power__n7g8(
     if let NumericValue::Error(error) = right {
         return NumericValue::Error(error);
     }
-    let mut condition_flavor_336_4: i32 = unresolved_flavor; if let NumericValue::Unknown = left { if condition_flavor_336_4 < 1 { condition_flavor_336_4 = 1; }; }; if let NumericValue::Unimplemented = left { condition_flavor_336_4 = 2; }; if let NumericValue::Unknown = right { if condition_flavor_336_4 < 1 { condition_flavor_336_4 = 1; }; }; if let NumericValue::Unimplemented = right { condition_flavor_336_4 = 2; }; if (left == NumericValue::Unknown || left == NumericValue::Unimplemented) || (right == NumericValue::Unknown || right == NumericValue::Unimplemented) {
+    let mut numeric_unknown_left_1 = false; if let NumericValue::Unknown = left { numeric_unknown_left_1 = true; }; let mut numeric_unimplemented_left_2 = false; if let NumericValue::Unimplemented = left { numeric_unimplemented_left_2 = true; }; let mut numeric_unknown_right_3 = false; if let NumericValue::Unknown = right { numeric_unknown_right_3 = true; }; let mut numeric_unimplemented_right_4 = false; if let NumericValue::Unimplemented = right { numeric_unimplemented_right_4 = true; };
+    let mut condition_flavor_336_4: i32 = unresolved_flavor; if let NumericValue::Unknown = left { if condition_flavor_336_4 < 1 { condition_flavor_336_4 = 1; }; }; if let NumericValue::Unimplemented = left { condition_flavor_336_4 = 2; }; if let NumericValue::Unknown = right { if condition_flavor_336_4 < 1 { condition_flavor_336_4 = 1; }; }; if let NumericValue::Unimplemented = right { condition_flavor_336_4 = 2; }; if (numeric_unknown_left_1 || numeric_unimplemented_left_2) || (numeric_unknown_right_3 || numeric_unimplemented_right_4) {
         return numeric_unresolved(condition_flavor_336_4);
     }
-    if left == NumericValue::Null || right == NumericValue::Null {
+    let mut numeric_null_left_5 = false; if let NumericValue::Null = left { numeric_null_left_5 = true; }; let mut numeric_null_right_6 = false; if let NumericValue::Null = right { numeric_null_right_6 = true; };
+    if numeric_null_left_5 || numeric_null_right_6 {
         return NumericValue::Null;
     }
     if let NumericValue::Value(base) = left {
         if let NumericValue::Value(exponent) = right {
-            let first = numeric_work_from_value(base.as_str());
-            let second = numeric_work_from_value(exponent.as_str());
-            if first.valid == false || second.valid == false {
-                return numeric_unresolved(unresolved_flavor);
-            }
-            return numeric_power_values(first, second);
+            return numeric_power_values(base, exponent);
         }
     }
     numeric_unresolved(unresolved_flavor)

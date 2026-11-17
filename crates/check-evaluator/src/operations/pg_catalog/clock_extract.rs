@@ -185,7 +185,7 @@ fn clock_fields_numeric_value(
         let years = (span.months as i64) / 12i64;
         let months = (span.months as i64) % 12i64;
         let seconds = (1461i64 * years + 120i64 * months + 4i64 * (span.days as i64)) * 21600i64;
-        let whole = NumericValue::Value(text_signed_number(seconds));
+        let whole = make_numeric_value(text_signed_number(seconds).as_str());
         let clock = temporal_scaled_number(span.time, 6);
         return sql__pg_catalog__numeric_add__o3d7(clock, whole);
     };
@@ -247,10 +247,12 @@ fn clock_fields_legacy(units: TextValue, input: ClockFieldInput) -> Float8Value 
     if let NumericValue::Error(error) = number {
         return Float8Value::Error(error);
     };
-    let mut condition_flavor_240_4: i32 = unresolved_flavor; if let NumericValue::Unknown = number { if condition_flavor_240_4 < 1 { condition_flavor_240_4 = 1; }; }; if let NumericValue::Unimplemented = number { condition_flavor_240_4 = 2; }; if number == NumericValue::Unknown || number == NumericValue::Unimplemented {
+    let mut numeric_unknown_number_1 = false; if let NumericValue::Unknown = number { numeric_unknown_number_1 = true; }; let mut numeric_unimplemented_number_2 = false; if let NumericValue::Unimplemented = number { numeric_unimplemented_number_2 = true; };
+    let mut condition_flavor_240_4: i32 = unresolved_flavor; if let NumericValue::Unknown = number { if condition_flavor_240_4 < 1 { condition_flavor_240_4 = 1; }; }; if let NumericValue::Unimplemented = number { condition_flavor_240_4 = 2; }; if numeric_unknown_number_1 || numeric_unimplemented_number_2 {
         return float8_unresolved(condition_flavor_240_4);
     };
-    if number == NumericValue::Null {
+    let mut numeric_null_number_3 = false; if let NumericValue::Null = number { numeric_null_number_3 = true; };
+    if numeric_null_number_3 {
         return Float8Value::Null;
     };
     if let TextValue::Value(unit) = units {

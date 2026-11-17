@@ -970,16 +970,147 @@ pub fn text_from_case_guard(value: CheckOutcome) -> TextValue {
     text_unresolved(unresolved_flavor)
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone)]
 pub enum NumericValue {
     Unknown,
     Unimplemented,
     Null,
-    Value(String),
+    Value(NumericVar),
     Error(SqlError),
 }
 
+// numeric input: the text's decimal digits packed into NBASE digits at the weight its point and
+// exponent give, and the display scale its fractional digits less its exponent give.
+pub fn make_numeric_value(value: &str) -> NumericValue {
+    let layout = numeric_parts(value);
+    if layout.valid == false {
+        return numeric_unresolved(0);
+    }
+    if layout.special == 3 {
+        return NumericValue::Value(numeric_var_special(NUMERIC_SIGN_NAN));
+    }
+    if layout.special == 2 {
+        return NumericValue::Value(numeric_var_special(NUMERIC_SIGN_PINF));
+    }
+    if layout.special == 0 {
+        return NumericValue::Value(numeric_var_special(NUMERIC_SIGN_NINF));
+    }
+    let chars: Vec<char> = value.chars().collect();
+    let mut index: usize = 0;
+    let mut point = false;
+    let mut power = false;
+    let mut fractional: i32 = 0;
+    let mut exponent: i32 = 0;
+    let mut exponent_sign: i32 = 1;
+    while index < chars.len() {
+        let digit = numeric_digit(chars[index]);
+        if digit >= 0 {
+            if power {
+                exponent = exponent * 10 + digit;
+            } else if point {
+                fractional = fractional + 1;
+            };
+        } else if chars[index] == '.' {
+            point = true;
+        } else if chars[index] == 'e' || chars[index] == 'E' {
+            power = true;
+        } else if power && chars[index] == '-' {
+            exponent_sign = -1;
+        };
+        index += 1;
+    }
+    let mut dscale = fractional - exponent * exponent_sign;
+    if dscale < 0 {
+        dscale = 0;
+    }
+    let mut digits: Vec<usize> = Vec::new();
+    if layout.sign == 0 {
+        return NumericValue::Value(NumericVar {
+            sign: 1,
+            weight: 0,
+            dscale: dscale,
+            digits: digits,
+        });
+    }
+    let mut weight = layout.weight / 4;
+    if layout.weight % 4 < 0 {
+        weight = weight - 1;
+    }
+    let mut leading = weight * 4 + 3 - layout.weight;
+    let mut emitted: i32 = 0;
+    let mut group: i32 = 0;
+    index = layout.first;
+    while index < layout.end || emitted % 4 != 0 {
+        let mut decimal: i32 = 0;
+        if leading > 0 {
+            leading = leading - 1;
+        } else if index < layout.end {
+            decimal = numeric_digit(chars[index]);
+            while decimal < 0 {
+                index += 1;
+                decimal = numeric_digit(chars[index]);
+            }
+            index += 1;
+        };
+        group = group * 10 + decimal;
+        emitted = emitted + 1;
+        if emitted % 4 == 0 {
+            digits.push(usize::try_from(group).unwrap_or(0));
+            group = 0;
+        }
+    }
+    NumericValue::Value(NumericVar {
+        sign: layout.sign,
+        weight: weight,
+        dscale: dscale,
+        digits: digits,
+    })
+}
+
 pub fn numeric_unknown() -> NumericValue { NumericValue::Unknown }
+
+// The same variant and, for values, the same digits and display scale.
+pub fn numeric_value_identical(left: NumericValue, right: NumericValue) -> bool {
+    let mut left_state: i32 = 0;
+    let mut right_state: i32 = 0;
+    if let NumericValue::Unknown = left {
+        left_state = 1;
+    };
+    if let NumericValue::Unimplemented = left {
+        left_state = 2;
+    };
+    if let NumericValue::Null = left {
+        left_state = 3;
+    };
+    if let NumericValue::Unknown = right {
+        right_state = 1;
+    };
+    if let NumericValue::Unimplemented = right {
+        right_state = 2;
+    };
+    if let NumericValue::Null = right {
+        right_state = 3;
+    };
+    if let NumericValue::Value(first) = left {
+        if let NumericValue::Value(second) = right {
+            return numeric_text(&first) == numeric_text(&second);
+        }
+        return false;
+    }
+    if let NumericValue::Error(first) = left {
+        if let NumericValue::Error(second) = right {
+            return first == second;
+        }
+        return false;
+    }
+    if let NumericValue::Value(_) = right {
+        return false;
+    }
+    if let NumericValue::Error(_) = right {
+        return false;
+    }
+    left_state == right_state
+}
 
 pub fn numeric_null() -> NumericValue {
     NumericValue::Null
@@ -992,10 +1123,12 @@ pub fn numeric_is_null(value: NumericValue) -> BoolValue {
     if let NumericValue::Error(error) = value {
         return BoolValue::Error(error);
     }
-    let mut condition_flavor_992_4: i32 = unresolved_flavor; if let NumericValue::Unknown = value { if condition_flavor_992_4 < 1 { condition_flavor_992_4 = 1; }; }; if let NumericValue::Unimplemented = value { condition_flavor_992_4 = 2; }; if value == NumericValue::Unknown || value == NumericValue::Unimplemented {
+    let mut numeric_unknown_value_1 = false; if let NumericValue::Unknown = value { numeric_unknown_value_1 = true; }; let mut numeric_unimplemented_value_2 = false; if let NumericValue::Unimplemented = value { numeric_unimplemented_value_2 = true; };
+    let mut condition_flavor_992_4: i32 = unresolved_flavor; if let NumericValue::Unknown = value { if condition_flavor_992_4 < 1 { condition_flavor_992_4 = 1; }; }; if let NumericValue::Unimplemented = value { condition_flavor_992_4 = 2; }; if numeric_unknown_value_1 || numeric_unimplemented_value_2 {
         return bool_unresolved(condition_flavor_992_4);
     }
-    BoolValue::Value(value == NumericValue::Null)
+    let mut numeric_null_value_3 = false; if let NumericValue::Null = value { numeric_null_value_3 = true; };
+    BoolValue::Value(numeric_null_value_3)
 }
 
 pub fn numeric_from_case_guard(value: CheckOutcome) -> NumericValue {
@@ -1008,14 +1141,6 @@ pub fn numeric_from_case_guard(value: CheckOutcome) -> NumericValue {
     numeric_unresolved(unresolved_flavor)
 }
 
-pub fn make_numeric_value(value: &str) -> NumericValue {
-    let unresolved_flavor: i32 = 0;
-    let parts = numeric_parts(value);
-    if parts.valid == false {
-        return numeric_unresolved(unresolved_flavor);
-    }
-    NumericValue::Value(value.to_owned())
-}
 
 #[derive(Clone)]
 pub struct JsonPayload {
@@ -1240,7 +1365,7 @@ pub fn jsonb_input_from_numeric(input: NumericValue) -> JsonbInput {
         return JsonbInput::Null;
     };
     if let NumericValue::Value(value) = input {
-        return JsonbInput::Number(value);
+        return JsonbInput::Number(numeric_text(&value));
     };
     if let NumericValue::Unimplemented = input {
         return JsonbInput::Unimplemented;
