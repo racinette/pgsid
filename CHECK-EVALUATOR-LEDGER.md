@@ -89,7 +89,7 @@ Test-name filters select tests, not rows inside a matrix. Use the existing case/
 
 For a focused run use `timeout --kill-after=5s 340s node node_modules/vitest/vitest.mjs run <files> --maxWorkers=1 -t '<test-name regex>'`, with separate logs/JSON reports. Also run affected Rust/Go/TypeScript compilation, formatting/lint, source-mirror equality, relevant generated-output comparisons and corpus checks. Run expensive codegen golden checks serially: fixed per-test limits can fail under concurrent compiler load. Preserve failure evidence and distinguish a real regression, a baseline failure and a timing retry.
 
-PGlite core is pinned to the released dependency in `package.json`. If the ignored extension tarball is missing, run `bash scripts/fetch-plpgsql-check.sh` with authenticated `gh`, then `pnpm install --frozen-lockfile`. This fetches checksummed prebuilt extension files; do not compile PostgreSQL/PGlite or the extension as a routine prerequisite. Reassess available release artifacts before considering compilation.
+PGlite core and its plpgsql_check extension are pinned released npm dependencies in `package.json`; `pnpm install --frozen-lockfile` installs both. Do not compile PostgreSQL/PGlite or the extension.
 
 On a fresh checkout, `pnpm check-rust:build-wasm` creates required parser/emitter assets and the source mirror. A Rust operation-only change needs refreshed mirrored source, not a blind full WASM rebuild; the mirror recipe is in `scripts/build-check-rust-wasm.sh`. Do not mutate the mirror while semantic jobs read it. If pnpm's automatic dependency verification cannot write its store in the sandbox, use already installed tool binaries directly; do not mistake that for missing gh/pnpm or call a logged install failure a successful gate.
 

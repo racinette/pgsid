@@ -3,7 +3,7 @@ import { SqlError, hasSqlDetails } from 'libpg-query'
 
 // `DatabaseError` is exported inside the `messages` namespace in PGlite's
 // type declarations. Pull it out for `instanceof` checks.
-const DatabaseError = messages.DatabaseError
+const DatabaseError: typeof messages.DatabaseError = messages.DatabaseError
 type DatabaseError = InstanceType<typeof DatabaseError>
 
 // Re-export so callers can `instanceof`-check without re-deriving.

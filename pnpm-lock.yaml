@@ -9,11 +9,11 @@ importers:
   .:
     dependencies:
       '@electric-sql/pglite':
-        specifier: 0.5.9
-        version: 0.5.9
+        specifier: 0.5.16
+        version: 0.5.16
       '@electric-sql/pglite-plpgsql-check':
-        specifier: file:vendor/electric-sql-pglite-plpgsql-check-0.0.1.tgz
-        version: file:vendor/electric-sql-pglite-plpgsql-check-0.0.1.tgz(@electric-sql/pglite@0.5.9)
+        specifier: 0.0.9
+        version: 0.0.9(@electric-sql/pglite@0.5.16)
       chokidar:
         specifier: ^5.0.0
         version: 5.0.0
@@ -93,14 +93,13 @@ importers:
 
 packages:
 
-  '@electric-sql/pglite-plpgsql-check@file:vendor/electric-sql-pglite-plpgsql-check-0.0.1.tgz':
-    resolution: {integrity: sha512-ypFeoaeMfdVMNGJI9JAN1Vupq9auhtSPzaihoqtuhH6S5MgGL1sn0owDs5uO+K6xp4hpXYkp8V+38ERZ5mhFFg==, tarball: file:vendor/electric-sql-pglite-plpgsql-check-0.0.1.tgz}
-    version: 0.0.1
+  '@electric-sql/pglite-plpgsql-check@0.0.9':
+    resolution: {integrity: sha512-ZPRV5G2hi8f9uFsVrNU1plZPGs9H/L8N2CJGe4exZELdQZYYzNsxGJIxG9GRNHcKJRaabXzBZm2Kybv6tror5w==}
     peerDependencies:
-      '@electric-sql/pglite': 0.5.9
+      '@electric-sql/pglite': 0.5.16
 
-  '@electric-sql/pglite@0.5.9':
-    resolution: {integrity: sha512-GoQTRMZ/o4J3sMW4mLDtDFGNOm1xy5oH+iHDALWll3uERY6OF4BSnL1t7FZH2Mlw+RPceDBlFJgSaecO73c4EA==}
+  '@electric-sql/pglite@0.5.16':
+    resolution: {integrity: sha512-Nj8KcIsJL748W408U2N8q4+9IlONdpRIU8MJypIAAINMJ5nqKyqpX7Mgg/5XKkXiAib3AoZGR6hnJFlrlLBrcg==}
 
   '@esbuild/aix-ppc64@0.27.7':
     resolution: {integrity: sha512-EKX3Qwmhz1eMdEJokhALr0YiD0lhQNwDqkPYyPhiSwKrh7/4KRjQc04sZ8db+5DVVnZ1LmbNDI1uAMPEUBnQPg==}
@@ -1584,11 +1583,11 @@ packages:
 
 snapshots:
 
-  '@electric-sql/pglite-plpgsql-check@file:vendor/electric-sql-pglite-plpgsql-check-0.0.1.tgz(@electric-sql/pglite@0.5.9)':
+  '@electric-sql/pglite-plpgsql-check@0.0.9(@electric-sql/pglite@0.5.16)':
     dependencies:
-      '@electric-sql/pglite': 0.5.9
+      '@electric-sql/pglite': 0.5.16
 
-  '@electric-sql/pglite@0.5.9': {}
+  '@electric-sql/pglite@0.5.16': {}
 
   '@esbuild/aix-ppc64@0.27.7':
     optional: true
