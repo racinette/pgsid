@@ -362,7 +362,11 @@ function typescriptChecks(
   const items = [...runtime.items, ...checks.items]
   const options = { ...checkValueOptions(items), split: true, schemaImportPath }
   const typescript = splitCheckTypescriptChecks(
-    transpile({ schemaVersion: 1, items }, { ...options, module: 'checks' }),
+    transpile(
+      { schemaVersion: 1, items },
+      { ...options, module: 'checks' },
+      checkRustAsset('check-ts-prelude.ts').toString('utf8'),
+    ),
     checks.items,
     runtime.typescriptFacts,
   )

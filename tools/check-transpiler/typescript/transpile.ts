@@ -1078,10 +1078,10 @@ class Transpiler {
     return declarations
   }
 
-  transpile(runtimePrelude?: string): string {
+  transpile(runtimePrelude: string): string {
     const source = ts.createSourceFile(
       'runtime-prelude.ts',
-      runtimePrelude ?? readFileSync(new URL('./runtime-prelude.ts', import.meta.url), 'utf8'),
+      runtimePrelude,
       ts.ScriptTarget.Latest,
       true,
       ts.ScriptKind.TS,
@@ -1165,8 +1165,8 @@ class Transpiler {
 
 export function transpile(
   document: Document,
-  options: TranspileOptions = {},
-  runtimePrelude?: string,
+  options: TranspileOptions,
+  runtimePrelude: string,
 ): string {
   return new Transpiler(document, options).transpile(runtimePrelude)
 }
@@ -1174,5 +1174,9 @@ export function transpile(
 if (process.argv[1]?.endsWith('/transpile.ts')) {
   const [source, output] = process.argv.slice(2)
   if (!source || !output) throw new Error('usage: transpile.ts AST_JSON OUTPUT_TS')
-  writeFileSync(output, transpile(JSON.parse(readFileSync(source, 'utf8')) as Document))
+  const prelude = readFileSync(new URL('./runtime-prelude.ts', import.meta.url), 'utf8')
+  writeFileSync(
+    output,
+    transpile(JSON.parse(readFileSync(source, 'utf8')) as Document, {}, prelude),
+  )
 }
