@@ -19,9 +19,8 @@ function identityParts(identity: CheckConstraintIdentity): string[] {
   return parts
 }
 
-export function checkRustEntryName(identity: CheckConstraintIdentity): string {
-  const parts = identityParts(identity)
-  const canonical = JSON.stringify(['check', ...parts])
+function hashedEntryName(kind: 'check' | 'value', parts: readonly string[]): string {
+  const canonical = JSON.stringify([kind, ...parts])
   const digest = createHash('sha256').update(canonical, 'utf8').digest('hex')
   const suffix = (BigInt(`0x${digest}`) % 36n ** 4n).toString(36).padStart(4, '0')
   const readable = parts.map(
@@ -31,7 +30,16 @@ export function checkRustEntryName(identity: CheckConstraintIdentity): string {
         .replace(/[^a-z0-9]+/gu, '_')
         .replace(/^_+|_+$/gu, '') || 'unnamed',
   )
-  return `evaluate_check_${readable.join('_')}_h${suffix}`
+  return `evaluate_${kind}_${readable.join('_')}_h${suffix}`
+}
+
+export function checkRustEntryName(identity: CheckConstraintIdentity): string {
+  return hashedEntryName('check', identityParts(identity))
+}
+
+// The entry computing one expression's value; the name parts say which expression it is.
+export function checkRustValueEntryName(...parts: readonly string[]): string {
+  return hashedEntryName('value', parts)
 }
 
 export function assertUniqueCheckEntryNames(identities: readonly CheckConstraintIdentity[]): void {

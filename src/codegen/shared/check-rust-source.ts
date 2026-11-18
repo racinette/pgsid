@@ -242,3 +242,51 @@ export function prepareCheckRustGroup(
       : null,
   }
 }
+
+// Expressions evaluated for their values: one entry per expression, of the type it bound to,
+// assembled into one source like a group of checks.
+export function prepareCheckRustValueGroup(
+  values: readonly { expression: EvalBoolExpression; type: string; entryName: string }[],
+  executionContext: CheckExecutionContext = {},
+): {
+  values: readonly (
+    { kind: 'supported'; entryName: string; type: string } | { kind: 'unsupported'; reason: string }
+  )[]
+  source: CheckRustSource | null
+} {
+  const prepared = values.map(({ expression, type, entryName }) => {
+    try {
+      return {
+        kind: 'supported' as const,
+        type,
+        evaluator: emitCheckRustEvaluator(expression, undefined, executionContext, false, {
+          entryName,
+          type,
+        }),
+      }
+    } catch (error) {
+      if (error instanceof UnsupportedCheckRustExpression)
+        return { kind: 'unsupported' as const, reason: error.message }
+      throw error
+    }
+  })
+  const supported = prepared.flatMap((item) => (item.kind === 'supported' ? [item.evaluator] : []))
+  const declarations = new Map(
+    supported.flatMap((item) => item.sharedDeclarations.map((d) => [d.name, d] as const)),
+  )
+  return {
+    values: prepared.map((item) =>
+      item.kind === 'supported'
+        ? { kind: 'supported', entryName: item.evaluator.entryName, type: item.type }
+        : item,
+    ),
+    source: supported.length
+      ? assembleCheckRust({
+          source: supported.map((item) => item.source).join('\n'),
+          sharedDeclarations: [...declarations.values()],
+          callables: [...new Set(supported.flatMap((item) => item.callables))],
+          requiresRegex: supported.some((item) => item.requiresRegex),
+        })
+      : null,
+  }
+}

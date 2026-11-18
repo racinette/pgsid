@@ -4,10 +4,11 @@ Each section, headed by a comment naming its case, is one generated evaluator
 module; a case the evaluator leaves undecided holds its reason instead. Generated evaluators keep to a dialect narrower than the transpiled
 runtime they call, so each one reads as a straight sequence of runtime calls:
 
-- Every function is a public entry, \`evaluate_check\`,
+- Every function is a public entry: a CHECK entry, \`evaluate_check\`,
   \`evaluate_check_diagnostic\` or \`evaluate_check_<name>_h<hash>\`, returning
-  \`CheckOutcome\` or \`CheckEvaluationResult\`. Parameters are immutable and
-  take one of the runtime's SQL value types.
+  \`CheckOutcome\` or \`CheckEvaluationResult\`, or a value entry,
+  \`evaluate_value_<name>_h<hash>\`, returning one of the runtime's SQL value
+  types. Parameters are immutable and take one of the runtime's SQL value types.
 - A body is a sequence of \`let\` bindings, assignments to mutable locals,
   \`if\` and \`while\` statements, ending in a bound value or a call. An
   untyped binding is immutable; a typed one is mutable and holds a SQL value,
@@ -96,6 +97,7 @@ const localTypes = new Set([
 ])
 const results = new Set(['CheckOutcome', 'CheckEvaluationResult'])
 const entry = /^evaluate_check(?:|_diagnostic|_[a-z0-9_]+_h[a-z0-9]{4})$/
+const valueEntry = /^evaluate_value_[a-z0-9_]+_h[a-z0-9]{4}$/
 const int4Max = 2147483647
 
 const named = (type) =>
@@ -214,10 +216,16 @@ class Evaluator {
       return this.report(item, 'only functions are in the evaluator dialect')
     if (names.has(item.name)) this.report(item, `duplicate function ${item.name}`)
     names.add(item.name)
-    if (!entry.test(item.name) || item.visibility !== 'public')
-      this.report(item, 'only CHECK evaluator entries are declared, and they are public')
-    if (!results.has(named(item.returnType)))
-      this.report(item, 'an entry returns CheckOutcome or CheckEvaluationResult')
+    const value = valueEntry.test(item.name)
+    if ((!value && !entry.test(item.name)) || item.visibility !== 'public')
+      this.report(item, 'only CHECK evaluator and value entries are declared, and they are public')
+    if (value ? !valueTypes.has(named(item.returnType)) : !results.has(named(item.returnType)))
+      this.report(
+        item,
+        value
+          ? 'a value entry returns a SQL value type'
+          : 'an entry returns CheckOutcome or CheckEvaluationResult',
+      )
     const bindings = new Map()
     for (const parameter of item.parameters) {
       if (!valueTypes.has(named(parameter.type)))

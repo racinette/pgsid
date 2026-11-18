@@ -2299,6 +2299,44 @@ const containsColumn = (node: unknown): boolean => {
   )
 }
 
+// An expression as a value of whatever type it binds to, over the given columns.
+export function bindCatalogValue(
+  root: unknown,
+  columns: readonly CheckColumn[] = [],
+  catalog: {
+    enums?: readonly EnumInfo[]
+    domains?: readonly DomainInfo[]
+    rangeTypes?: readonly RangeTypeInfo[]
+    compositeGraph?: CompositeTypeGraph
+  } = {},
+): { expression: EvalBoolExpression; inputs: readonly string[]; type: ScalarType | null } {
+  const bound = bindCatalogCheck(
+    columns,
+    root,
+    [],
+    catalog.enums,
+    catalog.domains,
+    [],
+    'source',
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    catalog.rangeTypes,
+    catalog.compositeGraph,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    'value',
+  )
+  return { ...bound, type: bound.type ?? null }
+}
+
 export function bindCatalogCheck(
   columns: readonly CheckColumn[],
   root: unknown,
@@ -2327,7 +2365,10 @@ export function bindCatalogCheck(
     unknown,
     { expression: EvalBoolExpression; inputs: readonly string[] } | undefined
   >,
-): { expression: EvalBoolExpression; inputs: readonly string[] } {
+  // A value root keeps the type it binds to; a boolean one keeps the CHECK lowering, whose
+  // three-valued logic covers forms a scalar binding does not.
+  result: 'check' | 'value' = 'check',
+): { expression: EvalBoolExpression; inputs: readonly string[]; type?: ScalarType | null } {
   if (rowCoercionContext && !rowCoercionContext.complete)
     return { expression: { kind: 'uncertain', reason: 'context' }, inputs: [] }
   rowCoercionSites ??= rowCoercionContext
@@ -9383,6 +9424,49 @@ export function bindCatalogCheck(
         ? (attachContainerInput(value) as EvalBoolExpression)
         : value
     return literalOrigin === 'stored' ? (annotate(expression) as EvalBoolExpression) : expression
+  }
+  if (result === 'value') {
+    const outer = unboundObstacles
+    const bound = new Set(inputs)
+    unboundObstacles = { context: false, other: false }
+    let value: Bound, obstacles: typeof unboundObstacles
+    try {
+      value = bind(root)
+    } finally {
+      obstacles = unboundObstacles
+      unboundObstacles = {
+        context: outer.context || obstacles.context,
+        other: outer.other || obstacles.other,
+      }
+    }
+    if (value.type !== null && value.type !== 'pg_catalog.bool') {
+      if (value.value)
+        return {
+          expression: finish({ kind: 'eval-scalar', expression: value.value }),
+          inputs: [...inputs].sort(),
+          type: value.type,
+        }
+      const opaque = runtimeOpaque(root)
+      return {
+        expression: {
+          kind: 'uncertain',
+          ...(opaque ? { preparation: 'runtime' as const } : {}),
+          ...(opaque || (obstacles.context && !obstacles.other)
+            ? { reason: 'context' as const }
+            : {}),
+        },
+        inputs: [],
+        type: value.type,
+      }
+    }
+    // The boolean lowering binds again, so names only the scalar attempt reached are dropped.
+    for (const name of [...inputs]) if (!bound.has(name)) inputs.delete(name)
+    const lowered = lower(root)
+    return {
+      expression: finish(lowered),
+      inputs: [...inputs].sort(),
+      type: value.type ?? (lowered.kind === 'uncertain' ? null : 'pg_catalog.bool'),
+    }
   }
   const lowered = lower(root)
   if (capturedExpressions)

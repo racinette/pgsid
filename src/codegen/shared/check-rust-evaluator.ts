@@ -954,6 +954,8 @@ export function emitCheckRustEvaluator(
   identity?: CheckConstraintIdentity,
   executionContext: CheckExecutionContext = {},
   preparationOnly = false,
+  // An entry that returns the expression's value of this type instead of a CHECK outcome.
+  value?: { entryName: string; type: string },
 ): {
   source: string
   sharedDeclarations: readonly { name: string; source: string }[]
@@ -994,7 +996,15 @@ export function emitCheckRustEvaluator(
   } | null = null
   let next = 0
   let requiresRegex = false
-  const entryName = identity ? checkRustEntryName(identity) : 'evaluate_check'
+  const valueEntry = value && value.type !== 'pg_catalog.bool' ? value : undefined
+  // A boolean value keeps the CHECK lowering under its own name and reads the outcome back.
+  const entryName = value
+    ? valueEntry
+      ? value.entryName
+      : value.entryName.replace(/^evaluate_value_/u, 'evaluate_check_value_')
+    : identity
+      ? checkRustEntryName(identity)
+      : 'evaluate_check'
   const fresh = (prefix: string): string => `${prefix}_${next++}`
   const indent = (lines: readonly string[]): string[] => lines.map((line) => `    ${line}`)
   const constantDeclarations: string[] = []
@@ -1158,7 +1168,7 @@ export function emitCheckRustEvaluator(
   }
   const hasPreparedXml = containsPreparedXml(expression)
   const diagnostics = new CheckRustDiagnostics(
-    !preparationOnly && hasPreparedXml,
+    !preparationOnly && !value && hasPreparedXml,
     fresh,
     rustType,
     ownedOperand,
@@ -10420,6 +10430,74 @@ export function emitCheckRustEvaluator(
   const validity = fresh('expression_validity')
   const validityDiagnosticLines: string[] = []
   const validityRequirement = diagnostics.declared(validity, validityDiagnosticLines, '0')
+  if (valueEntry) {
+    if (expression.kind !== 'eval-scalar' || preparationOnly)
+      throw new UnsupportedCheckRustExpression('A Rust value entry needs a bound scalar')
+    const used = new Set<string>()
+    const bindings: string[] = []
+    arrayValidityScope = validity
+    const result = emitScalar(expression.expression, bindings, used)
+    arrayValidityScope = null
+    if (result.type !== valueEntry.type)
+      throw new UnsupportedCheckRustExpression(
+        `A Rust value entry of ${valueEntry.type} computed ${result.type}`,
+      )
+    const valueType = rustType(result.type)
+    const fromGuard = `${rustValuePrefix(valueType)}_from_case_guard`
+    const resultName = fresh('entry_result')
+    const valueNull = fresh('entry_value_null')
+    const valueState = fresh('entry_value_state')
+    const merged = fresh('entry_validity')
+    // The CHECK entry's own merge, over the value's state: an unimplemented value outranks a
+    // validity that is only unknown, any other stopping validity replaces the value, and a value
+    // that is itself unresolved or an error stops on its own.
+    const evaluation = [
+      `let ${validityStart} = make_bool_value(true);`,
+      `let mut ${validity}: CheckOutcome = check_from_bool(${validityStart});`,
+      ...bindings,
+      `let ${valueNull} = ${rustValuePrefix(valueType)}_is_null(${ownedOperand({ name: result.name, type: result.type })});`,
+      `let ${valueState} = check_from_bool(${valueNull});`,
+      `let ${merged} = array_validity_result(${validity}, ${valueState});`,
+    ]
+    const settle = (assign: string): string[] => [
+      `${assign}${result.name};`,
+      `if case_guard_stops(${merged}) {`,
+      `    ${resultName} = ${fromGuard}(${merged});`,
+      '};',
+    ]
+    const start = fresh('preparation_start')
+    // A stopped preparation is the result; otherwise the evaluation replaces it.
+    const lines =
+      constantLines.length || literalLines.length
+        ? [
+            ...constantDeclarations,
+            `let ${start} = make_bool_value(true);`,
+            `let mut ${preparationState}: CheckOutcome = check_from_bool(${start});`,
+            ...(domainPreparationState ? [`${domainPreparationState} = ${preparationState};`] : []),
+            ...literalLines,
+            ...constantLines,
+            ...(domainPreparationState
+              ? [
+                  `${preparationState} = array_validity_finish(${domainPreparationState}, ${preparationState});`,
+                ]
+              : []),
+            `let mut ${resultName}: ${valueType} = ${fromGuard}(${preparationState});`,
+            `if case_guard_stops(${preparationState}) == false {`,
+            ...indent([...evaluation, ...settle(`${resultName} = `)]),
+            '};',
+          ]
+        : [...evaluation, ...settle(`let mut ${resultName}: ${valueType} = `)]
+    return {
+      source:
+        `pub fn ${entryName}(${parameters(used)}) -> ${valueType} {\n${indent(lines).join('\n')}\n    ${resultName}\n}\n` +
+        domainHelpers.join('\n'),
+      sharedDeclarations: [...sharedDeclarations.values()],
+      entryName,
+      inputs: ordered(used),
+      callables: [...callables],
+      requiresRegex,
+    }
+  }
   arrayValidityScope = validity
   const emitted = emit(expression)
   arrayValidityScope = null
@@ -10537,11 +10615,20 @@ export function emitCheckRustEvaluator(
       `pub fn ${diagnosticEntryName}(${parameters(entry.inputs)}) -> CheckEvaluationResult {\n${indent(detailLines).join('\n')}\n    make_check_evaluation_result(${resultName}, ${finished})\n}\n`
   } else
     source = `pub fn ${entryName}(${parameters(entry.inputs)}) -> CheckOutcome {\n${indent(lines).join('\n')}\n    ${resultName}\n}\n`
-  const bodySource = source + domainHelpers.join('\n')
+  const bodySource =
+    source +
+    domainHelpers.join('\n') +
+    (value
+      ? `\npub fn ${value.entryName}(${parameters(entry.inputs)}) -> BoolValue {\n    let outcome = ${entryName}(${ordered(
+          entry.inputs,
+        )
+          .map((item) => item.rustName)
+          .join(', ')});\n    bool_from_check(outcome)\n}\n`
+      : '')
   return {
     source: bodySource,
     sharedDeclarations: [...sharedDeclarations.values()],
-    entryName,
+    entryName: value?.entryName ?? entryName,
     ...(diagnosticEntryName ? { diagnosticEntryName } : {}),
     inputs: ordered(entry.inputs),
     callables: [...callables],

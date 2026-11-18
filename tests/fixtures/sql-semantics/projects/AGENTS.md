@@ -24,10 +24,11 @@ Each section, headed by a comment naming its case, is one generated evaluator
 module; a case the evaluator leaves undecided holds its reason instead. Generated evaluators keep to a dialect narrower than the transpiled
 runtime they call, so each one reads as a straight sequence of runtime calls:
 
-- Every function is a public entry, `evaluate_check`,
+- Every function is a public entry: a CHECK entry, `evaluate_check`,
   `evaluate_check_diagnostic` or `evaluate_check_<name>_h<hash>`, returning
-  `CheckOutcome` or `CheckEvaluationResult`. Parameters are immutable and
-  take one of the runtime's SQL value types.
+  `CheckOutcome` or `CheckEvaluationResult`, or a value entry,
+  `evaluate_value_<name>_h<hash>`, returning one of the runtime's SQL value
+  types. Parameters are immutable and take one of the runtime's SQL value types.
 - A body is a sequence of `let` bindings, assignments to mutable locals,
   `if` and `while` statements, ending in a bound value or a call. An
   untyped binding is immutable; a typed one is mutable and holds a SQL value,
