@@ -168,3 +168,40 @@ pub fn digits_quotient(dividend: Vec<usize>, divisor: Vec<usize>) -> Vec<usize> 
     }
     quotient
 }
+
+// count! without leading zero digits. Factors are taken in pairs whose product stays below
+// 10^11, so a digit times the pair, with its carry, stays within 64 bits.
+pub fn digits_factorial(count: i64) -> Vec<usize> {
+    // Least significant digit first while the product grows.
+    let mut slots: Vec<usize> = Vec::new();
+    slots.push(1);
+    let mut factor: i64 = 2i64;
+    while factor <= count {
+        let mut multiplier: i64 = factor;
+        factor = factor + 1i64;
+        if factor <= count && multiplier * factor < 100000000000i64 {
+            multiplier = multiplier * factor;
+            factor = factor + 1i64;
+        }
+        let mut carry: i64 = 0i64;
+        let mut index: usize = 0;
+        while index < slots.len() {
+            let value: i64 = ((slots[index] as i32) as i64) * multiplier + carry;
+            carry = value / 10000i64;
+            slots[index] = usize::try_from((value - carry * 10000i64) as i32).unwrap_or(0);
+            index += 1;
+        }
+        while carry > 0i64 {
+            let next: i64 = carry / 10000i64;
+            slots.push(usize::try_from((carry - next * 10000i64) as i32).unwrap_or(0));
+            carry = next;
+        }
+    }
+    let mut digits: Vec<usize> = Vec::new();
+    let mut index = slots.len();
+    while index > 0 {
+        index = index - 1;
+        digits.push(slots[index]);
+    }
+    digits
+}

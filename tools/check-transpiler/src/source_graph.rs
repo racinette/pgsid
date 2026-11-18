@@ -38,12 +38,13 @@ fn kernel_contract(declaration: &syn::Item) -> Result<()> {
         return Err("a kernel function is public".into());
     }
     let digits: syn::Type = syn::parse_quote!(Vec<usize>);
+    let integer: syn::Type = syn::parse_quote!(i64);
     for input in &function.sig.inputs {
         let syn::FnArg::Typed(argument) = input else {
             return Err("a kernel function takes no receiver".into());
         };
-        if *argument.ty != digits {
-            return Err("a kernel function takes digit vectors".into());
+        if *argument.ty != digits && *argument.ty != integer {
+            return Err("a kernel function takes digit vectors and 64-bit integers".into());
         }
     }
     match &function.sig.output {
@@ -386,6 +387,8 @@ mod tests {
         let document: serde_json::Value =
             serde_json::from_str(&parse(&graph(accepted)).unwrap()).unwrap();
         assert_eq!(document["items"][0]["kernel"], true);
+        let counted = "pub fn digits(left: Vec<usize>, count: i64) -> Vec<usize> { left }";
+        assert!(parse(&graph(counted)).is_ok());
         for rejected in [
             "fn digits(left: Vec<usize>) -> Vec<usize> { left }",
             "pub fn digits(left: Vec<usize>, scale: i32) -> Vec<usize> { left }",

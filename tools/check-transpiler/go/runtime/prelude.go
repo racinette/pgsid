@@ -305,11 +305,14 @@ func kernelDigitsToBig(digits []int) *big.Int {
 }
 
 func kernelDigitsFromBig(value *big.Int, length int) []int {
-	digits := make([]int, length)
 	if value.Sign() == 0 {
-		return digits
+		return make([]int, length)
 	}
-	text := value.Text(10)
+	return kernelDigitsFromText(value.Text(10), length)
+}
+
+func kernelDigitsFromText(text string, length int) []int {
+	digits := make([]int, length)
 	if len(text) > length*4 {
 		panic("kernel result exceeds its digits")
 	}
@@ -346,6 +349,11 @@ func kernelShortProduct(long []int, short []int) []int {
 		}
 	}
 	return product
+}
+
+func KernelDigitsFactorial(count int64) []int {
+	text := new(big.Int).MulRange(2, count).Text(10)
+	return kernelDigitsFromText(text, (len(text)+3)/4)
 }
 
 func KernelDigitsProduct(left []int, right []int) []int {

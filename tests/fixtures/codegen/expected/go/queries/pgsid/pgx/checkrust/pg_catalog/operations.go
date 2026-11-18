@@ -52799,17 +52799,9 @@ func FactorialTah6(input checkruntime.Int8Value) checkruntime.NumericValue {
 		if value < int64(0) || value > int64(32177) {
 			return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(numericSupportRangeError)}
 		}
-		result := numericVarFromI64(value)
-		if value <= int64(1) {
-			result = checkruntime.CopyNumericVar(numericVarFromI64(int64(1)))
-		}
-		factor := langruntime.CheckedI64Subtract(value, int64(1))
-		for factor > int64(1) {
-			fact := numericVarFromI64(factor)
-			result = checkruntime.CopyNumericVar(numericVarMul(&result, &fact, 0))
-			factor = langruntime.CheckedI64Subtract(factor, int64(1))
-		}
-		return numericVarResult(result)
+		digits := checkruntime.DigitsFactorial(value)
+		weight := langruntime.CheckedSignedSubtract((int(int32(len(digits)))), 1)
+		return numericVarResult(checkruntime.NumericVar{Sign: 1, Weight: weight, Dscale: 0, Digits: digits})
 	}
 	return checkruntime.NumericUnresolved(unresolvedFlavor)
 }

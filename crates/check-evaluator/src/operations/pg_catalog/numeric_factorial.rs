@@ -15,18 +15,16 @@ pub fn sql__pg_catalog__factorial__tah6(input: Int8Value) -> NumericValue {
         if value < 0i64 || value > 32177i64 {
             return NumericValue::Error(make_sql_error(NUMERIC_SUPPORT_RANGE_ERROR));
         }
-        // PostgreSQL's numeric_fac multiplies downwards from the argument.
-        let mut result = numeric_var_from_i64(value);
-        if value <= 1i64 {
-            result = numeric_var_from_i64(1i64);
-        }
-        let mut factor = value - 1i64;
-        while factor > 1i64 {
-            let fact = numeric_var_from_i64(factor);
-            result = numeric_var_mul(&result, &fact, 0);
-            factor = factor - 1i64;
-        }
-        return numeric_var_result(result);
+        // PostgreSQL's numeric_fac multiplies integers at scale zero, which no step rounds, so
+        // its result is the exact factorial.
+        let digits = digits_factorial(value);
+        let weight = (digits.len() as i32) - 1;
+        return numeric_var_result(NumericVar {
+            sign: 1,
+            weight: weight,
+            dscale: 0,
+            digits: digits,
+        });
     }
     numeric_unresolved(unresolved_flavor)
 }

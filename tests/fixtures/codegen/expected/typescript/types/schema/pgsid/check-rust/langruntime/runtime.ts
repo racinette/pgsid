@@ -108,11 +108,20 @@ export function checkedSignedRemainder(left: number, right: number): number {
         throw new RangeError('signed integer overflow');
     return left % right || 0;
 }
-export function checkedChar(value: string): string {
-    const points = Array.from(value);
-    if (points.length !== 1 || (value.codePointAt(0)! >= 0xd800 && value.codePointAt(0)! <= 0xdfff))
-        throw new RangeError('invalid Unicode scalar');
-    return value;
+export // One Unicode scalar: a single code unit outside the surrogates, or a high surrogate followed
+// by a low one. Checking the code units directly keeps every character of a long scan free of
+// allocation.
+function checkedChar(value: string): string {
+    const first = value.charCodeAt(0);
+    if (value.length === 1
+        ? first < 0xd800 || first > 0xdfff
+        : value.length === 2 &&
+            first >= 0xd800 &&
+            first <= 0xdbff &&
+            value.charCodeAt(1) >= 0xdc00 &&
+            value.charCodeAt(1) <= 0xdfff)
+        return value;
+    throw new RangeError('invalid Unicode scalar');
 }
 export function characterFromI32(value: number, fallback: string): string {
     checkedI32(value);
@@ -210,10 +219,12 @@ function kernelDigitsToBigInt(digits: number[]): bigint {
     return BigInt(groups.join(''));
 }
 export function kernelDigitsFromBigInt(value: bigint, length: number): number[] {
-    const digits = new Array<number>(length).fill(0);
     if (value === 0n)
-        return digits;
-    const text = value.toString();
+        return new Array<number>(length).fill(0);
+    return kernelDigitsFromText(value.toString(), length);
+}
+export function kernelDigitsFromText(text: string, length: number): number[] {
+    const digits = new Array<number>(length).fill(0);
     if (text.length > length * 4)
         throw new RangeError('kernel result exceeds its digits');
     const padded = text.padStart(length * 4, '0');

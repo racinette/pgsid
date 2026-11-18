@@ -116,11 +116,22 @@ function checkedSignedRemainder(left: number, right: number): number {
   return left % right || 0
 }
 
+// One Unicode scalar: a single code unit outside the surrogates, or a high surrogate followed
+// by a low one. Checking the code units directly keeps every character of a long scan free of
+// allocation.
 function checkedChar(value: string): string {
-  const points = Array.from(value)
-  if (points.length !== 1 || (value.codePointAt(0)! >= 0xd800 && value.codePointAt(0)! <= 0xdfff))
-    throw new RangeError('invalid Unicode scalar')
-  return value
+  const first = value.charCodeAt(0)
+  if (
+    value.length === 1
+      ? first < 0xd800 || first > 0xdfff
+      : value.length === 2 &&
+        first >= 0xd800 &&
+        first <= 0xdbff &&
+        value.charCodeAt(1) >= 0xdc00 &&
+        value.charCodeAt(1) <= 0xdfff
+  )
+    return value
+  throw new RangeError('invalid Unicode scalar')
 }
 
 function characterFromI32(value: number, fallback: string): string {
@@ -290,10 +301,25 @@ function kernelDigitsToBigInt(digits: number[]): bigint {
     groups[index] = String(checkedIndex(digits[index]!)).padStart(4, '0')
   return BigInt(groups.join(''))
 }
+function kernelRangeProduct(low: bigint, high: bigint): bigint {
+  if (high - low < 16n) {
+    let product = 1n
+    for (let factor = low; factor <= high; factor++) product *= factor
+    return product
+  }
+  const middle = (low + high) / 2n
+  return kernelRangeProduct(low, middle) * kernelRangeProduct(middle + 1n, high)
+}
+function kernelDigitsFactorial(count: bigint): number[] {
+  const text = kernelRangeProduct(2n, checkedI64(count)).toString()
+  return kernelDigitsFromText(text, Math.ceil(text.length / 4))
+}
 function kernelDigitsFromBigInt(value: bigint, length: number): number[] {
+  if (value === 0n) return new Array<number>(length).fill(0)
+  return kernelDigitsFromText(value.toString(), length)
+}
+function kernelDigitsFromText(text: string, length: number): number[] {
   const digits = new Array<number>(length).fill(0)
-  if (value === 0n) return digits
-  const text = value.toString()
   if (text.length > length * 4) throw new RangeError('kernel result exceeds its digits')
   const padded = text.padStart(length * 4, '0')
   for (let index = 0; index < length; index++)

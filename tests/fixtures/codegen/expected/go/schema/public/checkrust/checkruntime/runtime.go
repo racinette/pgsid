@@ -6089,6 +6089,9 @@ func DigitsProduct(left []int, right []int) []int {
 func DigitsQuotient(dividend []int, divisor []int) []int {
 	return langruntime.KernelDigitsQuotient(dividend, divisor)
 }
+func DigitsFactorial(count int64) []int {
+	return langruntime.KernelDigitsFactorial(count)
+}
 
 type NetworkWord struct {
 	Value int

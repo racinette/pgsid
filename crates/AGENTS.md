@@ -174,7 +174,8 @@ run natively; the Go and TypeScript language runtimes implement each function
 by hand with their own big integers, and translation calls those instead of the
 Rust body. Nothing that depends on PostgreSQL's behaviour, floating point or a
 setting belongs here: such code stays in the operations, translated from one
-source. Each function is public, takes and returns digit vectors, has a
+source. Each function is public, takes digit vectors and 64-bit integers and
+returns a digit vector, has a
 counterpart under the same name in both language runtimes, and is compared
 across all three by the kernel equivalence suite.
 

@@ -15,8 +15,9 @@ import {
 } from '../../tools/check-rust/parity.js'
 
 // Each kernel has a Rust reference body and a native implementation in every translated
-// target. The probe reads digit vectors written as four-character groups, runs a kernel and
-// compares its digits with an answer BigInt computes here, independently of all three.
+// target. The probe reads digit vectors written as four-character groups, or a decimal count,
+// runs a kernel and compares its digits with an answer BigInt computes here, independently of
+// all three.
 const probe = `
 fn kernel_probe_digits(text: String) -> Vec<usize> {
     let chars: Vec<char> = text.chars().collect();
@@ -57,6 +58,16 @@ pub fn kernel_probe(operation: Int4Value, left: TextValue, right: TextValue, exp
         if let TextValue::Value(first) = left {
             if let TextValue::Value(second) = right {
                 if let TextValue::Value(wanted) = expected {
+                    if code == 2 {
+                        let chars: Vec<char> = first.chars().collect();
+                        let mut count: i64 = 0i64;
+                        let mut index: usize = 0;
+                        while index < chars.len() {
+                            count = count * 10i64 + (((chars[index] as i32) - 48) as i64);
+                            index += 1;
+                        }
+                        return BoolValue::Value(kernel_probe_text(digits_factorial(count)) == wanted);
+                    }
                     let a = kernel_probe_digits(first);
                     let b = kernel_probe_digits(second);
                     if code == 0 {
@@ -109,7 +120,16 @@ const vectors: number[][] = [
   Array.from({ length: 301 }, (_, index) => (index % 3 === 0 ? 1 : 0)),
 ]
 
-it('computes exact digit products and quotients alike natively and in every target', async () => {
+// Counts around each change in the number of digits, a pair of factors per step either side of
+// an odd count, and the largest count numeric_fac accepts.
+const counts = [0, 1, 2, 3, 4, 7, 8, 12, 13, 20, 25, 100, 449, 1000, 3001, 32177]
+const factorial = (count: number) => {
+  let product = 1n
+  for (let factor = 2n; factor <= BigInt(count); factor++) product *= factor
+  return product
+}
+
+it('computes exact digit products, quotients and factorials alike natively and in every target', async () => {
   const entry = checkRustEntryName({
     schema: 'public',
     kind: 'table',
@@ -163,7 +183,20 @@ it('computes exact digit products and quotients alike natively and in every targ
         expected: { kind: 'True' },
       })
     }
-  expect(fixtures.length).toBeGreaterThan(vectors.length * vectors.length)
+  for (const count of counts) {
+    const product = factorial(count)
+    fixtures.push({
+      name: 'digits',
+      row: {
+        operation: value(2),
+        left: value(String(count)),
+        right: value(''),
+        expected: value(digitsFrom(product, Math.ceil(product.toString().length / 4))),
+      },
+      expected: { kind: 'True' },
+    })
+  }
+  expect(fixtures.length).toBeGreaterThan(vectors.length * vectors.length + counts.length)
   const directory = await mkdtemp(join(tmpdir(), 'pgsid-kernels-'))
   try {
     await runCheckParity(directory, 'kernelsparity', group, ['digits'], fixtures)
